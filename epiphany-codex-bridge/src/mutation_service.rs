@@ -73,6 +73,7 @@ use crate::jobs::derive_epiphany_jobs;
 use crate::jobs::epiphany_blocked_state_job;
 use crate::jobs::map_interrupted_epiphany_job;
 use crate::jobs::map_launched_epiphany_job;
+use crate::launch_context::append_verification_hands_receipt_context;
 use crate::launch_context::render_launch_dynamic_prompt_context;
 use crate::launch_context::reorient_launch_context_focus;
 use crate::launch_context::role_launch_context_focus;
@@ -704,12 +705,19 @@ pub async fn launch_thread_epiphany_role(
     validate_expected_revision(expected_revision, state.revision)?;
     let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
     let role_label = epiphany_role_label(role_id);
-    let dynamic_prompt_context = render_launch_dynamic_prompt_context(
+    let mut dynamic_prompt_context = render_launch_dynamic_prompt_context(
         runtime_store_path.as_path(),
         &state,
         role_launch_context_focus(&state, role_label),
     )
     .map_err(EpiphanyBridgeError::Fatal)?;
+    if role_id == EpiphanyRoleResultRoleId::Verification {
+        dynamic_prompt_context = append_verification_hands_receipt_context(
+            dynamic_prompt_context,
+            runtime_store_path.as_path(),
+            &state,
+        );
+    }
     let launch_request = build_epiphany_role_launch_request_with_dynamic_context(
         thread_id,
         role_id,

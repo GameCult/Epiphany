@@ -10,6 +10,7 @@ use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::plan_memory_graph_context_cut;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::render_epiphany_prompt_context;
+use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_memory_graph_snapshot;
 use std::path::Path;
@@ -91,6 +92,75 @@ pub fn render_launch_dynamic_prompt_context(
             memory_context,
         },
     ))
+}
+
+pub fn append_verification_hands_receipt_context(
+    mut context: String,
+    runtime_store_path: &Path,
+    state: &EpiphanyThreadState,
+) -> String {
+    let Some(accepted_at) = latest_accepted_verification_timestamp(state) else {
+        return context;
+    };
+    let Ok(Some(chain)) = runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
+    else {
+        return context;
+    };
+    context.push_str("\n\n<verification_hands_receipt_context>\n");
+    context.push_str(
+        "Soul is reviewing concrete Hands consequence evidence produced after the latest accepted Verification finding.\n",
+    );
+    context.push_str(&format!(
+        "- lowerBoundAcceptedVerificationAt: {accepted_at}\n"
+    ));
+    context.push_str(&format!("- intentId: {}\n", chain.intent_id));
+    context.push_str(&format!("- reviewId: {}\n", chain.review_id));
+    context.push_str(&format!("- runtimeJobId: {}\n", chain.runtime_job_id));
+    context.push_str(&format!(
+        "- receiptIds: patch={}, command={}, commit={}\n",
+        chain.patch_receipt_id, chain.command_receipt_id, chain.commit_receipt_id
+    ));
+    context.push_str(&format!(
+        "- command: `{}` exitCode={}\n",
+        chain.command, chain.exit_code
+    ));
+    context.push_str(&format!("- stdoutArtifact: {}\n", chain.stdout_artifact));
+    context.push_str(&format!("- stderrArtifact: {}\n", chain.stderr_artifact));
+    context.push_str(&format!(
+        "- commit: {} on branch {}\n",
+        chain.commit_sha, chain.branch
+    ));
+    if !chain.changed_paths.is_empty() {
+        context.push_str("- changedPaths:\n");
+        for path in chain.changed_paths {
+            context.push_str(&format!("  - {path}\n"));
+        }
+    }
+    context.push_str(&format!("- summary: {}\n", chain.summary));
+    context.push_str("- sourceRefs:\n");
+    context.push_str("  - epiphany-core/src/bin/epiphany-hands-action.rs\n");
+    context.push_str("  - epiphany-core/src/hands_gateway.rs\n");
+    context.push_str("  - epiphany-core/src/runtime_spine.rs\n");
+    context.push_str("  - epiphany-core/src/bin/epiphany-mvp-coordinator.rs\n");
+    context.push_str("  - epiphany-codex-bridge/src/coordinator.rs\n");
+    context.push_str(
+        "Use these receipts, artifacts, and source references as the concrete Hands evidence under review. Do not ask for generic receipt-path evidence without first judging this packet.\n",
+    );
+    context.push_str("</verification_hands_receipt_context>");
+    context
+}
+
+fn latest_accepted_verification_timestamp(state: &EpiphanyThreadState) -> Option<&str> {
+    state
+        .acceptance_receipts
+        .iter()
+        .filter(|receipt| {
+            receipt.role_id == "verification"
+                && receipt.surface == "roleAccept"
+                && receipt.status == "accepted"
+        })
+        .map(|receipt| receipt.accepted_at.as_str())
+        .max()
 }
 
 fn launch_memory_context(

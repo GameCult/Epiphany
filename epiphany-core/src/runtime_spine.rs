@@ -1423,6 +1423,32 @@ pub fn runtime_hands_receipt_chain_after(
     store_path: impl AsRef<Path>,
     after_timestamp: &str,
 ) -> Result<bool> {
+    Ok(runtime_latest_hands_receipt_chain_after(store_path, after_timestamp)?.is_some())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeHandsReceiptChainSummary {
+    pub patch_receipt_id: String,
+    pub command_receipt_id: String,
+    pub commit_receipt_id: String,
+    pub intent_id: String,
+    pub review_id: String,
+    pub runtime_job_id: String,
+    pub changed_paths: Vec<String>,
+    pub command: String,
+    pub exit_code: String,
+    pub stdout_artifact: String,
+    pub stderr_artifact: String,
+    pub commit_sha: String,
+    pub branch: String,
+    pub summary: String,
+    pub emitted_at: String,
+}
+
+pub fn runtime_latest_hands_receipt_chain_after(
+    store_path: impl AsRef<Path>,
+    after_timestamp: &str,
+) -> Result<Option<RuntimeHandsReceiptChainSummary>> {
     validate_non_empty(after_timestamp, "Hands receipt lower-bound timestamp")?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -1430,22 +1456,48 @@ pub fn runtime_hands_receipt_chain_after(
     let commands = cache.get_all::<HandsCommandReceipt>()?;
     let commits = cache.get_all::<HandsCommitReceipt>()?;
 
-    Ok(commits.iter().any(|commit| {
-        timestamp_after(&commit.emitted_at, after_timestamp)
-            && patches.iter().any(|patch| {
-                patch.intent_id == commit.intent_id
-                    && patch.review_id == commit.review_id
-                    && patch.runtime_job_id == commit.runtime_job_id
-                    && timestamp_after(&patch.emitted_at, after_timestamp)
-            })
-            && commands.iter().any(|command| {
-                command.intent_id == commit.intent_id
-                    && command.review_id == commit.review_id
-                    && command.runtime_job_id == commit.runtime_job_id
-                    && command.exit_code == "0"
-                    && timestamp_after(&command.emitted_at, after_timestamp)
-            })
-    }))
+    let mut summaries = Vec::new();
+    for commit in commits
+        .iter()
+        .filter(|commit| timestamp_after(&commit.emitted_at, after_timestamp))
+    {
+        let Some(patch) = patches.iter().find(|patch| {
+            patch.intent_id == commit.intent_id
+                && patch.review_id == commit.review_id
+                && patch.runtime_job_id == commit.runtime_job_id
+                && timestamp_after(&patch.emitted_at, after_timestamp)
+        }) else {
+            continue;
+        };
+        let Some(command) = commands.iter().find(|command| {
+            command.intent_id == commit.intent_id
+                && command.review_id == commit.review_id
+                && command.runtime_job_id == commit.runtime_job_id
+                && command.exit_code == "0"
+                && timestamp_after(&command.emitted_at, after_timestamp)
+        }) else {
+            continue;
+        };
+        summaries.push(RuntimeHandsReceiptChainSummary {
+            patch_receipt_id: patch.receipt_id.clone(),
+            command_receipt_id: command.receipt_id.clone(),
+            commit_receipt_id: commit.receipt_id.clone(),
+            intent_id: commit.intent_id.clone(),
+            review_id: commit.review_id.clone(),
+            runtime_job_id: commit.runtime_job_id.clone(),
+            changed_paths: commit.changed_paths.clone(),
+            command: command.command.clone(),
+            exit_code: command.exit_code.clone(),
+            stdout_artifact: command.stdout_artifact.clone(),
+            stderr_artifact: command.stderr_artifact.clone(),
+            commit_sha: commit.commit_sha.clone(),
+            branch: commit.branch.clone(),
+            summary: commit.summary.clone(),
+            emitted_at: commit.emitted_at.clone(),
+        });
+    }
+    summaries.sort_by(|left, right| left.emitted_at.cmp(&right.emitted_at));
+    Ok(summaries.pop())
 }
 
 pub fn put_soul_verdict_receipt(
@@ -3605,6 +3657,12 @@ mod tests {
             &store,
             "2026-05-06T00:06:45Z"
         )?);
+        let hands_chain = runtime_latest_hands_receipt_chain_after(&store, "2026-05-06T00:06:45Z")?
+            .expect("Hands receipt chain should summarize");
+        assert_eq!(hands_chain.patch_receipt_id, "hands-patch-1");
+        assert_eq!(hands_chain.command_receipt_id, "hands-command-1");
+        assert_eq!(hands_chain.commit_receipt_id, "hands-commit-1");
+        assert_eq!(hands_chain.exit_code, "0");
         assert!(!runtime_hands_receipt_chain_after(
             &store,
             "2026-05-06T00:07:15Z"
