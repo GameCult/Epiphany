@@ -65,8 +65,12 @@ Hands chain, not only the final patch receipt.
 `epiphany-mvp-coordinator` now turns `continueImplementation` into a persisted
 Substrate Gate grant plus Hands intent/review gate and exposes the receipt ids in
 the operator step.
+`epiphany-hands-action` is the first native consequence recorder for that gate:
+`record-patch`, `record-command`, and `record-commit` load the stored
+intent/review, reject mismatches, require an approved review, enforce allowed
+operations, and keep patch/commit changed paths inside the requested scope.
 
 This is still a gate and receipt artery, not full action execution. The next
-live-action cut must emit actual patch/command/commit receipts against the
-persisted gate after Substrate Gate grants access and before Soul/Mind call the
-result accepted.
+live-action cut must call the recorder from the implementation turn or local
+wrapper after real edits/checks/commit and before Soul/Mind call the result
+accepted.

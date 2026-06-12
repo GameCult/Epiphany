@@ -120,6 +120,7 @@ $statusExe = Join-Path $TargetDir "debug\epiphany-mvp-status.exe"
 $operatorRunExe = Join-Path $TargetDir "debug\epiphany-operator-run.exe"
 $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
 $verseQueryExe = Join-Path $TargetDir "debug\epiphany-verse-query.exe"
+$handsActionExe = Join-Path $TargetDir "debug\epiphany-hands-action.exe"
 $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
 $modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
@@ -158,6 +159,7 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-operator-run",
             "--bin", "epiphany-operator-snapshot",
             "--bin", "epiphany-verse-query",
+            "--bin", "epiphany-hands-action",
             "--bin", "epiphany-mvp-coordinator",
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
@@ -188,7 +190,7 @@ if (-not $SkipBuild) {
     }
 }
 
-$requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQueryExe)
+$requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQueryExe, $handsActionExe)
 if ($Mode -ne "status") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
 }
