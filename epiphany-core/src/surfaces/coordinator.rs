@@ -908,6 +908,21 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
+        && input.verification_result_accepted
+        && input.verification_result_allows_implementation
+        && !input.modeling_result_accepted_after_verification
+    {
+        return build(
+            EpiphanyCoordinatorAction::LaunchModeling,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "Soul has accepted the Hands consequence evidence; route Proprioception to update the machine model before another implementation turn.",
+        );
+    }
+
     if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && input.modeling_result_accepted
         && !input.verification_result_allows_implementation
@@ -1300,7 +1315,7 @@ mod tests {
     }
 
     #[test]
-    fn runs_modeling_then_verification_then_continue() {
+    fn routes_hands_to_soul_to_proprioception_before_next_hands_turn() {
         let launch_modeling = recommend_coordinator_action(input());
         assert_eq!(
             launch_modeling.action,
@@ -1462,6 +1477,20 @@ mod tests {
         });
         assert_eq!(
             accepted_pass.action,
+            EpiphanyCoordinatorAction::LaunchModeling
+        );
+
+        let modeled_after_pass = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: verification_done,
+            modeling_result_accepted: true,
+            modeling_result_reviewable: true,
+            modeling_result_accepted_after_verification: true,
+            verification_result_accepted: true,
+            verification_result_allows_implementation: true,
+            ..input()
+        });
+        assert_eq!(
+            modeled_after_pass.action,
             EpiphanyCoordinatorAction::ContinueImplementation
         );
     }

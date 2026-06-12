@@ -447,6 +447,7 @@ pub use runtime_spine::runtime_hands_action_review;
 pub use runtime_spine::runtime_hands_command_receipt;
 pub use runtime_spine::runtime_hands_commit_receipt;
 pub use runtime_spine::runtime_hands_patch_receipt;
+pub use runtime_spine::runtime_hands_receipt_chain_after;
 pub use runtime_spine::runtime_hello_frame;
 pub use runtime_spine::runtime_job_snapshot;
 pub use runtime_spine::runtime_mind_gateway_review;

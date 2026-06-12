@@ -39,6 +39,7 @@ use epiphany_core::recommend_crrc_action;
 use epiphany_core::render_epiphany_coordinator_note;
 use epiphany_core::render_role_board_note;
 use epiphany_core::reorient_finding_already_accepted;
+use epiphany_core::runtime_hands_receipt_chain_after;
 use epiphany_core::select_coordinator_automation_action;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
@@ -149,13 +150,22 @@ pub async fn derive_epiphany_coordinator_status(
     } else {
         (CoreEpiphanyCoordinatorRoleResultStatus::MissingState, None)
     };
-    let finding_signals = derive_coordinator_finding_signals(
+    let mut finding_signals = derive_coordinator_finding_signals(
         state,
         research_finding.as_ref(),
         modeling_finding.as_ref(),
         verification_finding.as_ref(),
         reorient_finding,
     );
+    if !finding_signals.implementation_evidence_after_verification
+        && runtime_hands_receipts_after_verification(
+            state,
+            runtime_store_path,
+            verification_finding.as_ref(),
+        )
+    {
+        finding_signals.implementation_evidence_after_verification = true;
+    }
     let core = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status: map_core_crrc_state_status_from_reorient(state_status),
         checkpoint_present,
@@ -198,6 +208,39 @@ pub async fn derive_epiphany_coordinator_status(
     );
 
     EpiphanyCoordinatorStatus { core, note }
+}
+
+fn runtime_hands_receipts_after_verification(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store_path: Option<&Path>,
+    verification_finding: Option<&epiphany_core::EpiphanyRoleFindingInterpretation>,
+) -> bool {
+    let Some(state) = state else {
+        return false;
+    };
+    let Some(runtime_store_path) = runtime_store_path else {
+        return false;
+    };
+    let Some(verification_finding) = verification_finding else {
+        return false;
+    };
+    let Some(result_id) = verification_finding.runtime_result_id.as_deref() else {
+        return false;
+    };
+    let Some(accepted_at) = state
+        .acceptance_receipts
+        .iter()
+        .find(|receipt| {
+            receipt.result_id == result_id
+                && receipt.role_id == "verification"
+                && receipt.surface == "roleAccept"
+                && receipt.status == "accepted"
+        })
+        .map(|receipt| receipt.accepted_at.as_str())
+    else {
+        return false;
+    };
+    runtime_hands_receipt_chain_after(runtime_store_path, accepted_at).unwrap_or(false)
 }
 
 pub type EpiphanyCoordinatorAutomationAction = CoreEpiphanyCoordinatorAutomationAction;

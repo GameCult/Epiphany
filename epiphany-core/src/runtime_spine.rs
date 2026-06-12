@@ -1419,6 +1419,35 @@ pub fn runtime_hands_commit_receipt(
     cache.get::<HandsCommitReceipt>(receipt_id)
 }
 
+pub fn runtime_hands_receipt_chain_after(
+    store_path: impl AsRef<Path>,
+    after_timestamp: &str,
+) -> Result<bool> {
+    validate_non_empty(after_timestamp, "Hands receipt lower-bound timestamp")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let patches = cache.get_all::<HandsPatchReceipt>()?;
+    let commands = cache.get_all::<HandsCommandReceipt>()?;
+    let commits = cache.get_all::<HandsCommitReceipt>()?;
+
+    Ok(commits.iter().any(|commit| {
+        timestamp_after(&commit.emitted_at, after_timestamp)
+            && patches.iter().any(|patch| {
+                patch.intent_id == commit.intent_id
+                    && patch.review_id == commit.review_id
+                    && patch.runtime_job_id == commit.runtime_job_id
+                    && timestamp_after(&patch.emitted_at, after_timestamp)
+            })
+            && commands.iter().any(|command| {
+                command.intent_id == commit.intent_id
+                    && command.review_id == commit.review_id
+                    && command.runtime_job_id == commit.runtime_job_id
+                    && command.exit_code == "0"
+                    && timestamp_after(&command.emitted_at, after_timestamp)
+            })
+    }))
+}
+
 pub fn put_soul_verdict_receipt(
     store_path: impl AsRef<Path>,
     receipt: &SoulVerdictReceipt,
@@ -3028,6 +3057,10 @@ fn validate_non_empty(value: &str, field: &str) -> Result<()> {
     Ok(())
 }
 
+fn timestamp_after(value: &str, lower_bound: &str) -> bool {
+    !value.trim().is_empty() && value > lower_bound
+}
+
 fn worker_launch_document_kind(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
     document.document_kind()
 }
@@ -3568,6 +3601,14 @@ mod tests {
         let stored_commit = runtime_hands_commit_receipt(&store, "hands-commit-1")?
             .expect("Hands commit receipt should persist");
         assert_eq!(stored_commit, hands_commit);
+        assert!(runtime_hands_receipt_chain_after(
+            &store,
+            "2026-05-06T00:06:45Z"
+        )?);
+        assert!(!runtime_hands_receipt_chain_after(
+            &store,
+            "2026-05-06T00:07:15Z"
+        )?);
         let stored_verdict = runtime_soul_verdict_receipt(&store, "soul-verdict-1")?
             .expect("Soul verdict should persist");
         assert_eq!(stored_verdict, soul_verdict);
