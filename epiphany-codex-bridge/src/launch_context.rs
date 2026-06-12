@@ -15,6 +15,9 @@ use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::plan_memory_graph_context_cut;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::render_epiphany_prompt_context;
+use epiphany_core::runtime_hands_command_receipt;
+use epiphany_core::runtime_hands_commit_receipt;
+use epiphany_core::runtime_hands_patch_receipt;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
@@ -23,6 +26,7 @@ use epiphany_state_model::EpiphanyAcceptanceReceipt;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 use uuid::Uuid;
 
 pub const EPIPHANY_LOCAL_VERSE_RUNTIME_ID: &str = "epiphany-local";
@@ -115,7 +119,13 @@ pub fn append_verification_hands_receipt_context(
     else {
         return Ok(context);
     };
-    let telemetry = work_loop_telemetry_from_hands_chain(&chain, state, accepted_at, Vec::new());
+    let telemetry = work_loop_telemetry_from_hands_chain(
+        &chain,
+        runtime_store_path,
+        state,
+        accepted_at,
+        Vec::new(),
+    );
     let telemetry_store = local_verse_store_path(runtime_store_path);
     write_epiphany_cultmesh_work_loop_telemetry(&telemetry_store, telemetry.clone()).map_err(
         |error| {
@@ -290,6 +300,7 @@ fn latest_accepted_soul_receipts(state: &EpiphanyThreadState) -> Vec<EpiphanyAcc
 
 fn work_loop_telemetry_from_hands_chain(
     chain: &RuntimeHandsReceiptChainSummary,
+    runtime_store_path: &Path,
     state: &EpiphanyThreadState,
     lower_bound_receipt_at: &str,
     soul_receipt_ids: Vec<String>,
@@ -341,6 +352,13 @@ fn work_loop_telemetry_from_hands_chain(
         ],
         soul_receipt_ids,
         summary: chain.summary.clone(),
+        receipt_payload_previews: receipt_payload_previews(runtime_store_path, chain),
+        commit_diff_preview: commit_diff_preview(runtime_store_path, chain),
+        verification_assertions: vec![
+            "cultmesh_integration::tests::work_loop_telemetry_round_trips_as_internal_cultmesh_document asserts the typed internal Verse document round-trips and is registered.".to_string(),
+            "launch_context::tests::verification_launch_context_includes_hands_receipt_chain seeds real runtime-spine Hands receipts, asserts Soul launch renders the packet, and asserts Modeling launch enriches the typed packet with Soul receipt ids.".to_string(),
+            "epiphany-mvp-coordinator binary tests keep the Hands gate and coordinator routing surface compiling under the executable coordinator harness.".to_string(),
+        ],
     }
 }
 
@@ -403,8 +421,163 @@ fn render_work_loop_telemetry(telemetry: &EpiphanyCultMeshWorkLoopTelemetryEntry
             rendered.push_str(&format!("  - {preview}\n"));
         }
     }
+    if !telemetry.receipt_payload_previews.is_empty() {
+        rendered.push_str("- resolvedReceiptPayloadPreviews:\n");
+        for payload in &telemetry.receipt_payload_previews {
+            rendered.push_str(&format!("  - {}\n", payload.replace('\n', "\n    ")));
+        }
+    }
+    if !telemetry.commit_diff_preview.trim().is_empty() {
+        rendered.push_str("- commitDiffPreview:\n");
+        rendered.push_str(&format!(
+            "  {}\n",
+            telemetry.commit_diff_preview.replace('\n', "\n  ")
+        ));
+    }
+    if !telemetry.source_refs.is_empty() {
+        rendered.push_str("- sourceRefs:\n");
+        for source_ref in &telemetry.source_refs {
+            rendered.push_str(&format!("  - {source_ref}\n"));
+        }
+    }
+    if !telemetry.source_path_proof.is_empty() {
+        rendered.push_str("- sourcePathProof:\n");
+        for proof in &telemetry.source_path_proof {
+            rendered.push_str(&format!("  - {proof}\n"));
+        }
+    }
+    if !telemetry.verification_assertions.is_empty() {
+        rendered.push_str("- verificationAssertions:\n");
+        for assertion in &telemetry.verification_assertions {
+            rendered.push_str(&format!("  - {assertion}\n"));
+        }
+    }
     rendered.push_str(&format!("- summary: {}\n", telemetry.summary));
     rendered
+}
+
+fn receipt_payload_previews(
+    runtime_store_path: &Path,
+    chain: &RuntimeHandsReceiptChainSummary,
+) -> Vec<String> {
+    let patch = runtime_hands_patch_receipt(runtime_store_path, chain.patch_receipt_id.as_str())
+        .ok()
+        .flatten()
+        .map(|receipt| {
+            format!(
+                "patch: schemaVersion={} receiptId={} intentId={} reviewId={} runtimeJobId={} changedPaths={} emittedAt={} summary={} contract={}",
+                receipt.schema_version,
+                receipt.receipt_id,
+                receipt.intent_id,
+                receipt.review_id,
+                receipt.runtime_job_id,
+                receipt.changed_paths.join(", "),
+                receipt.emitted_at,
+                receipt.summary,
+                receipt.contract
+            )
+        })
+        .unwrap_or_else(|| {
+            format!(
+                "patch: receipt {} could not be resolved from runtime-spine",
+                chain.patch_receipt_id
+            )
+        });
+    let command =
+        runtime_hands_command_receipt(runtime_store_path, chain.command_receipt_id.as_str())
+            .ok()
+            .flatten()
+            .map(|receipt| {
+                format!(
+                    "command: schemaVersion={} receiptId={} intentId={} reviewId={} runtimeJobId={} command=`{}` exitCode={} stdoutArtifact={} stderrArtifact={} emittedAt={} summary={} contract={}",
+                    receipt.schema_version,
+                    receipt.receipt_id,
+                    receipt.intent_id,
+                    receipt.review_id,
+                    receipt.runtime_job_id,
+                    receipt.command,
+                    receipt.exit_code,
+                    receipt.stdout_artifact,
+                    receipt.stderr_artifact,
+                    receipt.emitted_at,
+                    receipt.summary,
+                    receipt.contract
+                )
+            })
+            .unwrap_or_else(|| {
+                format!(
+                    "command: receipt {} could not be resolved from runtime-spine",
+                    chain.command_receipt_id
+                )
+            });
+    let commit = runtime_hands_commit_receipt(runtime_store_path, chain.commit_receipt_id.as_str())
+        .ok()
+        .flatten()
+        .map(|receipt| {
+            format!(
+                "commit: schemaVersion={} receiptId={} intentId={} reviewId={} runtimeJobId={} commitSha={} branch={} changedPaths={} emittedAt={} summary={} contract={}",
+                receipt.schema_version,
+                receipt.receipt_id,
+                receipt.intent_id,
+                receipt.review_id,
+                receipt.runtime_job_id,
+                receipt.commit_sha,
+                receipt.branch,
+                receipt.changed_paths.join(", "),
+                receipt.emitted_at,
+                receipt.summary,
+                receipt.contract
+            )
+        })
+        .unwrap_or_else(|| {
+            format!(
+                "commit: receipt {} could not be resolved from runtime-spine",
+                chain.commit_receipt_id
+            )
+        });
+    vec![patch, command, commit]
+}
+
+fn commit_diff_preview(
+    runtime_store_path: &Path,
+    chain: &RuntimeHandsReceiptChainSummary,
+) -> String {
+    let Some(repo_root) = runtime_store_path
+        .parent()
+        .and_then(Path::parent)
+        .filter(|path| path.join(".git").exists())
+    else {
+        return "<commit diff preview unavailable: runtime store is not under a git workspace>"
+            .to_string();
+    };
+    if chain.commit_sha.trim().is_empty() {
+        return "<commit diff preview unavailable: empty commit sha>".to_string();
+    }
+    let output = Command::new("git")
+        .current_dir(repo_root)
+        .arg("show")
+        .arg("--stat")
+        .arg("--patch")
+        .arg("--format=medium")
+        .arg(chain.commit_sha.as_str())
+        .arg("--")
+        .args(chain.changed_paths.iter().map(String::as_str))
+        .output();
+    let Ok(output) = output else {
+        return "<commit diff preview unavailable: git show failed to start>".to_string();
+    };
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return compact_preview(
+            &format!(
+                "<commit diff preview unavailable: git show exited {:?}: {}>",
+                output.status.code(),
+                stderr
+            ),
+            1600,
+        );
+    }
+    compact_preview(&String::from_utf8_lossy(&output.stdout), 3200)
 }
 
 fn artifact_preview(path: &str) -> String {
@@ -688,8 +861,10 @@ mod tests {
         assert!(context.contains("hands-command-context"));
         assert!(context.contains("hands-commit-context"));
         assert!(context.contains("resolvedReceiptPayloads"));
+        assert!(context.contains("resolvedReceiptPayloadPreviews"));
         assert!(context.contains("test result: ok"));
         assert!(context.contains("sourcePathProof"));
+        assert!(context.contains("verificationAssertions"));
         let telemetry = load_latest_epiphany_cultmesh_work_loop_telemetry(
             local_verse_store_path(&runtime_store),
             EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
@@ -706,6 +881,28 @@ mod tests {
             telemetry.target_stages,
             vec!["soul".to_string(), "proprioception".to_string()]
         );
+        assert!(
+            telemetry
+                .receipt_payload_previews
+                .iter()
+                .any(|payload| payload.contains("patch: schemaVersion="))
+        );
+        assert!(
+            telemetry
+                .receipt_payload_previews
+                .iter()
+                .any(|payload| payload.contains("command: schemaVersion="))
+        );
+        assert!(
+            telemetry
+                .receipt_payload_previews
+                .iter()
+                .any(|payload| payload.contains("commit: schemaVersion="))
+        );
+        assert!(!telemetry.commit_diff_preview.trim().is_empty());
+        assert!(telemetry.verification_assertions.iter().any(|assertion| {
+            assertion.contains("verification_launch_context_includes_hands_receipt_chain")
+        }));
 
         let modeling_context = append_modeling_work_loop_telemetry_context(
             "<epiphany_dynamic_context></epiphany_dynamic_context>".to_string(),

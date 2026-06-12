@@ -313,6 +313,12 @@ pub struct EpiphanyCultMeshWorkLoopTelemetryEntry {
     pub soul_receipt_ids: Vec<String>,
     #[cultcache(key = 27)]
     pub summary: String,
+    #[cultcache(key = 28, default)]
+    pub receipt_payload_previews: Vec<String>,
+    #[cultcache(key = 29, default)]
+    pub commit_diff_preview: String,
+    #[cultcache(key = 30, default)]
+    pub verification_assertions: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -1525,6 +1531,9 @@ mod tests {
             source_path_proof: vec!["runtime-spine persisted Hands receipts".to_string()],
             soul_receipt_ids: vec!["accept-verification-test".to_string()],
             summary: "Hands consequence telemetry for the work loop.".to_string(),
+            receipt_payload_previews: vec!["patch receipt body".to_string()],
+            commit_diff_preview: "diff --git a/file b/file".to_string(),
+            verification_assertions: vec!["test asserts CultMesh round trip".to_string()],
         };
 
         write_epiphany_cultmesh_work_loop_telemetry(&store, telemetry.clone())?;
