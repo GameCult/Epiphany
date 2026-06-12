@@ -468,8 +468,13 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 break;
             }
             "continueImplementation" => {
-                let gate =
-                    record_hands_implementation_gate(&runtime_store, &thread_id, index, &status)?;
+                let gate = record_hands_implementation_gate(
+                    &runtime_store,
+                    &artifact_dir,
+                    &thread_id,
+                    index,
+                    &status,
+                )?;
                 push_event(
                     &mut step,
                     json!({"type": "handsActionGate", "gate": gate.clone()}),
@@ -846,6 +851,7 @@ fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> 
 
 fn record_hands_implementation_gate(
     runtime_store: &Path,
+    artifact_dir: &Path,
     thread_id: &str,
     step_index: usize,
     status: &Value,
@@ -930,8 +936,38 @@ fn record_hands_implementation_gate(
         "reviewId": review.review_id,
         "requestedPaths": requested_paths,
         "requiredReceipts": review.required_receipts,
+        "recordPassCommand": hands_record_pass_command(runtime_store, artifact_dir),
         "store": runtime_store,
     }))
+}
+
+fn hands_record_pass_command(runtime_store: &Path, artifact_dir: &Path) -> Value {
+    json!({
+        "executable": "epiphany-hands-action",
+        "args": [
+            "--store",
+            runtime_store,
+            "record-pass",
+            "--gate-summary",
+            artifact_dir.join("coordinator-summary.json"),
+            "--summary",
+            "<implementation pass summary>",
+            "--changed-path",
+            "<changed path>",
+            "--command",
+            "<verification command>",
+            "--exit-code",
+            "<exit code>",
+            "--stdout-artifact",
+            "<stdout artifact path>",
+            "--stderr-artifact",
+            "<stderr artifact path>",
+            "--commit-sha",
+            "<commit sha>",
+            "--branch",
+            "<branch>"
+        ],
+    })
 }
 
 fn implementation_requested_paths(status: &Value) -> Vec<String> {
@@ -1673,7 +1709,8 @@ mod tests {
             }
         });
 
-        let gate = record_hands_implementation_gate(&store, "thread-test", 2, &status)?;
+        let gate =
+            record_hands_implementation_gate(&store, temp.path(), "thread-test", 2, &status)?;
         let grant_id = gate["substrateGateGrantReceiptId"]
             .as_str()
             .expect("grant id");
@@ -1691,6 +1728,11 @@ mod tests {
         assert_eq!(grant.receipt_id, intent.substrate_gate_grant_receipt_id);
         assert_eq!(intent.intent_id, review.intent_id);
         assert_eq!(intent.requested_action, "continueImplementation");
+        assert_eq!(
+            gate.pointer("/recordPassCommand/executable")
+                .and_then(serde_json::Value::as_str),
+            Some("epiphany-hands-action")
+        );
         assert_eq!(
             review.required_receipts,
             vec![
