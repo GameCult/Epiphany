@@ -14,6 +14,7 @@ use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use serde_json::json;
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 
 const DEFAULT_STORE: &str = "state/runtime-spine.msgpack";
@@ -24,6 +25,7 @@ fn main() -> Result<()> {
         Command::RecordPatch(command) => record_patch(&args.store, command)?,
         Command::RecordCommand(command) => record_command(&args.store, command)?,
         Command::RecordCommit(command) => record_commit(&args.store, command)?,
+        Command::RecordPass(command) => record_pass(&args.store, command)?,
     };
     println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
@@ -40,12 +42,14 @@ enum Command {
     RecordPatch(RecordPatchArgs),
     RecordCommand(RecordCommandArgs),
     RecordCommit(RecordCommitArgs),
+    RecordPass(RecordPassArgs),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct GateArgs {
-    intent_id: String,
-    review_id: String,
+    intent_id: Option<String>,
+    review_id: Option<String>,
+    gate_summary: Option<PathBuf>,
     receipt_id: Option<String>,
     summary: String,
 }
@@ -73,6 +77,18 @@ struct RecordCommitArgs {
     changed_paths: Vec<String>,
 }
 
+#[derive(Debug)]
+struct RecordPassArgs {
+    gate: GateArgs,
+    command: String,
+    exit_code: String,
+    stdout_artifact: String,
+    stderr_artifact: String,
+    commit_sha: String,
+    branch: String,
+    changed_paths: Vec<String>,
+}
+
 impl Args {
     fn parse() -> Result<Self> {
         let mut tokens = env::args().skip(1).peekable();
@@ -86,6 +102,7 @@ impl Args {
             "record-patch" => Command::RecordPatch(parse_record_patch(tokens)?),
             "record-command" => Command::RecordCommand(parse_record_command(tokens)?),
             "record-commit" => Command::RecordCommit(parse_record_commit(tokens)?),
+            "record-pass" => Command::RecordPass(parse_record_pass(tokens)?),
             _ => return Err(anyhow!("unknown command {command_name}\n{}", usage())),
         };
         Ok(Self { store, command })
@@ -143,6 +160,32 @@ fn parse_record_commit(tokens: impl Iterator<Item = String>) -> Result<RecordCom
     })
 }
 
+fn parse_record_pass(tokens: impl Iterator<Item = String>) -> Result<RecordPassArgs> {
+    let mut options = ParsedOptions::parse(tokens)?;
+    let gate = options.take_gate()?;
+    let command = options.take_required("--command")?;
+    let exit_code = options.take_required("--exit-code")?;
+    let stdout_artifact = options.take_required("--stdout-artifact")?;
+    let stderr_artifact = options.take_required("--stderr-artifact")?;
+    let commit_sha = options.take_required("--commit-sha")?;
+    let branch = options.take_required("--branch")?;
+    let changed_paths = options.take_many("--changed-path");
+    options.finish()?;
+    if changed_paths.is_empty() {
+        return Err(anyhow!("record-pass requires at least one --changed-path"));
+    }
+    Ok(RecordPassArgs {
+        gate,
+        command,
+        exit_code,
+        stdout_artifact,
+        stderr_artifact,
+        commit_sha,
+        branch,
+        changed_paths,
+    })
+}
+
 #[derive(Debug, Default)]
 struct ParsedOptions {
     values: Vec<(String, String)>,
@@ -163,9 +206,23 @@ impl ParsedOptions {
     }
 
     fn take_gate(&mut self) -> Result<GateArgs> {
+        let intent_id = self.take_optional("--intent-id");
+        let review_id = self.take_optional("--review-id");
+        let gate_summary = self.take_optional("--gate-summary").map(PathBuf::from);
+        if gate_summary.is_none() && (intent_id.is_none() || review_id.is_none()) {
+            return Err(anyhow!(
+                "gate requires either --gate-summary or both --intent-id and --review-id"
+            ));
+        }
+        if gate_summary.is_some() && (intent_id.is_some() || review_id.is_some()) {
+            return Err(anyhow!(
+                "use either --gate-summary or explicit --intent-id/--review-id, not both"
+            ));
+        }
         Ok(GateArgs {
-            intent_id: self.take_required("--intent-id")?,
-            review_id: self.take_required("--review-id")?,
+            intent_id,
+            review_id,
+            gate_summary,
             receipt_id: self.take_optional("--receipt-id"),
             summary: self.take_required("--summary")?,
         })
@@ -296,17 +353,61 @@ fn record_commit(store: &PathBuf, args: RecordCommitArgs) -> Result<serde_json::
     }))
 }
 
+fn record_pass(store: &PathBuf, args: RecordPassArgs) -> Result<serde_json::Value> {
+    let patch = record_patch(
+        store,
+        RecordPatchArgs {
+            gate: pass_gate(&args.gate, "patch"),
+            changed_paths: args.changed_paths.clone(),
+        },
+    )?;
+    let command = record_command(
+        store,
+        RecordCommandArgs {
+            gate: pass_gate(&args.gate, "command"),
+            command: args.command,
+            exit_code: args.exit_code,
+            stdout_artifact: args.stdout_artifact,
+            stderr_artifact: args.stderr_artifact,
+        },
+    )?;
+    let commit = record_commit(
+        store,
+        RecordCommitArgs {
+            gate: pass_gate(&args.gate, "commit"),
+            commit_sha: args.commit_sha,
+            branch: args.branch,
+            changed_paths: args.changed_paths,
+        },
+    )?;
+    Ok(json!({
+        "status": "ok",
+        "type": "epiphany.hands.action_pass_receipts",
+        "patch": patch,
+        "command": command,
+        "commit": commit,
+    }))
+}
+
+fn pass_gate(gate: &GateArgs, operation: &str) -> GateArgs {
+    let mut gate = gate.clone();
+    gate.receipt_id = None;
+    gate.summary = format!("{} ({operation})", gate.summary);
+    gate
+}
+
 fn load_gate(
     store: &PathBuf,
     gate: &GateArgs,
     operation: &str,
 ) -> Result<(HandsActionIntent, HandsActionReview)> {
-    let intent = runtime_hands_action_intent(store, &gate.intent_id)
-        .with_context(|| format!("failed to load Hands intent {}", gate.intent_id))?
-        .ok_or_else(|| anyhow!("Hands intent {} was not found", gate.intent_id))?;
-    let review = runtime_hands_action_review(store, &gate.review_id)
-        .with_context(|| format!("failed to load Hands review {}", gate.review_id))?
-        .ok_or_else(|| anyhow!("Hands review {} was not found", gate.review_id))?;
+    let resolved = resolve_gate(gate)?;
+    let intent = runtime_hands_action_intent(store, &resolved.intent_id)
+        .with_context(|| format!("failed to load Hands intent {}", resolved.intent_id))?
+        .ok_or_else(|| anyhow!("Hands intent {} was not found", resolved.intent_id))?;
+    let review = runtime_hands_action_review(store, &resolved.review_id)
+        .with_context(|| format!("failed to load Hands review {}", resolved.review_id))?
+        .ok_or_else(|| anyhow!("Hands review {} was not found", resolved.review_id))?;
     if review.intent_id != intent.intent_id {
         return Err(anyhow!(
             "Hands review {} belongs to intent {}, not {}",
@@ -333,6 +434,56 @@ fn load_gate(
         ));
     }
     Ok((intent, review))
+}
+
+#[derive(Debug)]
+struct ResolvedGate {
+    intent_id: String,
+    review_id: String,
+}
+
+fn resolve_gate(gate: &GateArgs) -> Result<ResolvedGate> {
+    if let Some(summary_path) = &gate.gate_summary {
+        return resolve_gate_from_summary(summary_path);
+    }
+    Ok(ResolvedGate {
+        intent_id: gate
+            .intent_id
+            .clone()
+            .ok_or_else(|| anyhow!("--intent-id is required"))?,
+        review_id: gate
+            .review_id
+            .clone()
+            .ok_or_else(|| anyhow!("--review-id is required"))?,
+    })
+}
+
+fn resolve_gate_from_summary(path: &PathBuf) -> Result<ResolvedGate> {
+    let text = fs::read_to_string(path)
+        .with_context(|| format!("failed to read coordinator summary {}", path.display()))?;
+    let value: serde_json::Value = serde_json::from_str(&text)
+        .with_context(|| format!("failed to parse coordinator summary {}", path.display()))?;
+    let gate = value
+        .pointer("/finalAction/handsActionGate")
+        .or_else(|| value.pointer("/handsActionGate"))
+        .ok_or_else(|| {
+            anyhow!(
+                "{} does not contain finalAction.handsActionGate",
+                path.display()
+            )
+        })?;
+    let intent_id = gate
+        .get("intentId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow!("handsActionGate is missing intentId"))?;
+    let review_id = gate
+        .get("reviewId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow!("handsActionGate is missing reviewId"))?;
+    Ok(ResolvedGate {
+        intent_id: intent_id.to_string(),
+        review_id: review_id.to_string(),
+    })
 }
 
 fn validate_paths_within_gate(intent: &HandsActionIntent, paths: &[String]) -> Result<()> {
@@ -384,7 +535,7 @@ fn take_value(tokens: &mut impl Iterator<Item = String>, name: &str) -> Result<S
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-hands-action [--store path] <record-patch|record-command|record-commit> --intent-id id --review-id id --summary text ..."
+    "usage: epiphany-hands-action [--store path] <record-patch|record-command|record-commit|record-pass> (--gate-summary path | --intent-id id --review-id id) --summary text ..."
 }
 
 #[cfg(test)]
@@ -436,6 +587,47 @@ mod tests {
         assert!(runtime_hands_patch_receipt(&store, "hands-patch-test")?.is_some());
         assert!(runtime_hands_command_receipt(&store, "hands-command-test")?.is_some());
         assert!(runtime_hands_commit_receipt(&store, "hands-commit-test")?.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn record_pass_can_load_gate_from_coordinator_summary() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime-spine.msgpack");
+        seed_gate(&store, vec!["src".to_string()])?;
+        let summary_path = temp.path().join("coordinator-summary.json");
+        fs::write(
+            &summary_path,
+            serde_json::to_string_pretty(&json!({
+                "finalAction": {
+                    "handsActionGate": {
+                        "intentId": "hands-intent-test",
+                        "reviewId": "hands-review-test"
+                    }
+                }
+            }))?,
+        )?;
+
+        record_pass(
+            &store,
+            RecordPassArgs {
+                gate: GateArgs {
+                    intent_id: None,
+                    review_id: None,
+                    gate_summary: Some(summary_path),
+                    receipt_id: None,
+                    summary: "implementation pass".to_string(),
+                },
+                command: "cargo test".to_string(),
+                exit_code: "0".to_string(),
+                stdout_artifact: ".epiphany/stdout.log".to_string(),
+                stderr_artifact: ".epiphany/stderr.log".to_string(),
+                commit_sha: "def456".to_string(),
+                branch: "codex/test".to_string(),
+                changed_paths: vec!["src/lib.rs".to_string()],
+            },
+        )?;
+
         Ok(())
     }
 
@@ -531,8 +723,9 @@ mod tests {
 
     fn gate_args(receipt_id: &str) -> GateArgs {
         GateArgs {
-            intent_id: "hands-intent-test".to_string(),
-            review_id: "hands-review-test".to_string(),
+            intent_id: Some("hands-intent-test".to_string()),
+            review_id: Some("hands-review-test".to_string()),
+            gate_summary: None,
             receipt_id: Some(receipt_id.to_string()),
             summary: "test receipt".to_string(),
         }

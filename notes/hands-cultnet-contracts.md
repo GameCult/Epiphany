@@ -69,6 +69,9 @@ the operator step.
 `record-patch`, `record-command`, and `record-commit` load the stored
 intent/review, reject mismatches, require an approved review, enforce allowed
 operations, and keep patch/commit changed paths inside the requested scope.
+`record-pass --gate-summary <coordinator-summary.json>` consumes the
+coordinator artifact and emits patch, command, and commit receipts in one
+post-implementation call.
 
 This is still a gate and receipt artery, not full action execution. The next
 live-action cut must call the recorder from the implementation turn or local
