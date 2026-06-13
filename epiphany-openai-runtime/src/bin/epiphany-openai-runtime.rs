@@ -115,7 +115,14 @@ async fn main() -> Result<()> {
                     }
                 }
             } else {
-                run_worker_options(options).await?
+                match run_worker_options(options).await {
+                    Ok(summary) => summary,
+                    Err(err) => fail_worker_for_runtime_error(
+                        &timeout_store,
+                        &timeout_job_id,
+                        err.to_string(),
+                    )?,
+                }
             };
             timeout_guard.store(true, Ordering::SeqCst);
             print_json(&summary)?;
@@ -515,6 +522,29 @@ fn fail_worker_and_openai_jobs(
         "Inspect provider stream/request observability before relaunching the worker.".to_string(),
     );
     Ok(result)
+}
+
+fn fail_worker_for_runtime_error(
+    store_path: &Path,
+    job_id: &str,
+    error: String,
+) -> Result<serde_json::Value> {
+    let summary = format!("Worker runtime failed before producing usable output: {error}");
+    let result = fail_worker_and_openai_jobs(
+        store_path,
+        job_id,
+        summary.clone(),
+        "Inspect provider/tool transport and runtime adapter errors before relaunching the worker."
+            .to_string(),
+    )?;
+    Ok(json!({
+        "status": "runtime-error",
+        "jobId": job_id,
+        "workerResultId": result.result_id,
+        "verdict": result.verdict,
+        "summary": summary,
+        "nextSafeMove": result.next_safe_move,
+    }))
 }
 
 fn fail_worker_job_with_retry(
@@ -931,6 +961,74 @@ mod tests {
 
         assert_eq!(status["status"], "tool-loop-stalled");
         let snapshot = runtime_job_snapshot(&store, "worker-job-loop")?.expect("worker snapshot");
+        assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
+        assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_error_seals_outer_worker_job() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                session_id: "epiphany-main".to_string(),
+                objective: "Run typed worker.".to_string(),
+                coordinator_note: "test".to_string(),
+                job_id: "worker-job-runtime-error".to_string(),
+                role: "verification".to_string(),
+                binding_id: "verification-review-worker".to_string(),
+                authority_scope: "epiphany.role.verification".to_string(),
+                instruction: "Return the required role-result JSON.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "verification".to_string(),
+                        state_revision: 1,
+                        objective: Some("Verify runtime error sealing.".to_string()),
+                        dynamic_prompt_context: None,
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: Vec::new(),
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                organ_launch_contract: default_launch_organ_contract(
+                    "epiphany.role.verification",
+                    "role",
+                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+                ),
+                created_at: now(),
+            },
+        )?;
+
+        let status = fail_worker_for_runtime_error(
+            &store,
+            "worker-job-runtime-error",
+            "tool adapter exploded".to_string(),
+        )?;
+
+        assert_eq!(status["status"], "runtime-error");
+        assert!(
+            status["summary"]
+                .as_str()
+                .is_some_and(|summary| summary.contains("tool adapter exploded"))
+        );
+        let snapshot =
+            runtime_job_snapshot(&store, "worker-job-runtime-error")?.expect("worker snapshot");
         assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
         assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
         Ok(())
