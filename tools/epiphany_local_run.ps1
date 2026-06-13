@@ -12,6 +12,7 @@ param(
     [string]$FaceInput = "",
     [switch]$SkipBuild,
     [switch]$AutoReview,
+    [switch]$SupersedeFailedResults,
     [switch]$NoEphemeral,
     [switch]$SkipSleep
 )
@@ -388,6 +389,9 @@ if ($liveRuntimeMode) {
     )
     if ($AutoReview) {
         $runArgs += "--auto-review"
+    }
+    if ($SupersedeFailedResults) {
+        $runArgs += "--supersede-failed-results"
     }
     if ($Mode -eq "mvp" -and $ThreadId -eq "") {
         $runArgs += @("--bootstrap-local-state", "--bootstrap-objective", $FaceInput)

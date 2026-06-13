@@ -193,6 +193,7 @@ pub async fn derive_epiphany_coordinator_status(
         verification_result_covers_current_modeling: finding_signals
             .verification_result_covers_current_modeling,
         verification_result_accepted: finding_signals.verification_result_accepted,
+        verification_result_failure_reviewed: finding_signals.verification_result_failure_reviewed,
         verification_result_allows_implementation: finding_signals
             .verification_result_allows_implementation,
         verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,

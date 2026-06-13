@@ -33,6 +33,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
+use uuid::Uuid;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -82,6 +83,7 @@ struct Args {
     max_runtime_seconds: u64,
     ephemeral: bool,
     auto_review: bool,
+    supersede_failed_results: bool,
     auto_tools: bool,
     bootstrap_smoke_state: bool,
     bootstrap_local_state: bool,
@@ -116,6 +118,7 @@ impl Args {
             max_runtime_seconds: 180,
             ephemeral: true,
             auto_review: false,
+            supersede_failed_results: false,
             auto_tools: true,
             bootstrap_smoke_state: false,
             bootstrap_local_state: false,
@@ -168,6 +171,7 @@ impl Args {
                 "--ephemeral" => parsed.ephemeral = true,
                 "--no-ephemeral" => parsed.ephemeral = false,
                 "--auto-review" => parsed.auto_review = true,
+                "--supersede-failed-results" => parsed.supersede_failed_results = true,
                 "--auto-tools" => parsed.auto_tools = true,
                 "--no-auto-tools" => parsed.auto_tools = false,
                 "--test-complete-backend" => {
@@ -414,6 +418,23 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
+                }
+                if result["status"].as_str() == Some("failed") && args.supersede_failed_results {
+                    let superseded = supersede_failed_role_result(
+                        &mut client,
+                        &thread_id,
+                        role_id,
+                        revision,
+                        &result,
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
+                    );
+                    final_status = collect_coordinator_status(&mut client, &thread_id)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    continue;
                 }
                 let can_accept = args.auto_review
                     && role_result_auto_acceptable(role_id, &result)
@@ -1083,6 +1104,54 @@ fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
         "verification" => true,
         "research" | "modeling" | "imagination" => finding.get("statePatch").is_some(),
         _ => false,
+    }
+}
+
+fn supersede_failed_role_result(
+    client: &mut status_cli::AppServerClient,
+    thread_id: &str,
+    role_id: &str,
+    expected_revision: Option<i64>,
+    result: &Value,
+) -> Result<Value> {
+    let result_id = first_string_at(result, &[&["finding", "runtimeResultId"]])
+        .context("failed role result did not include finding.runtimeResultId")?;
+    let job_id = first_string_at(result, &[&["finding", "runtimeJobId"]])
+        .context("failed role result did not include finding.runtimeJobId")?;
+    let binding_id = first_string_at(result, &[&["bindingId"]])
+        .unwrap_or_else(|| default_binding_id_for_role(role_id));
+    let summary = first_string_at(result, &[&["finding", "summary"], &["note"]])
+        .unwrap_or_else(|| "Failed role result reviewed and superseded.".to_string());
+    let receipt = json!({
+        "id": format!("role-failure-review-{}", Uuid::new_v4()),
+        "result_id": result_id,
+        "job_id": job_id,
+        "binding_id": binding_id,
+        "surface": "roleFailureReview",
+        "role_id": role_id,
+        "status": "superseded",
+        "accepted_at": now(),
+        "summary": summary,
+    });
+    let mut payload = json!({
+        "threadId": thread_id,
+        "patch": {
+            "acceptanceReceipts": [receipt],
+        },
+    });
+    if let Some(revision) = expected_revision {
+        payload["expectedRevision"] = json!(revision);
+    }
+    client.send("thread/epiphany/update", Some(payload), true)
+}
+
+fn default_binding_id_for_role(role_id: &str) -> String {
+    match role_id {
+        "imagination" => epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.to_string(),
+        "research" => epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string(),
+        "modeling" => epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID.to_string(),
+        "verification" => epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
+        _ => role_id.to_string(),
     }
 }
 

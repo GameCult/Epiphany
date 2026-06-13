@@ -196,7 +196,9 @@ fn run_status(args: &Args) -> Result<Value> {
 
 fn run_codex_interrupt(args: &Args) -> Result<Value> {
     if args.source != StatusSource::Codex {
-        return Err(anyhow!("--interrupt-binding requires Codex/app-server status source"));
+        return Err(anyhow!(
+            "--interrupt-binding requires Codex/app-server status source"
+        ));
     }
     let thread_id = args
         .thread_id
@@ -403,6 +405,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         verification_result_covers_current_modeling: finding_signals
             .verification_result_covers_current_modeling,
         verification_result_accepted: finding_signals.verification_result_accepted,
+        verification_result_failure_reviewed: finding_signals.verification_result_failure_reviewed,
         verification_result_allows_implementation: finding_signals
             .verification_result_allows_implementation,
         verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,

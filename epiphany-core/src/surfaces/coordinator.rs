@@ -141,6 +141,7 @@ pub struct EpiphanyCoordinatorInput {
     pub verification_result_cites_implementation_evidence: bool,
     pub verification_result_covers_current_modeling: bool,
     pub verification_result_accepted: bool,
+    pub verification_result_failure_reviewed: bool,
     pub verification_result_allows_implementation: bool,
     pub verification_result_needs_evidence: bool,
     pub reorient_finding_accepted: bool,
@@ -179,6 +180,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub verification_result_cites_implementation_evidence: bool,
     pub verification_result_covers_current_modeling: bool,
     pub verification_result_accepted: bool,
+    pub verification_result_failure_reviewed: bool,
     pub verification_result_allows_implementation: bool,
     pub verification_result_needs_evidence: bool,
     pub reorient_finding_accepted: bool,
@@ -204,6 +206,7 @@ pub struct EpiphanyCoordinatorFindingSignals {
     pub verification_result_cites_implementation_evidence: bool,
     pub verification_result_covers_current_modeling: bool,
     pub verification_result_accepted: bool,
+    pub verification_result_failure_reviewed: bool,
     pub verification_result_allows_implementation: bool,
     pub verification_result_needs_evidence: bool,
     pub reorient_finding_accepted: bool,
@@ -270,6 +273,7 @@ pub fn derive_coordinator_status(
         verification_result_covers_current_modeling: input
             .verification_result_covers_current_modeling,
         verification_result_accepted: input.verification_result_accepted,
+        verification_result_failure_reviewed: input.verification_result_failure_reviewed,
         verification_result_allows_implementation: input.verification_result_allows_implementation,
         verification_result_needs_evidence: input.verification_result_needs_evidence,
         reorient_finding_accepted: input.reorient_finding_accepted,
@@ -309,6 +313,16 @@ pub fn derive_coordinator_finding_signals(
             role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Verification, finding)
         })
     });
+    let verification_result_failure_reviewed =
+        verification_finding.as_ref().is_some_and(|finding| {
+            state.is_some_and(|state| {
+                role_finding_failure_reviewed(
+                    state,
+                    EpiphanyCoordinatorRoleId::Verification,
+                    finding,
+                )
+            })
+        });
     let verification_result_cites_implementation_evidence = state.is_some_and(|state| {
         role_finding_cites_implementation_evidence(state, verification_finding)
     });
@@ -355,6 +369,7 @@ pub fn derive_coordinator_finding_signals(
         verification_result_cites_implementation_evidence,
         verification_result_covers_current_modeling,
         verification_result_accepted,
+        verification_result_failure_reviewed,
         verification_result_allows_implementation,
         verification_result_needs_evidence,
         reorient_finding_accepted,
@@ -409,6 +424,22 @@ fn role_finding_already_accepted(
     finding: &EpiphanyRoleFindingInterpretation,
 ) -> bool {
     role_finding_accepted_index(state, role_id, finding).is_some()
+}
+
+fn role_finding_failure_reviewed(
+    state: &EpiphanyThreadState,
+    role_id: EpiphanyCoordinatorRoleId,
+    finding: &EpiphanyRoleFindingInterpretation,
+) -> bool {
+    let Some(result_id) = finding.runtime_result_id.as_deref() else {
+        return false;
+    };
+    state.acceptance_receipts.iter().any(|receipt| {
+        receipt.result_id == result_id
+            && receipt.status == "superseded"
+            && receipt.surface == "roleFailureReview"
+            && receipt.role_id == coordinator_role_label(role_id)
+    })
 }
 
 fn role_finding_accepted_evidence_id(
@@ -502,11 +533,32 @@ fn role_finding_cites_implementation_evidence(
     let Some(finding) = finding else {
         return false;
     };
+    if role_finding_cites_complete_hands_receipt_chain(finding) {
+        return true;
+    }
     finding.evidence_ids.iter().any(|id| {
         state.recent_evidence.iter().any(|evidence| {
             evidence.id == *id && evidence.kind == "implementation-audit" && evidence.status == "ok"
         })
     })
+}
+
+fn role_finding_cites_complete_hands_receipt_chain(
+    finding: &EpiphanyRoleFindingInterpretation,
+) -> bool {
+    let has_patch = finding
+        .evidence_ids
+        .iter()
+        .any(|id| id.starts_with("hands-patch-"));
+    let has_command = finding
+        .evidence_ids
+        .iter()
+        .any(|id| id.starts_with("hands-command-"));
+    let has_commit = finding
+        .evidence_ids
+        .iter()
+        .any(|id| id.starts_with("hands-commit-"));
+    has_patch && has_command && has_commit
 }
 
 fn role_finding_accepted_index(
@@ -812,6 +864,20 @@ pub fn recommend_coordinator_action(
             true,
             false,
             "A verification/review finding is complete and must be reviewed before continuation.",
+        );
+    }
+
+    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
+        && !input.verification_result_accepted
+        && input.verification_result_failure_reviewed
+    {
+        return build(
+            EpiphanyCoordinatorAction::LaunchVerification,
+            Some(EpiphanyCoordinatorRoleId::Verification),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "The failed verification/review result has a supersession review receipt; relaunch Soul against the current evidence.",
         );
     }
 
@@ -1151,6 +1217,7 @@ mod tests {
             verification_result_cites_implementation_evidence: false,
             verification_result_covers_current_modeling: true,
             verification_result_accepted: false,
+            verification_result_failure_reviewed: false,
             verification_result_allows_implementation: false,
             verification_result_needs_evidence: false,
             reorient_finding_accepted: false,
@@ -1208,7 +1275,11 @@ mod tests {
             accepted_evidence_id: Some("ev-modeling".to_string()),
             summary: None,
         });
-        let modeling = finding("result-modeling", "job-modeling", vec!["ev-modeling".to_string()]);
+        let modeling = finding(
+            "result-modeling",
+            "job-modeling",
+            vec!["ev-modeling".to_string()],
+        );
         let verification = finding(
             "result-verification",
             "job-verification",
@@ -1226,6 +1297,75 @@ mod tests {
         assert!(signals.modeling_result_accepted);
         assert!(signals.verification_result_cites_implementation_evidence);
         assert!(signals.verification_result_covers_current_modeling);
+    }
+
+    #[test]
+    fn complete_hands_receipt_chain_lets_verification_cover_current_modeling() {
+        let mut state = EpiphanyThreadState::default();
+        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
+            id: "accept-modeling".to_string(),
+            result_id: "result-modeling".to_string(),
+            job_id: "job-modeling".to_string(),
+            binding_id: "modeling-checkpoint-worker".to_string(),
+            surface: "roleAccept".to_string(),
+            role_id: "modeling".to_string(),
+            status: "accepted".to_string(),
+            accepted_at: "2026-06-13T00:00:00Z".to_string(),
+            accepted_observation_id: None,
+            accepted_evidence_id: Some("ev-modeling".to_string()),
+            summary: None,
+        });
+        let modeling = finding(
+            "result-modeling",
+            "job-modeling",
+            vec!["ev-modeling".to_string()],
+        );
+        let verification = finding(
+            "result-verification",
+            "job-verification",
+            vec![
+                "hands-patch-1".to_string(),
+                "hands-command-1".to_string(),
+                "hands-commit-1".to_string(),
+            ],
+        );
+
+        let signals = derive_coordinator_finding_signals(
+            Some(&state),
+            None,
+            Some(&modeling),
+            Some(&verification),
+            None,
+        );
+
+        assert!(signals.modeling_result_accepted);
+        assert!(signals.verification_result_cites_implementation_evidence);
+        assert!(signals.verification_result_covers_current_modeling);
+    }
+
+    #[test]
+    fn derives_reviewed_failed_verification_from_supersession_receipt() {
+        let mut state = EpiphanyThreadState::default();
+        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
+            id: "failure-review".to_string(),
+            result_id: "result-verification".to_string(),
+            job_id: "job-verification".to_string(),
+            binding_id: "verification-review-worker".to_string(),
+            surface: "roleFailureReview".to_string(),
+            role_id: "verification".to_string(),
+            status: "superseded".to_string(),
+            accepted_at: "2026-06-13T00:00:00Z".to_string(),
+            accepted_observation_id: None,
+            accepted_evidence_id: None,
+            summary: Some("Old failed Soul result reviewed before relaunch.".to_string()),
+        });
+        let verification = finding("result-verification", "job-verification", Vec::new());
+
+        let signals =
+            derive_coordinator_finding_signals(Some(&state), None, None, Some(&verification), None);
+
+        assert!(signals.verification_result_failure_reviewed);
+        assert!(!signals.verification_result_accepted);
     }
 
     #[test]
@@ -1499,6 +1639,24 @@ mod tests {
             EpiphanyCoordinatorAction::ReviewVerificationResult
         );
         assert!(!review_failed_verification.can_auto_run);
+
+        let superseded_failed_verification =
+            recommend_coordinator_action(EpiphanyCoordinatorInput {
+                signals: EpiphanyCoordinatorSignals {
+                    research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
+                },
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                verification_result_failure_reviewed: true,
+                ..input()
+            });
+        assert_eq!(
+            superseded_failed_verification.action,
+            EpiphanyCoordinatorAction::LaunchVerification
+        );
+        assert!(superseded_failed_verification.can_auto_run);
 
         let verification_done = EpiphanyCoordinatorSignals {
             research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
