@@ -22,6 +22,7 @@ use epiphany_tool_adapter::tool_invocation_intent_key;
 use epiphany_tool_adapter::tool_invocation_receipt_key;
 use serde::Serialize;
 use serde_json::Value;
+use serde_json::json;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fs;
@@ -189,6 +190,9 @@ async fn execute_codex_mcp(
         .cwd
         .clone()
         .unwrap_or(std::env::current_dir().context("failed to resolve current directory")?);
+    if intent.server == "epiphany_source" {
+        return execute_builtin_epiphany_source(intent, options, &cwd);
+    }
     let codex_home = resolve_codex_home(options.codex_home.clone())?;
     let mcp_config = load_mcp_config(&codex_home).await?;
     let mut mcp_servers = effective_mcp_servers(&mcp_config, None);
@@ -233,6 +237,189 @@ async fn execute_codex_mcp(
         });
     cancel_token.cancel();
     Ok(serde_json::to_value(result?)?)
+}
+
+fn execute_builtin_epiphany_source(
+    intent: &EpiphanyToolInvocationIntent,
+    options: &RunOptions,
+    cwd: &Path,
+) -> Result<Value> {
+    let arguments = parse_arguments(&intent.arguments_json)?.unwrap_or(Value::Null);
+    match intent.tool_name.as_str() {
+        "read_file" => builtin_read_file(cwd, &arguments),
+        "git_show" => builtin_git_show(cwd, &arguments),
+        "read_hands_receipt" => builtin_read_hands_receipt(&options.store, &arguments),
+        other => Err(anyhow!("unknown built-in epiphany_source tool {:?}", other)),
+    }
+}
+
+fn builtin_read_file(cwd: &Path, arguments: &Value) -> Result<Value> {
+    let path = required_arg_string(arguments, "path")?;
+    let start_line = optional_arg_u64(arguments, "startLine")?
+        .unwrap_or(1)
+        .max(1) as usize;
+    let max_lines = optional_arg_u64(arguments, "maxLines")?
+        .unwrap_or(120)
+        .clamp(1, 240) as usize;
+    let path = resolve_read_path(cwd, path)?;
+    let text =
+        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
+    let lines = text
+        .lines()
+        .enumerate()
+        .skip(start_line.saturating_sub(1))
+        .take(max_lines)
+        .map(|(index, line)| format!("{}: {}", index + 1, line))
+        .collect::<Vec<_>>();
+    Ok(json!({
+        "path": path.display().to_string(),
+        "startLine": start_line,
+        "maxLines": max_lines,
+        "lineCount": text.lines().count(),
+        "content": lines.join("\n")
+    }))
+}
+
+fn builtin_git_show(cwd: &Path, arguments: &Value) -> Result<Value> {
+    let revision = required_arg_string(arguments, "revision")?;
+    let max_bytes = optional_arg_u64(arguments, "maxBytes")?
+        .unwrap_or(16_000)
+        .clamp(512, 24_000) as usize;
+    let mut command = std::process::Command::new("git");
+    command
+        .current_dir(cwd)
+        .arg("show")
+        .arg("--stat")
+        .arg("--patch")
+        .arg("--format=medium")
+        .arg(revision)
+        .arg("--");
+    if let Some(paths) = arguments.get("paths").and_then(Value::as_array) {
+        for path in paths.iter().filter_map(Value::as_str) {
+            command.arg(path);
+        }
+    }
+    let output = command.output().context("failed to run git show")?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Ok(json!({
+        "revision": revision,
+        "status": output.status.code(),
+        "success": output.status.success(),
+        "stdout": truncate_chars(&stdout, max_bytes),
+        "stderr": truncate_chars(&stderr, 4000)
+    }))
+}
+
+fn builtin_read_hands_receipt(store: &Path, arguments: &Value) -> Result<Value> {
+    let receipt_id = required_arg_string(arguments, "receiptId")?;
+    let kind = required_arg_string(arguments, "kind")?;
+    match kind {
+        "patch" => {
+            let receipt = epiphany_core::runtime_hands_patch_receipt(store, receipt_id)?
+                .ok_or_else(|| anyhow!("Hands patch receipt {:?} not found", receipt_id))?;
+            Ok(json!({
+                "kind": "patch",
+                "schemaVersion": receipt.schema_version,
+                "receiptId": receipt.receipt_id,
+                "intentId": receipt.intent_id,
+                "reviewId": receipt.review_id,
+                "runtimeJobId": receipt.runtime_job_id,
+                "changedPaths": receipt.changed_paths,
+                "summary": receipt.summary,
+                "emittedAt": receipt.emitted_at,
+                "contract": receipt.contract
+            }))
+        }
+        "command" => {
+            let receipt = epiphany_core::runtime_hands_command_receipt(store, receipt_id)?
+                .ok_or_else(|| anyhow!("Hands command receipt {:?} not found", receipt_id))?;
+            Ok(json!({
+                "kind": "command",
+                "schemaVersion": receipt.schema_version,
+                "receiptId": receipt.receipt_id,
+                "intentId": receipt.intent_id,
+                "reviewId": receipt.review_id,
+                "runtimeJobId": receipt.runtime_job_id,
+                "command": receipt.command,
+                "exitCode": receipt.exit_code,
+                "stdoutArtifact": receipt.stdout_artifact,
+                "stderrArtifact": receipt.stderr_artifact,
+                "summary": receipt.summary,
+                "emittedAt": receipt.emitted_at,
+                "contract": receipt.contract
+            }))
+        }
+        "commit" => {
+            let receipt = epiphany_core::runtime_hands_commit_receipt(store, receipt_id)?
+                .ok_or_else(|| anyhow!("Hands commit receipt {:?} not found", receipt_id))?;
+            Ok(json!({
+                "kind": "commit",
+                "schemaVersion": receipt.schema_version,
+                "receiptId": receipt.receipt_id,
+                "intentId": receipt.intent_id,
+                "reviewId": receipt.review_id,
+                "runtimeJobId": receipt.runtime_job_id,
+                "commitSha": receipt.commit_sha,
+                "branch": receipt.branch,
+                "changedPaths": receipt.changed_paths,
+                "summary": receipt.summary,
+                "emittedAt": receipt.emitted_at,
+                "contract": receipt.contract
+            }))
+        }
+        other => Err(anyhow!("unsupported Hands receipt kind {:?}", other)),
+    }
+}
+
+fn resolve_read_path(cwd: &Path, path: &str) -> Result<PathBuf> {
+    let requested = PathBuf::from(path);
+    let candidate = if requested.is_absolute() {
+        requested
+    } else {
+        cwd.join(requested)
+    };
+    let cwd = cwd
+        .canonicalize()
+        .with_context(|| format!("failed to canonicalize cwd {}", cwd.display()))?;
+    let candidate = candidate
+        .canonicalize()
+        .with_context(|| format!("failed to canonicalize requested path {}", path))?;
+    if !candidate.starts_with(&cwd) {
+        return Err(anyhow!(
+            "read path {} escapes workspace {}",
+            candidate.display(),
+            cwd.display()
+        ));
+    }
+    Ok(candidate)
+}
+
+fn required_arg_string<'a>(arguments: &'a Value, name: &str) -> Result<&'a str> {
+    arguments
+        .get(name)
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow!("missing required string argument {name:?}"))
+}
+
+fn optional_arg_u64(arguments: &Value, name: &str) -> Result<Option<u64>> {
+    match arguments.get(name) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_u64()
+            .map(Some)
+            .ok_or_else(|| anyhow!("argument {name:?} must be an unsigned integer")),
+    }
+}
+
+fn truncate_chars(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+    let mut truncated = text.chars().take(max_chars).collect::<String>();
+    truncated.push_str("\n...<truncated>");
+    truncated
 }
 
 async fn load_mcp_config(codex_home: &Path) -> Result<McpConfig> {
@@ -441,6 +628,12 @@ struct SmokeSummary {
 mod tests {
     use super::*;
 
+    fn unique_temp_dir(label: &str) -> Result<PathBuf> {
+        let path = std::env::temp_dir().join(format!("{label}-{}", unix_millis()));
+        fs::create_dir_all(&path)?;
+        Ok(path)
+    }
+
     #[test]
     fn parses_object_or_null_arguments_only() -> Result<()> {
         assert_eq!(parse_arguments("")?, None);
@@ -463,5 +656,80 @@ mod tests {
             "now",
         );
         assert!(validate_intent(&intent).is_err());
+    }
+
+    #[test]
+    fn builtin_epiphany_source_reads_bounded_file_slice() -> Result<()> {
+        let temp = unique_temp_dir("epiphany-source-read-file")?;
+        let source = temp.join("src.txt");
+        fs::write(&source, "one\ntwo\nthree\nfour\n")?;
+        let result = builtin_read_file(
+            &temp,
+            &json!({"path": "src.txt", "startLine": 2, "maxLines": 2}),
+        )?;
+
+        assert_eq!(result["startLine"], 2);
+        assert!(result["content"].as_str().unwrap().contains("2: two"));
+        assert!(result["content"].as_str().unwrap().contains("3: three"));
+        assert!(!result["content"].as_str().unwrap().contains("4: four"));
+        fs::remove_dir_all(&temp)?;
+        Ok(())
+    }
+
+    #[test]
+    fn builtin_epiphany_source_reads_hands_receipt_body() -> Result<()> {
+        let temp = unique_temp_dir("epiphany-source-read-receipt")?;
+        let store = temp.join("runtime-spine.msgpack");
+        epiphany_core::initialize_runtime_spine(
+            &store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "epiphany-source-test".to_string(),
+                display_name: "Epiphany Source Test".to_string(),
+                created_at: "2026-06-12T00:00:00Z".to_string(),
+            },
+        )?;
+        let intent = epiphany_core::HandsActionIntent {
+            schema_version: epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "hands-intent-test".to_string(),
+            runtime_job_id: "hands-job-test".to_string(),
+            binding_id: "implementation-worker".to_string(),
+            role: "epiphany-hands".to_string(),
+            authority_scope: "epiphany.role.implementation".to_string(),
+            requested_action: "continueImplementation".to_string(),
+            requested_paths: vec![".".to_string()],
+            substrate_gate_grant_receipt_id: "substrate-grant-test".to_string(),
+            requested_at: "2026-06-12T00:00:00Z".to_string(),
+            contract: "test intent".to_string(),
+        };
+        epiphany_core::put_hands_action_intent(&store, &intent)?;
+        let review = epiphany_core::hands_action_review_for_intent(
+            "hands-review-test".to_string(),
+            &intent,
+            "approved".to_string(),
+            vec!["patch".to_string()],
+            vec!["test".to_string()],
+            "2026-06-12T00:00:01Z".to_string(),
+        );
+        epiphany_core::put_hands_action_review(&store, &review)?;
+        let patch = epiphany_core::hands_patch_receipt_for_review(
+            "hands-patch-test".to_string(),
+            &intent,
+            &review,
+            vec!["epiphany-core/src/lib.rs".to_string()],
+            "patch summary".to_string(),
+            "2026-06-12T00:00:02Z".to_string(),
+        );
+        epiphany_core::put_hands_patch_receipt(&store, &patch)?;
+
+        let result = builtin_read_hands_receipt(
+            &store,
+            &json!({"kind": "patch", "receiptId": "hands-patch-test"}),
+        )?;
+
+        assert_eq!(result["kind"], "patch");
+        assert_eq!(result["receiptId"], "hands-patch-test");
+        assert_eq!(result["changedPaths"][0], "epiphany-core/src/lib.rs");
+        fs::remove_dir_all(&temp)?;
+        Ok(())
     }
 }

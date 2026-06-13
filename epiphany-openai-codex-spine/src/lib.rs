@@ -215,7 +215,11 @@ pub fn responses_body_from_epiphany(
             .into_iter()
             .map(openai_input_item_from_epiphany_input)
             .collect(),
-        tools: Vec::new(),
+        tools: request
+            .tools
+            .into_iter()
+            .map(openai_tool_from_epiphany_tool)
+            .collect::<Result<Vec<_>>>()?,
         tool_choice: "auto".to_string(),
         parallel_tool_calls: false,
         reasoning: Some(EpiphanyResponsesReasoning {
@@ -232,6 +236,20 @@ pub fn responses_body_from_epiphany(
         client_metadata: None,
     };
     serde_json::to_value(body).context("failed to encode typed Epiphany Responses body")
+}
+
+fn openai_tool_from_epiphany_tool(
+    tool: epiphany_openai_adapter::EpiphanyOpenAiToolDefinition,
+) -> Result<serde_json::Value> {
+    let parameters: serde_json::Value = serde_json::from_str(&tool.parameters_json)
+        .with_context(|| format!("tool {} parameters_json is not valid JSON", tool.name))?;
+    Ok(serde_json::json!({
+        "type": "function",
+        "name": tool.name,
+        "description": tool.description,
+        "parameters": parameters,
+        "strict": false
+    }))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -615,6 +633,18 @@ mod tests {
         request.reasoning_summary = Some("concise".to_string());
         request.service_tier = Some("flex".to_string());
         request.previous_response_id = Some("resp-1".to_string());
+        request
+            .tools
+            .push(epiphany_openai_adapter::EpiphanyOpenAiToolDefinition {
+                name: "mcp__epiphany_source__read_file".to_string(),
+                description: "Read a bounded file slice.".to_string(),
+                parameters_json: serde_json::json!({
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"]
+                })
+                .to_string(),
+            });
 
         let responses = responses_body_from_epiphany(request).expect("request should map");
 
@@ -625,6 +655,10 @@ mod tests {
         assert_eq!(responses["stream"], true);
         assert_eq!(responses["store"], false);
         assert_eq!(responses["service_tier"], "flex");
-        assert_eq!(responses["tools"].as_array().expect("tools").len(), 0);
+        assert_eq!(responses["tools"].as_array().expect("tools").len(), 1);
+        assert_eq!(
+            responses["tools"][0]["name"],
+            "mcp__epiphany_source__read_file"
+        );
     }
 }

@@ -67,6 +67,8 @@ pub struct EpiphanyOpenAiModelRequest {
     pub output_contract_id: Option<String>,
     #[cultcache(key = 10, default)]
     pub previous_response_id: Option<String>,
+    #[cultcache(key = 11, default)]
+    pub tools: Vec<EpiphanyOpenAiToolDefinition>,
 }
 
 impl EpiphanyOpenAiModelRequest {
@@ -88,8 +90,16 @@ impl EpiphanyOpenAiModelRequest {
             service_tier: None,
             output_contract_id: None,
             previous_response_id: None,
+            tools: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpiphanyOpenAiToolDefinition {
+    pub name: String,
+    pub description: String,
+    pub parameters_json: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
