@@ -207,6 +207,7 @@ impl EpiphanyCodexOpenAiTransport {
 pub fn responses_body_from_epiphany(
     request: EpiphanyOpenAiModelRequest,
 ) -> Result<serde_json::Value> {
+    let has_tools = !request.tools.is_empty();
     let body = EpiphanyResponsesBody {
         model: request.model,
         instructions: request.instructions,
@@ -220,7 +221,7 @@ pub fn responses_body_from_epiphany(
             .into_iter()
             .map(openai_tool_from_epiphany_tool)
             .collect::<Result<Vec<_>>>()?,
-        tool_choice: "auto".to_string(),
+        tool_choice: if has_tools { "required" } else { "auto" }.to_string(),
         parallel_tool_calls: false,
         reasoning: Some(EpiphanyResponsesReasoning {
             effort: parse_reasoning_effort(request.reasoning_effort.as_deref())?,
@@ -660,5 +661,6 @@ mod tests {
             responses["tools"][0]["name"],
             "mcp__epiphany_source__read_file"
         );
+        assert_eq!(responses["tool_choice"], "required");
     }
 }

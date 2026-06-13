@@ -113,14 +113,26 @@ fn main() -> Result<()> {
                     .iter()
                     .map(model_input_item_chars)
                     .sum::<usize>();
+                let tool_names = request
+                    .tools
+                    .iter()
+                    .map(|tool| tool.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",");
                 println!(
-                    "{}\t{}\t{}\tinstructions={}\tinputItems={}\tinputChars={}\tcontract={}",
+                    "{}\t{}\t{}\tinstructions={}\tinputItems={}\tinputChars={}\ttools={}\ttoolNames={}\tcontract={}",
                     request.request_id,
                     request.provider,
                     request.model,
                     request.instructions.chars().count(),
                     request.input.len(),
                     input_chars,
+                    request.tools.len(),
+                    if tool_names.is_empty() {
+                        "none"
+                    } else {
+                        tool_names.as_str()
+                    },
                     request.output_contract_id.as_deref().unwrap_or("none")
                 );
             }
