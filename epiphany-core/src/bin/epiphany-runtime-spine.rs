@@ -620,6 +620,11 @@ fn model_input_item_chars(item: &EpiphanyModelInputItem) -> usize {
     match item {
         EpiphanyModelInputItem::UserText { text }
         | EpiphanyModelInputItem::AssistantText { text } => text.chars().count(),
+        EpiphanyModelInputItem::ToolCall {
+            call_id,
+            name,
+            arguments,
+        } => call_id.chars().count() + name.chars().count() + arguments.chars().count(),
         EpiphanyModelInputItem::ToolResult { output, .. } => output.chars().count(),
     }
 }

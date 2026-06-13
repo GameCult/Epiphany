@@ -106,6 +106,11 @@ pub struct EpiphanyOpenAiToolDefinition {
 pub enum EpiphanyOpenAiInputItem {
     UserText { text: String },
     AssistantText { text: String },
+    ToolCall {
+        call_id: String,
+        name: String,
+        arguments: String,
+    },
     ToolResult { call_id: String, output: String },
 }
 

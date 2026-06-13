@@ -256,6 +256,11 @@ fn openai_request_input_metrics(request: &EpiphanyOpenAiModelRequest) -> (usize,
         chars += match item {
             EpiphanyOpenAiInputItem::UserText { text }
             | EpiphanyOpenAiInputItem::AssistantText { text } => text.chars().count(),
+            EpiphanyOpenAiInputItem::ToolCall {
+                call_id,
+                name,
+                arguments,
+            } => call_id.chars().count() + name.chars().count() + arguments.chars().count(),
             EpiphanyOpenAiInputItem::ToolResult { output, .. } => output.chars().count(),
         };
     }
@@ -813,12 +818,6 @@ pub fn build_tool_followup_model_request(
     let original = cache
         .get::<EpiphanyModelRequest>(&model_request_key(original_request_id))?
         .ok_or_else(|| anyhow!("model request {original_request_id:?} does not exist"))?;
-    let receipt = cache
-        .get::<EpiphanyModelReceipt>(&model_receipt_key(original_request_id))?
-        .ok_or_else(|| anyhow!("model receipt {original_request_id:?} does not exist"))?;
-    let previous_response_id = receipt.provider_response_id.clone().ok_or_else(|| {
-        anyhow!("model receipt {original_request_id:?} has no provider_response_id")
-    })?;
     let original_prefix = format!("model-{}-", sanitize_request_id(original_request_id));
     let mut followup_items = Vec::new();
     for intent in cache.get_all::<EpiphanyToolInvocationIntent>()? {
@@ -852,16 +851,20 @@ pub fn build_tool_followup_model_request(
 
     let mut followup = original;
     followup.request_id = followup_request_id.to_string();
-    followup.previous_response_id = Some(previous_response_id);
-    followup.input = followup_items
-        .into_iter()
-        .map(
-            |(intent, call_id, receipt)| EpiphanyModelInputItem::ToolResult {
-                call_id,
-                output: tool_receipt_output_for_model(&intent, &receipt),
-            },
-        )
-        .collect();
+    followup.previous_response_id = None;
+    let mut input = followup.input.clone();
+    for (intent, call_id, receipt) in followup_items {
+        input.push(EpiphanyModelInputItem::ToolCall {
+            call_id: call_id.clone(),
+            name: format!("mcp__{}__{}", intent.server, intent.tool_name),
+            arguments: intent.arguments_json.clone(),
+        });
+        input.push(EpiphanyModelInputItem::ToolResult {
+            call_id,
+            output: tool_receipt_output_for_model(&intent, &receipt),
+        });
+    }
+    followup.input = input;
     Ok(followup)
 }
 
@@ -1083,6 +1086,15 @@ fn model_input_from_openai_input(input: &EpiphanyOpenAiInputItem) -> EpiphanyMod
         EpiphanyOpenAiInputItem::AssistantText { text } => {
             EpiphanyModelInputItem::AssistantText { text: text.clone() }
         }
+        EpiphanyOpenAiInputItem::ToolCall {
+            call_id,
+            name,
+            arguments,
+        } => EpiphanyModelInputItem::ToolCall {
+            call_id: call_id.clone(),
+            name: name.clone(),
+            arguments: arguments.clone(),
+        },
         EpiphanyOpenAiInputItem::ToolResult { call_id, output } => {
             EpiphanyModelInputItem::ToolResult {
                 call_id: call_id.clone(),
@@ -1100,6 +1112,15 @@ fn openai_input_from_model_input(input: &EpiphanyModelInputItem) -> EpiphanyOpen
         EpiphanyModelInputItem::AssistantText { text } => {
             EpiphanyOpenAiInputItem::AssistantText { text: text.clone() }
         }
+        EpiphanyModelInputItem::ToolCall {
+            call_id,
+            name,
+            arguments,
+        } => EpiphanyOpenAiInputItem::ToolCall {
+            call_id: call_id.clone(),
+            name: name.clone(),
+            arguments: arguments.clone(),
+        },
         EpiphanyModelInputItem::ToolResult { call_id, output } => {
             EpiphanyOpenAiInputItem::ToolResult {
                 call_id: call_id.clone(),
@@ -1968,10 +1989,18 @@ mod tests {
         let followup =
             build_tool_followup_model_request(&store, "req-tools", "req-tools-followup")?;
         assert_eq!(followup.request_id, "req-tools-followup");
-        assert_eq!(followup.previous_response_id.as_deref(), Some("resp-tools"));
-        assert_eq!(followup.input.len(), 1);
+        assert_eq!(followup.previous_response_id, None);
+        assert_eq!(followup.input.len(), 2);
         assert_eq!(
             followup.input[0],
+            EpiphanyModelInputItem::ToolCall {
+                call_id: "call-original".to_string(),
+                name: "mcp__smoke_server__smoke_tool".to_string(),
+                arguments: "{}".to_string()
+            }
+        );
+        assert_eq!(
+            followup.input[1],
             EpiphanyModelInputItem::ToolResult {
                 call_id: "call-original".to_string(),
                 output: r#"{"ok":true}"#.to_string()
