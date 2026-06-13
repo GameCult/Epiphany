@@ -120,6 +120,8 @@ struct Args {
     result: Option<PathBuf>,
     transcript: PathBuf,
     stderr: PathBuf,
+    interrupt_binding: Option<String>,
+    interrupt_reason: Option<String>,
 }
 
 impl Args {
@@ -145,6 +147,8 @@ impl Args {
             stderr: root
                 .join(".epiphany-status")
                 .join("epiphany-mvp-status-server.stderr.log"),
+            interrupt_binding: None,
+            interrupt_reason: None,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -167,6 +171,12 @@ impl Args {
                 "--result" => parsed.result = Some(take_path(&mut args, "--result")?),
                 "--transcript" => parsed.transcript = take_path(&mut args, "--transcript")?,
                 "--stderr" => parsed.stderr = take_path(&mut args, "--stderr")?,
+                "--interrupt-binding" => {
+                    parsed.interrupt_binding = Some(take_string(&mut args, "--interrupt-binding")?)
+                }
+                "--interrupt-reason" => {
+                    parsed.interrupt_reason = Some(take_string(&mut args, "--interrupt-reason")?)
+                }
                 _ => return Err(anyhow!("unknown argument: {arg}")),
             }
         }
@@ -175,10 +185,57 @@ impl Args {
 }
 
 fn run_status(args: &Args) -> Result<Value> {
+    if args.interrupt_binding.is_some() {
+        return run_codex_interrupt(args);
+    }
     match args.source {
         StatusSource::Native => run_native_status(args),
         StatusSource::Codex => run_codex_status(args),
     }
+}
+
+fn run_codex_interrupt(args: &Args) -> Result<Value> {
+    if args.source != StatusSource::Codex {
+        return Err(anyhow!("--interrupt-binding requires Codex/app-server status source"));
+    }
+    let thread_id = args
+        .thread_id
+        .as_ref()
+        .ok_or_else(|| anyhow!("--interrupt-binding requires --thread-id"))?;
+    let binding_id = args
+        .interrupt_binding
+        .as_ref()
+        .ok_or_else(|| anyhow!("--interrupt-binding requires a binding id"))?;
+    let app_server = absolute_path(&args.app_server)?;
+    let codex_home = absolute_path(&args.codex_home)?;
+    let transcript = absolute_path(&args.transcript)?;
+    let stderr = absolute_path(&args.stderr)?;
+    let mut client = AppServerClient::start(&app_server, &codex_home, &transcript, &stderr)?;
+    client.send(
+        "initialize",
+        Some(json!({
+            "clientInfo": {
+                "name": "epiphany-mvp-status",
+                "title": "Epiphany MVP Status",
+                "version": "0.1.0",
+            },
+            "capabilities": {"experimentalApi": true},
+        })),
+        true,
+    )?;
+    client.send("initialized", None, false)?;
+    if !args.ephemeral {
+        client.send("thread/resume", Some(json!({"threadId": thread_id})), true)?;
+    }
+    client.send(
+        "thread/epiphany/jobInterrupt",
+        Some(json!({
+            "threadId": thread_id,
+            "bindingId": binding_id,
+            "reason": args.interrupt_reason,
+        })),
+        true,
+    )
 }
 
 fn run_native_status(args: &Args) -> Result<Value> {

@@ -550,6 +550,7 @@ mod tests {
     use epiphany_core::runtime_hands_command_receipt;
     use epiphany_core::runtime_hands_commit_receipt;
     use epiphany_core::runtime_hands_patch_receipt;
+    use epiphany_core::runtime_latest_hands_receipt_chain_after;
 
     #[test]
     fn records_patch_command_and_commit_receipts_against_approved_gate() -> Result<()> {
@@ -608,7 +609,7 @@ mod tests {
             }))?,
         )?;
 
-        record_pass(
+        let result = record_pass(
             &store,
             RecordPassArgs {
                 gate: GateArgs {
@@ -627,6 +628,37 @@ mod tests {
                 changed_paths: vec!["src/lib.rs".to_string()],
             },
         )?;
+
+        let patch_id = result
+            .pointer("/patch/receiptId")
+            .and_then(serde_json::Value::as_str)
+            .expect("record-pass should emit patch receipt id");
+        let command_id = result
+            .pointer("/command/receiptId")
+            .and_then(serde_json::Value::as_str)
+            .expect("record-pass should emit command receipt id");
+        let commit_id = result
+            .pointer("/commit/receiptId")
+            .and_then(serde_json::Value::as_str)
+            .expect("record-pass should emit commit receipt id");
+        assert!(runtime_hands_patch_receipt(&store, patch_id)?.is_some());
+        assert!(runtime_hands_command_receipt(&store, command_id)?.is_some());
+        assert!(runtime_hands_commit_receipt(&store, commit_id)?.is_some());
+
+        let chain =
+            runtime_latest_hands_receipt_chain_after(&store, "2026-06-02T00:00:02Z")?
+                .expect("record-pass should produce a complete Hands receipt chain");
+        assert_eq!(chain.patch_receipt_id, patch_id);
+        assert_eq!(chain.command_receipt_id, command_id);
+        assert_eq!(chain.commit_receipt_id, commit_id);
+        assert_eq!(chain.intent_id, "hands-intent-test");
+        assert_eq!(chain.review_id, "hands-review-test");
+        assert_eq!(chain.runtime_job_id, "hands-job-test");
+        assert_eq!(chain.substrate_gate_grant_receipt_id, "substrate-grant-test");
+        assert_eq!(chain.command, "cargo test");
+        assert_eq!(chain.exit_code, "0");
+        assert_eq!(chain.commit_sha, "def456");
+        assert_eq!(chain.changed_paths, vec!["src/lib.rs".to_string()]);
 
         Ok(())
     }
