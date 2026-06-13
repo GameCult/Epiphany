@@ -596,11 +596,35 @@ async fn run_worker_launch_with_tool_continuation(
     }
 
     if !openai_summary.tool_intent_ids.is_empty() {
-        return Err(anyhow!(
+        let summary = format!(
             "worker {} still requested tools after {} automatic tool rounds",
             launch_request.job_id,
             options.max_tool_rounds
-        ));
+        );
+        let result = fail_worker_job(
+            &options.store_path,
+            &launch_request.job_id,
+            summary.clone(),
+            "Inspect the worker request, tool receipts, and model/tool loop before relaunching."
+                .to_string(),
+        )?;
+        return Ok(json!({
+            "status": "tool-round-limit",
+            "store": options.store_path,
+            "jobId": launch_request.job_id,
+            "bindingId": launch_request.binding_id,
+            "role": launch_request.role,
+            "requestId": current_request_id,
+            "openaiResultId": openai_summary.result_id,
+            "openaiVerdict": openai_summary.verdict,
+            "openaiSummary": openai_summary.summary,
+            "workerResultId": result.result_id,
+            "verdict": result.verdict,
+            "summary": summary,
+            "nextSafeMove": result.next_safe_move,
+            "pendingToolIntentIds": openai_summary.tool_intent_ids,
+            "toolRounds": tool_rounds,
+        }));
     }
 
     let assistant_text =

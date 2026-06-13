@@ -592,4 +592,4 @@ current_status:
     cargo and rejects modeling/planning/graph/checkpoint authority. MVP status
     and coordinator smokes pass with six lanes, and the smoke harness now
     rebuilds stale coordinator/app-server binaries before using them.
-  next_action: Exercise the corrected Hands -> Soul -> Proprioception loop: record the current bounded edit/check/commit against the latest Hands gate, rerun the coordinator so Soul verifies the Hands receipts, accept the Soul result when reviewable, then confirm the next routed stage is Proprioception/modeling before another Hands turn. If the run exposes split-brained state admission instead, collapse Mind review/state mutation/commit into one storage-owner primitive.
+  next_action: Commit the runtime/Soul/Hands receipt integrity fixes, record the resulting pass with `epiphany-hands-action` so the commit SHA is git-validated, rerun the coordinator so Soul reviews the clean Hands receipts, accept the Soul result when reviewable, then confirm the next routed stage is Proprioception/modeling before another Hands turn.

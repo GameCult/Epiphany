@@ -815,6 +815,19 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
+        && !input.verification_result_accepted
+    {
+        return build(
+            EpiphanyCoordinatorAction::ReviewVerificationResult,
+            Some(EpiphanyCoordinatorRoleId::Verification),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            false,
+            false,
+            "The verification/review worker failed; inspect the failed Soul result before relaunching verification or continuing implementation.",
+        );
+    }
+
     if input.verification_result_accepted && input.implementation_evidence_after_verification {
         return build(
             EpiphanyCoordinatorAction::LaunchVerification,
@@ -1470,6 +1483,22 @@ mod tests {
             launch_verification.action,
             EpiphanyCoordinatorAction::LaunchVerification
         );
+
+        let review_failed_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
+            },
+            modeling_result_accepted: true,
+            modeling_result_reviewable: true,
+            ..input()
+        });
+        assert_eq!(
+            review_failed_verification.action,
+            EpiphanyCoordinatorAction::ReviewVerificationResult
+        );
+        assert!(!review_failed_verification.can_auto_run);
 
         let verification_done = EpiphanyCoordinatorSignals {
             research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,

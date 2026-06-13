@@ -75,6 +75,7 @@ struct RecordCommitArgs {
     commit_sha: String,
     branch: String,
     changed_paths: Vec<String>,
+    validate_commit_sha: bool,
 }
 
 #[derive(Debug)]
@@ -87,6 +88,7 @@ struct RecordPassArgs {
     commit_sha: String,
     branch: String,
     changed_paths: Vec<String>,
+    validate_commit_sha: bool,
 }
 
 impl Args {
@@ -157,6 +159,7 @@ fn parse_record_commit(tokens: impl Iterator<Item = String>) -> Result<RecordCom
         commit_sha,
         branch,
         changed_paths,
+        validate_commit_sha: true,
     })
 }
 
@@ -183,6 +186,7 @@ fn parse_record_pass(tokens: impl Iterator<Item = String>) -> Result<RecordPassA
         commit_sha,
         branch,
         changed_paths,
+        validate_commit_sha: true,
     })
 }
 
@@ -325,6 +329,11 @@ fn record_command(store: &PathBuf, args: RecordCommandArgs) -> Result<serde_json
 fn record_commit(store: &PathBuf, args: RecordCommitArgs) -> Result<serde_json::Value> {
     let (intent, review) = load_gate(store, &args.gate, "commit")?;
     validate_paths_within_gate(&intent, &args.changed_paths)?;
+    let commit_sha = if args.validate_commit_sha {
+        resolve_git_commit_sha(&args.commit_sha)?
+    } else {
+        args.commit_sha
+    };
     let receipt_id = args
         .gate
         .receipt_id
@@ -333,7 +342,7 @@ fn record_commit(store: &PathBuf, args: RecordCommitArgs) -> Result<serde_json::
         receipt_id,
         &intent,
         &review,
-        args.commit_sha,
+        commit_sha,
         args.branch,
         normalize_paths(args.changed_paths),
         args.gate.summary,
@@ -378,6 +387,7 @@ fn record_pass(store: &PathBuf, args: RecordPassArgs) -> Result<serde_json::Valu
             commit_sha: args.commit_sha,
             branch: args.branch,
             changed_paths: args.changed_paths,
+            validate_commit_sha: args.validate_commit_sha,
         },
     )?;
     Ok(json!({
@@ -520,6 +530,31 @@ fn normalize_path(path: &str) -> String {
     path.trim().replace('\\', "/")
 }
 
+fn resolve_git_commit_sha(commit_sha: &str) -> Result<String> {
+    let output = std::process::Command::new("git")
+        .arg("rev-parse")
+        .arg("--verify")
+        .arg(format!("{commit_sha}^{{commit}}"))
+        .output()
+        .map_err(|err| anyhow!("failed to start git rev-parse for Hands commit receipt: {err}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(anyhow!(
+            "Hands commit receipt references non-existent commit {commit_sha:?}: {stderr}"
+        ));
+    }
+    let resolved = String::from_utf8(output.stdout)
+        .map_err(|err| anyhow!("git rev-parse returned non-UTF8 commit sha: {err}"))?
+        .trim()
+        .to_string();
+    if resolved.is_empty() {
+        return Err(anyhow!(
+            "git rev-parse returned an empty commit sha for {commit_sha:?}"
+        ));
+    }
+    Ok(resolved)
+}
+
 fn generated_receipt_id(prefix: &str) -> String {
     format!("{prefix}-{}", uuid::Uuid::new_v4())
 }
@@ -582,6 +617,7 @@ mod tests {
                 commit_sha: "abc123".to_string(),
                 branch: "codex/test".to_string(),
                 changed_paths: vec!["src/lib.rs".to_string()],
+                validate_commit_sha: false,
             },
         )?;
 
@@ -626,6 +662,7 @@ mod tests {
                 commit_sha: "def456".to_string(),
                 branch: "codex/test".to_string(),
                 changed_paths: vec!["src/lib.rs".to_string()],
+                validate_commit_sha: false,
             },
         )?;
 
@@ -660,6 +697,28 @@ mod tests {
         assert_eq!(chain.commit_sha, "def456");
         assert_eq!(chain.changed_paths, vec!["src/lib.rs".to_string()]);
 
+        Ok(())
+    }
+
+    #[test]
+    fn refuses_commit_receipt_for_unknown_git_sha() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime-spine.msgpack");
+        seed_gate(&store, vec!["src".to_string()])?;
+
+        let result = record_commit(
+            &store,
+            RecordCommitArgs {
+                gate: gate_args("hands-commit-test"),
+                commit_sha: "0000000000000000000000000000000000000000".to_string(),
+                branch: "codex/test".to_string(),
+                changed_paths: vec!["src/lib.rs".to_string()],
+                validate_commit_sha: true,
+            },
+        );
+
+        assert!(result.is_err());
+        assert!(runtime_hands_commit_receipt(&store, "hands-commit-test")?.is_none());
         Ok(())
     }
 
