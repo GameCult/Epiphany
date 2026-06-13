@@ -309,13 +309,16 @@ pub fn derive_coordinator_finding_signals(
             role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Verification, finding)
         })
     });
+    let verification_result_cites_implementation_evidence = state.is_some_and(|state| {
+        role_finding_cites_implementation_evidence(state, verification_finding)
+    });
     let verification_result_covers_current_modeling = state.is_none_or(|state| {
         verification_finding_covers_current_modeling(
             state,
             modeling_result_accepted,
             modeling_finding,
             verification_finding,
-        )
+        ) || verification_result_cites_implementation_evidence
     });
     let modeling_result_accepted_after_verification = state.is_some_and(|state| {
         role_finding_accepted_after(
@@ -332,9 +335,6 @@ pub fn derive_coordinator_finding_signals(
             EpiphanyCoordinatorRoleId::Verification,
             verification_finding,
         )
-    });
-    let verification_result_cites_implementation_evidence = state.is_some_and(|state| {
-        role_finding_cites_implementation_evidence(state, verification_finding)
     });
     let verification_result_allows_implementation = verification_result_accepted
         && verification_finding.is_some_and(verification_finding_allows_implementation);
@@ -1070,6 +1070,8 @@ fn role_status(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_state_model::EpiphanyAcceptanceReceipt;
+    use epiphany_state_model::EpiphanyEvidenceRecord;
 
     fn base_roles() -> Vec<EpiphanyCoordinatorRoleLane> {
         vec![
@@ -1140,6 +1142,77 @@ mod tests {
             verification_result_needs_evidence: false,
             reorient_finding_accepted: false,
         }
+    }
+
+    fn finding(
+        runtime_result_id: &str,
+        runtime_job_id: &str,
+        evidence_ids: Vec<String>,
+    ) -> EpiphanyRoleFindingInterpretation {
+        EpiphanyRoleFindingInterpretation {
+            verdict: Some("needs-evidence".to_string()),
+            summary: Some("test finding".to_string()),
+            next_safe_move: Some("continue".to_string()),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids,
+            artifact_refs: Vec::new(),
+            runtime_result_id: Some(runtime_result_id.to_string()),
+            runtime_job_id: Some(runtime_job_id.to_string()),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch: None,
+            self_patch: None,
+            self_persistence: None,
+            job_error: None,
+            item_error: None,
+        }
+    }
+
+    #[test]
+    fn implementation_evidence_lets_verification_cover_post_modeling_work() {
+        let mut state = EpiphanyThreadState::default();
+        state.recent_evidence.push(EpiphanyEvidenceRecord {
+            id: "ev-implementation".to_string(),
+            kind: "implementation-audit".to_string(),
+            status: "ok".to_string(),
+            summary: "Hands pass evidence.".to_string(),
+            code_refs: Vec::new(),
+        });
+        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
+            id: "accept-modeling".to_string(),
+            result_id: "result-modeling".to_string(),
+            job_id: "job-modeling".to_string(),
+            binding_id: "modeling-checkpoint-worker".to_string(),
+            surface: "roleAccept".to_string(),
+            role_id: "modeling".to_string(),
+            status: "accepted".to_string(),
+            accepted_at: "2026-06-13T00:00:00Z".to_string(),
+            accepted_observation_id: None,
+            accepted_evidence_id: Some("ev-modeling".to_string()),
+            summary: None,
+        });
+        let modeling = finding("result-modeling", "job-modeling", vec!["ev-modeling".to_string()]);
+        let verification = finding(
+            "result-verification",
+            "job-verification",
+            vec!["ev-implementation".to_string()],
+        );
+
+        let signals = derive_coordinator_finding_signals(
+            Some(&state),
+            None,
+            Some(&modeling),
+            Some(&verification),
+            None,
+        );
+
+        assert!(signals.modeling_result_accepted);
+        assert!(signals.verification_result_cites_implementation_evidence);
+        assert!(signals.verification_result_covers_current_modeling);
     }
 
     #[test]
@@ -1414,6 +1487,20 @@ mod tests {
         assert_eq!(
             stale_verification.action,
             EpiphanyCoordinatorAction::LaunchVerification
+        );
+
+        let implementation_covered_verification =
+            recommend_coordinator_action(EpiphanyCoordinatorInput {
+                signals: verification_done,
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                verification_result_covers_current_modeling: true,
+                verification_result_cites_implementation_evidence: true,
+                ..input()
+            });
+        assert_eq!(
+            implementation_covered_verification.action,
+            EpiphanyCoordinatorAction::ReviewVerificationResult
         );
 
         let review_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
