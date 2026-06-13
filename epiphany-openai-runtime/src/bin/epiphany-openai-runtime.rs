@@ -564,52 +564,25 @@ async fn run_worker_launch_with_tool_continuation(
     let mut openai_summary =
         run_model_turn(&options.provider, current_options.clone(), initial_request).await?;
     let mut tool_rounds = Vec::new();
-    let mut previous_tool_fingerprints: Option<Vec<String>> = None;
-    let mut consecutive_repeated_tool_rounds = 0usize;
+    let mut tool_loop_guard = ToolLoopGuard::default();
     let mut round = 0usize;
 
     while !openai_summary.tool_intent_ids.is_empty() {
         let tool_fingerprints =
             tool_intent_fingerprints(&options.store_path, &openai_summary.tool_intent_ids)?;
-        if same_nonempty_tool_request_round(
-            previous_tool_fingerprints.as_deref(),
-            &tool_fingerprints,
-        ) {
-            consecutive_repeated_tool_rounds += 1;
-        } else {
-            consecutive_repeated_tool_rounds = 0;
-        }
-        if consecutive_repeated_tool_rounds >= 2 {
-            let summary = format!(
-                "worker {} repeated the same pending tool request set for {} consecutive follow-up rounds",
-                launch_request.job_id,
-                consecutive_repeated_tool_rounds + 1
-            );
-            let result = fail_worker_job(
+        if let ToolLoopDecision::Stalled {
+            consecutive_rounds,
+        } = tool_loop_guard.observe(tool_fingerprints.clone())
+        {
+            return fail_worker_for_repeated_tool_loop(
                 &options.store_path,
-                &launch_request.job_id,
-                summary.clone(),
-                "Inspect the repeated tool fingerprints and decide whether the worker needs a narrower evidence bundle, a repaired tool, or a higher explicit limit."
-                    .to_string(),
-            )?;
-            return Ok(json!({
-                "status": "tool-loop-stalled",
-                "store": options.store_path,
-                "jobId": launch_request.job_id,
-                "bindingId": launch_request.binding_id,
-                "role": launch_request.role,
-                "requestId": current_request_id,
-                "openaiResultId": openai_summary.result_id,
-                "openaiVerdict": openai_summary.verdict,
-                "openaiSummary": openai_summary.summary,
-                "workerResultId": result.result_id,
-                "verdict": result.verdict,
-                "summary": summary,
-                "nextSafeMove": result.next_safe_move,
-                "pendingToolIntentIds": openai_summary.tool_intent_ids,
-                "pendingToolFingerprints": tool_fingerprints,
-                "toolRounds": tool_rounds,
-            }));
+                &launch_request,
+                &current_request_id,
+                &openai_summary,
+                tool_fingerprints,
+                tool_rounds,
+                consecutive_rounds,
+            );
         }
         if round >= options.max_tool_rounds {
             break;
@@ -641,7 +614,6 @@ async fn run_worker_launch_with_tool_continuation(
             "followupRequestId": current_request_id,
             "summary": openai_summary,
         }));
-        previous_tool_fingerprints = Some(tool_fingerprints);
         round += 1;
     }
 
@@ -705,6 +677,78 @@ async fn run_worker_launch_with_tool_continuation(
     }))
 }
 
+#[derive(Default)]
+struct ToolLoopGuard {
+    previous_tool_fingerprints: Option<Vec<String>>,
+    consecutive_repeated_tool_rounds: usize,
+}
+
+enum ToolLoopDecision {
+    Continue,
+    Stalled { consecutive_rounds: usize },
+}
+
+impl ToolLoopGuard {
+    fn observe(&mut self, tool_fingerprints: Vec<String>) -> ToolLoopDecision {
+        if same_nonempty_tool_request_round(
+            self.previous_tool_fingerprints.as_deref(),
+            &tool_fingerprints,
+        ) {
+            self.consecutive_repeated_tool_rounds += 1;
+        } else {
+            self.consecutive_repeated_tool_rounds = 0;
+        }
+        self.previous_tool_fingerprints = Some(tool_fingerprints);
+        if self.consecutive_repeated_tool_rounds >= 2 {
+            ToolLoopDecision::Stalled {
+                consecutive_rounds: self.consecutive_repeated_tool_rounds + 1,
+            }
+        } else {
+            ToolLoopDecision::Continue
+        }
+    }
+}
+
+fn fail_worker_for_repeated_tool_loop(
+    store_path: &Path,
+    launch_request: &epiphany_core::EpiphanyRuntimeWorkerLaunchRequest,
+    current_request_id: &str,
+    openai_summary: &epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary,
+    tool_fingerprints: Vec<String>,
+    tool_rounds: Vec<serde_json::Value>,
+    consecutive_rounds: usize,
+) -> Result<serde_json::Value> {
+    let summary = format!(
+        "worker {} repeated the same pending tool request set for {} consecutive follow-up rounds",
+        launch_request.job_id, consecutive_rounds
+    );
+    let result = fail_worker_job(
+        store_path,
+        &launch_request.job_id,
+        summary.clone(),
+        "Inspect the repeated tool fingerprints and decide whether the worker needs a narrower evidence bundle, a repaired tool, or a higher explicit limit."
+            .to_string(),
+    )?;
+    Ok(json!({
+        "status": "tool-loop-stalled",
+        "store": store_path,
+        "jobId": launch_request.job_id,
+        "bindingId": launch_request.binding_id,
+        "role": launch_request.role,
+        "requestId": current_request_id,
+        "openaiResultId": openai_summary.result_id,
+        "openaiVerdict": openai_summary.verdict,
+        "openaiSummary": openai_summary.summary,
+        "workerResultId": result.result_id,
+        "verdict": result.verdict,
+        "summary": summary,
+        "nextSafeMove": result.next_safe_move,
+        "pendingToolIntentIds": openai_summary.tool_intent_ids,
+        "pendingToolFingerprints": tool_fingerprints,
+        "toolRounds": tool_rounds,
+    }))
+}
+
 fn tool_intent_fingerprints(store_path: &Path, intent_ids: &[String]) -> Result<Vec<String>> {
     let mut cache = epiphany_core::runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
@@ -744,7 +788,15 @@ fn same_nonempty_tool_request_round(previous: Option<&[String]>, current: &[Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_core::EpiphanyRuntimeJobStatus;
+    use epiphany_core::EpiphanyWorkerLaunchDocument;
+    use epiphany_core::RuntimeSpineHeartbeatJobOptions;
+    use epiphany_core::default_launch_organ_contract;
+    use epiphany_core::open_runtime_spine_heartbeat_job;
+    use epiphany_core::runtime_job_snapshot;
+    use epiphany_core::runtime_worker_launch_request;
     use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
+    use tempfile::tempdir;
 
     #[test]
     fn same_nonempty_tool_request_round_requires_real_repetition() {
@@ -755,6 +807,116 @@ mod tests {
         assert!(!same_nonempty_tool_request_round(Some(&first), &[]));
         assert!(!same_nonempty_tool_request_round(Some(&first), &second));
         assert!(same_nonempty_tool_request_round(Some(&first), &first));
+    }
+
+    #[test]
+    fn tool_loop_guard_stalls_only_after_repeated_identical_rounds() {
+        let mut guard = ToolLoopGuard::default();
+        let first = vec!["source::read_file::{\"path\":\"README.md\"}".to_string()];
+        let second = vec!["source::git_show::{\"revision\":\"HEAD\"}".to_string()];
+
+        assert!(matches!(
+            guard.observe(first.clone()),
+            ToolLoopDecision::Continue
+        ));
+        assert!(matches!(
+            guard.observe(second.clone()),
+            ToolLoopDecision::Continue
+        ));
+        assert!(matches!(
+            guard.observe(first.clone()),
+            ToolLoopDecision::Continue
+        ));
+        assert!(matches!(
+            guard.observe(first.clone()),
+            ToolLoopDecision::Continue
+        ));
+        assert!(matches!(
+            guard.observe(first),
+            ToolLoopDecision::Stalled {
+                consecutive_rounds: 3
+            }
+        ));
+    }
+
+    #[test]
+    fn repeated_tool_loop_seals_outer_worker_job() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                session_id: "epiphany-main".to_string(),
+                objective: "Run typed worker.".to_string(),
+                coordinator_note: "test".to_string(),
+                job_id: "worker-job-loop".to_string(),
+                role: "verification".to_string(),
+                binding_id: "verification-review-worker".to_string(),
+                authority_scope: "epiphany.role.verification".to_string(),
+                instruction: "Return the required role-result JSON.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "verification".to_string(),
+                        state_revision: 1,
+                        objective: Some("Verify the worker loop.".to_string()),
+                        dynamic_prompt_context: None,
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: Vec::new(),
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                organ_launch_contract: default_launch_organ_contract(
+                    "epiphany.role.verification",
+                    "role",
+                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+                ),
+                created_at: now(),
+            },
+        )?;
+        let launch_request =
+            runtime_worker_launch_request(&store, "worker-job-loop")?.expect("launch request");
+        let openai_summary = epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary {
+            store: store.display().to_string(),
+            session_id: "openai-worker-session-verification-review-worker".to_string(),
+            job_id: "openai-worker-worker-job-loop".to_string(),
+            request_id: "request-3".to_string(),
+            event_count: 1,
+            verdict: "pass".to_string(),
+            summary: "Model requested the same tool again.".to_string(),
+            result_id: "result-openai-worker-job-loop".to_string(),
+            receipt_id: Some("request-3".to_string()),
+            tool_intent_ids: vec!["intent-readme".to_string()],
+        };
+
+        let status = fail_worker_for_repeated_tool_loop(
+            &store,
+            &launch_request,
+            "request-3",
+            &openai_summary,
+            vec!["epiphany_source::read_file::{\"path\":\"README.md\"}".to_string()],
+            Vec::new(),
+            3,
+        )?;
+
+        assert_eq!(status["status"], "tool-loop-stalled");
+        let snapshot = runtime_job_snapshot(&store, "worker-job-loop")?.expect("worker snapshot");
+        assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
+        assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
+        Ok(())
     }
 
     #[test]
