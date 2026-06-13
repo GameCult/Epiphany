@@ -1465,21 +1465,31 @@ pub fn runtime_latest_hands_receipt_chain_after(
         .iter()
         .filter(|commit| timestamp_after(&commit.emitted_at, after_timestamp))
     {
-        let Some(patch) = patches.iter().find(|patch| {
-            patch.intent_id == commit.intent_id
-                && patch.review_id == commit.review_id
-                && patch.runtime_job_id == commit.runtime_job_id
-                && timestamp_after(&patch.emitted_at, after_timestamp)
-        }) else {
+        let Some(patch) = patches
+            .iter()
+            .filter(|patch| {
+                patch.intent_id == commit.intent_id
+                    && patch.review_id == commit.review_id
+                    && patch.runtime_job_id == commit.runtime_job_id
+                    && timestamp_after(&patch.emitted_at, after_timestamp)
+                    && patch.emitted_at <= commit.emitted_at
+            })
+            .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
+        else {
             continue;
         };
-        let Some(command) = commands.iter().find(|command| {
-            command.intent_id == commit.intent_id
-                && command.review_id == commit.review_id
-                && command.runtime_job_id == commit.runtime_job_id
-                && command.exit_code == "0"
-                && timestamp_after(&command.emitted_at, after_timestamp)
-        }) else {
+        let Some(command) = commands
+            .iter()
+            .filter(|command| {
+                command.intent_id == commit.intent_id
+                    && command.review_id == commit.review_id
+                    && command.runtime_job_id == commit.runtime_job_id
+                    && command.exit_code == "0"
+                    && timestamp_after(&command.emitted_at, after_timestamp)
+                    && command.emitted_at <= commit.emitted_at
+            })
+            .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
+        else {
             continue;
         };
         summaries.push(RuntimeHandsReceiptChainSummary {
@@ -3681,6 +3691,135 @@ mod tests {
         let stored_recovery = runtime_continuity_recovery_receipt(&store, "continuity-recovery-1")?
             .expect("Continuity recovery should persist");
         assert_eq!(stored_recovery, continuity_recovery);
+        Ok(())
+    }
+
+    #[test]
+    fn latest_hands_chain_uses_latest_same_gate_receipts_before_commit() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-06-13T00:00:00Z".to_string(),
+            },
+        )?;
+        let intent = HandsActionIntent {
+            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "hands-intent-reused".to_string(),
+            runtime_job_id: "hands-job-reused".to_string(),
+            binding_id: "implementation-worker".to_string(),
+            role: "epiphany-hands".to_string(),
+            authority_scope: "epiphany.role.implementation".to_string(),
+            requested_action: "continueImplementation".to_string(),
+            requested_paths: vec![".".to_string()],
+            substrate_gate_grant_receipt_id: "substrate-grant-reused".to_string(),
+            requested_at: "2026-06-13T00:00:01Z".to_string(),
+            contract: "Test reused Hands gate.".to_string(),
+        };
+        put_hands_action_intent(&store, &intent)?;
+        let review = crate::hands_action_review_for_intent(
+            "hands-review-reused".to_string(),
+            &intent,
+            "approved".to_string(),
+            vec![
+                "patch".to_string(),
+                "command".to_string(),
+                "commit".to_string(),
+            ],
+            vec!["test reused gate".to_string()],
+            "2026-06-13T00:00:02Z".to_string(),
+        );
+        put_hands_action_review(&store, &review)?;
+
+        put_hands_patch_receipt(
+            &store,
+            &crate::hands_patch_receipt_for_review(
+                "hands-patch-old".to_string(),
+                &intent,
+                &review,
+                vec!["old.rs".to_string()],
+                "old patch".to_string(),
+                "2026-06-13T00:00:03Z".to_string(),
+            ),
+        )?;
+        put_hands_command_receipt(
+            &store,
+            &crate::hands_command_receipt_for_review(
+                "hands-command-old".to_string(),
+                &intent,
+                &review,
+                "cargo test old".to_string(),
+                "0".to_string(),
+                "old-stdout.log".to_string(),
+                "old-stderr.log".to_string(),
+                "old command".to_string(),
+                "2026-06-13T00:00:04Z".to_string(),
+            ),
+        )?;
+        put_hands_commit_receipt(
+            &store,
+            &crate::hands_commit_receipt_for_review(
+                "hands-commit-old".to_string(),
+                &intent,
+                &review,
+                "oldsha".to_string(),
+                "codex/test".to_string(),
+                vec!["old.rs".to_string()],
+                "old commit".to_string(),
+                "2026-06-13T00:00:05Z".to_string(),
+            ),
+        )?;
+        put_hands_patch_receipt(
+            &store,
+            &crate::hands_patch_receipt_for_review(
+                "hands-patch-new".to_string(),
+                &intent,
+                &review,
+                vec!["new.rs".to_string()],
+                "new patch".to_string(),
+                "2026-06-13T00:00:06Z".to_string(),
+            ),
+        )?;
+        put_hands_command_receipt(
+            &store,
+            &crate::hands_command_receipt_for_review(
+                "hands-command-new".to_string(),
+                &intent,
+                &review,
+                "cargo test new".to_string(),
+                "0".to_string(),
+                "new-stdout.log".to_string(),
+                "new-stderr.log".to_string(),
+                "new command".to_string(),
+                "2026-06-13T00:00:07Z".to_string(),
+            ),
+        )?;
+        put_hands_commit_receipt(
+            &store,
+            &crate::hands_commit_receipt_for_review(
+                "hands-commit-new".to_string(),
+                &intent,
+                &review,
+                "newsha".to_string(),
+                "codex/test".to_string(),
+                vec!["new.rs".to_string()],
+                "new commit".to_string(),
+                "2026-06-13T00:00:08Z".to_string(),
+            ),
+        )?;
+
+        let chain = runtime_latest_hands_receipt_chain_after(&store, "2026-06-13T00:00:02Z")?
+            .expect("latest same-gate Hands chain");
+        assert_eq!(chain.patch_receipt_id, "hands-patch-new");
+        assert_eq!(chain.command_receipt_id, "hands-command-new");
+        assert_eq!(chain.commit_receipt_id, "hands-commit-new");
+        assert_eq!(chain.command, "cargo test new");
+        assert_eq!(chain.stdout_artifact, "new-stdout.log");
+        assert_eq!(chain.commit_sha, "newsha");
+        assert_eq!(chain.changed_paths, vec!["new.rs".to_string()]);
         Ok(())
     }
 
