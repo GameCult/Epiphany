@@ -560,6 +560,7 @@ pub fn build_worker_model_request(
     model: &str,
 ) -> Result<EpiphanyModelRequest> {
     let launch_document = launch_request.launch_document()?;
+    let output_schema_json = worker_output_schema_json(&launch_document)?;
     let request_id = format!(
         "worker-{}-{}",
         sanitize_request_id(&launch_request.job_id),
@@ -567,7 +568,8 @@ pub fn build_worker_model_request(
     );
     let launch_document_text = serde_json::to_string_pretty(&launch_document)
         .context("failed to render worker launch document for model input")?;
-    let mut instructions = worker_instructions(launch_request, &launch_document);
+    let mut instructions =
+        worker_instructions(launch_request, &launch_document, &output_schema_json);
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
         instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, command artifacts, commit diffs, or Hands receipt bodies are not inspectable, call the read-only source tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact paths, `mcp__epiphany_source__git_show` for commit diffs, and `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts. If a tool fails, cite that failed tool result and the exact remaining blocker.");
     }
@@ -586,6 +588,7 @@ pub fn build_worker_model_request(
     request.reasoning_effort = Some("low".to_string());
     request.reasoning_summary = Some("concise".to_string());
     request.output_contract_id = Some(launch_request.output_contract_id.clone());
+    request.output_schema_json = Some(output_schema_json);
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
         request.tools = verification_source_tools();
     }
@@ -986,6 +989,7 @@ pub fn model_request_from_openai_request(
         service_tier: request.service_tier.clone(),
         output_contract_id: request.output_contract_id.clone(),
         previous_response_id: request.previous_response_id.clone(),
+        output_schema_json: request.output_schema_json.clone(),
         tools: request
             .tools
             .iter()
@@ -1017,6 +1021,7 @@ pub fn openai_request_from_model_request(
         service_tier: request.service_tier.clone(),
         output_contract_id: request.output_contract_id.clone(),
         previous_response_id: request.previous_response_id.clone(),
+        output_schema_json: request.output_schema_json.clone(),
         tools: request
             .tools
             .iter()
@@ -1275,6 +1280,7 @@ fn provider_matches_request(selected: &str, requested: &str) -> bool {
 fn worker_instructions(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     launch_document: &EpiphanyWorkerLaunchDocument,
+    output_schema_json: &str,
 ) -> String {
     let output_contract = worker_output_contract_text(launch_document);
     let dynamic_context = launch_document
@@ -1282,9 +1288,37 @@ fn worker_instructions(
         .map(|context| format!("\n\n{context}"))
         .unwrap_or_default();
     format!(
-        "{}{}\n\nReturn only one JSON object. No Markdown, no commentary.\n\n{}",
-        launch_request.instruction, dynamic_context, output_contract
+        "{}{}\n\nReturn only one JSON object. No Markdown, no commentary.\n\n{}\n\nOutput schema JSON:\n```json\n{}\n```",
+        launch_request.instruction, dynamic_context, output_contract, output_schema_json
     )
+}
+
+fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<String> {
+    let schema = match document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            let role_id = role_result_id_for_launch_role(&document.role_id)
+                .with_context(|| format!("unknown role launch id {:?}", document.role_id))?;
+            epiphany_core::epiphany_role_launch_output_schema(role_id)
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => {
+            epiphany_core::epiphany_reorient_launch_output_schema()
+        }
+    };
+    serde_json::to_string_pretty(&schema).context("failed to render worker output schema")
+}
+
+fn role_result_id_for_launch_role(
+    role_id: &str,
+) -> Option<epiphany_core::EpiphanyRoleResultRoleId> {
+    match role_id {
+        "imagination" => Some(epiphany_core::EpiphanyRoleResultRoleId::Imagination),
+        "research" => Some(epiphany_core::EpiphanyRoleResultRoleId::Research),
+        "modeling" => Some(epiphany_core::EpiphanyRoleResultRoleId::Modeling),
+        "verification" => Some(epiphany_core::EpiphanyRoleResultRoleId::Verification),
+        "implementation" => Some(epiphany_core::EpiphanyRoleResultRoleId::Implementation),
+        "reorientation" => Some(epiphany_core::EpiphanyRoleResultRoleId::Reorientation),
+        _ => None,
+    }
 }
 
 fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
@@ -1754,6 +1788,14 @@ mod tests {
             model_request.output_contract_id.as_deref(),
             Some(epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID)
         );
+        let output_schema = model_request
+            .output_schema_json
+            .as_deref()
+            .expect("worker model request should carry role output schema");
+        assert!(output_schema.contains("\"statePatch\""));
+        assert!(output_schema.contains("\"frontierNodeIds\""));
+        assert!(model_request.instructions.contains("Output schema JSON"));
+        assert!(model_request.instructions.contains("\"statePatch\""));
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
         assert!(
@@ -1914,12 +1956,14 @@ mod tests {
     fn builds_tool_followup_model_request_from_receipts() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        let request = EpiphanyOpenAiModelRequest::new(
+        let mut request = EpiphanyOpenAiModelRequest::new(
             "req-tools",
             "conversation-1",
             "gpt-5.4",
             "Answer after tool output.",
         );
+        request.output_schema_json =
+            Some(r#"{"type":"object","required":["statePatch"]}"#.to_string());
         let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
         ensure_openai_runtime_ready(&options)?;
         ensure_runtime_session(
@@ -1990,6 +2034,10 @@ mod tests {
             build_tool_followup_model_request(&store, "req-tools", "req-tools-followup")?;
         assert_eq!(followup.request_id, "req-tools-followup");
         assert_eq!(followup.previous_response_id, None);
+        assert_eq!(
+            followup.output_schema_json.as_deref(),
+            Some(r#"{"type":"object","required":["statePatch"]}"#)
+        );
         assert_eq!(followup.input.len(), 2);
         assert_eq!(
             followup.input[0],

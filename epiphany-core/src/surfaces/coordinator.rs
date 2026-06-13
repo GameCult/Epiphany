@@ -136,6 +136,7 @@ pub struct EpiphanyCoordinatorInput {
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
+    pub modeling_result_failure_reviewed: bool,
     pub modeling_result_accepted_after_verification: bool,
     pub implementation_evidence_after_verification: bool,
     pub verification_result_cites_implementation_evidence: bool,
@@ -175,6 +176,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
+    pub modeling_result_failure_reviewed: bool,
     pub modeling_result_accepted_after_verification: bool,
     pub implementation_evidence_after_verification: bool,
     pub verification_result_cites_implementation_evidence: bool,
@@ -201,6 +203,7 @@ pub struct EpiphanyCoordinatorFindingSignals {
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
+    pub modeling_result_failure_reviewed: bool,
     pub modeling_result_accepted_after_verification: bool,
     pub implementation_evidence_after_verification: bool,
     pub verification_result_cites_implementation_evidence: bool,
@@ -264,6 +267,7 @@ pub fn derive_coordinator_status(
         modeling_result_requests_regather: input.modeling_result_requests_regather,
         modeling_result_accepted: input.modeling_result_accepted,
         modeling_result_reviewable: input.modeling_result_reviewable,
+        modeling_result_failure_reviewed: input.modeling_result_failure_reviewed,
         modeling_result_accepted_after_verification: input
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: input
@@ -308,6 +312,11 @@ pub fn derive_coordinator_finding_signals(
         modeling_finding.is_some_and(modeling_finding_has_reviewable_state_patch);
     let modeling_result_requests_regather =
         modeling_finding.is_some_and(modeling_finding_requests_regather);
+    let modeling_result_failure_reviewed = modeling_finding.as_ref().is_some_and(|finding| {
+        state.is_some_and(|state| {
+            role_finding_failure_reviewed(state, EpiphanyCoordinatorRoleId::Modeling, finding)
+        })
+    });
     let verification_result_accepted = verification_finding.as_ref().is_some_and(|finding| {
         state.is_some_and(|state| {
             role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Verification, finding)
@@ -364,6 +373,7 @@ pub fn derive_coordinator_finding_signals(
         modeling_result_requests_regather,
         modeling_result_accepted,
         modeling_result_reviewable,
+        modeling_result_failure_reviewed,
         modeling_result_accepted_after_verification,
         implementation_evidence_after_verification,
         verification_result_cites_implementation_evidence,
@@ -775,6 +785,16 @@ pub fn recommend_coordinator_action(
         && !input.modeling_result_accepted
     {
         if !input.modeling_result_reviewable {
+            if input.modeling_result_failure_reviewed {
+                return build(
+                    EpiphanyCoordinatorAction::LaunchModeling,
+                    Some(EpiphanyCoordinatorRoleId::Modeling),
+                    Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                    false,
+                    true,
+                    "The completed modeling/checkpoint result was reviewed as unreviewable and superseded; relaunch Proprioception so it can emit the required statePatch before Hands continues.",
+                );
+            }
             if input.modeling_result_requests_regather
                 && !input.research_result_accepted
                 && matches!(
@@ -817,6 +837,16 @@ pub fn recommend_coordinator_action(
     if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
         && !input.modeling_result_accepted
     {
+        if input.modeling_result_failure_reviewed {
+            return build(
+                EpiphanyCoordinatorAction::LaunchModeling,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "The failed modeling/checkpoint result was reviewed and superseded; relaunch Proprioception before verification or implementation continues.",
+            );
+        }
         return build(
             EpiphanyCoordinatorAction::ReviewModelingResult,
             Some(EpiphanyCoordinatorRoleId::Modeling),
@@ -1212,6 +1242,7 @@ mod tests {
             modeling_result_requests_regather: false,
             modeling_result_accepted: false,
             modeling_result_reviewable: false,
+            modeling_result_failure_reviewed: false,
             modeling_result_accepted_after_verification: false,
             implementation_evidence_after_verification: false,
             verification_result_cites_implementation_evidence: false,
@@ -1608,6 +1639,22 @@ mod tests {
             EpiphanyCoordinatorAction::ReviewModelingResult
         );
         assert!(!review_unreviewable_modeling.can_auto_run);
+
+        let relaunch_superseded_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+            },
+            modeling_result_failure_reviewed: true,
+            ..input()
+        });
+        assert_eq!(
+            relaunch_superseded_modeling.action,
+            EpiphanyCoordinatorAction::LaunchModeling
+        );
+        assert!(relaunch_superseded_modeling.can_auto_run);
+        assert!(relaunch_superseded_modeling.reason.contains("statePatch"));
 
         let launch_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {

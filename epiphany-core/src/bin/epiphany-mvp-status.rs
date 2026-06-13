@@ -16,14 +16,14 @@ use epiphany_core::EpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientFreshnessStatus;
 use epiphany_core::EpiphanyReorientInput;
 use epiphany_core::EpiphanyReorientPressureLevel;
-use epiphany_core::EpiphanyRoleFindingInterpretation;
-use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRetrievalFreshnessStatus;
 use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
 use epiphany_core::EpiphanyRoleBoardInput;
 use epiphany_core::EpiphanyRoleBoardJob;
 use epiphany_core::EpiphanyRoleBoardJobStatus;
 use epiphany_core::EpiphanyRoleBoardPlanningSummary;
+use epiphany_core::EpiphanyRoleFindingInterpretation;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::EpiphanySceneInput;
@@ -431,6 +431,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         modeling_result_requests_regather: finding_signals.modeling_result_requests_regather,
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
+        modeling_result_failure_reviewed: finding_signals.modeling_result_failure_reviewed,
         modeling_result_accepted_after_verification: finding_signals
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: finding_signals
@@ -898,9 +899,7 @@ fn reorient_retrieval_status(
 ) -> EpiphanyReorientFreshnessStatus {
     match status {
         EpiphanyRetrievalFreshnessStatus::Missing
-        | EpiphanyRetrievalFreshnessStatus::Unavailable => {
-            EpiphanyReorientFreshnessStatus::Unknown
-        }
+        | EpiphanyRetrievalFreshnessStatus::Unavailable => EpiphanyReorientFreshnessStatus::Unknown,
         EpiphanyRetrievalFreshnessStatus::Ready => EpiphanyReorientFreshnessStatus::Clean,
         EpiphanyRetrievalFreshnessStatus::Stale => EpiphanyReorientFreshnessStatus::Stale,
         EpiphanyRetrievalFreshnessStatus::Indexing => EpiphanyReorientFreshnessStatus::Dirty,

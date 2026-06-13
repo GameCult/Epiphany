@@ -419,8 +419,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     steps.push(step);
                     break;
                 }
-                if result["status"].as_str() == Some("failed") && args.supersede_failed_results {
-                    let superseded = supersede_failed_role_result(
+                if args.supersede_failed_results && role_result_needs_supersession(role_id, &result)
+                {
+                    let superseded = supersede_role_result(
                         &mut client,
                         &thread_id,
                         role_id,
@@ -1107,7 +1108,17 @@ fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
     }
 }
 
-fn supersede_failed_role_result(
+fn role_result_needs_supersession(role_id: &str, result: &Value) -> bool {
+    match result["status"].as_str() {
+        Some("failed") => true,
+        Some("completed") if matches!(role_id, "research" | "modeling" | "imagination") => {
+            !role_result_auto_acceptable(role_id, result)
+        }
+        _ => false,
+    }
+}
+
+fn supersede_role_result(
     client: &mut status_cli::AppServerClient,
     thread_id: &str,
     role_id: &str,
@@ -1121,7 +1132,7 @@ fn supersede_failed_role_result(
     let binding_id = first_string_at(result, &[&["bindingId"]])
         .unwrap_or_else(|| default_binding_id_for_role(role_id));
     let summary = first_string_at(result, &[&["finding", "summary"], &["note"]])
-        .unwrap_or_else(|| "Failed role result reviewed and superseded.".to_string());
+        .unwrap_or_else(|| "Role result reviewed and superseded.".to_string());
     let receipt = json!({
         "id": format!("role-failure-review-{}", Uuid::new_v4()),
         "result_id": result_id,
@@ -1790,6 +1801,37 @@ mod tests {
 
         assert!(!role_result_auto_acceptable("modeling", &missing_identity));
         assert!(!role_result_auto_acceptable("modeling", &errored));
+    }
+
+    #[test]
+    fn supersession_includes_unreviewable_modeling_results() {
+        let unreviewable = json!({
+            "status": "completed",
+            "finding": {
+                "verdict": "checkpoint-update-needed",
+                "summary": "Mapped in prose only.",
+                "runtimeResultId": "result-modeling-1",
+                "runtimeJobId": "job-modeling-1",
+                "itemError": "modeling result is not reviewable: missing required statePatch"
+            }
+        });
+        let reviewable = json!({
+            "status": "completed",
+            "finding": {
+                "verdict": "checkpoint-update-needed",
+                "summary": "Mapped with state.",
+                "runtimeResultId": "result-modeling-2",
+                "runtimeJobId": "job-modeling-2",
+                "statePatch": {"scratch": {"summary": "mapped"}}
+            }
+        });
+
+        assert!(role_result_needs_supersession("modeling", &unreviewable));
+        assert!(!role_result_needs_supersession("modeling", &reviewable));
+        assert!(!role_result_needs_supersession(
+            "verification",
+            &unreviewable
+        ));
     }
 
     #[test]

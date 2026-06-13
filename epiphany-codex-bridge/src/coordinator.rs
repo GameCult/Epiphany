@@ -184,6 +184,7 @@ pub async fn derive_epiphany_coordinator_status(
         modeling_result_requests_regather: finding_signals.modeling_result_requests_regather,
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
+        modeling_result_failure_reviewed: finding_signals.modeling_result_failure_reviewed,
         modeling_result_accepted_after_verification: finding_signals
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: finding_signals
