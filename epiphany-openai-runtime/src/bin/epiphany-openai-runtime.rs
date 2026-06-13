@@ -36,6 +36,8 @@ use epiphany_openai_runtime::run_model_turn;
 use epiphany_openai_runtime::run_openai_model_turn;
 use epiphany_openai_runtime::run_tool_followup_model_turn;
 use epiphany_openai_runtime::run_worker_launch;
+use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
+use epiphany_tool_adapter::tool_invocation_intent_key;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -562,9 +564,54 @@ async fn run_worker_launch_with_tool_continuation(
     let mut openai_summary =
         run_model_turn(&options.provider, current_options.clone(), initial_request).await?;
     let mut tool_rounds = Vec::new();
+    let mut previous_tool_fingerprints: Option<Vec<String>> = None;
+    let mut consecutive_repeated_tool_rounds = 0usize;
+    let mut round = 0usize;
 
-    for round in 0..options.max_tool_rounds {
-        if openai_summary.tool_intent_ids.is_empty() {
+    while !openai_summary.tool_intent_ids.is_empty() {
+        let tool_fingerprints =
+            tool_intent_fingerprints(&options.store_path, &openai_summary.tool_intent_ids)?;
+        if same_nonempty_tool_request_round(
+            previous_tool_fingerprints.as_deref(),
+            &tool_fingerprints,
+        ) {
+            consecutive_repeated_tool_rounds += 1;
+        } else {
+            consecutive_repeated_tool_rounds = 0;
+        }
+        if consecutive_repeated_tool_rounds >= 2 {
+            let summary = format!(
+                "worker {} repeated the same pending tool request set for {} consecutive follow-up rounds",
+                launch_request.job_id,
+                consecutive_repeated_tool_rounds + 1
+            );
+            let result = fail_worker_job(
+                &options.store_path,
+                &launch_request.job_id,
+                summary.clone(),
+                "Inspect the repeated tool fingerprints and decide whether the worker needs a narrower evidence bundle, a repaired tool, or a higher explicit limit."
+                    .to_string(),
+            )?;
+            return Ok(json!({
+                "status": "tool-loop-stalled",
+                "store": options.store_path,
+                "jobId": launch_request.job_id,
+                "bindingId": launch_request.binding_id,
+                "role": launch_request.role,
+                "requestId": current_request_id,
+                "openaiResultId": openai_summary.result_id,
+                "openaiVerdict": openai_summary.verdict,
+                "openaiSummary": openai_summary.summary,
+                "workerResultId": result.result_id,
+                "verdict": result.verdict,
+                "summary": summary,
+                "nextSafeMove": result.next_safe_move,
+                "pendingToolIntentIds": openai_summary.tool_intent_ids,
+                "pendingToolFingerprints": tool_fingerprints,
+                "toolRounds": tool_rounds,
+            }));
+        }
+        if round >= options.max_tool_rounds {
             break;
         }
         let mut adapter_runs = Vec::new();
@@ -589,17 +636,19 @@ async fn run_worker_launch_with_tool_continuation(
         current_request_id = followup_request_id;
         tool_rounds.push(json!({
             "round": round,
+            "toolFingerprints": tool_fingerprints.clone(),
             "adapterRuns": adapter_runs,
             "followupRequestId": current_request_id,
             "summary": openai_summary,
         }));
+        previous_tool_fingerprints = Some(tool_fingerprints);
+        round += 1;
     }
 
     if !openai_summary.tool_intent_ids.is_empty() {
         let summary = format!(
             "worker {} still requested tools after {} automatic tool rounds",
-            launch_request.job_id,
-            options.max_tool_rounds
+            launch_request.job_id, options.max_tool_rounds
         );
         let result = fail_worker_job(
             &options.store_path,
@@ -654,6 +703,88 @@ async fn run_worker_launch_with_tool_continuation(
         "artifactRefs": worker_result.artifact_refs,
         "toolRounds": tool_rounds,
     }))
+}
+
+fn tool_intent_fingerprints(store_path: &Path, intent_ids: &[String]) -> Result<Vec<String>> {
+    let mut cache = epiphany_core::runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut fingerprints = Vec::new();
+    for intent_id in intent_ids {
+        let fingerprint = match cache
+            .get::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(intent_id))?
+        {
+            Some(intent) => tool_intent_fingerprint(&intent),
+            None => format!("missing-intent:{intent_id}"),
+        };
+        fingerprints.push(fingerprint);
+    }
+    fingerprints.sort();
+    Ok(fingerprints)
+}
+
+fn tool_intent_fingerprint(intent: &EpiphanyToolInvocationIntent) -> String {
+    format!(
+        "{}::{}::{}",
+        intent.server,
+        intent.tool_name,
+        canonical_jsonish(&intent.arguments_json)
+    )
+}
+
+fn canonical_jsonish(raw: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(raw)
+        .and_then(|value| serde_json::to_string(&value))
+        .unwrap_or_else(|_| raw.to_string())
+}
+
+fn same_nonempty_tool_request_round(previous: Option<&[String]>, current: &[String]) -> bool {
+    !current.is_empty() && previous == Some(current)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
+
+    #[test]
+    fn same_nonempty_tool_request_round_requires_real_repetition() {
+        let first = vec!["source::read_file::{\"path\":\"README.md\"}".to_string()];
+        let second = vec!["source::git_show::{\"commit\":\"abc\"}".to_string()];
+
+        assert!(!same_nonempty_tool_request_round(None, &first));
+        assert!(!same_nonempty_tool_request_round(Some(&first), &[]));
+        assert!(!same_nonempty_tool_request_round(Some(&first), &second));
+        assert!(same_nonempty_tool_request_round(Some(&first), &first));
+    }
+
+    #[test]
+    fn tool_intent_fingerprint_ignores_argument_key_order() {
+        let left = EpiphanyToolInvocationIntent::new(
+            "left",
+            "codex-mcp",
+            "epiphany_source",
+            "read_file",
+            r#"{"path":"README.md","offset":0}"#,
+            "model",
+            "test",
+            "2026-06-13T00:00:00Z",
+        );
+        let right = EpiphanyToolInvocationIntent::new(
+            "right",
+            "codex-mcp",
+            "epiphany_source",
+            "read_file",
+            r#"{"offset":0,"path":"README.md"}"#,
+            "model",
+            "test",
+            "2026-06-13T00:00:00Z",
+        );
+
+        assert_eq!(
+            tool_intent_fingerprint(&left),
+            tool_intent_fingerprint(&right)
+        );
+    }
 }
 
 async fn run_worker_options(options: RunWorkerCliOptions) -> Result<serde_json::Value> {

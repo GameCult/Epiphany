@@ -51,7 +51,7 @@ mod status_cli;
 const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-codex-mcp-spine";
-const WORKER_AUTO_TOOL_MAX_ROUNDS: usize = 12;
+const WORKER_AUTO_TOOL_MAX_ROUNDS: usize = 24;
 const REORIENT_BINDING_ID: &str = "reorient-worker";
 const GRAPH_NODE_ID: &str = "reorient-target";
 const WATCHED_RELATIVE_PATH: &str = "src/reorient_target.rs";
