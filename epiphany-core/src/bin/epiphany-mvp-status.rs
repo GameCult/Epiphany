@@ -7,12 +7,18 @@ use epiphany_core::EpiphanyCrrcInput;
 use epiphany_core::EpiphanyCrrcReorientAction;
 use epiphany_core::EpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyCrrcStateStatus;
+use epiphany_core::EpiphanyFreshnessInput;
+use epiphany_core::EpiphanyGraphFreshnessStatus;
+use epiphany_core::EpiphanyInvalidationStatus;
 use epiphany_core::EpiphanyJobStatus;
 use epiphany_core::EpiphanyJobsInput;
 use epiphany_core::EpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientFreshnessStatus;
 use epiphany_core::EpiphanyReorientInput;
 use epiphany_core::EpiphanyReorientPressureLevel;
+use epiphany_core::EpiphanyRoleFindingInterpretation;
+use epiphany_core::EpiphanyRoleResultRoleId;
+use epiphany_core::EpiphanyRetrievalFreshnessStatus;
 use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
 use epiphany_core::EpiphanyRoleBoardInput;
 use epiphany_core::EpiphanyRoleBoardJob;
@@ -24,15 +30,18 @@ use epiphany_core::EpiphanySceneInput;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::derive_coordinator_finding_signals;
 use epiphany_core::derive_coordinator_status;
+use epiphany_core::derive_freshness;
 use epiphany_core::derive_jobs;
 use epiphany_core::derive_planning_view;
 use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
+use epiphany_core::interpret_runtime_role_worker_result;
 use epiphany_core::load_thread_state_entry;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_role_worker_result;
 use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
 use serde_json::json;
@@ -269,6 +278,11 @@ fn run_native_status(args: &Args) -> Result<Value> {
         reorient_binding_id: REORIENT_BINDING_ID,
     });
     let pressure = derive_pressure_view(None::<&EpiphanyTokenUsageSnapshot>);
+    let freshness = derive_freshness(EpiphanyFreshnessInput {
+        state: state_ref,
+        retrieval_override: None,
+        watcher: None,
+    });
     let reorient_pressure_level = match pressure.level {
         epiphany_core::EpiphanyPressureLevel::Unknown => EpiphanyReorientPressureLevel::Unknown,
         epiphany_core::EpiphanyPressureLevel::Low => EpiphanyReorientPressureLevel::Low,
@@ -281,18 +295,15 @@ fn run_native_status(args: &Args) -> Result<Value> {
             checkpoint: state_ref.and_then(|state| state.investigation_checkpoint.as_ref()),
             state_present: state_ref.is_some(),
             pressure_level: reorient_pressure_level,
-            retrieval_status: EpiphanyReorientFreshnessStatus::Unknown,
-            retrieval_dirty_paths: Vec::new(),
-            graph_status: EpiphanyReorientFreshnessStatus::Unknown,
-            graph_dirty_paths: Vec::new(),
-            watcher_status: EpiphanyReorientFreshnessStatus::Unknown,
-            watcher_changed_paths: Vec::new(),
-            watcher_graph_node_ids: Vec::new(),
-            active_frontier_node_ids: state_ref
-                .and_then(|state| state.graph_frontier.as_ref())
-                .map(|frontier| frontier.active_node_ids.clone())
-                .unwrap_or_default(),
-            watched_root: Some(cwd.clone()),
+            retrieval_status: reorient_retrieval_status(freshness.retrieval.status),
+            retrieval_dirty_paths: freshness.retrieval.dirty_paths.clone(),
+            graph_status: reorient_graph_status(freshness.graph.status),
+            graph_dirty_paths: freshness.graph.dirty_paths.clone(),
+            watcher_status: reorient_watcher_status(freshness.watcher.status),
+            watcher_changed_paths: freshness.watcher.changed_paths.clone(),
+            watcher_graph_node_ids: freshness.watcher.graph_node_ids.clone(),
+            active_frontier_node_ids: freshness.watcher.active_frontier_node_ids.clone(),
+            watched_root: freshness.watcher.watched_root.clone().or(Some(cwd.clone())),
         });
     let planning = derive_planning_view(state_ref);
     let mut jobs = derive_jobs(EpiphanyJobsInput {
@@ -377,7 +388,31 @@ fn run_native_status(args: &Args) -> Result<Value> {
         imagination_owner_role: "epiphany-imagination".to_string(),
         research_owner_role: "epiphany-eyes".to_string(),
     });
-    let finding_signals = derive_coordinator_finding_signals(state_ref, None, None, None, None);
+    let research_finding = native_role_finding(
+        state_ref,
+        &runtime_store_path,
+        RESEARCH_BINDING_ID,
+        EpiphanyRoleResultRoleId::Research,
+    );
+    let modeling_finding = native_role_finding(
+        state_ref,
+        &runtime_store_path,
+        MODELING_BINDING_ID,
+        EpiphanyRoleResultRoleId::Modeling,
+    );
+    let verification_finding = native_role_finding(
+        state_ref,
+        &runtime_store_path,
+        VERIFICATION_BINDING_ID,
+        EpiphanyRoleResultRoleId::Verification,
+    );
+    let finding_signals = derive_coordinator_finding_signals(
+        state_ref,
+        research_finding.as_ref(),
+        modeling_finding.as_ref(),
+        verification_finding.as_ref(),
+        None,
+    );
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: state_ref
@@ -797,6 +832,19 @@ fn native_role_result_status(
     }
 }
 
+fn native_role_finding(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+    binding_id: &str,
+    role_id: EpiphanyRoleResultRoleId,
+) -> Option<EpiphanyRoleFindingInterpretation> {
+    let job_id = latest_runtime_job_id_for_binding(state, binding_id)?;
+    runtime_role_worker_result(runtime_store, job_id)
+        .ok()
+        .flatten()
+        .map(|result| interpret_runtime_role_worker_result(role_id, &result))
+}
+
 fn native_reorient_result_status(
     state: Option<&EpiphanyThreadState>,
     runtime_store: &Path,
@@ -843,6 +891,36 @@ fn latest_runtime_job_id_for_binding<'a>(
         .iter()
         .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
         .map(|link| link.runtime_job_id.as_str())
+}
+
+fn reorient_retrieval_status(
+    status: EpiphanyRetrievalFreshnessStatus,
+) -> EpiphanyReorientFreshnessStatus {
+    match status {
+        EpiphanyRetrievalFreshnessStatus::Missing
+        | EpiphanyRetrievalFreshnessStatus::Unavailable => {
+            EpiphanyReorientFreshnessStatus::Unknown
+        }
+        EpiphanyRetrievalFreshnessStatus::Ready => EpiphanyReorientFreshnessStatus::Clean,
+        EpiphanyRetrievalFreshnessStatus::Stale => EpiphanyReorientFreshnessStatus::Stale,
+        EpiphanyRetrievalFreshnessStatus::Indexing => EpiphanyReorientFreshnessStatus::Dirty,
+    }
+}
+
+fn reorient_graph_status(status: EpiphanyGraphFreshnessStatus) -> EpiphanyReorientFreshnessStatus {
+    match status {
+        EpiphanyGraphFreshnessStatus::Missing => EpiphanyReorientFreshnessStatus::Unknown,
+        EpiphanyGraphFreshnessStatus::Ready => EpiphanyReorientFreshnessStatus::Clean,
+        EpiphanyGraphFreshnessStatus::Stale => EpiphanyReorientFreshnessStatus::Stale,
+    }
+}
+
+fn reorient_watcher_status(status: EpiphanyInvalidationStatus) -> EpiphanyReorientFreshnessStatus {
+    match status {
+        EpiphanyInvalidationStatus::Unavailable => EpiphanyReorientFreshnessStatus::Unknown,
+        EpiphanyInvalidationStatus::Clean => EpiphanyReorientFreshnessStatus::Clean,
+        EpiphanyInvalidationStatus::Changed => EpiphanyReorientFreshnessStatus::Changed,
+    }
 }
 
 fn map_runtime_role_result_status(
