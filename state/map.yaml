@@ -596,4 +596,4 @@ current_status:
     cargo and rejects modeling/planning/graph/checkpoint authority. MVP status
     and coordinator smokes pass with six lanes, and the smoke harness now
     rebuilds stale coordinator/app-server binaries before using them.
-  next_action: Use the new Hands gate from `.epiphany-dogfood/local-20260613-204521/coordinator/coordinator-summary.json` for one bounded proof of the remaining live runtime seam: the explicit `run_worker --auto-tools` tool-round ceiling must still seal as `tool-round-limit` without reopening the already-verified repeated-identical-tool-loop path.
+  next_action: Fork for operator judgment before more Hands work: commits `364f42c1` and `ee8fa983` added the explicit `tool-round-limit` proof plus runtime-error sealing and recorded Hands receipts against the `local-20260613-204521` gate, but Soul verification is now timing out at 180s while inspecting the expanded Hands chain. Choose whether to increase/rework Soul runtime/tool budget for this evidence trail or shrink the verification packet/artifacts so Soul can complete inside the current budget.
