@@ -570,9 +570,8 @@ async fn run_worker_launch_with_tool_continuation(
     while !openai_summary.tool_intent_ids.is_empty() {
         let tool_fingerprints =
             tool_intent_fingerprints(&options.store_path, &openai_summary.tool_intent_ids)?;
-        if let ToolLoopDecision::Stalled {
-            consecutive_rounds,
-        } = tool_loop_guard.observe(tool_fingerprints.clone())
+        if let ToolLoopDecision::Stalled { consecutive_rounds } =
+            tool_loop_guard.observe(tool_fingerprints.clone())
         {
             return fail_worker_for_repeated_tool_loop(
                 &options.store_path,
@@ -618,34 +617,14 @@ async fn run_worker_launch_with_tool_continuation(
     }
 
     if !openai_summary.tool_intent_ids.is_empty() {
-        let summary = format!(
-            "worker {} still requested tools after {} automatic tool rounds",
-            launch_request.job_id, options.max_tool_rounds
-        );
-        let result = fail_worker_job(
+        return fail_worker_for_tool_round_limit(
             &options.store_path,
-            &launch_request.job_id,
-            summary.clone(),
-            "Inspect the worker request, tool receipts, and model/tool loop before relaunching."
-                .to_string(),
-        )?;
-        return Ok(json!({
-            "status": "tool-round-limit",
-            "store": options.store_path,
-            "jobId": launch_request.job_id,
-            "bindingId": launch_request.binding_id,
-            "role": launch_request.role,
-            "requestId": current_request_id,
-            "openaiResultId": openai_summary.result_id,
-            "openaiVerdict": openai_summary.verdict,
-            "openaiSummary": openai_summary.summary,
-            "workerResultId": result.result_id,
-            "verdict": result.verdict,
-            "summary": summary,
-            "nextSafeMove": result.next_safe_move,
-            "pendingToolIntentIds": openai_summary.tool_intent_ids,
-            "toolRounds": tool_rounds,
-        }));
+            &launch_request,
+            &current_request_id,
+            &openai_summary,
+            tool_rounds,
+            options.max_tool_rounds,
+        );
     }
 
     let assistant_text =
@@ -707,6 +686,44 @@ impl ToolLoopGuard {
             ToolLoopDecision::Continue
         }
     }
+}
+
+fn fail_worker_for_tool_round_limit(
+    store_path: &Path,
+    launch_request: &epiphany_core::EpiphanyRuntimeWorkerLaunchRequest,
+    current_request_id: &str,
+    openai_summary: &epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary,
+    tool_rounds: Vec<serde_json::Value>,
+    max_tool_rounds: usize,
+) -> Result<serde_json::Value> {
+    let summary = format!(
+        "worker {} still requested tools after {} automatic tool rounds",
+        launch_request.job_id, max_tool_rounds
+    );
+    let result = fail_worker_job(
+        store_path,
+        &launch_request.job_id,
+        summary.clone(),
+        "Inspect the worker request, tool receipts, and model/tool loop before relaunching."
+            .to_string(),
+    )?;
+    Ok(json!({
+        "status": "tool-round-limit",
+        "store": store_path.display().to_string(),
+        "jobId": launch_request.job_id,
+        "bindingId": launch_request.binding_id,
+        "role": launch_request.role,
+        "requestId": current_request_id,
+        "openaiResultId": openai_summary.result_id,
+        "openaiVerdict": openai_summary.verdict,
+        "openaiSummary": openai_summary.summary,
+        "workerResultId": result.result_id,
+        "verdict": result.verdict,
+        "summary": summary,
+        "nextSafeMove": result.next_safe_move,
+        "pendingToolIntentIds": openai_summary.tool_intent_ids,
+        "toolRounds": tool_rounds,
+    }))
 }
 
 fn fail_worker_for_repeated_tool_loop(
@@ -914,6 +931,92 @@ mod tests {
 
         assert_eq!(status["status"], "tool-loop-stalled");
         let snapshot = runtime_job_snapshot(&store, "worker-job-loop")?.expect("worker snapshot");
+        assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
+        assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
+        Ok(())
+    }
+
+    #[test]
+    fn tool_round_limit_seals_outer_worker_job_without_stall_status() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                session_id: "epiphany-main".to_string(),
+                objective: "Run typed worker.".to_string(),
+                coordinator_note: "test".to_string(),
+                job_id: "worker-job-round-limit".to_string(),
+                role: "verification".to_string(),
+                binding_id: "verification-review-worker".to_string(),
+                authority_scope: "epiphany.role.verification".to_string(),
+                instruction: "Return the required role-result JSON.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "verification".to_string(),
+                        state_revision: 1,
+                        objective: Some("Verify the worker loop ceiling.".to_string()),
+                        dynamic_prompt_context: None,
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: Vec::new(),
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                organ_launch_contract: default_launch_organ_contract(
+                    "epiphany.role.verification",
+                    "role",
+                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+                ),
+                created_at: now(),
+            },
+        )?;
+        let launch_request = runtime_worker_launch_request(&store, "worker-job-round-limit")?
+            .expect("launch request");
+        let openai_summary = epiphany_openai_runtime::EpiphanyOpenAiRuntimeRunSummary {
+            store: store.display().to_string(),
+            session_id: "openai-worker-session-verification-review-worker".to_string(),
+            job_id: "openai-worker-worker-job-round-limit".to_string(),
+            request_id: "request-limit".to_string(),
+            event_count: 1,
+            verdict: "pass".to_string(),
+            summary: "Model still requested another nonrepeating tool.".to_string(),
+            result_id: "result-openai-worker-job-round-limit".to_string(),
+            receipt_id: Some("request-limit".to_string()),
+            tool_intent_ids: vec!["intent-git-show".to_string()],
+        };
+        let tool_rounds = vec![
+            json!({"round": 0, "toolFingerprints": ["epiphany_source::read_file::{\"path\":\"README.md\"}"]}),
+            json!({"round": 1, "toolFingerprints": ["epiphany_source::git_show::{\"commit\":\"HEAD\"}"]}),
+        ];
+
+        let status = fail_worker_for_tool_round_limit(
+            &store,
+            &launch_request,
+            "request-limit",
+            &openai_summary,
+            tool_rounds,
+            2,
+        )?;
+
+        assert_eq!(status["status"], "tool-round-limit");
+        assert_eq!(status["pendingToolIntentIds"][0], "intent-git-show");
+        assert_ne!(status["status"], "tool-loop-stalled");
+        let snapshot =
+            runtime_job_snapshot(&store, "worker-job-round-limit")?.expect("worker snapshot");
         assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Failed);
         assert_eq!(snapshot.result.expect("worker result").verdict, "failed");
         Ok(())
