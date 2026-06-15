@@ -8,7 +8,7 @@ inside the Codex organ. The target is Epiphany as its own CultCache/CultNet
 machine, with a relatively vanilla vendored Codex retained as the bridge to
 OpenAI and Codex-native runtime affordances.
 
-No outward product, bridge, Aquarium, Face, dogfood, Unity, Rider, planning, or
+No outward product, bridge, Aquarium, Persona, dogfood, Unity, Rider, planning, or
 personality work outranks this liberation pass unless the user explicitly
 overrides it.
 
@@ -208,7 +208,7 @@ Replace generic launch/result cargo with typed documents:
 Success: worker ingress may parse model JSON once, but internal launch,
 finding, self-memory, and acceptance flow uses typed CultCache documents.
 
-### 5. Evacuate Operator Surfaces From Codex JSON-RPC
+### 5. Evacuate Operator surfaces From Codex JSON-RPC
 
 Move operator reads/actions from `thread/epiphany/*` to CultNet contracts:
 

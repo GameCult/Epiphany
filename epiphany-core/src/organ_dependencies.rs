@@ -26,10 +26,10 @@ pub const EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION: &str = "epiphany.launch
 
 pub const EPIPHANY_STANDING_ORGANS: [&str; 7] = [
     "self",
-    "face",
+    "Persona",
     "imagination",
     "eyes",
-    "proprioception",
+    "Modeling",
     "hands",
     "soul",
 ];
@@ -98,7 +98,7 @@ pub fn default_organ_dependencies_for(organ_id: &str) -> EpiphanyOrganDependency
             .filter(|candidate| **candidate != normalized)
             .map(|candidate| (*candidate).to_string())
             .collect(),
-        contract: "Every sub-agent depends on the other sub-agents: Self routes, Face speaks, Imagination projects futures/scenes, Eyes seeks evidence, Proprioception models the Body, Hands acts through Substrate Gate grants, and Soul verifies. Continuity is protocol machinery, not a sub-agent identity.".to_string(),
+        contract: "Every sub-agent depends on the other sub-agents: Self routes, Persona speaks, Imagination projects futures/scenes, Eyes seeks evidence, Modeling models the Body, Hands acts through Substrate Gate grants, and Soul verifies. Continuity is protocol machinery, not a sub-agent identity.".to_string(),
     }
 }
 
@@ -123,7 +123,7 @@ pub fn default_launch_organ_contract(
         dependencies: default_organ_dependency_matrix(),
         receipt_proof_profiles: default_receipt_proof_profiles(),
         required_receipt_document_types: default_launch_required_receipts(),
-        contract: "A worker launch is not naked task cargo: it carries the sub-agent dependency matrix, a receipt document catalogue, and effect-specific proof profiles. Mind gates state effects, Substrate Gate gates repo access, Eyes supplies evidence, Proprioception models the Body, Hands records action, Soul verifies, and Continuity protocols preserve recovery across rupture.".to_string(),
+        contract: "A worker launch is not naked task cargo: it carries the sub-agent dependency matrix, a receipt document catalogue, and effect-specific proof profiles. Mind gates state effects, Substrate Gate gates repo access, Eyes supplies evidence, Modeling models the Body, Hands records action, Soul verifies, and Continuity protocols preserve recovery across rupture.".to_string(),
     }
 }
 
@@ -324,14 +324,14 @@ pub fn render_organ_dependencies(dependencies: &[EpiphanyOrganDependency]) -> St
 
 fn owner_organ_for_authority_scope(authority_scope: &str) -> &'static str {
     let normalized = authority_scope.trim().to_ascii_lowercase();
-    if normalized.contains("face") {
-        "face"
+    if normalized.contains("Persona") {
+        "Persona"
     } else if normalized.contains("imagination") {
         "imagination"
     } else if normalized.contains("eyes") || normalized.contains("evidence") {
         "eyes"
-    } else if normalized.contains("modeling") || normalized.contains("proprioception") {
-        "proprioception"
+    } else if normalized.contains("modeling") || normalized.contains("Modeling") {
+        "Modeling"
     } else if normalized.contains("hands") || normalized.contains("implementation") {
         "hands"
     } else if normalized.contains("verification") || normalized.contains("soul") {

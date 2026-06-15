@@ -9,12 +9,12 @@ or map says otherwise.
 Only thinking lanes get embodiment titles.
 
 - `Self`: coordination, routing, authority boundaries, and review posture.
-- `Face`: public/social expression and person-shaped conversation.
+- `Persona`: public/social expression and person-shaped conversation.
 - `Imagination`: futures, plans, projections, objective drafts, and scene
   construction.
 - `Eyes`: research, source inspection, retrieval discipline, and evidence
   ingress.
-- `Proprioception`: internal model of the Body: architecture, dataflow, seams,
+- `Modeling`: internal model of the Body: architecture, dataflow, seams,
   graph/checkpoint anatomy, and source-grounded self-sensing.
 - `Hands`: implementation, commands, patches, commits, rollbacks, and other
   actuators.
@@ -22,7 +22,7 @@ Only thinking lanes get embodiment titles.
 
 Each embodied sub-agent may have lean work-organ state in `state/agents.msgpack`,
 may be represented as a heartbeat participant, and may request reviewed
-`selfPatch` changes to its own lane memory. Face may additionally project or
+`selfPatch` changes to its own lane memory. Persona may additionally project or
 adopt portable `Persona` state because public personhood is part of its job.
 
 ## Not Sub-Agents
@@ -60,7 +60,7 @@ embodiment titles, role-memory diaries, or Persona state.
 Every embodied sub-agent depends on the other embodied sub-agents:
 
 ```text
-Self, Face, Imagination, Eyes, Proprioception, Hands, Soul
+Self, Persona, Imagination, Eyes, Modeling, Hands, Soul
 ```
 
 Dependency does not collapse ownership. It means a lane's prompt/context should

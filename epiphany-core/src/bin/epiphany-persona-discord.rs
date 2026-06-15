@@ -12,12 +12,12 @@ use std::path::Path;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-const CHAT_SCHEMA_VERSION: &str = "epiphany.face_chat.v0";
-const BUBBLE_SCHEMA_VERSION: &str = "epiphany.face_bubble.v0";
+const CHAT_SCHEMA_VERSION: &str = "epiphany.persona_chat.v0";
+const BUBBLE_SCHEMA_VERSION: &str = "epiphany.persona_bubble.v0";
 const DISCORD_API: &str = "https://discord.com/api/v10";
 
 #[derive(Clone, Debug, Default)]
-struct FaceConfig {
+struct PersonaConfig {
     allowed_channel_name: String,
     allowed_channel_id: Option<String>,
     allowed_channel_id_env: Option<String>,
@@ -32,11 +32,11 @@ fn main() -> Result<()> {
     let Some(command) = args.next() else {
         return usage();
     };
-    let mut config_path = PathBuf::from("state/face-discord.toml");
-    let mut artifact_dir = PathBuf::from(".epiphany-face");
+    let mut config_path = PathBuf::from("state/persona-discord.toml");
+    let mut artifact_dir = PathBuf::from(".epiphany-persona");
     let mut content: Option<String> = None;
     let mut channel_id: Option<String> = None;
-    let mut source = "epiphany/face".to_string();
+    let mut source = "epiphany/Persona".to_string();
     let mut status = "ready".to_string();
     let mut mood = "attentive".to_string();
     let mut limit = 8_usize;
@@ -97,7 +97,7 @@ fn main() -> Result<()> {
         "latest" => serde_json::json!({
             "ok": true,
             "artifactDir": artifact_dir,
-            "latestArtifacts": latest_face_artifacts(&artifact_dir, limit),
+            "latestArtifacts": latest_persona_artifacts(&artifact_dir, limit),
         }),
         "smoke" => run_smoke()?,
         _ => return usage(),
@@ -112,12 +112,12 @@ fn main() -> Result<()> {
 
 fn run_draft(
     content: &str,
-    config: &FaceConfig,
+    config: &PersonaConfig,
     artifact_dir: &Path,
     status: &str,
     reason: &str,
 ) -> Result<Value> {
-    ensure_content(content, "Face chat")?;
+    ensure_content(content, "Persona chat")?;
     let path = write_draft(content, config, artifact_dir, status, reason)?;
     Ok(serde_json::json!({
         "ok": status != "blocked",
@@ -133,9 +133,9 @@ fn run_bubble(
     status: &str,
     mood: &str,
 ) -> Result<Value> {
-    ensure_content(content, "Face bubble")?;
+    ensure_content(content, "Persona bubble")?;
     let payload = bubble_payload(content, source, status, mood);
-    let path = artifact_dir.join(format!("face-bubble-{}-{}.json", now_stamp(), short_id()));
+    let path = artifact_dir.join(format!("Persona-bubble-{}-{}.json", now_stamp(), short_id()));
     write_json(&path, &payload)?;
     Ok(serde_json::json!({
         "ok": true,
@@ -147,14 +147,14 @@ fn run_bubble(
 
 fn run_post(
     content: &str,
-    config: &FaceConfig,
+    config: &PersonaConfig,
     artifact_dir: &Path,
     channel_id: Option<String>,
     persona_name: Option<String>,
     persona_avatar_url: Option<String>,
     reply_to_message_id: Option<String>,
 ) -> Result<Value> {
-    ensure_content(content, "Face chat")?;
+    ensure_content(content, "Persona chat")?;
     let configured_channel_id = allowed_channel_id(config);
     let requested_channel_id = channel_id.or_else(|| configured_channel_id.clone());
     let Some(configured_channel_id) = configured_channel_id else {
@@ -236,7 +236,7 @@ fn run_post(
 }
 
 #[derive(Clone, Debug)]
-struct FacePersona {
+struct PersonaPersona {
     name: String,
     avatar_url: Option<String>,
 }
@@ -248,10 +248,10 @@ struct PostedDiscordMessage {
 }
 
 fn resolve_persona(
-    config: &FaceConfig,
+    config: &PersonaConfig,
     persona_name: Option<String>,
     persona_avatar_url: Option<String>,
-) -> Result<Option<FacePersona>> {
+) -> Result<Option<PersonaPersona>> {
     let name = trim_optional(persona_name).or_else(|| trim_optional(config.persona_name.clone()));
     let avatar_url = trim_optional(persona_avatar_url)
         .or_else(|| trim_optional(config.persona_avatar_url.clone()));
@@ -263,7 +263,7 @@ fn resolve_persona(
             "persona-name is required when posting with a persona avatar"
         ));
     };
-    Ok(Some(FacePersona {
+    Ok(Some(PersonaPersona {
         name: name.chars().take(80).collect(),
         avatar_url,
     }))
@@ -274,8 +274,8 @@ fn post_discord_message(
     channel_id: &str,
     content: &str,
     reply_to_message_id: Option<&str>,
-    persona: Option<&FacePersona>,
-    config: &FaceConfig,
+    persona: Option<&PersonaPersona>,
+    config: &PersonaConfig,
     artifact_dir: &Path,
 ) -> Result<PostedDiscordMessage> {
     if let Some(persona) = persona {
@@ -293,7 +293,7 @@ fn post_discord_message(
     let response = Client::new()
         .post(format!("{DISCORD_API}/channels/{channel_id}/messages"))
         .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyFace/0.1")
+        .header("User-Agent", "EpiphanyPersona/0.1")
         .json(&serde_json::json!({
             "content": content,
             "message_reference": reply_to_message_id.map(|message_id| serde_json::json!({
@@ -316,8 +316,8 @@ fn post_discord_persona_message(
     channel_id: &str,
     content: &str,
     reply_to_message_id: Option<&str>,
-    persona: &FacePersona,
-    config: &FaceConfig,
+    persona: &PersonaPersona,
+    config: &PersonaConfig,
     artifact_dir: &Path,
 ) -> Result<PostedDiscordMessage> {
     let target = resolve_webhook_target(token, channel_id)?;
@@ -361,7 +361,7 @@ fn resolve_webhook_target(token: &str, channel_id: &str) -> Result<WebhookTarget
     let response = Client::new()
         .get(format!("{DISCORD_API}/channels/{channel_id}"))
         .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyFace/0.1")
+        .header("User-Agent", "EpiphanyPersona/0.1")
         .send()
         .context("Discord channel lookup failed")?;
     let payload = decode_discord_json(response, "Discord channel lookup")?;
@@ -388,7 +388,7 @@ fn create_persona_webhook(token: &str, channel_id: &str) -> Result<CachedWebhook
     let response = Client::new()
         .post(format!("{DISCORD_API}/channels/{channel_id}/webhooks"))
         .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyFace/0.1")
+        .header("User-Agent", "EpiphanyPersona/0.1")
         .json(&serde_json::json!({"name": "Epiphany Persona Pipe"}))
         .send()
         .context("Discord webhook creation failed")?;
@@ -411,7 +411,7 @@ fn execute_persona_webhook(
     target: &WebhookTarget,
     content: &str,
     reply_to_message_id: Option<&str>,
-    persona: &FacePersona,
+    persona: &PersonaPersona,
 ) -> Result<PostedDiscordMessage> {
     let mut url = format!(
         "{DISCORD_API}/webhooks/{}/{}?wait=true",
@@ -423,7 +423,7 @@ fn execute_persona_webhook(
     }
     let response = Client::new()
         .post(url)
-        .header("User-Agent", "EpiphanyFace/0.1")
+        .header("User-Agent", "EpiphanyPersona/0.1")
         .json(&serde_json::json!({
             "content": content,
             "username": persona.name,
@@ -444,35 +444,35 @@ fn execute_persona_webhook(
 }
 
 fn run_smoke() -> Result<Value> {
-    let temp_dir = scoped_temp_dir("epiphany-face-discord-smoke")?;
-    let config = FaceConfig {
+    let temp_dir = scoped_temp_dir("epiphany-persona-discord-smoke")?;
+    let config = PersonaConfig {
         allowed_channel_name: "#aquarium".to_string(),
         allowed_channel_id: None,
-        allowed_channel_id_env: Some("EPIPHANY_FACE_AQUARIUM_CHANNEL_ID_TEST".to_string()),
+        allowed_channel_id_env: Some("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST".to_string()),
         bot_token_env: Some("DISCORD_BOT_TOKEN_TEST".to_string()),
-        persona_name: Some("Smoke Face".to_string()),
-        persona_avatar_url: Some("https://example.invalid/face.png".to_string()),
+        persona_name: Some("Smoke Persona".to_string()),
+        persona_avatar_url: Some("https://example.invalid/Persona.png".to_string()),
         webhook_cache_path: Some(temp_dir.join("webhook-cache.json")),
     };
     unsafe {
-        env::remove_var("EPIPHANY_FACE_AQUARIUM_CHANNEL_ID_TEST");
+        env::remove_var("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST");
     }
     let draft = run_draft(
-        "Face notices Proprioception and Soul disagree about evidence shape.",
+        "Persona notices Modeling and Soul disagree about evidence shape.",
         &config,
         &temp_dir,
         "draft",
         "drafted without posting",
     )?;
     let bubble = run_bubble(
-        "Face opens an Aquarium bubble even while Discord is unavailable.",
+        "Persona opens an Aquarium bubble even while Discord is unavailable.",
         &temp_dir,
-        "smoke/face",
+        "smoke/Persona",
         "ready",
         "attentive",
     )?;
     let blocked = run_post(
-        "Face should not post without a configured #aquarium channel id.",
+        "Persona should not post without a configured #aquarium channel id.",
         &config,
         &temp_dir,
         None,
@@ -481,14 +481,14 @@ fn run_smoke() -> Result<Value> {
         None,
     )?;
     unsafe {
-        env::set_var("EPIPHANY_FACE_AQUARIUM_CHANNEL_ID_TEST", "123");
+        env::set_var("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST", "123");
     }
     let wrong = run_post(
-        "Face should not post outside #aquarium.",
+        "Persona should not post outside #aquarium.",
         &config,
         &temp_dir,
         Some("456".to_string()),
-        Some("Wrong Face".to_string()),
+        Some("Wrong Persona".to_string()),
         None,
         None,
     )?;
@@ -513,7 +513,7 @@ fn run_smoke() -> Result<Value> {
 
 fn write_draft(
     content: &str,
-    config: &FaceConfig,
+    config: &PersonaConfig,
     artifact_dir: &Path,
     status: &str,
     reason: &str,
@@ -529,7 +529,7 @@ fn write_draft(
         "persona_avatar_url": config.persona_avatar_url,
         "content": content.trim(),
     });
-    let path = artifact_dir.join(format!("face-chat-{}-{}.json", now_stamp(), short_id()));
+    let path = artifact_dir.join(format!("Persona-chat-{}-{}.json", now_stamp(), short_id()));
     write_json(&path, &payload)?;
     Ok(path)
 }
@@ -541,14 +541,14 @@ fn bubble_payload(content: &str, source: &str, status: &str, mood: &str) -> Valu
         "status": status,
         "source": source,
         "target": "aquarium",
-        "role_id": "face",
-        "agent_id": "face",
-        "display_name": "Face",
+        "role_id": "Persona",
+        "agent_id": "Persona",
+        "display_name": "Persona",
         "mood": mood,
         "content": content.trim(),
         "bubble": {
             "kind": "agent-chat",
-            "anchorRoleId": "face",
+            "anchorRoleId": "Persona",
             "opensIn": "aquarium",
             "requiresDiscord": false,
             "ttlSeconds": 90,
@@ -556,7 +556,7 @@ fn bubble_payload(content: &str, source: &str, status: &str, mood: &str) -> Valu
     })
 }
 
-fn latest_face_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
+fn latest_persona_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
     let Ok(read_dir) = fs::read_dir(artifact_dir) else {
         return Vec::new();
     };
@@ -566,7 +566,7 @@ fn latest_face_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("face-") && name.ends_with(".json"))
+                .is_some_and(|name| name.starts_with("Persona-") && name.ends_with(".json"))
         })
         .filter_map(|path| Some((path.metadata().ok()?.modified().ok()?, path)))
         .collect::<Vec<_>>();
@@ -592,7 +592,7 @@ fn latest_face_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
         .collect()
 }
 
-fn persona_webhook_cache_path(config: &FaceConfig, artifact_dir: &Path) -> PathBuf {
+fn persona_webhook_cache_path(config: &PersonaConfig, artifact_dir: &Path) -> PathBuf {
     config
         .webhook_cache_path
         .clone()
@@ -673,7 +673,7 @@ fn strip_bom(value: &str) -> &str {
     value.strip_prefix('\u{feff}').unwrap_or(value)
 }
 
-fn load_config(path: &Path) -> Result<FaceConfig> {
+fn load_config(path: &Path) -> Result<PersonaConfig> {
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     if path
@@ -682,7 +682,7 @@ fn load_config(path: &Path) -> Result<FaceConfig> {
     {
         let payload: Value = serde_json::from_str(&raw)
             .with_context(|| format!("failed to decode {}", path.display()))?;
-        return Ok(FaceConfig {
+        return Ok(PersonaConfig {
             allowed_channel_name: payload["allowed_channel_name"]
                 .as_str()
                 .unwrap_or("#aquarium")
@@ -701,7 +701,7 @@ fn load_config(path: &Path) -> Result<FaceConfig> {
             webhook_cache_path: payload["webhook_cache_path"].as_str().map(PathBuf::from),
         });
     }
-    Ok(FaceConfig {
+    Ok(PersonaConfig {
         allowed_channel_name: toml_string(&raw, "allowed_channel_name")
             .unwrap_or_else(|| "#aquarium".to_string()),
         allowed_channel_id: toml_string(&raw, "allowed_channel_id"),
@@ -731,14 +731,14 @@ fn parse_quoted(value: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn allowed_channel_id(config: &FaceConfig) -> Option<String> {
+fn allowed_channel_id(config: &PersonaConfig) -> Option<String> {
     config
         .allowed_channel_id
         .clone()
         .or_else(|| config.allowed_channel_id_env.as_ref().and_then(env_value))
 }
 
-fn bot_token(config: &FaceConfig) -> Option<String> {
+fn bot_token(config: &PersonaConfig) -> Option<String> {
     config.bot_token_env.as_ref().and_then(env_value)
 }
 
@@ -812,6 +812,6 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-face-discord <draft|bubble|post|latest|smoke> [--config <path>] [--artifact-dir <path>] [--content <text-or-path>]"
+        "usage: epiphany-persona-discord <draft|bubble|post|latest|smoke> [--config <path>] [--artifact-dir <path>] [--content <text-or-path>]"
     ))
 }

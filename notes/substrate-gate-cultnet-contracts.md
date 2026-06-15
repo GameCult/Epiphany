@@ -16,7 +16,7 @@ Substrate Gate decides the scoped access to the repo.
 - Derived state: retrieved snippets, search hits, index manifests, diffs, build
   logs, Unity/Rider bridge artifacts, and source maps are evidence projections,
   not permission to touch more substrate.
-- Forbidden writers/readers: Hands, Eyes, Face, public Verse ingress, raw worker
+- Forbidden writers/readers: Hands, Eyes, Persona, public Verse ingress, raw worker
   launches, compatibility JSON-RPC routes, and bridge tools must not directly
   read, index, execute against, or mutate the repo without a scoped Substrate
   Gate grant.
@@ -52,10 +52,10 @@ Mind and the Substrate Gate are neighboring protocols, not aliases. The
 Substrate Gate decides whether the machine may touch the repo. Mind decides
 whether resulting thought or evidence mutates persistent state.
 
-Imagination can project Body substrate facts into a Face scene only after those facts have
+Imagination can project Body substrate facts into a Persona scene only after those facts have
 entered through Substrate-Gate-scoped access. A beautiful scene is not a repo
 access grant. Eyes is the next gate after access: a Substrate Gate grant allows
 looking, but only Eyes can turn looked-at material into a citable evidence
-packet. Proprioception may update the machine's internal body model only from
+packet. Modeling may update the machine's internal body model only from
 source-grounded material that has passed through the appropriate access and
 evidence path.

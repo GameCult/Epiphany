@@ -553,7 +553,7 @@ pub struct HeartbeatCandidateIntervention {
     pub summary: String,
     pub draft: String,
     pub decision: String,
-    pub requires_face: bool,
+    pub requires_persona: bool,
     pub requires_review: bool,
     pub novelty_to_room: f64,
     pub saturation_score: f64,

@@ -9,23 +9,23 @@ Mind decides whether the resulting thought, evidence, or proposal mutates
 persistent state. Do not collapse these into one throne. That is how the machine
 starts lying with excellent posture.
 
-Imagination is the neighboring Projector for Face. It may compose a lived scene
+Imagination is the neighboring Projector for Persona. It may compose a lived scene
 from state, Body substrate facts, social pressure, and organ dependencies, but it does not
 interpret side effects or admit state.
 
 ## Authority Map
 
 - Owner: Mind owns the decision to mutate persistent Epiphany state.
-- Inputs: typed worker results, Face Interpreter intents, current state context,
+- Inputs: typed worker results, Persona Interpreter intents, current state context,
   runtime/job provenance, Verse ingress receipts, operator-approved intents, and
   relevant verification evidence.
 - Outputs: Mind gateway reviews, state commit receipts, state rejection
   receipts, and Verse adoption receipts.
-- Derived state: role findings, reorient findings, Face side-effect intents,
+- Derived state: role findings, reorient findings, Persona side-effect intents,
   public dreams, local-area findings, `statePatch`, `selfPatch`, evidence,
   scratch, checkpoints, objectives, and graph edits are proposal-only until Mind
   accepts them.
-- Forbidden writers: role acceptance, reorient acceptance, Face Interpreter,
+- Forbidden writers: role acceptance, reorient acceptance, Persona Interpreter,
   public Verse ingress, local-area Verse ingress, raw worker result ingestion,
   runtime job completion, and compatibility JSON-RPC routes must not directly
   decide durable state mutation.
@@ -46,7 +46,7 @@ CultMesh simplifies the boundary by making Verse placement part of the contract:
   reviewable findings, and receipts. It does not carry raw worker thought,
   private memory, or direct state mutation authority.
 - `epiphany-global`: public thought weather: dreams, questions, hypotheses,
-  Face posts, and adoption receipts. Nothing from this Verse mutates local
+  Persona posts, and adoption receipts. Nothing from this Verse mutates local
   memory, planning, doctrine, governance, or project truth without a reviewed
   local adoption receipt.
 

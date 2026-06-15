@@ -15,7 +15,7 @@ instead of hiding in scratch notes or hopeful transcript memory.
 - Derived state: handoff summaries, scratch preservation, sleep residue, and
   recovery notes are continuity receipts. They are not durable Mind state until
   Mind admits them.
-- Forbidden writers: raw workers, Face, Hands, Eyes, Soul, Self, compatibility
+- Forbidden writers: raw workers, Persona, Hands, Eyes, Soul, Self, compatibility
   routes, and background loops must not silently rewrite continuity state or
   pretend stale work completed cleanly.
 - Shared path: compaction prep, sleep distillation, handoff, wake/reorient, and
@@ -37,6 +37,6 @@ instead of hiding in scratch notes or hopeful transcript memory.
 
 Continuity preserves what survives rupture. Mind decides what preserved material
 becomes durable state. Soul verifies continuity invariants. Self routes recovery
-work. Eyes and Proprioception regather reality when continuity is missing.
+work. Eyes and Modeling regather reality when continuity is missing.
 
 Continuity is not nostalgia. It is survival with receipts.

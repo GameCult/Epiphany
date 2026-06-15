@@ -792,7 +792,7 @@ pub fn recommend_coordinator_action(
                     Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
                     false,
                     true,
-                    "The completed modeling/checkpoint result was reviewed as unreviewable and superseded; relaunch Proprioception so it can emit the required statePatch before Hands continues.",
+                    "The completed modeling/checkpoint result was reviewed as unreviewable and superseded; relaunch Modeling so it can emit the required statePatch before Hands continues.",
                 );
             }
             if input.modeling_result_requests_regather
@@ -844,7 +844,7 @@ pub fn recommend_coordinator_action(
                 Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
                 false,
                 true,
-                "The failed modeling/checkpoint result was reviewed and superseded; relaunch Proprioception before verification or implementation continues.",
+                "The failed modeling/checkpoint result was reviewed and superseded; relaunch Modeling before verification or implementation continues.",
             );
         }
         return build(
@@ -1028,7 +1028,7 @@ pub fn recommend_coordinator_action(
             Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
             false,
             true,
-            "Soul has accepted the Hands consequence evidence; route Proprioception to update the machine model before another implementation turn.",
+            "Soul has accepted the Hands consequence evidence; route Modeling to update the machine model before another implementation turn.",
         );
     }
 
@@ -1572,7 +1572,7 @@ mod tests {
     }
 
     #[test]
-    fn routes_hands_to_soul_to_proprioception_before_next_hands_turn() {
+    fn routes_hands_to_soul_to_modeling_before_next_hands_turn() {
         let launch_modeling = recommend_coordinator_action(input());
         assert_eq!(
             launch_modeling.action,

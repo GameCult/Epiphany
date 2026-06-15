@@ -268,7 +268,7 @@ fn main() -> Result<()> {
         }
         "queue-mention" => {
             let store_path = store_path.ok_or_else(|| anyhow!("queue-mention requires --store"))?;
-            let target_role_id = role.unwrap_or_else(|| "face".to_string());
+            let target_role_id = role.unwrap_or_else(|| "Persona".to_string());
             let result = queue_heartbeat_pending_mention_store(
                 &store_path,
                 HeartbeatQueueMentionOptions {
@@ -369,7 +369,7 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [--agent-store <path>] [--urgency <0..1>] [--min-heartbeat-rate <n>] [--max-heartbeat-rate <n>] [--min-concurrency <n>] [--max-concurrency <n>] [--max-ticks <n>]\n       epiphany-heartbeat-store heat --store <path> [--scope global|all|agent|role|arena|participant_kind|group] [--selector <id>] [--multiplier <n>] [--id <id>] [--label <text>] [--reason <text>] [--expires-after <scene-clock-delta>] [--clear]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store queue-mention --store <path> [--role face] --channel-id <id> --message-id <id> --author-id <id> --content <text> --visible-prompt <text> [--author-name <name>] [--reply-to-message-id <id>] [--source-surface <name>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [--agent-store <path>] [--urgency <0..1>] [--min-heartbeat-rate <n>] [--max-heartbeat-rate <n>] [--min-concurrency <n>] [--max-concurrency <n>] [--max-ticks <n>]\n       epiphany-heartbeat-store heat --store <path> [--scope global|all|agent|role|arena|participant_kind|group] [--selector <id>] [--multiplier <n>] [--id <id>] [--label <text>] [--reason <text>] [--expires-after <scene-clock-delta>] [--clear]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store queue-mention --store <path> [--role Persona] --channel-id <id> --message-id <id> --author-id <id> --content <text> --visible-prompt <text> [--author-name <name>] [--reply-to-message-id <id>] [--source-surface <name>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
 }
 
@@ -802,7 +802,7 @@ fn validate_schedule_shape(schedule: &serde_json::Value) -> Vec<String> {
             "role_work",
             "ruminate_memory",
             "scene_turn",
-            "face_turn",
+            "persona_turn",
         ]
         .contains(&action["action_type"].as_str().unwrap_or_default())
         {

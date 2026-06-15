@@ -92,7 +92,7 @@ The landed machine now has:
 - live-specialist runner must be rebuilt around heartbeat/runtime-spine result receipts
 - first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
 - first Unity editor/runtime bridge through native `epiphany-unity-bridge`, native `epiphany-unity-bridge-smoke`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
-- prompt-file ownership for major Epiphany prompt surfaces: rendered state intro/doctrine lives under `epiphany-state-model/src/prompts/` beside the typed state document renderer, while modeling/Proprioception, research/Eyes, implementation/Hands, verification/Soul, reorientation/Continuity, coordinator/Self, and CRRC templates live in `epiphany-codex-bridge/src/prompts/epiphany_specialists.toml`
+- prompt-file ownership for major Epiphany prompt surfaces: rendered state intro/doctrine lives under `epiphany-state-model/src/prompts/` beside the typed state document renderer, while modeling/Modeling, research/Eyes, implementation/Hands, verification/Soul, reorientation/Continuity, coordinator/Self, and CRRC templates live in `epiphany-codex-bridge/src/prompts/epiphany_specialists.toml`
 - prompt-level anti-Greenspun guardrails: Epiphany owns the operator discipline and requires a bounded research/scout check before agents invent bespoke versions of known algorithms, parsers, schedulers, renderers, protocols, storage layers, security mechanisms, or workflow engines
 - live Phase 6 reorientation app-server smoke coverage through native `epiphany-phase6-reorient-smoke`
 - live Phase 6 MVP status smoke coverage through native `epiphany-mvp-status-smoke`
@@ -123,7 +123,7 @@ These boundaries are more important than the individual method names:
 - CultCache documents are the data model. CultNet is the wire for
   Epiphany-controlled subsystems.
 - CultMesh is the preferred ergonomic runtime/database surface over local CultCache plus CultNet contracts. Epiphany should start local Verse, dream, status, and operator-store work through CultMesh unless the task is explicitly implementing a lower-level CultMesh/CultNet/CultCache primitive.
-- Verse boundaries are three-tiered: `epiphany-internal` owns private sub-agent typed state, `gamecult-local` owns trusted LAN/Yggdrasil-tunnel sharing with other GameCult projects, and `epiphany-global` owns untrusted public dream surfaces plus topic-specific threaded rooms for Face posts. Do not route private state through the local-area or global Verse.
+- Verse boundaries are three-tiered: `epiphany-internal` owns private sub-agent typed state, `gamecult-local` owns trusted LAN/Yggdrasil-tunnel sharing with other GameCult projects, and `epiphany-global` owns untrusted public dream surfaces plus topic-specific threaded rooms for Persona posts. Do not route private state through the local-area or global Verse.
 - JSON is allowed only for schema description, hostile/external ingress before
   immediate typed parsing, sealed forensic artifacts, or named quarantine
   experiments with an expiration path. Generic `serde_json::Value` must not be

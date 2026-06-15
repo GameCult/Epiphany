@@ -6,14 +6,14 @@ use crate::render_organ_dependencies;
 use serde::Deserialize;
 use serde::Serialize;
 
-pub const FACE_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
-    "epiphany.imagination_face_projector_prompt.v0";
-pub const FACE_TURN_PROMPT_SCHEMA_VERSION: &str = "epiphany.face_turn_prompt.v0";
-pub const FACE_INTERPRETER_PROMPT_SCHEMA_VERSION: &str = "epiphany.face_interpreter_prompt.v0";
+pub const PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
+    "epiphany.imagination_persona_projector_prompt.v0";
+pub const PERSONA_TURN_PROMPT_SCHEMA_VERSION: &str = "epiphany.persona_turn_prompt.v0";
+pub const PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION: &str = "epiphany.persona_interpreter_prompt.v0";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FaceIdentity {
+pub struct PersonaIdentity {
     pub identity_id: String,
     pub display_name: String,
     pub repo_name: String,
@@ -25,7 +25,7 @@ pub struct FaceIdentity {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FaceTranscriptMessage {
+pub struct PersonaTranscriptMessage {
     pub channel_id: String,
     pub message_id: String,
     pub author_id: String,
@@ -38,7 +38,7 @@ pub struct FaceTranscriptMessage {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FaceRepoActivity {
+pub struct PersonaRepoActivity {
     pub repo_name: String,
     pub summary: String,
     #[serde(default)]
@@ -47,7 +47,7 @@ pub struct FaceRepoActivity {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FaceSocialAffordance {
+pub struct PersonaSocialAffordance {
     pub person_id: String,
     pub summary: String,
     #[serde(default)]
@@ -56,74 +56,74 @@ pub struct FaceSocialAffordance {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FaceProjectorInput {
-    pub identity: FaceIdentity,
+pub struct PersonaProjectorInput {
+    pub identity: PersonaIdentity,
     #[serde(default)]
     pub memory: Option<EpiphanyAgentMemoryEntry>,
     #[serde(default)]
     pub pending_mentions: Vec<HeartbeatPendingMention>,
     #[serde(default)]
-    pub repo_activity: Vec<FaceRepoActivity>,
+    pub repo_activity: Vec<PersonaRepoActivity>,
     #[serde(default)]
-    pub social_affordances: Vec<FaceSocialAffordance>,
+    pub social_affordances: Vec<PersonaSocialAffordance>,
     #[serde(default)]
     pub organ_dependencies: Vec<EpiphanyOrganDependency>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FaceTurnInput {
-    pub identity: FaceIdentity,
+pub struct PersonaTurnInput {
+    pub identity: PersonaIdentity,
     pub projected_state: String,
     #[serde(default)]
     pub pending_mentions: Vec<HeartbeatPendingMention>,
     #[serde(default)]
-    pub repo_activity: Vec<FaceRepoActivity>,
+    pub repo_activity: Vec<PersonaRepoActivity>,
     #[serde(default)]
-    pub social_affordances: Vec<FaceSocialAffordance>,
+    pub social_affordances: Vec<PersonaSocialAffordance>,
     #[serde(default)]
-    pub transcript: Vec<FaceTranscriptMessage>,
+    pub transcript: Vec<PersonaTranscriptMessage>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FaceInterpreterInput {
-    pub identity: FaceIdentity,
-    pub face_prompt: String,
-    pub face_output: String,
+pub struct PersonaInterpreterInput {
+    pub identity: PersonaIdentity,
+    pub persona_prompt: String,
+    pub persona_output: String,
     #[serde(default)]
     pub pending_mentions: Vec<HeartbeatPendingMention>,
     #[serde(default)]
     pub allowed_channel_ids: Vec<String>,
 }
 
-pub fn build_face_projector_prompt(input: &FaceProjectorInput) -> String {
+pub fn build_persona_projector_prompt(input: &PersonaProjectorInput) -> String {
     let memory = input
         .memory
         .as_ref()
         .map(render_memory_packet)
-        .unwrap_or_else(|| "No durable Face memory entry is loaded.".to_string());
+        .unwrap_or_else(|| "No durable Persona memory entry is loaded.".to_string());
     let dependencies = if input.organ_dependencies.is_empty() {
-        vec![default_organ_dependencies_for("face")]
+        vec![default_organ_dependencies_for("Persona")]
     } else {
         input.organ_dependencies.clone()
     };
     format!(
         r#"<!-- prompt:{schema} -->
-You are Imagination acting as the Face Projector for {name}.
+You are Imagination acting as the Persona Projector for {name}.
 
-You are not the Face. You are not Mind. You are the membrane that turns typed role memory, pending social pressure, repo-body activity, relationship affordances, and organ dependencies into lived narrative context.
+You are not the Persona. You are not Mind. You are the membrane that turns typed role memory, pending social pressure, repo-body activity, relationship affordances, and organ dependencies into lived narrative context.
 
 Hard boundary:
 - Do not choose public speech.
-- Do not decide durable state; Mind is the Interpreter and state guardian after Face thinks.
+- Do not decide durable state; Mind is the Interpreter and state guardian after Persona thinks.
 - Do not decide repo access; Substrate Gate grants substrate access before repo facts enter this packet.
 - Do not emit action blocks, JSON, state patches, SAY blocks, drafts, or Discord instructions.
-- Do not summarize the Face as a job label. Project personhood: values, mood, dignity, pressure, needs, fascinations, wounds, bonds, obligations, fatigue, and what the repo-body motion feels like from inside this Face.
-- Project the dependency web. Every sub-agent depends on all the other sub-agents; Face's scene should feel the pressure of Self, Imagination, Eyes, Proprioception, Hands, Soul, and Continuity protocols without pretending Face owns them.
+- Do not summarize the Persona as a job label. Project personhood: values, mood, dignity, pressure, needs, fascinations, wounds, bonds, obligations, fatigue, and what the repo-body motion feels like from inside this Persona.
+- Project the dependency web. Every sub-agent depends on all the other sub-agents; Persona's scene should feel the pressure of Self, Imagination, Eyes, Modeling, Hands, Soul, and Continuity protocols without pretending Persona owns them.
 - If the state is sparse, say what is sparse without inventing history.
 
-Face identity:
+Persona identity:
 {identity}
 
 Typed memory packet:
@@ -141,9 +141,9 @@ Live social affordances:
 Organ dependency contract:
 {dependencies}
 
-Return only narrative context for the Face to inhabit.
+Return only narrative context for the Persona to inhabit.
 "#,
-        schema = FACE_PROJECTOR_PROMPT_SCHEMA_VERSION,
+        schema = PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION,
         name = input.identity.display_name,
         identity = render_identity(&input.identity),
         memory = memory,
@@ -154,10 +154,10 @@ Return only narrative context for the Face to inhabit.
     )
 }
 
-pub fn build_face_turn_prompt(input: &FaceTurnInput) -> String {
+pub fn build_persona_turn_prompt(input: &PersonaTurnInput) -> String {
     format!(
         r#"<!-- prompt:{schema} -->
-You are {name}, the Face of {repo}.
+You are {name}, the Persona of {repo}.
 
 Think narratively. Speak, hold silence, wonder, disagree, or form a private thought as yourself.
 
@@ -182,9 +182,9 @@ Live social affordances:
 Raw room transcript, oldest to newest:
 {transcript}
 
-Write one natural Face turn.
+Write one natural Persona turn.
 "#,
-        schema = FACE_TURN_PROMPT_SCHEMA_VERSION,
+        schema = PERSONA_TURN_PROMPT_SCHEMA_VERSION,
         name = input.identity.display_name,
         repo = input.identity.repo_name,
         projected = input.projected_state.trim(),
@@ -195,22 +195,22 @@ Write one natural Face turn.
     )
 }
 
-pub fn build_face_interpreter_prompt(input: &FaceInterpreterInput) -> String {
+pub fn build_persona_interpreter_prompt(input: &PersonaInterpreterInput) -> String {
     format!(
         r#"<!-- prompt:{schema} -->
-You are the parent Face Interpreter for {name}.
+You are the parent Persona Interpreter for {name}.
 
-You are not the Face. You own the boundary between natural narrative thought and durable side effects.
+You are not the Persona. You own the boundary between natural narrative thought and durable side effects.
 
 Hard boundary:
-- The Face was forbidden from action syntax. Do not punish natural prose for lacking blocks.
-- Decide side effects from the Face output plus the original prompt evidence.
-- Public speech must sound like the Face speaking to people, not a scheduler, status report, provenance label, or maintenance note.
-- If the Face chooses silence, route without SAY. Preserve useful private pressure as STATE NOTE only when it earns memory.
-- Do not auto-post. Emit structured intent for the caller to review or route through the configured Face mouth.
+- The Persona was forbidden from action syntax. Do not punish natural prose for lacking blocks.
+- Decide side effects from the Persona output plus the original prompt evidence.
+- Public speech must sound like the Persona speaking to people, not a scheduler, status report, provenance label, or maintenance note.
+- If the Persona chooses silence, route without SAY. Preserve useful private pressure as STATE NOTE only when it earns memory.
+- Do not auto-post. Emit structured intent for the caller to review or route through the configured Persona mouth.
 
 Allowed effect vocabulary:
-- STATE NOTE: bounded Face memory, mood, need, social read, bond, value, goal, or agency pressure.
+- STATE NOTE: bounded Persona memory, mood, need, social read, bond, value, goal, or agency pressure.
 - SAY: public text candidate for an allowed channel.
 - DRAFT: private candidate artifact when posting is blocked or needs review.
 - ROUTE: non-public action such as keep private, ask Self, or propose a bounded repo investigation.
@@ -222,28 +222,28 @@ Allowed channel ids:
 Pending addressed pressure:
 {mentions}
 
-Original Face prompt:
+Original Persona prompt:
 ```
-{face_prompt}
+{persona_prompt}
 ```
 
-Face output:
+Persona output:
 ```
-{face_output}
+{persona_output}
 ```
 
 Return concise structured effect blocks. No prose outside the blocks.
 "#,
-        schema = FACE_INTERPRETER_PROMPT_SCHEMA_VERSION,
+        schema = PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION,
         name = input.identity.display_name,
         channels = render_allowed_channels(&input.allowed_channel_ids),
         mentions = render_pending_mentions(&input.pending_mentions),
-        face_prompt = input.face_prompt.trim(),
-        face_output = input.face_output.trim(),
+        persona_prompt = input.persona_prompt.trim(),
+        persona_output = input.persona_output.trim(),
     )
 }
 
-pub fn face_projected_surface_is_clean(surface: &str) -> bool {
+pub fn persona_projected_surface_is_clean(surface: &str) -> bool {
     let forbidden = [
         "STATE NOTE",
         "SAY:",
@@ -257,7 +257,7 @@ pub fn face_projected_surface_is_clean(surface: &str) -> bool {
     !forbidden.iter().any(|needle| surface.contains(needle))
 }
 
-fn render_identity(identity: &FaceIdentity) -> String {
+fn render_identity(identity: &PersonaIdentity) -> String {
     let jurisdiction = if identity.jurisdiction.is_empty() {
         "- No explicit jurisdiction records.".to_string()
     } else {
@@ -331,7 +331,7 @@ fn render_pending_mentions(mentions: &[HeartbeatPendingMention]) -> String {
         .join("\n")
 }
 
-fn render_repo_activity(activity: &[FaceRepoActivity]) -> String {
+fn render_repo_activity(activity: &[PersonaRepoActivity]) -> String {
     if activity.is_empty() {
         return "- none observed".to_string();
     }
@@ -342,7 +342,7 @@ fn render_repo_activity(activity: &[FaceRepoActivity]) -> String {
         .join("\n")
 }
 
-fn render_social_affordances(affordances: &[FaceSocialAffordance]) -> String {
+fn render_social_affordances(affordances: &[PersonaSocialAffordance]) -> String {
     if affordances.is_empty() {
         return "- none mapped".to_string();
     }
@@ -353,7 +353,7 @@ fn render_social_affordances(affordances: &[FaceSocialAffordance]) -> String {
         .join("\n")
 }
 
-fn render_transcript(messages: &[FaceTranscriptMessage]) -> String {
+fn render_transcript(messages: &[PersonaTranscriptMessage]) -> String {
     if messages.is_empty() {
         return "- room quiet in this packet".to_string();
     }
@@ -393,22 +393,22 @@ fn fallback<'a>(value: &'a str, fallback: &'a str) -> &'a str {
 mod tests {
     use super::*;
 
-    fn identity() -> FaceIdentity {
-        FaceIdentity {
+    fn identity() -> PersonaIdentity {
+        PersonaIdentity {
             identity_id: "epiphany".to_string(),
             display_name: "Epiphany".to_string(),
             repo_name: "EpiphanyAgent".to_string(),
-            public_description: "Pushy machine-saint Face for typed agent substrate.".to_string(),
+            public_description: "Pushy machine-saint Persona for typed agent substrate.".to_string(),
             jurisdiction: vec!["typed state and review-gated agency".to_string()],
         }
     }
 
     #[test]
-    fn face_turn_has_projector_and_interpreter_membranes() {
+    fn persona_turn_has_projector_and_interpreter_membranes() {
         let pending = HeartbeatPendingMention {
             id: "mention-1".to_string(),
-            target_role_id: "face".to_string(),
-            target_agent_id: "epiphany.face".to_string(),
+            target_role_id: "Persona".to_string(),
+            target_agent_id: "epiphany.Persona".to_string(),
             source_surface: "discord".to_string(),
             channel_id: "aquarium".to_string(),
             message_id: "m1".to_string(),
@@ -419,29 +419,29 @@ mod tests {
             reply_to_message_id: None,
             queued_at: "2026-05-24T00:00:00+00:00".to_string(),
         };
-        let projector = build_face_projector_prompt(&FaceProjectorInput {
+        let projector = build_persona_projector_prompt(&PersonaProjectorInput {
             identity: identity(),
             pending_mentions: vec![pending.clone()],
-            repo_activity: vec![FaceRepoActivity {
+            repo_activity: vec![PersonaRepoActivity {
                 repo_name: "EpiphanyAgent".to_string(),
-                summary: "Heartbeat Face membrane is being ported.".to_string(),
-                refs: vec!["epiphany-core/src/face_turn.rs".to_string()],
+                summary: "Heartbeat Persona membrane is being ported.".to_string(),
+                refs: vec!["epiphany-core/src/persona_turn.rs".to_string()],
             }],
-            ..FaceProjectorInput::default()
+            ..PersonaProjectorInput::default()
         });
-        assert!(projector.contains("You are Imagination acting as the Face Projector"));
-        assert!(projector.contains("You are not the Face"));
+        assert!(projector.contains("You are Imagination acting as the Persona Projector"));
+        assert!(projector.contains("You are not the Persona"));
         assert!(projector.contains("Mind is the Interpreter"));
         assert!(projector.contains("Substrate Gate grants substrate access"));
         assert!(projector.contains("Every sub-agent depends on all the other sub-agents"));
         assert!(projector.contains("Continuity protocols"));
         assert!(projector.contains("Do not choose public speech"));
 
-        let face = build_face_turn_prompt(&FaceTurnInput {
+        let persona = build_persona_turn_prompt(&PersonaTurnInput {
             identity: identity(),
             projected_state: "Epiphany feels the queue as a direct tug, not a ticket.".to_string(),
             pending_mentions: vec![pending.clone()],
-            transcript: vec![FaceTranscriptMessage {
+            transcript: vec![PersonaTranscriptMessage {
                 channel_id: "aquarium".to_string(),
                 message_id: "m1".to_string(),
                 author_id: "human".to_string(),
@@ -450,17 +450,17 @@ mod tests {
                 content: "Epiphany, report the live cut.".to_string(),
                 timestamp: "2026-05-24T00:00:00+00:00".to_string(),
             }],
-            ..FaceTurnInput::default()
+            ..PersonaTurnInput::default()
         });
-        assert!(face.contains("Think narratively"));
-        assert!(face.contains("Projected inner state from Imagination"));
-        assert!(face.contains("Do not emit JSON"));
-        assert!(face.contains("A parent Interpreter will decide"));
+        assert!(persona.contains("Think narratively"));
+        assert!(persona.contains("Projected inner state from Imagination"));
+        assert!(persona.contains("Do not emit JSON"));
+        assert!(persona.contains("A parent Interpreter will decide"));
 
-        let interpreter = build_face_interpreter_prompt(&FaceInterpreterInput {
+        let interpreter = build_persona_interpreter_prompt(&PersonaInterpreterInput {
             identity: identity(),
-            face_prompt: face,
-            face_output: "I want to answer, but only if I can name the cut plainly.".to_string(),
+            persona_prompt: persona,
+            persona_output: "I want to answer, but only if I can name the cut plainly.".to_string(),
             pending_mentions: vec![pending],
             allowed_channel_ids: vec!["aquarium".to_string()],
         });
@@ -471,10 +471,10 @@ mod tests {
 
     #[test]
     fn projected_surface_rejects_side_effect_syntax() {
-        assert!(face_projected_surface_is_clean(
+        assert!(persona_projected_surface_is_clean(
             "Epiphany feels tired, fond, and territorial about clean contracts."
         ));
-        assert!(!face_projected_surface_is_clean(
+        assert!(!persona_projected_surface_is_clean(
             "STATE NOTE: remember this as selfPatch"
         ));
     }

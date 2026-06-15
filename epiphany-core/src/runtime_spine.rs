@@ -133,7 +133,7 @@ pub const SURFACE_ROLE_RESULT_TYPE: &str = "epiphany.surface.role_result";
 pub const SURFACE_REORIENT_RESULT_TYPE: &str = "epiphany.surface.reorient_result";
 pub const SURFACE_PLANNING_TYPE: &str = "epiphany.surface.planning";
 pub const SURFACE_COORDINATOR_TYPE: &str = "epiphany.surface.coordinator";
-pub const SURFACE_FACE_TYPE: &str = "epiphany.surface.face";
+pub const SURFACE_PERSONA_TYPE: &str = "epiphany.surface.persona";
 pub const SURFACE_VOID_MEMORY_TYPE: &str = "epiphany.surface.void_memory";
 pub const SURFACE_REPO_INITIALIZATION_TYPE: &str = "epiphany.surface.repo_initialization";
 pub const SURFACE_REPO_BIRTH_RUNNER_TYPE: &str = "epiphany.surface.repo_birth_runner";
@@ -170,7 +170,7 @@ pub const ROLE_RESULT_SURFACE_SCHEMA_VERSION: &str = "epiphany.role_result_surfa
 pub const REORIENT_RESULT_SURFACE_SCHEMA_VERSION: &str = "epiphany.reorient_result_surface.v0";
 pub const PLANNING_SURFACE_SCHEMA_VERSION: &str = "epiphany.planning_surface.v0";
 pub const COORDINATOR_SURFACE_SCHEMA_VERSION: &str = "epiphany.coordinator_surface.v0";
-pub const FACE_SURFACE_SCHEMA_VERSION: &str = "epiphany.face_surface.v0";
+pub const PERSONA_SURFACE_SCHEMA_VERSION: &str = "epiphany.persona_surface.v0";
 pub const VOID_MEMORY_SURFACE_SCHEMA_VERSION: &str = "epiphany.void_memory_surface.v0";
 pub const REPO_INITIALIZATION_SURFACE_SCHEMA_VERSION: &str =
     "epiphany.repo_initialization_surface.v0";
@@ -2161,7 +2161,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 MIND_STATE_REJECTION_RECEIPT_TYPE,
             ],
             vec![
-                "Mind is the persistent state guardian: role acceptance, reorientation acceptance, Face Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.",
+                "Mind is the persistent state guardian: role acceptance, reorientation acceptance, Persona Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.",
                 "Workers and public Verse ingress propose effects; Mind accepts, refuses, or holds them before any durable state mutation.",
             ],
         ),
@@ -3063,21 +3063,21 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         coordinator_surface_contract(
-            SURFACE_FACE_TYPE,
-            FACE_SURFACE_SCHEMA_VERSION,
+            SURFACE_PERSONA_TYPE,
+            PERSONA_SURFACE_SCHEMA_VERSION,
             vec![
-                "epiphany.face_bubble_intent.v0",
+                "epiphany.persona_bubble_intent.v0",
                 "epiphany.character_turn_intent.v0",
                 "epiphany.discord_persona_post_intent.v0",
             ],
             vec![
-                "epiphany.face_bubble.v0",
-                "epiphany.face_chat.v0",
+                "epiphany.persona_bubble.v0",
+                "epiphany.persona_chat.v0",
                 "epiphany.character_turn_packet.v0",
             ],
             vec![
-                "Face bubble, draft, and Discord persona affordances are projected from typed Face and character-loop artifacts.",
-                "Humans talk to Face; sealed inner thoughts stay behind the projection boundary.",
+                "Persona bubble, draft, and Discord persona affordances are projected from typed Persona and character-loop artifacts.",
+                "Humans talk to Persona; sealed inner thoughts stay behind the projection boundary.",
             ],
         ),
         read_only_surface_contract(
@@ -4183,21 +4183,21 @@ mod tests {
                     coordinator_contract.authority,
                     CultNetMutationAuthority::ReadOnly
                 );
-                let face_contract = contracts
+                let persona_contract = contracts
                     .iter()
-                    .find(|contract| contract.document_type == SURFACE_FACE_TYPE)
-                    .expect("face surface should advertise an interactive contract");
+                    .find(|contract| contract.document_type == SURFACE_PERSONA_TYPE)
+                    .expect("Persona surface should advertise an interactive contract");
                 assert_eq!(
-                    face_contract.authority,
+                    persona_contract.authority,
                     CultNetMutationAuthority::Coordinator
                 );
                 assert!(
-                    face_contract
+                    persona_contract
                         .receipt_document_types
                         .as_ref()
                         .is_some_and(|items| items
                             .iter()
-                            .any(|item| item == "epiphany.face_bubble.v0"))
+                            .any(|item| item == "epiphany.persona_bubble.v0"))
                 );
                 let operator_status_contract = contracts
                     .iter()

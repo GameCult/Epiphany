@@ -17,7 +17,7 @@ not merely as local harness hardening.
 
 The operating todo list is:
 
-1. Make the local Mom MVP a repeatable proof bundle: Face entry, Bifrost-linked
+1. Make the local Mom MVP a repeatable proof bundle: Persona entry, Bifrost-linked
    scope, one bounded coordinator action, runtime result, review, receipt, sleep,
    and sealed operator-safe artifacts.
 2. Build the Bifrost-first external-work bridge: topics, work items, dispatch
@@ -55,11 +55,11 @@ Every investor-scale Objective Draft should answer:
 
 ## Roadmap Shape
 
-1. Fresh-repo Epiphany proof: demonstrate Face entry, Bifrost-linked scope,
+1. Fresh-repo Epiphany proof: demonstrate Persona entry, Bifrost-linked scope,
    bounded role routing, artifact production, review, receipts, and sealed
    operator-safe evidence.
 2. Bifrost-first private alpha: all external swarm work exists as Bifrost
-   topics/work items/dispatches/receipts/credit before Discord, VoidBot, Face,
+   topics/work items/dispatches/receipts/credit before Discord, VoidBot, Persona,
    or scripts can mirror it.
 3. Public proof sprint: selected consented tasks record scope, roles, model
    spend, review load, artifacts, outcome, memory lessons, and case-study
@@ -71,7 +71,7 @@ Every investor-scale Objective Draft should answer:
 
 ## Forbidden Drift
 
-- No Discord, VoidBot, repo Face, or script becomes durable governance.
+- No Discord, VoidBot, repo Persona, or script becomes durable governance.
 - No objective draft treats angel money as permission to bypass review.
 - No public artifact exports raw worker thoughts, transcripts, private notes,
   secrets, or operator context.

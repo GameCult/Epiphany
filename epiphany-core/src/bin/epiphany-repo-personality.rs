@@ -51,7 +51,7 @@ const TRAJECTORY_SOURCE_MAX_TOTAL_BYTES: usize = 72_000;
 
 const ROLES: &[&str] = &[
     "coordinator",
-    "face",
+    "Persona",
     "imagination",
     "research",
     "modeling",
@@ -1008,7 +1008,7 @@ fn run_trajectory_packet(args: AgentPacketArgs) -> Result<Value> {
         "lifecycle": {
             "mode": "birth-only",
             "contract": "Run this specialist only when the repo/swarm has no accepted trajectory initialization. Later direction drift belongs to heartbeat, mood, lived work, reviewed selfPatch, and planning/evidence truth.",
-            "rerunPolicy": "If accepted trajectory initialization exists, do not rerun to rebrand the repo. Route contradictions through normal Eyes/Proprioception/Imagination/Soul work and reviewed memory drift."
+            "rerunPolicy": "If accepted trajectory initialization exists, do not rerun to rebrand the repo. Route contradictions through normal Eyes/Modeling/Imagination/Soul work and reviewed memory drift."
         },
         "prompt": REPO_TRAJECTORY_DISTILLER_PROMPT,
         "input": {
@@ -1117,7 +1117,7 @@ fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
         "lifecycle": {
             "mode": "birth-only",
             "contract": "Run this specialist only when the repo/swarm has no accepted personality initialization. Later personality movement belongs to heartbeat, mood, rumination, sleep consolidation, lived evidence, and reviewed selfPatch.",
-            "rerunPolicy": "If an accepted initialization exists, do not rerun to refresh personality. Route major terrain surprises to Eyes/Proprioception or Self review as normal state/model work, not personality reset."
+            "rerunPolicy": "If an accepted initialization exists, do not rerun to refresh personality. Route major terrain surprises to Eyes/Modeling or Self review as normal state/model work, not personality reset."
         },
         "prompt": REPO_PERSONALITY_DISTILLER_PROMPT,
         "input": {
@@ -1222,7 +1222,7 @@ fn run_memory_packet(args: AgentPacketArgs) -> Result<Value> {
         "lifecycle": {
             "mode": "birth-only",
             "contract": "Run this specialist only when the repo/swarm has no accepted memory initialization. Later memory growth belongs to heartbeat, work evidence, rumination, sleep consolidation, and reviewed selfPatch.",
-            "rerunPolicy": "If accepted memory initialization exists, do not rerun to refresh memory. Route stale or contradicted knowledge through normal Eyes/Proprioception/Soul state, evidence, and sleep consolidation."
+            "rerunPolicy": "If accepted memory initialization exists, do not rerun to refresh memory. Route stale or contradicted knowledge through normal Eyes/Modeling/Soul state, evidence, and sleep consolidation."
         },
         "prompt": REPO_MEMORY_DISTILLER_PROMPT,
         "input": {
@@ -1639,7 +1639,7 @@ const COORDINATOR_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
     },
 ];
 
-const FACE_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+const PERSONA_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
     CanonicalTraitTemplate {
         group_name: "underlying_organization",
         trait_name: "multi_lane_attention",
@@ -1990,7 +1990,7 @@ fn extract_trait_seed_candidates(packet: &Value) -> Result<Vec<AgentCanonicalTra
 fn role_trait_templates(role_id: &str) -> Result<&'static [CanonicalTraitTemplate; 6]> {
     match role_id {
         "coordinator" => Ok(&COORDINATOR_TRAIT_TEMPLATES),
-        "face" => Ok(&FACE_TRAIT_TEMPLATES),
+        "Persona" => Ok(&PERSONA_TRAIT_TEMPLATES),
         "imagination" => Ok(&IMAGINATION_TRAIT_TEMPLATES),
         "research" => Ok(&RESEARCH_TRAIT_TEMPLATES),
         "modeling" => Ok(&MODELING_TRAIT_TEMPLATES),
@@ -2227,10 +2227,10 @@ fn extract_memory_self_patches(result: &Value) -> Result<Vec<InitializationSelfP
 fn role_id_for_agent_id(agent_id: &str) -> Option<&'static str> {
     match agent_id {
         "epiphany.self" => Some("coordinator"),
-        "epiphany.face" => Some("face"),
+        "epiphany.Persona" => Some("Persona"),
         "epiphany.imagination" => Some("imagination"),
         "epiphany.eyes" => Some("research"),
-        "epiphany.proprioception" => Some("modeling"),
+        "epiphany.modeling" => Some("modeling"),
         "epiphany.hands" => Some("implementation"),
         "epiphany.soul" => Some("verification"),
         _ => None,
@@ -2422,7 +2422,7 @@ fn memory_role_filter(role_id: &str) -> &'static str {
         "coordinator" => {
             "Distill routing doctrine, authority boundaries, review gates, state acceptance rules, and failure patterns that should make Self stricter."
         }
-        "face" => {
+        "Persona" => {
             "Distill public voice, Aquarium affordances, Discord/social boundaries, user preference, and what internal state may be surfaced without leaking sealed thoughts."
         }
         "imagination" => {
@@ -2432,7 +2432,7 @@ fn memory_role_filter(role_id: &str) -> &'static str {
             "Distill known prior art, standard algorithms, vendor docs, research trails, and signals that should make Eyes search before invention."
         }
         "modeling" => {
-            "Distill architecture, control/data-flow, graph frontiers, invariants, source-map practices, and what Proprioception must understand before Hands cuts."
+            "Distill architecture, control/data-flow, graph frontiers, invariants, source-map practices, and what Modeling must understand before Hands cuts."
         }
         "implementation" => {
             "Distill build/edit conventions, harness constraints, source-touch rules, coding style, dependency policy, and common traps for Hands."
@@ -2447,7 +2447,7 @@ fn memory_role_filter(role_id: &str) -> &'static str {
 fn memory_role_source_kinds(role_id: &str) -> &'static [&'static str] {
     match role_id {
         "coordinator" => &["doctrine", "state", "documentation", "contract"],
-        "face" => &["doctrine", "documentation", "state"],
+        "Persona" => &["doctrine", "documentation", "state"],
         "imagination" => &["documentation", "state", "research"],
         "research" => &["research", "documentation", "readme", "code"],
         "modeling" => &["documentation", "code", "contract", "state"],
@@ -3878,7 +3878,7 @@ fn role_axes(role_id: &str) -> &'static [&'static str] {
             "churn_spiral_risk",
             "production_pressure",
         ],
-        "face" => &[
+        "Persona" => &[
             "social_surface",
             "interface_orientation",
             "sensory_salience",
@@ -3941,10 +3941,10 @@ fn role_axis_average(axes: &BTreeMap<String, f64>, names: &[&str]) -> f64 {
 fn role_display(role_id: &str) -> &'static str {
     match role_id {
         "coordinator" => "Self",
-        "face" => "Face",
+        "Persona" => "Persona",
         "imagination" => "Imagination",
         "research" => "Eyes",
-        "modeling" => "Proprioception",
+        "modeling" => "Modeling",
         "implementation" => "Hands",
         "verification" => "Soul",
         _ => "Lane",
@@ -3956,7 +3956,7 @@ fn role_value_candidate(role_id: &str) -> &'static str {
         "coordinator" => {
             "Coordinate through typed authority and challenge pattern-completion theater."
         }
-        "face" => {
+        "Persona" => {
             "Surface state through the public mouth without turning internals into chat endpoints."
         }
         "imagination" => {
@@ -4120,10 +4120,10 @@ fn report_agent_input(report: &RepoTerrainReport) -> Value {
         "remoteUrls": report.remote_urls,
         "sourceFamilies": report.source_families,
         "languages": report.languages,
-        "stateSurfaces": report.state_surfaces,
-        "instructionSurfaces": report.instruction_surfaces,
-        "testSurfaces": report.test_surfaces,
-        "runtimeSurfaces": report.runtime_surfaces,
+        "statesurfaces": report.state_surfaces,
+        "instructionsurfaces": report.instruction_surfaces,
+        "testsurfaces": report.test_surfaces,
+        "runtimesurfaces": report.runtime_surfaces,
         "historyMetrics": report.history_metrics,
         "axisScores": report.axis_scores,
         "axisEvidence": report.axis_evidence,

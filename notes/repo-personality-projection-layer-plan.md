@@ -25,8 +25,8 @@ The shared conclusion is that repo personality should combine three projections:
 2. **History temperament:** how the repo changes over time.
 3. **Memory doctrine:** how the repo preserves intention, evidence, and identity.
 
-Only after those three are scored should Epiphany modulate Self, Face,
-Imagination, Eyes, Proprioception, Hands, Soul, and Continuity.
+Only after those three are scored should Epiphany modulate Self, Persona,
+Imagination, Eyes, Modeling, Hands, Soul, and Continuity.
 
 ## Source Families
 
@@ -209,7 +209,7 @@ with an explanation and source evidence.
 
 ### Ghostlight-Derived Inner State
 
-- `speech_pressure`: how readily Face should speak instead of emitting silence
+- `speech_pressure`: how readily Persona should speak instead of emitting silence
   or a local bubble.
 - `novelty_hunger`: how strongly Eyes/Imagination should seek fresh seams.
 - `guardedness`: caution around authority, state mutation, trust boundaries,
@@ -240,7 +240,7 @@ Projection:
 - Lowers tolerance for implementation turns that produce plausible motion
   without objective evidence.
 
-### Face
+### Persona
 
 Primary inputs:
 
@@ -254,7 +254,7 @@ Projection:
 
 - Determines whether public output is chatty, sparse, poetic, sleepy, formal,
   or local-only.
-- Keeps humans talking to Face while internals remain inspectable.
+- Keeps humans talking to Persona while internals remain inspectable.
 
 ### Imagination
 
@@ -288,7 +288,7 @@ Projection:
 - Determines how aggressively Eyes must research existing systems, official
   docs, live runtime state, and repo-local source before invention.
 
-### Proprioception
+### Modeling
 
 Primary inputs:
 
@@ -316,7 +316,7 @@ Primary inputs:
 Projection:
 
 - Determines slice size, willingness to edit, need for queue state, and how much
-  Hands must wait for Proprioception/Soul before cutting.
+  Hands must wait for Modeling/Soul before cutting.
 
 ### Soul
 
@@ -482,7 +482,7 @@ the machine has repeatable bones.
 - Do not store repo facts inside role personality memory.
 - Do not let high aesthetic appetite lower verification gates.
 - Do not let high experimental heat excuse churn without receipts.
-- Do not let high production pressure make Hands bypass Proprioception or Soul.
+- Do not let high production pressure make Hands bypass Modeling or Soul.
 - Treat low-confidence inferred personality as a candidate, not a soul brand.
 
 ## Landed First Slice
@@ -527,7 +527,7 @@ personality initialization record. After Self accepts the initial role-memory
 pressure, personality is allowed to drift through heartbeat, mood, rumination,
 sleep consolidation, lived evidence, and reviewed `selfPatch` mutations. Startup
 must not rerun this specialist merely because terrain changed or the repo
-reopened; major terrain surprises should route to Eyes/Proprioception/Self as normal
+reopened; major terrain surprises should route to Eyes/Modeling/Self as normal
 modeling or review work, not as a personality reset.
 
 ## Repo Memory Distillation
@@ -543,10 +543,10 @@ verification, runtime, and code surfaces. The packet includes one role-specific
 distiller brief for each standing sub-agent, plus Continuity protocol pressure:
 
 - Self receives routing, authority, review-gate, and cross-swarm boundary memory.
-- Face receives public-surface, Aquarium, Discord, voice, and sealed-thought boundary memory.
+- Persona receives public-surface, Aquarium, Discord, voice, and sealed-thought boundary memory.
 - Imagination receives roadmap, backlog, objective-shaping, dream, and rejected-path memory.
 - Eyes receives research, prior-art, canonical algorithm, vendor/API, and invention-avoidance memory.
-- Proprioception receives architecture, graph, control/data-flow, invariant, and checkpoint memory.
+- Modeling receives architecture, graph, control/data-flow, invariant, and checkpoint memory.
 - Hands receives implementation conventions, build/edit constraints, dependency habits, and common patch traps.
 - Soul receives verification commands, evidence standards, invariant checks, and truth-refusal memory.
 - Continuity receives compaction, scratch, checkpoint, heartbeat, sleep, and continuity protocol pressure, not role memory.

@@ -50,11 +50,11 @@ Core duties:
    - Self receives worldview and review-gate direction.
    - Imagination receives future-shape bias.
    - Eyes receives the shape of truth worth seeking.
-   - Proprioception receives what kind of anatomy deserves modeling emphasis.
+   - Modeling receives what kind of anatomy deserves modeling emphasis.
    - Hands receives what kinds of cuts would betray the repo's grain.
    - Soul receives what kinds of false progress to distrust.
    - Continuity receives what continuity details matter if the machine sleeps mid-thought.
-   - Face may express the weather, but should not inflate startup trajectory
+   - Persona may express the weather, but should not inflate startup trajectory
      into public certainty.
 
 5. Preserve uncertainty and contradictions.

@@ -932,7 +932,7 @@ mod tests {
         assert!(rendered.contains("Persistent state is the mind"));
         assert!(rendered.contains("Imagination makes futures more selectable"));
         assert!(rendered.contains("evidence is a distilled durable ledger"));
-        assert!(rendered.contains("modeling is Proprioception"));
+        assert!(rendered.contains("modeling is Modeling"));
         assert!(rendered.contains("the Body is the substrate being sensed"));
         assert!(rendered.contains("implementation is the Hands"));
         assert!(rendered.contains("research is the Eyes"));

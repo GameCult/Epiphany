@@ -1,4 +1,4 @@
-﻿# Scratch Compaction
+# Scratch Compaction
 
 Hot context, written immediately from memory before inspection.
 
@@ -27,7 +27,7 @@ What was done:
 - Read/sampled each primary repo's AGENTS/map/evidence/handoff/scratch where present and secondary AGENTS files.
 - Inspected EpiphanyAgent's Ghostlight role memory schema and patch validator:
   - state/agents/README.md
-  - state/agents/proprioception.agent-state.json
+  - state/agents/modeling.agent-state.json
   - native epiphany-agent-memory-store binary
 - Added new documentation file:
   - notes/true-epiphany-memory-migration-sandbox-prompt.md
@@ -36,7 +36,7 @@ Important content of the new prompt:
 - It is a self-contained sandbox-agent prompt.
 - It instructs the sandbox agent to produce reviewable migration artifacts under `.epiphany-imports/pseudo-repo-memory-migration-<timestamp>`.
 - It explicitly forbids direct mutation by default.
-- It maps adjacent repo lessons into role-specific memory targets for Self, Face, Imagination, Eyes, Proprioception, Hands, Soul, and Life.
+- It maps adjacent repo lessons into role-specific memory targets for Self, Persona, Imagination, Eyes, Modeling, Hands, Soul, and Life.
 - It requires source-inventory.json, distillation-report.md, role-selfpatches/*.json, review-results.json, and apply-plan.md.
 - It requires each proposed memory patch to validate via native epiphany-agent-memory-store review-patch.
 - It emphasizes project truth versus role memory separation.

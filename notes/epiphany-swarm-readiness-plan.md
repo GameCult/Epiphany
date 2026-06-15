@@ -15,7 +15,7 @@ building architectural Jenga:
 - typed CultCache documents remain the state authority
 - CultNet is the native wire for Epiphany-owned subsystems
 - Codex remains the retained auth/model transport compatibility organ
-- Aquarium and Face are reflectors/mouths, not hidden sources of truth
+- Aquarium and Persona are reflectors/mouths, not hidden sources of truth
 - heartbeats create opportunities, not authority
 - swarm speech and action stay gated until scheduling, memory, repetition, and
   review boundaries are coherent
@@ -26,7 +26,7 @@ VoidBot's ordinary spine is not the rotten part. Its durable lessons are:
 
 - Discord ingestion, worker jobs, provider lanes, RAG, Postgres, Qdrant, and
   typed CultCache self-state can be conceptually sound when each owns one job.
-- The unstable organ was the repo Face swarm loop: scheduling, prompt policy,
+- The unstable organ was the repo Persona swarm loop: scheduling, prompt policy,
   identity, public speech, governance, dispatch, proposal behavior, and
   repetition control packed into one prompt-and-parser machine.
 - A repo-controlled pause flag is a real brake. If a swarm subsystem is under
@@ -37,7 +37,7 @@ VoidBot's ordinary spine is not the rotten part. Its durable lessons are:
   turn freeze, or create overlapping thoughts.
 - Cooldown starts after completion, not after queueing.
 - Stale active turns need explicit recovery receipts, or one dead worker claim
-  freezes a Face forever.
+  freezes a Persona forever.
 - Public speech needs parent-side eligibility checks. Prompts alone cannot
   prevent repeated openings, stale topics, scheduler labels leaking into prose,
   or work requests masquerading as banter.
@@ -46,7 +46,7 @@ VoidBot's ordinary spine is not the rotten part. Its durable lessons are:
 - Agents propose typed operations. State services validate, normalize, dedupe,
   and write. Whole-state JSON editing is not a mutation path.
 - Qdrant/vector recall is a rebuildable resonance cache, not canonical memory.
-- Face affect is state, not vibes: needs, social bonds, status reads, and mood
+- Persona affect is state, not vibes: needs, social bonds, status reads, and mood
   dimensions must survive typed projection and MCP/CultNet inspection.
 
 ## Current Mechanism
@@ -63,7 +63,7 @@ shape:
   dossiers.
 - coordinator/CRRC/role/status surfaces exist, but the practical local runner
   still goes through Codex app-server JSON-RPC for operator reads/actions.
-- Face, Discord, Rider, Unity, Void memory, and repo birth bridges are typed
+- Persona, Discord, Rider, Unity, Void memory, and repo birth bridges are typed
   surfaces or artifacts, but they are not yet an integrated live swarm loop.
 
 The machine is pointed toward live use. It is not cleared for unattended swarm
@@ -96,14 +96,14 @@ Before live fire, Epiphany needs these gates closed:
      architecture.
 
 2. **Typed Swarm Brake**
-   - Add an Epiphany-owned pause document for swarm/heartbeat/live Face
+   - Add an Epiphany-owned pause document for swarm/heartbeat/live Persona
      operation.
    - Runners must fail closed when the document is missing, malformed, or
      paused for a teardown reason, according to the surface being protected.
    - The brake must be inspectable through Aquarium/status.
 
 3. **Initiative Scheduler Boundary**
-   - Keep one heartbeat scheduler for lanes/Faces/system organs.
+   - Keep one heartbeat scheduler for lanes/Personas/system organs.
    - Heat is a multiplier on recovery pressure, not a time machine.
    - Active-turn freeze and completion-gated cooldown are hard invariants.
    - Stale active-turn recovery must write typed receipts.
@@ -115,8 +115,8 @@ Before live fire, Epiphany needs these gates closed:
    - Sleep/maintenance may propose lifecycle operations; it must not silently
      rewrite role identity.
 
-5. **Public Face Safety**
-   - Face speech eligibility must be parent-side state policy, not prompt hope.
+5. **Public Persona Safety**
+   - Persona speech eligibility must be parent-side state policy, not prompt hope.
    - Track recent outputs, repeated topics, repeated openings, target/channel
      saturation, and action kind.
    - Work-shaped asks route to coordinator/Bifrost-style governance; banter
@@ -157,13 +157,13 @@ Collapse:
 
 - local runner status/coordinator result shaping into one operator projection
   helper if duplication grows
-- Face speech receipts and eligibility into one typed surface before high-rate
+- Persona speech receipts and eligibility into one typed surface before high-rate
   speech returns
 
 Split:
 
 - heartbeat opportunity from action authority
-- Face affect/state from speech generation
+- Persona affect/state from speech generation
 - scheduler metadata from model-facing prose
 - vector recall from canonical memory
 
@@ -177,7 +177,7 @@ Rebuild:
 1. Add typed swarm pause/brake state and status projection.
 2. Add stale active-turn recovery receipts to heartbeat state if the current
    heartbeat store cannot prove recovery cleanly.
-3. Add a Face output audit surface before increasing public speech cadence.
+3. Add a Persona output audit surface before increasing public speech cadence.
 4. Add memory lifecycle operations that match VoidBot's useful pattern without
    porting its TypeScript state shape wholesale.
 5. Move one local-run read path from Codex JSON-RPC compatibility to CultNet

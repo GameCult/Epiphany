@@ -798,7 +798,7 @@ fn collect_coordinator_status(
         .unwrap_or_else(|| json!(null));
     let root = env::current_dir()?;
     let heartbeat_dir = root.join(".epiphany-heartbeats");
-    let face_dir = root.join(".epiphany-face");
+    let persona_dir = root.join(".epiphany-persona");
     let heartbeat = status_cli::native_json(
         "epiphany-heartbeat-store",
         &[
@@ -811,12 +811,12 @@ fn collect_coordinator_status(
             "8",
         ],
     )?;
-    let latest_face = status_cli::native_json(
-        "epiphany-face-discord",
+    let latest_persona = status_cli::native_json(
+        "epiphany-persona-discord",
         &[
             "latest",
             "--artifact-dir",
-            &face_dir.to_string_lossy(),
+            &persona_dir.to_string_lossy(),
             "--limit",
             "8",
         ],
@@ -837,11 +837,11 @@ fn collect_coordinator_status(
         "crrc": crrc,
         "coordinator": coordinator,
         "heartbeat": heartbeat,
-        "face": {
+        "persona": {
             "status": "ready",
-            "artifactDir": face_dir,
-            "latestArtifacts": latest_face.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
-            "availableActions": ["faceBubble", "characterTurn"],
+            "artifactDir": persona_dir,
+            "latestArtifacts": latest_persona.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
+            "availableActions": ["PersonaBubble", "characterTurn"],
         },
     }))
 }
@@ -1462,7 +1462,7 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
     let objective = objective
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or("Run the local Epiphany MVP cycle through Face, coordinator, and sleep.");
+        .unwrap_or("Run the local Epiphany MVP cycle through Persona, coordinator, and sleep.");
     let local_refs = local_mvp_code_refs(cwd);
     let transport_refs = local_mvp_transport_code_refs(cwd);
     let mut checkpoint_refs = local_refs.clone();
@@ -1474,14 +1474,14 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
             "id": "local-mvp-cycle",
             "title": "Local MVP cycle",
             "status": "active",
-            "summary": "Use Face as the human-facing entrypoint, run bounded coordinator/swarm work, and close with heartbeat sleep/dream maintenance.",
+            "summary": "Use Persona as the human-facing entrypoint, run bounded coordinator/swarm work, and close with heartbeat sleep/dream maintenance.",
         }],
         "graphs": {
             "architecture": {"nodes": [
                 {
                     "id": "local-mvp-runner",
                     "title": "Local MVP runner",
-                    "purpose": "One local operator cycle that enters through Face, runs coordinator-owned work, and invokes Continuity/heartbeat sleep afterward.",
+                    "purpose": "One local operator cycle that enters through Persona, runs coordinator-owned work, and invokes Continuity/heartbeat sleep afterward.",
                     "code_refs": local_refs,
                 },
                 {
@@ -1493,9 +1493,9 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
             ]},
             "dataflow": {"nodes": [
                 {
-                    "id": "face-coordinator-sleep-cycle",
-                    "title": "Face to coordinator to sleep",
-                    "purpose": "Face expression is display state; coordinator owns lane routing; heartbeat owns sleep physiology.",
+                    "id": "Persona-coordinator-sleep-cycle",
+                    "title": "Persona to coordinator to sleep",
+                    "purpose": "Persona expression is display state; coordinator owns lane routing; heartbeat owns sleep physiology.",
                 },
                 {
                     "id": "coordinator-model-runtime-cycle",
@@ -1505,7 +1505,7 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
             ]},
             "links": [
                 {
-                    "dataflow_node_id": "face-coordinator-sleep-cycle",
+                    "dataflow_node_id": "Persona-coordinator-sleep-cycle",
                     "architecture_node_id": "local-mvp-runner",
                 },
                 {
@@ -1515,14 +1515,14 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
             ],
         },
         "graphFrontier": {
-            "active_node_ids": ["local-mvp-runner", "face-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
+            "active_node_ids": ["local-mvp-runner", "Persona-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
             "dirty_paths": [],
         },
         "graphCheckpoint": {
             "checkpoint_id": "ck-local-mvp-cycle",
             "graph_revision": 2,
-            "summary": "Local MVP runner checkpoint: Face front door, coordinator run, model runtime transport, sleep maintenance.",
-            "frontier_node_ids": ["local-mvp-runner", "face-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
+            "summary": "Local MVP runner checkpoint: Persona front door, coordinator run, model runtime transport, sleep maintenance.",
+            "frontier_node_ids": ["local-mvp-runner", "Persona-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
         },
         "investigationCheckpoint": {
             "checkpoint_id": "ix-local-mvp-cycle",

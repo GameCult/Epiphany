@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/cultnet/gamecult.persona_state.v0.schema.json",
   "title": "GameCult Persona State v0",
-  "description": "Portable person-state contract for Epiphany Face, VoidBot repo Faces, and Ghostlight characters. Epiphany work organs should not use this unless they are acting as a public Persona.",
+  "description": "Portable person-state contract for Epiphany Persona, VoidBot repo Personas, and Ghostlight characters. Epiphany work organs should not use this unless they are acting as a public Persona.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -152,7 +152,7 @@
             "avatar",
             "voice",
             "scene",
-            "repo_face",
+            "repo_persona",
             "custom"
           ]
         },
@@ -633,7 +633,7 @@
       "properties": {
         "candidateInterventions": {
           "type": "array",
-          "description": "VoidBot-flavored projection of candidateActions for repo Face routines. This is not the generic PersonaState action authority.",
+          "description": "VoidBot-flavored projection of candidateActions for repo Persona routines. This is not the generic PersonaState action authority.",
           "items": {
             "$ref": "#/definitions/candidateAction"
           },

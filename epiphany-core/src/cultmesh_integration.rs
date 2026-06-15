@@ -368,7 +368,7 @@ pub struct EpiphanyCultMeshGlobalRoomPolicyEntry {
     #[cultcache(key = 6)]
     pub threaded: bool,
     #[cultcache(key = 7)]
-    pub face_posting_allowed: bool,
+    pub persona_posting_allowed: bool,
     #[cultcache(key = 8)]
     pub untrusted_ingress_allowed: bool,
 }
@@ -1088,9 +1088,9 @@ pub fn epiphany_cultmesh_global_room_policies() -> Vec<EpiphanyCultMeshGlobalRoo
             "Prior art, papers, source-grounded findings, and scout reports.",
         ),
         (
-            "faces",
-            "Faces",
-            "Public Face identity, voice, social surface, and community-facing presence.",
+            "Personas",
+            "Personas",
+            "Public Persona identity, voice, social surface, and community-facing presence.",
         ),
         (
             "gamecult",
@@ -1111,10 +1111,10 @@ pub fn epiphany_cultmesh_global_room_policies() -> Vec<EpiphanyCultMeshGlobalRoo
         topic: topic.to_string(),
         purpose: purpose.to_string(),
         posting_policy:
-            "Faces may post public, non-private, citation/provenance-bearing thread roots and replies; local adoption still requires review."
+            "Personas may post public, non-private, citation/provenance-bearing thread roots and replies; local adoption still requires review."
                 .to_string(),
         threaded: true,
-        face_posting_allowed: true,
+        persona_posting_allowed: true,
         untrusted_ingress_allowed: true,
     })
     .collect()
@@ -1510,7 +1510,7 @@ mod tests {
             thread_id: "thread-test".to_string(),
             produced_at_utc: "2026-06-12T00:00:00Z".to_string(),
             source_stage: "hands".to_string(),
-            target_stages: vec!["soul".to_string(), "proprioception".to_string()],
+            target_stages: vec!["soul".to_string(), "Modeling".to_string()],
             lower_bound_receipt_at: "2026-06-12T00:00:01Z".to_string(),
             hands_intent_id: "hands-intent-test".to_string(),
             hands_review_id: "hands-review-test".to_string(),
@@ -1578,7 +1578,7 @@ mod tests {
     }
 
     #[test]
-    fn global_room_policies_make_public_threaded_rooms_for_faces() -> Result<()> {
+    fn global_room_policies_make_public_threaded_rooms_for_personas() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-global-rooms.ccmp");
         let written = write_epiphany_cultmesh_global_room_policies(&store, "epiphany-test")?;
@@ -1593,7 +1593,7 @@ mod tests {
 
         assert_eq!(dreams.verse_id, EPIPHANY_CULTMESH_GLOBAL_VERSE_ID);
         assert!(dreams.threaded);
-        assert!(dreams.face_posting_allowed);
+        assert!(dreams.persona_posting_allowed);
         assert!(dreams.untrusted_ingress_allowed);
         assert!(architecture.purpose.contains("ownership"));
         Ok(())
