@@ -1657,6 +1657,10 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "eve-connect") {
             Write-Host "Eve connect: status=$($result.status), target=$($result.targetClusterId), surface=$($result.targetEveSurfaceId), receipt=$($result.receiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "collaboration-feedback") {
+            $feedbackRows = "none"
+            if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
+                $feedbackRows = ($result.tuiRows -join "; ")
+            }
             $publicRefs = "none"
             if ($null -ne $result.publicDiscussionRefs -and $result.publicDiscussionRefs.Count -gt 0) {
                 $publicRefs = ($result.publicDiscussionRefs -join ",")
@@ -1665,10 +1669,14 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.candidateActionRefs -and $result.candidateActionRefs.Count -gt 0) {
                 $candidateRefs = ($result.candidateActionRefs -join ",")
             }
-            Write-Host "Collaboration feedback: status=$($result.status), feedback=$($result.feedbackId), consensus=$($result.consensusReceiptId), publicRefs=$publicRefs, candidateActions=$candidateRefs, consensusPacket=$($result.consensusPacketRef), adoptionGate=$($result.adoptionGate), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Collaboration feedback: status=$($result.status), feedback=$($result.feedbackId), consensus=$($result.consensusReceiptId), publicRefs=$publicRefs, candidateActions=$candidateRefs, consensusPacket=$($result.consensusPacketRef), adoptionGate=$($result.adoptionGate), feedbackRows=$feedbackRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-publication") {
             Write-Host "Bifrost publication: status=$($result.status), intent=$($result.intentId), publication=$($result.publicationReceiptId), github=$($result.githubPublicationReceiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-ledger") {
+            $ledgerRows = "none"
+            if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
+                $ledgerRows = ($result.tuiRows -join "; ")
+            }
             $publicRefs = "none"
             if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
                 $publicRefs = (($result.rows | ForEach-Object {
@@ -1679,7 +1687,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     "$($_.documentKind)=${publicRef}"
                 }) -join "; ")
             }
-            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), publicRefs=$publicRefs, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), publicRefs=$publicRefs, ledgerRows=$ledgerRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "receipt-directory") {
             $artifactHashes = "none"
             $attentionRoutes = "none"
