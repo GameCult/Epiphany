@@ -2000,7 +2000,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Cluster daemon service control: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), planned=$($result.plannedCount), requested=$($result.requestedCount), refused=$($result.refusedCount), failed=$($result.failedCount), receipt=$($result.receiptId), followUp=tools/epiphany_local_run.ps1 -Mode cluster-service-audit, aftercare=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit, serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-execution-readiness") {
             $serviceRows = Format-ClusterServiceRows $result.services $result.status
-            Write-Host "Cluster daemon service execution readiness: service=$($result.serviceId), daemons=$($result.daemonCount), services=$($result.serviceCount), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId), serviceRows=$serviceRows"
+            Write-Host "Cluster daemon service execution readiness: service=$($result.serviceId), daemons=$($result.daemonCount), services=$($result.serviceCount), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId), followUp=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook, aftercare=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit, serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-execution-runbook") {
             $elevatedCommand = Get-ElevatedRunbookCommand $result.runbookPath
             $artifactSha256 = Get-LocalArtifactSha256 $result.runbookPath
@@ -2048,13 +2048,13 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $artifactSha256 = Get-LocalArtifactSha256 $result.installScriptPath
             Write-Host "Service install: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), artifactSha256=$artifactSha256, followUp=tools/epiphany_local_run.ps1 -Mode service-install-execute, path=$($result.installScriptPath)"
         } elseif ($Mode -eq "service-status") {
-            Write-Host "Service status: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), receipt=$($result.receiptId)"
+            Write-Host "Service status: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), receipt=$($result.receiptId), followUp=tools/epiphany_local_run.ps1 -Mode service-reconcile, aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit"
         } elseif ($Mode -eq "service-tick") {
             Write-Host "Scheduler tick: scheduler=$($result.schedulerId), daemonSelector=$($result.daemonId), status=$($result.status), outcomes=$($result.outcomeCount), restarted=$($result.restartedCount), refused=$($result.refusedCount), skipped=$($result.skippedCount), receipt=$($result.schedulerReceiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-reconcile") {
-            Write-Host "Service reconcile: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), receipt=$($result.receiptId)"
+            Write-Host "Service reconcile: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), receipt=$($result.receiptId), followUp=tools/epiphany_local_run.ps1 -Mode service-install-plan, aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit"
         } elseif ($Mode -eq "service-execution-readiness") {
-            Write-Host "Service execution readiness: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId)"
+            Write-Host "Service execution readiness: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId), followUp=tools/epiphany_local_run.ps1 -Mode service-execution-runbook, aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit"
         } elseif ($Mode -eq "service-execution-audit") {
             Write-Host "Service execution audit: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
             $failedCheckRows = Format-ServiceExecutionFailedChecks @($result.checks | Where-Object { -not $_.ok })
