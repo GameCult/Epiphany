@@ -1664,6 +1664,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), publicRefs=$publicRefs, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "receipt-directory") {
             $artifactHashes = "none"
+            $attentionRoutes = "none"
             if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
                 $presentArtifactHashes = @($result.rows | Where-Object { $_.artifactStatus -eq "present" } | ForEach-Object {
                     $artifactSha256 = $_.artifactSha256
@@ -1675,8 +1676,14 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 if ($presentArtifactHashes.Count -gt 0) {
                     $artifactHashes = ($presentArtifactHashes -join "; ")
                 }
+                $attentionRouteRows = @($result.rows | Where-Object { $_.privateStateExposed -eq $true -or $_.status -in @("down", "degraded", "incomplete", "not-elevated", "execution-refused-not-elevated", "failed", "query-failed", "drift", "disabled") } | ForEach-Object {
+                    "$($_.family):$($_.status):$($_.route)->$($_.followUpCommand)"
+                })
+                if ($attentionRouteRows.Count -gt 0) {
+                    $attentionRoutes = ($attentionRouteRows -join "; ")
+                }
             }
-            Write-Host "Receipt directory: status=$($result.status), rows=$($result.rowCount), present=$($result.presentRowCount), absent=$($result.absentRowCount), attention=$($result.attentionRowCount), artifactNone=$($result.artifactNoneCount), artifactExternalRef=$($result.artifactExternalRefCount), artifactPresent=$($result.artifactPresentCount), artifactMissing=$($result.artifactMissingCount), artifactHashes=$artifactHashes, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Receipt directory: status=$($result.status), rows=$($result.rowCount), present=$($result.presentRowCount), absent=$($result.absentRowCount), attention=$($result.attentionRowCount), attentionRoutes=$attentionRoutes, artifactNone=$($result.artifactNoneCount), artifactExternalRef=$($result.artifactExternalRefCount), artifactPresent=$($result.artifactPresentCount), artifactMissing=$($result.artifactMissingCount), artifactHashes=$artifactHashes, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "tool-directory") {
             Write-Host "Tool directory: status=$($result.status), tools=$($result.toolCount), hostReady=$($result.hostReadyCount), hostAttention=$($result.hostAttentionCount), availableToAllAgents=$($result.invariants.availableToAllAgents), requiresReceipt=$($result.invariants.requiresReceipt), privateStateExposed=$($result.invariants.privateStateExposed)"
         } elseif ($Mode -eq "tool-invoke") {

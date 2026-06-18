@@ -2503,7 +2503,12 @@ fn main() -> Result<()> {
                 || !service_overview
                     .service_lifecycle_attention_tui_rows
                     .iter()
-                    .any(|row| row.contains("artifact=external-ref"))
+                    .any(|row| {
+                        row.contains("artifact=external-ref")
+                            && row.contains(&format!(
+                                "followUp={WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND}"
+                            ))
+                    })
                 || service_overview.service_execution_failed_check_count == 0
                 || service_overview.service_execution_missing_check_count == 0
                 || !service_overview
@@ -4563,12 +4568,13 @@ fn receipt_directory_tui_row(row: &ReceiptDirectoryRow) -> String {
         "OK"
     };
     format!(
-        "{compact_status} | {} | {} | {} | {} | {} | artifact={} | sha256={}",
+        "{compact_status} | {} | {} | {} | {} | {} | followUp={} | artifact={} | sha256={}",
         row.owner,
         row.family,
         row.status,
         row.route,
         row.latest_id,
+        row.follow_up_command,
         row.artifact_status,
         row.artifact_sha256
     )
