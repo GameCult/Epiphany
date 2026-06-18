@@ -12,6 +12,7 @@ use epiphany_core::EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry;
 use epiphany_core::EpiphanyCultMeshBifrostCollaborationFeedbackEntry;
 use epiphany_core::EpiphanyCultMeshBifrostGithubPublicationReceiptEntry;
 use epiphany_core::EpiphanyCultMeshClusterTopologyEntry;
+use epiphany_core::EpiphanyCultMeshDaemonPokeReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
@@ -1870,6 +1871,24 @@ fn main() -> Result<()> {
                     "local Verse query smoke batch daemon poke lost compact row topology/receipt/private-state fields"
                 );
             }
+            let degraded_receipt_directory_context =
+                query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
+            let degraded_receipt_directory = receipt_directory_report(
+                &degraded_receipt_directory_context,
+                &load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+                    &args.store,
+                    args.runtime_id.clone(),
+                )?,
+            );
+            if !degraded_receipt_directory.rows.iter().any(|row| {
+                row.family == "daemon-poke"
+                    && row.route == "epiphany-daemon-hands"
+                    && row.status == "degraded"
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke daemon-poke receipt row stopped reflecting current degraded liveness before heartbeat recovery"
+                );
+            }
             let triage_overview = load_swarm_overview_report(&args)?;
             let triage_pokes = if triage_overview.liveness_status == "ready" {
                 Vec::new()
@@ -1915,6 +1934,35 @@ fn main() -> Result<()> {
             {
                 anyhow::bail!(
                     "local Verse query smoke swarm triage did not issue one sealed Hands poke"
+                );
+            }
+            let mut restored_hands = hands_status.clone();
+            restored_hands.status = "ready".to_string();
+            restored_hands.operator_action = "none".to_string();
+            restored_hands
+                .notes
+                .push("Smoke-test restored status after batch poke receipt.".to_string());
+            write_epiphany_cultmesh_daemon_status(
+                &args.store,
+                args.runtime_id.clone(),
+                restored_hands,
+            )?;
+            let restored_receipt_directory_context =
+                query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
+            let restored_receipt_directory = receipt_directory_report(
+                &restored_receipt_directory_context,
+                &load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+                    &args.store,
+                    args.runtime_id.clone(),
+                )?,
+            );
+            if !restored_receipt_directory.rows.iter().any(|row| {
+                row.family == "daemon-poke"
+                    && row.route == "epiphany-daemon-hands"
+                    && row.status == "resolved"
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke daemon-poke receipt row did not resolve after current liveness returned ready"
                 );
             }
             let bifrost_intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
@@ -4100,7 +4148,7 @@ fn receipt_directory_report(
             status: context
                 .latest_daemon_poke_receipt
                 .as_ref()
-                .map(|receipt| receipt.resulting_status.clone())
+                .map(|receipt| receipt_directory_daemon_poke_status(context, receipt))
                 .unwrap_or_else(|| "missing".to_string()),
             route: context
                 .latest_daemon_poke_receipt
@@ -4595,6 +4643,28 @@ fn receipt_directory_attention_route_row(row: &ReceiptDirectoryRow) -> String {
         "{}:{}:{}->{}",
         row.family, row.status, row.route, row.follow_up_command
     )
+}
+
+fn receipt_directory_daemon_poke_status(
+    context: &EpiphanyLocalVerseContext,
+    receipt: &EpiphanyCultMeshDaemonPokeReceiptEntry,
+) -> String {
+    let Some(current_status) = context
+        .daemon_statuses
+        .iter()
+        .find(|status| status.daemon_id == receipt.target_daemon_id)
+        .map(|status| status.status.as_str())
+    else {
+        return receipt.resulting_status.clone();
+    };
+
+    if current_status == "ready" && receipt.resulting_status != "ready" {
+        "resolved".to_string()
+    } else if current_status != receipt.resulting_status {
+        format!("current-{current_status}")
+    } else {
+        receipt.resulting_status.clone()
+    }
 }
 
 fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCheck) -> String {
