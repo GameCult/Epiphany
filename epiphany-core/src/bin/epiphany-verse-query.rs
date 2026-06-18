@@ -87,6 +87,7 @@ use std::fs;
 use std::path::PathBuf;
 
 const WRAPPER_OVERVIEW_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-overview";
+const WRAPPER_GJALLAR_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode gjallar";
 const WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode swarm-online-runbook";
 const WRAPPER_POKE_NON_READY_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-poke-down";
@@ -200,7 +201,9 @@ fn main() -> Result<()> {
                     "artifactMissingCount": report.artifact_missing_count,
                     "commands": {
                         "overview": "epiphany-verse-query swarm-overview",
+                        "gjallar": "epiphany-verse-query gjallar",
                         "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
+                        "wrapperGjallar": WRAPPER_GJALLAR_COMMAND,
                         "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                         "tools": "epiphany-verse-query tool-directory",
                         "wrapperTools": "tools/epiphany_local_run.ps1 -Mode tool-directory",
@@ -706,7 +709,7 @@ fn main() -> Result<()> {
                 }))?
             );
         }
-        "swarm-overview" | "agent-overview" | "global-agents" => {
+        "swarm-overview" | "agent-overview" | "global-agents" | "gjallar" => {
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -721,7 +724,9 @@ fn main() -> Result<()> {
                 "receipts": "epiphany-verse-query receipt-directory",
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
+                "gjallar": "epiphany-verse-query gjallar",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
+                "wrapperGjallar": WRAPPER_GJALLAR_COMMAND,
                 "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                 "wrapperReceipts": WRAPPER_RECEIPT_DIRECTORY_COMMAND,
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
@@ -1605,6 +1610,7 @@ fn main() -> Result<()> {
                 || !WRAPPER_CONNECT_EVE_COMMAND.contains("-Mode eve-connect")
                 || !WRAPPER_BIFROST_LEDGER_COMMAND.contains("-Mode bifrost-ledger")
                 || !WRAPPER_RECEIPT_DIRECTORY_COMMAND.contains("-Mode receipt-directory")
+                || !WRAPPER_GJALLAR_COMMAND.contains("-Mode gjallar")
                 || !WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND.contains("-Mode swarm-online-runbook")
                 || !WRAPPER_SERVICE_TICK_COMMAND.contains("-Mode service-tick")
                 || !WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND
@@ -3537,7 +3543,9 @@ impl SwarmTriageOutput {
             pokes,
             commands: json!({
                 "overview": "epiphany-verse-query swarm-overview",
+                "gjallar": "epiphany-verse-query gjallar",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
+                "wrapperGjallar": WRAPPER_GJALLAR_COMMAND,
                 "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
                 "wrapperPokeNonReady": WRAPPER_POKE_NON_READY_COMMAND,
