@@ -879,13 +879,15 @@ if ($Mode -eq "swarm-online-runbook") {
     }
 
     $aftercareCommands = @($authorityRows | ForEach-Object { $_.operatorAftercareCommand } | Where-Object { $null -ne $_ -and $_ -ne "" -and $_ -ne "none" } | Select-Object -Unique)
+    $quotedRoot = ConvertTo-PowerShellLiteral $Root
     $runbookLines = @(
         "# Epiphany swarm online runbook.",
         "# Generated from compact CultMesh swarm action rows.",
         "# Run only with explicit operator authority. The individual sealed runbooks write lifecycle receipts.",
-        "# After execution, run the aftercare audit command(s) listed below.",
+        "# After execution, this runbook executes the advertised aftercare audit command(s).",
         "Set-StrictMode -Version Latest",
         '$ErrorActionPreference = "Stop"',
+        "Set-Location -LiteralPath $quotedRoot",
         ""
     )
     foreach ($row in $authorityRows) {
@@ -899,7 +901,7 @@ if ($Mode -eq "swarm-online-runbook") {
     }
     $runbookLines += "# Aftercare audit command(s):"
     foreach ($aftercare in $aftercareCommands) {
-        $runbookLines += "#   $aftercare"
+        $runbookLines += $aftercare
     }
     Set-Content -LiteralPath $runbookPath -Value ($runbookLines -join [Environment]::NewLine) -Encoding UTF8
     $runbookSha256 = Get-LocalArtifactSha256 $runbookPath
