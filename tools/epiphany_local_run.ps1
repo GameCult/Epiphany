@@ -1691,6 +1691,10 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "receipt-directory") {
             $artifactHashes = "none"
             $attentionRoutes = "none"
+            $receiptRows = "none"
+            if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
+                $receiptRows = ($result.tuiRows -join "; ")
+            }
             if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
                 $presentArtifactHashes = @($result.rows | Where-Object { $_.artifactStatus -eq "present" } | ForEach-Object {
                     $artifactSha256 = $_.artifactSha256
@@ -1709,7 +1713,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     $attentionRoutes = ($attentionRouteRows -join "; ")
                 }
             }
-            Write-Host "Receipt directory: status=$($result.status), rows=$($result.rowCount), present=$($result.presentRowCount), absent=$($result.absentRowCount), attention=$($result.attentionRowCount), attentionRoutes=$attentionRoutes, artifactNone=$($result.artifactNoneCount), artifactExternalRef=$($result.artifactExternalRefCount), artifactPresent=$($result.artifactPresentCount), artifactMissing=$($result.artifactMissingCount), artifactHashes=$artifactHashes, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Receipt directory: status=$($result.status), rows=$($result.rowCount), present=$($result.presentRowCount), absent=$($result.absentRowCount), attention=$($result.attentionRowCount), attentionRoutes=$attentionRoutes, receiptRows=$receiptRows, artifactNone=$($result.artifactNoneCount), artifactExternalRef=$($result.artifactExternalRefCount), artifactPresent=$($result.artifactPresentCount), artifactMissing=$($result.artifactMissingCount), artifactHashes=$artifactHashes, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "tool-directory") {
             $toolRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
