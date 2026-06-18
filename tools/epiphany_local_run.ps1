@@ -1836,10 +1836,8 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Swarm overview: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolRows=$toolRows, policyRows=$policyRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             $policyRows = "none"
-            if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
-                $policyRows = (($result.rows | ForEach-Object {
-                    "$($_.displayName):$($_.policyStatus):$($_.daemonId):last=$($_.lastResultStatus):reconcile=$($_.reconcileIntervalSeconds)s:stale=$($_.heartbeatStaleSeconds)s->$($_.followUpCommand)"
-                }) -join "; ")
+            if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
+                $policyRows = Format-TuiRows $result.tuiRows
             }
             Write-Host "Service policy directory: status=$($result.status), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), policyRows=$policyRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-poke-down") {
