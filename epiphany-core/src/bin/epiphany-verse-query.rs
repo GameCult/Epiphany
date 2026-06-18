@@ -2488,6 +2488,9 @@ fn main() -> Result<()> {
                     .any(|row| row.starts_with("cluster-service-lifecycle:"))
                 || !service_receipt_directory.rows.iter().any(|row| {
                     row.family == "cluster-service-execution-runbook"
+                        && row.service_id == "epiphany-cluster-daemon-services"
+                        && row.service_route
+                            == "epiphany-cluster-daemon-services::cluster-windows-service-execution-runbook"
                         && row.artifact_status == "present"
                         && row.artifact_sha256
                             == operator_artifact_sha256(
@@ -2497,6 +2500,7 @@ fn main() -> Result<()> {
                 })
                 || !service_receipt_directory.tui_rows.iter().any(|row| {
                     row.contains("cluster-service-execution-runbook")
+                        && row.contains("service=epiphany-cluster-daemon-services")
                         && row.contains("artifact=present")
                         && row.contains(&format!(
                             "sha256={}",
@@ -2614,13 +2618,15 @@ fn main() -> Result<()> {
                     .iter()
                     .any(|row| {
                         row.family == "cluster-service-lifecycle"
+                            && row.service_id == "epiphany-cluster-daemon-services"
                             && row.artifact_status == "external-ref"
                     })
                 || !service_overview
                     .service_lifecycle_attention_tui_rows
                     .iter()
                     .any(|row| {
-                        row.contains("artifact=external-ref")
+                        row.contains("service=epiphany-cluster-daemon-services")
+                            && row.contains("artifact=external-ref")
                             && row.contains(&format!(
                                 "followUp={WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND}"
                             ))
@@ -2690,6 +2696,10 @@ fn main() -> Result<()> {
                 route:
                     "epiphany-cluster-daemon-services::cluster-windows-service-execution-runbook"
                         .to_string(),
+                service_id: "epiphany-cluster-daemon-services".to_string(),
+                service_route:
+                    "epiphany-cluster-daemon-services::cluster-windows-service-execution-runbook"
+                        .to_string(),
                 follow_up_command: WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND.to_string(),
                 artifact_ref: args
                     .store
@@ -2722,8 +2732,7 @@ fn main() -> Result<()> {
                 private_state_exposed: missing_runbook_row.private_state_exposed,
                 failed_check_count: 0,
                 missing_check_count: 0,
-                service_id: receipt_directory_row_service_id(&missing_runbook_row)
-                    .unwrap_or_else(|| "unknown-service".to_string()),
+                service_id: missing_runbook_row.service_id.clone(),
                 completion_audit_wrapper_mode: "cluster-service-execution-audit".to_string(),
                 completion_audit_wrapper_command: WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
                     .to_string(),
@@ -3461,6 +3470,8 @@ struct ReceiptDirectoryRow {
     latest_id: String,
     status: String,
     route: String,
+    service_id: String,
+    service_route: String,
     follow_up_command: String,
     artifact_ref: String,
     artifact_status: String,
@@ -3698,8 +3709,8 @@ fn swarm_action_rows(
             requires_elevated_authority: false,
             service_execution_failed_check_count: 0,
             service_execution_missing_check_count: 0,
-            service_id: receipt_directory_row_service_id(row).unwrap_or_else(|| "unknown-service".to_string()),
-            service_route: row.route.clone(),
+            service_id: row.service_id.clone(),
+            service_route: row.service_route.clone(),
             reason: format!(
                 "Windows service lifecycle receipt {} needs readback/audit before the daemon swarm can be called service-ready.",
                 row.route
@@ -3883,14 +3894,17 @@ fn service_execution_runbook_actions(
                     private_state_exposed: row.private_state_exposed,
                     failed_check_count: cluster_report.failed_count,
                     missing_check_count: cluster_report.missing_count,
-                    service_id: receipt_directory_row_service_id(row)
-                        .unwrap_or_else(|| "unknown-service".to_string()),
+                    service_id: row.service_id.clone(),
                     completion_audit_wrapper_mode: "cluster-service-execution-audit".to_string(),
                     completion_audit_wrapper_command:
                         WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND.to_string(),
                 })
             } else {
-                let service_id = receipt_directory_row_service_id(row)?;
+                let service_id = if row.service_id == "none" {
+                    receipt_directory_row_service_id(row)?
+                } else {
+                    row.service_id.clone()
+                };
                 let (_, report) = single_service_reports
                     .iter()
                     .find(|(candidate_id, _)| candidate_id == &service_id)?;
@@ -4427,6 +4441,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|receipt| receipt.result_path.clone())
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: WRAPPER_OVERVIEW_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4457,6 +4473,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|receipt| receipt.target_daemon_id.clone())
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: WRAPPER_POKE_NON_READY_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4496,6 +4514,8 @@ fn receipt_directory_report(
                     )
                 })
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: WRAPPER_INVOKE_TOOL_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4530,6 +4550,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|receipt| receipt.target_eve_surface_id.clone())
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: WRAPPER_CONNECT_EVE_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4564,6 +4586,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|receipt| receipt.pull_request_url.clone())
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: WRAPPER_BIFROST_LEDGER_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4598,6 +4622,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|receipt| receipt.adoption_gate.clone())
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: WRAPPER_COLLABORATION_FEEDBACK_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4632,6 +4658,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|receipt| receipt.final_action.clone())
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode status".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4666,6 +4694,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|gate| gate.requested_paths.join(", "))
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command:
                 "epiphany-hands-action record-pass --gate-from <coordinator-summary.json>"
                     .to_string(),
@@ -4702,6 +4732,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|event| format!("{}:{}", event.surface, event.role_id))
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode status".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4736,6 +4768,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|summary| summary.target_stages.join(", "))
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode status".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4772,6 +4806,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|receipt| receipt.daemon_selector.clone())
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: WRAPPER_SERVICE_TICK_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4806,6 +4842,8 @@ fn receipt_directory_report(
                 .as_ref()
                 .map(|audit| audit.requested_channel_id.clone())
                 .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode mvp -PersonaInput <text>"
                 .to_string(),
             artifact_ref: "none".to_string(),
@@ -4837,6 +4875,8 @@ fn receipt_directory_report(
                 .map(|summary| format!("{} rows", summary.row_count))
                 .unwrap_or_else(|| "missing".to_string()),
             route: "CultMesh SoA".to_string(),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode agent-state-soa".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
@@ -4928,10 +4968,11 @@ fn receipt_directory_tui_row(row: &ReceiptDirectoryRow) -> String {
         "OK"
     };
     format!(
-        "{compact_status} | {} | {} | {} | {} | {} | followUp={} | artifact={} | sha256={}",
+        "{compact_status} | {} | {} | {} | service={} | {} | {} | followUp={} | artifact={} | sha256={}",
         row.owner,
         row.family,
         row.status,
+        row.service_id,
         row.route,
         row.latest_id,
         row.follow_up_command,
@@ -4948,6 +4989,9 @@ fn receipt_directory_attention_route_row(row: &ReceiptDirectoryRow) -> String {
 }
 
 fn receipt_directory_row_service_id(row: &ReceiptDirectoryRow) -> Option<String> {
+    if row.service_id != "none" && !row.service_id.is_empty() {
+        return Some(row.service_id.clone());
+    }
     row.route
         .split_once("::")
         .map(|(service_id, _)| service_id.to_string())
@@ -5101,6 +5145,17 @@ fn receipt_directory_service_lifecycle_row(
         .unwrap_or_else(|| "none".to_string());
     let artifact_status = operator_artifact_status(&artifact_ref).to_string();
     let artifact_sha256 = operator_artifact_sha256(&artifact_ref, &artifact_status);
+    let service_id = receipt
+        .map(|receipt| receipt.service_id.clone())
+        .unwrap_or_else(|| "none".to_string());
+    let route = receipt
+        .map(|receipt| format!("{}::{}", receipt.service_id, receipt.action))
+        .unwrap_or_else(|| "none".to_string());
+    let service_route = if receipt.is_some() {
+        route.clone()
+    } else {
+        "none".to_string()
+    };
     ReceiptDirectoryRow {
         family: family.to_string(),
         owner: "daemon-supervisor".to_string(),
@@ -5111,9 +5166,9 @@ fn receipt_directory_service_lifecycle_row(
         status: receipt
             .map(|receipt| receipt.status.clone())
             .unwrap_or_else(|| "missing".to_string()),
-        route: receipt
-            .map(|receipt| format!("{}::{}", receipt.service_id, receipt.action))
-            .unwrap_or_else(|| "none".to_string()),
+        route,
+        service_id,
+        service_route,
         follow_up_command: follow_up_command.to_string(),
         artifact_ref,
         artifact_status,
