@@ -1697,7 +1697,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "tool-directory") {
             Write-Host "Tool directory: status=$($result.status), tools=$($result.toolCount), hostReady=$($result.hostReadyCount), hostAttention=$($result.hostAttentionCount), availableToAllAgents=$($result.invariants.availableToAllAgents), requiresReceipt=$($result.invariants.requiresReceipt), privateStateExposed=$($result.invariants.privateStateExposed)"
         } elseif ($Mode -eq "tool-invoke") {
-            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), privateStateExposed=$($result.privateStateExposed)"
+            $invocationRows = "none"
+            if ($null -ne $result.invocationRows -and $result.invocationRows.Count -gt 0) {
+                $invocationRows = ($result.invocationRows -join "; ")
+            }
+            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-overview") {
             $attention = "none"
             if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {
