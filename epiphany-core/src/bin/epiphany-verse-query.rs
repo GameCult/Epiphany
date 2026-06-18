@@ -47,6 +47,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
@@ -3615,20 +3616,25 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         args.runtime_id.clone(),
     )?;
     let policy_report = daemon_restart_policy_directory_report_from_rows(&policy_directory);
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
     let lifecycle_receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
         &args.store,
         args.runtime_id.clone(),
     )?;
-    let receipt_report = receipt_directory_report(&context, &lifecycle_receipts);
-    let cluster_service_lifecycle_attention = receipt_report.rows.iter().find(|row| {
+    let latest_lifecycle_receipt = load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+        &args.store,
+        args.runtime_id.clone(),
+    )?;
+    let service_lifecycle_rows = service_lifecycle_receipt_directory_rows(
+        &lifecycle_receipts,
+        latest_lifecycle_receipt.as_ref(),
+    );
+    let cluster_service_lifecycle_attention = service_lifecycle_rows.iter().find(|row| {
         row.family == "cluster-service-lifecycle" && receipt_directory_row_needs_attention(row)
     });
-    let service_lifecycle_attention = receipt_report.rows.iter().find(|row| {
+    let service_lifecycle_attention = service_lifecycle_rows.iter().find(|row| {
         row.family == "service-lifecycle" && receipt_directory_row_needs_attention(row)
     });
-    let service_lifecycle_attention_rows = receipt_report
-        .rows
+    let service_lifecycle_attention_rows = service_lifecycle_rows
         .iter()
         .filter(|row| {
             (row.family == "cluster-service-lifecycle" || row.family == "service-lifecycle")
@@ -3746,7 +3752,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .map(daemon_tool_directory_tui_row)
         .collect::<Vec<_>>();
     let service_execution_runbook_row = service_lifecycle_runbook_row_for_recommended_mode(
-        &receipt_report.rows,
+        &service_lifecycle_rows,
         &service_lifecycle_recommended_wrapper_mode,
     );
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
@@ -3764,7 +3770,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .any(|row| row.private_state_exposed)
         || tool_report.rows.iter().any(|row| row.private_state_exposed)
         || policy_report.private_state_exposed
-        || receipt_report.private_state_exposed;
+        || service_lifecycle_rows
+            .iter()
+            .any(|row| row.private_state_exposed);
     Ok(SwarmOverviewReport {
         status,
         liveness_status,
@@ -4128,84 +4136,12 @@ fn receipt_directory_report(
             private_state_exposed: false,
         },
     );
-    let latest_cluster_lifecycle_receipt =
-        service_lifecycle_receipt_for_directory(lifecycle_receipts, true).or_else(|| {
-            context
-                .latest_daemon_service_lifecycle_receipt
-                .as_ref()
-                .filter(|receipt| is_cluster_service_lifecycle_receipt(receipt))
-        });
-    let latest_single_lifecycle_receipt =
-        service_lifecycle_receipt_for_directory(lifecycle_receipts, false).or_else(|| {
-            context
-                .latest_daemon_service_lifecycle_receipt
-                .as_ref()
-                .filter(|receipt| !is_cluster_service_lifecycle_receipt(receipt))
-        });
-    push_receipt_directory_row(
-        &mut rows,
-        &mut tui_rows,
-        receipt_directory_service_lifecycle_row(
-            "cluster-service-lifecycle",
-            latest_cluster_lifecycle_receipt,
-            WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND,
-        ),
-    );
-    push_receipt_directory_row(
-        &mut rows,
-        &mut tui_rows,
-        receipt_directory_service_lifecycle_row(
-            "service-lifecycle",
-            latest_single_lifecycle_receipt,
-            WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND,
-        ),
-    );
-    let latest_cluster_execution_runbook_receipt = latest_service_lifecycle_receipt_for_action(
+    for row in service_lifecycle_receipt_directory_rows(
         lifecycle_receipts,
-        true,
-        "cluster-windows-service-execution-runbook",
-    )
-    .or_else(|| {
-        context
-            .latest_daemon_service_lifecycle_receipt
-            .as_ref()
-            .filter(|receipt| {
-                is_cluster_service_lifecycle_receipt(receipt)
-                    && receipt.action == "cluster-windows-service-execution-runbook"
-            })
-    });
-    push_receipt_directory_row(
-        &mut rows,
-        &mut tui_rows,
-        receipt_directory_service_lifecycle_row(
-            "cluster-service-execution-runbook",
-            latest_cluster_execution_runbook_receipt,
-            WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND,
-        ),
-    );
-    let latest_service_execution_runbook_receipt = latest_service_lifecycle_receipt_for_action(
-        lifecycle_receipts,
-        false,
-        "windows-service-execution-runbook",
-    )
-    .or_else(|| {
-        context
-            .latest_daemon_service_lifecycle_receipt
-            .as_ref()
-            .filter(|receipt| {
-                !is_cluster_service_lifecycle_receipt(receipt)
-                    && receipt.action == "windows-service-execution-runbook"
-            })
-    });
-    push_receipt_directory_row(
-        &mut rows,
-        &mut tui_rows,
-        receipt_directory_service_lifecycle_row(
-            "service-execution-runbook",
-            latest_service_execution_runbook_receipt,
-            WRAPPER_SERVICE_EXECUTION_RUNBOOK_COMMAND,
-        ),
-    );
+        context.latest_daemon_service_lifecycle_receipt.as_ref(),
+    ) {
+        push_receipt_directory_row(&mut rows, &mut tui_rows, row);
+    }
     push_receipt_directory_row(
         &mut rows,
         &mut tui_rows,
@@ -4407,6 +4343,69 @@ fn service_lifecycle_status_needs_attention(status: &str) -> bool {
             | "stop-failed"
             | "install-failed"
     )
+}
+
+fn service_lifecycle_receipt_directory_rows(
+    lifecycle_receipts: &[EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
+    latest_daemon_service_lifecycle_receipt: Option<
+        &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+    >,
+) -> Vec<ReceiptDirectoryRow> {
+    let latest_cluster_lifecycle_receipt =
+        service_lifecycle_receipt_for_directory(lifecycle_receipts, true).or_else(|| {
+            latest_daemon_service_lifecycle_receipt
+                .filter(|receipt| is_cluster_service_lifecycle_receipt(receipt))
+        });
+    let latest_single_lifecycle_receipt =
+        service_lifecycle_receipt_for_directory(lifecycle_receipts, false).or_else(|| {
+            latest_daemon_service_lifecycle_receipt
+                .filter(|receipt| !is_cluster_service_lifecycle_receipt(receipt))
+        });
+    let latest_cluster_execution_runbook_receipt = latest_service_lifecycle_receipt_for_action(
+        lifecycle_receipts,
+        true,
+        "cluster-windows-service-execution-runbook",
+    )
+    .or_else(|| {
+        latest_daemon_service_lifecycle_receipt.filter(|receipt| {
+            is_cluster_service_lifecycle_receipt(receipt)
+                && receipt.action == "cluster-windows-service-execution-runbook"
+        })
+    });
+    let latest_service_execution_runbook_receipt = latest_service_lifecycle_receipt_for_action(
+        lifecycle_receipts,
+        false,
+        "windows-service-execution-runbook",
+    )
+    .or_else(|| {
+        latest_daemon_service_lifecycle_receipt.filter(|receipt| {
+            !is_cluster_service_lifecycle_receipt(receipt)
+                && receipt.action == "windows-service-execution-runbook"
+        })
+    });
+
+    vec![
+        receipt_directory_service_lifecycle_row(
+            "cluster-service-lifecycle",
+            latest_cluster_lifecycle_receipt,
+            WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND,
+        ),
+        receipt_directory_service_lifecycle_row(
+            "service-lifecycle",
+            latest_single_lifecycle_receipt,
+            WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND,
+        ),
+        receipt_directory_service_lifecycle_row(
+            "cluster-service-execution-runbook",
+            latest_cluster_execution_runbook_receipt,
+            WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND,
+        ),
+        receipt_directory_service_lifecycle_row(
+            "service-execution-runbook",
+            latest_service_execution_runbook_receipt,
+            WRAPPER_SERVICE_EXECUTION_RUNBOOK_COMMAND,
+        ),
+    ]
 }
 
 fn receipt_directory_service_lifecycle_row(
