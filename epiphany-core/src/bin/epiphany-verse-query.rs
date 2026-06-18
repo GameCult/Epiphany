@@ -2420,6 +2420,13 @@ fn main() -> Result<()> {
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
                         && row.contains("artifact=present")
+                        && row.contains(&format!(
+                            "sha256={}",
+                            operator_artifact_sha256(
+                                &service_smoke_runbook_path.display().to_string(),
+                                "present",
+                            )
+                        ))
                         && row.contains("audit=cluster-service-execution-audit")
                 })
                 || !service_overview
@@ -3482,7 +3489,7 @@ fn swarm_action_rows(
 
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
     format!(
-        "{:03} | {} | {} | {} | {} | mutates={} | elevated={} | artifact={} | audit={}",
+        "{:03} | {} | {} | {} | {} | mutates={} | elevated={} | artifact={} | sha256={} | audit={}",
         row.priority,
         row.family,
         row.status,
@@ -3491,6 +3498,7 @@ fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
         row.mutates_state,
         row.requires_elevated_authority,
         row.operator_artifact_status,
+        row.operator_artifact_sha256,
         row.completion_audit_wrapper_mode
     )
 }
