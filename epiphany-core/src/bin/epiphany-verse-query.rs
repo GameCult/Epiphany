@@ -87,6 +87,8 @@ use std::fs;
 use std::path::PathBuf;
 
 const WRAPPER_OVERVIEW_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-overview";
+const WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode swarm-online-runbook";
 const WRAPPER_POKE_NON_READY_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-poke-down";
 const DIRECT_INVOKE_TOOL_COMMAND: &str =
     "epiphany-verse-query invoke-tool --capability-id <capability>";
@@ -199,6 +201,7 @@ fn main() -> Result<()> {
                     "commands": {
                         "overview": "epiphany-verse-query swarm-overview",
                         "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
+                        "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                         "tools": "epiphany-verse-query tool-directory",
                         "wrapperTools": "tools/epiphany_local_run.ps1 -Mode tool-directory",
                         "bifrostLedger": "epiphany-verse-query bifrost-ledger",
@@ -719,6 +722,7 @@ fn main() -> Result<()> {
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
+                "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                 "wrapperReceipts": WRAPPER_RECEIPT_DIRECTORY_COMMAND,
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
                 "wrapperPokeNonReady": WRAPPER_POKE_NON_READY_COMMAND,
@@ -1601,6 +1605,7 @@ fn main() -> Result<()> {
                 || !WRAPPER_CONNECT_EVE_COMMAND.contains("-Mode eve-connect")
                 || !WRAPPER_BIFROST_LEDGER_COMMAND.contains("-Mode bifrost-ledger")
                 || !WRAPPER_RECEIPT_DIRECTORY_COMMAND.contains("-Mode receipt-directory")
+                || !WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND.contains("-Mode swarm-online-runbook")
                 || !WRAPPER_SERVICE_TICK_COMMAND.contains("-Mode service-tick")
                 || !WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND
                     .contains("-Mode service-policy-directory")
@@ -3533,6 +3538,7 @@ impl SwarmTriageOutput {
             commands: json!({
                 "overview": "epiphany-verse-query swarm-overview",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
+                "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
                 "wrapperPokeNonReady": WRAPPER_POKE_NON_READY_COMMAND,
                 "receipts": "epiphany-verse-query receipt-directory",
@@ -4385,6 +4391,14 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .iter()
         .map(service_execution_audit_check_tui_row)
         .collect::<Vec<_>>();
+    let service_execution_runbook_actions = service_execution_runbook_actions(
+        &service_lifecycle_rows,
+        &cluster_service_execution_audit,
+        &single_service_execution_audits,
+    );
+    let service_online_runbook_available = service_execution_runbook_actions
+        .iter()
+        .any(|action| operator_artifact_status(&action.artifact_ref) == "present");
     let liveness_status =
         if daemon_report.non_ready_count == 0 && tool_report.host_attention_count == 0 {
             "ready".to_string()
@@ -4417,6 +4431,12 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
                     "epiphany-verse-query restart-policy-directory".to_string(),
                     "service-policy-directory".to_string(),
                     WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND.to_string(),
+                )
+            } else if service_online_runbook_available {
+                (
+                    "operator elevated swarm online runbook".to_string(),
+                    "swarm-online-runbook".to_string(),
+                    WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND.to_string(),
                 )
             } else if let Some(row) = cluster_service_lifecycle_attention {
                 (
@@ -4490,11 +4510,6 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .iter()
         .map(daemon_tool_directory_tui_row)
         .collect::<Vec<_>>();
-    let service_execution_runbook_actions = service_execution_runbook_actions(
-        &service_lifecycle_rows,
-        &cluster_service_execution_audit,
-        &single_service_execution_audits,
-    );
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
         &liveness_status,
         &tool_host_attention_rows,
