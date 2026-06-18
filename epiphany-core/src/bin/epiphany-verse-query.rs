@@ -1330,6 +1330,7 @@ fn main() -> Result<()> {
                     },
                     "publicDiscussionRefs": written_feedback.public_discussion_refs,
                     "candidateActionRefs": written_feedback.candidate_action_refs,
+                    "tuiRows": collaboration_feedback_tui_rows(&written_feedback, &written_consensus),
                     "privateStateIncluded": written_feedback.private_state_included,
                     "privateStateExposed": written_consensus.private_state_exposed,
                 }))?
@@ -2063,6 +2064,23 @@ fn main() -> Result<()> {
                 vec!["epiphany.Imagination".to_string()],
                 "gamecult-local/imagination/consensus-packets/smoke",
             );
+            let collaboration_tui_rows = collaboration_feedback_tui_rows(&feedback, &consensus);
+            if !collaboration_tui_rows.iter().any(|row| {
+                row.contains("collaboration-feedback")
+                    && row.contains(
+                        "public=https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm",
+                    )
+                    && row.contains("candidates=candidate-action:open-collaboration-thread")
+                    && row.contains("private=false")
+            }) || !collaboration_tui_rows.iter().any(|row| {
+                row.contains("imagination-consensus")
+                    && row.contains("adoptionGate=mind.review_then_bifrost_adoption")
+                    && row.contains("private=false")
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke lost compact collaboration feedback routing rows"
+                );
+            }
             write_epiphany_cultmesh_imagination_consensus_receipt(
                 &args.store,
                 args.runtime_id.clone(),
@@ -4927,6 +4945,49 @@ fn push_bifrost_ledger_row(
         row.document_kind, row.id, row.status, row.route, row.public_ref
     ));
     rows.push(row);
+}
+
+fn collaboration_feedback_tui_rows(
+    feedback: &EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
+    consensus: &EpiphanyCultMeshImaginationConsensusReceiptEntry,
+) -> Vec<String> {
+    let public_refs = compact_tui_list(&feedback.public_discussion_refs);
+    let candidate_refs = compact_tui_list(&feedback.candidate_action_refs);
+    let private_feedback = if feedback.private_state_included {
+        "private=true"
+    } else {
+        "private=false"
+    };
+    let private_consensus = if consensus.private_state_exposed {
+        "private=true"
+    } else {
+        "private=false"
+    };
+    vec![
+        format!(
+            "OK | collaboration-feedback | {} | topic={} | public={} | candidates={} | route={} | {private_feedback}",
+            feedback.feedback_id,
+            feedback.collaboration_topic,
+            public_refs,
+            candidate_refs,
+            feedback.requested_consensus_route
+        ),
+        format!(
+            "OK | imagination-consensus | {} | packet={} | adoptionGate={} | public={} | {private_consensus}",
+            consensus.receipt_id,
+            consensus.consensus_packet_ref,
+            consensus.adoption_gate,
+            compact_tui_list(&consensus.public_feedback_refs)
+        ),
+    ]
+}
+
+fn compact_tui_list(values: &[String]) -> String {
+    if values.is_empty() {
+        "none".to_string()
+    } else {
+        values.join(",")
+    }
 }
 
 fn write_daemon_poke_receipts(

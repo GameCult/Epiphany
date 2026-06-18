@@ -1630,7 +1630,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "eve-connect") {
             Write-Host "Eve connect: status=$($result.status), target=$($result.targetClusterId), surface=$($result.targetEveSurfaceId), receipt=$($result.receiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "collaboration-feedback") {
-            Write-Host "Collaboration feedback: status=$($result.status), feedback=$($result.feedbackId), consensus=$($result.consensusReceiptId), adoptionGate=$($result.adoptionGate), privateStateExposed=$($result.privateStateExposed)"
+            $publicRefs = "none"
+            if ($null -ne $result.publicDiscussionRefs -and $result.publicDiscussionRefs.Count -gt 0) {
+                $publicRefs = ($result.publicDiscussionRefs -join ",")
+            }
+            $candidateRefs = "none"
+            if ($null -ne $result.candidateActionRefs -and $result.candidateActionRefs.Count -gt 0) {
+                $candidateRefs = ($result.candidateActionRefs -join ",")
+            }
+            Write-Host "Collaboration feedback: status=$($result.status), feedback=$($result.feedbackId), consensus=$($result.consensusReceiptId), publicRefs=$publicRefs, candidateActions=$candidateRefs, consensusPacket=$($result.consensusPacketRef), adoptionGate=$($result.adoptionGate), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-publication") {
             Write-Host "Bifrost publication: status=$($result.status), intent=$($result.intentId), publication=$($result.publicationReceiptId), github=$($result.githubPublicationReceiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-ledger") {
