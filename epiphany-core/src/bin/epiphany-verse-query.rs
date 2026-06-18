@@ -2555,6 +2555,8 @@ fn main() -> Result<()> {
                     .iter()
                     .any(|check| {
                         check.action == "cluster-windows-service-execution-readiness"
+                            && check.service_id.as_deref()
+                                == Some("epiphany-cluster-daemon-services")
                             && check.observed_status.is_none()
                             && !check.ok
                             && check.private_state_sealed
@@ -2564,6 +2566,8 @@ fn main() -> Result<()> {
                     .iter()
                     .any(|check| {
                         check.action == "cluster-windows-service-execution-audit"
+                            && check.service_id.as_deref()
+                                == Some("epiphany-cluster-daemon-services")
                             && check.observed_status.as_deref() == Some("incomplete")
                             && !check.ok
                             && check.private_state_sealed
@@ -2573,6 +2577,8 @@ fn main() -> Result<()> {
                     .iter()
                     .any(|check| {
                         check.action == "windows-service-execution-readiness"
+                            && check.service_id.as_deref()
+                                == Some("epiphany-daemon-supervisor-service")
                             && check.observed_status.is_none()
                             && !check.ok
                             && check.private_state_sealed
@@ -2580,11 +2586,17 @@ fn main() -> Result<()> {
                 || !service_overview
                     .service_execution_failed_check_tui_rows
                     .iter()
-                    .any(|row| row.contains("cluster-windows-service-execution-audit=incomplete"))
+                    .any(|row| {
+                        row.contains("epiphany-cluster-daemon-services::cluster-windows-service-execution-audit=incomplete")
+                    })
                 || !service_overview
                     .service_execution_failed_check_tui_rows
                     .iter()
-                    .any(|row| row.contains("windows-service-execution-readiness=missing"))
+                    .any(|row| {
+                        row.contains(
+                            "epiphany-daemon-supervisor-service::windows-service-execution-readiness=missing",
+                        )
+                    })
             {
                 anyhow::bail!(
                     "local Verse query smoke did not expose sealed service lifecycle readback plus cluster and service execution failed-check anatomy"
@@ -4004,26 +4016,49 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .filter(|receipt| receipt.service_id == "epiphany-cluster-daemon-services")
         .cloned()
         .collect::<Vec<_>>();
-    let single_service_lifecycle_receipts = lifecycle_receipts
-        .iter()
-        .filter(|receipt| receipt.service_id != "epiphany-cluster-daemon-services")
-        .cloned()
-        .collect::<Vec<_>>();
     let cluster_service_execution_audit =
         epiphany_cluster_service_execution_audit_report(&cluster_lifecycle_receipts);
-    let single_service_execution_audit =
-        epiphany_service_execution_audit_report(&single_service_lifecycle_receipts);
-    let service_execution_failed_check_count =
-        cluster_service_execution_audit.failed_count + single_service_execution_audit.failed_count;
+    let mut single_service_ids = service_lifecycle_attention_rows
+        .iter()
+        .filter(|row| row.family == "service-lifecycle")
+        .filter_map(receipt_directory_row_service_id)
+        .collect::<Vec<_>>();
+    single_service_ids.sort();
+    single_service_ids.dedup();
+    let single_service_execution_audits = single_service_ids
+        .iter()
+        .map(|service_id| {
+            let scoped_receipts = lifecycle_receipts
+                .iter()
+                .filter(|receipt| receipt.service_id == *service_id)
+                .cloned()
+                .collect::<Vec<_>>();
+            epiphany_service_execution_audit_report(&scoped_receipts)
+        })
+        .collect::<Vec<_>>();
+    let service_execution_failed_check_count = cluster_service_execution_audit.failed_count
+        + single_service_execution_audits
+            .iter()
+            .map(|report| report.failed_count)
+            .sum::<usize>();
     let service_execution_missing_check_count = cluster_service_execution_audit.missing_count
-        + single_service_execution_audit.missing_count;
+        + single_service_execution_audits
+            .iter()
+            .map(|report| report.missing_count)
+            .sum::<usize>();
     let service_execution_private_state_exposed = cluster_service_execution_audit
         .private_state_exposed
-        || single_service_execution_audit.private_state_exposed;
+        || single_service_execution_audits
+            .iter()
+            .any(|report| report.private_state_exposed);
     let service_execution_failed_check_rows = cluster_service_execution_audit
         .checks
         .iter()
-        .chain(single_service_execution_audit.checks.iter())
+        .chain(
+            single_service_execution_audits
+                .iter()
+                .flat_map(|report| report.checks.iter()),
+        )
         .filter(|check| !check.ok || !check.private_state_sealed)
         .cloned()
         .collect::<Vec<_>>();
@@ -4739,6 +4774,13 @@ fn receipt_directory_attention_route_row(row: &ReceiptDirectoryRow) -> String {
     )
 }
 
+fn receipt_directory_row_service_id(row: &ReceiptDirectoryRow) -> Option<String> {
+    row.route
+        .split_once("::")
+        .map(|(service_id, _)| service_id.to_string())
+        .filter(|service_id| !service_id.is_empty())
+}
+
 fn receipt_directory_daemon_poke_status(
     context: &EpiphanyLocalVerseContext,
     receipt: &EpiphanyCultMeshDaemonPokeReceiptEntry,
@@ -4762,6 +4804,7 @@ fn receipt_directory_daemon_poke_status(
 }
 
 fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCheck) -> String {
+    let service_id = check.service_id.as_deref().unwrap_or("unknown-service");
     let observed_status = check.observed_status.as_deref().unwrap_or("missing");
     let receipt_id = check.receipt_id.as_deref().unwrap_or("missing");
     let artifact_ref = check.operator_artifact_ref.as_deref().unwrap_or("none");
@@ -4772,8 +4815,14 @@ fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCh
         "private-state-exposed"
     };
     format!(
-        "{}={} | allowed={} | receipt={} | artifact={} | {}",
-        check.action, observed_status, allowed_statuses, receipt_id, artifact_ref, seal_status
+        "{}::{}={} | allowed={} | receipt={} | artifact={} | {}",
+        service_id,
+        check.action,
+        observed_status,
+        allowed_statuses,
+        receipt_id,
+        artifact_ref,
+        seal_status
     )
 }
 

@@ -146,7 +146,11 @@ function Format-ServiceExecutionFailedChecks {
         if ($artifact -ne "none" -and (Test-Path -LiteralPath $artifact -PathType Leaf)) {
             $artifactSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
         }
-        "$($_.action)=${observed}:artifact=${artifact}:sha256=${artifactSha256}"
+        $serviceId = $_.serviceId
+        if ($null -eq $serviceId -or $serviceId -eq "") {
+            $serviceId = "unknown-service"
+        }
+        "${serviceId}::$($_.action)=${observed}:artifact=${artifact}:sha256=${artifactSha256}"
     }) -join "; ")
 }
 
@@ -1932,7 +1936,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if (Test-Path -LiteralPath $artifact -PathType Leaf) {
                         $artifactSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
                     }
-                    "$($_.action)=${artifact}:sha256=${artifactSha256}"
+                    $serviceId = $_.serviceId
+                    if ($null -eq $serviceId -or $serviceId -eq "") {
+                        $serviceId = "unknown-service"
+                    }
+                    "${serviceId}::$($_.action)=${artifact}:sha256=${artifactSha256}"
                 }) -join "; "
                 Write-Host "Cluster daemon service execution runbook witnesses: $runbookWitnessSummary"
             }
@@ -1943,7 +1951,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $observed -or $observed -eq "") {
                         $observed = "missing"
                     }
-                    "$($_.action)=$observed"
+                    $serviceId = $_.serviceId
+                    if ($null -eq $serviceId -or $serviceId -eq "") {
+                        $serviceId = "unknown-service"
+                    }
+                    "${serviceId}::$($_.action)=$observed"
                 }) -join "; "
                 Write-Host "Cluster daemon service execution failed checks: $failedSummary"
             }
@@ -1969,7 +1981,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if (Test-Path -LiteralPath $artifact -PathType Leaf) {
                         $artifactSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
                     }
-                    "$($_.action)=${artifact}:sha256=${artifactSha256}"
+                    $serviceId = $_.serviceId
+                    if ($null -eq $serviceId -or $serviceId -eq "") {
+                        $serviceId = "unknown-service"
+                    }
+                    "${serviceId}::$($_.action)=${artifact}:sha256=${artifactSha256}"
                 }) -join "; "
                 Write-Host "Service execution runbook witnesses: $runbookWitnessSummary"
             }
@@ -1980,7 +1996,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $observed -or $observed -eq "") {
                         $observed = "missing"
                     }
-                    "$($_.action)=$observed"
+                    $serviceId = $_.serviceId
+                    if ($null -eq $serviceId -or $serviceId -eq "") {
+                        $serviceId = "unknown-service"
+                    }
+                    "${serviceId}::$($_.action)=$observed"
                 }) -join "; "
                 Write-Host "Service execution failed checks: $failedSummary"
             }

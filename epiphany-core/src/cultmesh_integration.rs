@@ -1120,6 +1120,7 @@ pub struct EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyServiceExecutionAuditCheck {
+    pub service_id: Option<String>,
     pub action: String,
     pub allowed_statuses: Vec<String>,
     pub receipt_id: Option<String>,
@@ -1193,27 +1194,40 @@ fn epiphany_service_execution_audit_report_for_expected(
     let mut missing_count = 0_usize;
     let mut failed_count = 0_usize;
     let mut private_state_exposed = false;
+    let mut service_ids = receipts
+        .iter()
+        .map(|receipt| receipt.service_id.as_str())
+        .collect::<Vec<_>>();
+    service_ids.sort();
+    service_ids.dedup();
+    let inferred_service_id = if service_ids.len() == 1 {
+        Some(service_ids[0].to_string())
+    } else {
+        None
+    };
 
     for (action, allowed_statuses) in expected {
         let receipt = latest_lifecycle_receipt_for_action(receipts, action);
-        let (receipt_id, observed_status, operator_artifact_ref, ok, sealed) = match receipt {
-            Some(receipt) => {
-                let status_ok = allowed_statuses
-                    .iter()
-                    .any(|allowed| *allowed == receipt.status);
-                (
-                    Some(receipt.receipt_id.clone()),
-                    Some(receipt.status.clone()),
-                    non_empty_operator_artifact_ref(receipt),
-                    status_ok,
-                    !receipt.private_state_exposed,
-                )
-            }
-            None => {
-                missing_count += 1;
-                (None, None, None, false, true)
-            }
-        };
+        let (service_id, receipt_id, observed_status, operator_artifact_ref, ok, sealed) =
+            match receipt {
+                Some(receipt) => {
+                    let status_ok = allowed_statuses
+                        .iter()
+                        .any(|allowed| *allowed == receipt.status);
+                    (
+                        Some(receipt.service_id.clone()),
+                        Some(receipt.receipt_id.clone()),
+                        Some(receipt.status.clone()),
+                        non_empty_operator_artifact_ref(receipt),
+                        status_ok,
+                        !receipt.private_state_exposed,
+                    )
+                }
+                None => {
+                    missing_count += 1;
+                    (inferred_service_id.clone(), None, None, None, false, true)
+                }
+            };
 
         if !ok {
             failed_count += 1;
@@ -1223,6 +1237,7 @@ fn epiphany_service_execution_audit_report_for_expected(
         }
 
         checks.push(EpiphanyServiceExecutionAuditCheck {
+            service_id,
             action: (*action).to_string(),
             allowed_statuses: allowed_statuses
                 .iter()
