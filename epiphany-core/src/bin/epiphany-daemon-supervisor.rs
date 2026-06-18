@@ -31,6 +31,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Stdio;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -223,6 +224,7 @@ fn service_launch(args: Args) -> Result<()> {
     let service_args = service_serve_args(&args);
     let mut command = Command::new(&command_path);
     command.args(&service_args);
+    command.stdout(Stdio::null()).stderr(Stdio::null());
     if let Some(cwd) = &args.cwd {
         command.current_dir(cwd);
     }
