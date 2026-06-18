@@ -2851,6 +2851,46 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke did not expose sealed service lifecycle readback plus cluster and service execution failed-check anatomy"
                 );
             }
+            let readiness_follow_up_receipt = EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+                schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                    .to_string(),
+                receipt_id: "daemon-service-lifecycle-receipt-smoke-cluster-readiness-follow-up"
+                    .to_string(),
+                service_id: "epiphany-cluster-daemon-services".to_string(),
+                scheduler_id: "epiphany-daemon-supervisor".to_string(),
+                runtime_id: args.runtime_id.clone(),
+                daemon_selector: "epiphany-cluster".to_string(),
+                action: "cluster-windows-service-execution-readiness".to_string(),
+                status: "not-elevated".to_string(),
+                command: "smoke-service-lifecycle".to_string(),
+                args: vec!["cluster-windows-service-execution-readiness".to_string()],
+                cwd: Some("E:/Projects/EpiphanyAgent".to_string()),
+                process_id: None,
+                exit_code: Some(0),
+                started_at_utc: service_smoke_started_at.clone(),
+                completed_at_utc: Some(Utc::now().to_rfc3339()),
+                operator_artifact_ref:
+                    "smoke://verse-query/cluster-windows-service-execution-readiness".to_string(),
+                private_state_exposed: false,
+                notes: vec![
+                    "Synthetic verse-query smoke receipt for lifecycle follow-up routing."
+                        .to_string(),
+                ],
+            };
+            let readiness_follow_up_row = receipt_directory_service_lifecycle_row(
+                "cluster-service-lifecycle",
+                Some(&readiness_follow_up_receipt),
+                WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND,
+            );
+            if readiness_follow_up_row.follow_up_command
+                != WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND
+                || service_lifecycle_wrapper_mode_for_row(&readiness_follow_up_row)
+                    != "cluster-service-execution-readiness"
+            {
+                anyhow::bail!(
+                    "local Verse query smoke did not route cluster readiness lifecycle receipts to the readiness wrapper"
+                );
+            }
             let missing_runbook_row = ReceiptDirectoryRow {
                 family: "cluster-service-execution-runbook".to_string(),
                 owner: "daemon-supervisor".to_string(),
@@ -4068,10 +4108,38 @@ fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
 }
 
 fn service_lifecycle_wrapper_mode_for_row(row: &ReceiptDirectoryRow) -> &'static str {
-    if row.follow_up_command == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND {
+    service_lifecycle_wrapper_mode_for_command(&row.follow_up_command)
+}
+
+fn service_lifecycle_wrapper_mode_for_command(command: &str) -> &'static str {
+    if command == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND {
         "cluster-service-execution-audit"
-    } else if row.follow_up_command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND {
+    } else if command == WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND {
+        "cluster-service-execution-readiness"
+    } else if command == WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND {
+        "cluster-service-execution-runbook"
+    } else if command == WRAPPER_CLUSTER_SERVICE_INSTALL_EXECUTE_COMMAND {
+        "cluster-service-install-execute"
+    } else if command == WRAPPER_CLUSTER_SERVICE_START_EXECUTE_COMMAND {
+        "cluster-service-start-execute"
+    } else if command == WRAPPER_CLUSTER_SERVICE_STOP_EXECUTE_COMMAND {
+        "cluster-service-stop-execute"
+    } else if command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND {
         "service-execution-audit"
+    } else if command == WRAPPER_SERVICE_EXECUTION_READINESS_COMMAND {
+        "service-execution-readiness"
+    } else if command == WRAPPER_SERVICE_EXECUTION_RUNBOOK_COMMAND {
+        "service-execution-runbook"
+    } else if command == WRAPPER_SERVICE_INSTALL_EXECUTE_COMMAND {
+        "service-install-execute"
+    } else if command == WRAPPER_SERVICE_START_EXECUTE_COMMAND {
+        "service-start-execute"
+    } else if command == WRAPPER_SERVICE_STOP_EXECUTE_COMMAND {
+        "service-stop-execute"
+    } else if command == WRAPPER_SERVICE_STATUS_COMMAND {
+        "service-status"
+    } else if command == WRAPPER_SERVICE_RECONCILE_COMMAND {
+        "service-reconcile"
     } else {
         "receipt-directory"
     }
@@ -4516,18 +4584,14 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
                 (
                     "epiphany-verse-query receipt-directory cluster-service-lifecycle follow-up"
                         .to_string(),
-                    "cluster-service-execution-audit".to_string(),
+                    service_lifecycle_wrapper_mode_for_row(row).to_string(),
                     row.follow_up_command.clone(),
                 )
             } else if let Some(row) = service_lifecycle_attention {
                 (
                     "epiphany-verse-query receipt-directory service-lifecycle follow-up"
                         .to_string(),
-                    if row.follow_up_command == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND {
-                        "cluster-service-execution-audit".to_string()
-                    } else {
-                        "service-execution-audit".to_string()
-                    },
+                    service_lifecycle_wrapper_mode_for_row(row).to_string(),
                     row.follow_up_command.clone(),
                 )
             } else {
@@ -4544,17 +4608,13 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         (
             "epiphany-verse-query receipt-directory cluster-service-lifecycle follow-up"
                 .to_string(),
-            "cluster-service-execution-audit".to_string(),
+            service_lifecycle_wrapper_mode_for_row(row).to_string(),
             row.follow_up_command.clone(),
         )
     } else if let Some(row) = service_lifecycle_attention {
         (
             "epiphany-verse-query receipt-directory service-lifecycle follow-up".to_string(),
-            if row.follow_up_command == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND {
-                "cluster-service-execution-audit".to_string()
-            } else {
-                "service-execution-audit".to_string()
-            },
+            service_lifecycle_wrapper_mode_for_row(row).to_string(),
             row.follow_up_command.clone(),
         )
     } else {
@@ -5403,6 +5463,11 @@ fn receipt_directory_service_lifecycle_row(
     } else {
         "none".to_string()
     };
+    let follow_up_command = receipt
+        .map(|receipt| service_execution_check_follow_up_command(&receipt.action))
+        .filter(|command| *command != "none")
+        .unwrap_or(follow_up_command)
+        .to_string();
     ReceiptDirectoryRow {
         family: family.to_string(),
         owner: "daemon-supervisor".to_string(),
@@ -5416,7 +5481,7 @@ fn receipt_directory_service_lifecycle_row(
         route,
         service_id,
         service_route,
-        follow_up_command: follow_up_command.to_string(),
+        follow_up_command,
         artifact_ref,
         artifact_status,
         artifact_sha256,
