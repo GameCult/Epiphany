@@ -1990,7 +1990,8 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Cluster daemon service runbook: service=$($result.serviceId), daemons=$($result.daemonCount), receipt=$($result.receiptId), path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-install-plan" -or $Mode -eq "cluster-service-install-execute") {
             $serviceRows = Format-ClusterServiceRows $result.services
-            Write-Host "Cluster daemon service install: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), serviceRows=$serviceRows, path=$($result.installScriptPath)"
+            $artifactSha256 = Get-LocalArtifactSha256 $result.installScriptPath
+            Write-Host "Cluster daemon service install: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), artifactSha256=$artifactSha256, followUp=tools/epiphany_local_run.ps1 -Mode cluster-service-install-execute, serviceRows=$serviceRows, path=$($result.installScriptPath)"
         } elseif ($Mode -eq "cluster-service-audit") {
             $serviceRows = Format-ClusterServiceRows $result.services
             Write-Host "Cluster daemon service audit: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), missing=$($result.missingCount), running=$($result.runningCount), present=$($result.presentCount), queryFailed=$($result.queryFailedCount), receipt=$($result.receiptId), serviceRows=$serviceRows"
@@ -2044,7 +2045,8 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $artifactSha256 = Get-LocalArtifactSha256 $result.runbookPath
             Write-Host "Service execution runbook: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), artifactSha256=$artifactSha256, elevatedCommand=$elevatedCommand, aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit, path=$($result.runbookPath)"
         } elseif ($Mode -eq "service-install-plan" -or $Mode -eq "service-install-execute") {
-            Write-Host "Service install: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), path=$($result.installScriptPath)"
+            $artifactSha256 = Get-LocalArtifactSha256 $result.installScriptPath
+            Write-Host "Service install: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), artifactSha256=$artifactSha256, followUp=tools/epiphany_local_run.ps1 -Mode service-install-execute, path=$($result.installScriptPath)"
         } elseif ($Mode -eq "service-status") {
             Write-Host "Service status: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), receipt=$($result.receiptId)"
         } elseif ($Mode -eq "service-tick") {
