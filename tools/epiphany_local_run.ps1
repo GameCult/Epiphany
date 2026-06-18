@@ -2070,7 +2070,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
                 $policyRows = Format-TuiRows $result.tuiRows
             }
-            Write-Host "Service policy directory: status=$($result.status), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), policyRows=$policyRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Service policy directory: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), policyRows=$policyRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-plan") {
             $plannedArgs = "none"
             if ($null -ne $result.args -and $result.args.Count -gt 0) {

@@ -135,6 +135,8 @@ const WRAPPER_CLUSTER_SERVICE_STOP_EXECUTE_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode cluster-service-stop-execute";
 const DIRECT_BIFROST_PUBLICATION_COMMAND: &str =
     "epiphany-verse-query bifrost-publication --target-repository <repo> --changed-path <path>";
+const SERVICE_LIFECYCLE_OWNER: &str = "Idunn";
+const SERVICE_LIFECYCLE_HOSTED_BODY: &str = "Epiphany";
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
@@ -238,6 +240,8 @@ fn main() -> Result<()> {
                     "status": report.status,
                     "store": args.store,
                     "runtimeId": args.runtime_id,
+                    "lifecycleOwner": report.lifecycle_owner,
+                    "hostedBody": report.hosted_body,
                     "daemonCount": report.rows.len(),
                     "coveredCount": report.covered_count,
                     "enabledCount": report.enabled_count,
@@ -1632,6 +1636,8 @@ fn main() -> Result<()> {
                     .any(|row| {
                         row.contains("MISSING")
                             && row.contains("Persona")
+                            && row.contains("owner=Idunn")
+                            && row.contains("hostedBody=Epiphany")
                             && row.contains("followUp=epiphany-daemon-supervisor policy --daemon-id <daemon> --restart-command <exe>")
                             && row.contains("private=false")
                     })
@@ -1685,6 +1691,8 @@ fn main() -> Result<()> {
                 || !disabled_policy_report.tui_rows.iter().any(|row| {
                     row.contains("DISABLED")
                         && row.contains("Persona")
+                        && row.contains("owner=Idunn")
+                        && row.contains("hostedBody=Epiphany")
                         && row.contains("last=never-attempted")
                         && row.contains("followUp=epiphany-daemon-supervisor policy --daemon-id <daemon> --restart-command <exe>")
                         && row.contains("private=false")
@@ -2843,6 +2851,8 @@ fn main() -> Result<()> {
             };
             let ready_policy_report = DaemonRestartPolicyDirectoryReport {
                 status: "ok".to_string(),
+                lifecycle_owner: SERVICE_LIFECYCLE_OWNER.to_string(),
+                hosted_body: SERVICE_LIFECYCLE_HOSTED_BODY.to_string(),
                 rows: Vec::new(),
                 tui_rows: Vec::new(),
                 covered_count: 0,
@@ -3232,6 +3242,8 @@ struct DaemonToolDirectoryReport {
 
 struct DaemonRestartPolicyDirectoryReport {
     status: String,
+    lifecycle_owner: String,
+    hosted_body: String,
     rows: Vec<DaemonRestartPolicyDirectoryRow>,
     tui_rows: Vec<String>,
     covered_count: usize,
@@ -3247,6 +3259,8 @@ struct DaemonRestartPolicyDirectoryReport {
 struct DaemonRestartPolicyDirectoryRow {
     cluster_id: String,
     display_name: String,
+    lifecycle_owner: String,
+    hosted_body: String,
     daemon_id: String,
     daemon_status: String,
     policy_id: String,
@@ -4243,7 +4257,9 @@ fn daemon_restart_policy_directory_report_from_rows(
             _ => "MISSING",
         };
         tui_rows.push(format!(
-            "{compact_status} | {display_name} | {} | daemon={} | policy={} | cooldown={}s | reconcile={}s | stale={}s | failures={} | last={} | followUp={} | private={}",
+            "{compact_status} | {display_name} | owner={} | hostedBody={} | {} | daemon={} | policy={} | cooldown={}s | reconcile={}s | stale={}s | failures={} | last={} | followUp={} | private={}",
+            SERVICE_LIFECYCLE_OWNER,
+            SERVICE_LIFECYCLE_HOSTED_BODY,
             status.daemon_id,
             status.status,
             policy_id,
@@ -4258,6 +4274,8 @@ fn daemon_restart_policy_directory_report_from_rows(
         rows.push(DaemonRestartPolicyDirectoryRow {
             cluster_id: status.cluster_id.clone(),
             display_name,
+            lifecycle_owner: SERVICE_LIFECYCLE_OWNER.to_string(),
+            hosted_body: SERVICE_LIFECYCLE_HOSTED_BODY.to_string(),
             daemon_id: status.daemon_id.clone(),
             daemon_status: status.status.clone(),
             policy_id,
@@ -4284,6 +4302,8 @@ fn daemon_restart_policy_directory_report_from_rows(
 
     DaemonRestartPolicyDirectoryReport {
         status,
+        lifecycle_owner: SERVICE_LIFECYCLE_OWNER.to_string(),
+        hosted_body: SERVICE_LIFECYCLE_HOSTED_BODY.to_string(),
         rows,
         tui_rows,
         covered_count,
