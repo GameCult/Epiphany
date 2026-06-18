@@ -189,6 +189,15 @@ function Get-ElevatedRunbookCommand {
     return "Start-Process PowerShell -Verb RunAs -Wait -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$literalPath)"
 }
 
+function Get-LocalArtifactSha256 {
+    param([string]$ArtifactPath)
+
+    if ($null -eq $ArtifactPath -or $ArtifactPath -eq "" -or -not (Test-Path -LiteralPath $ArtifactPath -PathType Leaf)) {
+        return "none"
+    }
+    return (Get-FileHash -LiteralPath $ArtifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
 function Format-TuiRows {
     param([object]$Rows)
 
@@ -1993,7 +2002,8 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Cluster daemon service execution readiness: service=$($result.serviceId), daemons=$($result.daemonCount), services=$($result.serviceCount), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId), serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-execution-runbook") {
             $elevatedCommand = Get-ElevatedRunbookCommand $result.runbookPath
-            Write-Host "Cluster daemon service execution runbook: service=$($result.serviceId), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), elevatedCommand=$elevatedCommand, aftercare=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit, path=$($result.runbookPath)"
+            $artifactSha256 = Get-LocalArtifactSha256 $result.runbookPath
+            Write-Host "Cluster daemon service execution runbook: service=$($result.serviceId), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), artifactSha256=$artifactSha256, elevatedCommand=$elevatedCommand, aftercare=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit, path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-execution-audit") {
             Write-Host "Cluster daemon service execution audit: service=$($result.serviceId), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
             $failedCheckRows = Format-ServiceExecutionFailedChecks @($result.checks | Where-Object { -not $_.ok })
@@ -2031,7 +2041,8 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Cluster daemon service execution failed check rows: $failedCheckRows"
         } elseif ($Mode -eq "service-execution-runbook") {
             $elevatedCommand = Get-ElevatedRunbookCommand $result.runbookPath
-            Write-Host "Service execution runbook: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), elevatedCommand=$elevatedCommand, aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit, path=$($result.runbookPath)"
+            $artifactSha256 = Get-LocalArtifactSha256 $result.runbookPath
+            Write-Host "Service execution runbook: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), artifactSha256=$artifactSha256, elevatedCommand=$elevatedCommand, aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit, path=$($result.runbookPath)"
         } elseif ($Mode -eq "service-install-plan" -or $Mode -eq "service-install-execute") {
             Write-Host "Service install: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), path=$($result.installScriptPath)"
         } elseif ($Mode -eq "service-status") {
