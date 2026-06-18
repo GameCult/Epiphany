@@ -54,6 +54,10 @@ pub struct EpiphanyModelRequest {
     pub output_contract_id: Option<String>,
     #[cultcache(key = 11, default)]
     pub previous_response_id: Option<String>,
+    #[cultcache(key = 12, default)]
+    pub tools: Vec<EpiphanyModelToolDefinition>,
+    #[cultcache(key = 13, default)]
+    pub output_schema_json: Option<String>,
 }
 
 impl EpiphanyModelRequest {
@@ -77,14 +81,28 @@ impl EpiphanyModelRequest {
             service_tier: None,
             output_contract_id: None,
             previous_response_id: None,
+            tools: Vec::new(),
+            output_schema_json: None,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EpiphanyModelToolDefinition {
+    pub name: String,
+    pub description: String,
+    pub parameters_json: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EpiphanyModelInputItem {
     UserText { text: String },
     AssistantText { text: String },
+    ToolCall {
+        call_id: String,
+        name: String,
+        arguments: String,
+    },
     ToolResult { call_id: String, output: String },
 }
 

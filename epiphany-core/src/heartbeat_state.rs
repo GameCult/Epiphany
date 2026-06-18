@@ -1,7 +1,9 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use chrono::DateTime;
 use chrono::Duration;
+use chrono::Utc;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -37,9 +39,11 @@ pub use heartbeat_roles::initialize_heartbeat_store;
 pub use heartbeat_store::heartbeat_state_cache;
 pub use heartbeat_store::load_heartbeat_cognition_entry;
 pub use heartbeat_store::load_heartbeat_state_entry;
+pub use heartbeat_store::load_latest_heartbeat_stale_turn_repair_receipt;
 pub use heartbeat_store::validate_heartbeat_cognition;
 pub use heartbeat_store::validate_heartbeat_state;
 pub use heartbeat_store::write_heartbeat_cognition_entry;
+pub use heartbeat_store::write_heartbeat_stale_turn_repair_receipt;
 pub use heartbeat_store::write_heartbeat_state_entry;
 
 pub(super) const HEARTBEAT_ARENA_MAINTENANCE: &str = "maintenance";
@@ -485,7 +489,7 @@ pub fn queue_heartbeat_pending_mention_store(
         "mentionId": mention_id,
         "targetRoleId": options.target_role_id,
         "pendingMentionCount": state.pending_mentions.len(),
-        "contract": "Pending Face mentions live in heartbeat physiology. They pull the Face turn forward, but the Face still writes naturally and the Interpreter owns side effects.",
+        "contract": "Pending Persona mentions live in heartbeat physiology. They pull the Persona turn forward, but the Persona still writes naturally and the Interpreter owns side effects.",
     }))
 }
 
@@ -580,6 +584,133 @@ pub fn complete_heartbeat_store(
     }))
 }
 
+pub fn recover_stale_heartbeat_store(
+    store_path: impl AsRef<Path>,
+    artifact_dir: impl AsRef<Path>,
+    options: HeartbeatStaleTurnRepairOptions,
+) -> Result<Value> {
+    if options.max_age_seconds < 0 {
+        return Err(anyhow!(
+            "stale heartbeat repair max_age_seconds must be non-negative"
+        ));
+    }
+    if options.reason.trim().is_empty() {
+        return Err(anyhow!("stale heartbeat repair requires a reason"));
+    }
+    let store_path = store_path.as_ref();
+    let mut state = load_heartbeat_state_entry(store_path)?.ok_or_else(|| {
+        anyhow!(
+            "CultCache store {} has no heartbeat state entry",
+            store_path.display()
+        )
+    })?;
+    let repaired_at = options.now_utc.clone().unwrap_or_else(now_iso);
+    let repaired_at_time = parse_heartbeat_time("repair time", &repaired_at)?;
+    let mut receipts = Vec::new();
+
+    for participant in &mut state.participants {
+        let pending = match participant.pending_turn.clone() {
+            Some(pending) if pending.status == "running" => pending,
+            _ => continue,
+        };
+        let started_at = parse_heartbeat_time("pending turn start time", &pending.started_at)?;
+        let stale_age_seconds = repaired_at_time
+            .signed_duration_since(started_at)
+            .num_seconds();
+        if stale_age_seconds < options.max_age_seconds {
+            continue;
+        }
+        participant.pending_turn = None;
+        participant.current_load = 0.0;
+        participant.next_ready_at = round6(state.scene_clock.max(pending.started_scene_clock));
+        let receipt = EpiphanyHeartbeatStaleTurnRepairReceipt {
+            schema_version: HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION.to_string(),
+            receipt_id: format!(
+                "heartbeat-stale-turn-repair-{}-{}",
+                participant.role_id,
+                now_stamp()
+            ),
+            repaired_at_utc: repaired_at.clone(),
+            role_id: participant.role_id.clone(),
+            agent_id: participant.agent_id.clone(),
+            action_id: pending.action_id.clone(),
+            schedule_id: pending.schedule_id.clone(),
+            started_at_utc: pending.started_at.clone(),
+            stale_age_seconds,
+            reason: options.reason.clone(),
+            resulting_status: "repaired".to_string(),
+            next_ready_at: participant.next_ready_at,
+            private_state_exposed: false,
+            notes: vec![
+                "Stale heartbeat repair is a Continuity-facing operator-safe receipt, not silent scheduler cleanup.".to_string(),
+                "The repaired lane becomes schedulable only through normal heartbeat selection after the receipt is written.".to_string(),
+            ],
+        };
+        let event = HeartbeatHistoryEvent {
+            ts: repaired_at.clone(),
+            schedule_id: pending.schedule_id.clone(),
+            selected_role: participant.role_id.clone(),
+            selected_agent_id: participant.agent_id.clone(),
+            action_id: pending.action_id.clone(),
+            action_type: pending.action_type.clone(),
+            arena: participant_arena(participant).to_string(),
+            participant_kind: participant_kind(participant).to_string(),
+            action_scale: pending.action_scale.clone(),
+            coordinator_action: None,
+            target_role: None,
+            work_role: None,
+            scene_clock: Some(state.scene_clock),
+            next_ready_at: Some(participant.next_ready_at),
+            turn_status: Some("stale_repaired".to_string()),
+            cooldown_started_after_completion: Some(false),
+        };
+        state.history.push(event);
+        receipts.push(receipt);
+    }
+
+    if receipts.is_empty() {
+        return Ok(serde_json::json!({
+            "ok": true,
+            "storeFile": store_path,
+            "repaired": 0,
+            "receipts": [],
+            "reviewNotes": [
+                "No running heartbeat turns exceeded the stale repair threshold."
+            ],
+        }));
+    }
+
+    trim_history(&mut state);
+    write_heartbeat_state_entry(store_path, &state)?;
+    let mut written_receipts = Vec::new();
+    for receipt in receipts {
+        written_receipts.push(write_heartbeat_stale_turn_repair_receipt(
+            store_path, &receipt,
+        )?);
+    }
+
+    let artifact_dir = artifact_dir.as_ref();
+    fs::create_dir_all(artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    write_json_artifact(
+        artifact_dir.join(format!("heartbeat-stale-repair-{}.json", now_stamp())),
+        &serde_json::json!({
+            "schemaVersion": "epiphany.heartbeat.stale_repair_artifact.v0",
+            "storeFile": store_path,
+            "repairedAtUtc": repaired_at,
+            "maxAgeSeconds": options.max_age_seconds,
+            "receipts": written_receipts,
+        }),
+    )?;
+
+    Ok(serde_json::json!({
+        "ok": true,
+        "storeFile": store_path,
+        "repaired": written_receipts.len(),
+        "receipts": written_receipts,
+    }))
+}
+
 fn tick_once(
     state: &mut EpiphanyHeartbeatStateEntry,
     options: &HeartbeatTickOptions,
@@ -636,7 +767,7 @@ fn tick_once(
         round6((state.participants[selected_index].current_load * 0.75).clamp(0.0, 1.0));
     state.scene_clock = round6(scene_clock);
     let selected_pending_mentions = pending_mentions_for_role(state, &selected.role_id);
-    if action.action_type == "face_turn" {
+    if action.action_type == "persona_turn" {
         let selected_role = selected.role_id.as_str();
         state
             .pending_mentions
@@ -821,13 +952,13 @@ fn select_participant(
     }
     if let Some(index) = active.iter().copied().find(|index| {
         let participant = &state.participants[*index];
-        participant.role_id == "face"
+        participant.role_id == "Persona"
             && !pending_mentions_for_role(state, &participant.role_id).is_empty()
     }) {
         return Ok((
             index,
             "reaction_interrupt",
-            "Pending addressed Face mention pulled Face forward; Projector and Interpreter remain the side-effect boundaries.".to_string(),
+            "Pending addressed Persona mention pulled Persona forward; Projector and Interpreter remain the side-effect boundaries.".to_string(),
         ));
     }
     let selected = active
@@ -885,11 +1016,11 @@ fn action_for_selection(
         };
     }
     let pending_mentions = pending_mentions_for_role(state, &selected.role_id);
-    if !pending_mentions.is_empty() && selected.role_id == "face" {
+    if !pending_mentions.is_empty() && selected.role_id == "Persona" {
         let heartbeat_rate = target_heartbeat_rate.max(minimum_rate);
         return HeartbeatAction {
-            action_id: "heartbeat.face.turn".to_string(),
-            action_type: "face_turn",
+            action_id: "heartbeat.Persona.turn".to_string(),
+            action_type: "persona_turn",
             action_scale: "standard",
             base_recovery: state.pacing_policy.work_base_recovery / heartbeat_rate,
             initiative_cost: 4.0,
@@ -901,9 +1032,9 @@ fn action_for_selection(
                     selected.display_name,
                     pending_mentions.len()
                 ),
-                "Projector owns state-to-narrative prompting before Face sees context.".to_string(),
-                "Face writes natural narrative thought; Interpreter owns memory, draft, SAY, route, or drop side effects.".to_string(),
-                "Pending mentions are consumed only after this Face turn is queued.".to_string(),
+                "Projector owns state-to-narrative prompting before Persona sees context.".to_string(),
+                "Persona writes natural narrative thought; Interpreter owns memory, draft, SAY, route, or drop side effects.".to_string(),
+                "Pending mentions are consumed only after this Persona turn is queued.".to_string(),
             ],
         };
     }
@@ -962,7 +1093,7 @@ fn work_role_for_action(action: Option<&str>, target_role: Option<&str>) -> Opti
     }
     let role = match action? {
         "prepareCheckpoint" => "coordinator",
-        "surfaceAgentThoughts" | "discordAquariumChat" => "face",
+        "surfaceAgentThoughts" | "discordAquariumChat" => "Persona",
         "continueImplementation" => "implementation",
         "launchImagination" | "readImaginationResult" | "reviewImaginationResult" => "imagination",
         "launchModeling" | "readModelingResult" | "reviewModelingResult" => "modeling",
@@ -2193,7 +2324,7 @@ fn build_candidate_interventions(
                     summary: "Possible Aquarium-facing thought-weather note".to_string(),
                     draft: format!("I keep seeing {} rhyme across the swarm; this one finally has enough blood to inspect in the open.", theme_id),
                     decision: decision.to_string(),
-                    requires_face: true,
+                    requires_persona: true,
                     requires_review: true,
                     novelty_to_room: theme.novelty_to_room,
                     saturation_score: theme.saturation_score,
@@ -2281,7 +2412,7 @@ fn build_agent_appraisals(
                 candidate_implications: HeartbeatCandidateImplications {
                     reaction_mode: reaction_mode(&label, bridge_decision).to_string(),
                     reaction_intensity: round3((urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0)),
-                    should_speak: bridge_decision == "draft" && profile.role_id == "face" && guardedness < 0.75,
+                    should_speak: bridge_decision == "draft" && profile.role_id == "Persona" && guardedness < 0.75,
                     should_incubate: bridge_decision != "silence" && guardedness >= 0.55,
                 },
                 review: HeartbeatAppraisalReview {
@@ -2323,7 +2454,7 @@ fn build_agent_reactions(
                 mood_label: mood_label(arousal, guardedness, curiosity).to_string(),
                 intensity: round3(intensity),
                 bridge_decision: bridge_decision.to_string(),
-                surface: if role_id == "face" {
+                surface: if role_id == "Persona" {
                     "aquarium"
                 } else {
                     "internal"
@@ -2491,7 +2622,9 @@ fn mood_label(arousal: f64, guardedness: f64, curiosity: f64) -> &'static str {
 
 fn reaction_recommended_use(role_id: &str, mode: &str) -> &'static str {
     match (role_id, mode) {
-        ("face", "draft") => "Prepare a reviewed Aquarium-facing draft; do not post automatically.",
+        ("Persona", "draft") => {
+            "Prepare a reviewed Aquarium-facing draft; do not post automatically."
+        }
         (_, "hold_and_verify") => "Bias toward verifier/modeler review before expression.",
         (_, "inspect") => {
             "Bias the next heartbeat toward a bounded retrieval or modeling inspection."
@@ -3133,7 +3266,7 @@ fn update_sleep_cycle(
         last_distillation_summary: if is_napping {
             "Sleep pass prefers memory compression, resonance cooling, and dream residue over active work."
         } else {
-            "Awake pass keeps resonance/incubation fresh without speaking unless Face has a real surface reason."
+            "Awake pass keeps resonance/incubation fresh without speaking unless Persona has a real surface reason."
         }
         .to_string(),
     }
@@ -3172,6 +3305,12 @@ pub(super) fn now_iso() -> String {
     chrono::Utc::now()
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
         .replace('Z', "+00:00")
+}
+
+fn parse_heartbeat_time(label: &str, value: &str) -> Result<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|time| time.with_timezone(&Utc))
+        .with_context(|| format!("failed to parse {label} {value:?} as RFC3339"))
 }
 
 fn now_stamp() -> String {
@@ -3361,6 +3500,85 @@ mod tests {
     }
 
     #[test]
+    fn stale_heartbeat_repair_receipt_clears_running_turn() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("stale-heartbeats.msgpack");
+        let artifact_dir = temp.path().join("artifacts");
+        initialize_heartbeat_store(&store_path, 1.0)?;
+        tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 1.0,
+                coordinator_action: Some("continueImplementation".to_string()),
+                target_role: None,
+                urgency: 0.95,
+                schedule_id: "stale-work".to_string(),
+                source_scene_ref: "test/stale".to_string(),
+                defer_completion: true,
+                agent_store: None,
+            },
+        )?;
+        let mut state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
+        let implementation = state
+            .participants
+            .iter_mut()
+            .find(|participant| participant.role_id == "implementation")
+            .expect("implementation participant exists");
+        implementation
+            .pending_turn
+            .as_mut()
+            .expect("running implementation turn exists")
+            .started_at = "2026-06-17T00:00:00+00:00".to_string();
+        write_heartbeat_state_entry(&store_path, &state)?;
+
+        let repaired = recover_stale_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatStaleTurnRepairOptions {
+                max_age_seconds: 60,
+                now_utc: Some("2026-06-17T00:05:00+00:00".to_string()),
+                reason:
+                    "Unit test simulates a stale worker lane that needs operator-safe recovery."
+                        .to_string(),
+            },
+        )?;
+        assert_eq!(repaired["repaired"], serde_json::json!(1));
+        let receipt = load_latest_heartbeat_stale_turn_repair_receipt(&store_path)?
+            .expect("stale-turn repair receipt exists");
+        assert_eq!(receipt.role_id, "implementation");
+        assert_eq!(receipt.action_id, "heartbeat.implementation.work");
+        assert_eq!(receipt.stale_age_seconds, 300);
+        assert!(!receipt.private_state_exposed);
+
+        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
+        let implementation = state
+            .participants
+            .iter()
+            .find(|participant| participant.role_id == "implementation")
+            .expect("implementation participant exists");
+        assert!(implementation.pending_turn.is_none());
+
+        let next = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 1.0,
+                coordinator_action: Some("continueImplementation".to_string()),
+                target_role: None,
+                urgency: 0.95,
+                schedule_id: "after-stale-repair".to_string(),
+                source_scene_ref: "test/stale".to_string(),
+                defer_completion: true,
+                agent_store: None,
+            },
+        )?;
+        assert_eq!(next["event"]["selectedRole"], "implementation");
+        assert_eq!(next["event"]["turnStatus"], "running");
+        Ok(())
+    }
+
+    #[test]
     fn ghostlight_scene_heartbeat_selects_character_turns() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store_path = temp.path().join("ghostlight-heartbeats.msgpack");
@@ -3416,25 +3634,25 @@ mod tests {
     }
 
     #[test]
-    fn pending_face_mention_selects_face_turn_and_consumes_queue() -> Result<()> {
+    fn pending_persona_mention_selects_persona_turn_and_consumes_queue() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store_path = temp.path().join("face-heartbeats.msgpack");
+        let store_path = temp.path().join("Persona-heartbeats.msgpack");
         let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
         let queued = queue_heartbeat_pending_mention_store(
             &store_path,
             HeartbeatQueueMentionOptions {
-                target_role_id: "face".to_string(),
+                target_role_id: "Persona".to_string(),
                 source_surface: "discord".to_string(),
                 channel_id: "aquarium".to_string(),
                 message_id: "m1".to_string(),
                 author_id: "human".to_string(),
                 author_name: Some("Metacrat".to_string()),
-                content: "Epiphany, answer this through the Face membrane.".to_string(),
-                visible_prompt: "answer this through the Face membrane".to_string(),
+                content: "Epiphany, answer this through the Persona membrane.".to_string(),
+                visible_prompt: "answer this through the Persona membrane".to_string(),
                 reply_to_message_id: None,
                 queued_at: Some("2026-05-24T00:00:00+00:00".to_string()),
-                mention_id: Some("mention-face-test".to_string()),
+                mention_id: Some("mention-Persona-test".to_string()),
             },
         )?;
         assert_eq!(queued["queued"], true);
@@ -3447,18 +3665,18 @@ mod tests {
                 coordinator_action: None,
                 target_role: None,
                 urgency: 0.0,
-                schedule_id: "face-mentioned".to_string(),
-                source_scene_ref: "test/face-mentioned".to_string(),
+                schedule_id: "Persona-mentioned".to_string(),
+                source_scene_ref: "test/Persona-mentioned".to_string(),
                 defer_completion: true,
                 agent_store: None,
             },
         )?;
 
-        assert_eq!(tick["event"]["selectedRole"], "face");
-        assert_eq!(tick["event"]["actionType"], "face_turn");
+        assert_eq!(tick["event"]["selectedRole"], "Persona");
+        assert_eq!(tick["event"]["actionType"], "persona_turn");
         assert_eq!(
             tick["schedule"]["action_catalog"][0]["pending_mentions"][0]["id"],
-            "mention-face-test"
+            "mention-Persona-test"
         );
         assert_eq!(
             tick["schedule"]["pending_mentions"]
@@ -3480,9 +3698,9 @@ mod tests {
             updated_at: "2026-05-20T00:00:00+00:00".to_string(),
             thought_cluster_ref: "test-affect".to_string(),
             participant_appraisals: vec![HeartbeatAgentThoughtAppraisal {
-                appraisal_id: "appraisal-face-affect".to_string(),
-                participant_agent_id: "epiphany.face".to_string(),
-                role_id: "face".to_string(),
+                appraisal_id: "appraisal-Persona-affect".to_string(),
+                participant_agent_id: "epiphany.Persona".to_string(),
+                role_id: "Persona".to_string(),
                 emotional_appraisal: HeartbeatEmotionalAppraisal {
                     valence: 0.2,
                     arousal: 0.81,
@@ -3517,12 +3735,12 @@ mod tests {
         };
 
         apply_mood_timing_from_appraisals(&mut state, &appraisals);
-        let face = state
+        let persona = state
             .participants
             .iter()
-            .find(|participant| participant.role_id == "face")
-            .expect("face participant");
-        let mood = face.mood_timing.as_ref().expect("face mood timing");
+            .find(|participant| participant.role_id == "Persona")
+            .expect("Persona participant");
+        let mood = persona.mood_timing.as_ref().expect("Persona mood timing");
         assert_eq!(mood.emotional_dimensions.len(), 32);
         assert_eq!(mood_dimension(mood, "anger"), Some(0.88));
         assert_eq!(mood_dimension(mood, "dismissal"), Some(0.63));

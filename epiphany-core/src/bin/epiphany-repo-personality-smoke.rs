@@ -439,11 +439,11 @@ fn run_smoke() -> Result<Value> {
             "confidence": 0.9,
             "roleMemoryPatches": [{
                 "roleId": "modeling",
-                "roleName": "Proprioception",
+                "roleName": "Modeling",
                 "verdict": "ready-for-review",
                 "selfPatch": {
-                    "agentId": "epiphany.proprioception",
-                    "reason": "Birth memory should teach Proprioception that repo initialization memory is reviewed and typed.",
+                    "agentId": "epiphany.modeling",
+                    "reason": "Birth memory should teach Modeling that repo initialization memory is reviewed and typed.",
                     "semanticMemories": [{
                         "memoryId": "mem-body-startup-birth-memory-smoke",
                         "summary": "Repo memory birth packets can produce role-specific selfPatch candidates that are applied only after Self review.",
@@ -452,7 +452,7 @@ fn run_smoke() -> Result<Value> {
                     }]
                 },
                 "sourceRefs": ["AGENTS.md"],
-                "whyThisBelongsInMemory": "Proprioception needs the startup memory route to stay source-grounded.",
+                "whyThisBelongsInMemory": "Modeling needs the startup memory route to stay source-grounded.",
                 "stalenessRisk": "smoke fixture",
                 "doNotStore": []
             }]

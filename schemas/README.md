@@ -8,12 +8,12 @@ surface matters enough to steer the machine, it should have a receipt here
 instead of living only in one Rust struct, one stale memory store, or one
 developer's damp recollection.
 
-## Canonical Surfaces
+## Canonical surfaces
 
 - [ghostlight.agent-state.schema.json](./ghostlight.agent-state.schema.json):
   source-lineage JSON Schema for dense Ghostlight character state.
 - [cultnet/gamecult.persona_state.v0.schema.json](./cultnet/gamecult.persona_state.v0.schema.json):
-  portable Persona state contract for Epiphany Face, VoidBot repo Faces, and
+  portable Persona state contract for Epiphany Persona, VoidBot repo Personas, and
   Ghostlight characters. It carries explicit provenance, public presentation
   metadata, typed `candidateActions`, and a non-authoritative extension bag for
   source-specific fields; social bonds, status reads, and doctrine stances are

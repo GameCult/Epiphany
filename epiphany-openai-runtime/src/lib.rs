@@ -28,11 +28,13 @@ use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_model_adapter::EpiphanyModelStreamPayload;
+use epiphany_model_adapter::EpiphanyModelToolDefinition;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
+use epiphany_openai_adapter::EpiphanyOpenAiToolDefinition;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
 use epiphany_openai_codex_spine::auth_manager;
@@ -254,6 +256,11 @@ fn openai_request_input_metrics(request: &EpiphanyOpenAiModelRequest) -> (usize,
         chars += match item {
             EpiphanyOpenAiInputItem::UserText { text }
             | EpiphanyOpenAiInputItem::AssistantText { text } => text.chars().count(),
+            EpiphanyOpenAiInputItem::ToolCall {
+                call_id,
+                name,
+                arguments,
+            } => call_id.chars().count() + name.chars().count() + arguments.chars().count(),
             EpiphanyOpenAiInputItem::ToolResult { output, .. } => output.chars().count(),
         };
     }
@@ -553,6 +560,7 @@ pub fn build_worker_model_request(
     model: &str,
 ) -> Result<EpiphanyModelRequest> {
     let launch_document = launch_request.launch_document()?;
+    let output_schema_json = worker_output_schema_json(&launch_document)?;
     let request_id = format!(
         "worker-{}-{}",
         sanitize_request_id(&launch_request.job_id),
@@ -560,12 +568,17 @@ pub fn build_worker_model_request(
     );
     let launch_document_text = serde_json::to_string_pretty(&launch_document)
         .context("failed to render worker launch document for model input")?;
+    let mut instructions =
+        worker_instructions(launch_request, &launch_document, &output_schema_json);
+    if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
+        instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, command artifacts, commit diffs, or Hands receipt bodies are not inspectable, call the read-only source tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact paths, `mcp__epiphany_source__git_show` for commit diffs, and `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts. If a tool fails, cite that failed tool result and the exact remaining blocker.");
+    }
     let mut request = EpiphanyModelRequest::new(
         request_id,
         format!("worker-{}", launch_request.binding_id),
         provider,
         model.to_string(),
-        worker_instructions(launch_request, &launch_document),
+        instructions,
     );
     request.input.push(EpiphanyModelInputItem::UserText {
         text: format!(
@@ -575,6 +588,10 @@ pub fn build_worker_model_request(
     request.reasoning_effort = Some("low".to_string());
     request.reasoning_summary = Some("concise".to_string());
     request.output_contract_id = Some(launch_request.output_contract_id.clone());
+    request.output_schema_json = Some(output_schema_json);
+    if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
+        request.tools = verification_source_tools();
+    }
     Ok(request)
 }
 
@@ -804,12 +821,6 @@ pub fn build_tool_followup_model_request(
     let original = cache
         .get::<EpiphanyModelRequest>(&model_request_key(original_request_id))?
         .ok_or_else(|| anyhow!("model request {original_request_id:?} does not exist"))?;
-    let receipt = cache
-        .get::<EpiphanyModelReceipt>(&model_receipt_key(original_request_id))?
-        .ok_or_else(|| anyhow!("model receipt {original_request_id:?} does not exist"))?;
-    let previous_response_id = receipt.provider_response_id.clone().ok_or_else(|| {
-        anyhow!("model receipt {original_request_id:?} has no provider_response_id")
-    })?;
     let original_prefix = format!("model-{}-", sanitize_request_id(original_request_id));
     let mut followup_items = Vec::new();
     for intent in cache.get_all::<EpiphanyToolInvocationIntent>()? {
@@ -843,16 +854,20 @@ pub fn build_tool_followup_model_request(
 
     let mut followup = original;
     followup.request_id = followup_request_id.to_string();
-    followup.previous_response_id = Some(previous_response_id);
-    followup.input = followup_items
-        .into_iter()
-        .map(
-            |(intent, call_id, receipt)| EpiphanyModelInputItem::ToolResult {
-                call_id,
-                output: tool_receipt_output_for_model(&intent, &receipt),
-            },
-        )
-        .collect();
+    followup.previous_response_id = None;
+    let mut input = followup.input.clone();
+    for (intent, call_id, receipt) in followup_items {
+        input.push(EpiphanyModelInputItem::ToolCall {
+            call_id: call_id.clone(),
+            name: format!("mcp__{}__{}", intent.server, intent.tool_name),
+            arguments: intent.arguments_json.clone(),
+        });
+        input.push(EpiphanyModelInputItem::ToolResult {
+            call_id,
+            output: tool_receipt_output_for_model(&intent, &receipt),
+        });
+    }
+    followup.input = input;
     Ok(followup)
 }
 
@@ -974,6 +989,16 @@ pub fn model_request_from_openai_request(
         service_tier: request.service_tier.clone(),
         output_contract_id: request.output_contract_id.clone(),
         previous_response_id: request.previous_response_id.clone(),
+        output_schema_json: request.output_schema_json.clone(),
+        tools: request
+            .tools
+            .iter()
+            .map(|tool| EpiphanyModelToolDefinition {
+                name: tool.name.clone(),
+                description: tool.description.clone(),
+                parameters_json: tool.parameters_json.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -996,7 +1021,66 @@ pub fn openai_request_from_model_request(
         service_tier: request.service_tier.clone(),
         output_contract_id: request.output_contract_id.clone(),
         previous_response_id: request.previous_response_id.clone(),
+        output_schema_json: request.output_schema_json.clone(),
+        tools: request
+            .tools
+            .iter()
+            .map(|tool| EpiphanyOpenAiToolDefinition {
+                name: tool.name.clone(),
+                description: tool.description.clone(),
+                parameters_json: tool.parameters_json.clone(),
+            })
+            .collect(),
     }
+}
+
+fn verification_source_tools() -> Vec<EpiphanyModelToolDefinition> {
+    vec![
+        EpiphanyModelToolDefinition {
+            name: "mcp__epiphany_source__read_file".to_string(),
+            description: "Read a bounded UTF-8 text slice from the current workspace for Soul verification. Use only for source files and operator-safe artifacts named in the launch packet.".to_string(),
+            parameters_json: serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "path": {"type": "string"},
+                    "startLine": {"type": "integer", "minimum": 1},
+                    "maxLines": {"type": "integer", "minimum": 1, "maximum": 240}
+                },
+                "required": ["path"]
+            })
+            .to_string(),
+        },
+        EpiphanyModelToolDefinition {
+            name: "mcp__epiphany_source__git_show".to_string(),
+            description: "Read a bounded git show/diff preview for a commit or revision in the current workspace.".to_string(),
+            parameters_json: serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "revision": {"type": "string"},
+                    "paths": {"type": "array", "items": {"type": "string"}},
+                    "maxBytes": {"type": "integer", "minimum": 512, "maximum": 24000}
+                },
+                "required": ["revision"]
+            })
+            .to_string(),
+        },
+        EpiphanyModelToolDefinition {
+            name: "mcp__epiphany_source__read_hands_receipt".to_string(),
+            description: "Read a typed Hands patch, command, or commit receipt body from the runtime-spine store for Soul verification.".to_string(),
+            parameters_json: serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "receiptId": {"type": "string"},
+                    "kind": {"type": "string", "enum": ["patch", "command", "commit"]}
+                },
+                "required": ["receiptId", "kind"]
+            })
+            .to_string(),
+        },
+    ]
 }
 
 fn model_input_from_openai_input(input: &EpiphanyOpenAiInputItem) -> EpiphanyModelInputItem {
@@ -1007,6 +1091,15 @@ fn model_input_from_openai_input(input: &EpiphanyOpenAiInputItem) -> EpiphanyMod
         EpiphanyOpenAiInputItem::AssistantText { text } => {
             EpiphanyModelInputItem::AssistantText { text: text.clone() }
         }
+        EpiphanyOpenAiInputItem::ToolCall {
+            call_id,
+            name,
+            arguments,
+        } => EpiphanyModelInputItem::ToolCall {
+            call_id: call_id.clone(),
+            name: name.clone(),
+            arguments: arguments.clone(),
+        },
         EpiphanyOpenAiInputItem::ToolResult { call_id, output } => {
             EpiphanyModelInputItem::ToolResult {
                 call_id: call_id.clone(),
@@ -1024,6 +1117,15 @@ fn openai_input_from_model_input(input: &EpiphanyModelInputItem) -> EpiphanyOpen
         EpiphanyModelInputItem::AssistantText { text } => {
             EpiphanyOpenAiInputItem::AssistantText { text: text.clone() }
         }
+        EpiphanyModelInputItem::ToolCall {
+            call_id,
+            name,
+            arguments,
+        } => EpiphanyOpenAiInputItem::ToolCall {
+            call_id: call_id.clone(),
+            name: name.clone(),
+            arguments: arguments.clone(),
+        },
         EpiphanyModelInputItem::ToolResult { call_id, output } => {
             EpiphanyOpenAiInputItem::ToolResult {
                 call_id: call_id.clone(),
@@ -1178,6 +1280,7 @@ fn provider_matches_request(selected: &str, requested: &str) -> bool {
 fn worker_instructions(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     launch_document: &EpiphanyWorkerLaunchDocument,
+    output_schema_json: &str,
 ) -> String {
     let output_contract = worker_output_contract_text(launch_document);
     let dynamic_context = launch_document
@@ -1185,9 +1288,37 @@ fn worker_instructions(
         .map(|context| format!("\n\n{context}"))
         .unwrap_or_default();
     format!(
-        "{}{}\n\nReturn only one JSON object. No Markdown, no commentary.\n\n{}",
-        launch_request.instruction, dynamic_context, output_contract
+        "{}{}\n\nReturn only one JSON object. No Markdown, no commentary.\n\n{}\n\nOutput schema JSON:\n```json\n{}\n```",
+        launch_request.instruction, dynamic_context, output_contract, output_schema_json
     )
+}
+
+fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<String> {
+    let schema = match document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            let role_id = role_result_id_for_launch_role(&document.role_id)
+                .with_context(|| format!("unknown role launch id {:?}", document.role_id))?;
+            epiphany_core::epiphany_role_launch_output_schema(role_id)
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => {
+            epiphany_core::epiphany_reorient_launch_output_schema()
+        }
+    };
+    serde_json::to_string_pretty(&schema).context("failed to render worker output schema")
+}
+
+fn role_result_id_for_launch_role(
+    role_id: &str,
+) -> Option<epiphany_core::EpiphanyRoleResultRoleId> {
+    match role_id {
+        "imagination" => Some(epiphany_core::EpiphanyRoleResultRoleId::Imagination),
+        "research" => Some(epiphany_core::EpiphanyRoleResultRoleId::Research),
+        "modeling" => Some(epiphany_core::EpiphanyRoleResultRoleId::Modeling),
+        "verification" => Some(epiphany_core::EpiphanyRoleResultRoleId::Verification),
+        "implementation" => Some(epiphany_core::EpiphanyRoleResultRoleId::Implementation),
+        "reorientation" => Some(epiphany_core::EpiphanyRoleResultRoleId::Reorientation),
+        _ => None,
+    }
 }
 
 fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
@@ -1657,6 +1788,14 @@ mod tests {
             model_request.output_contract_id.as_deref(),
             Some(epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID)
         );
+        let output_schema = model_request
+            .output_schema_json
+            .as_deref()
+            .expect("worker model request should carry role output schema");
+        assert!(output_schema.contains("\"statePatch\""));
+        assert!(output_schema.contains("\"frontierNodeIds\""));
+        assert!(model_request.instructions.contains("Output schema JSON"));
+        assert!(model_request.instructions.contains("\"statePatch\""));
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
         assert!(
@@ -1665,6 +1804,7 @@ mod tests {
                 .contains("<epiphany_dynamic_context>")
         );
         assert!(model_request.instructions.contains("local Verse: bounded"));
+        assert!(model_request.tools.is_empty());
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
             session_id: "openai-worker-session-modeling-checkpoint-worker".to_string(),
@@ -1713,6 +1853,77 @@ mod tests {
     }
 
     #[test]
+    fn verification_worker_request_advertises_read_only_source_tools() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                session_id: "epiphany-main".to_string(),
+                objective: "Verify the machine.".to_string(),
+                coordinator_note: "test".to_string(),
+                job_id: "verification-job-1".to_string(),
+                role: "verification".to_string(),
+                binding_id: epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
+                authority_scope: "epiphany.role.verification".to_string(),
+                instruction: "Return the required verification-result JSON.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "verification".to_string(),
+                        state_revision: 1,
+                        objective: Some("Verify Hands receipts.".to_string()),
+                        dynamic_prompt_context: Some(
+                            "<verification_work_loop_telemetry>hands receipts</verification_work_loop_telemetry>"
+                                .to_string(),
+                        ),
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: Vec::new(),
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                    "epiphany.role.verification",
+                    "role",
+                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+                ),
+                created_at: now(),
+            },
+        )?;
+        let launch_request = load_worker_launch_request(&store, "verification-job-1")?;
+        let model_request =
+            build_worker_model_request(&launch_request, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
+        let tool_names = model_request
+            .tools
+            .iter()
+            .map(|tool| tool.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(tool_names.contains(&"mcp__epiphany_source__read_file"));
+        assert!(tool_names.contains(&"mcp__epiphany_source__git_show"));
+        assert!(tool_names.contains(&"mcp__epiphany_source__read_hands_receipt"));
+        assert!(
+            model_request
+                .instructions
+                .contains("mcp__epiphany_source__read_file")
+        );
+        Ok(())
+    }
+
+    #[test]
     fn mcp_model_tool_call_becomes_typed_invocation_intent() -> Result<()> {
         let event = EpiphanyModelStreamEvent {
             schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
@@ -1745,12 +1956,14 @@ mod tests {
     fn builds_tool_followup_model_request_from_receipts() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        let request = EpiphanyOpenAiModelRequest::new(
+        let mut request = EpiphanyOpenAiModelRequest::new(
             "req-tools",
             "conversation-1",
             "gpt-5.4",
             "Answer after tool output.",
         );
+        request.output_schema_json =
+            Some(r#"{"type":"object","required":["statePatch"]}"#.to_string());
         let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
         ensure_openai_runtime_ready(&options)?;
         ensure_runtime_session(
@@ -1820,10 +2033,22 @@ mod tests {
         let followup =
             build_tool_followup_model_request(&store, "req-tools", "req-tools-followup")?;
         assert_eq!(followup.request_id, "req-tools-followup");
-        assert_eq!(followup.previous_response_id.as_deref(), Some("resp-tools"));
-        assert_eq!(followup.input.len(), 1);
+        assert_eq!(followup.previous_response_id, None);
+        assert_eq!(
+            followup.output_schema_json.as_deref(),
+            Some(r#"{"type":"object","required":["statePatch"]}"#)
+        );
+        assert_eq!(followup.input.len(), 2);
         assert_eq!(
             followup.input[0],
+            EpiphanyModelInputItem::ToolCall {
+                call_id: "call-original".to_string(),
+                name: "mcp__smoke_server__smoke_tool".to_string(),
+                arguments: "{}".to_string()
+            }
+        );
+        assert_eq!(
+            followup.input[1],
             EpiphanyModelInputItem::ToolResult {
                 call_id: "call-original".to_string(),
                 output: r#"{"ok":true}"#.to_string()

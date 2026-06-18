@@ -6,10 +6,16 @@ use epiphany_core::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::EpiphanyCultMeshOperatorRunIntentEntry;
 use epiphany_core::EpiphanyCultMeshOperatorRunReceiptEntry;
+use epiphany_core::epiphany_cultmesh_coordinator_run_receipt_from_summary_json;
+use epiphany_core::epiphany_cultmesh_hands_action_gate_from_summary_json;
+use epiphany_core::epiphany_cultmesh_role_review_event_from_summary_json;
 use epiphany_core::load_latest_epiphany_cultmesh_operator_run_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_operator_run_receipt;
+use epiphany_core::write_epiphany_cultmesh_coordinator_run_receipt;
+use epiphany_core::write_epiphany_cultmesh_hands_action_gate;
 use epiphany_core::write_epiphany_cultmesh_operator_run_intent;
 use epiphany_core::write_epiphany_cultmesh_operator_run_receipt;
+use epiphany_core::write_epiphany_cultmesh_role_review_event;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -79,6 +85,55 @@ fn main() -> Result<()> {
                 "store": args.store,
                 "intent": intent,
                 "receipt": receipt,
+            }))?;
+        }
+        "coordinator-receipt" => {
+            let summary_path = args
+                .coordinator_summary
+                .clone()
+                .context("coordinator-receipt requires --coordinator-summary")?;
+            let summary_source = fs::read_to_string(&summary_path)
+                .with_context(|| format!("failed to read {}", summary_path.display()))?;
+            let summary_json: Value =
+                serde_json::from_str(summary_source.trim_start_matches('\u{feff}'))
+                    .with_context(|| format!("failed to parse {}", summary_path.display()))?;
+            let receipt_id = if args.coordinator_receipt_id.trim().is_empty() {
+                format!("coordinator-cultmesh-{}", args.run_id)
+            } else {
+                args.coordinator_receipt_id.clone()
+            };
+            let written = write_epiphany_cultmesh_coordinator_run_receipt(
+                &args.store,
+                epiphany_cultmesh_coordinator_run_receipt_from_summary_json(
+                    args.runtime_id.clone(),
+                    receipt_id,
+                    Utc::now().to_rfc3339(),
+                    args.artifact_root.clone(),
+                    &summary_json,
+                )?,
+            )?;
+            let hands_action_gate = epiphany_cultmesh_hands_action_gate_from_summary_json(
+                args.runtime_id.clone(),
+                Utc::now().to_rfc3339(),
+                summary_path.display().to_string(),
+                &summary_json,
+            )?
+            .map(|gate| write_epiphany_cultmesh_hands_action_gate(&args.store, gate))
+            .transpose()?;
+            let role_review_event = epiphany_cultmesh_role_review_event_from_summary_json(
+                args.runtime_id.clone(),
+                Utc::now().to_rfc3339(),
+                summary_path.display().to_string(),
+                &summary_json,
+            )?
+            .map(|event| write_epiphany_cultmesh_role_review_event(&args.store, event))
+            .transpose()?;
+            print_json(json!({
+                "status": "written",
+                "store": args.store,
+                "coordinatorReceipt": written,
+                "handsActionGate": hands_action_gate,
+                "roleReviewEvent": role_review_event,
             }))?;
         }
         "smoke" => {
@@ -160,6 +215,8 @@ struct Args {
     status: String,
     operator_snapshot_store: String,
     operator_snapshot_id: String,
+    coordinator_summary: Option<PathBuf>,
+    coordinator_receipt_id: String,
 }
 
 impl Args {
@@ -187,6 +244,8 @@ impl Args {
             status: "completed".to_string(),
             operator_snapshot_store: String::new(),
             operator_snapshot_id: String::new(),
+            coordinator_summary: None,
+            coordinator_receipt_id: String::new(),
         };
 
         while let Some(arg) = values.next() {
@@ -215,6 +274,13 @@ impl Args {
                 }
                 "--operator-snapshot-id" => {
                     args.operator_snapshot_id = next(&mut values, "--operator-snapshot-id")?
+                }
+                "--coordinator-summary" => {
+                    args.coordinator_summary =
+                        Some(PathBuf::from(next(&mut values, "--coordinator-summary")?))
+                }
+                "--coordinator-receipt-id" => {
+                    args.coordinator_receipt_id = next(&mut values, "--coordinator-receipt-id")?
                 }
                 _ => anyhow::bail!("unknown argument {arg:?}"),
             }

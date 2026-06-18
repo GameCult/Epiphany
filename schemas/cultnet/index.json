@@ -486,15 +486,15 @@
       "path": "epiphany.surface.coordinator.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.face.schema.json",
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.persona.schema.json",
       "kind": "document_payload",
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.face_surface.v0",
-      "documentType": "epiphany.surface.face",
-      "title": "Epiphany face",
-      "path": "epiphany.surface.face.schema.json"
+      "schemaVersion": "epiphany.persona_surface.v0",
+      "documentType": "epiphany.surface.persona",
+      "title": "Epiphany Persona",
+      "path": "epiphany.surface.persona.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.void-memory.schema.json",
@@ -673,15 +673,15 @@
       "path": "epiphany.objective_adoption_intent.v0.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.face_bubble_intent.v0.schema.json",
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.persona_bubble_intent.v0.schema.json",
       "kind": "document_payload",
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.face_bubble_intent.v0",
-      "documentType": "epiphany.face_bubble_intent.v0",
-      "title": "epiphany face_bubble_intent v0",
-      "path": "epiphany.face_bubble_intent.v0.schema.json"
+      "schemaVersion": "epiphany.persona_bubble_intent.v0",
+      "documentType": "epiphany.persona_bubble_intent.v0",
+      "title": "epiphany persona_bubble_intent v0",
+      "path": "epiphany.persona_bubble_intent.v0.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.character_turn_intent.v0.schema.json",
@@ -827,26 +827,26 @@
       "path": "epiphany.swarm-control-receipt.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.face-bubble.schema.json",
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.Persona-bubble.schema.json",
       "kind": "document_payload",
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.face_bubble.v0",
-      "documentType": "epiphany.face_bubble.v0",
-      "title": "Epiphany Face Bubble",
-      "path": "epiphany.face-bubble.schema.json"
+      "schemaVersion": "epiphany.persona_bubble.v0",
+      "documentType": "epiphany.persona_bubble.v0",
+      "title": "Epiphany Persona Bubble",
+      "path": "epiphany.Persona-bubble.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.face-chat.schema.json",
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.Persona-chat.schema.json",
       "kind": "document_payload",
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.face_chat.v0",
-      "documentType": "epiphany.face_chat.v0",
-      "title": "Epiphany Face Chat Draft",
-      "path": "epiphany.face-chat.schema.json"
+      "schemaVersion": "epiphany.persona_chat.v0",
+      "documentType": "epiphany.persona_chat.v0",
+      "title": "Epiphany Persona Chat Draft",
+      "path": "epiphany.Persona-chat.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.character-turn-packet.schema.json",

@@ -4,8 +4,10 @@ use anyhow::anyhow;
 use chrono::SecondsFormat;
 use chrono::Utc;
 use cultcache_rs::CultCache;
+use cultcache_rs::CultSoaColumnValues;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
+use cultcache_rs::SoaDocument;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -15,6 +17,9 @@ use std::path::Path;
 
 pub const AGENT_MEMORY_TYPE: &str = "epiphany.agent_memory";
 pub const AGENT_MEMORY_SCHEMA_VERSION: &str = "ghostlight.agent_state.v0";
+pub const AGENT_STATE_SOA_TYPE: &str = "epiphany.agent_state_soa";
+pub const AGENT_STATE_SOA_SCHEMA_VERSION: &str = "epiphany.agent_state_soa.v0";
+pub const AGENT_STATE_SOA_KEY: &str = "swarm";
 
 const ROLE_TARGETS: &[(&str, &str, &str)] = &[
     (
@@ -22,15 +27,11 @@ const ROLE_TARGETS: &[(&str, &str, &str)] = &[
         "epiphany.imagination",
         "imagination.agent-state.json",
     ),
-    (
-        "modeling",
-        "epiphany.proprioception",
-        "proprioception.agent-state.json",
-    ),
+    ("modeling", "epiphany.modeling", "modeling.agent-state.json"),
     ("verification", "epiphany.soul", "soul.agent-state.json"),
     ("implementation", "epiphany.hands", "hands.agent-state.json"),
     ("research", "epiphany.eyes", "eyes.agent-state.json"),
-    ("face", "epiphany.face", "face.agent-state.json"),
+    ("Persona", "epiphany.Persona", "Persona.agent-state.json"),
     ("coordinator", "epiphany.self", "self.agent-state.json"),
 ];
 
@@ -51,6 +52,132 @@ pub struct EpiphanyAgentMemoryEntry {
     pub events: Vec<GhostlightEvent>,
     #[cultcache(key = 6, default)]
     pub scenes: Vec<GhostlightScene>,
+}
+
+impl SoaDocument for EpiphanyAgentMemoryEntry {
+    fn soa_columns(rows: &[Self]) -> BTreeMap<&'static str, CultSoaColumnValues> {
+        let mut columns = BTreeMap::new();
+        columns.insert(
+            "roleId",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.role_id.clone())
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "agentId",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.agent.agent_id.clone())
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "displayName",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.agent.identity.name.clone())
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "profileKind",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| {
+                        format!(
+                            "{:?}",
+                            organ_state_profile_for_role(&row.role_id).profile_kind
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "portableContract",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| organ_state_profile_for_role(&row.role_id).portable_contract)
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "semanticMemoryCount",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.agent.memories.semantic.len() as u32)
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "episodicMemoryCount",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.agent.memories.episodic.len() as u32)
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "relationshipMemoryCount",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.agent.memories.relationship_summaries.len() as u32)
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "goalCount",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.agent.goals.len() as u32)
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "valueCount",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.agent.canonical_state.values.len() as u32)
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.agent_state_soa",
+    schema = "EpiphanyAgentStateSoaEntry"
+)]
+pub struct EpiphanyAgentStateSoaEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub generated_at: String,
+    #[cultcache(key = 2)]
+    pub source_store: String,
+    #[cultcache(key = 3)]
+    pub role_ids: Vec<String>,
+    #[cultcache(key = 4)]
+    pub agent_ids: Vec<String>,
+    #[cultcache(key = 5)]
+    pub display_names: Vec<String>,
+    #[cultcache(key = 6)]
+    pub profile_kinds: Vec<String>,
+    #[cultcache(key = 7)]
+    pub portable_contracts: Vec<String>,
+    #[cultcache(key = 8)]
+    pub semantic_memory_counts: Vec<u32>,
+    #[cultcache(key = 9)]
+    pub episodic_memory_counts: Vec<u32>,
+    #[cultcache(key = 10)]
+    pub relationship_memory_counts: Vec<u32>,
+    #[cultcache(key = 11)]
+    pub goal_counts: Vec<u32>,
+    #[cultcache(key = 12)]
+    pub value_counts: Vec<u32>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -271,6 +398,82 @@ pub struct SelfPatchMemory {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AgentMemoryLifecycleOperation {
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    pub reason: String,
+    pub actions: Vec<AgentMemoryLifecycleAction>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "action")]
+pub enum AgentMemoryLifecycleAction {
+    Revise {
+        bundle: AgentMemoryBundle,
+        #[serde(alias = "memoryId")]
+        memory_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        summary: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        salience: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        confidence: Option<f64>,
+        reason: String,
+    },
+    Retire {
+        bundle: AgentMemoryBundle,
+        #[serde(alias = "memoryId")]
+        memory_id: String,
+        reason: String,
+    },
+    Crystallize {
+        #[serde(alias = "fromBundle")]
+        from_bundle: AgentMemoryBundle,
+        #[serde(alias = "toBundle")]
+        to_bundle: AgentMemoryBundle,
+        #[serde(alias = "memoryId")]
+        memory_id: String,
+        #[serde(alias = "newMemoryId")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        new_memory_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        summary: Option<String>,
+        reason: String,
+    },
+    Prune {
+        bundle: AgentMemoryBundle,
+        #[serde(alias = "maxRecords")]
+        max_records: usize,
+        #[serde(alias = "minimumSalience")]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        minimum_salience: Option<f64>,
+        reason: String,
+    },
+    Merge {
+        bundle: AgentMemoryBundle,
+        #[serde(alias = "targetMemoryId")]
+        target_memory_id: String,
+        #[serde(alias = "sourceMemoryIds")]
+        source_memory_ids: Vec<String>,
+        summary: String,
+        salience: f64,
+        confidence: f64,
+        reason: String,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentMemoryBundle {
+    Semantic,
+    Episodic,
+    RelationshipSummaries,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SelfPatchGoal {
     pub goal_id: String,
     pub description: String,
@@ -381,6 +584,108 @@ pub fn validate_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Vec<S
         errors.extend(validate_agent_entry(&entry, expected_agent_id));
     }
     Ok(errors)
+}
+
+pub fn repair_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut repaired = Vec::new();
+
+    if let Some(mut modeling) = cache.get::<EpiphanyAgentMemoryEntry>("modeling")?
+        && modeling.agent.agent_id == "epiphany.proprioception"
+    {
+        modeling.agent.agent_id = "epiphany.modeling".to_string();
+        if modeling.agent.identity.name == "Proprioception" {
+            modeling.agent.identity.name = "Modeling".to_string();
+        }
+        if modeling
+            .agent
+            .identity
+            .roles
+            .iter()
+            .any(|role| role == "Proprioception")
+        {
+            modeling.agent.identity.roles = modeling
+                .agent
+                .identity
+                .roles
+                .into_iter()
+                .map(|role| {
+                    if role == "Proprioception" {
+                        "Modeling".to_string()
+                    } else {
+                        role
+                    }
+                })
+                .collect();
+        }
+        cache.put("modeling".to_string(), &modeling)?;
+        repaired.push(serde_json::json!({
+            "roleId": "modeling",
+            "repair": "renamed legacy epiphany.proprioception vessel to epiphany.modeling",
+        }));
+    }
+
+    if cache.get::<EpiphanyAgentMemoryEntry>("Persona")?.is_none()
+        && let Some(mut face) = cache.get::<EpiphanyAgentMemoryEntry>("face")?
+    {
+        face.role_id = "Persona".to_string();
+        face.agent.agent_id = "epiphany.Persona".to_string();
+        if face.agent.identity.name == "Face" {
+            face.agent.identity.name = "Persona".to_string();
+        }
+        if face.agent.identity.roles.is_empty() {
+            face.agent.identity.roles.push("Persona".to_string());
+        }
+        if !face
+            .agent
+            .identity
+            .roles
+            .iter()
+            .any(|role| role == "Persona")
+        {
+            face.agent.identity.roles.push("Persona".to_string());
+        }
+        face.agent.identity.public_description = if face
+            .agent
+            .identity
+            .public_description
+            .trim()
+            .is_empty()
+        {
+            "Epiphany Persona is the public-facing project voice; Imagination projects context before speech and Mind interprets side effects after speech.".to_string()
+        } else {
+            face.agent.identity.public_description
+        };
+        cache.put("Persona".to_string(), &face)?;
+        cache.delete::<EpiphanyAgentMemoryEntry>("face")?;
+        repaired.push(serde_json::json!({
+            "roleId": "Persona",
+            "repair": "promoted legacy face memory entry to Persona role memory and removed obsolete face row",
+        }));
+    }
+
+    if cache
+        .get::<EpiphanyAgentMemoryEntry>("reorientation")?
+        .is_some()
+    {
+        cache.delete::<EpiphanyAgentMemoryEntry>("reorientation")?;
+        repaired.push(serde_json::json!({
+            "roleId": "reorientation",
+            "repair": "removed obsolete reorientation row; Continuity is protocol machinery, not a standing sub-agent identity",
+        }));
+    }
+
+    let errors = validate_agent_memory_store(store_path)?;
+    let soa = refresh_agent_state_soa(store_path)?;
+    Ok(serde_json::json!({
+        "ok": errors.is_empty(),
+        "store": store_path,
+        "repaired": repaired,
+        "errors": errors,
+        "soa": soa,
+    }))
 }
 
 pub fn load_agent_memory_entry_for_role(
@@ -601,6 +906,390 @@ pub fn apply_agent_self_patch_document(
     Ok(review)
 }
 
+pub fn review_agent_memory_lifecycle_operation(
+    role_id: &str,
+    operation: &AgentMemoryLifecycleOperation,
+    store_path: impl AsRef<Path>,
+) -> AgentMemoryReview {
+    let store_path = store_path.as_ref();
+    let target_agent_id = match agent_id_for_role(role_id) {
+        Ok(agent_id) => agent_id,
+        Err(reason) => {
+            return AgentMemoryReview {
+                status: "rejected".to_string(),
+                target_agent_id: String::new(),
+                target_role_id: role_id.to_string(),
+                target_store: store_path.display().to_string(),
+                reasons: vec![reason],
+                applied: None,
+            };
+        }
+    };
+    let reasons = review_memory_lifecycle_contract(target_agent_id, operation);
+    agent_memory_review(role_id, target_agent_id, store_path, reasons, None)
+}
+
+pub fn apply_agent_memory_lifecycle_operation(
+    role_id: &str,
+    operation: AgentMemoryLifecycleOperation,
+    store_path: impl AsRef<Path>,
+) -> Result<AgentMemoryReview> {
+    let store_path = store_path.as_ref();
+    let mut review = review_agent_memory_lifecycle_operation(role_id, &operation, store_path);
+    if review.status != "accepted" {
+        return Ok(review);
+    }
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut entry = cache
+        .get::<EpiphanyAgentMemoryEntry>(role_id)?
+        .ok_or_else(|| anyhow!("CultCache has no role memory entry for {role_id:?}"))?;
+
+    for action in operation.actions {
+        apply_memory_lifecycle_action(&mut entry, action)?;
+    }
+    cache.put(role_id.to_string(), &entry)?;
+    refresh_agent_state_soa(store_path)?;
+    review.applied = Some(true);
+    Ok(review)
+}
+
+fn review_memory_lifecycle_contract(
+    expected_agent_id: &str,
+    operation: &AgentMemoryLifecycleOperation,
+) -> Vec<String> {
+    let mut reasons = Vec::new();
+    if operation.agent_id.as_deref() != Some(expected_agent_id) {
+        reasons.push(format!(
+            "lifecycle agentId {:?} does not match this lane; expected {:?}",
+            operation.agent_id, expected_agent_id
+        ));
+    }
+    check_patch_text(&operation.reason, "lifecycle reason", &mut reasons, 800);
+    if operation.actions.is_empty() {
+        reasons.push("lifecycle operation must contain at least one action".to_string());
+    }
+    if operation.actions.len() > 8 {
+        reasons.push("lifecycle operation may contain at most 8 actions".to_string());
+    }
+    for key in operation.extra.keys() {
+        reasons.push(format!(
+            "lifecycle field {key:?} is not part of the bounded memory lifecycle contract"
+        ));
+    }
+    for (index, action) in operation.actions.iter().enumerate() {
+        review_memory_lifecycle_action(index, action, &mut reasons);
+    }
+    reasons
+}
+
+fn review_memory_lifecycle_action(
+    index: usize,
+    action: &AgentMemoryLifecycleAction,
+    reasons: &mut Vec<String>,
+) {
+    match action {
+        AgentMemoryLifecycleAction::Revise {
+            memory_id,
+            summary,
+            salience,
+            confidence,
+            reason,
+            ..
+        } => {
+            review_memory_lifecycle_id(index, "memoryId", memory_id, reasons);
+            if summary.is_none() && salience.is_none() && confidence.is_none() {
+                reasons.push(format!(
+                    "lifecycle actions[{index}] revise must change summary, salience, or confidence"
+                ));
+            }
+            if let Some(summary) = summary {
+                check_patch_text(
+                    summary,
+                    &format!("lifecycle actions[{index}].summary"),
+                    reasons,
+                    800,
+                );
+            }
+            if let Some(salience) = salience {
+                check_patch_unit(
+                    *salience,
+                    &format!("lifecycle actions[{index}].salience"),
+                    reasons,
+                );
+            }
+            if let Some(confidence) = confidence {
+                check_patch_unit(
+                    *confidence,
+                    &format!("lifecycle actions[{index}].confidence"),
+                    reasons,
+                );
+            }
+            check_patch_text(
+                reason,
+                &format!("lifecycle actions[{index}].reason"),
+                reasons,
+                500,
+            );
+        }
+        AgentMemoryLifecycleAction::Retire {
+            memory_id, reason, ..
+        } => {
+            review_memory_lifecycle_id(index, "memoryId", memory_id, reasons);
+            check_patch_text(
+                reason,
+                &format!("lifecycle actions[{index}].reason"),
+                reasons,
+                500,
+            );
+        }
+        AgentMemoryLifecycleAction::Crystallize {
+            memory_id,
+            new_memory_id,
+            summary,
+            reason,
+            ..
+        } => {
+            review_memory_lifecycle_id(index, "memoryId", memory_id, reasons);
+            if let Some(new_memory_id) = new_memory_id {
+                review_memory_lifecycle_id(index, "newMemoryId", new_memory_id, reasons);
+            }
+            if let Some(summary) = summary {
+                check_patch_text(
+                    summary,
+                    &format!("lifecycle actions[{index}].summary"),
+                    reasons,
+                    800,
+                );
+            }
+            check_patch_text(
+                reason,
+                &format!("lifecycle actions[{index}].reason"),
+                reasons,
+                500,
+            );
+        }
+        AgentMemoryLifecycleAction::Prune {
+            max_records,
+            minimum_salience,
+            reason,
+            ..
+        } => {
+            if *max_records == 0 || *max_records > 128 {
+                reasons.push(format!(
+                    "lifecycle actions[{index}].maxRecords must be between 1 and 128"
+                ));
+            }
+            if let Some(minimum_salience) = minimum_salience {
+                check_patch_unit(
+                    *minimum_salience,
+                    &format!("lifecycle actions[{index}].minimumSalience"),
+                    reasons,
+                );
+            }
+            check_patch_text(
+                reason,
+                &format!("lifecycle actions[{index}].reason"),
+                reasons,
+                500,
+            );
+        }
+        AgentMemoryLifecycleAction::Merge {
+            target_memory_id,
+            source_memory_ids,
+            summary,
+            salience,
+            confidence,
+            reason,
+            ..
+        } => {
+            review_memory_lifecycle_id(index, "targetMemoryId", target_memory_id, reasons);
+            if source_memory_ids.len() < 2 || source_memory_ids.len() > 8 {
+                reasons.push(format!(
+                    "lifecycle actions[{index}].sourceMemoryIds must contain 2 to 8 ids"
+                ));
+            }
+            for source_id in source_memory_ids {
+                review_memory_lifecycle_id(index, "sourceMemoryIds", source_id, reasons);
+            }
+            check_patch_text(
+                summary,
+                &format!("lifecycle actions[{index}].summary"),
+                reasons,
+                800,
+            );
+            check_patch_unit(
+                *salience,
+                &format!("lifecycle actions[{index}].salience"),
+                reasons,
+            );
+            check_patch_unit(
+                *confidence,
+                &format!("lifecycle actions[{index}].confidence"),
+                reasons,
+            );
+            check_patch_text(
+                reason,
+                &format!("lifecycle actions[{index}].reason"),
+                reasons,
+                500,
+            );
+        }
+    }
+}
+
+fn review_memory_lifecycle_id(index: usize, field: &str, value: &str, reasons: &mut Vec<String>) {
+    if !valid_identifier(value, "mem-") {
+        reasons.push(format!(
+            "lifecycle actions[{index}].{field} must start with 'mem-' and avoid whitespace"
+        ));
+    }
+}
+
+fn apply_memory_lifecycle_action(
+    entry: &mut EpiphanyAgentMemoryEntry,
+    action: AgentMemoryLifecycleAction,
+) -> Result<()> {
+    match action {
+        AgentMemoryLifecycleAction::Revise {
+            bundle,
+            memory_id,
+            summary,
+            salience,
+            confidence,
+            ..
+        } => {
+            let memory = memory_bundle_mut(entry, bundle)
+                .iter_mut()
+                .find(|memory| memory.memory_id == memory_id)
+                .ok_or_else(|| anyhow!("memory {memory_id:?} not found for revise"))?;
+            if let Some(summary) = summary {
+                memory.summary = summary;
+            }
+            if let Some(salience) = salience {
+                memory.salience = salience;
+            }
+            if let Some(confidence) = confidence {
+                memory.confidence = confidence;
+            }
+        }
+        AgentMemoryLifecycleAction::Retire {
+            bundle, memory_id, ..
+        } => {
+            let records = memory_bundle_mut(entry, bundle);
+            let before = records.len();
+            records.retain(|memory| memory.memory_id != memory_id);
+            if records.len() == before {
+                return Err(anyhow!("memory {memory_id:?} not found for retire"));
+            }
+        }
+        AgentMemoryLifecycleAction::Crystallize {
+            from_bundle,
+            to_bundle,
+            memory_id,
+            new_memory_id,
+            summary,
+            ..
+        } => {
+            let source = memory_bundle_mut(entry, from_bundle)
+                .iter()
+                .find(|memory| memory.memory_id == memory_id)
+                .cloned()
+                .ok_or_else(|| anyhow!("memory {memory_id:?} not found for crystallize"))?;
+            let mut crystallized = source;
+            if let Some(new_memory_id) = new_memory_id {
+                crystallized.memory_id = new_memory_id;
+            }
+            if let Some(summary) = summary {
+                crystallized.summary = summary;
+            }
+            upsert_ghostlight_memory(memory_bundle_mut(entry, to_bundle), crystallized);
+        }
+        AgentMemoryLifecycleAction::Prune {
+            bundle,
+            max_records,
+            minimum_salience,
+            ..
+        } => {
+            let records = memory_bundle_mut(entry, bundle);
+            if let Some(minimum_salience) = minimum_salience {
+                records.retain(|memory| memory.salience >= minimum_salience);
+            }
+            records.sort_by(|left, right| {
+                right
+                    .salience
+                    .partial_cmp(&left.salience)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| {
+                        right
+                            .confidence
+                            .partial_cmp(&left.confidence)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                    .then_with(|| left.memory_id.cmp(&right.memory_id))
+            });
+            records.truncate(max_records);
+        }
+        AgentMemoryLifecycleAction::Merge {
+            bundle,
+            target_memory_id,
+            source_memory_ids,
+            summary,
+            salience,
+            confidence,
+            ..
+        } => {
+            let records = memory_bundle_mut(entry, bundle);
+            for source_id in &source_memory_ids {
+                if !records.iter().any(|memory| memory.memory_id == *source_id) {
+                    return Err(anyhow!("memory {source_id:?} not found for merge"));
+                }
+            }
+            records.retain(|memory| {
+                !source_memory_ids
+                    .iter()
+                    .any(|source_id| source_id == &memory.memory_id)
+            });
+            upsert_ghostlight_memory(
+                records,
+                GhostlightMemory {
+                    memory_id: target_memory_id,
+                    summary,
+                    salience,
+                    confidence,
+                    linked_event_ids: None,
+                    linked_relationship_id: None,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+fn memory_bundle_mut(
+    entry: &mut EpiphanyAgentMemoryEntry,
+    bundle: AgentMemoryBundle,
+) -> &mut Vec<GhostlightMemory> {
+    match bundle {
+        AgentMemoryBundle::Semantic => &mut entry.agent.memories.semantic,
+        AgentMemoryBundle::Episodic => &mut entry.agent.memories.episodic,
+        AgentMemoryBundle::RelationshipSummaries => {
+            &mut entry.agent.memories.relationship_summaries
+        }
+    }
+}
+
+fn upsert_ghostlight_memory(records: &mut Vec<GhostlightMemory>, incoming: GhostlightMemory) {
+    if let Some(existing) = records
+        .iter_mut()
+        .find(|memory| memory.memory_id == incoming.memory_id)
+    {
+        *existing = incoming;
+    } else {
+        records.push(incoming);
+    }
+}
+
 fn agent_memory_review(
     role_id: &str,
     target_agent_id: &str,
@@ -707,14 +1396,138 @@ pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
         });
     }
     let errors = validate_agent_memory_store(store_path)?;
+    let agent_state_soa = project_agent_state_soa_from_cache(store_path, &cache)?;
+    let persisted_agent_state_soa = cache
+        .get::<EpiphanyAgentStateSoaEntry>(AGENT_STATE_SOA_KEY)?
+        .map(|entry| {
+            serde_json::json!({
+                "schemaVersion": entry.schema_version,
+                "generatedAt": entry.generated_at,
+                "rowCount": entry.role_ids.len(),
+                "sourceStore": entry.source_store,
+            })
+        });
     Ok(serde_json::json!({
         "ok": errors.is_empty(),
         "store": store_path,
         "present": true,
         "entryType": AGENT_MEMORY_TYPE,
+        "agentStateSoaEntryType": AGENT_STATE_SOA_TYPE,
         "errors": errors,
+        "agentStateSoa": {
+            "schemaVersion": agent_state_soa.schema_version,
+            "rowCount": agent_state_soa.role_ids.len(),
+            "roleIds": agent_state_soa.role_ids,
+            "agentIds": agent_state_soa.agent_ids,
+            "displayNames": agent_state_soa.display_names,
+            "profileKinds": agent_state_soa.profile_kinds,
+            "portableContracts": agent_state_soa.portable_contracts,
+            "semanticMemoryCounts": agent_state_soa.semantic_memory_counts,
+            "episodicMemoryCounts": agent_state_soa.episodic_memory_counts,
+            "relationshipMemoryCounts": agent_state_soa.relationship_memory_counts,
+            "goalCounts": agent_state_soa.goal_counts,
+            "valueCounts": agent_state_soa.value_counts,
+        },
+        "persistedAgentStateSoa": persisted_agent_state_soa,
         "roles": roles,
     }))
+}
+
+pub fn refresh_agent_state_soa(store_path: impl AsRef<Path>) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let entry = project_agent_state_soa_from_cache(store_path, &cache)?;
+    validate_agent_state_soa_entry(&entry)?;
+    cache.put(AGENT_STATE_SOA_KEY, &entry)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "store": store_path,
+        "entryType": AGENT_STATE_SOA_TYPE,
+        "key": AGENT_STATE_SOA_KEY,
+        "rowCount": entry.role_ids.len(),
+        "roleIds": entry.role_ids,
+        "agentIds": entry.agent_ids,
+    }))
+}
+
+pub fn load_agent_state_soa_entry(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<EpiphanyAgentStateSoaEntry>> {
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(None);
+    }
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<EpiphanyAgentStateSoaEntry>(AGENT_STATE_SOA_KEY)
+}
+
+fn project_agent_state_soa_from_cache(
+    store_path: &Path,
+    cache: &CultCache,
+) -> Result<EpiphanyAgentStateSoaEntry> {
+    let table = cache.soa::<EpiphanyAgentMemoryEntry>()?;
+    let entry = EpiphanyAgentStateSoaEntry {
+        schema_version: AGENT_STATE_SOA_SCHEMA_VERSION.to_string(),
+        generated_at: now_rfc3339(),
+        source_store: store_path.display().to_string(),
+        role_ids: table.column::<String>("roleId")?.values().to_vec(),
+        agent_ids: table.column::<String>("agentId")?.values().to_vec(),
+        display_names: table.column::<String>("displayName")?.values().to_vec(),
+        profile_kinds: table.column::<String>("profileKind")?.values().to_vec(),
+        portable_contracts: table
+            .column::<String>("portableContract")?
+            .values()
+            .to_vec(),
+        semantic_memory_counts: table
+            .column::<u32>("semanticMemoryCount")?
+            .values()
+            .to_vec(),
+        episodic_memory_counts: table
+            .column::<u32>("episodicMemoryCount")?
+            .values()
+            .to_vec(),
+        relationship_memory_counts: table
+            .column::<u32>("relationshipMemoryCount")?
+            .values()
+            .to_vec(),
+        goal_counts: table.column::<u32>("goalCount")?.values().to_vec(),
+        value_counts: table.column::<u32>("valueCount")?.values().to_vec(),
+    };
+    validate_agent_state_soa_entry(&entry)?;
+    Ok(entry)
+}
+
+fn validate_agent_state_soa_entry(entry: &EpiphanyAgentStateSoaEntry) -> Result<()> {
+    if entry.schema_version != AGENT_STATE_SOA_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "agent state SoA schema_version must be {:?}",
+            AGENT_STATE_SOA_SCHEMA_VERSION
+        ));
+    }
+    let len = entry.role_ids.len();
+    for (name, candidate) in [
+        ("agentIds", entry.agent_ids.len()),
+        ("displayNames", entry.display_names.len()),
+        ("profileKinds", entry.profile_kinds.len()),
+        ("portableContracts", entry.portable_contracts.len()),
+        ("semanticMemoryCounts", entry.semantic_memory_counts.len()),
+        ("episodicMemoryCounts", entry.episodic_memory_counts.len()),
+        (
+            "relationshipMemoryCounts",
+            entry.relationship_memory_counts.len(),
+        ),
+        ("goalCounts", entry.goal_counts.len()),
+        ("valueCounts", entry.value_counts.len()),
+    ] {
+        if candidate != len {
+            return Err(anyhow!(
+                "agent state SoA column {name} has length {candidate}, expected {len}"
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub fn project_persona_state_for_role(
@@ -836,9 +1649,9 @@ fn persona_value(value: &GhostlightValue) -> Value {
         "label": value.label,
         "priority": value.priority,
         "summary": if value.unforgivable_if_betrayed {
-            "Protected value; betrayal is marked as unforgivable in local Face state."
+            "Protected value; betrayal is marked as unforgivable in local Persona state."
         } else {
-            "Value projected from local Face organ memory."
+            "Value projected from local Persona organ memory."
         },
     })
 }
@@ -858,13 +1671,13 @@ fn persona_memory_thought(memory: &GhostlightMemory, persona_id: &str, timestamp
         "target": persona_target("self", persona_id, persona_id),
         "summary": memory.summary,
         "claim": memory.summary,
-        "tension": "Projected from local Face memory; consumers should preserve provenance and avoid treating this as omniscient project truth.",
+        "tension": "Projected from local Persona memory; consumers should preserve provenance and avoid treating this as omniscient project truth.",
         "actionImplication": "Use as Persona memory pressure, not as direct action authority.",
         "intensity": memory.salience,
         "valence": 0,
         "createdAt": timestamp,
         "updatedAt": timestamp,
-        "tags": ["epiphany", "face-memory"],
+        "tags": ["epiphany", "Persona-memory"],
     })
 }
 
@@ -876,11 +1689,11 @@ fn persona_goal_thought(goal: &GhostlightGoal, persona_id: &str, timestamp: &str
         "summary": goal.description,
         "claim": goal.description,
         "tension": goal.emotional_stake,
-        "actionImplication": "This goal may create Face agency pressure, but action still requires the caller's review path.",
+        "actionImplication": "This goal may create Persona agency pressure, but action still requires the caller's review path.",
         "intensity": goal.priority,
         "createdAt": timestamp,
         "updatedAt": timestamp,
-        "tags": ["epiphany", "face-goal", &goal.scope],
+        "tags": ["epiphany", "Persona-goal", &goal.scope],
     })
 }
 
@@ -914,7 +1727,7 @@ fn persona_doctrine_stance(value: &GhostlightValue, persona_id: &str, timestamp:
         "stanceKind": "aligned",
         "principle": value.label,
         "summary": value.label,
-        "actionImplication": "Let this value bend Face speech and interpretation without granting automatic action authority.",
+        "actionImplication": "Let this value bend Persona speech and interpretation without granting automatic action authority.",
         "intensity": value.priority,
         "updatedAt": timestamp,
     })
@@ -936,7 +1749,7 @@ fn now_rfc3339() -> String {
 
 pub fn organ_state_profile_for_role(role_id: &str) -> EpiphanyOrganStateProfile {
     match role_id {
-        "face" => EpiphanyOrganStateProfile {
+        "Persona" => EpiphanyOrganStateProfile {
             profile_kind: EpiphanyOrganStateProfileKind::Persona,
             state_density: "persona_grade".to_string(),
             portable_contract: "gamecult.persona_state.v0".to_string(),
@@ -952,7 +1765,7 @@ pub fn organ_state_profile_for_role(role_id: &str) -> EpiphanyOrganStateProfile 
                 "sleep/distillation".to_string(),
             ],
             notes: vec![
-                "Epiphany Face is an organ; Persona is the portable person-state contract shared with Ghostlight and VoidBot-style repo Faces.".to_string(),
+                "Epiphany Persona is an organ; Persona is the portable person-state contract shared with Ghostlight and VoidBot-style repo Personas.".to_string(),
                 "Dense canonical families, affect, perceived overlays, and relationship pressure are appropriate for Persona state.".to_string(),
             ],
         },
@@ -970,7 +1783,7 @@ pub fn organ_state_profile_for_role(role_id: &str) -> EpiphanyOrganStateProfile 
                 "birth-time repo memory and light operating-pressure seeding".to_string(),
             ],
             notes: vec![
-                "Work organs need sharp role identity, durable mission memory, values/goals, and heartbeat activation; they do not need Face affect or full Persona machinery.".to_string(),
+                "Work organs need sharp role identity, durable mission memory, values/goals, and heartbeat activation; they do not need Persona affect or full Persona machinery.".to_string(),
                 "Sparse canonical bundles are acceptable here as long as memory, goals, values, and private notes can deepen over time.".to_string(),
             ],
         },
@@ -1019,6 +1832,7 @@ pub fn project_agent_memory_to_json_dir(
 fn agent_memory_cache(store_path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<EpiphanyAgentMemoryEntry>()?;
+    cache.register_entry_type::<EpiphanyAgentStateSoaEntry>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
     Ok(cache)
 }
@@ -1664,8 +2478,8 @@ mod tests {
         let agent_dir = temp.path().join("agents");
         fs::create_dir_all(&agent_dir)?;
         fs::write(
-            agent_dir.join("proprioception.agent-state.json"),
-            sample_agent_json("epiphany.proprioception", "Proprioception"),
+            agent_dir.join("modeling.agent-state.json"),
+            sample_agent_json("epiphany.modeling", "Modeling"),
         )?;
         for (role_id, agent_id, filename) in ROLE_TARGETS {
             if *role_id == "modeling" {
@@ -1681,8 +2495,8 @@ mod tests {
         assert!(validate_agent_memory_store(&store)?.is_empty());
 
         let patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
-            "agentId": "epiphany.proprioception",
-            "reason": "Proprioception should remember accepted graph growth must stay source-grounded.",
+            "agentId": "epiphany.modeling",
+            "reason": "Modeling should remember accepted graph growth must stay source-grounded.",
             "semanticMemories": [{
                 "memoryId": "mem-body-native-source-grounding",
                 "summary": "Native role memory patches update typed CultCache organ state rather than JSON dossier files.",
@@ -1698,15 +2512,131 @@ mod tests {
 
         let mut cache = agent_memory_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        let proprioception = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
+        let modeling = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
         assert!(
-            proprioception
+            modeling
                 .agent
                 .memories
                 .semantic
                 .iter()
                 .any(|memory| memory.memory_id == "mem-body-native-source-grounding")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn memory_lifecycle_operation_revises_crystallizes_merges_retires_and_prunes() -> Result<()> {
+        let temp = tempdir()?;
+        let agent_dir = temp.path().join("agents");
+        fs::create_dir_all(&agent_dir)?;
+        for (role_id, agent_id, filename) in ROLE_TARGETS {
+            fs::write(
+                agent_dir.join(filename),
+                sample_agent_json(agent_id, &format!("Agent {role_id}")),
+            )?;
+        }
+        let store = temp.path().join("agents.msgpack");
+        migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
+
+        let patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
+            "agentId": "epiphany.modeling",
+            "reason": "Seed memories so the lifecycle operation can prove maintenance without identity edits.",
+            "semanticMemories": [
+                {
+                    "memoryId": "mem-lifecycle-alpha",
+                    "summary": "Alpha memory starts as short doctrine needing revision.",
+                    "salience": 0.42,
+                    "confidence": 0.7
+                },
+                {
+                    "memoryId": "mem-lifecycle-beta",
+                    "summary": "Beta support should merge with gamma.",
+                    "salience": 0.31,
+                    "confidence": 0.72
+                },
+                {
+                    "memoryId": "mem-lifecycle-gamma",
+                    "summary": "Gamma support should merge with beta.",
+                    "salience": 0.33,
+                    "confidence": 0.74
+                }
+            ]
+        }))?;
+        assert_eq!(
+            apply_agent_self_patch_document("modeling", patch, &store)?.status,
+            "accepted"
+        );
+
+        let operation = AgentMemoryLifecycleOperation {
+            agent_id: Some("epiphany.modeling".to_string()),
+            reason: "Sleep maintenance is revising, crystallizing, merging, retiring, and pruning bounded role memory.".to_string(),
+            actions: vec![
+                AgentMemoryLifecycleAction::Revise {
+                    bundle: AgentMemoryBundle::Semantic,
+                    memory_id: "mem-lifecycle-alpha".to_string(),
+                    summary: Some("Alpha memory was revised before crystallization.".to_string()),
+                    salience: Some(0.81),
+                    confidence: None,
+                    reason: "The old wording was too weak for durable modeling doctrine.".to_string(),
+                },
+                AgentMemoryLifecycleAction::Crystallize {
+                    from_bundle: AgentMemoryBundle::Semantic,
+                    to_bundle: AgentMemoryBundle::Episodic,
+                    memory_id: "mem-lifecycle-alpha".to_string(),
+                    new_memory_id: Some("mem-lifecycle-alpha-episode".to_string()),
+                    summary: Some("Alpha became an episodic scar from sleep maintenance.".to_string()),
+                    reason: "The revised pressure should leave a separate episodic witness.".to_string(),
+                },
+                AgentMemoryLifecycleAction::Merge {
+                    bundle: AgentMemoryBundle::Semantic,
+                    target_memory_id: "mem-lifecycle-merged".to_string(),
+                    source_memory_ids: vec![
+                        "mem-lifecycle-beta".to_string(),
+                        "mem-lifecycle-gamma".to_string(),
+                    ],
+                    summary: "Beta and gamma collapsed into one support memory.".to_string(),
+                    salience: 0.77,
+                    confidence: 0.82,
+                    reason: "Duplicate support belongs in one clearer memory.".to_string(),
+                },
+                AgentMemoryLifecycleAction::Retire {
+                    bundle: AgentMemoryBundle::Semantic,
+                    memory_id: "mem-lifecycle-alpha".to_string(),
+                    reason: "The revised alpha pressure was crystallized and should leave semantic room.".to_string(),
+                },
+                AgentMemoryLifecycleAction::Prune {
+                    bundle: AgentMemoryBundle::Semantic,
+                    max_records: 1,
+                    minimum_salience: Some(0.5),
+                    reason: "Keep only strong semantic residue after merge.".to_string(),
+                },
+            ],
+            extra: BTreeMap::new(),
+        };
+
+        let review = review_agent_memory_lifecycle_operation("modeling", &operation, &store);
+        assert_eq!(review.status, "accepted");
+        let applied = apply_agent_memory_lifecycle_operation("modeling", operation, &store)?;
+        assert_eq!(applied.status, "accepted");
+        assert_eq!(applied.applied, Some(true));
+
+        let mut cache = agent_memory_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let modeling = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
+        assert_eq!(modeling.agent.memories.semantic.len(), 1);
+        assert_eq!(
+            modeling.agent.memories.semantic[0].memory_id,
+            "mem-lifecycle-merged"
+        );
+        assert!(
+            modeling
+                .agent
+                .memories
+                .episodic
+                .iter()
+                .any(|memory| memory.memory_id == "mem-lifecycle-alpha-episode")
+        );
+        assert!(validate_agent_memory_store(&store)?.is_empty());
         Ok(())
     }
 
@@ -1761,18 +2691,143 @@ mod tests {
     }
 
     #[test]
-    fn organ_state_profiles_distinguish_face_from_lane_organs() {
-        let face = organ_state_profile_for_role("face");
-        assert_eq!(face.profile_kind, EpiphanyOrganStateProfileKind::Persona);
-        assert_eq!(face.state_density, "persona_grade");
-        assert_eq!(face.portable_contract, "gamecult.persona_state.v0");
-        assert_eq!(face.affect_model, "persona_affect_allowed_and_expected");
+    fn organ_state_profiles_distinguish_persona_from_lane_organs() {
+        let persona = organ_state_profile_for_role("Persona");
+        assert_eq!(persona.profile_kind, EpiphanyOrganStateProfileKind::Persona);
+        assert_eq!(persona.state_density, "persona_grade");
+        assert_eq!(persona.portable_contract, "gamecult.persona_state.v0");
+        assert_eq!(persona.affect_model, "persona_affect_allowed_and_expected");
 
         let hands = organ_state_profile_for_role("implementation");
         assert_eq!(hands.profile_kind, EpiphanyOrganStateProfileKind::WorkOrgan);
         assert_eq!(hands.state_density, "lean_work_organ");
         assert_eq!(hands.portable_contract, "epiphany.work_organ_state.v0");
         assert_eq!(hands.affect_model, "no_affect_or_persona_machinery");
+    }
+
+    #[test]
+    fn agent_memory_projects_swarm_state_as_soa_columns() -> Result<()> {
+        let temp = tempdir()?;
+        let agent_dir = temp.path().join("agents");
+        fs::create_dir_all(&agent_dir)?;
+        for (role_id, agent_id, filename) in ROLE_TARGETS {
+            fs::write(
+                agent_dir.join(filename),
+                sample_agent_json(agent_id, &format!("Agent {role_id}")),
+            )?;
+        }
+        let store = temp.path().join("agents.msgpack");
+        migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
+
+        let refreshed = refresh_agent_state_soa(&store)?;
+        assert_eq!(refreshed["rowCount"], 7);
+
+        let mut cache = agent_memory_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let entry = cache.get_required::<EpiphanyAgentStateSoaEntry>(AGENT_STATE_SOA_KEY)?;
+        assert_eq!(entry.schema_version, AGENT_STATE_SOA_SCHEMA_VERSION);
+        assert_eq!(entry.role_ids.len(), 7);
+        assert!(entry.role_ids.iter().any(|role| role == "Persona"));
+        assert!(
+            entry
+                .agent_ids
+                .iter()
+                .any(|agent_id| agent_id == "epiphany.Persona")
+        );
+        assert_eq!(entry.role_ids.len(), entry.semantic_memory_counts.len());
+        assert!(
+            entry
+                .portable_contracts
+                .iter()
+                .any(|contract| contract == "gamecult.persona_state.v0")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn repair_agent_memory_store_promotes_legacy_face_and_modeling_vessel() -> Result<()> {
+        let temp = tempdir()?;
+        let agent_dir = temp.path().join("agents");
+        fs::create_dir_all(&agent_dir)?;
+        for (role_id, agent_id, filename) in ROLE_TARGETS {
+            if *role_id == "Persona" {
+                continue;
+            }
+            let actual_agent_id = if *role_id == "modeling" {
+                "epiphany.proprioception"
+            } else {
+                agent_id
+            };
+            fs::write(
+                agent_dir.join(filename),
+                sample_agent_json(actual_agent_id, &format!("Agent {role_id}")),
+            )?;
+        }
+        fs::write(
+            agent_dir.join("face.agent-state.json"),
+            sample_agent_json("epiphany.face", "Face"),
+        )?;
+
+        let store = temp.path().join("agents.msgpack");
+        let mut cache = agent_memory_cache(&store)?;
+        for (role_id, agent_id, filename) in ROLE_TARGETS {
+            if *role_id == "Persona" {
+                continue;
+            }
+            let raw = fs::read_to_string(agent_dir.join(filename))?;
+            let projection: AgentMemoryProjection = serde_json::from_str(&raw)?;
+            let expected_agent_id = if *role_id == "modeling" {
+                "epiphany.proprioception"
+            } else {
+                agent_id
+            };
+            let entry = entry_from_projection(role_id, expected_agent_id, projection)?;
+            cache.put((*role_id).to_string(), &entry)?;
+        }
+        let raw = fs::read_to_string(agent_dir.join("face.agent-state.json"))?;
+        let projection: AgentMemoryProjection = serde_json::from_str(&raw)?;
+        let face = entry_from_projection("face", "epiphany.face", projection)?;
+        cache.put("face".to_string(), &face)?;
+        let projection: AgentMemoryProjection =
+            serde_json::from_str(&sample_agent_json("epiphany.life", "Life"))?;
+        let reorientation = entry_from_projection("reorientation", "epiphany.life", projection)?;
+        cache.put("reorientation".to_string(), &reorientation)?;
+
+        let errors = validate_agent_memory_store(&store)?;
+        assert!(errors.iter().any(|error| error.contains("proprioception")));
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("Persona: missing"))
+        );
+
+        let repaired = repair_agent_memory_store(&store)?;
+        assert_eq!(repaired["ok"], true);
+        assert!(validate_agent_memory_store(&store)?.is_empty());
+        let refreshed = refresh_agent_state_soa(&store)?;
+        assert_eq!(refreshed["rowCount"], 7);
+
+        let mut cache = agent_memory_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let modeling = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
+        assert_eq!(modeling.agent.agent_id, "epiphany.modeling");
+        let persona = cache.get_required::<EpiphanyAgentMemoryEntry>("Persona")?;
+        assert_eq!(persona.role_id, "Persona");
+        assert_eq!(persona.agent.agent_id, "epiphany.Persona");
+        assert!(
+            persona
+                .agent
+                .identity
+                .roles
+                .iter()
+                .any(|role| role == "Persona")
+        );
+        assert!(
+            cache
+                .get::<EpiphanyAgentMemoryEntry>("reorientation")?
+                .is_none()
+        );
+        Ok(())
     }
 
     fn sample_agent_json(agent_id: &str, name: &str) -> String {

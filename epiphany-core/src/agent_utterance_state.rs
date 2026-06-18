@@ -1227,13 +1227,13 @@ mod tests {
         }
         let entry = EpiphanyAgentMemoryEntry {
             schema_version: "ghostlight.agent_state.v0".to_string(),
-            role_id: "face".to_string(),
+            role_id: "Persona".to_string(),
             world: GhostlightWorld::default(),
             agent: GhostlightAgent {
-                agent_id: "epiphany.face".to_string(),
+                agent_id: "epiphany.Persona".to_string(),
                 identity: GhostlightIdentity {
                     name: "Epiphany".to_string(),
-                    roles: vec!["Face".to_string()],
+                    roles: vec!["Persona".to_string()],
                     origin: "Epiphany local harness".to_string(),
                     public_description: "Cute, pushy public machine-spirit.".to_string(),
                     private_notes: vec!["must not leak".to_string()],
@@ -1267,8 +1267,8 @@ mod tests {
             scenes: Vec::new(),
         };
         let participant = HeartbeatParticipant {
-            agent_id: "epiphany.face".to_string(),
-            role_id: "face".to_string(),
+            agent_id: "epiphany.Persona".to_string(),
+            role_id: "Persona".to_string(),
             display_name: "Epiphany".to_string(),
             initiative_speed: 1.4,
             reaction_bias: 0.7,

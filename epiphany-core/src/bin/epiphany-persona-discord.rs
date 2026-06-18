@@ -2,6 +2,11 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshPersonaSpeechAuditEntry;
+use epiphany_core::load_latest_epiphany_cultmesh_persona_speech_audit;
+use epiphany_core::write_epiphany_cultmesh_persona_speech_audit;
 use reqwest::blocking::Client;
 use serde_json::Value;
 use std::cmp::Reverse;
@@ -12,12 +17,13 @@ use std::path::Path;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-const CHAT_SCHEMA_VERSION: &str = "epiphany.face_chat.v0";
-const BUBBLE_SCHEMA_VERSION: &str = "epiphany.face_bubble.v0";
+const CHAT_SCHEMA_VERSION: &str = "epiphany.persona_chat.v0";
+const BUBBLE_SCHEMA_VERSION: &str = "epiphany.persona_bubble.v0";
+const SPEECH_AUDIT_SCHEMA_VERSION: &str = "epiphany.persona_speech_audit.v0";
 const DISCORD_API: &str = "https://discord.com/api/v10";
 
 #[derive(Clone, Debug, Default)]
-struct FaceConfig {
+struct PersonaConfig {
     allowed_channel_name: String,
     allowed_channel_id: Option<String>,
     allowed_channel_id_env: Option<String>,
@@ -32,11 +38,13 @@ fn main() -> Result<()> {
     let Some(command) = args.next() else {
         return usage();
     };
-    let mut config_path = PathBuf::from("state/face-discord.toml");
-    let mut artifact_dir = PathBuf::from(".epiphany-face");
+    let mut config_path = PathBuf::from("state/persona-discord.toml");
+    let mut artifact_dir = PathBuf::from(".epiphany-persona");
+    let mut cultmesh_store = PathBuf::from(".epiphany-run/cultmesh/persona-speech.ccmp");
+    let mut runtime_id = "epiphany-local".to_string();
     let mut content: Option<String> = None;
     let mut channel_id: Option<String> = None;
-    let mut source = "epiphany/face".to_string();
+    let mut source = "epiphany/Persona".to_string();
     let mut status = "ready".to_string();
     let mut mood = "attentive".to_string();
     let mut limit = 8_usize;
@@ -48,6 +56,8 @@ fn main() -> Result<()> {
         match arg.as_str() {
             "--config" => config_path = next_path(&mut args, "--config")?,
             "--artifact-dir" => artifact_dir = next_path(&mut args, "--artifact-dir")?,
+            "--cultmesh-store" => cultmesh_store = next_path(&mut args, "--cultmesh-store")?,
+            "--runtime-id" => runtime_id = next_value(&mut args, "--runtime-id")?,
             "--content" => content = Some(next_value(&mut args, "--content")?),
             "--channel-id" => channel_id = Some(next_value(&mut args, "--channel-id")?),
             "--source" => source = next_value(&mut args, "--source")?,
@@ -73,13 +83,23 @@ fn main() -> Result<()> {
                 &content,
                 &config,
                 &artifact_dir,
+                &cultmesh_store,
+                &runtime_id,
                 "draft",
                 "drafted without posting",
             )?
         }
         "bubble" => {
             let content = read_content(content)?;
-            run_bubble(&content, &artifact_dir, &source, &status, &mood)?
+            run_bubble(
+                &content,
+                &artifact_dir,
+                &cultmesh_store,
+                &runtime_id,
+                &source,
+                &status,
+                &mood,
+            )?
         }
         "post" => {
             let config = load_config(&config_path)?;
@@ -88,6 +108,8 @@ fn main() -> Result<()> {
                 &content,
                 &config,
                 &artifact_dir,
+                &cultmesh_store,
+                &runtime_id,
                 channel_id,
                 persona_name,
                 persona_avatar_url,
@@ -97,7 +119,7 @@ fn main() -> Result<()> {
         "latest" => serde_json::json!({
             "ok": true,
             "artifactDir": artifact_dir,
-            "latestArtifacts": latest_face_artifacts(&artifact_dir, limit),
+            "latestArtifacts": latest_persona_artifacts(&artifact_dir, limit),
         }),
         "smoke" => run_smoke()?,
         _ => return usage(),
@@ -112,51 +134,107 @@ fn main() -> Result<()> {
 
 fn run_draft(
     content: &str,
-    config: &FaceConfig,
+    config: &PersonaConfig,
     artifact_dir: &Path,
+    cultmesh_store: &Path,
+    runtime_id: &str,
     status: &str,
     reason: &str,
 ) -> Result<Value> {
-    ensure_content(content, "Face chat")?;
-    let path = write_draft(content, config, artifact_dir, status, reason)?;
+    ensure_content(content, "Persona chat")?;
+    let audit = audit_persona_speech(
+        content,
+        PersonaSpeechActionKind::Draft,
+        artifact_dir,
+        cultmesh_store,
+        runtime_id,
+        allowed_channel_id(config).as_deref(),
+        false,
+    )?;
+    let path = write_draft(content, config, artifact_dir, status, reason, Some(&audit))?;
     Ok(serde_json::json!({
         "ok": status != "blocked",
         "posted": false,
         "draftPath": path,
+        "speechAudit": audit,
     }))
 }
 
 fn run_bubble(
     content: &str,
     artifact_dir: &Path,
+    cultmesh_store: &Path,
+    runtime_id: &str,
     source: &str,
     status: &str,
     mood: &str,
 ) -> Result<Value> {
-    ensure_content(content, "Face bubble")?;
+    ensure_content(content, "Persona bubble")?;
+    let audit = audit_persona_speech(
+        content,
+        PersonaSpeechActionKind::Bubble,
+        artifact_dir,
+        cultmesh_store,
+        runtime_id,
+        None,
+        false,
+    )?;
     let payload = bubble_payload(content, source, status, mood);
-    let path = artifact_dir.join(format!("face-bubble-{}-{}.json", now_stamp(), short_id()));
+    let path = artifact_dir.join(format!(
+        "Persona-bubble-{}-{}.json",
+        now_stamp(),
+        short_id()
+    ));
     write_json(&path, &payload)?;
     Ok(serde_json::json!({
         "ok": true,
         "posted": false,
         "bubblePath": path,
         "bubble": payload,
+        "speechAudit": audit,
     }))
 }
 
 fn run_post(
     content: &str,
-    config: &FaceConfig,
+    config: &PersonaConfig,
     artifact_dir: &Path,
+    cultmesh_store: &Path,
+    runtime_id: &str,
     channel_id: Option<String>,
     persona_name: Option<String>,
     persona_avatar_url: Option<String>,
     reply_to_message_id: Option<String>,
 ) -> Result<Value> {
-    ensure_content(content, "Face chat")?;
+    ensure_content(content, "Persona chat")?;
     let configured_channel_id = allowed_channel_id(config);
     let requested_channel_id = channel_id.or_else(|| configured_channel_id.clone());
+    let audit = audit_persona_speech(
+        content,
+        PersonaSpeechActionKind::Post,
+        artifact_dir,
+        cultmesh_store,
+        runtime_id,
+        requested_channel_id.as_deref(),
+        true,
+    )?;
+    if audit.decision == "blocked" {
+        let path = write_draft(
+            content,
+            config,
+            artifact_dir,
+            "blocked",
+            &format!("speech audit blocked: {}", audit.reasons.join("; ")),
+            Some(&audit),
+        )?;
+        return Ok(serde_json::json!({
+            "ok": false,
+            "posted": false,
+            "blocked": "speech-audit",
+            "draftPath": path,
+            "speechAudit": audit,
+        }));
+    }
     let Some(configured_channel_id) = configured_channel_id else {
         let path = write_draft(
             content,
@@ -164,12 +242,14 @@ fn run_post(
             artifact_dir,
             "blocked",
             "missing #aquarium channel id",
+            Some(&audit),
         )?;
         return Ok(serde_json::json!({
             "ok": false,
             "posted": false,
             "blocked": "missing-channel-id",
             "draftPath": path,
+            "speechAudit": audit,
         }));
     };
     if requested_channel_id.as_deref() != Some(configured_channel_id.as_str()) {
@@ -179,12 +259,14 @@ fn run_post(
             artifact_dir,
             "blocked",
             "requested channel does not match configured #aquarium channel id",
+            Some(&audit),
         )?;
         return Ok(serde_json::json!({
             "ok": false,
             "posted": false,
             "blocked": "wrong-channel",
             "draftPath": path,
+            "speechAudit": audit,
         }));
     }
     let Some(token) = bot_token(config) else {
@@ -194,12 +276,14 @@ fn run_post(
             artifact_dir,
             "blocked",
             "missing Discord bot token",
+            Some(&audit),
         )?;
         return Ok(serde_json::json!({
             "ok": false,
             "posted": false,
             "blocked": "missing-token",
             "draftPath": path,
+            "speechAudit": audit,
         }));
     };
     let persona = resolve_persona(config, persona_name, persona_avatar_url)?;
@@ -221,6 +305,7 @@ fn run_post(
             "posted message {} via {}",
             posted.message_id, posted.transport
         ),
+        Some(&audit),
     )?;
     Ok(serde_json::json!({
         "ok": true,
@@ -232,11 +317,12 @@ fn run_post(
             "avatarUrl": persona.avatar_url,
         })),
         "draftPath": path,
+        "speechAudit": audit,
     }))
 }
 
 #[derive(Clone, Debug)]
-struct FacePersona {
+struct PersonaPersona {
     name: String,
     avatar_url: Option<String>,
 }
@@ -247,11 +333,168 @@ struct PostedDiscordMessage {
     transport: &'static str,
 }
 
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+enum PersonaSpeechActionKind {
+    Draft,
+    Bubble,
+    Post,
+}
+
+impl PersonaSpeechActionKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            PersonaSpeechActionKind::Draft => "draft",
+            PersonaSpeechActionKind::Bubble => "bubble",
+            PersonaSpeechActionKind::Post => "post",
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersonaSpeechAudit {
+    #[serde(rename = "schema_version")]
+    schema_version: String,
+    audit_id: String,
+    created_at: String,
+    action_kind: PersonaSpeechActionKind,
+    decision: String,
+    reasons: Vec<String>,
+    content_fingerprint: String,
+    opening_key: String,
+    topic_key: String,
+    requested_channel_id: Option<String>,
+    recent_window_count: usize,
+    repeated_opening_count: usize,
+    repeated_topic_count: usize,
+    same_channel_post_count: usize,
+    audit_path: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+struct RecentPersonaSpeech {
+    opening_key: String,
+    topic_key: String,
+    channel_id: Option<String>,
+    action_kind: PersonaSpeechActionKind,
+}
+
+fn audit_persona_speech(
+    content: &str,
+    action_kind: PersonaSpeechActionKind,
+    artifact_dir: &Path,
+    cultmesh_store: &Path,
+    runtime_id: &str,
+    requested_channel_id: Option<&str>,
+    public_post: bool,
+) -> Result<PersonaSpeechAudit> {
+    let opening_key = opening_key(content);
+    let topic_key = topic_key(content);
+    let recent = recent_persona_speech(artifact_dir, 12);
+    let repeated_opening_count = recent
+        .iter()
+        .filter(|speech| !opening_key.is_empty() && speech.opening_key == opening_key)
+        .count();
+    let repeated_topic_count = recent
+        .iter()
+        .filter(|speech| !topic_key.is_empty() && speech.topic_key == topic_key)
+        .count();
+    let same_channel_post_count = requested_channel_id
+        .map(|channel_id| {
+            recent
+                .iter()
+                .filter(|speech| {
+                    speech.action_kind == PersonaSpeechActionKind::Post
+                        && speech.channel_id.as_deref() == Some(channel_id)
+                })
+                .count()
+        })
+        .unwrap_or(0);
+    let mut reasons = Vec::new();
+    if public_post && repeated_opening_count >= 2 {
+        reasons.push("repeated-opening".to_string());
+    }
+    if public_post && repeated_topic_count >= 3 {
+        reasons.push("repeated-topic".to_string());
+    }
+    if public_post && same_channel_post_count >= 4 {
+        reasons.push("channel-saturation".to_string());
+    }
+    if content.trim().len() > 1800 {
+        reasons.push("content-too-long-for-public-persona".to_string());
+    }
+    let decision = if reasons.is_empty() {
+        "eligible"
+    } else {
+        "blocked"
+    }
+    .to_string();
+    let audit_id = format!("persona-speech-audit-{}", short_id());
+    let audit_path = artifact_dir.join(format!(
+        "Persona-speech-audit-{}-{}.json",
+        now_stamp(),
+        audit_id
+    ));
+    let audit = PersonaSpeechAudit {
+        schema_version: SPEECH_AUDIT_SCHEMA_VERSION.to_string(),
+        audit_id,
+        created_at: now_iso(),
+        action_kind,
+        decision,
+        reasons,
+        content_fingerprint: content_fingerprint(content),
+        opening_key,
+        topic_key,
+        requested_channel_id: requested_channel_id.map(str::to_string),
+        recent_window_count: recent.len(),
+        repeated_opening_count,
+        repeated_topic_count,
+        same_channel_post_count,
+        audit_path,
+    };
+    write_json(&audit.audit_path, &serde_json::to_value(&audit)?)?;
+    let cultmesh_entry = persona_speech_audit_cultmesh_entry(&audit, runtime_id);
+    write_epiphany_cultmesh_persona_speech_audit(cultmesh_store, cultmesh_entry)?;
+    Ok(audit)
+}
+
+fn persona_speech_audit_cultmesh_entry(
+    audit: &PersonaSpeechAudit,
+    runtime_id: &str,
+) -> EpiphanyCultMeshPersonaSpeechAuditEntry {
+    EpiphanyCultMeshPersonaSpeechAuditEntry {
+        schema_version: EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION.to_string(),
+        audit_id: audit.audit_id.clone(),
+        runtime_id: runtime_id.to_string(),
+        verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+        persona_agent_id: "epiphany.Persona".to_string(),
+        action_kind: audit.action_kind.as_str().to_string(),
+        decision: audit.decision.clone(),
+        content_fingerprint: audit.content_fingerprint.clone(),
+        opening_key: audit.opening_key.clone(),
+        topic_key: audit.topic_key.clone(),
+        requested_channel_id: audit.requested_channel_id.clone().unwrap_or_default(),
+        recent_window_count: audit.recent_window_count as u32,
+        repeated_opening_count: audit.repeated_opening_count as u32,
+        repeated_topic_count: audit.repeated_topic_count as u32,
+        same_channel_post_count: audit.same_channel_post_count as u32,
+        reasons: audit.reasons.clone(),
+        artifact_ref: audit.audit_path.display().to_string(),
+        created_at_utc: audit.created_at.clone(),
+        private_state_exposed: false,
+        notes: vec![
+            "Persona speech audit is parent-side mouth policy; it stores fingerprints and counters, not raw Persona prose.".to_string(),
+            "Public speech remains blocked when repetition or saturation trips before Discord transport work.".to_string(),
+        ],
+    }
+}
+
 fn resolve_persona(
-    config: &FaceConfig,
+    config: &PersonaConfig,
     persona_name: Option<String>,
     persona_avatar_url: Option<String>,
-) -> Result<Option<FacePersona>> {
+) -> Result<Option<PersonaPersona>> {
     let name = trim_optional(persona_name).or_else(|| trim_optional(config.persona_name.clone()));
     let avatar_url = trim_optional(persona_avatar_url)
         .or_else(|| trim_optional(config.persona_avatar_url.clone()));
@@ -263,7 +506,7 @@ fn resolve_persona(
             "persona-name is required when posting with a persona avatar"
         ));
     };
-    Ok(Some(FacePersona {
+    Ok(Some(PersonaPersona {
         name: name.chars().take(80).collect(),
         avatar_url,
     }))
@@ -274,8 +517,8 @@ fn post_discord_message(
     channel_id: &str,
     content: &str,
     reply_to_message_id: Option<&str>,
-    persona: Option<&FacePersona>,
-    config: &FaceConfig,
+    persona: Option<&PersonaPersona>,
+    config: &PersonaConfig,
     artifact_dir: &Path,
 ) -> Result<PostedDiscordMessage> {
     if let Some(persona) = persona {
@@ -293,7 +536,7 @@ fn post_discord_message(
     let response = Client::new()
         .post(format!("{DISCORD_API}/channels/{channel_id}/messages"))
         .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyFace/0.1")
+        .header("User-Agent", "EpiphanyPersona/0.1")
         .json(&serde_json::json!({
             "content": content,
             "message_reference": reply_to_message_id.map(|message_id| serde_json::json!({
@@ -316,8 +559,8 @@ fn post_discord_persona_message(
     channel_id: &str,
     content: &str,
     reply_to_message_id: Option<&str>,
-    persona: &FacePersona,
-    config: &FaceConfig,
+    persona: &PersonaPersona,
+    config: &PersonaConfig,
     artifact_dir: &Path,
 ) -> Result<PostedDiscordMessage> {
     let target = resolve_webhook_target(token, channel_id)?;
@@ -361,7 +604,7 @@ fn resolve_webhook_target(token: &str, channel_id: &str) -> Result<WebhookTarget
     let response = Client::new()
         .get(format!("{DISCORD_API}/channels/{channel_id}"))
         .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyFace/0.1")
+        .header("User-Agent", "EpiphanyPersona/0.1")
         .send()
         .context("Discord channel lookup failed")?;
     let payload = decode_discord_json(response, "Discord channel lookup")?;
@@ -388,7 +631,7 @@ fn create_persona_webhook(token: &str, channel_id: &str) -> Result<CachedWebhook
     let response = Client::new()
         .post(format!("{DISCORD_API}/channels/{channel_id}/webhooks"))
         .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyFace/0.1")
+        .header("User-Agent", "EpiphanyPersona/0.1")
         .json(&serde_json::json!({"name": "Epiphany Persona Pipe"}))
         .send()
         .context("Discord webhook creation failed")?;
@@ -411,7 +654,7 @@ fn execute_persona_webhook(
     target: &WebhookTarget,
     content: &str,
     reply_to_message_id: Option<&str>,
-    persona: &FacePersona,
+    persona: &PersonaPersona,
 ) -> Result<PostedDiscordMessage> {
     let mut url = format!(
         "{DISCORD_API}/webhooks/{}/{}?wait=true",
@@ -423,7 +666,7 @@ fn execute_persona_webhook(
     }
     let response = Client::new()
         .post(url)
-        .header("User-Agent", "EpiphanyFace/0.1")
+        .header("User-Agent", "EpiphanyPersona/0.1")
         .json(&serde_json::json!({
             "content": content,
             "username": persona.name,
@@ -444,54 +687,103 @@ fn execute_persona_webhook(
 }
 
 fn run_smoke() -> Result<Value> {
-    let temp_dir = scoped_temp_dir("epiphany-face-discord-smoke")?;
-    let config = FaceConfig {
+    let temp_dir = scoped_temp_dir("epiphany-persona-discord-smoke")?;
+    let cultmesh_store = temp_dir.join("persona-speech.ccmp");
+    let runtime_id = "epiphany-persona-smoke";
+    let config = PersonaConfig {
         allowed_channel_name: "#aquarium".to_string(),
         allowed_channel_id: None,
-        allowed_channel_id_env: Some("EPIPHANY_FACE_AQUARIUM_CHANNEL_ID_TEST".to_string()),
+        allowed_channel_id_env: Some("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST".to_string()),
         bot_token_env: Some("DISCORD_BOT_TOKEN_TEST".to_string()),
-        persona_name: Some("Smoke Face".to_string()),
-        persona_avatar_url: Some("https://example.invalid/face.png".to_string()),
+        persona_name: Some("Smoke Persona".to_string()),
+        persona_avatar_url: Some("https://example.invalid/Persona.png".to_string()),
         webhook_cache_path: Some(temp_dir.join("webhook-cache.json")),
     };
     unsafe {
-        env::remove_var("EPIPHANY_FACE_AQUARIUM_CHANNEL_ID_TEST");
+        env::remove_var("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST");
     }
     let draft = run_draft(
-        "Face notices Proprioception and Soul disagree about evidence shape.",
+        "Persona notices Modeling and Soul disagree about evidence shape.",
         &config,
         &temp_dir,
+        &cultmesh_store,
+        runtime_id,
         "draft",
         "drafted without posting",
     )?;
     let bubble = run_bubble(
-        "Face opens an Aquarium bubble even while Discord is unavailable.",
+        "Persona opens an Aquarium bubble even while Discord is unavailable.",
         &temp_dir,
-        "smoke/face",
+        &cultmesh_store,
+        runtime_id,
+        "smoke/Persona",
         "ready",
         "attentive",
     )?;
     let blocked = run_post(
-        "Face should not post without a configured #aquarium channel id.",
+        "Persona should not post without a configured #aquarium channel id.",
         &config,
         &temp_dir,
+        &cultmesh_store,
+        runtime_id,
         None,
         None,
         None,
         None,
     )?;
     unsafe {
-        env::set_var("EPIPHANY_FACE_AQUARIUM_CHANNEL_ID_TEST", "123");
+        env::set_var("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST", "123");
     }
     let wrong = run_post(
-        "Face should not post outside #aquarium.",
+        "Persona should not post outside #aquarium.",
         &config,
         &temp_dir,
+        &cultmesh_store,
+        runtime_id,
         Some("456".to_string()),
-        Some("Wrong Face".to_string()),
+        Some("Wrong Persona".to_string()),
         None,
         None,
     )?;
+    let repeated_audit_seed = audit_persona_speech(
+        "Rite noted: Modeling and Soul keep circling the same evidence seam.",
+        PersonaSpeechActionKind::Post,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        Some("123"),
+        false,
+    )?;
+    write_draft(
+        "Rite noted: Modeling and Soul keep circling the same evidence seam.",
+        &config,
+        &temp_dir,
+        "posted",
+        "seed prior posted Persona output for speech-audit smoke",
+        Some(&repeated_audit_seed),
+    )?;
+    write_draft(
+        "Rite noted: Modeling and Soul keep circling the same evidence seam.",
+        &config,
+        &temp_dir,
+        "posted",
+        "seed second prior posted Persona output for speech-audit smoke",
+        Some(&repeated_audit_seed),
+    )?;
+    let repeated = run_post(
+        "Rite noted: Modeling and Soul keep circling the same evidence seam again.",
+        &config,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        Some("123".to_string()),
+        None,
+        None,
+        None,
+    )?;
+    let latest_cultmesh_audit =
+        load_latest_epiphany_cultmesh_persona_speech_audit(&cultmesh_store, runtime_id)?
+            .context("Persona speech audit smoke expected latest CultMesh audit")?;
     let ok = draft["ok"] == true
         && bubble["ok"] == true
         && bubble["bubble"]["schema_version"] == BUBBLE_SCHEMA_VERSION
@@ -499,13 +791,27 @@ fn run_smoke() -> Result<Value> {
         && blocked["ok"] == false
         && blocked["blocked"] == "missing-channel-id"
         && wrong["ok"] == false
-        && wrong["blocked"] == "wrong-channel";
+        && wrong["blocked"] == "wrong-channel"
+        && repeated["ok"] == false
+        && repeated["blocked"] == "speech-audit"
+        && repeated["speechAudit"]["decision"] == "blocked"
+        && repeated["speechAudit"]["reasons"]
+            .as_array()
+            .is_some_and(|reasons| reasons.iter().any(|reason| reason == "repeated-opening"))
+        && latest_cultmesh_audit.decision == "blocked"
+        && latest_cultmesh_audit
+            .reasons
+            .iter()
+            .any(|reason| reason == "repeated-opening")
+        && !latest_cultmesh_audit.private_state_exposed;
     let result = serde_json::json!({
         "ok": ok,
         "draft": draft,
         "bubble": bubble,
         "blocked": blocked,
         "wrongChannel": wrong,
+        "repeatedSpeech": repeated,
+        "latestCultMeshSpeechAudit": latest_cultmesh_audit,
     });
     let _ = fs::remove_dir_all(&temp_dir);
     Ok(result)
@@ -513,10 +819,11 @@ fn run_smoke() -> Result<Value> {
 
 fn write_draft(
     content: &str,
-    config: &FaceConfig,
+    config: &PersonaConfig,
     artifact_dir: &Path,
     status: &str,
     reason: &str,
+    speech_audit: Option<&PersonaSpeechAudit>,
 ) -> Result<PathBuf> {
     let payload = serde_json::json!({
         "schema_version": CHAT_SCHEMA_VERSION,
@@ -528,8 +835,9 @@ fn write_draft(
         "persona_name": config.persona_name,
         "persona_avatar_url": config.persona_avatar_url,
         "content": content.trim(),
+        "speechAudit": speech_audit,
     });
-    let path = artifact_dir.join(format!("face-chat-{}-{}.json", now_stamp(), short_id()));
+    let path = artifact_dir.join(format!("Persona-chat-{}-{}.json", now_stamp(), short_id()));
     write_json(&path, &payload)?;
     Ok(path)
 }
@@ -541,14 +849,14 @@ fn bubble_payload(content: &str, source: &str, status: &str, mood: &str) -> Valu
         "status": status,
         "source": source,
         "target": "aquarium",
-        "role_id": "face",
-        "agent_id": "face",
-        "display_name": "Face",
+        "role_id": "Persona",
+        "agent_id": "Persona",
+        "display_name": "Persona",
         "mood": mood,
         "content": content.trim(),
         "bubble": {
             "kind": "agent-chat",
-            "anchorRoleId": "face",
+            "anchorRoleId": "Persona",
             "opensIn": "aquarium",
             "requiresDiscord": false,
             "ttlSeconds": 90,
@@ -556,7 +864,7 @@ fn bubble_payload(content: &str, source: &str, status: &str, mood: &str) -> Valu
     })
 }
 
-fn latest_face_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
+fn latest_persona_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
     let Ok(read_dir) = fs::read_dir(artifact_dir) else {
         return Vec::new();
     };
@@ -566,7 +874,7 @@ fn latest_face_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("face-") && name.ends_with(".json"))
+                .is_some_and(|name| name.starts_with("Persona-") && name.ends_with(".json"))
         })
         .filter_map(|path| Some((path.metadata().ok()?.modified().ok()?, path)))
         .collect::<Vec<_>>();
@@ -592,7 +900,113 @@ fn latest_face_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
         .collect()
 }
 
-fn persona_webhook_cache_path(config: &FaceConfig, artifact_dir: &Path) -> PathBuf {
+fn recent_persona_speech(artifact_dir: &Path, limit: usize) -> Vec<RecentPersonaSpeech> {
+    let Ok(read_dir) = fs::read_dir(artifact_dir) else {
+        return Vec::new();
+    };
+    let mut paths = read_dir
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| {
+                    name.starts_with("Persona-chat-") || name.starts_with("Persona-bubble-")
+                })
+        })
+        .filter_map(|path| Some((path.metadata().ok()?.modified().ok()?, path)))
+        .collect::<Vec<_>>();
+    paths.sort_by_key(|item| Reverse(item.0));
+    paths
+        .into_iter()
+        .take(limit)
+        .filter_map(|(_, path)| {
+            let payload: Value = serde_json::from_str(&fs::read_to_string(&path).ok()?).ok()?;
+            let content = payload["content"]
+                .as_str()
+                .or_else(|| payload["bubble"]["content"].as_str())?
+                .to_string();
+            let status = payload["status"].as_str().unwrap_or_default();
+            let action_kind = if payload["schema_version"] == BUBBLE_SCHEMA_VERSION {
+                PersonaSpeechActionKind::Bubble
+            } else if status == "posted" {
+                PersonaSpeechActionKind::Post
+            } else {
+                PersonaSpeechActionKind::Draft
+            };
+            Some(RecentPersonaSpeech {
+                opening_key: opening_key(&content),
+                topic_key: topic_key(&content),
+                channel_id: payload["allowed_channel_id"].as_str().map(str::to_string),
+                action_kind,
+            })
+        })
+        .collect()
+}
+
+fn opening_key(content: &str) -> String {
+    content
+        .split_whitespace()
+        .take(5)
+        .map(normalize_token)
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn topic_key(content: &str) -> String {
+    let mut tokens = content
+        .split_whitespace()
+        .map(normalize_token)
+        .filter(|token| token.len() >= 4 && !persona_stopword(token))
+        .collect::<Vec<_>>();
+    tokens.sort();
+    tokens.dedup();
+    tokens.into_iter().take(6).collect::<Vec<_>>().join("|")
+}
+
+fn content_fingerprint(content: &str) -> String {
+    topic_key(content)
+        + "::"
+        + &content
+            .split_whitespace()
+            .map(normalize_token)
+            .filter(|token| !token.is_empty())
+            .take(24)
+            .collect::<Vec<_>>()
+            .join("-")
+}
+
+fn normalize_token(value: &str) -> String {
+    value
+        .trim_matches(|ch: char| !ch.is_ascii_alphanumeric())
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
+        .collect::<String>()
+        .to_ascii_lowercase()
+}
+
+fn persona_stopword(value: &str) -> bool {
+    matches!(
+        value,
+        "about"
+            | "after"
+            | "again"
+            | "because"
+            | "before"
+            | "being"
+            | "should"
+            | "there"
+            | "these"
+            | "thing"
+            | "through"
+            | "under"
+            | "without"
+            | "would"
+    )
+}
+
+fn persona_webhook_cache_path(config: &PersonaConfig, artifact_dir: &Path) -> PathBuf {
     config
         .webhook_cache_path
         .clone()
@@ -673,7 +1087,7 @@ fn strip_bom(value: &str) -> &str {
     value.strip_prefix('\u{feff}').unwrap_or(value)
 }
 
-fn load_config(path: &Path) -> Result<FaceConfig> {
+fn load_config(path: &Path) -> Result<PersonaConfig> {
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     if path
@@ -682,7 +1096,7 @@ fn load_config(path: &Path) -> Result<FaceConfig> {
     {
         let payload: Value = serde_json::from_str(&raw)
             .with_context(|| format!("failed to decode {}", path.display()))?;
-        return Ok(FaceConfig {
+        return Ok(PersonaConfig {
             allowed_channel_name: payload["allowed_channel_name"]
                 .as_str()
                 .unwrap_or("#aquarium")
@@ -701,7 +1115,7 @@ fn load_config(path: &Path) -> Result<FaceConfig> {
             webhook_cache_path: payload["webhook_cache_path"].as_str().map(PathBuf::from),
         });
     }
-    Ok(FaceConfig {
+    Ok(PersonaConfig {
         allowed_channel_name: toml_string(&raw, "allowed_channel_name")
             .unwrap_or_else(|| "#aquarium".to_string()),
         allowed_channel_id: toml_string(&raw, "allowed_channel_id"),
@@ -731,14 +1145,14 @@ fn parse_quoted(value: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn allowed_channel_id(config: &FaceConfig) -> Option<String> {
+fn allowed_channel_id(config: &PersonaConfig) -> Option<String> {
     config
         .allowed_channel_id
         .clone()
         .or_else(|| config.allowed_channel_id_env.as_ref().and_then(env_value))
 }
 
-fn bot_token(config: &FaceConfig) -> Option<String> {
+fn bot_token(config: &PersonaConfig) -> Option<String> {
     config.bot_token_env.as_ref().and_then(env_value)
 }
 
@@ -812,6 +1226,6 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-face-discord <draft|bubble|post|latest|smoke> [--config <path>] [--artifact-dir <path>] [--content <text-or-path>]"
+        "usage: epiphany-persona-discord <draft|bubble|post|latest|smoke> [--config <path>] [--artifact-dir <path>] [--content <text-or-path>]"
     ))
 }

@@ -10,8 +10,8 @@ Rust structures live in
 
 This document now covers two things:
 
-1. the dense Persona vocabulary used by Face, Ghostlight characters, and
-   VoidBot-style repo Faces
+1. the dense Persona vocabulary used by Persona, Ghostlight characters, and
+   VoidBot-style repo Personas
 2. the lean standing Epiphany role lattice used by resident work organs
 
 Those are related, not identical.
@@ -41,8 +41,8 @@ This is enough to separate character from moment, which is a small mercy.
 
 ## Dense Embodied Profile Vocabulary
 
-These are the canonical Persona-family labels appropriate for Epiphany Face,
-VoidBot repo Faces, and Ghostlight scene characters.
+These are the canonical Persona-family labels appropriate for Epiphany Persona,
+VoidBot repo Personas, and Ghostlight scene characters.
 
 ### Underlying Organization
 
@@ -125,7 +125,7 @@ VoidBot repo Faces, and Ghostlight scene characters.
 | `self_disclosure` | volunteers private motives or history |
 | `hedging` | caveats, uncertainty markers, or softeners |
 | `certainty_marking` | signals confidence or finality |
-| `politeness` | courtesy and face-saving language |
+| `politeness` | courtesy and Persona-saving language |
 | `coded_politeness` | politeness used to imply criticism, threat, or hierarchy |
 | `ritualized_address` | formulaic greetings, titles, prayers, or ceremonial phrases |
 | `register_switching` | shifts register by audience or pressure |
@@ -150,7 +150,7 @@ VoidBot repo Faces, and Ghostlight scene characters.
 | `overstimulation` | sensory, social, cognitive, or emotional overload |
 | `grievance_activation` | resentment or retaliatory moral charge |
 | `acute_shame` | immediate shame flare or self-disgust |
-| `perceived_status_threat` | sense that rank, dignity, competence, or face is under threat |
+| `perceived_status_threat` | sense that rank, dignity, competence, or Persona is under threat |
 
 ### Relationship Stance
 
@@ -186,7 +186,7 @@ The current live swarm carries one named trait per family per organ.
 | `voice_style` | `dry_direct_operator` | concise operator speech with low ornamental fluff |
 | `situational_state` | `lane_skepticism` | treats sub-agent success claims as something to verify |
 
-### Face
+### Persona
 
 | Family | Trait | Working Meaning |
 | --- | --- | --- |
@@ -219,7 +219,7 @@ The current live swarm carries one named trait per family per organ.
 | `voice_style` | `clear_scout_report` | crisp evidence-forward research voice |
 | `situational_state` | `unknowns_visible` | keeps uncertainty in frame instead of pretending it solved itself |
 
-### Proprioception
+### Modeling
 
 | Family | Trait | Working Meaning |
 | --- | --- | --- |

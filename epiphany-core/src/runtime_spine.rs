@@ -133,7 +133,7 @@ pub const SURFACE_ROLE_RESULT_TYPE: &str = "epiphany.surface.role_result";
 pub const SURFACE_REORIENT_RESULT_TYPE: &str = "epiphany.surface.reorient_result";
 pub const SURFACE_PLANNING_TYPE: &str = "epiphany.surface.planning";
 pub const SURFACE_COORDINATOR_TYPE: &str = "epiphany.surface.coordinator";
-pub const SURFACE_FACE_TYPE: &str = "epiphany.surface.face";
+pub const SURFACE_PERSONA_TYPE: &str = "epiphany.surface.persona";
 pub const SURFACE_VOID_MEMORY_TYPE: &str = "epiphany.surface.void_memory";
 pub const SURFACE_REPO_INITIALIZATION_TYPE: &str = "epiphany.surface.repo_initialization";
 pub const SURFACE_REPO_BIRTH_RUNNER_TYPE: &str = "epiphany.surface.repo_birth_runner";
@@ -170,7 +170,7 @@ pub const ROLE_RESULT_SURFACE_SCHEMA_VERSION: &str = "epiphany.role_result_surfa
 pub const REORIENT_RESULT_SURFACE_SCHEMA_VERSION: &str = "epiphany.reorient_result_surface.v0";
 pub const PLANNING_SURFACE_SCHEMA_VERSION: &str = "epiphany.planning_surface.v0";
 pub const COORDINATOR_SURFACE_SCHEMA_VERSION: &str = "epiphany.coordinator_surface.v0";
-pub const FACE_SURFACE_SCHEMA_VERSION: &str = "epiphany.face_surface.v0";
+pub const PERSONA_SURFACE_SCHEMA_VERSION: &str = "epiphany.persona_surface.v0";
 pub const VOID_MEMORY_SURFACE_SCHEMA_VERSION: &str = "epiphany.void_memory_surface.v0";
 pub const REPO_INITIALIZATION_SURFACE_SCHEMA_VERSION: &str =
     "epiphany.repo_initialization_surface.v0";
@@ -722,6 +722,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<HandsPatchReceipt>()?;
     cache.register_entry_type::<HandsCommandReceipt>()?;
     cache.register_entry_type::<HandsCommitReceipt>()?;
+    cache.register_entry_type::<HandsPrReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
     cache.register_entry_type::<ContinuityRecoveryReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
@@ -1419,6 +1420,142 @@ pub fn runtime_hands_commit_receipt(
     cache.get::<HandsCommitReceipt>(receipt_id)
 }
 
+pub fn put_hands_pr_receipt(store_path: impl AsRef<Path>, receipt: &HandsPrReceipt) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "Hands PR receipt id")?;
+    validate_non_empty(&receipt.intent_id, "Hands PR intent")?;
+    validate_non_empty(&receipt.review_id, "Hands PR review")?;
+    validate_non_empty(&receipt.runtime_job_id, "Hands PR runtime job")?;
+    validate_non_empty(&receipt.commit_receipt_id, "Hands PR commit receipt")?;
+    validate_non_empty(&receipt.commit_sha, "Hands PR commit sha")?;
+    validate_non_empty(&receipt.branch, "Hands PR branch")?;
+    validate_non_empty(&receipt.pull_request_url, "Hands PR url")?;
+    validate_non_empty(&receipt.pull_request_number, "Hands PR number")?;
+    validate_non_empty(&receipt.pull_request_title, "Hands PR title")?;
+    validate_non_empty(
+        &receipt.bifrost_publication_receipt_id,
+        "Hands PR Bifrost publication receipt",
+    )?;
+    validate_non_empty(&receipt.summary, "Hands PR summary")?;
+    validate_non_empty(&receipt.emitted_at, "Hands PR timestamp")?;
+    if receipt.changed_paths.is_empty() {
+        return Err(anyhow!("Hands PR receipt must name changed paths"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_hands_pr_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<HandsPrReceipt>> {
+    validate_non_empty(receipt_id, "Hands PR receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<HandsPrReceipt>(receipt_id)
+}
+
+pub fn runtime_hands_receipt_chain_after(
+    store_path: impl AsRef<Path>,
+    after_timestamp: &str,
+) -> Result<bool> {
+    Ok(runtime_latest_hands_receipt_chain_after(store_path, after_timestamp)?.is_some())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeHandsReceiptChainSummary {
+    pub patch_schema_version: String,
+    pub patch_receipt_id: String,
+    pub command_schema_version: String,
+    pub command_receipt_id: String,
+    pub commit_schema_version: String,
+    pub commit_receipt_id: String,
+    pub intent_id: String,
+    pub review_id: String,
+    pub runtime_job_id: String,
+    pub substrate_gate_grant_receipt_id: String,
+    pub changed_paths: Vec<String>,
+    pub command: String,
+    pub exit_code: String,
+    pub stdout_artifact: String,
+    pub stderr_artifact: String,
+    pub commit_sha: String,
+    pub branch: String,
+    pub summary: String,
+    pub emitted_at: String,
+}
+
+pub fn runtime_latest_hands_receipt_chain_after(
+    store_path: impl AsRef<Path>,
+    after_timestamp: &str,
+) -> Result<Option<RuntimeHandsReceiptChainSummary>> {
+    validate_non_empty(after_timestamp, "Hands receipt lower-bound timestamp")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let patches = cache.get_all::<HandsPatchReceipt>()?;
+    let commands = cache.get_all::<HandsCommandReceipt>()?;
+    let commits = cache.get_all::<HandsCommitReceipt>()?;
+
+    let mut summaries = Vec::new();
+    for commit in commits
+        .iter()
+        .filter(|commit| timestamp_after(&commit.emitted_at, after_timestamp))
+    {
+        let Some(patch) = patches
+            .iter()
+            .filter(|patch| {
+                patch.intent_id == commit.intent_id
+                    && patch.review_id == commit.review_id
+                    && patch.runtime_job_id == commit.runtime_job_id
+                    && timestamp_after(&patch.emitted_at, after_timestamp)
+                    && patch.emitted_at <= commit.emitted_at
+            })
+            .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
+        else {
+            continue;
+        };
+        let Some(command) = commands
+            .iter()
+            .filter(|command| {
+                command.intent_id == commit.intent_id
+                    && command.review_id == commit.review_id
+                    && command.runtime_job_id == commit.runtime_job_id
+                    && command.exit_code == "0"
+                    && timestamp_after(&command.emitted_at, after_timestamp)
+                    && command.emitted_at <= commit.emitted_at
+            })
+            .max_by(|left, right| left.emitted_at.cmp(&right.emitted_at))
+        else {
+            continue;
+        };
+        summaries.push(RuntimeHandsReceiptChainSummary {
+            patch_schema_version: patch.schema_version.clone(),
+            patch_receipt_id: patch.receipt_id.clone(),
+            command_schema_version: command.schema_version.clone(),
+            command_receipt_id: command.receipt_id.clone(),
+            commit_schema_version: commit.schema_version.clone(),
+            commit_receipt_id: commit.receipt_id.clone(),
+            intent_id: commit.intent_id.clone(),
+            review_id: commit.review_id.clone(),
+            runtime_job_id: commit.runtime_job_id.clone(),
+            substrate_gate_grant_receipt_id: command.substrate_gate_grant_receipt_id.clone(),
+            changed_paths: commit.changed_paths.clone(),
+            command: command.command.clone(),
+            exit_code: command.exit_code.clone(),
+            stdout_artifact: command.stdout_artifact.clone(),
+            stderr_artifact: command.stderr_artifact.clone(),
+            commit_sha: commit.commit_sha.clone(),
+            branch: commit.branch.clone(),
+            summary: commit.summary.clone(),
+            emitted_at: commit.emitted_at.clone(),
+        });
+    }
+    summaries.sort_by(|left, right| left.emitted_at.cmp(&right.emitted_at));
+    Ok(summaries.pop())
+}
+
 pub fn put_soul_verdict_receipt(
     store_path: impl AsRef<Path>,
     receipt: &SoulVerdictReceipt,
@@ -2062,7 +2199,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 MIND_STATE_REJECTION_RECEIPT_TYPE,
             ],
             vec![
-                "Mind is the persistent state guardian: role acceptance, reorientation acceptance, Face Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.",
+                "Mind is the persistent state guardian: role acceptance, reorientation acceptance, Persona Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.",
                 "Workers and public Verse ingress propose effects; Mind accepts, refuses, or holds them before any durable state mutation.",
             ],
         ),
@@ -2964,21 +3101,21 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         coordinator_surface_contract(
-            SURFACE_FACE_TYPE,
-            FACE_SURFACE_SCHEMA_VERSION,
+            SURFACE_PERSONA_TYPE,
+            PERSONA_SURFACE_SCHEMA_VERSION,
             vec![
-                "epiphany.face_bubble_intent.v0",
+                "epiphany.persona_bubble_intent.v0",
                 "epiphany.character_turn_intent.v0",
                 "epiphany.discord_persona_post_intent.v0",
             ],
             vec![
-                "epiphany.face_bubble.v0",
-                "epiphany.face_chat.v0",
+                "epiphany.persona_bubble.v0",
+                "epiphany.persona_chat.v0",
                 "epiphany.character_turn_packet.v0",
             ],
             vec![
-                "Face bubble, draft, and Discord persona affordances are projected from typed Face and character-loop artifacts.",
-                "Humans talk to Face; sealed inner thoughts stay behind the projection boundary.",
+                "Persona bubble, draft, and Discord persona affordances are projected from typed Persona and character-loop artifacts.",
+                "Humans talk to Persona; sealed inner thoughts stay behind the projection boundary.",
             ],
         ),
         read_only_surface_contract(
@@ -3026,6 +3163,10 @@ fn validate_non_empty(value: &str, field: &str) -> Result<()> {
         return Err(anyhow!("{field} must be non-empty"));
     }
     Ok(())
+}
+
+fn timestamp_after(value: &str, lower_bound: &str) -> bool {
+    !value.trim().is_empty() && value > lower_bound
 }
 
 fn worker_launch_document_kind(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
@@ -3553,6 +3694,19 @@ mod tests {
             "2026-05-06T00:07:10Z".to_string(),
         );
         put_hands_commit_receipt(&store, &hands_commit)?;
+        let hands_pr = crate::hands_pr_receipt_for_review(
+            "hands-pr-1".to_string(),
+            &hands_intent,
+            &hands_review,
+            &hands_commit,
+            "https://github.com/GameCult/EpiphanyAgent/pull/1".to_string(),
+            "1".to_string(),
+            "Publish focused patch".to_string(),
+            "bifrost-publication-receipt-1".to_string(),
+            "Published focused patch as pull request.".to_string(),
+            "2026-05-06T00:07:20Z".to_string(),
+        );
+        put_hands_pr_receipt(&store, &hands_pr)?;
         let stored_intent = runtime_hands_action_intent(&store, "hands-intent-1")?
             .expect("Hands action intent should persist");
         assert_eq!(stored_intent, hands_intent);
@@ -3568,12 +3722,158 @@ mod tests {
         let stored_commit = runtime_hands_commit_receipt(&store, "hands-commit-1")?
             .expect("Hands commit receipt should persist");
         assert_eq!(stored_commit, hands_commit);
+        let stored_pr = runtime_hands_pr_receipt(&store, "hands-pr-1")?
+            .expect("Hands PR receipt should persist");
+        assert_eq!(stored_pr, hands_pr);
+        assert!(runtime_hands_receipt_chain_after(
+            &store,
+            "2026-05-06T00:06:45Z"
+        )?);
+        let hands_chain = runtime_latest_hands_receipt_chain_after(&store, "2026-05-06T00:06:45Z")?
+            .expect("Hands receipt chain should summarize");
+        assert_eq!(hands_chain.patch_receipt_id, "hands-patch-1");
+        assert_eq!(hands_chain.command_receipt_id, "hands-command-1");
+        assert_eq!(hands_chain.commit_receipt_id, "hands-commit-1");
+        assert_eq!(hands_chain.exit_code, "0");
+        assert!(!runtime_hands_receipt_chain_after(
+            &store,
+            "2026-05-06T00:07:15Z"
+        )?);
         let stored_verdict = runtime_soul_verdict_receipt(&store, "soul-verdict-1")?
             .expect("Soul verdict should persist");
         assert_eq!(stored_verdict, soul_verdict);
         let stored_recovery = runtime_continuity_recovery_receipt(&store, "continuity-recovery-1")?
             .expect("Continuity recovery should persist");
         assert_eq!(stored_recovery, continuity_recovery);
+        Ok(())
+    }
+
+    #[test]
+    fn latest_hands_chain_uses_latest_same_gate_receipts_before_commit() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-06-13T00:00:00Z".to_string(),
+            },
+        )?;
+        let intent = HandsActionIntent {
+            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "hands-intent-reused".to_string(),
+            runtime_job_id: "hands-job-reused".to_string(),
+            binding_id: "implementation-worker".to_string(),
+            role: "epiphany-hands".to_string(),
+            authority_scope: "epiphany.role.implementation".to_string(),
+            requested_action: "continueImplementation".to_string(),
+            requested_paths: vec![".".to_string()],
+            substrate_gate_grant_receipt_id: "substrate-grant-reused".to_string(),
+            requested_at: "2026-06-13T00:00:01Z".to_string(),
+            contract: "Test reused Hands gate.".to_string(),
+        };
+        put_hands_action_intent(&store, &intent)?;
+        let review = crate::hands_action_review_for_intent(
+            "hands-review-reused".to_string(),
+            &intent,
+            "approved".to_string(),
+            vec![
+                "patch".to_string(),
+                "command".to_string(),
+                "commit".to_string(),
+            ],
+            vec!["test reused gate".to_string()],
+            "2026-06-13T00:00:02Z".to_string(),
+        );
+        put_hands_action_review(&store, &review)?;
+
+        put_hands_patch_receipt(
+            &store,
+            &crate::hands_patch_receipt_for_review(
+                "hands-patch-old".to_string(),
+                &intent,
+                &review,
+                vec!["old.rs".to_string()],
+                "old patch".to_string(),
+                "2026-06-13T00:00:03Z".to_string(),
+            ),
+        )?;
+        put_hands_command_receipt(
+            &store,
+            &crate::hands_command_receipt_for_review(
+                "hands-command-old".to_string(),
+                &intent,
+                &review,
+                "cargo test old".to_string(),
+                "0".to_string(),
+                "old-stdout.log".to_string(),
+                "old-stderr.log".to_string(),
+                "old command".to_string(),
+                "2026-06-13T00:00:04Z".to_string(),
+            ),
+        )?;
+        put_hands_commit_receipt(
+            &store,
+            &crate::hands_commit_receipt_for_review(
+                "hands-commit-old".to_string(),
+                &intent,
+                &review,
+                "oldsha".to_string(),
+                "codex/test".to_string(),
+                vec!["old.rs".to_string()],
+                "old commit".to_string(),
+                "2026-06-13T00:00:05Z".to_string(),
+            ),
+        )?;
+        put_hands_patch_receipt(
+            &store,
+            &crate::hands_patch_receipt_for_review(
+                "hands-patch-new".to_string(),
+                &intent,
+                &review,
+                vec!["new.rs".to_string()],
+                "new patch".to_string(),
+                "2026-06-13T00:00:06Z".to_string(),
+            ),
+        )?;
+        put_hands_command_receipt(
+            &store,
+            &crate::hands_command_receipt_for_review(
+                "hands-command-new".to_string(),
+                &intent,
+                &review,
+                "cargo test new".to_string(),
+                "0".to_string(),
+                "new-stdout.log".to_string(),
+                "new-stderr.log".to_string(),
+                "new command".to_string(),
+                "2026-06-13T00:00:07Z".to_string(),
+            ),
+        )?;
+        put_hands_commit_receipt(
+            &store,
+            &crate::hands_commit_receipt_for_review(
+                "hands-commit-new".to_string(),
+                &intent,
+                &review,
+                "newsha".to_string(),
+                "codex/test".to_string(),
+                vec!["new.rs".to_string()],
+                "new commit".to_string(),
+                "2026-06-13T00:00:08Z".to_string(),
+            ),
+        )?;
+
+        let chain = runtime_latest_hands_receipt_chain_after(&store, "2026-06-13T00:00:02Z")?
+            .expect("latest same-gate Hands chain");
+        assert_eq!(chain.patch_receipt_id, "hands-patch-new");
+        assert_eq!(chain.command_receipt_id, "hands-command-new");
+        assert_eq!(chain.commit_receipt_id, "hands-commit-new");
+        assert_eq!(chain.command, "cargo test new");
+        assert_eq!(chain.stdout_artifact, "new-stdout.log");
+        assert_eq!(chain.commit_sha, "newsha");
+        assert_eq!(chain.changed_paths, vec!["new.rs".to_string()]);
         Ok(())
     }
 
@@ -3937,21 +4237,21 @@ mod tests {
                     coordinator_contract.authority,
                     CultNetMutationAuthority::ReadOnly
                 );
-                let face_contract = contracts
+                let persona_contract = contracts
                     .iter()
-                    .find(|contract| contract.document_type == SURFACE_FACE_TYPE)
-                    .expect("face surface should advertise an interactive contract");
+                    .find(|contract| contract.document_type == SURFACE_PERSONA_TYPE)
+                    .expect("Persona surface should advertise an interactive contract");
                 assert_eq!(
-                    face_contract.authority,
+                    persona_contract.authority,
                     CultNetMutationAuthority::Coordinator
                 );
                 assert!(
-                    face_contract
+                    persona_contract
                         .receipt_document_types
                         .as_ref()
                         .is_some_and(|items| items
                             .iter()
-                            .any(|item| item == "epiphany.face_bubble.v0"))
+                            .any(|item| item == "epiphany.persona_bubble.v0"))
                 );
                 let operator_status_contract = contracts
                     .iter()

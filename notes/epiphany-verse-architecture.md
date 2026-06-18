@@ -28,7 +28,7 @@ Epiphany already has the first organs:
 - Memory graph context cuts over repo, agent, heartbeat, incubation, agency,
   and evidence profiles.
 - Prompt assembly tests for bounded worker prompts, rendered Epiphany state,
-  and the Face Projector -> Face -> Mind Interpreter membrane.
+  and the Persona Projector -> Persona -> Mind Interpreter membrane.
 
 The missing organ is not another prompt rule. It is a local Verse query path
 that prompt assembly, Aquarium, CLI tools, and future workers can use to fetch
@@ -136,7 +136,7 @@ This writes and reads a compact CultMesh-backed local Verse context bundle:
 - three Verse policies: `epiphany-internal`, `gamecult-local`,
   `epiphany-global`
 - Yggdrasil tunnel policy for `gamecult-local`
-- public global room policies for Face/dream surfaces
+- public global room policies for Persona/dream surfaces
 - operator status
 - latest operator run/snapshot receipts when present
 - organ contract summaries for Mind, Substrate Gate, Eyes, Hands, Soul, and
@@ -207,5 +207,5 @@ It writes `local-verse-context.json` from a CultMesh store under
 the operator snapshot.
 
 No live swarm runner is cleared until pause/brake, stale active-turn recovery,
-Face eligibility, and memory lifecycle receipts remain inspectable through the
+Persona eligibility, and memory lifecycle receipts remain inspectable through the
 same Verse model.

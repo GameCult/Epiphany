@@ -16,7 +16,7 @@ use std::path::Path;
 
 pub(super) const ROLE_ORDER: &[&str] = &[
     "coordinator",
-    "face",
+    "Persona",
     "imagination",
     "research",
     "modeling",
@@ -188,10 +188,10 @@ fn ghostlight_role_id(agent_id: &str) -> String {
 pub(super) fn agent_id_for_role(role_id: &str) -> &'static str {
     match role_id {
         "coordinator" => "epiphany.self",
-        "face" => "epiphany.face",
+        "Persona" => "epiphany.Persona",
         "imagination" => "epiphany.imagination",
         "research" => "epiphany.eyes",
-        "modeling" => "epiphany.proprioception",
+        "modeling" => "epiphany.modeling",
         "implementation" => "epiphany.hands",
         "verification" => "epiphany.soul",
         _ => "epiphany.unknown",
@@ -201,10 +201,10 @@ pub(super) fn agent_id_for_role(role_id: &str) -> &'static str {
 pub(super) fn display_name_for_role(role_id: &str) -> &'static str {
     match role_id {
         "coordinator" => "Self",
-        "face" => "Face",
+        "Persona" => "Persona",
         "imagination" => "Imagination",
         "research" => "Eyes",
-        "modeling" => "Proprioception",
+        "modeling" => "Modeling",
         "implementation" => "Hands",
         "verification" => "Soul",
         _ => "Unknown",
@@ -214,7 +214,7 @@ pub(super) fn display_name_for_role(role_id: &str) -> &'static str {
 fn initiative_speed_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 1.28,
-        "face" => 1.12,
+        "Persona" => 1.12,
         "imagination" => 0.82,
         "research" => 0.78,
         "modeling" => 0.92,
@@ -227,7 +227,7 @@ fn initiative_speed_for_role(role_id: &str) -> f64 {
 fn reaction_bias_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 0.88,
-        "face" => 0.84,
+        "Persona" => 0.84,
         "imagination" => 0.54,
         "research" => 0.62,
         "modeling" => 0.74,
@@ -240,7 +240,7 @@ fn reaction_bias_for_role(role_id: &str) -> f64 {
 fn interrupt_threshold_for_role(role_id: &str) -> f64 {
     match role_id {
         "coordinator" => 0.42,
-        "face" => 0.52,
+        "Persona" => 0.52,
         "imagination" => 0.64,
         "research" => 0.58,
         "modeling" => 0.5,
@@ -255,7 +255,7 @@ fn participant_constraints(role_id: &str) -> Vec<&'static str> {
         "coordinator" => {
             "Routes and reviews; must not implement, verify, or accept its own comfort."
         }
-        "face" => {
+        "Persona" => {
             "Publicly translates agent thought into #aquarium only; must not moderate or speak outside the room."
         }
         "imagination" => "Synthesizes futures; must not adopt objectives.",
@@ -301,9 +301,9 @@ mod tests {
             state
                 .participants
                 .iter()
-                .find(|participant| participant.role_id == "face")
+                .find(|participant| participant.role_id == "Persona")
                 .map(|participant| participant.agent_id.as_str()),
-            Some("epiphany.face")
+            Some("epiphany.Persona")
         );
     }
 

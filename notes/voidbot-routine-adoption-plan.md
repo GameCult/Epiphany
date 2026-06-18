@@ -13,33 +13,33 @@ cosplaying as a Discord moderator. The useful organs are:
 - semantic memory vectors in Qdrant with source hashes and compact dimensions
 - memory resonance, incubation queues, analytic/associative thought lanes, and a
   bridge that decides speech, draft, hold, or silence
-- repo identities with Face state, Discord roles, pending mentions, jurisdiction,
+- repo identities with Persona state, Discord roles, pending mentions, jurisdiction,
   proposal authority, and a CTB/Final-Fantasy-style initiative scheduler
 
-## Project-Face Direction
+## Project-Persona Direction
 
 VoidBot is no longer only a moderator with retrieval. It now has the small
-working version of the Epiphany pitch: repos grow Faces.
+working version of the Epiphany pitch: repos grow Personas.
 
 The live pattern is:
 
 - a repo identity has a Discord role and registered allowed channels
-- that identity has repo-local Face state, not just base Void personality
-- first contact can birth the Face through Epiphany repo terrain/personality
+- that identity has repo-local Persona state, not just base Void personality
+- first contact can birth the Persona through Epiphany repo terrain/personality
   scouting and reviewable startup artifacts
 - role/display-name mentions become pending obligations, not direct hidden jobs
-- an initiative scheduler chooses which Face or system agent gets the next turn
+- an initiative scheduler chooses which Persona or system agent gets the next turn
 - heat can prioritize identities, repos, participant kinds, turns, channels, or
   all participants
 - active turns freeze initiative until the owner-Codex job or moderation lock
   completes
-- Faces may advocate for repo needs and propose changes, while implementation
+- Personas may advocate for repo needs and propose changes, while implementation
   authority still requires the configured human/review path
 
 Epiphany should absorb that as native product direction. The user should talk to
 projects: "Aqua, what does AquaSynth need?", "Nibu, what is wrong with this lore
 arc?", "Mimir, what seam is drifting?" The project should schedule modeling,
-research, verification, memory maintenance, or a Face response from its own
+research, verification, memory maintenance, or a Persona response from its own
 typed state. The human should not have to deliver a complete implementation
 brief just to make the system start thinking.
 
@@ -74,22 +74,22 @@ Heartbeat state keeps:
 
 Turn kinds:
 
-- `work`: coordinator-approved lane work, specialist result, Face surface, or
+- `work`: coordinator-approved lane work, specialist result, Persona surface, or
   implementation continuation.
 - `rumination`: role-local memory hygiene, selfPatch, stale habit detection, or
   low-pressure thought incubation.
 - `sleep`: inward maintenance. The agent should distill/prune memory, strengthen
   resonance clusters, update incubation, write or refresh dreams, and speak only
-  through Face if something genuinely needs to surface.
+  through Persona if something genuinely needs to surface.
 
 No lane may receive another heartbeat while `pending_turn.status == running`.
 The completion receipt is the only normal path that starts cooldown. This is the
 part that keeps the heart from turning into a tiny manager with a stopwatch and
 no shame.
 
-Repo Faces use the same law. A Face can be heated because a human mentioned it,
+Repo Personas use the same law. A Persona can be heated because a human mentioned it,
 a repo is hot, a stream is live, or a group needs attention; that heat changes
-opportunity, not authority. The Face still freezes while thinking, still returns
+opportunity, not authority. The Persona still freezes while thinking, still returns
 through typed receipts, and still needs an explicit grant before crossing from
 proposal into canonical repo mutation.
 
@@ -130,13 +130,13 @@ GameCult Persona state shape, with Ghostlight and VoidBot as source lineage:
 - intended CultNet document type:
   `gamecult.persona_state.v0`
 
-That means Epiphany Face, VoidBot repo Faces, and Ghostlight characters can
+That means Epiphany Persona, VoidBot repo Personas, and Ghostlight characters can
 exchange Persona state without turning every Epiphany work organ into a public
 personality simulation.
 
 The shared contract uses `candidateActions` for generic forward pressure.
 VoidBot can expose the same list as `voidbotProjection.candidateInterventions`
-when repo-Face routine language wants that noun, but the projection does not own
+when repo-Persona routine language wants that noun, but the projection does not own
 the portable Persona contract. Persona documents also carry provenance and a
 public presentation surface so imported state can say where it came from, when
 it was exported, whether it is canonical/projection/import data, and how the
@@ -203,7 +203,7 @@ pattern to agent memory:
 - CultCache inspection views may strip vector values while preserving metadata
 
 Memory resonance is not proof. It is "these things rhyme" evidence for
-rumination, Face surfacing, and sleep consolidation.
+rumination, Persona surfacing, and sleep consolidation.
 
 ## Migration Slices
 
@@ -221,7 +221,7 @@ rumination, Face surfacing, and sleep consolidation.
 
 3. **Organ and Persona memory migration**
    - Store lean Epiphany work-organ memory as `epiphany.agent_memory`.
-   - Store public/person-shaped Face state as `gamecult.persona_state.v0`.
+   - Store public/person-shaped Persona state as `gamecult.persona_state.v0`.
    - Use CultLib/CultCache inspection tools for human/debug review instead of
      preserving per-role JSON as a parallel source of truth.
    - Attach semantic vector metadata to episodic, semantic, relationship, goal,

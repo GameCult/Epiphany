@@ -131,12 +131,12 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         },
         "selfPatch": {
             "type": "object",
-            "description": "Optional bounded request to update this role's persistent organ memory. Work organs may update lane habits, durable lessons, goals, values, or private notes; Persona affect/social state belongs only to Face-style Persona surfaces. It must not contain project truth, code edits, job authority, graph/frontier/checkpoint/planning changes, or objective changes.",
+            "description": "Optional bounded request to update this role's persistent organ memory. Work organs may update lane habits, durable lessons, goals, values, or private notes; Persona affect/social state belongs only to Persona public surfaces. It must not contain project truth, code edits, job authority, graph/frontier/checkpoint/planning changes, or objective changes.",
             "required": ["agentId", "reason"],
             "properties": {
                 "agentId": {
                     "type": "string",
-                    "description": "Expected target persistent agent id for this lane, such as epiphany.proprioception or epiphany.soul."
+                    "description": "Expected target persistent agent id for this lane, such as epiphany.modeling or epiphany.soul."
                 },
                 "reason": {
                     "type": "string",
@@ -389,7 +389,7 @@ pub struct EpiphanyRolePromptConfig {
     #[allow(dead_code)]
     pub repo_memory: String,
     #[allow(dead_code)]
-    pub face: String,
+    pub persona: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -772,7 +772,7 @@ mod tests {
                 prompts.roles.repo_personality.as_str(),
             ),
             ("roles.repo_memory", prompts.roles.repo_memory.as_str()),
-            ("roles.face", prompts.roles.face.as_str()),
+            ("roles.persona", prompts.roles.persona.as_str()),
             (
                 "implementation.continue_template",
                 prompts.implementation.continue_template.as_str(),

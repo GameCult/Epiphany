@@ -6,17 +6,20 @@ use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
 use epiphany_core::hands_patch_receipt_for_review;
+use epiphany_core::hands_pr_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_hands_command_receipt;
 use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
+use epiphany_core::put_hands_pr_receipt;
 use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_command_receipt;
 use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_hands_patch_receipt;
+use epiphany_core::runtime_hands_pr_receipt;
 use serde_json::json;
 use std::path::PathBuf;
 
@@ -54,7 +57,12 @@ fn main() -> Result<()> {
         "hands-review-smoke".to_string(),
         &intent,
         "approved".to_string(),
-        vec!["patch".to_string()],
+        vec![
+            "patch".to_string(),
+            "command".to_string(),
+            "commit".to_string(),
+            "pr".to_string(),
+        ],
         vec![
             "Substrate Gate grant id is named; this smoke does not execute the patch.".to_string(),
         ],
@@ -97,6 +105,20 @@ fn main() -> Result<()> {
     );
     put_hands_commit_receipt(&store, &commit)?;
 
+    let pr = hands_pr_receipt_for_review(
+        "hands-pr-smoke".to_string(),
+        &intent,
+        &review,
+        &commit,
+        "https://github.com/GameCult/EpiphanyAgent/pull/smoke".to_string(),
+        "smoke".to_string(),
+        "Smoke Hands PR publication receipt".to_string(),
+        "bifrost-publication-receipt-smoke".to_string(),
+        "Recorded a typed PR receipt shape for Bifrost-blessed GitHub publication.".to_string(),
+        "2026-06-02T00:01:00Z".to_string(),
+    );
+    put_hands_pr_receipt(&store, &pr)?;
+
     let stored_intent =
         runtime_hands_action_intent(&store, "hands-intent-smoke")?.expect("stored Hands intent");
     let stored_review =
@@ -107,6 +129,7 @@ fn main() -> Result<()> {
         .expect("stored Hands command");
     let stored_commit =
         runtime_hands_commit_receipt(&store, "hands-commit-smoke")?.expect("stored Hands commit");
+    let stored_pr = runtime_hands_pr_receipt(&store, "hands-pr-smoke")?.expect("stored Hands PR");
 
     if stored_review.intent_id != stored_intent.intent_id {
         anyhow::bail!("Hands review lost its intent edge");
@@ -126,6 +149,12 @@ fn main() -> Result<()> {
     {
         anyhow::bail!("Hands commit receipt lost its intent/review edge");
     }
+    if stored_pr.intent_id != stored_intent.intent_id
+        || stored_pr.review_id != stored_review.review_id
+        || stored_pr.commit_receipt_id != stored_commit.receipt_id
+    {
+        anyhow::bail!("Hands PR receipt lost its intent/review/commit edge");
+    }
 
     println!(
         "{}",
@@ -137,6 +166,8 @@ fn main() -> Result<()> {
             "patchReceiptId": stored_patch.receipt_id,
             "commandReceiptId": stored_command.receipt_id,
             "commitReceiptId": stored_commit.receipt_id,
+            "prReceiptId": stored_pr.receipt_id,
+            "bifrostPublicationReceiptId": stored_pr.bifrost_publication_receipt_id,
             "changedPaths": stored_patch.changed_paths,
         }))?
     );

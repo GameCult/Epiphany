@@ -149,7 +149,7 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             EpiphanyCoordinatorRoleStatus::Blocked
         });
     let research_note = research_bound_job.and_then(job_note).unwrap_or_else(|| {
-        "Gather citable source evidence before Proprioception models from it.".to_string()
+        "Gather citable source evidence before Modeling models from it.".to_string()
     });
     let research_recommended_action = if research_has_bound_job {
         Some(EpiphanyCoordinatorSceneAction::RoleResult)

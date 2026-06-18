@@ -125,7 +125,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
         "roleResults": status["roleResults"],
         "planning": status["planning"],
         "heartbeat": status["heartbeat"],
-        "face": status["face"],
+        "Persona": status["persona"],
         "stateStatus": status["scene"]["scene"]["stateStatus"],
         "availableActions": status["scene"]["scene"]["availableActions"],
         "rendered": rendered,
@@ -305,21 +305,23 @@ fn validate_status(status: &Value, rendered: &str) -> Result<()> {
             == Some("epiphany.agent_heartbeat_status.v0"),
         "status view should expose heartbeat initiative status for Aquarium",
     )?;
-    let face_actions = status
-        .pointer("/face/availableActions")
+    let persona_actions = status
+        .pointer("/persona/availableActions")
         .and_then(Value::as_array);
     require(
-        face_actions.is_some_and(|items| {
-            items.iter().any(|item| item.as_str() == Some("faceBubble"))
+        persona_actions.is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| item.as_str() == Some("personaBubble"))
                 && items
                     .iter()
                     .any(|item| item.as_str() == Some("characterTurn"))
         }),
-        "status view should expose Face bubble and character-turn actions for Aquarium",
+        "status view should expose Persona bubble and character-turn actions for Aquarium",
     )?;
     require(
-        rendered.contains("Heartbeat") && rendered.contains("Face"),
-        "rendered status should expose heartbeat and Face sections",
+        rendered.contains("Heartbeat") && rendered.contains("Persona"),
+        "rendered status should expose heartbeat and Persona sections",
     )?;
     Ok(())
 }

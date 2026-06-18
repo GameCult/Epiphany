@@ -104,7 +104,7 @@ fn role_snapshot() -> EpiphanyMemoryGraphSnapshot {
         domains: vec![EpiphanyMemoryDomain {
             id: domain_id.clone(),
             profile: EpiphanyMemoryProfile::RoleSelf,
-            title: "Proprioception".to_string(),
+            title: "Modeling".to_string(),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
             ..Default::default()
         }],
@@ -114,8 +114,7 @@ fn role_snapshot() -> EpiphanyMemoryGraphSnapshot {
             profile: EpiphanyMemoryProfile::RoleSelf,
             kind: EpiphanyMemoryNodeKind::RoleMemory,
             title: "Typed boundaries".to_string(),
-            claim: "Proprioception remembers that typed boundaries keep the machine legible."
-                .to_string(),
+            claim: "Modeling remembers that typed boundaries keep the machine legible.".to_string(),
             question: "Which boundary is currently lying?".to_string(),
             tension: String::new(),
             action_implication: "Prefer one owned graph store over profile-local stores."
@@ -130,7 +129,7 @@ fn role_snapshot() -> EpiphanyMemoryGraphSnapshot {
             domain_id,
             covers_node_ids: vec![node_id],
             target: "body role memory".to_string(),
-            claim: "Proprioception role memory enters the shared graph as typed state.".to_string(),
+            claim: "Modeling role memory enters the shared graph as typed state.".to_string(),
             question: "How should role memory shape context cuts?".to_string(),
             tension: String::new(),
             action_implication: "Compose role memory with repo graph truth before retrieval."

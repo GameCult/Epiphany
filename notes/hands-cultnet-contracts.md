@@ -14,7 +14,7 @@ and leave receipts that can be verified, refused, or admitted into Mind state.
   receipts, PR receipts, rollback receipts, and action refusal receipts.
 - Derived state: diffs, command logs, commits, PR URLs, and rollback notes are
   action receipts. They are not durable Mind state until Mind admits them.
-- Forbidden writers: raw workers, Face, Eyes, Imagination, Self, compatibility
+- Forbidden writers: raw workers, Persona, Eyes, Imagination, Self, compatibility
   JSON-RPC routes, and bridge tools must not execute repo-affecting commands,
   edit files, commit, publish, or roll back without the Hands path after Body
   access.
@@ -62,8 +62,21 @@ command, and commit receipts from the runtime-spine CultCache store.
 commands, editing files, or creating a real commit.
 The launch organ contract's repo-action proof profile now requires the full
 Hands chain, not only the final patch receipt.
+`epiphany-mvp-coordinator` now turns `continueImplementation` into a persisted
+Substrate Gate grant plus Hands intent/review gate and exposes the receipt ids in
+the operator step.
+`epiphany-hands-action` is the first native consequence recorder for that gate:
+`record-patch`, `record-command`, and `record-commit` load the stored
+intent/review, reject mismatches, require an approved review, enforce allowed
+operations, and keep patch/commit changed paths inside the requested scope.
+`record-pass --gate-summary <coordinator-summary.json>` consumes the
+coordinator artifact and emits patch, command, and commit receipts in one
+post-implementation call.
+`epiphany-mvp-coordinator-smoke` now proves the deterministic chain from
+simulated `continueImplementation` through gate emission to `record-pass`
+receipts.
 
-This is still a receipt artery, not full action execution. The next live-action
-cut must connect actual implementation edits/commands/commits to this path
-after Substrate Gate grants access and before Soul/Mind call the result
+This is still a gate and receipt artery, not full action execution. The next
+live-action cut must call the recorder from the implementation turn or local
+wrapper after real edits/checks/commit and before Soul/Mind call the result
 accepted.

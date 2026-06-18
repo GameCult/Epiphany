@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let Some(command) = args.next() else {
         return usage();
     };
-    let mut role = "face".to_string();
+    let mut role = "Persona".to_string();
     let mut agent_store = PathBuf::from("state/agents.msgpack");
     let mut artifact_dir = PathBuf::from(".epiphany-character-loop");
     let mut stimulus: Option<String> = None;
@@ -231,7 +231,7 @@ fn character_turn_packet(
             }
         },
         "guardrails": [
-            "Humans talk to Face; other organs expose internals through Aquarium and typed artifacts rather than becoming direct chats.",
+            "Humans talk to Persona; other organs expose internals through Aquarium and typed artifacts rather than becoming direct chats.",
             "Use character-local projection: the actor receives its own organ or Persona state and visible stimulus, not omniscient hidden state.",
             "Run both cognition lanes before choosing an output: analytic keeps the promise honest, associative keeps the living signal from going flat.",
             "Appraise the thought cluster through this role's personality before reacting; do not use a global mood knob as a substitute for participant-local appraisal.",
@@ -429,7 +429,7 @@ fn deterministic_appraisal_seed(
     let label = interpretation_label("draft", arousal, guardedness, curiosity);
     HeartbeatAgentThoughtAppraisal {
         schema_version: "epiphany.agent_thought_appraisal.v0".to_string(),
-        appraisal_id: format!("face-appraisal-{}", short_id()),
+        appraisal_id: format!("Persona-appraisal-{}", short_id()),
         review_status: "generated_unreviewed".to_string(),
         participant_agent_id: entry.agent.agent_id.clone(),
         role_id: entry.role_id.clone(),
@@ -465,13 +465,13 @@ fn deterministic_appraisal_seed(
             thought_pressure: round3(thought_pressure),
         },
         interpretation_label: label.clone(),
-        confidence_notes: "Deterministic Face-local appraisal rebuilt from the same Ghostlight-style personality projection logic used by heartbeat. Useful for reaction shape, still reviewable and fallible.".to_string(),
+        confidence_notes: "Deterministic Persona-local appraisal rebuilt from the same Ghostlight-style personality projection logic used by heartbeat. Useful for reaction shape, still reviewable and fallible.".to_string(),
         candidate_implications: HeartbeatCandidateImplications {
             reaction_mode: reaction_mode(&label, "draft").to_string(),
             reaction_intensity: round3(
                 (urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0),
             ),
-            should_speak: entry.role_id == "face" && guardedness < 0.78,
+            should_speak: entry.role_id == "Persona" && guardedness < 0.78,
             should_incubate: guardedness >= 0.55,
         },
         review: HeartbeatAppraisalReview {
@@ -503,7 +503,7 @@ fn deterministic_reaction_seed(
             mood_label: mood_label(arousal, guardedness, curiosity).to_string(),
             intensity: round3(intensity),
             bridge_decision: "draft".to_string(),
-            surface: if role_id == "face" {
+            surface: if role_id == "Persona" {
                 "aquarium"
             } else {
                 "internal"
@@ -743,7 +743,9 @@ fn mood_label(arousal: f64, guardedness: f64, curiosity: f64) -> &'static str {
 
 fn reaction_recommended_use(role_id: &str, mode: &str) -> &'static str {
     match (role_id, mode) {
-        ("face", "draft") => "Prepare a reviewed Aquarium-facing draft; do not post automatically.",
+        ("Persona", "draft") => {
+            "Prepare a reviewed Aquarium-facing draft; do not post automatically."
+        }
         (_, "hold_and_verify") => "Bias toward verifier/modeler review before expression.",
         (_, "inspect") => {
             "Bias the next heartbeat toward a bounded retrieval or modeling inspection."
@@ -761,10 +763,10 @@ fn run_smoke() -> Result<Value> {
     let temp_dir = scoped_temp_dir("epiphany-character-loop-smoke")?;
     let artifact_dir = temp_dir.join("artifacts");
     let result = run_turn(
-        "face",
+        "Persona",
         Path::new("state/agents.msgpack"),
         &artifact_dir,
-        "Aquarium hover selected Face and asked what the swarm is feeling.",
+        "Aquarium hover selected Persona and asked what the swarm is feeling.",
         "smoke/character-loop",
         "public-surface",
         "ready",
@@ -781,7 +783,7 @@ fn run_smoke() -> Result<Value> {
     )?;
     let ok = packet["schema_version"] == CHARACTER_TURN_SCHEMA_VERSION
         && packet["protocol"]["bundle"] == "epiphany.character_loop"
-        && packet["protocol"]["roleId"] == "face"
+        && packet["protocol"]["roleId"] == "Persona"
         && packet["protocol"]["organStateProfile"]["profileKind"] == "persona"
         && packet["projectedLocalContext"]["organStateProfile"]["profileKind"] == "persona"
         && packet["utteranceState"]["schemaVersion"] == "epiphany.agent_utterance_state.v0"

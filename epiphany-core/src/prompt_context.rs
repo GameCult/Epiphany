@@ -43,12 +43,233 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         ));
     }
 
+    if !input.local_verse.cluster_topology.is_empty() {
+        lines.push("## Cluster Topology".to_string());
+        for cluster in input.local_verse.cluster_topology.iter().take(7) {
+            lines.push(format!(
+                "- `{}` -> private Verse `{}`; body={}, daemon={}, Eve={}",
+                cluster.display_name,
+                cluster.private_verse_id,
+                cluster.body_domain,
+                cluster.daemon_id,
+                cluster.eve_surface_id
+            ));
+        }
+        push_omitted_count(
+            &mut lines,
+            input.local_verse.cluster_topology.len(),
+            7,
+            "cluster topology rows",
+        );
+    }
+
+    if !input.local_verse.odin_advertisements.is_empty() {
+        lines.push("## Odin Discovery".to_string());
+        for advertisement in input.local_verse.odin_advertisements.iter().take(7) {
+            lines.push(format!(
+                "- `{}` advertises Verse `{}` via Eve `{}`; private_state_exposed={}",
+                advertisement.cluster_id,
+                advertisement.advertised_verse_id,
+                advertisement.eve_surface_id,
+                advertisement.private_state_exposed
+            ));
+        }
+        push_omitted_count(
+            &mut lines,
+            input.local_verse.odin_advertisements.len(),
+            7,
+            "Odin advertisements",
+        );
+    }
+
+    if let Some(intent) = input.local_verse.latest_eve_connection_intent.as_ref() {
+        lines.push("## Eve Collaboration".to_string());
+        lines.push(format!(
+            "- Intent `{}`: {} -> {} via {}; feedback_route={}; private_state_requested={}",
+            intent.intent_id,
+            intent.source_cluster_id,
+            intent.target_cluster_id,
+            intent.target_eve_surface_id,
+            intent.feedback_route,
+            intent.private_state_requested
+        ));
+        if let Some(receipt) = input.local_verse.latest_eve_connection_receipt.as_ref() {
+            lines.push(format!(
+                "- Receipt `{}`: status={}, private_state_exposed={}",
+                receipt.receipt_id, receipt.status, receipt.private_state_exposed
+            ));
+        }
+    }
+
+    if !input.local_verse.daemon_tool_capabilities.is_empty() {
+        lines.push("## Daemon Tool Directory".to_string());
+        for capability in input.local_verse.daemon_tool_capabilities.iter().take(10) {
+            lines.push(format!(
+                "- `{}` hosted by `{}` via `{}`: op={}, available_to_all_agents={}, gate={}",
+                capability.capability_id,
+                capability.host_daemon_id,
+                capability.eve_surface_id,
+                capability.operation,
+                capability.available_to_all_agents,
+                capability.authority_gate
+            ));
+        }
+        push_omitted_count(
+            &mut lines,
+            input.local_verse.daemon_tool_capabilities.len(),
+            10,
+            "daemon tool capabilities",
+        );
+    }
+
+    if let Some(summary) = input.local_verse.latest_agent_state_soa_summary.as_ref() {
+        lines.push("## Agent State SoA".to_string());
+        lines.push(format!(
+            "- Summary `{}`: rows={}, source={}, private_state_exposed={}",
+            summary.summary_id,
+            summary.row_count,
+            summary.source_store,
+            summary.private_state_exposed
+        ));
+        for index in 0..summary.role_ids.len().min(7) {
+            lines.push(format!(
+                "- `{}` / `{}`: profile={}, contract={}, semantic={}, episodic={}, relationship={}, goals={}, values={}",
+                summary.role_ids[index],
+                summary.agent_ids.get(index).cloned().unwrap_or_default(),
+                summary.profile_kinds.get(index).cloned().unwrap_or_default(),
+                summary
+                    .portable_contracts
+                    .get(index)
+                    .cloned()
+                    .unwrap_or_default(),
+                summary
+                    .semantic_memory_counts
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+                summary
+                    .episodic_memory_counts
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+                summary
+                    .relationship_memory_counts
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+                summary.goal_counts.get(index).copied().unwrap_or_default(),
+                summary.value_counts.get(index).copied().unwrap_or_default()
+            ));
+        }
+        push_omitted_count(
+            &mut lines,
+            summary.role_ids.len(),
+            7,
+            "agent state SoA rows",
+        );
+    }
+
+    if let Some(intent) = input
+        .local_verse
+        .latest_daemon_tool_invocation_intent
+        .as_ref()
+    {
+        lines.push("## Daemon Tool Invocation".to_string());
+        lines.push(format!(
+            "- Intent `{}`: {} requested `{}` on `{}` via {}; gate={}; private_state_requested={}",
+            intent.intent_id,
+            intent.requesting_agent_id,
+            intent.operation,
+            intent.host_daemon_id,
+            intent.eve_surface_id,
+            intent.authority_gate,
+            intent.private_state_requested
+        ));
+        if let Some(receipt) = input
+            .local_verse
+            .latest_daemon_tool_invocation_receipt
+            .as_ref()
+        {
+            lines.push(format!(
+                "- Receipt `{}`: status={}, receipt_contract={}, private_state_exposed={}",
+                receipt.receipt_id,
+                receipt.status,
+                receipt.receipt_contract_type,
+                receipt.private_state_exposed
+            ));
+        }
+    }
+
+    if let Some(intent) = input
+        .local_verse
+        .latest_bifrost_body_change_publication_intent
+        .as_ref()
+    {
+        lines.push("## Bifrost Publication Gate".to_string());
+        lines.push(format!(
+            "- Intent `{}`: {} -> {}; paths={}, verification_receipts={}, review_receipts={}, private_state_included={}",
+            intent.intent_id,
+            intent.source_agent_id,
+            intent.target_repository,
+            intent.changed_paths.len(),
+            intent.verification_receipt_ids.len(),
+            intent.review_receipt_ids.len(),
+            intent.private_state_included
+        ));
+        if let Some(receipt) = input
+            .local_verse
+            .latest_bifrost_body_change_publication_receipt
+            .as_ref()
+        {
+            lines.push(format!(
+                "- Receipt `{}`: status={}, ledger={}, github_receipt={}, private_state_exposed={}",
+                receipt.receipt_id,
+                receipt.status,
+                receipt.bifrost_ledger_entry_id,
+                receipt.github_publication_receipt_id,
+                receipt.private_state_exposed
+            ));
+        }
+        if let Some(github) = input
+            .local_verse
+            .latest_bifrost_github_publication_receipt
+            .as_ref()
+        {
+            lines.push(format!(
+                "- GitHub `{}`: pr={}, hands_pr={}, ledger={}, private_state_exposed={}",
+                github.receipt_id,
+                github.pull_request_url,
+                github.hands_pr_receipt_id,
+                github.ledger_entry_id,
+                github.private_state_exposed
+            ));
+        }
+    }
+
     if let Some(status) = input.local_verse.operator_status.as_ref() {
         lines.push(format!(
             "- Operator status `{}`: {}",
             status.status,
             compact_line(&status.summary)
         ));
+    }
+
+    if let Some(summary) = input.local_verse.latest_work_loop_summary.as_ref() {
+        lines.push("## Work Loop Receipt Digest".to_string());
+        lines.push(format!(
+            "- Telemetry `{}`: {} -> {}; hands=({}/{}/{}), changed_paths={}, source_refs={}, soul_receipts={}, verification_assertions={}",
+            summary.telemetry_id,
+            summary.source_stage,
+            summary.target_stages.join(","),
+            summary.hands_patch_receipt_id,
+            summary.hands_command_receipt_id,
+            summary.hands_commit_receipt_id,
+            summary.changed_path_count,
+            summary.source_ref_count,
+            summary.soul_receipt_ids.len(),
+            summary.verification_assertion_count
+        ));
+        lines.push(format!("- {}", compact_line(&summary.sealed_preview_note)));
     }
 
     if !input.local_verse.contract_summaries.is_empty() {
@@ -166,8 +387,25 @@ fn push_omitted_count(lines: &mut Vec<String>, total: usize, shown: usize, label
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
+    use crate::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
+    use crate::EpiphanyAgentStateSoaEntry;
+    use crate::EpiphanyCultMeshWorkLoopTelemetryEntry;
+    use crate::epiphany_cultmesh_agent_state_soa_summary_from_entry;
+    use crate::epiphany_cultmesh_bifrost_body_change_publication_intent;
+    use crate::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
+    use crate::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
+    use crate::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
+    use crate::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
     use crate::query_epiphany_local_verse_context;
     use crate::seed_epiphany_local_verse_context;
+    use crate::write_epiphany_cultmesh_agent_state_soa_summary;
+    use crate::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
+    use crate::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
+    use crate::write_epiphany_cultmesh_bifrost_github_publication_receipt;
+    use crate::write_epiphany_cultmesh_daemon_tool_invocation_intent;
+    use crate::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
+    use crate::write_epiphany_cultmesh_work_loop_telemetry;
     use epiphany_state_model::EpiphanyMemoryContextPacket;
     use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
     use epiphany_state_model::EpiphanyMemorySummary;
@@ -177,6 +415,152 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-local-verse.ccmp");
         seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-02T00:00:00Z")?;
+        let seeded_verse = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        let hands_action = seeded_verse
+            .daemon_tool_capabilities
+            .iter()
+            .find(|capability| {
+                capability.capability_id == "epiphany.cluster.hands.tool.repo-action"
+            })
+            .expect("Hands repo-action capability exists");
+        let tool_intent = epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
+            "daemon-tool-intent-prompt-test",
+            "epiphany.Persona",
+            "epiphany.cluster.persona",
+            hands_action,
+            "cultmesh://epiphany-local/hands-action-intent/prompt-test",
+            "Persona requests Hands review through the daemon tool directory.",
+        );
+        write_epiphany_cultmesh_daemon_tool_invocation_intent(
+            &store,
+            "epiphany-test",
+            tool_intent.clone(),
+        )?;
+        let tool_receipt = epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent(
+            "daemon-tool-receipt-prompt-test",
+            &tool_intent,
+            "accepted-for-hands-review",
+            hands_action.receipt_contract_type.clone(),
+            "cultmesh://epiphany-local/hands-action-review/prompt-test",
+            "Hands accepted the invocation.",
+        );
+        write_epiphany_cultmesh_daemon_tool_invocation_receipt(
+            &store,
+            "epiphany-test",
+            tool_receipt,
+        )?;
+        let bifrost_intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
+            "bifrost-publication-intent-prompt-test",
+            "epiphany.cluster.hands",
+            "epiphany.Hands",
+            "repo:E:/Projects/EpiphanyAgent",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "Route body change through Bifrost before GitHub publication.",
+            "Bifrost must ledger review, verification, credit, and GitHub routing.",
+            vec!["epiphany-core/src/cultmesh_integration.rs".to_string()],
+            vec!["soul-verdict-prompt-test".to_string()],
+            vec!["maintainer-review-prompt-test".to_string()],
+            vec!["epiphany.Hands".to_string()],
+            vec!["GameCult/EpiphanyAgent".to_string()],
+        );
+        write_epiphany_cultmesh_bifrost_body_change_publication_intent(
+            &store,
+            "epiphany-test",
+            bifrost_intent.clone(),
+        )?;
+        let bifrost_receipt = epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent(
+            "bifrost-publication-receipt-prompt-test",
+            &bifrost_intent,
+            "accepted-for-github-publication",
+            "bifrost-ledger-prompt-test",
+            "github-publication-prompt-test",
+            vec!["credit-receipt-prompt-test".to_string()],
+            vec!["maintainer-review-prompt-test".to_string()],
+            "https://github.com/GameCult/EpiphanyAgent/pull/prompt-test",
+        );
+        write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+            &store,
+            "epiphany-test",
+            bifrost_receipt.clone(),
+        )?;
+        let github_receipt = epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
+            "github-publication-receipt-prompt-test",
+            &bifrost_receipt,
+            "hands-pr-prompt-test",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "prompt-test",
+            "dry-run-no-commit",
+            "epiphany.Hands",
+        );
+        write_epiphany_cultmesh_bifrost_github_publication_receipt(
+            &store,
+            "epiphany-test",
+            github_receipt,
+        )?;
+        write_epiphany_cultmesh_work_loop_telemetry(
+            &store,
+            EpiphanyCultMeshWorkLoopTelemetryEntry {
+                schema_version: EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION.to_string(),
+                runtime_id: "epiphany-test".to_string(),
+                verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+                telemetry_id: "work-loop-prompt-test".to_string(),
+                thread_id: "thread-prompt-test".to_string(),
+                produced_at_utc: "2026-06-18T00:00:00Z".to_string(),
+                source_stage: "Hands".to_string(),
+                target_stages: vec!["Soul".to_string(), "Modeling".to_string()],
+                lower_bound_receipt_at: "2026-06-18T00:00:00Z".to_string(),
+                hands_intent_id: "hands-intent-prompt-test".to_string(),
+                hands_review_id: "hands-review-prompt-test".to_string(),
+                hands_runtime_job_id: "hands-job-prompt-test".to_string(),
+                substrate_gate_grant_receipt_id: "substrate-grant-prompt-test".to_string(),
+                hands_patch_receipt_id: "hands-patch-prompt-test".to_string(),
+                hands_command_receipt_id: "hands-command-prompt-test".to_string(),
+                hands_commit_receipt_id: "hands-commit-prompt-test".to_string(),
+                command: "cargo test".to_string(),
+                exit_code: "0".to_string(),
+                stdout_artifact: "stdout.log".to_string(),
+                stderr_artifact: "stderr.log".to_string(),
+                commit_sha: "abc123".to_string(),
+                branch: "codex/perfect-machine-cultmesh".to_string(),
+                changed_paths: vec!["epiphany-core/src/prompt_context.rs".to_string()],
+                artifact_previews: vec!["sealed stdout preview should stay internal".to_string()],
+                source_refs: vec!["epiphany-core/src/prompt_context.rs".to_string()],
+                source_path_proof: vec!["source proof should stay internal".to_string()],
+                soul_receipt_ids: vec!["soul-acceptance-prompt-test".to_string()],
+                summary: "Hands consequence digest for prompt assembly.".to_string(),
+                receipt_payload_previews: vec![
+                    "sealed patch payload should stay internal".to_string(),
+                ],
+                commit_diff_preview: "diff --git sealed".to_string(),
+                verification_assertions: vec!["prompt renders digest only".to_string()],
+            },
+        )?;
+        let agent_state_soa = EpiphanyAgentStateSoaEntry {
+            schema_version: "epiphany.agent_state_soa.v0".to_string(),
+            generated_at: "2026-06-18T00:00:00Z".to_string(),
+            source_store: "state/agents.msgpack".to_string(),
+            role_ids: vec!["Persona".to_string(), "implementation".to_string()],
+            agent_ids: vec!["epiphany.Persona".to_string(), "epiphany.hands".to_string()],
+            display_names: vec!["Persona".to_string(), "Hands".to_string()],
+            profile_kinds: vec!["Persona".to_string(), "WorkOrgan".to_string()],
+            portable_contracts: vec![
+                "gamecult.persona_state.v0".to_string(),
+                "epiphany.work_organ_state.v0".to_string(),
+            ],
+            semantic_memory_counts: vec![3, 2],
+            episodic_memory_counts: vec![1, 0],
+            relationship_memory_counts: vec![2, 0],
+            goal_counts: vec![1, 1],
+            value_counts: vec![4, 3],
+        };
+        let agent_state_summary = epiphany_cultmesh_agent_state_soa_summary_from_entry(
+            "epiphany-test",
+            "agent-state-soa-summary-prompt-test",
+            &agent_state_soa,
+        );
+        write_epiphany_cultmesh_agent_state_soa_summary(&store, agent_state_summary)?;
         let local_verse = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         let memory_context = EpiphanyMemoryContextPacket {
             id: "memctx-test".to_string(),
@@ -204,6 +588,33 @@ mod tests {
         assert!(rendered.contains("Odin"));
         assert!(rendered.contains("Yggdrasil"));
         assert!(rendered.contains("Bifrost"));
+        assert!(rendered.contains("Cluster Topology"));
+        assert!(rendered.contains("Odin Discovery"));
+        assert!(rendered.contains("eve://epiphany/persona"));
+        assert!(rendered.contains("private_state_exposed=false"));
+        assert!(rendered.contains("Daemon Tool Directory"));
+        assert!(rendered.contains("available_to_all_agents=true"));
+        assert!(rendered.contains("Daemon Tool Invocation"));
+        assert!(rendered.contains("daemon-tool-intent-prompt-test"));
+        assert!(rendered.contains("receipt_contract=epiphany.hands.action_review"));
+        assert!(rendered.contains("Agent State SoA"));
+        assert!(rendered.contains("agent-state-soa-summary-prompt-test"));
+        assert!(rendered.contains("gamecult.persona_state.v0"));
+        assert!(rendered.contains("epiphany.work_organ_state.v0"));
+        assert!(rendered.contains("Bifrost Publication Gate"));
+        assert!(rendered.contains("bifrost-publication-intent-prompt-test"));
+        assert!(rendered.contains("github_receipt=github-publication-prompt-test"));
+        assert!(rendered.contains("github-publication-receipt-prompt-test"));
+        assert!(rendered.contains("hands_pr=hands-pr-prompt-test"));
+        assert!(rendered.contains("Work Loop Receipt Digest"));
+        assert!(rendered.contains("work-loop-prompt-test"));
+        assert!(rendered.contains("hands-patch-prompt-test"));
+        assert!(rendered.contains("hands-command-prompt-test"));
+        assert!(rendered.contains("hands-commit-prompt-test"));
+        assert!(rendered.contains("exposes only this digest"));
+        assert!(!rendered.contains("sealed patch payload should stay internal"));
+        assert!(!rendered.contains("diff --git sealed"));
+        assert!(!rendered.contains("sealed stdout preview should stay internal"));
         assert!(rendered.contains("gamecult-local"));
         assert!(rendered.contains("Shared graph law"));
         assert!(rendered.contains("Mind reviews durable state effects"));

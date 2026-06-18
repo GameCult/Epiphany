@@ -1,7 +1,9 @@
 use anyhow::Result;
 use cultcache_rs::CultCache;
+use cultcache_rs::CultSoaTable;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
+use cultcache_rs::SoaDocument;
 use cultnet_rs::CultNetDocumentRegistry;
 use std::path::Path;
 
@@ -86,6 +88,14 @@ impl CultMeshNode {
         self.cache.get_required::<T>(key)
     }
 
+    pub fn get_all_with_keys<T: DatabaseEntry>(&self) -> Result<Vec<(String, T)>> {
+        self.cache.get_all_with_keys::<T>()
+    }
+
+    pub fn soa<T: SoaDocument>(&self) -> Result<CultSoaTable<T>> {
+        self.cache.soa::<T>()
+    }
+
     pub fn put<T: DatabaseEntry>(&mut self, key: impl Into<String>, value: &T) -> Result<T> {
         self.cache.put(key, value)
     }
@@ -167,12 +177,34 @@ where
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+    use std::collections::BTreeMap;
 
     #[derive(Clone, Debug, PartialEq, Eq, cultcache_rs::DatabaseEntry)]
     #[cultcache(type = "cultmesh.test.note", schema = "CultMeshTestNote")]
     struct Note {
         #[cultcache(key = 0)]
         body: String,
+        #[cultcache(key = 1, default)]
+        owner: String,
+    }
+
+    impl cultcache_rs::SoaDocument for Note {
+        fn soa_columns(rows: &[Self]) -> BTreeMap<&'static str, cultcache_rs::CultSoaColumnValues> {
+            let mut columns = BTreeMap::new();
+            columns.insert(
+                "body",
+                cultcache_rs::CultSoaColumnValues::new(
+                    rows.iter().map(|row| row.body.clone()).collect::<Vec<_>>(),
+                ),
+            );
+            columns.insert(
+                "owner",
+                cultcache_rs::CultSoaColumnValues::new(
+                    rows.iter().map(|row| row.owner.clone()).collect::<Vec<_>>(),
+                ),
+            );
+            columns
+        }
     }
 
     cultmesh_documents!(TestDocuments {
@@ -185,6 +217,7 @@ mod tests {
         let store_path = temp.path().join("cultmesh.ccmp");
         let note = Note {
             body: "blessed circuit".to_string(),
+            owner: "self".to_string(),
         };
 
         let mut node = CultMesh::create_node(
@@ -204,8 +237,45 @@ mod tests {
         assert!(
             reloaded
                 .documents()
-                .binding_by_schema_id("cultmesh.test.note.v0")
+                .binding_by_schema_id(Note::TYPE)
                 .is_some()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn node_projects_soa_tables_for_registered_documents() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("cultmesh-soa.ccmp");
+        let mut node = CultMesh::create_node(&store_path, TestDocuments, Default::default())?;
+        node.put(
+            "note/self",
+            &Note {
+                body: "private verse".to_string(),
+                owner: "self".to_string(),
+            },
+        )?;
+        node.put(
+            "note/hands",
+            &Note {
+                body: "repo action".to_string(),
+                owner: "hands".to_string(),
+            },
+        )?;
+        node.flush()?;
+
+        let table = node.soa::<Note>()?;
+        assert_eq!(table.len(), 2);
+        let owners = table.column::<String>("owner")?.values().to_vec();
+        let bodies = table.column::<String>("body")?.values().to_vec();
+        let mut rows = owners.into_iter().zip(bodies).collect::<Vec<_>>();
+        rows.sort();
+        assert_eq!(
+            rows,
+            vec![
+                ("hands".to_string(), "repo action".to_string()),
+                ("self".to_string(), "private verse".to_string()),
+            ]
         );
         Ok(())
     }

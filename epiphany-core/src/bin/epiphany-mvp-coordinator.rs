@@ -5,13 +5,25 @@ use chrono::SecondsFormat;
 use epiphany_core::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::COORDINATOR_RUN_RECEIPT_TYPE;
 use epiphany_core::EpiphanyCoordinatorRunReceipt;
+use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
+use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
+use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
+use epiphany_core::HandsActionIntent;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
+use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::append_runtime_event;
 use epiphany_core::create_runtime_session;
+use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::put_coordinator_run_receipt;
+use epiphany_core::put_hands_action_intent;
+use epiphany_core::put_hands_action_review;
+use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_spine_status;
 use serde_json::Value;
 use serde_json::json;
@@ -22,6 +34,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
+use uuid::Uuid;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -40,6 +53,7 @@ mod status_cli;
 const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-codex-mcp-spine";
+const WORKER_AUTO_TOOL_MAX_ROUNDS: usize = 24;
 const REORIENT_BINDING_ID: &str = "reorient-worker";
 const GRAPH_NODE_ID: &str = "reorient-target";
 const WATCHED_RELATIVE_PATH: &str = "src/reorient_target.rs";
@@ -63,6 +77,7 @@ struct Args {
     artifact_dir: PathBuf,
     agent_memory_dir: PathBuf,
     runtime_store: PathBuf,
+    local_verse_store: PathBuf,
     mode: String,
     max_steps: usize,
     poll_seconds: f64,
@@ -70,11 +85,13 @@ struct Args {
     max_runtime_seconds: u64,
     ephemeral: bool,
     auto_review: bool,
+    supersede_failed_results: bool,
     auto_tools: bool,
     bootstrap_smoke_state: bool,
     bootstrap_local_state: bool,
     bootstrap_objective: Option<String>,
     simulate_high_pressure: bool,
+    simulate_continue_implementation: bool,
     simulate_source_drift: bool,
     dry_compact: bool,
 }
@@ -96,6 +113,10 @@ impl Args {
             artifact_dir: root.join(".epiphany-dogfood").join("coordinator"),
             agent_memory_dir: root.join("state").join("agents.msgpack"),
             runtime_store: root.join("state").join("runtime-spine.msgpack"),
+            local_verse_store: root
+                .join(".epiphany-run")
+                .join("cultmesh")
+                .join("local-verse.ccmp"),
             mode: "plan".to_string(),
             max_steps: 4,
             poll_seconds: 5.0,
@@ -103,11 +124,13 @@ impl Args {
             max_runtime_seconds: 180,
             ephemeral: true,
             auto_review: false,
+            supersede_failed_results: false,
             auto_tools: true,
             bootstrap_smoke_state: false,
             bootstrap_local_state: false,
             bootstrap_objective: None,
             simulate_high_pressure: false,
+            simulate_continue_implementation: false,
             simulate_source_drift: false,
             dry_compact: false,
         };
@@ -136,6 +159,9 @@ impl Args {
                 "--runtime-store" => {
                     parsed.runtime_store = take_path(&mut args, "--runtime-store")?
                 }
+                "--local-verse-store" => {
+                    parsed.local_verse_store = take_path(&mut args, "--local-verse-store")?
+                }
                 "--mode" => parsed.mode = take_string(&mut args, "--mode")?,
                 "--max-steps" => {
                     parsed.max_steps = take_string(&mut args, "--max-steps")?.parse()?
@@ -154,6 +180,7 @@ impl Args {
                 "--ephemeral" => parsed.ephemeral = true,
                 "--no-ephemeral" => parsed.ephemeral = false,
                 "--auto-review" => parsed.auto_review = true,
+                "--supersede-failed-results" => parsed.supersede_failed_results = true,
                 "--auto-tools" => parsed.auto_tools = true,
                 "--no-auto-tools" => parsed.auto_tools = false,
                 "--test-complete-backend" => {
@@ -168,6 +195,9 @@ impl Args {
                         Some(take_string(&mut args, "--bootstrap-objective")?);
                 }
                 "--simulate-high-pressure" => parsed.simulate_high_pressure = true,
+                "--simulate-continue-implementation" => {
+                    parsed.simulate_continue_implementation = true
+                }
                 "--simulate-source-drift" => parsed.simulate_source_drift = true,
                 "--dry-compact" => parsed.dry_compact = true,
                 other => return Err(anyhow!("unknown argument: {other}")),
@@ -179,6 +209,8 @@ impl Args {
 
 fn run_coordinator(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
+    let local_verse_store = status_cli::absolute_path(&args.local_verse_store)?;
+    assert_local_verse_brake_released(&local_verse_store, "epiphany-mvp-coordinator")?;
     let app_server = status_cli::absolute_path(&args.app_server)?;
     let mut cwd = status_cli::absolute_path(&args.cwd)?;
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
@@ -335,6 +367,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             coordinator["canAutoRun"] = json!(true);
             coordinator["requiresReview"] = json!(false);
             coordinator["reason"] = json!("Simulated high pressure requested by smoke test.");
+        } else if args.simulate_continue_implementation && index == 0 {
+            action = "continueImplementation".to_string();
+            coordinator["action"] = json!(action);
+            coordinator["canAutoRun"] = json!(true);
+            coordinator["requiresReview"] = json!(false);
+            coordinator["targetRole"] = json!("implementation");
+            coordinator["reason"] =
+                json!("Simulated implementation continuation requested by smoke test.");
         }
 
         let snapshot_name = format!("step-{index:02}-{action}.txt");
@@ -390,8 +430,21 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     steps.push(step);
                     break;
                 }
+                if args.supersede_failed_results && role_result_needs_supersession(role_id, &result)
+                {
+                    let superseded =
+                        supersede_role_result(&mut client, &thread_id, role_id, revision, &result)?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
+                    );
+                    final_status = collect_coordinator_status(&mut client, &thread_id)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    continue;
+                }
                 let can_accept = args.auto_review
-                    && result.pointer("/finding/statePatch").is_some()
+                    && role_result_auto_acceptable(role_id, &result)
                     && revision.is_some();
                 if !can_accept {
                     final_action = json!({
@@ -439,6 +492,24 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     break;
                 }
                 final_action = json!({"action": "reviewReorientResult", "reason": result["note"]});
+                append_operator_step_jsonl(&steps_path, &step)?;
+                steps.push(step);
+                break;
+            }
+            "continueImplementation" => {
+                let gate = record_hands_implementation_gate(
+                    &runtime_store,
+                    &artifact_dir,
+                    &thread_id,
+                    index,
+                    &status,
+                )?;
+                push_event(
+                    &mut step,
+                    json!({"type": "handsActionGate", "gate": gate.clone()}),
+                );
+                coordinator["handsActionGate"] = gate;
+                final_action = coordinator;
                 append_operator_step_jsonl(&steps_path, &step)?;
                 steps.push(step);
                 break;
@@ -684,6 +755,26 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     Ok(summary)
 }
 
+fn assert_local_verse_brake_released(local_verse_store: &Path, runner_name: &str) -> Result<()> {
+    if !local_verse_store.exists() {
+        return Ok(());
+    }
+    let Some(brake) = load_epiphany_cultmesh_swarm_brake(local_verse_store, "epiphany-local")?
+    else {
+        return Ok(());
+    };
+    if brake.status == "engaged" {
+        anyhow::bail!(
+            "{runner_name} refusing to run: local Verse swarm brake engaged; scope={}; protected={}; affected={}; reason={}",
+            brake.scope,
+            brake.protected_surfaces.join(","),
+            brake.affected_clusters.join(","),
+            brake.reason
+        );
+    }
+    Ok(())
+}
+
 fn collect_coordinator_status(
     client: &mut status_cli::AppServerClient,
     thread_id: &str,
@@ -733,7 +824,7 @@ fn collect_coordinator_status(
         .unwrap_or_else(|| json!(null));
     let root = env::current_dir()?;
     let heartbeat_dir = root.join(".epiphany-heartbeats");
-    let face_dir = root.join(".epiphany-face");
+    let persona_dir = root.join(".epiphany-persona");
     let heartbeat = status_cli::native_json(
         "epiphany-heartbeat-store",
         &[
@@ -746,12 +837,12 @@ fn collect_coordinator_status(
             "8",
         ],
     )?;
-    let latest_face = status_cli::native_json(
-        "epiphany-face-discord",
+    let latest_persona = status_cli::native_json(
+        "epiphany-persona-discord",
         &[
             "latest",
             "--artifact-dir",
-            &face_dir.to_string_lossy(),
+            &persona_dir.to_string_lossy(),
             "--limit",
             "8",
         ],
@@ -772,11 +863,11 @@ fn collect_coordinator_status(
         "crrc": crrc,
         "coordinator": coordinator,
         "heartbeat": heartbeat,
-        "face": {
+        "persona": {
             "status": "ready",
-            "artifactDir": face_dir,
-            "latestArtifacts": latest_face.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
-            "availableActions": ["faceBubble", "characterTurn"],
+            "artifactDir": persona_dir,
+            "latestArtifacts": latest_persona.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
+            "availableActions": ["PersonaBubble", "characterTurn"],
         },
     }))
 }
@@ -805,6 +896,176 @@ fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> 
         }
     }
     Ok(configured.to_path_buf())
+}
+
+fn record_hands_implementation_gate(
+    runtime_store: &Path,
+    artifact_dir: &Path,
+    thread_id: &str,
+    step_index: usize,
+    status: &Value,
+) -> Result<Value> {
+    let requested_at = now();
+    let suffix = format!(
+        "{}-{}-{}",
+        sanitize_id(thread_id),
+        step_index,
+        uuid::Uuid::new_v4()
+    );
+    let runtime_job_id = format!("hands-implementation-{suffix}");
+    let grant_id = format!("substrate-grant-{runtime_job_id}");
+    let requested_paths = implementation_requested_paths(status);
+
+    let substrate_grant = SubstrateGateRepoAccessGrantReceipt {
+        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: grant_id.clone(),
+        runtime_job_id: runtime_job_id.clone(),
+        binding_id: "implementation-worker".to_string(),
+        role: "epiphany-hands".to_string(),
+        authority_scope: "epiphany.role.implementation".to_string(),
+        granted_operations: vec![
+            "read".to_string(),
+            "snapshot".to_string(),
+            "patch".to_string(),
+            "command".to_string(),
+            "commit".to_string(),
+        ],
+        granted_paths: requested_paths.clone(),
+        granted_at: requested_at.clone(),
+        contract: "Substrate Gate grants the main Hands agent scoped repository access for the coordinator-approved implementation continuation; every mutation still needs Hands receipts."
+            .to_string(),
+    };
+    put_substrate_gate_repo_access_grant_receipt(runtime_store, &substrate_grant)?;
+
+    let intent = HandsActionIntent {
+        schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+        intent_id: format!("hands-intent-{suffix}"),
+        runtime_job_id: runtime_job_id.clone(),
+        binding_id: "implementation-worker".to_string(),
+        role: "epiphany-hands".to_string(),
+        authority_scope: "epiphany.role.implementation".to_string(),
+        requested_action: "continueImplementation".to_string(),
+        requested_paths: requested_paths.clone(),
+        substrate_gate_grant_receipt_id: grant_id.clone(),
+        requested_at: requested_at.clone(),
+        contract: "Coordinator continuation becomes a typed Hands action intent before any file edit, command, or commit may count as implementation evidence."
+            .to_string(),
+    };
+    put_hands_action_intent(runtime_store, &intent)?;
+
+    let mut review = hands_action_review_for_intent(
+        format!("hands-review-{suffix}"),
+        &intent,
+        "approved".to_string(),
+        vec![
+            "patch".to_string(),
+            "command".to_string(),
+            "commit".to_string(),
+        ],
+        vec![
+            "Coordinator selected continueImplementation for the current thread state."
+                .to_string(),
+            "Hands remains the action owner; Mind and Soul still own state admission and verification."
+                .to_string(),
+        ],
+        requested_at,
+    );
+    review.required_receipts = vec![
+        HANDS_PATCH_RECEIPT_TYPE.to_string(),
+        HANDS_COMMAND_RECEIPT_TYPE.to_string(),
+        HANDS_COMMIT_RECEIPT_TYPE.to_string(),
+    ];
+    put_hands_action_review(runtime_store, &review)?;
+
+    Ok(json!({
+        "status": "ready",
+        "runtimeJobId": runtime_job_id,
+        "substrateGateGrantReceiptId": grant_id,
+        "intentId": intent.intent_id,
+        "reviewId": review.review_id,
+        "requestedPaths": requested_paths,
+        "requiredReceipts": review.required_receipts,
+        "recordPassCommand": hands_record_pass_command(runtime_store, artifact_dir),
+        "store": runtime_store,
+    }))
+}
+
+fn hands_record_pass_command(runtime_store: &Path, artifact_dir: &Path) -> Value {
+    json!({
+        "executable": "epiphany-hands-action",
+        "args": [
+            "--store",
+            runtime_store,
+            "record-pass",
+            "--gate-summary",
+            artifact_dir.join("coordinator-summary.json"),
+            "--summary",
+            "<implementation pass summary>",
+            "--changed-path",
+            "<changed path>",
+            "--command",
+            "<verification command>",
+            "--exit-code",
+            "<exit code>",
+            "--stdout-artifact",
+            "<stdout artifact path>",
+            "--stderr-artifact",
+            "<stderr artifact path>",
+            "--commit-sha",
+            "<commit sha>",
+            "--branch",
+            "<branch>"
+        ],
+    })
+}
+
+fn implementation_requested_paths(status: &Value) -> Vec<String> {
+    let mut paths = Vec::new();
+    for pointer in [
+        "/read/thread/epiphanyState/investigationCheckpoint/codeRefs",
+        "/read/thread/epiphanyState/investigationCheckpoint/code_refs",
+        "/read/thread/epiphanyState/investigation_checkpoint/code_refs",
+        "/scene/scene/investigationCheckpoint/codeRefs",
+        "/scene/scene/investigationCheckpoint/code_refs",
+        "/read/thread/epiphanyState/graphFrontier/dirtyPaths",
+        "/read/thread/epiphanyState/graphFrontier/dirty_paths",
+        "/read/thread/epiphanyState/graph_frontier/dirty_paths",
+        "/scene/scene/graphFrontier/dirtyPaths",
+        "/scene/scene/graphFrontier/dirty_paths",
+    ] {
+        collect_requested_paths_at(status, pointer, &mut paths);
+    }
+    paths.sort();
+    paths.dedup();
+    if paths.is_empty() {
+        paths.push(".".to_string());
+    }
+    paths
+}
+
+fn collect_requested_paths_at(status: &Value, pointer: &str, paths: &mut Vec<String>) {
+    match status.pointer(pointer) {
+        Some(Value::Array(items)) => {
+            for item in items {
+                if let Some(path) = item
+                    .as_str()
+                    .or_else(|| item.get("path").and_then(Value::as_str))
+                {
+                    push_requested_path(paths, path);
+                }
+            }
+        }
+        Some(Value::String(path)) => push_requested_path(paths, path),
+        _ => {}
+    }
+}
+
+fn push_requested_path(paths: &mut Vec<String>, path: &str) {
+    let normalized = path.trim().replace('\\', "/");
+    if normalized.is_empty() {
+        return;
+    }
+    paths.push(normalized);
 }
 
 fn launch_role(
@@ -846,6 +1107,88 @@ fn review_action_for_role(role_id: &str) -> &'static str {
         "modeling" => "reviewModelingResult",
         "verification" => "reviewVerificationResult",
         _ => "reviewRoleResult",
+    }
+}
+
+fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
+    if result["status"].as_str() != Some("completed") {
+        return false;
+    }
+    let finding = &result["finding"];
+    if finding["jobError"].is_string() || finding["itemError"].is_string() {
+        return false;
+    }
+    let has_runtime_identity = finding["runtimeResultId"]
+        .as_str()
+        .is_some_and(|id| !id.trim().is_empty())
+        && finding["runtimeJobId"]
+            .as_str()
+            .is_some_and(|id| !id.trim().is_empty());
+    if !has_runtime_identity {
+        return false;
+    }
+    match role_id {
+        "verification" => true,
+        "research" | "modeling" | "imagination" => finding.get("statePatch").is_some(),
+        _ => false,
+    }
+}
+
+fn role_result_needs_supersession(role_id: &str, result: &Value) -> bool {
+    match result["status"].as_str() {
+        Some("failed") => true,
+        Some("completed") if matches!(role_id, "research" | "modeling" | "imagination") => {
+            !role_result_auto_acceptable(role_id, result)
+        }
+        _ => false,
+    }
+}
+
+fn supersede_role_result(
+    client: &mut status_cli::AppServerClient,
+    thread_id: &str,
+    role_id: &str,
+    expected_revision: Option<i64>,
+    result: &Value,
+) -> Result<Value> {
+    let result_id = first_string_at(result, &[&["finding", "runtimeResultId"]])
+        .context("failed role result did not include finding.runtimeResultId")?;
+    let job_id = first_string_at(result, &[&["finding", "runtimeJobId"]])
+        .context("failed role result did not include finding.runtimeJobId")?;
+    let binding_id = first_string_at(result, &[&["bindingId"]])
+        .unwrap_or_else(|| default_binding_id_for_role(role_id));
+    let summary = first_string_at(result, &[&["finding", "summary"], &["note"]])
+        .unwrap_or_else(|| "Role result reviewed and superseded.".to_string());
+    let receipt = json!({
+        "id": format!("role-failure-review-{}", Uuid::new_v4()),
+        "result_id": result_id,
+        "job_id": job_id,
+        "binding_id": binding_id,
+        "surface": "roleFailureReview",
+        "role_id": role_id,
+        "status": "superseded",
+        "accepted_at": now(),
+        "summary": summary,
+    });
+    let mut payload = json!({
+        "threadId": thread_id,
+        "patch": {
+            "acceptanceReceipts": [receipt],
+        },
+    });
+    if let Some(revision) = expected_revision {
+        payload["expectedRevision"] = json!(revision);
+    }
+    client.send("thread/epiphany/update", Some(payload), true)
+}
+
+fn default_binding_id_for_role(role_id: &str) -> String {
+    match role_id {
+        "imagination" => epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.to_string(),
+        "research" => epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string(),
+        "modeling" => epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID.to_string(),
+        "verification" => epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
+        _ => role_id.to_string(),
     }
 }
 
@@ -918,7 +1261,9 @@ fn launch_worker_runtime_detached(
             .arg("--tool-adapter-bin")
             .arg(tool_adapter_bin)
             .arg("--cwd")
-            .arg(cwd);
+            .arg(cwd)
+            .arg("--max-tool-rounds")
+            .arg(WORKER_AUTO_TOOL_MAX_ROUNDS.to_string());
     }
     let stdout_file = fs::File::create(&stdout_path)
         .with_context(|| format!("failed to create {}", stdout_path.display()))?;
@@ -1143,7 +1488,7 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
     let objective = objective
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or("Run the local Epiphany MVP cycle through Face, coordinator, and sleep.");
+        .unwrap_or("Run the local Epiphany MVP cycle through Persona, coordinator, and sleep.");
     let local_refs = local_mvp_code_refs(cwd);
     let transport_refs = local_mvp_transport_code_refs(cwd);
     let mut checkpoint_refs = local_refs.clone();
@@ -1155,14 +1500,14 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
             "id": "local-mvp-cycle",
             "title": "Local MVP cycle",
             "status": "active",
-            "summary": "Use Face as the human-facing entrypoint, run bounded coordinator/swarm work, and close with heartbeat sleep/dream maintenance.",
+            "summary": "Use Persona as the human-facing entrypoint, run bounded coordinator/swarm work, and close with heartbeat sleep/dream maintenance.",
         }],
         "graphs": {
             "architecture": {"nodes": [
                 {
                     "id": "local-mvp-runner",
                     "title": "Local MVP runner",
-                    "purpose": "One local operator cycle that enters through Face, runs coordinator-owned work, and invokes Continuity/heartbeat sleep afterward.",
+                    "purpose": "One local operator cycle that enters through Persona, runs coordinator-owned work, and invokes Continuity/heartbeat sleep afterward.",
                     "code_refs": local_refs,
                 },
                 {
@@ -1174,9 +1519,9 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
             ]},
             "dataflow": {"nodes": [
                 {
-                    "id": "face-coordinator-sleep-cycle",
-                    "title": "Face to coordinator to sleep",
-                    "purpose": "Face expression is display state; coordinator owns lane routing; heartbeat owns sleep physiology.",
+                    "id": "Persona-coordinator-sleep-cycle",
+                    "title": "Persona to coordinator to sleep",
+                    "purpose": "Persona expression is display state; coordinator owns lane routing; heartbeat owns sleep physiology.",
                 },
                 {
                     "id": "coordinator-model-runtime-cycle",
@@ -1186,7 +1531,7 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
             ]},
             "links": [
                 {
-                    "dataflow_node_id": "face-coordinator-sleep-cycle",
+                    "dataflow_node_id": "Persona-coordinator-sleep-cycle",
                     "architecture_node_id": "local-mvp-runner",
                 },
                 {
@@ -1196,14 +1541,14 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
             ],
         },
         "graphFrontier": {
-            "active_node_ids": ["local-mvp-runner", "face-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
+            "active_node_ids": ["local-mvp-runner", "Persona-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
             "dirty_paths": [],
         },
         "graphCheckpoint": {
             "checkpoint_id": "ck-local-mvp-cycle",
             "graph_revision": 2,
-            "summary": "Local MVP runner checkpoint: Face front door, coordinator run, model runtime transport, sleep maintenance.",
-            "frontier_node_ids": ["local-mvp-runner", "face-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
+            "summary": "Local MVP runner checkpoint: Persona front door, coordinator run, model runtime transport, sleep maintenance.",
+            "frontier_node_ids": ["local-mvp-runner", "Persona-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
         },
         "investigationCheckpoint": {
             "checkpoint_id": "ix-local-mvp-cycle",
@@ -1373,7 +1718,6 @@ fn is_stop_action(action: &str) -> bool {
             | "regatherManually"
             | "reviewModelingResult"
             | "reviewVerificationResult"
-            | "continueImplementation"
     )
 }
 
@@ -1434,4 +1778,173 @@ fn home_dir() -> PathBuf {
         .or_else(|| env::var_os("HOME"))
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn continue_implementation_is_not_a_passive_stop_action() {
+        assert!(!is_stop_action("continueImplementation"));
+    }
+
+    #[test]
+    fn auto_review_accepts_receipt_only_verification_findings() {
+        let result = json!({
+            "status": "completed",
+            "finding": {
+                "verdict": "needs-evidence",
+                "summary": "Soul needs a source-backed receipt path.",
+                "runtimeResultId": "result-verification-1",
+                "runtimeJobId": "job-verification-1"
+            }
+        });
+
+        assert!(role_result_auto_acceptable("verification", &result));
+        assert!(!role_result_auto_acceptable("modeling", &result));
+    }
+
+    #[test]
+    fn auto_review_refuses_identityless_or_errored_findings() {
+        let missing_identity = json!({
+            "status": "completed",
+            "finding": {
+                "statePatch": {"scratch": {"summary": "mapped"}},
+                "runtimeResultId": "",
+                "runtimeJobId": "job-modeling-1"
+            }
+        });
+        let errored = json!({
+            "status": "completed",
+            "finding": {
+                "statePatch": {"scratch": {"summary": "mapped"}},
+                "runtimeResultId": "result-modeling-1",
+                "runtimeJobId": "job-modeling-1",
+                "itemError": "missing required field"
+            }
+        });
+
+        assert!(!role_result_auto_acceptable("modeling", &missing_identity));
+        assert!(!role_result_auto_acceptable("modeling", &errored));
+    }
+
+    #[test]
+    fn supersession_includes_unreviewable_modeling_results() {
+        let unreviewable = json!({
+            "status": "completed",
+            "finding": {
+                "verdict": "checkpoint-update-needed",
+                "summary": "Mapped in prose only.",
+                "runtimeResultId": "result-modeling-1",
+                "runtimeJobId": "job-modeling-1",
+                "itemError": "modeling result is not reviewable: missing required statePatch"
+            }
+        });
+        let reviewable = json!({
+            "status": "completed",
+            "finding": {
+                "verdict": "checkpoint-update-needed",
+                "summary": "Mapped with state.",
+                "runtimeResultId": "result-modeling-2",
+                "runtimeJobId": "job-modeling-2",
+                "statePatch": {"scratch": {"summary": "mapped"}}
+            }
+        });
+
+        assert!(role_result_needs_supersession("modeling", &unreviewable));
+        assert!(!role_result_needs_supersession("modeling", &reviewable));
+        assert!(!role_result_needs_supersession(
+            "verification",
+            &unreviewable
+        ));
+    }
+
+    #[test]
+    fn implementation_requested_paths_use_checkpoint_and_frontier_scope() {
+        let status = json!({
+            "read": {
+                "thread": {
+                    "epiphanyState": {
+                        "investigationCheckpoint": {
+                            "codeRefs": [
+                                {"path": "src\\main.rs"},
+                                {"path": "src/main.rs"},
+                                {"path": " notes/demo.md "}
+                            ]
+                        },
+                        "graphFrontier": {
+                            "dirtyPaths": ["tests/demo.rs"]
+                        }
+                    }
+                }
+            }
+        });
+
+        assert_eq!(
+            implementation_requested_paths(&status),
+            vec![
+                "notes/demo.md".to_string(),
+                "src/main.rs".to_string(),
+                "tests/demo.rs".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn hands_implementation_gate_persists_grant_intent_and_review() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime-spine.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-06-02T00:00:00Z".to_string(),
+            },
+        )?;
+        let status = json!({
+            "scene": {
+                "scene": {
+                    "investigationCheckpoint": {
+                        "codeRefs": [{"path": "epiphany-core/src/lib.rs"}]
+                    }
+                }
+            }
+        });
+
+        let gate =
+            record_hands_implementation_gate(&store, temp.path(), "thread-test", 2, &status)?;
+        let grant_id = gate["substrateGateGrantReceiptId"]
+            .as_str()
+            .expect("grant id");
+        let intent_id = gate["intentId"].as_str().expect("intent id");
+        let review_id = gate["reviewId"].as_str().expect("review id");
+
+        let grant =
+            epiphany_core::runtime_substrate_gate_repo_access_grant_receipt(&store, grant_id)?
+                .expect("stored substrate grant");
+        let intent = epiphany_core::runtime_hands_action_intent(&store, intent_id)?
+            .expect("stored Hands intent");
+        let review = epiphany_core::runtime_hands_action_review(&store, review_id)?
+            .expect("stored Hands review");
+
+        assert_eq!(grant.receipt_id, intent.substrate_gate_grant_receipt_id);
+        assert_eq!(intent.intent_id, review.intent_id);
+        assert_eq!(intent.requested_action, "continueImplementation");
+        assert_eq!(
+            gate.pointer("/recordPassCommand/executable")
+                .and_then(serde_json::Value::as_str),
+            Some("epiphany-hands-action")
+        );
+        assert_eq!(
+            review.required_receipts,
+            vec![
+                HANDS_PATCH_RECEIPT_TYPE.to_string(),
+                HANDS_COMMAND_RECEIPT_TYPE.to_string(),
+                HANDS_COMMIT_RECEIPT_TYPE.to_string(),
+            ]
+        );
+        Ok(())
+    }
 }

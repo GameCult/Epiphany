@@ -18,8 +18,8 @@ source_query_instruction = "Given a source-tree, codebase, or lore question, ret
 archive_path = "E:\\Projects\\VoidBot\\.voidbot\\rag\\messages.json"
 
 policy = [
-  "Face may search archived Discord memory for context before speaking.",
+  "Persona may search archived Discord memory for context before speaking.",
   "Qdrant is the semantic memory backend for Discord history and source/lore vectors.",
   "Postgres is checked as the live Void state spine for jobs, audit, interaction memory, and rate limits.",
-  "Raw archive rows remain evidence, not public speech; Face summarizes with restraint.",
+  "Raw archive rows remain evidence, not public speech; Persona summarizes with restraint.",
 ]

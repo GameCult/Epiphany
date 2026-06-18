@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -207,6 +208,11 @@ impl EpiphanyCodexOpenAiTransport {
 pub fn responses_body_from_epiphany(
     request: EpiphanyOpenAiModelRequest,
 ) -> Result<serde_json::Value> {
+    let requires_initial_tool = !request.tools.is_empty()
+        && !request
+            .input
+            .iter()
+            .any(|item| matches!(item, EpiphanyOpenAiInputItem::ToolResult { .. }));
     let body = EpiphanyResponsesBody {
         model: request.model,
         instructions: request.instructions,
@@ -215,8 +221,12 @@ pub fn responses_body_from_epiphany(
             .into_iter()
             .map(openai_input_item_from_epiphany_input)
             .collect(),
-        tools: Vec::new(),
-        tool_choice: "auto".to_string(),
+        tools: request
+            .tools
+            .into_iter()
+            .map(openai_tool_from_epiphany_tool)
+            .collect::<Result<Vec<_>>>()?,
+        tool_choice: if requires_initial_tool { "required" } else { "auto" }.to_string(),
         parallel_tool_calls: false,
         reasoning: Some(EpiphanyResponsesReasoning {
             effort: parse_reasoning_effort(request.reasoning_effort.as_deref())?,
@@ -232,6 +242,20 @@ pub fn responses_body_from_epiphany(
         client_metadata: None,
     };
     serde_json::to_value(body).context("failed to encode typed Epiphany Responses body")
+}
+
+fn openai_tool_from_epiphany_tool(
+    tool: epiphany_openai_adapter::EpiphanyOpenAiToolDefinition,
+) -> Result<serde_json::Value> {
+    let parameters: serde_json::Value = serde_json::from_str(&tool.parameters_json)
+        .with_context(|| format!("tool {} parameters_json is not valid JSON", tool.name))?;
+    Ok(serde_json::json!({
+        "type": "function",
+        "name": tool.name,
+        "description": tool.description,
+        "parameters": parameters,
+        "strict": false
+    }))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -274,6 +298,11 @@ enum EpiphanyResponsesInputItem {
         role: String,
         content: Vec<EpiphanyResponsesContentItem>,
     },
+    FunctionCall {
+        call_id: String,
+        name: String,
+        arguments: String,
+    },
     FunctionCallOutput {
         call_id: String,
         output: String,
@@ -299,6 +328,15 @@ fn openai_input_item_from_epiphany_input(
             role: "assistant".to_string(),
             content: vec![EpiphanyResponsesContentItem::OutputText { text }],
         },
+        EpiphanyOpenAiInputItem::ToolCall {
+            call_id,
+            name,
+            arguments,
+        } => EpiphanyResponsesInputItem::FunctionCall {
+            call_id,
+            name,
+            arguments,
+        },
         EpiphanyOpenAiInputItem::ToolResult { call_id, output } => {
             EpiphanyResponsesInputItem::FunctionCallOutput { call_id, output }
         }
@@ -310,6 +348,7 @@ struct EpiphanyResponsesStreamEvent {
     #[serde(rename = "type")]
     kind: String,
     response: Option<Value>,
+    item: Option<Value>,
     item_id: Option<String>,
     call_id: Option<String>,
     delta: Option<String>,
@@ -340,7 +379,15 @@ struct EpiphanyResponsesStreamState {
     sequence: u64,
     frame_sequence: u64,
     completed: bool,
+    pending_tool_calls: HashMap<String, PendingToolCall>,
     events: Vec<EpiphanyOpenAiStreamEvent>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct PendingToolCall {
+    call_id: Option<String>,
+    name: Option<String>,
+    arguments: String,
 }
 
 impl EpiphanyResponsesStreamState {
@@ -351,6 +398,7 @@ impl EpiphanyResponsesStreamState {
             sequence: 0,
             frame_sequence: 0,
             completed: false,
+            pending_tool_calls: HashMap::new(),
             events: Vec::new(),
         }
     }
@@ -381,15 +429,47 @@ impl EpiphanyResponsesStreamState {
                 }
                 true
             }
-            "response.custom_tool_call_input.delta" => {
-                if let (Some(arguments), Some(name)) =
+            "response.output_item.added" => {
+                if let Some(item) = event.item {
+                    self.seed_tool_call_from_item(&item);
+                }
+                true
+            }
+            "response.function_call_arguments.delta" => {
+                if let (Some(arguments), Some(item_id)) =
                     (event.delta, event.item_id.clone().or(event.call_id.clone()))
                 {
-                    self.push_payload(EpiphanyOpenAiStreamPayload::ToolCall {
-                        call_id: event.call_id.unwrap_or_else(|| name.clone()),
-                        name,
-                        arguments,
-                    });
+                    self.pending_tool_calls
+                        .entry(item_id.clone())
+                        .or_insert_with(|| PendingToolCall {
+                            call_id: event.call_id.clone().or(Some(item_id)),
+                            name: None,
+                            arguments: String::new(),
+                        })
+                        .arguments
+                        .push_str(&arguments);
+                }
+                true
+            }
+            "response.custom_tool_call_input.delta" => {
+                if let (Some(arguments), Some(item_id)) =
+                    (event.delta, event.item_id.clone().or(event.call_id.clone()))
+                {
+                    self.pending_tool_calls
+                        .entry(item_id.clone())
+                        .or_insert_with(|| PendingToolCall {
+                            call_id: event.call_id.clone().or(Some(item_id)),
+                            name: None,
+                            arguments: String::new(),
+                        })
+                        .arguments
+                        .push_str(&arguments);
+                }
+                true
+            }
+            "response.output_item.done" => {
+                if let Some(item) = event.item {
+                    self.push_tool_call_from_done_item(&item);
                 }
                 true
             }
@@ -433,6 +513,56 @@ impl EpiphanyResponsesStreamState {
         self.push_payload(EpiphanyOpenAiStreamPayload::Completed { receipt });
     }
 
+    fn seed_tool_call_from_item(&mut self, item: &Value) {
+        let Some(kind) = item_type(item) else {
+            return;
+        };
+        if kind != "function_call" && kind != "custom_tool_call" {
+            return;
+        }
+        let Some(item_id) = item_identity(item) else {
+            return;
+        };
+        let pending = self.pending_tool_calls.entry(item_id.clone()).or_default();
+        if pending.call_id.is_none() {
+            pending.call_id = item_call_id(item).or(Some(item_id));
+        }
+        if pending.name.is_none() {
+            pending.name = item_name(item);
+        }
+        if pending.arguments.is_empty()
+            && let Some(arguments) = item_arguments(item)
+        {
+            pending.arguments = arguments;
+        }
+    }
+
+    fn push_tool_call_from_done_item(&mut self, item: &Value) {
+        let Some(kind) = item_type(item) else {
+            return;
+        };
+        if kind != "function_call" && kind != "custom_tool_call" {
+            return;
+        }
+        let item_id = item_identity(item);
+        let pending = item_id
+            .as_ref()
+            .and_then(|id| self.pending_tool_calls.remove(id))
+            .unwrap_or_default();
+        let Some(name) = item_name(item).or(pending.name) else {
+            return;
+        };
+        let Some(call_id) = item_call_id(item).or(pending.call_id).or(item_id) else {
+            return;
+        };
+        let arguments = item_arguments(item).unwrap_or(pending.arguments);
+        self.push_payload(EpiphanyOpenAiStreamPayload::ToolCall {
+            call_id,
+            name,
+            arguments,
+        });
+    }
+
     fn push_failed(&mut self, message: String) {
         self.push_payload(EpiphanyOpenAiStreamPayload::Failed { message });
         self.completed = true;
@@ -456,6 +586,37 @@ fn delta_preview(delta: &str) -> String {
         preview.push_str("...");
     }
     preview.replace(['\r', '\n', '\t'], " ")
+}
+
+fn item_type(item: &Value) -> Option<&str> {
+    item.get("type").and_then(Value::as_str)
+}
+
+fn item_identity(item: &Value) -> Option<String> {
+    item.get("id")
+        .and_then(Value::as_str)
+        .or_else(|| item.get("item_id").and_then(Value::as_str))
+        .or_else(|| item.get("call_id").and_then(Value::as_str))
+        .map(ToString::to_string)
+}
+
+fn item_call_id(item: &Value) -> Option<String> {
+    item.get("call_id")
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn item_name(item: &Value) -> Option<String> {
+    item.get("name")
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn item_arguments(item: &Value) -> Option<String> {
+    item.get("arguments")
+        .or_else(|| item.get("input"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
 }
 
 fn parse_reasoning_effort(value: Option<&str>) -> Result<Option<String>> {
@@ -611,10 +772,31 @@ mod tests {
         request.input.push(EpiphanyOpenAiInputItem::UserText {
             text: "hello".to_string(),
         });
+        request.input.push(EpiphanyOpenAiInputItem::ToolCall {
+            call_id: "call-1".to_string(),
+            name: "mcp__epiphany_source__read_file".to_string(),
+            arguments: "{\"path\":\"README.md\"}".to_string(),
+        });
+        request.input.push(EpiphanyOpenAiInputItem::ToolResult {
+            call_id: "call-1".to_string(),
+            output: "{\"ok\":true}".to_string(),
+        });
         request.reasoning_effort = Some("low".to_string());
         request.reasoning_summary = Some("concise".to_string());
         request.service_tier = Some("flex".to_string());
         request.previous_response_id = Some("resp-1".to_string());
+        request
+            .tools
+            .push(epiphany_openai_adapter::EpiphanyOpenAiToolDefinition {
+                name: "mcp__epiphany_source__read_file".to_string(),
+                description: "Read a bounded file slice.".to_string(),
+                parameters_json: serde_json::json!({
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"]
+                })
+                .to_string(),
+            });
 
         let responses = responses_body_from_epiphany(request).expect("request should map");
 
@@ -622,9 +804,136 @@ mod tests {
         assert_eq!(responses["instructions"], "Answer plainly.");
         assert_eq!(responses["previous_response_id"], "resp-1");
         assert_eq!(responses["input"][0]["content"][0]["type"], "input_text");
+        assert_eq!(responses["input"][1]["type"], "function_call");
+        assert_eq!(
+            responses["input"][1]["name"],
+            "mcp__epiphany_source__read_file"
+        );
+        assert_eq!(responses["input"][2]["type"], "function_call_output");
         assert_eq!(responses["stream"], true);
         assert_eq!(responses["store"], false);
         assert_eq!(responses["service_tier"], "flex");
-        assert_eq!(responses["tools"].as_array().expect("tools").len(), 0);
+        assert_eq!(responses["tools"].as_array().expect("tools").len(), 1);
+        assert_eq!(
+            responses["tools"][0]["name"],
+            "mcp__epiphany_source__read_file"
+        );
+        assert_eq!(responses["tool_choice"], "auto");
+    }
+
+    #[test]
+    fn tool_bearing_initial_request_requires_one_tool_call() {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "req-1",
+            "conversation-1",
+            "gpt-5.4",
+            "Inspect before answering.",
+        );
+        request.input.push(EpiphanyOpenAiInputItem::UserText {
+            text: "verify".to_string(),
+        });
+        request
+            .tools
+            .push(epiphany_openai_adapter::EpiphanyOpenAiToolDefinition {
+                name: "mcp__epiphany_source__read_file".to_string(),
+                description: "Read a bounded file slice.".to_string(),
+                parameters_json: serde_json::json!({
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"]
+                })
+                .to_string(),
+            });
+
+        let responses = responses_body_from_epiphany(request).expect("request should map");
+
+        assert_eq!(responses["tool_choice"], "required");
+    }
+
+    #[test]
+    fn parses_function_call_output_item_done_as_complete_tool_call() {
+        let mut state = EpiphanyResponsesStreamState::new("req-tools", "gpt-5.4");
+        let observation = state.push_sse_frame(
+            &serde_json::json!({
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "fc_1",
+                    "type": "function_call",
+                    "name": "mcp__epiphany_source__read_file",
+                    "arguments": "{\"path\":\"README.md\"}",
+                    "call_id": "call_1"
+                }
+            })
+            .to_string(),
+        );
+
+        assert!(observation.recognized);
+        assert_eq!(state.events.len(), 1);
+        assert_eq!(
+            state.events[0].payload,
+            EpiphanyOpenAiStreamPayload::ToolCall {
+                call_id: "call_1".to_string(),
+                name: "mcp__epiphany_source__read_file".to_string(),
+                arguments: "{\"path\":\"README.md\"}".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn assembles_function_call_argument_deltas_until_output_item_done() {
+        let mut state = EpiphanyResponsesStreamState::new("req-tools", "gpt-5.4");
+        state.push_sse_frame(
+            &serde_json::json!({
+                "type": "response.output_item.added",
+                "item": {
+                    "id": "fc_1",
+                    "type": "function_call",
+                    "name": "mcp__epiphany_source__git_show",
+                    "call_id": "call_1",
+                    "arguments": ""
+                }
+            })
+            .to_string(),
+        );
+        state.push_sse_frame(
+            &serde_json::json!({
+                "type": "response.function_call_arguments.delta",
+                "item_id": "fc_1",
+                "call_id": "call_1",
+                "delta": "{\"revision\":"
+            })
+            .to_string(),
+        );
+        state.push_sse_frame(
+            &serde_json::json!({
+                "type": "response.function_call_arguments.delta",
+                "item_id": "fc_1",
+                "call_id": "call_1",
+                "delta": "\"HEAD\"}"
+            })
+            .to_string(),
+        );
+        state.push_sse_frame(
+            &serde_json::json!({
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "fc_1",
+                    "type": "function_call",
+                    "name": "mcp__epiphany_source__git_show",
+                    "call_id": "call_1"
+                }
+            })
+            .to_string(),
+        );
+
+        assert_eq!(state.events.len(), 1);
+        assert_eq!(
+            state.events[0].payload,
+            EpiphanyOpenAiStreamPayload::ToolCall {
+                call_id: "call_1".to_string(),
+                name: "mcp__epiphany_source__git_show".to_string(),
+                arguments: "{\"revision\":\"HEAD\"}".to_string(),
+            }
+        );
     }
 }

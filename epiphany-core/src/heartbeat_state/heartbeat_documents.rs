@@ -13,6 +13,10 @@ pub const HEARTBEAT_COGNITION_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat_c
 pub const HEARTBEAT_STATUS_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat_status.v0";
 pub const INITIATIVE_SCHEMA_VERSION: &str = "ghostlight.initiative_schedule.v0";
 pub const VOID_ROUTINE_SCHEMA_VERSION: &str = "epiphany.void_routine.v0";
+pub const HEARTBEAT_STALE_TURN_REPAIR_TYPE: &str = "epiphany.heartbeat.stale_turn_repair";
+pub const HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION: &str =
+    "epiphany.heartbeat.stale_turn_repair.v0";
+pub const HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY: &str = "heartbeat/stale-turn-repair/latest";
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
@@ -76,6 +80,42 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     pub appraisals: Option<HeartbeatAgentThoughtAppraisals>,
     #[cultcache(key = 12, default)]
     pub reactions: Option<HeartbeatAgentReactions>,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.heartbeat.stale_turn_repair",
+    schema = "EpiphanyHeartbeatStaleTurnRepairReceipt"
+)]
+pub struct EpiphanyHeartbeatStaleTurnRepairReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub repaired_at_utc: String,
+    #[cultcache(key = 3)]
+    pub role_id: String,
+    #[cultcache(key = 4)]
+    pub agent_id: String,
+    #[cultcache(key = 5)]
+    pub action_id: String,
+    #[cultcache(key = 6)]
+    pub schedule_id: String,
+    #[cultcache(key = 7)]
+    pub started_at_utc: String,
+    #[cultcache(key = 8)]
+    pub stale_age_seconds: i64,
+    #[cultcache(key = 9)]
+    pub reason: String,
+    #[cultcache(key = 10)]
+    pub resulting_status: String,
+    #[cultcache(key = 11)]
+    pub next_ready_at: f64,
+    #[cultcache(key = 12)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 13)]
+    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -553,7 +593,7 @@ pub struct HeartbeatCandidateIntervention {
     pub summary: String,
     pub draft: String,
     pub decision: String,
-    pub requires_face: bool,
+    pub requires_persona: bool,
     pub requires_review: bool,
     pub novelty_to_room: f64,
     pub saturation_score: f64,
@@ -871,6 +911,13 @@ pub struct HeartbeatQueueMentionOptions {
 pub struct HeartbeatCompleteOptions {
     pub role: String,
     pub action_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeartbeatStaleTurnRepairOptions {
+    pub max_age_seconds: i64,
+    pub now_utc: Option<String>,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -7,32 +7,41 @@ use epiphany_core::EpiphanyCrrcInput;
 use epiphany_core::EpiphanyCrrcReorientAction;
 use epiphany_core::EpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyCrrcStateStatus;
+use epiphany_core::EpiphanyFreshnessInput;
+use epiphany_core::EpiphanyGraphFreshnessStatus;
+use epiphany_core::EpiphanyInvalidationStatus;
 use epiphany_core::EpiphanyJobStatus;
 use epiphany_core::EpiphanyJobsInput;
 use epiphany_core::EpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientFreshnessStatus;
 use epiphany_core::EpiphanyReorientInput;
 use epiphany_core::EpiphanyReorientPressureLevel;
+use epiphany_core::EpiphanyRetrievalFreshnessStatus;
 use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
 use epiphany_core::EpiphanyRoleBoardInput;
 use epiphany_core::EpiphanyRoleBoardJob;
 use epiphany_core::EpiphanyRoleBoardJobStatus;
 use epiphany_core::EpiphanyRoleBoardPlanningSummary;
+use epiphany_core::EpiphanyRoleFindingInterpretation;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::derive_coordinator_finding_signals;
 use epiphany_core::derive_coordinator_status;
+use epiphany_core::derive_freshness;
 use epiphany_core::derive_jobs;
 use epiphany_core::derive_planning_view;
 use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
+use epiphany_core::interpret_runtime_role_worker_result;
 use epiphany_core::load_thread_state_entry;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_role_worker_result;
 use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
 use serde_json::json;
@@ -120,6 +129,8 @@ struct Args {
     result: Option<PathBuf>,
     transcript: PathBuf,
     stderr: PathBuf,
+    interrupt_binding: Option<String>,
+    interrupt_reason: Option<String>,
 }
 
 impl Args {
@@ -145,6 +156,8 @@ impl Args {
             stderr: root
                 .join(".epiphany-status")
                 .join("epiphany-mvp-status-server.stderr.log"),
+            interrupt_binding: None,
+            interrupt_reason: None,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -167,6 +180,12 @@ impl Args {
                 "--result" => parsed.result = Some(take_path(&mut args, "--result")?),
                 "--transcript" => parsed.transcript = take_path(&mut args, "--transcript")?,
                 "--stderr" => parsed.stderr = take_path(&mut args, "--stderr")?,
+                "--interrupt-binding" => {
+                    parsed.interrupt_binding = Some(take_string(&mut args, "--interrupt-binding")?)
+                }
+                "--interrupt-reason" => {
+                    parsed.interrupt_reason = Some(take_string(&mut args, "--interrupt-reason")?)
+                }
                 _ => return Err(anyhow!("unknown argument: {arg}")),
             }
         }
@@ -175,10 +194,59 @@ impl Args {
 }
 
 fn run_status(args: &Args) -> Result<Value> {
+    if args.interrupt_binding.is_some() {
+        return run_codex_interrupt(args);
+    }
     match args.source {
         StatusSource::Native => run_native_status(args),
         StatusSource::Codex => run_codex_status(args),
     }
+}
+
+fn run_codex_interrupt(args: &Args) -> Result<Value> {
+    if args.source != StatusSource::Codex {
+        return Err(anyhow!(
+            "--interrupt-binding requires Codex/app-server status source"
+        ));
+    }
+    let thread_id = args
+        .thread_id
+        .as_ref()
+        .ok_or_else(|| anyhow!("--interrupt-binding requires --thread-id"))?;
+    let binding_id = args
+        .interrupt_binding
+        .as_ref()
+        .ok_or_else(|| anyhow!("--interrupt-binding requires a binding id"))?;
+    let app_server = absolute_path(&args.app_server)?;
+    let codex_home = absolute_path(&args.codex_home)?;
+    let transcript = absolute_path(&args.transcript)?;
+    let stderr = absolute_path(&args.stderr)?;
+    let mut client = AppServerClient::start(&app_server, &codex_home, &transcript, &stderr)?;
+    client.send(
+        "initialize",
+        Some(json!({
+            "clientInfo": {
+                "name": "epiphany-mvp-status",
+                "title": "Epiphany MVP Status",
+                "version": "0.1.0",
+            },
+            "capabilities": {"experimentalApi": true},
+        })),
+        true,
+    )?;
+    client.send("initialized", None, false)?;
+    if !args.ephemeral {
+        client.send("thread/resume", Some(json!({"threadId": thread_id})), true)?;
+    }
+    client.send(
+        "thread/epiphany/jobInterrupt",
+        Some(json!({
+            "threadId": thread_id,
+            "bindingId": binding_id,
+            "reason": args.interrupt_reason,
+        })),
+        true,
+    )
 }
 
 fn run_native_status(args: &Args) -> Result<Value> {
@@ -210,6 +278,11 @@ fn run_native_status(args: &Args) -> Result<Value> {
         reorient_binding_id: REORIENT_BINDING_ID,
     });
     let pressure = derive_pressure_view(None::<&EpiphanyTokenUsageSnapshot>);
+    let freshness = derive_freshness(EpiphanyFreshnessInput {
+        state: state_ref,
+        retrieval_override: None,
+        watcher: None,
+    });
     let reorient_pressure_level = match pressure.level {
         epiphany_core::EpiphanyPressureLevel::Unknown => EpiphanyReorientPressureLevel::Unknown,
         epiphany_core::EpiphanyPressureLevel::Low => EpiphanyReorientPressureLevel::Low,
@@ -222,18 +295,15 @@ fn run_native_status(args: &Args) -> Result<Value> {
             checkpoint: state_ref.and_then(|state| state.investigation_checkpoint.as_ref()),
             state_present: state_ref.is_some(),
             pressure_level: reorient_pressure_level,
-            retrieval_status: EpiphanyReorientFreshnessStatus::Unknown,
-            retrieval_dirty_paths: Vec::new(),
-            graph_status: EpiphanyReorientFreshnessStatus::Unknown,
-            graph_dirty_paths: Vec::new(),
-            watcher_status: EpiphanyReorientFreshnessStatus::Unknown,
-            watcher_changed_paths: Vec::new(),
-            watcher_graph_node_ids: Vec::new(),
-            active_frontier_node_ids: state_ref
-                .and_then(|state| state.graph_frontier.as_ref())
-                .map(|frontier| frontier.active_node_ids.clone())
-                .unwrap_or_default(),
-            watched_root: Some(cwd.clone()),
+            retrieval_status: reorient_retrieval_status(freshness.retrieval.status),
+            retrieval_dirty_paths: freshness.retrieval.dirty_paths.clone(),
+            graph_status: reorient_graph_status(freshness.graph.status),
+            graph_dirty_paths: freshness.graph.dirty_paths.clone(),
+            watcher_status: reorient_watcher_status(freshness.watcher.status),
+            watcher_changed_paths: freshness.watcher.changed_paths.clone(),
+            watcher_graph_node_ids: freshness.watcher.graph_node_ids.clone(),
+            active_frontier_node_ids: freshness.watcher.active_frontier_node_ids.clone(),
+            watched_root: freshness.watcher.watched_root.clone().or(Some(cwd.clone())),
         });
     let planning = derive_planning_view(state_ref);
     let mut jobs = derive_jobs(EpiphanyJobsInput {
@@ -318,7 +388,31 @@ fn run_native_status(args: &Args) -> Result<Value> {
         imagination_owner_role: "epiphany-imagination".to_string(),
         research_owner_role: "epiphany-eyes".to_string(),
     });
-    let finding_signals = derive_coordinator_finding_signals(state_ref, None, None, None, None);
+    let research_finding = native_role_finding(
+        state_ref,
+        &runtime_store_path,
+        RESEARCH_BINDING_ID,
+        EpiphanyRoleResultRoleId::Research,
+    );
+    let modeling_finding = native_role_finding(
+        state_ref,
+        &runtime_store_path,
+        MODELING_BINDING_ID,
+        EpiphanyRoleResultRoleId::Modeling,
+    );
+    let verification_finding = native_role_finding(
+        state_ref,
+        &runtime_store_path,
+        VERIFICATION_BINDING_ID,
+        EpiphanyRoleResultRoleId::Verification,
+    );
+    let finding_signals = derive_coordinator_finding_signals(
+        state_ref,
+        research_finding.as_ref(),
+        modeling_finding.as_ref(),
+        verification_finding.as_ref(),
+        None,
+    );
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: state_ref
@@ -337,6 +431,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         modeling_result_requests_regather: finding_signals.modeling_result_requests_regather,
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
+        modeling_result_failure_reviewed: finding_signals.modeling_result_failure_reviewed,
         modeling_result_accepted_after_verification: finding_signals
             .modeling_result_accepted_after_verification,
         implementation_evidence_after_verification: finding_signals
@@ -346,6 +441,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         verification_result_covers_current_modeling: finding_signals
             .verification_result_covers_current_modeling,
         verification_result_accepted: finding_signals.verification_result_accepted,
+        verification_result_failure_reviewed: finding_signals.verification_result_failure_reviewed,
         verification_result_allows_implementation: finding_signals
             .verification_result_allows_implementation,
         verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,
@@ -431,7 +527,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         "coordinator": coordinator_json,
         "tools": tool_invocations,
         "heartbeat": native_aux.heartbeat,
-        "face": native_aux.face,
+        "persona": native_aux.persona,
         "voidMemory": native_aux.void_memory,
     });
     Ok(sanitize_for_operator(status))
@@ -547,7 +643,7 @@ fn run_codex_status(args: &Args) -> Result<Value> {
         "coordinator": coordinator,
         "tools": tool_invocations,
         "heartbeat": native_aux.heartbeat,
-        "face": native_aux.face,
+        "persona": native_aux.persona,
         "voidMemory": native_aux.void_memory,
     });
     Ok(sanitize_for_operator(status))
@@ -555,13 +651,13 @@ fn run_codex_status(args: &Args) -> Result<Value> {
 
 struct NativeAuxiliaryStatus {
     heartbeat: Value,
-    face: Value,
+    persona: Value,
     void_memory: Value,
 }
 
 fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     let heartbeat_dir = root.join(".epiphany-heartbeats");
-    let face_dir = root.join(".epiphany-face");
+    let persona_dir = root.join(".epiphany-persona");
     let heartbeat = native_json(
         "epiphany-heartbeat-store",
         &[
@@ -574,12 +670,12 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
             "8",
         ],
     )?;
-    let latest_face = native_json(
-        "epiphany-face-discord",
+    let latest_persona = native_json(
+        "epiphany-persona-discord",
         &[
             "latest",
             "--artifact-dir",
-            &face_dir.to_string_lossy(),
+            &persona_dir.to_string_lossy(),
             "--limit",
             "8",
         ],
@@ -587,11 +683,11 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     .unwrap_or_else(
         |error| json!({"status": "error", "error": error.to_string(), "latestArtifacts": []}),
     );
-    let face = json!({
+    let persona = json!({
         "status": "ready",
-        "artifactDir": face_dir,
-        "latestArtifacts": latest_face.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
-        "availableActions": ["faceBubble", "characterTurn", "discordPersonaPost"],
+        "artifactDir": persona_dir,
+        "latestArtifacts": latest_persona.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
+        "availableActions": ["personaBubble", "characterTurn", "discordPersonaPost"],
     });
     let void_memory = native_json(
         "epiphany-void-memory",
@@ -601,7 +697,7 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
 
     Ok(NativeAuxiliaryStatus {
         heartbeat,
-        face,
+        persona,
         void_memory,
     })
 }
@@ -737,6 +833,19 @@ fn native_role_result_status(
     }
 }
 
+fn native_role_finding(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+    binding_id: &str,
+    role_id: EpiphanyRoleResultRoleId,
+) -> Option<EpiphanyRoleFindingInterpretation> {
+    let job_id = latest_runtime_job_id_for_binding(state, binding_id)?;
+    runtime_role_worker_result(runtime_store, job_id)
+        .ok()
+        .flatten()
+        .map(|result| interpret_runtime_role_worker_result(role_id, &result))
+}
+
 fn native_reorient_result_status(
     state: Option<&EpiphanyThreadState>,
     runtime_store: &Path,
@@ -783,6 +892,34 @@ fn latest_runtime_job_id_for_binding<'a>(
         .iter()
         .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
         .map(|link| link.runtime_job_id.as_str())
+}
+
+fn reorient_retrieval_status(
+    status: EpiphanyRetrievalFreshnessStatus,
+) -> EpiphanyReorientFreshnessStatus {
+    match status {
+        EpiphanyRetrievalFreshnessStatus::Missing
+        | EpiphanyRetrievalFreshnessStatus::Unavailable => EpiphanyReorientFreshnessStatus::Unknown,
+        EpiphanyRetrievalFreshnessStatus::Ready => EpiphanyReorientFreshnessStatus::Clean,
+        EpiphanyRetrievalFreshnessStatus::Stale => EpiphanyReorientFreshnessStatus::Stale,
+        EpiphanyRetrievalFreshnessStatus::Indexing => EpiphanyReorientFreshnessStatus::Dirty,
+    }
+}
+
+fn reorient_graph_status(status: EpiphanyGraphFreshnessStatus) -> EpiphanyReorientFreshnessStatus {
+    match status {
+        EpiphanyGraphFreshnessStatus::Missing => EpiphanyReorientFreshnessStatus::Unknown,
+        EpiphanyGraphFreshnessStatus::Ready => EpiphanyReorientFreshnessStatus::Clean,
+        EpiphanyGraphFreshnessStatus::Stale => EpiphanyReorientFreshnessStatus::Stale,
+    }
+}
+
+fn reorient_watcher_status(status: EpiphanyInvalidationStatus) -> EpiphanyReorientFreshnessStatus {
+    match status {
+        EpiphanyInvalidationStatus::Unavailable => EpiphanyReorientFreshnessStatus::Unknown,
+        EpiphanyInvalidationStatus::Clean => EpiphanyReorientFreshnessStatus::Clean,
+        EpiphanyInvalidationStatus::Changed => EpiphanyReorientFreshnessStatus::Changed,
+    }
 }
 
 fn map_runtime_role_result_status(
@@ -1230,12 +1367,12 @@ pub fn render_status(status: &Value) -> String {
     let recommendation = &status["crrc"]["recommendation"];
     let coordinator = &status["coordinator"];
     let heartbeat = &status["heartbeat"];
-    let face = &status["face"];
+    let persona = &status["persona"];
     let planning_response = &status["planning"];
     let planning_summary = &planning_response["summary"];
     let checkpoint = &scene["investigationCheckpoint"];
     let latest_heartbeat = heartbeat["latestEvent"].clone();
-    let latest_face = face["latestArtifacts"]
+    let latest_persona = persona["latestArtifacts"]
         .as_array()
         .and_then(|items| items.first())
         .cloned()
@@ -1297,11 +1434,14 @@ pub fn render_status(status: &Value) -> String {
             maybe(&latest_heartbeat["coordinatorAction"], "none")
         ),
         String::new(),
-        "Face".to_string(),
-        format!("- latest artifact: {}", maybe(&latest_face["name"], "none")),
+        "Persona".to_string(),
+        format!(
+            "- latest artifact: {}",
+            maybe(&latest_persona["name"], "none")
+        ),
         format!(
             "- latest content: {}",
-            maybe(&latest_face["content"], "none")
+            maybe(&latest_persona["content"], "none")
         ),
         String::new(),
         "Planning".to_string(),
