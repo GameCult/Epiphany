@@ -2087,6 +2087,7 @@ fn main() -> Result<()> {
                 || bifrost_ledger_report.private_state_exposed
                 || !bifrost_ledger_report.tui_rows.iter().any(|row| {
                     row.contains("github-publication-receipt")
+                        && row.contains("owner=Bifrost/GitHub")
                         && row.contains(
                             "public=https://github.com/GameCult/EpiphanyAgent/pull/smoke",
                         )
@@ -2094,6 +2095,7 @@ fn main() -> Result<()> {
                 })
                 || !bifrost_ledger_report.tui_rows.iter().any(|row| {
                     row.contains("imagination-consensus-receipt")
+                        && row.contains("owner=Imagination")
                         && row.contains(
                             "public=https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm",
                         )
@@ -3487,6 +3489,7 @@ struct ReceiptDirectoryRow {
 #[serde(rename_all = "camelCase")]
 struct BifrostLedgerRow {
     document_kind: String,
+    owner: String,
     id: String,
     status: String,
     route: String,
@@ -5315,6 +5318,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "body-change-intent".to_string(),
+                owner: "Bifrost".to_string(),
                 id: intent.intent_id.clone(),
                 status: status.to_string(),
                 route: intent.target_repository.clone(),
@@ -5331,6 +5335,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "bifrost-publication-receipt".to_string(),
+                owner: "Bifrost".to_string(),
                 id: receipt.receipt_id.clone(),
                 status: receipt.status.clone(),
                 route: receipt.bifrost_ledger_entry_id.clone(),
@@ -5347,6 +5352,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "github-publication-receipt".to_string(),
+                owner: "Bifrost/GitHub".to_string(),
                 id: receipt.receipt_id.clone(),
                 status: receipt.publication_status.clone(),
                 route: receipt.ledger_entry_id.clone(),
@@ -5363,6 +5369,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "collaboration-feedback".to_string(),
+                owner: "Persona->Imagination".to_string(),
                 id: feedback.feedback_id.clone(),
                 status: "queued-for-imagination".to_string(),
                 route: feedback.requested_consensus_route.clone(),
@@ -5379,6 +5386,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "imagination-consensus-receipt".to_string(),
+                owner: "Imagination".to_string(),
                 id: receipt.receipt_id.clone(),
                 status: receipt.status.clone(),
                 route: receipt.adoption_gate.clone(),
@@ -5436,8 +5444,8 @@ fn push_bifrost_ledger_row(
         "private=false"
     };
     tui_rows.push(format!(
-        "{compact_status} | {} | {} | {} | {} | public={} | {private}",
-        row.document_kind, row.id, row.status, row.route, row.public_ref
+        "{compact_status} | {} | owner={} | {} | {} | {} | public={} | {private}",
+        row.document_kind, row.owner, row.id, row.status, row.route, row.public_ref
     ));
     rows.push(row);
 }
