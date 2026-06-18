@@ -1652,7 +1652,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $audit -or $audit -eq "") {
                         $audit = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:artifact=$artifact"
+                    $aftercare = $_.operatorAftercareCommand
+                    if ($null -eq $aftercare -or $aftercare -eq "") {
+                        $aftercare = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = "none"
@@ -1706,7 +1710,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $audit -or $audit -eq "") {
                         $audit = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:artifact=$artifact"
+                    $aftercare = $_.operatorAftercareCommand
+                    if ($null -eq $aftercare -or $aftercare -eq "") {
+                        $aftercare = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = "none"

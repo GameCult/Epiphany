@@ -1454,6 +1454,11 @@ fn main() -> Result<()> {
             );
         }
         "smoke" => {
+            if args.smoke_default_store {
+                if let Some(parent) = args.store.parent() {
+                    fs::remove_dir_all(parent).ok();
+                }
+            }
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -2392,6 +2397,12 @@ fn main() -> Result<()> {
                         && row.operator_artifact_ref
                             == service_smoke_runbook_path.display().to_string()
                         && row.operator_artifact_status == "present"
+                        && row.operator_artifact_execution_command
+                            == elevated_powershell_runbook_command(
+                                &service_smoke_runbook_path.display().to_string(),
+                            )
+                        && row.operator_aftercare_command
+                            == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
                         && row.completion_audit_wrapper_mode == "cluster-service-execution-audit"
                         && row.completion_audit_wrapper_command
                             == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
@@ -2494,6 +2505,8 @@ fn main() -> Result<()> {
                     && row.wrapper_mode == "cluster-service-execution-runbook"
                     && row.effect_class == "service-lifecycle-runbook-regeneration"
                     && row.operator_artifact_status == "missing"
+                    && row.operator_artifact_execution_command == "none"
+                    && row.operator_aftercare_command == "none"
                     && row.completion_audit_wrapper_mode == "cluster-service-execution-audit"
                     && row.completion_audit_wrapper_command
                         == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
@@ -2849,6 +2862,8 @@ struct SwarmActionRow {
     wrapper_command: String,
     operator_artifact_ref: String,
     operator_artifact_status: String,
+    operator_artifact_execution_command: String,
+    operator_aftercare_command: String,
     completion_audit_wrapper_mode: String,
     completion_audit_wrapper_command: String,
     authority_gate: String,
@@ -3243,6 +3258,8 @@ fn swarm_action_rows(
             wrapper_command: WRAPPER_POKE_NON_READY_COMMAND.to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_execution_command: "none".to_string(),
+            operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
             completion_audit_wrapper_command: "none".to_string(),
             authority_gate: "daemon.lifecycle_poke".to_string(),
@@ -3268,6 +3285,8 @@ fn swarm_action_rows(
             wrapper_command: "tools/epiphany_local_run.ps1 -Mode tool-directory".to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_execution_command: "none".to_string(),
+            operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
             completion_audit_wrapper_command: "none".to_string(),
             authority_gate: "daemon.tool_invocation_liveness_gate".to_string(),
@@ -3292,6 +3311,8 @@ fn swarm_action_rows(
             wrapper_command: WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND.to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_execution_command: "none".to_string(),
+            operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
             completion_audit_wrapper_command: "none".to_string(),
             authority_gate: "daemon.restart_policy".to_string(),
@@ -3317,6 +3338,8 @@ fn swarm_action_rows(
             wrapper_command: service_lifecycle_recommended_wrapper_command.to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_execution_command: "none".to_string(),
+            operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
             completion_audit_wrapper_command: "none".to_string(),
             authority_gate: "daemon.service_lifecycle".to_string(),
@@ -3377,6 +3400,16 @@ fn swarm_action_rows(
                     "A sealed service execution runbook exists; completing service readiness now requires explicit elevated operator execution and follow-up audit receipts.".to_string(),
                 )
             };
+            let operator_artifact_execution_command = if artifact_status == "present" {
+                elevated_powershell_runbook_command(&runbook_row.artifact_ref)
+            } else {
+                "none".to_string()
+            };
+            let operator_aftercare_command = if artifact_status == "present" {
+                service_lifecycle_recommended_wrapper_command.to_string()
+            } else {
+                "none".to_string()
+            };
             rows.push(SwarmActionRow {
                 priority: 50,
                 family: "service-execution-authority".to_string(),
@@ -3386,6 +3419,8 @@ fn swarm_action_rows(
                 wrapper_command,
                 operator_artifact_ref: runbook_row.artifact_ref.clone(),
                 operator_artifact_status: artifact_status,
+                operator_artifact_execution_command,
+                operator_aftercare_command,
                 completion_audit_wrapper_mode: service_lifecycle_recommended_wrapper_mode
                     .to_string(),
                 completion_audit_wrapper_command: service_lifecycle_recommended_wrapper_command
@@ -3409,6 +3444,8 @@ fn swarm_action_rows(
             wrapper_command: "none".to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_execution_command: "none".to_string(),
+            operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
             completion_audit_wrapper_command: "none".to_string(),
             authority_gate: "none".to_string(),
@@ -3439,6 +3476,17 @@ fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
         row.operator_artifact_status,
         row.completion_audit_wrapper_mode
     )
+}
+
+fn elevated_powershell_runbook_command(artifact_ref: &str) -> String {
+    format!(
+        "Start-Process PowerShell -Verb RunAs -Wait -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',{})",
+        quote_powershell_literal(artifact_ref)
+    )
+}
+
+fn quote_powershell_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
 }
 
 fn operator_artifact_status(artifact_ref: &str) -> &'static str {
@@ -4978,6 +5026,7 @@ struct Args {
     command: String,
     store: PathBuf,
     runtime_id: String,
+    smoke_default_store: bool,
     agent_store: Option<PathBuf>,
     daemon_id: Option<String>,
     daemon_status: Option<String>,
@@ -5039,6 +5088,8 @@ impl Args {
         let command = values.next().unwrap_or_else(|| "query".to_string());
         let mut store = PathBuf::from(".epiphany-run/cultmesh/local-verse.ccmp");
         let mut runtime_id = "epiphany-local".to_string();
+        let mut store_overridden = false;
+        let mut runtime_id_overridden = false;
         let mut agent_store = None;
         let mut daemon_id = None;
         let mut daemon_status = None;
@@ -5097,9 +5148,11 @@ impl Args {
             match arg.as_str() {
                 "--store" => {
                     store = PathBuf::from(values.next().context("missing --store value")?);
+                    store_overridden = true;
                 }
                 "--runtime-id" => {
                     runtime_id = values.next().context("missing --runtime-id value")?;
+                    runtime_id_overridden = true;
                 }
                 "--agent-store" => {
                     agent_store = Some(PathBuf::from(
@@ -5345,6 +5398,14 @@ impl Args {
             }
         }
 
+        let smoke_default_store = command == "smoke" && !store_overridden;
+        if smoke_default_store {
+            store = PathBuf::from(".epiphany-smoke/verse-query-default/local-verse.ccmp");
+            if !runtime_id_overridden {
+                runtime_id = "verse-query-default-smoke".to_string();
+            }
+        }
+
         if let Some(parent) = store.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -5353,6 +5414,7 @@ impl Args {
             command,
             store,
             runtime_id,
+            smoke_default_store,
             agent_store,
             daemon_id,
             daemon_status,
