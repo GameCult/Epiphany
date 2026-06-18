@@ -2329,6 +2329,9 @@ fn main() -> Result<()> {
             let service_smoke_runbook_path = args
                 .store
                 .with_file_name("epiphany-cluster-daemon-services-execution-runbook-smoke.ps1");
+            let service_smoke_single_runbook_path = args
+                .store
+                .with_file_name("epiphany-daemon-supervisor-service-execution-runbook-smoke.ps1");
             if let Some(parent) = service_smoke_runbook_path.parent() {
                 fs::create_dir_all(parent).with_context(|| {
                     format!(
@@ -2345,6 +2348,16 @@ fn main() -> Result<()> {
                 format!(
                     "failed to write service smoke runbook artifact {}",
                     service_smoke_runbook_path.display()
+                )
+            })?;
+            fs::write(
+                &service_smoke_single_runbook_path,
+                "# synthetic single-service execution runbook smoke artifact\n",
+            )
+            .with_context(|| {
+                format!(
+                    "failed to write single-service smoke runbook artifact {}",
+                    service_smoke_single_runbook_path.display()
                 )
             })?;
             for (receipt_id, action, status) in [
@@ -2401,6 +2414,35 @@ fn main() -> Result<()> {
                 EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
                     schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
                         .to_string(),
+                    receipt_id: "daemon-service-lifecycle-receipt-smoke-service-execution-runbook"
+                        .to_string(),
+                    service_id: "epiphany-daemon-supervisor-service".to_string(),
+                    scheduler_id: "epiphany-daemon-supervisor".to_string(),
+                    runtime_id: args.runtime_id.clone(),
+                    daemon_selector: "epiphany-daemon-supervisor".to_string(),
+                    action: "windows-service-execution-runbook".to_string(),
+                    status: "written".to_string(),
+                    command: "smoke-service-lifecycle".to_string(),
+                    args: vec!["windows-service-execution-runbook".to_string()],
+                    cwd: Some("E:/Projects/EpiphanyAgent".to_string()),
+                    process_id: None,
+                    exit_code: Some(0),
+                    started_at_utc: service_smoke_started_at.clone(),
+                    completed_at_utc: Some(Utc::now().to_rfc3339()),
+                    operator_artifact_ref: service_smoke_single_runbook_path.display().to_string(),
+                    private_state_exposed: false,
+                    notes: vec![
+                        "Synthetic verse-query smoke receipt for single-service execution runbook action row."
+                            .to_string(),
+                    ],
+                },
+            )?;
+            write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &args.store,
+                args.runtime_id.clone(),
+                EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+                    schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                        .to_string(),
                     receipt_id: "daemon-service-lifecycle-receipt-smoke-service-execution-audit"
                         .to_string(),
                     service_id: "epiphany-daemon-supervisor-service".to_string(),
@@ -2438,7 +2480,7 @@ fn main() -> Result<()> {
             if service_overview.service_lifecycle_recommended_wrapper_mode
                 != "cluster-service-execution-audit"
                 || service_receipt_directory.artifact_external_ref_count < 1
-                || service_receipt_directory.artifact_present_count < 1
+                || service_receipt_directory.artifact_present_count < 2
                 || service_receipt_directory.artifact_missing_count != 0
                 || !service_receipt_directory
                     .attention_route_rows
@@ -2517,23 +2559,28 @@ fn main() -> Result<()> {
                             == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
                         && row.mutates_state
                         && row.requires_elevated_authority
-                        && row.service_execution_failed_check_count
-                            == service_overview.service_execution_failed_check_count
-                        && row.service_execution_missing_check_count
-                            == service_overview.service_execution_missing_check_count
+                        && row.service_execution_failed_check_count == 5
+                        && row.service_execution_missing_check_count == 4
+                        && !row.private_state_exposed
+                })
+                || !service_overview.swarm_action_rows.iter().any(|row| {
+                    row.priority == 51
+                        && row.family == "service-execution-authority"
+                        && row.effect_class == "elevated-service-control"
+                        && row.operator_aftercare_command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND
+                        && row.completion_audit_wrapper_mode == "service-execution-audit"
+                        && row.completion_audit_wrapper_command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND
+                        && row.mutates_state
+                        && row.requires_elevated_authority
+                        && row.service_execution_failed_check_count == 6
+                        && row.service_execution_missing_check_count == 6
                         && !row.private_state_exposed
                 })
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
                         && row.contains("command=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook")
-                        && row.contains(&format!(
-                            "failedChecks={}",
-                            service_overview.service_execution_failed_check_count
-                        ))
-                        && row.contains(&format!(
-                            "missingChecks={}",
-                            service_overview.service_execution_missing_check_count
-                        ))
+                        && row.contains("failedChecks=5")
+                        && row.contains("missingChecks=4")
                         && row.contains("artifact=present")
                         && row.contains(&format!(
                             "sha256={}",
@@ -2543,6 +2590,14 @@ fn main() -> Result<()> {
                             )
                         ))
                         && row.contains("audit=cluster-service-execution-audit")
+                })
+                || !service_overview.swarm_action_tui_rows.iter().any(|row| {
+                    row.contains("service-execution-authority")
+                        && row.contains("command=tools/epiphany_local_run.ps1 -Mode service-execution-runbook")
+                        && row.contains("failedChecks=6")
+                        && row.contains("missingChecks=6")
+                        && row.contains("artifact=present")
+                        && row.contains("audit=service-execution-audit")
                 })
                 || !service_overview
                     .service_lifecycle_attention_rows
@@ -2649,16 +2704,24 @@ fn main() -> Result<()> {
                 attention_count: 0,
                 private_state_exposed: false,
             };
+            let missing_artifact_action = ServiceExecutionRunbookAction {
+                route: missing_runbook_row.route.clone(),
+                family: missing_runbook_row.family.clone(),
+                follow_up_command: missing_runbook_row.follow_up_command.clone(),
+                artifact_ref: missing_runbook_row.artifact_ref.clone(),
+                private_state_exposed: missing_runbook_row.private_state_exposed,
+                failed_check_count: 0,
+                missing_check_count: 0,
+                completion_audit_wrapper_mode: "cluster-service-execution-audit".to_string(),
+                completion_audit_wrapper_command: WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
+                    .to_string(),
+            };
             let (missing_artifact_rows, _) = swarm_action_rows(
                 "ready",
                 &[],
                 &ready_policy_report,
                 &[],
-                "cluster-service-execution-audit",
-                WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND,
-                Some(&missing_runbook_row),
-                0,
-                0,
+                &[missing_artifact_action],
             );
             if !missing_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -3103,6 +3166,18 @@ struct SwarmActionRow {
     private_state_exposed: bool,
 }
 
+struct ServiceExecutionRunbookAction {
+    route: String,
+    family: String,
+    follow_up_command: String,
+    artifact_ref: String,
+    private_state_exposed: bool,
+    failed_check_count: usize,
+    missing_check_count: usize,
+    completion_audit_wrapper_mode: String,
+    completion_audit_wrapper_command: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SwarmOverviewOutput {
@@ -3489,11 +3564,7 @@ fn swarm_action_rows(
     tool_host_attention_rows: &[DaemonToolDirectoryRow],
     policy_report: &DaemonRestartPolicyDirectoryReport,
     service_lifecycle_attention_rows: &[ReceiptDirectoryRow],
-    service_lifecycle_recommended_wrapper_mode: &str,
-    service_lifecycle_recommended_wrapper_command: &str,
-    service_execution_runbook_row: Option<&ReceiptDirectoryRow>,
-    service_execution_failed_check_count: usize,
-    service_execution_missing_check_count: usize,
+    service_execution_runbook_actions: &[ServiceExecutionRunbookAction],
 ) -> (Vec<SwarmActionRow>, Vec<String>) {
     let mut rows = Vec::new();
     if liveness_status != "ready" {
@@ -3613,94 +3684,92 @@ fn swarm_action_rows(
             private_state_exposed: row.private_state_exposed,
         });
     }
-    if let Some(runbook_row) = service_execution_runbook_row {
-        if runbook_row.present && runbook_row.status == "written" {
-            let artifact_status = operator_artifact_status(&runbook_row.artifact_ref).to_string();
-            let (
-                status,
-                action,
-                wrapper_mode,
-                wrapper_command,
-                authority_gate,
-                effect_class,
-                mutates_state,
-                requires_elevated_authority,
-                reason,
-            ) = if artifact_status == "missing" {
-                (
-                    "runbook-artifact-missing".to_string(),
-                    format!(
-                        "Regenerate sealed service execution runbook for {}; then rerun service execution audit.",
-                        runbook_row.route
-                    ),
-                    runbook_row.family.clone(),
-                    format!(
-                        "{} # refreshes the missing sealed runbook artifact; do not request elevated service control until artifactStatus=present",
-                        runbook_row.follow_up_command
-                    ),
-                    "daemon.service_lifecycle_runbook".to_string(),
-                    "service-lifecycle-runbook-regeneration".to_string(),
-                    false,
-                    false,
-                    "A service execution runbook receipt exists, but its local artifact is missing; regenerate the sealed runbook witness before requesting elevated service authority.".to_string(),
-                )
-            } else {
-                (
-                    "operator-authority-required".to_string(),
-                    format!(
-                        "Run latest generated service execution runbook for {}; then rerun service execution audit.",
-                        runbook_row.route
-                    ),
-                    "operator-elevated-runbook".to_string(),
-                    format!(
-                        "{} # refreshes the sealed runbook; execute the generated artifact only with explicit elevated operator authority",
-                        runbook_row.follow_up_command
-                    ),
-                    "operator.elevated_windows_service_control".to_string(),
-                    "elevated-service-control".to_string(),
-                    true,
-                    true,
-                    "A sealed service execution runbook exists; completing service readiness now requires explicit elevated operator execution and follow-up audit receipts.".to_string(),
-                )
-            };
-            let operator_artifact_execution_command = if artifact_status == "present" {
-                elevated_powershell_runbook_command(&runbook_row.artifact_ref)
-            } else {
-                "none".to_string()
-            };
-            let operator_aftercare_command = if artifact_status == "present" {
-                service_lifecycle_recommended_wrapper_command.to_string()
-            } else {
-                "none".to_string()
-            };
-            let operator_artifact_sha256 =
-                operator_artifact_sha256(&runbook_row.artifact_ref, &artifact_status);
-            rows.push(SwarmActionRow {
-                priority: 50,
-                family: "service-execution-authority".to_string(),
-                status,
-                action,
-                wrapper_mode,
-                wrapper_command,
-                operator_artifact_ref: runbook_row.artifact_ref.clone(),
-                operator_artifact_status: artifact_status,
-                operator_artifact_sha256,
-                operator_artifact_execution_command,
-                operator_aftercare_command,
-                completion_audit_wrapper_mode: service_lifecycle_recommended_wrapper_mode
-                    .to_string(),
-                completion_audit_wrapper_command: service_lifecycle_recommended_wrapper_command
-                    .to_string(),
-                authority_gate,
-                effect_class,
-                mutates_state,
-                requires_elevated_authority,
-                service_execution_failed_check_count,
-                service_execution_missing_check_count,
-                reason,
-                private_state_exposed: runbook_row.private_state_exposed,
-            });
-        }
+    for (index, runbook_action) in service_execution_runbook_actions.iter().enumerate() {
+        let artifact_status = operator_artifact_status(&runbook_action.artifact_ref).to_string();
+        let (
+            status,
+            action,
+            wrapper_mode,
+            wrapper_command,
+            authority_gate,
+            effect_class,
+            mutates_state,
+            requires_elevated_authority,
+            reason,
+        ) = if artifact_status == "missing" {
+            (
+                "runbook-artifact-missing".to_string(),
+                format!(
+                    "Regenerate sealed service execution runbook for {}; then rerun service execution audit.",
+                    runbook_action.route
+                ),
+                runbook_action.family.clone(),
+                format!(
+                    "{} # refreshes the missing sealed runbook artifact; do not request elevated service control until artifactStatus=present",
+                    runbook_action.follow_up_command
+                ),
+                "daemon.service_lifecycle_runbook".to_string(),
+                "service-lifecycle-runbook-regeneration".to_string(),
+                false,
+                false,
+                "A service execution runbook receipt exists, but its local artifact is missing; regenerate the sealed runbook witness before requesting elevated service authority.".to_string(),
+            )
+        } else {
+            (
+                "operator-authority-required".to_string(),
+                format!(
+                    "Run latest generated service execution runbook for {}; then rerun service execution audit.",
+                    runbook_action.route
+                ),
+                "operator-elevated-runbook".to_string(),
+                format!(
+                    "{} # refreshes the sealed runbook; execute the generated artifact only with explicit elevated operator authority",
+                    runbook_action.follow_up_command
+                ),
+                "operator.elevated_windows_service_control".to_string(),
+                "elevated-service-control".to_string(),
+                true,
+                true,
+                "A sealed service execution runbook exists; completing service readiness now requires explicit elevated operator execution and follow-up audit receipts.".to_string(),
+            )
+        };
+        let operator_artifact_execution_command = if artifact_status == "present" {
+            elevated_powershell_runbook_command(&runbook_action.artifact_ref)
+        } else {
+            "none".to_string()
+        };
+        let operator_aftercare_command = if artifact_status == "present" {
+            runbook_action.completion_audit_wrapper_command.clone()
+        } else {
+            "none".to_string()
+        };
+        let operator_artifact_sha256 =
+            operator_artifact_sha256(&runbook_action.artifact_ref, &artifact_status);
+        rows.push(SwarmActionRow {
+            priority: 50 + index as u32,
+            family: "service-execution-authority".to_string(),
+            status,
+            action,
+            wrapper_mode,
+            wrapper_command,
+            operator_artifact_ref: runbook_action.artifact_ref.clone(),
+            operator_artifact_status: artifact_status,
+            operator_artifact_sha256,
+            operator_artifact_execution_command,
+            operator_aftercare_command,
+            completion_audit_wrapper_mode: runbook_action.completion_audit_wrapper_mode.clone(),
+            completion_audit_wrapper_command: runbook_action
+                .completion_audit_wrapper_command
+                .clone(),
+            authority_gate,
+            effect_class,
+            mutates_state,
+            requires_elevated_authority,
+            service_execution_failed_check_count: runbook_action.failed_check_count,
+            service_execution_missing_check_count: runbook_action.missing_check_count,
+            reason,
+            private_state_exposed: runbook_action.private_state_exposed,
+        });
     }
     if rows.is_empty() {
         rows.push(SwarmActionRow {
@@ -3763,6 +3832,54 @@ fn service_lifecycle_wrapper_mode_for_row(row: &ReceiptDirectoryRow) -> &'static
     }
 }
 
+fn service_execution_runbook_actions(
+    rows: &[ReceiptDirectoryRow],
+    cluster_report: &epiphany_core::EpiphanyServiceExecutionAuditReport,
+    single_service_reports: &[(String, epiphany_core::EpiphanyServiceExecutionAuditReport)],
+) -> Vec<ServiceExecutionRunbookAction> {
+    rows.iter()
+        .filter(|row| {
+            row.present
+                && row.status == "written"
+                && (row.family == "cluster-service-execution-runbook"
+                    || row.family == "service-execution-runbook")
+        })
+        .filter_map(|row| {
+            if row.family == "cluster-service-execution-runbook" {
+                Some(ServiceExecutionRunbookAction {
+                    route: row.route.clone(),
+                    family: row.family.clone(),
+                    follow_up_command: row.follow_up_command.clone(),
+                    artifact_ref: row.artifact_ref.clone(),
+                    private_state_exposed: row.private_state_exposed,
+                    failed_check_count: cluster_report.failed_count,
+                    missing_check_count: cluster_report.missing_count,
+                    completion_audit_wrapper_mode: "cluster-service-execution-audit".to_string(),
+                    completion_audit_wrapper_command:
+                        WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND.to_string(),
+                })
+            } else {
+                let service_id = receipt_directory_row_service_id(row)?;
+                let (_, report) = single_service_reports
+                    .iter()
+                    .find(|(candidate_id, _)| candidate_id == &service_id)?;
+                Some(ServiceExecutionRunbookAction {
+                    route: row.route.clone(),
+                    family: row.family.clone(),
+                    follow_up_command: row.follow_up_command.clone(),
+                    artifact_ref: row.artifact_ref.clone(),
+                    private_state_exposed: row.private_state_exposed,
+                    failed_check_count: report.failed_count,
+                    missing_check_count: report.missing_count,
+                    completion_audit_wrapper_mode: "service-execution-audit".to_string(),
+                    completion_audit_wrapper_command: WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND
+                        .to_string(),
+                })
+            }
+        })
+        .collect()
+}
+
 fn elevated_powershell_runbook_command(artifact_ref: &str) -> String {
     format!(
         "Start-Process PowerShell -Verb RunAs -Wait -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',{})",
@@ -3795,18 +3912,6 @@ fn operator_artifact_status(artifact_ref: &str) -> &'static str {
     } else {
         "missing"
     }
-}
-
-fn service_lifecycle_runbook_row_for_recommended_mode<'a>(
-    rows: &'a [ReceiptDirectoryRow],
-    recommended_wrapper_mode: &str,
-) -> Option<&'a ReceiptDirectoryRow> {
-    let family = match recommended_wrapper_mode {
-        "cluster-service-execution-audit" => "cluster-service-execution-runbook",
-        "service-execution-audit" => "service-execution-runbook",
-        _ => return None,
-    };
-    rows.iter().find(|row| row.family == family)
 }
 
 fn daemon_restart_policy_directory_report(
@@ -4067,31 +4172,34 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
                 .filter(|receipt| receipt.service_id == *service_id)
                 .cloned()
                 .collect::<Vec<_>>();
-            epiphany_service_execution_audit_report(&scoped_receipts)
+            (
+                service_id.clone(),
+                epiphany_service_execution_audit_report(&scoped_receipts),
+            )
         })
         .collect::<Vec<_>>();
     let service_execution_failed_check_count = cluster_service_execution_audit.failed_count
         + single_service_execution_audits
             .iter()
-            .map(|report| report.failed_count)
+            .map(|(_, report)| report.failed_count)
             .sum::<usize>();
     let service_execution_missing_check_count = cluster_service_execution_audit.missing_count
         + single_service_execution_audits
             .iter()
-            .map(|report| report.missing_count)
+            .map(|(_, report)| report.missing_count)
             .sum::<usize>();
     let service_execution_private_state_exposed = cluster_service_execution_audit
         .private_state_exposed
         || single_service_execution_audits
             .iter()
-            .any(|report| report.private_state_exposed);
+            .any(|(_, report)| report.private_state_exposed);
     let service_execution_failed_check_rows = cluster_service_execution_audit
         .checks
         .iter()
         .chain(
             single_service_execution_audits
                 .iter()
-                .flat_map(|report| report.checks.iter()),
+                .flat_map(|(_, report)| report.checks.iter()),
         )
         .filter(|check| !check.ok || !check.private_state_sealed)
         .cloned()
@@ -4205,20 +4313,17 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .iter()
         .map(daemon_tool_directory_tui_row)
         .collect::<Vec<_>>();
-    let service_execution_runbook_row = service_lifecycle_runbook_row_for_recommended_mode(
+    let service_execution_runbook_actions = service_execution_runbook_actions(
         &service_lifecycle_rows,
-        &service_lifecycle_recommended_wrapper_mode,
+        &cluster_service_execution_audit,
+        &single_service_execution_audits,
     );
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
         &liveness_status,
         &tool_host_attention_rows,
         &policy_report,
         &service_lifecycle_attention_rows,
-        &service_lifecycle_recommended_wrapper_mode,
-        &service_lifecycle_recommended_wrapper_command,
-        service_execution_runbook_row,
-        service_execution_failed_check_count,
-        service_execution_missing_check_count,
+        &service_execution_runbook_actions,
     );
     let private_state_exposed = daemon_report
         .rows
