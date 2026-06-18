@@ -2043,7 +2043,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $serviceRoute -or $serviceRoute -eq "") {
                         $serviceRoute = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):service=${serviceId}:route=${serviceRoute}:command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:exec=${executionCommand}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    $owner = $_.lifecycleOwner
+                    if ($null -eq $owner -or $owner -eq "") {
+                        $owner = "none"
+                    }
+                    $hostedBody = $_.hostedBody
+                    if ($null -eq $hostedBody -or $hostedBody -eq "") {
+                        $hostedBody = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):owner=${owner}:hostedBody=${hostedBody}:service=${serviceId}:route=${serviceRoute}:command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:exec=${executionCommand}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
@@ -2149,7 +2157,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $serviceRoute -or $serviceRoute -eq "") {
                         $serviceRoute = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):service=${serviceId}:route=${serviceRoute}:command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    $owner = $_.lifecycleOwner
+                    if ($null -eq $owner -or $owner -eq "") {
+                        $owner = "none"
+                    }
+                    $hostedBody = $_.hostedBody
+                    if ($null -eq $hostedBody -or $hostedBody -eq "") {
+                        $hostedBody = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):owner=${owner}:hostedBody=${hostedBody}:service=${serviceId}:route=${serviceRoute}:command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows

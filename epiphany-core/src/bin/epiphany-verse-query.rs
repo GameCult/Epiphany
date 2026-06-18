@@ -1581,6 +1581,8 @@ fn main() -> Result<()> {
                         && row.family == "daemon-restart-policy"
                         && row.wrapper_mode == "service-policy-directory"
                         && row.effect_class == "read-only"
+                        && row.lifecycle_owner == SERVICE_LIFECYCLE_OWNER
+                        && row.hosted_body == SERVICE_LIFECYCLE_HOSTED_BODY
                         && !row.mutates_state
                         && !row.requires_elevated_authority
                         && !row.private_state_exposed
@@ -2026,6 +2028,8 @@ fn main() -> Result<()> {
                         && row.family == "daemon-liveness"
                         && row.wrapper_mode == "swarm-poke-down"
                         && row.effect_class == "typed-lifecycle-poke"
+                        && row.lifecycle_owner == SERVICE_LIFECYCLE_OWNER
+                        && row.hosted_body == SERVICE_LIFECYCLE_HOSTED_BODY
                         && row.mutates_state
                         && !row.requires_elevated_authority
                         && !row.private_state_exposed
@@ -2035,6 +2039,8 @@ fn main() -> Result<()> {
                         && row.family == "daemon-tool-host"
                         && row.wrapper_mode == "tool-directory"
                         && row.effect_class == "read-only"
+                        && row.lifecycle_owner == "none"
+                        && row.hosted_body == "none"
                         && !row.mutates_state
                         && !row.requires_elevated_authority
                         && !row.private_state_exposed
@@ -2639,6 +2645,8 @@ fn main() -> Result<()> {
                     row.priority == 40
                         && row.family == "service-lifecycle"
                         && row.effect_class == "service-lifecycle-readback"
+                        && row.lifecycle_owner == SERVICE_LIFECYCLE_OWNER
+                        && row.hosted_body == SERVICE_LIFECYCLE_HOSTED_BODY
                         && row.operator_artifact_ref
                             == "smoke://verse-query/cluster-windows-service-execution-audit"
                         && row.operator_artifact_status == "external-ref"
@@ -2661,6 +2669,8 @@ fn main() -> Result<()> {
                 })
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-lifecycle")
+                        && row.contains("owner=Idunn")
+                        && row.contains("hostedBody=Epiphany")
                         && row.contains("artifact=external-ref")
                         && row.contains("sha256=none")
                         && row.contains("audit=none")
@@ -2669,6 +2679,8 @@ fn main() -> Result<()> {
                     row.priority == 50
                         && row.family == "service-execution-authority"
                         && row.effect_class == "elevated-service-control"
+                        && row.lifecycle_owner == SERVICE_LIFECYCLE_OWNER
+                        && row.hosted_body == SERVICE_LIFECYCLE_HOSTED_BODY
                         && row.operator_artifact_ref
                             == service_smoke_runbook_path.display().to_string()
                         && row.operator_artifact_status == "present"
@@ -2699,6 +2711,8 @@ fn main() -> Result<()> {
                     row.priority == 51
                         && row.family == "service-execution-authority"
                         && row.effect_class == "elevated-service-control"
+                        && row.lifecycle_owner == SERVICE_LIFECYCLE_OWNER
+                        && row.hosted_body == SERVICE_LIFECYCLE_HOSTED_BODY
                         && row.operator_aftercare_command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND
                         && row.completion_audit_wrapper_mode == "service-execution-audit"
                         && row.completion_audit_wrapper_command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND
@@ -2713,6 +2727,8 @@ fn main() -> Result<()> {
                 })
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
+                        && row.contains("owner=Idunn")
+                        && row.contains("hostedBody=Epiphany")
                         && row.contains("command=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook")
                         && row.contains("service=epiphany-cluster-daemon-services")
                         && row.contains("route=epiphany-cluster-daemon-services::cluster-windows-service-execution-runbook")
@@ -2737,6 +2753,8 @@ fn main() -> Result<()> {
                 })
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
+                        && row.contains("owner=Idunn")
+                        && row.contains("hostedBody=Epiphany")
                         && row.contains("command=tools/epiphany_local_run.ps1 -Mode service-execution-runbook")
                         && row.contains("service=epiphany-daemon-supervisor-service")
                         && row.contains("route=epiphany-daemon-supervisor-service::windows-service-execution-runbook")
@@ -3313,6 +3331,8 @@ struct SwarmActionRow {
     priority: u32,
     family: String,
     status: String,
+    lifecycle_owner: String,
+    hosted_body: String,
     action: String,
     wrapper_mode: String,
     wrapper_command: String,
@@ -3755,6 +3775,8 @@ fn swarm_action_rows(
             priority: 10,
             family: "daemon-liveness".to_string(),
             status: "attention".to_string(),
+            lifecycle_owner: SERVICE_LIFECYCLE_OWNER.to_string(),
+            hosted_body: SERVICE_LIFECYCLE_HOSTED_BODY.to_string(),
             action: "epiphany-verse-query poke-down-daemons".to_string(),
             wrapper_mode: "swarm-poke-down".to_string(),
             wrapper_command: WRAPPER_POKE_NON_READY_COMMAND.to_string(),
@@ -3787,6 +3809,8 @@ fn swarm_action_rows(
             priority: 20,
             family: "daemon-tool-host".to_string(),
             status: "attention".to_string(),
+            lifecycle_owner: "none".to_string(),
+            hosted_body: "none".to_string(),
             action: "epiphany-verse-query tool-directory".to_string(),
             wrapper_mode: "tool-directory".to_string(),
             wrapper_command: "tools/epiphany_local_run.ps1 -Mode tool-directory".to_string(),
@@ -3818,6 +3842,8 @@ fn swarm_action_rows(
             priority: 30,
             family: "daemon-restart-policy".to_string(),
             status: policy_report.status.clone(),
+            lifecycle_owner: SERVICE_LIFECYCLE_OWNER.to_string(),
+            hosted_body: SERVICE_LIFECYCLE_HOSTED_BODY.to_string(),
             action: "epiphany-verse-query restart-policy-directory".to_string(),
             wrapper_mode: "service-policy-directory".to_string(),
             wrapper_command: WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND.to_string(),
@@ -3850,6 +3876,8 @@ fn swarm_action_rows(
             priority: 40 + index as u32,
             family: "service-lifecycle".to_string(),
             status: "attention".to_string(),
+            lifecycle_owner: SERVICE_LIFECYCLE_OWNER.to_string(),
+            hosted_body: SERVICE_LIFECYCLE_HOSTED_BODY.to_string(),
             action: format!("epiphany-verse-query receipt-directory {} follow-up", row.family),
             wrapper_mode: service_lifecycle_wrapper_mode_for_row(row).to_string(),
             wrapper_command: row.follow_up_command.clone(),
@@ -3940,6 +3968,8 @@ fn swarm_action_rows(
             priority: 50 + index as u32,
             family: "service-execution-authority".to_string(),
             status,
+            lifecycle_owner: SERVICE_LIFECYCLE_OWNER.to_string(),
+            hosted_body: SERVICE_LIFECYCLE_HOSTED_BODY.to_string(),
             action,
             wrapper_mode,
             wrapper_command,
@@ -3969,6 +3999,8 @@ fn swarm_action_rows(
             priority: 100,
             family: "swarm".to_string(),
             status: "ready".to_string(),
+            lifecycle_owner: "none".to_string(),
+            hosted_body: "none".to_string(),
             action: "none".to_string(),
             wrapper_mode: "none".to_string(),
             wrapper_command: "none".to_string(),
@@ -4000,12 +4032,14 @@ fn swarm_action_rows(
 
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
     format!(
-        "{:03} | {} | {} | {} | {} | service={} | route={} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | exec={} | audit={} | aftercare={}",
+        "{:03} | {} | {} | {} | {} | owner={} | hostedBody={} | service={} | route={} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | exec={} | audit={} | aftercare={}",
         row.priority,
         row.family,
         row.status,
         row.wrapper_mode,
         row.authority_gate,
+        row.lifecycle_owner,
+        row.hosted_body,
         row.service_id,
         row.service_route,
         row.wrapper_command,
