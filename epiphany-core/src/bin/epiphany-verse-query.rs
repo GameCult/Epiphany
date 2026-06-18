@@ -1394,7 +1394,10 @@ fn main() -> Result<()> {
             if !topology_report.tui_rows.iter().any(|row| {
                 row.contains("PUBLIC")
                     && row.contains("Persona")
+                    && row.contains("cluster=epiphany.cluster.persona")
+                    && row.contains("role=Persona")
                     && row.contains("epiphany.cluster.persona.private")
+                    && row.contains("bodyKind=repository")
                     && row.contains("epiphany-daemon-persona")
             }) {
                 anyhow::bail!("local Verse query smoke lost compact Persona cluster topology row");
@@ -1518,6 +1521,7 @@ fn main() -> Result<()> {
             if !overview_surface_report.tui_rows.iter().any(|row| {
                 row.contains("PUBLIC")
                     && row.contains("Persona")
+                    && row.contains("cluster=epiphany.cluster.persona")
                     && row.contains("surface=eve://epiphany/persona")
                     && row.contains("daemon=epiphany-daemon-persona")
                     && row.contains("privateVerse=epiphany.cluster.persona.private")
@@ -2954,10 +2958,13 @@ fn cluster_topology_report(
             "PRIVATE"
         };
         tui_rows.push(format!(
-            "{visibility} | {} | {} | {} | {} | {}",
+            "{visibility} | {} | cluster={} | role={} | privateVerse={} | body={} | bodyKind={} | daemon={} | surface={}",
             cluster.display_name,
+            cluster.cluster_id,
+            cluster.role_id,
             cluster.private_verse_id,
             cluster.body_domain,
+            cluster.body_kind,
             cluster.daemon_id,
             cluster.eve_surface_id
         ));
@@ -3088,8 +3095,9 @@ fn eve_surface_report(
             advertisement.private_state_exposed || surface.private_state_exposed;
         let supported_actions = compact_tui_list(&surface.supported_actions);
         tui_rows.push(format!(
-            "{visibility} | {} | surface={} | daemon={} | body={} | privateVerse={} | publicDiscussion={} | actions={} | docs={} | advertisement={} | private={private_state_exposed}",
+            "{visibility} | {} | cluster={} | surface={} | daemon={} | body={} | privateVerse={} | publicDiscussion={} | actions={} | docs={} | advertisement={} | private={private_state_exposed}",
             cluster.display_name,
+            cluster.cluster_id,
             surface.surface_id,
             cluster.daemon_id,
             cluster.body_domain,
