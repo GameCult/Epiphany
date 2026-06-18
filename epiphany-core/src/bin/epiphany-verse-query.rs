@@ -38,6 +38,7 @@ use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
 use epiphany_core::epiphany_cultmesh_eve_connection_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_imagination_consensus_receipt_for_feedback;
+use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_agent_state_soa_entry;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
@@ -2568,12 +2569,25 @@ fn main() -> Result<()> {
                             && check.private_state_sealed
                     })
                 || !service_overview
+                    .service_execution_failed_check_rows
+                    .iter()
+                    .any(|check| {
+                        check.action == "windows-service-execution-readiness"
+                            && check.observed_status.is_none()
+                            && !check.ok
+                            && check.private_state_sealed
+                    })
+                || !service_overview
                     .service_execution_failed_check_tui_rows
                     .iter()
                     .any(|row| row.contains("cluster-windows-service-execution-audit=incomplete"))
+                || !service_overview
+                    .service_execution_failed_check_tui_rows
+                    .iter()
+                    .any(|row| row.contains("windows-service-execution-readiness=missing"))
             {
                 anyhow::bail!(
-                    "local Verse query smoke did not expose sealed service lifecycle readback plus service execution failed-check anatomy"
+                    "local Verse query smoke did not expose sealed service lifecycle readback plus cluster and service execution failed-check anatomy"
                 );
             }
             let missing_runbook_row = ReceiptDirectoryRow {
@@ -3990,11 +4004,26 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .filter(|receipt| receipt.service_id == "epiphany-cluster-daemon-services")
         .cloned()
         .collect::<Vec<_>>();
-    let service_execution_audit =
+    let single_service_lifecycle_receipts = lifecycle_receipts
+        .iter()
+        .filter(|receipt| receipt.service_id != "epiphany-cluster-daemon-services")
+        .cloned()
+        .collect::<Vec<_>>();
+    let cluster_service_execution_audit =
         epiphany_cluster_service_execution_audit_report(&cluster_lifecycle_receipts);
-    let service_execution_failed_check_rows = service_execution_audit
+    let single_service_execution_audit =
+        epiphany_service_execution_audit_report(&single_service_lifecycle_receipts);
+    let service_execution_failed_check_count =
+        cluster_service_execution_audit.failed_count + single_service_execution_audit.failed_count;
+    let service_execution_missing_check_count = cluster_service_execution_audit.missing_count
+        + single_service_execution_audit.missing_count;
+    let service_execution_private_state_exposed = cluster_service_execution_audit
+        .private_state_exposed
+        || single_service_execution_audit.private_state_exposed;
+    let service_execution_failed_check_rows = cluster_service_execution_audit
         .checks
         .iter()
+        .chain(single_service_execution_audit.checks.iter())
         .filter(|check| !check.ok || !check.private_state_sealed)
         .cloned()
         .collect::<Vec<_>>();
@@ -4126,7 +4155,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .any(|row| row.private_state_exposed)
         || tool_report.rows.iter().any(|row| row.private_state_exposed)
         || policy_report.private_state_exposed
-        || service_execution_audit.private_state_exposed
+        || service_execution_private_state_exposed
         || service_lifecycle_rows
             .iter()
             .any(|row| row.private_state_exposed);
@@ -4148,8 +4177,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         tool_host_attention_tui_rows,
         service_lifecycle_attention_rows,
         service_lifecycle_attention_tui_rows,
-        service_execution_failed_check_count: service_execution_audit.failed_count,
-        service_execution_missing_check_count: service_execution_audit.missing_count,
+        service_execution_failed_check_count,
+        service_execution_missing_check_count,
         service_execution_failed_check_rows,
         service_execution_failed_check_tui_rows,
         topology_report,
