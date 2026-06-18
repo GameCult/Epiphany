@@ -150,6 +150,17 @@ function Format-ServiceExecutionFailedChecks {
     }) -join "; ")
 }
 
+function Format-TuiRows {
+    param([object]$Rows)
+
+    $rowList = @($Rows)
+    if ($null -eq $Rows -or $rowList.Count -eq 0) {
+        return "none"
+    }
+
+    return ($rowList -join "; ")
+}
+
 Set-Location -LiteralPath $Root
 $Root = (Resolve-Path ".").Path
 $env:CARGO_TARGET_DIR = $TargetDir
@@ -1782,7 +1793,14 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
-            Write-Host "Swarm overview: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, privateStateExposed=$($result.privateStateExposed)"
+            $actionRows = Format-TuiRows $result.swarmActionTuiRows
+            $toolAttentionRows = Format-TuiRows $result.toolHostAttentionTuiRows
+            $serviceAttentionRows = Format-TuiRows $result.serviceLifecycleAttentionTuiRows
+            $serviceFailedCheckRows = Format-TuiRows $result.serviceExecutionFailedCheckTuiRows
+            $daemonRows = Format-TuiRows $result.daemonTuiRows
+            $toolRows = Format-TuiRows $result.toolTuiRows
+            $policyRows = Format-TuiRows $result.policyTuiRows
+            Write-Host "Swarm overview: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolRows=$toolRows, policyRows=$policyRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             $policyRows = "none"
             if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
@@ -1849,7 +1867,12 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
-            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
+            $actionRows = Format-TuiRows $result.swarmActionTuiRows
+            $toolAttentionRows = Format-TuiRows $result.toolHostAttentionTuiRows
+            $serviceAttentionRows = Format-TuiRows $result.serviceLifecycleAttentionTuiRows
+            $serviceFailedCheckRows = Format-TuiRows $result.serviceExecutionFailedCheckTuiRows
+            $daemonRows = Format-TuiRows $result.daemonTuiRows
+            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-runbook") {
             Write-Host "Service runbook: service=$($result.serviceId), receipt=$($result.receiptId), path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-runbook") {
