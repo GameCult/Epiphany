@@ -1765,6 +1765,18 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Cluster daemon service execution runbook: service=$($result.serviceId), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-execution-audit") {
             Write-Host "Cluster daemon service execution audit: service=$($result.serviceId), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            $runbookWitnessChecks = @($result.checks | Where-Object { $_.ok -and $null -ne $_.operatorArtifactRef -and $_.operatorArtifactRef -ne "" -and $_.operatorArtifactRef -ne "none" })
+            if ($runbookWitnessChecks.Count -gt 0) {
+                $runbookWitnessSummary = ($runbookWitnessChecks | ForEach-Object {
+                    $artifact = $_.operatorArtifactRef
+                    $artifactSha256 = "none"
+                    if (Test-Path -LiteralPath $artifact -PathType Leaf) {
+                        $artifactSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+                    }
+                    "$($_.action)=${artifact}:sha256=${artifactSha256}"
+                }) -join "; "
+                Write-Host "Cluster daemon service execution runbook witnesses: $runbookWitnessSummary"
+            }
             $failedChecks = @($result.checks | Where-Object { -not $_.ok })
             if ($failedChecks.Count -gt 0) {
                 $failedSummary = ($failedChecks | ForEach-Object {
@@ -1790,6 +1802,18 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Service execution readiness: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId)"
         } elseif ($Mode -eq "service-execution-audit") {
             Write-Host "Service execution audit: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            $runbookWitnessChecks = @($result.checks | Where-Object { $_.ok -and $null -ne $_.operatorArtifactRef -and $_.operatorArtifactRef -ne "" -and $_.operatorArtifactRef -ne "none" })
+            if ($runbookWitnessChecks.Count -gt 0) {
+                $runbookWitnessSummary = ($runbookWitnessChecks | ForEach-Object {
+                    $artifact = $_.operatorArtifactRef
+                    $artifactSha256 = "none"
+                    if (Test-Path -LiteralPath $artifact -PathType Leaf) {
+                        $artifactSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+                    }
+                    "$($_.action)=${artifact}:sha256=${artifactSha256}"
+                }) -join "; "
+                Write-Host "Service execution runbook witnesses: $runbookWitnessSummary"
+            }
             $failedChecks = @($result.checks | Where-Object { -not $_.ok })
             if ($failedChecks.Count -gt 0) {
                 $failedSummary = ($failedChecks | ForEach-Object {

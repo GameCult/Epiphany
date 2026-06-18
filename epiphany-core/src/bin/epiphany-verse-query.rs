@@ -4512,6 +4512,7 @@ fn receipt_directory_tui_row(row: &ReceiptDirectoryRow) -> String {
 fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCheck) -> String {
     let observed_status = check.observed_status.as_deref().unwrap_or("missing");
     let receipt_id = check.receipt_id.as_deref().unwrap_or("missing");
+    let artifact_ref = check.operator_artifact_ref.as_deref().unwrap_or("none");
     let allowed_statuses = check.allowed_statuses.join("|");
     let seal_status = if check.private_state_sealed {
         "sealed"
@@ -4519,8 +4520,8 @@ fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCh
         "private-state-exposed"
     };
     format!(
-        "{}={} | allowed={} | receipt={} | {}",
-        check.action, observed_status, allowed_statuses, receipt_id, seal_status
+        "{}={} | allowed={} | receipt={} | artifact={} | {}",
+        check.action, observed_status, allowed_statuses, receipt_id, artifact_ref, seal_status
     )
 }
 

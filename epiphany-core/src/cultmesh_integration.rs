@@ -1124,6 +1124,7 @@ pub struct EpiphanyServiceExecutionAuditCheck {
     pub allowed_statuses: Vec<String>,
     pub receipt_id: Option<String>,
     pub observed_status: Option<String>,
+    pub operator_artifact_ref: Option<String>,
     pub ok: bool,
     pub private_state_sealed: bool,
 }
@@ -1195,7 +1196,7 @@ fn epiphany_service_execution_audit_report_for_expected(
 
     for (action, allowed_statuses) in expected {
         let receipt = latest_lifecycle_receipt_for_action(receipts, action);
-        let (receipt_id, observed_status, ok, sealed) = match receipt {
+        let (receipt_id, observed_status, operator_artifact_ref, ok, sealed) = match receipt {
             Some(receipt) => {
                 let status_ok = allowed_statuses
                     .iter()
@@ -1203,13 +1204,14 @@ fn epiphany_service_execution_audit_report_for_expected(
                 (
                     Some(receipt.receipt_id.clone()),
                     Some(receipt.status.clone()),
+                    non_empty_operator_artifact_ref(receipt),
                     status_ok,
                     !receipt.private_state_exposed,
                 )
             }
             None => {
                 missing_count += 1;
-                (None, None, false, true)
+                (None, None, None, false, true)
             }
         };
 
@@ -1228,6 +1230,7 @@ fn epiphany_service_execution_audit_report_for_expected(
                 .collect(),
             receipt_id,
             observed_status,
+            operator_artifact_ref,
             ok,
             private_state_sealed: sealed,
         });
@@ -1247,6 +1250,17 @@ fn epiphany_service_execution_audit_report_for_expected(
         failed_count,
         private_state_exposed,
         checks,
+    }
+}
+
+fn non_empty_operator_artifact_ref(
+    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> Option<String> {
+    let artifact_ref = receipt.operator_artifact_ref.trim();
+    if artifact_ref.is_empty() || artifact_ref == "none" {
+        None
+    } else {
+        Some(receipt.operator_artifact_ref.clone())
     }
 }
 
@@ -5583,6 +5597,45 @@ mod tests {
                 "epiphany-test"
             )?,
             Some(second)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn service_execution_audit_checks_expose_operator_artifact_refs() -> Result<()> {
+        let report = epiphany_service_execution_audit_report(&[
+            EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+                schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                    .to_string(),
+                receipt_id: "service-execution-runbook-receipt".to_string(),
+                service_id: "epiphany-daemon-supervisor-service".to_string(),
+                scheduler_id: "epiphany-daemon-supervisor".to_string(),
+                runtime_id: "epiphany-test".to_string(),
+                daemon_selector: "epiphany-daemon-supervisor".to_string(),
+                action: "windows-service-execution-runbook".to_string(),
+                status: "written".to_string(),
+                command: "epiphany-daemon-supervisor".to_string(),
+                args: vec!["windows-service-execution-runbook".to_string()],
+                cwd: Some("E:/Projects/EpiphanyAgent".to_string()),
+                process_id: None,
+                exit_code: Some(0),
+                started_at_utc: "2026-06-18T00:00:00Z".to_string(),
+                completed_at_utc: Some("2026-06-18T00:00:01Z".to_string()),
+                operator_artifact_ref: "E:/Projects/EpiphanyAgent/.epiphany-run/runbook.ps1"
+                    .to_string(),
+                private_state_exposed: false,
+                notes: Vec::new(),
+            },
+        ]);
+        let runbook_check = report
+            .checks
+            .iter()
+            .find(|check| check.action == "windows-service-execution-runbook")
+            .context("missing runbook audit check")?;
+        assert!(runbook_check.ok);
+        assert_eq!(
+            runbook_check.operator_artifact_ref.as_deref(),
+            Some("E:/Projects/EpiphanyAgent/.epiphany-run/runbook.ps1")
         );
         Ok(())
     }
