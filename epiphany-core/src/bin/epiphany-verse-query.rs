@@ -1645,6 +1645,21 @@ fn main() -> Result<()> {
             {
                 anyhow::bail!("local Verse query smoke lost compact swarm overview invariants");
             }
+            if !overview_surface_report.tui_rows.iter().any(|row| {
+                row.contains("PUBLIC")
+                    && row.contains("Persona")
+                    && row.contains("surface=eve://epiphany/persona")
+                    && row.contains("daemon=epiphany-daemon-persona")
+                    && row.contains("privateVerse=epiphany.cluster.persona.private")
+                    && row.contains("publicDiscussion=true")
+                    && row.contains("actions=inspectCompactSurface,submitEveConnectionIntent,watchTypedReceipts")
+                    && row.contains("gamecult.bifrost.collaboration_feedback")
+                    && row.contains("private=false")
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke lost compact Persona Eve surface routing row"
+                );
+            }
             let ready_overview = load_swarm_overview_report(&args)?;
             if ready_overview.liveness_status != "ready"
                 || ready_overview.recovery_status != "attention"
@@ -2817,11 +2832,17 @@ fn eve_surface_report(
         };
         let private_state_exposed =
             advertisement.private_state_exposed || surface.private_state_exposed;
+        let supported_actions = compact_tui_list(&surface.supported_actions);
         tui_rows.push(format!(
-            "{visibility} | {} | {} | {} | {}",
+            "{visibility} | {} | surface={} | daemon={} | body={} | privateVerse={} | publicDiscussion={} | actions={} | docs={} | advertisement={} | private={private_state_exposed}",
             cluster.display_name,
             surface.surface_id,
+            cluster.daemon_id,
             cluster.body_domain,
+            cluster.private_verse_id,
+            public_persona_discussion_allowed,
+            supported_actions,
+            compact_tui_list(&surface.exposed_document_types),
             advertisement.advertisement_id
         ));
         rows.push(EveSurfaceRow {

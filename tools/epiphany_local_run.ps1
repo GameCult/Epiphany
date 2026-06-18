@@ -1626,7 +1626,16 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "cluster-topology") {
             Write-Host "Cluster topology: status=$($result.status), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), daemons=$($result.daemonCount), publicDiscussion=$($result.publicDiscussionClusterCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "eve-surfaces") {
-            Write-Host "Eve surfaces: status=$($result.status), surfaces=$($result.surfaceCount), publicDiscussion=$($result.publicDiscussionSurfaceCount), privateStateExposed=$($result.privateStateExposed)"
+            $publicSurfaces = "none"
+            if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
+                $publicSurfaceRows = @($result.rows | Where-Object { $_.publicPersonaDiscussionAllowed -eq $true } | ForEach-Object {
+                    "$($_.displayName)=$($_.eveSurfaceId)@$($_.privateVerseId)"
+                })
+                if ($publicSurfaceRows.Count -gt 0) {
+                    $publicSurfaces = ($publicSurfaceRows -join ",")
+                }
+            }
+            Write-Host "Eve surfaces: status=$($result.status), surfaces=$($result.surfaceCount), publicDiscussion=$($result.publicDiscussionSurfaceCount), publicSurfaces=$publicSurfaces, connectCommand=$($result.connectionCommand), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "eve-connect") {
             Write-Host "Eve connect: status=$($result.status), target=$($result.targetClusterId), surface=$($result.targetEveSurfaceId), receipt=$($result.receiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "collaboration-feedback") {
