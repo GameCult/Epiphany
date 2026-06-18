@@ -150,8 +150,30 @@ function Format-ServiceExecutionFailedChecks {
         if ($null -eq $serviceId -or $serviceId -eq "") {
             $serviceId = "unknown-service"
         }
-        "${serviceId}::$($_.action)=${observed}:artifact=${artifact}:sha256=${artifactSha256}"
+        $followUp = Get-ServiceExecutionCheckFollowUpCommand $_.action
+        "${serviceId}::$($_.action)=${observed}:artifact=${artifact}:sha256=${artifactSha256}:followUp=${followUp}"
     }) -join "; ")
+}
+
+function Get-ServiceExecutionCheckFollowUpCommand {
+    param([string]$Action)
+
+    switch ($Action) {
+        "cluster-windows-service-execution-runbook" { return "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook" }
+        "cluster-windows-service-execution-readiness" { return "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-readiness" }
+        "cluster-windows-service-install" { return "tools/epiphany_local_run.ps1 -Mode cluster-service-install-execute" }
+        "cluster-windows-service-start" { return "tools/epiphany_local_run.ps1 -Mode cluster-service-start-execute" }
+        "cluster-windows-service-execution-audit" { return "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit" }
+        "cluster-windows-service-stop" { return "tools/epiphany_local_run.ps1 -Mode cluster-service-stop-execute" }
+        "windows-service-execution-runbook" { return "tools/epiphany_local_run.ps1 -Mode service-execution-runbook" }
+        "windows-service-execution-readiness" { return "tools/epiphany_local_run.ps1 -Mode service-execution-readiness" }
+        "windows-service-install" { return "tools/epiphany_local_run.ps1 -Mode service-install-execute" }
+        "windows-service-start" { return "tools/epiphany_local_run.ps1 -Mode service-start-execute" }
+        "windows-service-status" { return "tools/epiphany_local_run.ps1 -Mode service-status" }
+        "windows-service-reconcile" { return "tools/epiphany_local_run.ps1 -Mode service-reconcile" }
+        "windows-service-stop" { return "tools/epiphany_local_run.ps1 -Mode service-stop-execute" }
+        default { return "tools/epiphany_local_run.ps1 -Mode swarm-overview" }
+    }
 }
 
 function Format-TuiRows {
@@ -1960,6 +1982,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Cluster daemon service execution runbook: service=$($result.serviceId), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-execution-audit") {
             Write-Host "Cluster daemon service execution audit: service=$($result.serviceId), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            $failedCheckRows = Format-ServiceExecutionFailedChecks @($result.checks | Where-Object { -not $_.ok })
             $runbookWitnessChecks = @($result.checks | Where-Object { $_.ok -and $null -ne $_.operatorArtifactRef -and $_.operatorArtifactRef -ne "" -and $_.operatorArtifactRef -ne "none" })
             if ($runbookWitnessChecks.Count -gt 0) {
                 $runbookWitnessSummary = ($runbookWitnessChecks | ForEach-Object {
@@ -1991,6 +2014,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 }) -join "; "
                 Write-Host "Cluster daemon service execution failed checks: $failedSummary"
             }
+            Write-Host "Cluster daemon service execution failed check rows: $failedCheckRows"
         } elseif ($Mode -eq "service-execution-runbook") {
             Write-Host "Service execution runbook: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), path=$($result.runbookPath)"
         } elseif ($Mode -eq "service-install-plan" -or $Mode -eq "service-install-execute") {
@@ -2005,6 +2029,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Service execution readiness: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId)"
         } elseif ($Mode -eq "service-execution-audit") {
             Write-Host "Service execution audit: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            $failedCheckRows = Format-ServiceExecutionFailedChecks @($result.checks | Where-Object { -not $_.ok })
             $runbookWitnessChecks = @($result.checks | Where-Object { $_.ok -and $null -ne $_.operatorArtifactRef -and $_.operatorArtifactRef -ne "" -and $_.operatorArtifactRef -ne "none" })
             if ($runbookWitnessChecks.Count -gt 0) {
                 $runbookWitnessSummary = ($runbookWitnessChecks | ForEach-Object {
@@ -2036,6 +2061,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 }) -join "; "
                 Write-Host "Service execution failed checks: $failedSummary"
             }
+            Write-Host "Service execution failed check rows: $failedCheckRows"
         } elseif ($Mode -eq "service-start-plan" -or $Mode -eq "service-stop-plan" -or $Mode -eq "service-start-execute" -or $Mode -eq "service-stop-execute") {
             Write-Host "Service control: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), receipt=$($result.receiptId)"
         } else {
