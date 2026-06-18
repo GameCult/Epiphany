@@ -2394,6 +2394,36 @@ fn main() -> Result<()> {
                     },
                 )?;
             }
+            write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &args.store,
+                args.runtime_id.clone(),
+                EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+                    schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                        .to_string(),
+                    receipt_id: "daemon-service-lifecycle-receipt-smoke-service-execution-audit"
+                        .to_string(),
+                    service_id: "epiphany-daemon-supervisor-service".to_string(),
+                    scheduler_id: "epiphany-daemon-supervisor".to_string(),
+                    runtime_id: args.runtime_id.clone(),
+                    daemon_selector: "epiphany-daemon-supervisor".to_string(),
+                    action: "windows-service-execution-audit".to_string(),
+                    status: "incomplete".to_string(),
+                    command: "smoke-service-lifecycle".to_string(),
+                    args: vec!["windows-service-execution-audit".to_string()],
+                    cwd: Some("E:/Projects/EpiphanyAgent".to_string()),
+                    process_id: None,
+                    exit_code: Some(0),
+                    started_at_utc: service_smoke_started_at.clone(),
+                    completed_at_utc: Some(Utc::now().to_rfc3339()),
+                    operator_artifact_ref:
+                        "smoke://verse-query/windows-service-execution-audit".to_string(),
+                    private_state_exposed: false,
+                    notes: vec![
+                        "Synthetic verse-query smoke receipt for single-service lifecycle action rows."
+                            .to_string(),
+                    ],
+                },
+            )?;
             let service_overview = load_swarm_overview_report(&args)?;
             let service_receipt_directory = {
                 let context =
@@ -2439,6 +2469,18 @@ fn main() -> Result<()> {
                         && row.effect_class == "service-lifecycle-readback"
                         && row.operator_artifact_ref
                             == "smoke://verse-query/cluster-windows-service-execution-audit"
+                        && row.operator_artifact_status == "external-ref"
+                        && row.operator_artifact_sha256 == "none"
+                        && !row.mutates_state
+                        && !row.requires_elevated_authority
+                        && !row.private_state_exposed
+                })
+                || !service_overview.swarm_action_rows.iter().any(|row| {
+                    row.priority == 41
+                        && row.family == "service-lifecycle"
+                        && row.wrapper_mode == "service-execution-audit"
+                        && row.operator_artifact_ref
+                            == "smoke://verse-query/windows-service-execution-audit"
                         && row.operator_artifact_status == "external-ref"
                         && row.operator_artifact_sha256 == "none"
                         && !row.mutates_state
@@ -2573,8 +2615,7 @@ fn main() -> Result<()> {
                 "ready",
                 &[],
                 &ready_policy_report,
-                None,
-                "epiphany-verse-query receipt-directory cluster-service-lifecycle follow-up",
+                &[],
                 "cluster-service-execution-audit",
                 WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND,
                 Some(&missing_runbook_row),
@@ -3403,8 +3444,7 @@ fn swarm_action_rows(
     liveness_status: &str,
     tool_host_attention_rows: &[DaemonToolDirectoryRow],
     policy_report: &DaemonRestartPolicyDirectoryReport,
-    service_lifecycle_attention_row: Option<&ReceiptDirectoryRow>,
-    service_lifecycle_recommended_action: &str,
+    service_lifecycle_attention_rows: &[ReceiptDirectoryRow],
     service_lifecycle_recommended_wrapper_mode: &str,
     service_lifecycle_recommended_wrapper_command: &str,
     service_execution_runbook_row: Option<&ReceiptDirectoryRow>,
@@ -3493,37 +3533,17 @@ fn swarm_action_rows(
             private_state_exposed: policy_report.private_state_exposed,
         });
     }
-    if service_lifecycle_recommended_wrapper_mode != "none" {
-        let (
-            operator_artifact_ref,
-            operator_artifact_status,
-            operator_artifact_sha256,
-            private_state_exposed,
-        ) = if let Some(row) = service_lifecycle_attention_row {
-            (
-                row.artifact_ref.clone(),
-                row.artifact_status.clone(),
-                row.artifact_sha256.clone(),
-                row.private_state_exposed,
-            )
-        } else {
-            (
-                "none".to_string(),
-                "none".to_string(),
-                "none".to_string(),
-                false,
-            )
-        };
+    for (index, row) in service_lifecycle_attention_rows.iter().enumerate() {
         rows.push(SwarmActionRow {
-            priority: 40,
+            priority: 40 + index as u32,
             family: "service-lifecycle".to_string(),
             status: "attention".to_string(),
-            action: service_lifecycle_recommended_action.to_string(),
-            wrapper_mode: service_lifecycle_recommended_wrapper_mode.to_string(),
-            wrapper_command: service_lifecycle_recommended_wrapper_command.to_string(),
-            operator_artifact_ref,
-            operator_artifact_status,
-            operator_artifact_sha256,
+            action: format!("epiphany-verse-query receipt-directory {} follow-up", row.family),
+            wrapper_mode: service_lifecycle_wrapper_mode_for_row(row).to_string(),
+            wrapper_command: row.follow_up_command.clone(),
+            operator_artifact_ref: row.artifact_ref.clone(),
+            operator_artifact_status: row.artifact_status.clone(),
+            operator_artifact_sha256: row.artifact_sha256.clone(),
             operator_artifact_execution_command: "none".to_string(),
             operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
@@ -3532,8 +3552,11 @@ fn swarm_action_rows(
             effect_class: "service-lifecycle-readback".to_string(),
             mutates_state: false,
             requires_elevated_authority: false,
-            reason: "Windows service lifecycle receipts need readback/audit before the daemon swarm can be called service-ready.".to_string(),
-            private_state_exposed,
+            reason: format!(
+                "Windows service lifecycle receipt {} needs readback/audit before the daemon swarm can be called service-ready.",
+                row.route
+            ),
+            private_state_exposed: row.private_state_exposed,
         });
     }
     if let Some(runbook_row) = service_execution_runbook_row {
@@ -3668,6 +3691,16 @@ fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
         row.operator_artifact_sha256,
         row.completion_audit_wrapper_mode
     )
+}
+
+fn service_lifecycle_wrapper_mode_for_row(row: &ReceiptDirectoryRow) -> &'static str {
+    if row.follow_up_command == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND {
+        "cluster-service-execution-audit"
+    } else if row.follow_up_command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND {
+        "service-execution-audit"
+    } else {
+        "receipt-directory"
+    }
 }
 
 fn elevated_powershell_runbook_command(artifact_ref: &str) -> String {
@@ -4078,14 +4111,11 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &service_lifecycle_rows,
         &service_lifecycle_recommended_wrapper_mode,
     );
-    let service_lifecycle_attention_row =
-        cluster_service_lifecycle_attention.or(service_lifecycle_attention);
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
         &liveness_status,
         &tool_host_attention_rows,
         &policy_report,
-        service_lifecycle_attention_row,
-        &service_lifecycle_recommended_action,
+        &service_lifecycle_attention_rows,
         &service_lifecycle_recommended_wrapper_mode,
         &service_lifecycle_recommended_wrapper_command,
         service_execution_runbook_row,
