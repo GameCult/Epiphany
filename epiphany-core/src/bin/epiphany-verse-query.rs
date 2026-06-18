@@ -1483,6 +1483,17 @@ fn main() -> Result<()> {
                     "local Verse query smoke ready daemon report lost compact READY rows"
                 );
             }
+            if !ready_report.tui_rows.iter().any(|row| {
+                row.contains("READY")
+                    && row.contains("Persona")
+                    && row.contains("privateVerse=epiphany.cluster.persona.private")
+                    && row.contains("followUp=tools/epiphany_local_run.ps1 -Mode swarm-poke-down")
+                    && row.contains("private=false")
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke ready daemon report lost compact topology/follow-up fields"
+                );
+            }
             let eve_directory =
                 load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
             let eve_report = eve_surface_report(&eve_directory);
@@ -1876,10 +1887,13 @@ fn main() -> Result<()> {
                 load_epiphany_cultmesh_daemon_liveness(&args.store, args.runtime_id.clone())?;
             let degraded_report = daemon_liveness_report(&degraded_liveness);
             if degraded_report.non_ready_count != 1
-                || !degraded_report
-                    .tui_rows
-                    .iter()
-                    .any(|row| row.contains("POKE") && row.contains("epiphany-daemon-hands"))
+                || !degraded_report.tui_rows.iter().any(|row| {
+                    row.contains("POKE")
+                        && row.contains("epiphany-daemon-hands")
+                        && row.contains("privateVerse=epiphany.cluster.hands.private")
+                        && row
+                            .contains("followUp=tools/epiphany_local_run.ps1 -Mode swarm-poke-down")
+                })
             {
                 anyhow::bail!(
                     "local Verse query smoke degraded daemon report did not surface one Hands poke row"
@@ -2667,6 +2681,7 @@ struct DaemonLivenessRow {
     daemon_id: String,
     display_name: String,
     body_domain: String,
+    private_verse_id: String,
     eve_surface_id: String,
     status: String,
     operator_action: String,
@@ -2774,6 +2789,7 @@ fn daemon_liveness_report(
         let supported_actions = status.supported_actions.clone();
         let eve_surface_id = cluster.eve_surface_id.clone();
         let body_domain = cluster.body_domain.clone();
+        let private_verse_id = cluster.private_verse_id.clone();
         let display_name = cluster.display_name.clone();
         let needs_poke = status_value != "ready";
         if needs_poke {
@@ -2781,14 +2797,20 @@ fn daemon_liveness_report(
         }
         let compact_status = if needs_poke { "POKE" } else { "READY" };
         tui_rows.push(format!(
-            "{compact_status} | {display_name} | {} | {} | {}",
-            daemon_id, body_domain, eve_surface_id
+            "{compact_status} | {display_name} | {} | body={} | privateVerse={} | surface={} | followUp={} | private={}",
+            daemon_id,
+            body_domain,
+            private_verse_id,
+            eve_surface_id,
+            WRAPPER_POKE_NON_READY_COMMAND,
+            status.private_state_exposed
         ));
         rows.push(DaemonLivenessRow {
             cluster_id,
             daemon_id,
             display_name,
             body_domain,
+            private_verse_id,
             eve_surface_id,
             status: status_value,
             operator_action,

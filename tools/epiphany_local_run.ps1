@@ -1622,7 +1622,13 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "agent-state-soa") {
             Write-Host "Agent state SoA: status=$($result.status), agents=$($result.agentCount), summaryRows=$($result.summarySoaTableRows), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-status") {
-            Write-Host "Swarm status: status=$($result.status), daemons=$($result.daemonCount), nonReady=$($result.nonReadyCount), privateStateExposed=$($result.privateStateExposed)"
+            $daemonRows = "none"
+            if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
+                $daemonRows = (($result.rows | ForEach-Object {
+                    "$($_.displayName):$($_.status):$($_.daemonId):privateVerse=$($_.privateVerseId):surface=$($_.eveSurfaceId)->$($result.wrapperMode)"
+                }) -join "; ")
+            }
+            Write-Host "Swarm status: status=$($result.status), daemons=$($result.daemonCount), nonReady=$($result.nonReadyCount), daemonRows=$daemonRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "cluster-topology") {
             Write-Host "Cluster topology: status=$($result.status), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), daemons=$($result.daemonCount), publicDiscussion=$($result.publicDiscussionClusterCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "eve-surfaces") {
