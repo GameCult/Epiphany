@@ -75,6 +75,8 @@ use epiphany_core::write_epiphany_cultmesh_swarm_brake;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
 use serde::Serialize;
 use serde_json::json;
+use sha2::Digest;
+use sha2::Sha256;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -2397,6 +2399,11 @@ fn main() -> Result<()> {
                         && row.operator_artifact_ref
                             == service_smoke_runbook_path.display().to_string()
                         && row.operator_artifact_status == "present"
+                        && row.operator_artifact_sha256
+                            == operator_artifact_sha256(
+                                &service_smoke_runbook_path.display().to_string(),
+                                "present",
+                            )
                         && row.operator_artifact_execution_command
                             == elevated_powershell_runbook_command(
                                 &service_smoke_runbook_path.display().to_string(),
@@ -2505,6 +2512,7 @@ fn main() -> Result<()> {
                     && row.wrapper_mode == "cluster-service-execution-runbook"
                     && row.effect_class == "service-lifecycle-runbook-regeneration"
                     && row.operator_artifact_status == "missing"
+                    && row.operator_artifact_sha256 == "none"
                     && row.operator_artifact_execution_command == "none"
                     && row.operator_aftercare_command == "none"
                     && row.completion_audit_wrapper_mode == "cluster-service-execution-audit"
@@ -2862,6 +2870,7 @@ struct SwarmActionRow {
     wrapper_command: String,
     operator_artifact_ref: String,
     operator_artifact_status: String,
+    operator_artifact_sha256: String,
     operator_artifact_execution_command: String,
     operator_aftercare_command: String,
     completion_audit_wrapper_mode: String,
@@ -3258,6 +3267,7 @@ fn swarm_action_rows(
             wrapper_command: WRAPPER_POKE_NON_READY_COMMAND.to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_sha256: "none".to_string(),
             operator_artifact_execution_command: "none".to_string(),
             operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
@@ -3285,6 +3295,7 @@ fn swarm_action_rows(
             wrapper_command: "tools/epiphany_local_run.ps1 -Mode tool-directory".to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_sha256: "none".to_string(),
             operator_artifact_execution_command: "none".to_string(),
             operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
@@ -3311,6 +3322,7 @@ fn swarm_action_rows(
             wrapper_command: WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND.to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_sha256: "none".to_string(),
             operator_artifact_execution_command: "none".to_string(),
             operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
@@ -3338,6 +3350,7 @@ fn swarm_action_rows(
             wrapper_command: service_lifecycle_recommended_wrapper_command.to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_sha256: "none".to_string(),
             operator_artifact_execution_command: "none".to_string(),
             operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
@@ -3410,6 +3423,8 @@ fn swarm_action_rows(
             } else {
                 "none".to_string()
             };
+            let operator_artifact_sha256 =
+                operator_artifact_sha256(&runbook_row.artifact_ref, &artifact_status);
             rows.push(SwarmActionRow {
                 priority: 50,
                 family: "service-execution-authority".to_string(),
@@ -3419,6 +3434,7 @@ fn swarm_action_rows(
                 wrapper_command,
                 operator_artifact_ref: runbook_row.artifact_ref.clone(),
                 operator_artifact_status: artifact_status,
+                operator_artifact_sha256,
                 operator_artifact_execution_command,
                 operator_aftercare_command,
                 completion_audit_wrapper_mode: service_lifecycle_recommended_wrapper_mode
@@ -3444,6 +3460,7 @@ fn swarm_action_rows(
             wrapper_command: "none".to_string(),
             operator_artifact_ref: "none".to_string(),
             operator_artifact_status: "none".to_string(),
+            operator_artifact_sha256: "none".to_string(),
             operator_artifact_execution_command: "none".to_string(),
             operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
@@ -3483,6 +3500,17 @@ fn elevated_powershell_runbook_command(artifact_ref: &str) -> String {
         "Start-Process PowerShell -Verb RunAs -Wait -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',{})",
         quote_powershell_literal(artifact_ref)
     )
+}
+
+fn operator_artifact_sha256(artifact_ref: &str, artifact_status: &str) -> String {
+    if artifact_status != "present" {
+        return "none".to_string();
+    }
+    let Ok(bytes) = fs::read(artifact_ref) else {
+        return "unreadable".to_string();
+    };
+    let digest = Sha256::digest(&bytes);
+    format!("{digest:x}")
 }
 
 fn quote_powershell_literal(value: &str) -> String {

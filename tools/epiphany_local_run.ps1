@@ -1648,6 +1648,10 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $artifactStatus -or $artifactStatus -eq "") {
                         $artifactStatus = "unknown"
                     }
+                    $artifactSha256 = $_.operatorArtifactSha256
+                    if ($null -eq $artifactSha256 -or $artifactSha256 -eq "") {
+                        $artifactSha256 = "none"
+                    }
                     $audit = $_.completionAuditWrapperMode
                     if ($null -eq $audit -or $audit -eq "") {
                         $audit = "none"
@@ -1656,7 +1660,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $aftercare -or $aftercare -eq "") {
                         $aftercare = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = "none"
@@ -1706,6 +1710,10 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $artifactStatus -or $artifactStatus -eq "") {
                         $artifactStatus = "unknown"
                     }
+                    $artifactSha256 = $_.operatorArtifactSha256
+                    if ($null -eq $artifactSha256 -or $artifactSha256 -eq "") {
+                        $artifactSha256 = "none"
+                    }
                     $audit = $_.completionAuditWrapperMode
                     if ($null -eq $audit -or $audit -eq "") {
                         $audit = "none"
@@ -1714,7 +1722,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $aftercare -or $aftercare -eq "") {
                         $aftercare = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = "none"
