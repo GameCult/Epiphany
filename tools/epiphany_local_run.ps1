@@ -1627,12 +1627,16 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Agent state SoA: status=$($result.status), agents=$($result.agentCount), summaryRows=$($result.summarySoaTableRows), agentRows=$agentRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-status") {
             $daemonRows = "none"
+            $statusRows = "none"
+            if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
+                $statusRows = ($result.tuiRows -join "; ")
+            }
             if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
                 $daemonRows = (($result.rows | ForEach-Object {
                     "$($_.displayName):$($_.status):$($_.daemonId):privateVerse=$($_.privateVerseId):surface=$($_.eveSurfaceId)->$($result.wrapperMode)"
                 }) -join "; ")
             }
-            Write-Host "Swarm status: status=$($result.status), daemons=$($result.daemonCount), nonReady=$($result.nonReadyCount), daemonRows=$daemonRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Swarm status: status=$($result.status), daemons=$($result.daemonCount), nonReady=$($result.nonReadyCount), daemonRows=$daemonRows, statusRows=$statusRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "cluster-topology") {
             $topologyRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
