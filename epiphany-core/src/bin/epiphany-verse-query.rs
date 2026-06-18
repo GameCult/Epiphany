@@ -2437,9 +2437,19 @@ fn main() -> Result<()> {
                     row.priority == 40
                         && row.family == "service-lifecycle"
                         && row.effect_class == "service-lifecycle-readback"
+                        && row.operator_artifact_ref
+                            == "smoke://verse-query/cluster-windows-service-execution-audit"
+                        && row.operator_artifact_status == "external-ref"
+                        && row.operator_artifact_sha256 == "none"
                         && !row.mutates_state
                         && !row.requires_elevated_authority
                         && !row.private_state_exposed
+                })
+                || !service_overview.swarm_action_tui_rows.iter().any(|row| {
+                    row.contains("service-lifecycle")
+                        && row.contains("artifact=external-ref")
+                        && row.contains("sha256=none")
+                        && row.contains("audit=none")
                 })
                 || !service_overview.swarm_action_rows.iter().any(|row| {
                     row.priority == 50
@@ -2563,6 +2573,7 @@ fn main() -> Result<()> {
                 "ready",
                 &[],
                 &ready_policy_report,
+                None,
                 "epiphany-verse-query receipt-directory cluster-service-lifecycle follow-up",
                 "cluster-service-execution-audit",
                 WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND,
@@ -3392,6 +3403,7 @@ fn swarm_action_rows(
     liveness_status: &str,
     tool_host_attention_rows: &[DaemonToolDirectoryRow],
     policy_report: &DaemonRestartPolicyDirectoryReport,
+    service_lifecycle_attention_row: Option<&ReceiptDirectoryRow>,
     service_lifecycle_recommended_action: &str,
     service_lifecycle_recommended_wrapper_mode: &str,
     service_lifecycle_recommended_wrapper_command: &str,
@@ -3482,6 +3494,26 @@ fn swarm_action_rows(
         });
     }
     if service_lifecycle_recommended_wrapper_mode != "none" {
+        let (
+            operator_artifact_ref,
+            operator_artifact_status,
+            operator_artifact_sha256,
+            private_state_exposed,
+        ) = if let Some(row) = service_lifecycle_attention_row {
+            (
+                row.artifact_ref.clone(),
+                row.artifact_status.clone(),
+                row.artifact_sha256.clone(),
+                row.private_state_exposed,
+            )
+        } else {
+            (
+                "none".to_string(),
+                "none".to_string(),
+                "none".to_string(),
+                false,
+            )
+        };
         rows.push(SwarmActionRow {
             priority: 40,
             family: "service-lifecycle".to_string(),
@@ -3489,9 +3521,9 @@ fn swarm_action_rows(
             action: service_lifecycle_recommended_action.to_string(),
             wrapper_mode: service_lifecycle_recommended_wrapper_mode.to_string(),
             wrapper_command: service_lifecycle_recommended_wrapper_command.to_string(),
-            operator_artifact_ref: "none".to_string(),
-            operator_artifact_status: "none".to_string(),
-            operator_artifact_sha256: "none".to_string(),
+            operator_artifact_ref,
+            operator_artifact_status,
+            operator_artifact_sha256,
             operator_artifact_execution_command: "none".to_string(),
             operator_aftercare_command: "none".to_string(),
             completion_audit_wrapper_mode: "none".to_string(),
@@ -3501,7 +3533,7 @@ fn swarm_action_rows(
             mutates_state: false,
             requires_elevated_authority: false,
             reason: "Windows service lifecycle receipts need readback/audit before the daemon swarm can be called service-ready.".to_string(),
-            private_state_exposed: false,
+            private_state_exposed,
         });
     }
     if let Some(runbook_row) = service_execution_runbook_row {
@@ -4046,10 +4078,13 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &service_lifecycle_rows,
         &service_lifecycle_recommended_wrapper_mode,
     );
+    let service_lifecycle_attention_row =
+        cluster_service_lifecycle_attention.or(service_lifecycle_attention);
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
         &liveness_status,
         &tool_host_attention_rows,
         &policy_report,
+        service_lifecycle_attention_row,
         &service_lifecycle_recommended_action,
         &service_lifecycle_recommended_wrapper_mode,
         &service_lifecycle_recommended_wrapper_command,
