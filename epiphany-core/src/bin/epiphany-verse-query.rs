@@ -2557,6 +2557,9 @@ fn main() -> Result<()> {
                         && row.completion_audit_wrapper_mode == "cluster-service-execution-audit"
                         && row.completion_audit_wrapper_command
                             == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
+                        && row.service_id == "epiphany-cluster-daemon-services"
+                        && row.service_route
+                            == "epiphany-cluster-daemon-services::cluster-windows-service-execution-runbook"
                         && row.mutates_state
                         && row.requires_elevated_authority
                         && row.service_execution_failed_check_count == 5
@@ -2570,6 +2573,9 @@ fn main() -> Result<()> {
                         && row.operator_aftercare_command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND
                         && row.completion_audit_wrapper_mode == "service-execution-audit"
                         && row.completion_audit_wrapper_command == WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND
+                        && row.service_id == "epiphany-daemon-supervisor-service"
+                        && row.service_route
+                            == "epiphany-daemon-supervisor-service::windows-service-execution-runbook"
                         && row.mutates_state
                         && row.requires_elevated_authority
                         && row.service_execution_failed_check_count == 6
@@ -2579,6 +2585,8 @@ fn main() -> Result<()> {
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
                         && row.contains("command=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook")
+                        && row.contains("service=epiphany-cluster-daemon-services")
+                        && row.contains("route=epiphany-cluster-daemon-services::cluster-windows-service-execution-runbook")
                         && row.contains("failedChecks=5")
                         && row.contains("missingChecks=4")
                         && row.contains("artifact=present")
@@ -2594,6 +2602,8 @@ fn main() -> Result<()> {
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
                         && row.contains("command=tools/epiphany_local_run.ps1 -Mode service-execution-runbook")
+                        && row.contains("service=epiphany-daemon-supervisor-service")
+                        && row.contains("route=epiphany-daemon-supervisor-service::windows-service-execution-runbook")
                         && row.contains("failedChecks=6")
                         && row.contains("missingChecks=6")
                         && row.contains("artifact=present")
@@ -2712,6 +2722,8 @@ fn main() -> Result<()> {
                 private_state_exposed: missing_runbook_row.private_state_exposed,
                 failed_check_count: 0,
                 missing_check_count: 0,
+                service_id: receipt_directory_row_service_id(&missing_runbook_row)
+                    .unwrap_or_else(|| "unknown-service".to_string()),
                 completion_audit_wrapper_mode: "cluster-service-execution-audit".to_string(),
                 completion_audit_wrapper_command: WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
                     .to_string(),
@@ -3162,6 +3174,8 @@ struct SwarmActionRow {
     requires_elevated_authority: bool,
     service_execution_failed_check_count: usize,
     service_execution_missing_check_count: usize,
+    service_id: String,
+    service_route: String,
     reason: String,
     private_state_exposed: bool,
 }
@@ -3174,6 +3188,7 @@ struct ServiceExecutionRunbookAction {
     private_state_exposed: bool,
     failed_check_count: usize,
     missing_check_count: usize,
+    service_id: String,
     completion_audit_wrapper_mode: String,
     completion_audit_wrapper_command: String,
 }
@@ -3588,6 +3603,8 @@ fn swarm_action_rows(
             requires_elevated_authority: false,
             service_execution_failed_check_count: 0,
             service_execution_missing_check_count: 0,
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             reason: "One or more daemon bodies are non-ready; poke liveness before trusting hosted tools.".to_string(),
             private_state_exposed: false,
         });
@@ -3618,6 +3635,8 @@ fn swarm_action_rows(
             requires_elevated_authority: false,
             service_execution_failed_check_count: 0,
             service_execution_missing_check_count: 0,
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             reason: format!(
                 "Hosted tool capabilities are blocked by non-ready daemon bodies: {blocked}."
             ),
@@ -3647,6 +3666,8 @@ fn swarm_action_rows(
             requires_elevated_authority: false,
             service_execution_failed_check_count: 0,
             service_execution_missing_check_count: 0,
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             reason: format!(
                 "Restart policy coverage needs attention: missing={}, disabled={}, attention={}.",
                 policy_report.missing_count,
@@ -3677,6 +3698,8 @@ fn swarm_action_rows(
             requires_elevated_authority: false,
             service_execution_failed_check_count: 0,
             service_execution_missing_check_count: 0,
+            service_id: receipt_directory_row_service_id(row).unwrap_or_else(|| "unknown-service".to_string()),
+            service_route: row.route.clone(),
             reason: format!(
                 "Windows service lifecycle receipt {} needs readback/audit before the daemon swarm can be called service-ready.",
                 row.route
@@ -3767,6 +3790,8 @@ fn swarm_action_rows(
             requires_elevated_authority,
             service_execution_failed_check_count: runbook_action.failed_check_count,
             service_execution_missing_check_count: runbook_action.missing_check_count,
+            service_id: runbook_action.service_id.clone(),
+            service_route: runbook_action.route.clone(),
             reason,
             private_state_exposed: runbook_action.private_state_exposed,
         });
@@ -3792,6 +3817,8 @@ fn swarm_action_rows(
             requires_elevated_authority: false,
             service_execution_failed_check_count: 0,
             service_execution_missing_check_count: 0,
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
             reason: "No liveness, restart-policy, tool-host, or service-lifecycle attention rows are present.".to_string(),
             private_state_exposed: false,
         });
@@ -3805,12 +3832,14 @@ fn swarm_action_rows(
 
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
     format!(
-        "{:03} | {} | {} | {} | {} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | audit={}",
+        "{:03} | {} | {} | {} | {} | service={} | route={} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | audit={}",
         row.priority,
         row.family,
         row.status,
         row.wrapper_mode,
         row.authority_gate,
+        row.service_id,
+        row.service_route,
         row.wrapper_command,
         row.mutates_state,
         row.requires_elevated_authority,
@@ -3854,6 +3883,8 @@ fn service_execution_runbook_actions(
                     private_state_exposed: row.private_state_exposed,
                     failed_check_count: cluster_report.failed_count,
                     missing_check_count: cluster_report.missing_count,
+                    service_id: receipt_directory_row_service_id(row)
+                        .unwrap_or_else(|| "unknown-service".to_string()),
                     completion_audit_wrapper_mode: "cluster-service-execution-audit".to_string(),
                     completion_audit_wrapper_command:
                         WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND.to_string(),
@@ -3871,6 +3902,7 @@ fn service_execution_runbook_actions(
                     private_state_exposed: row.private_state_exposed,
                     failed_check_count: report.failed_count,
                     missing_check_count: report.missing_count,
+                    service_id,
                     completion_audit_wrapper_mode: "service-execution-audit".to_string(),
                     completion_audit_wrapper_command: WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND
                         .to_string(),

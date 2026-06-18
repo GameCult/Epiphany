@@ -1834,7 +1834,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $missingChecks) {
                         $missingChecks = 0
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    $serviceId = $_.serviceId
+                    if ($null -eq $serviceId -or $serviceId -eq "") {
+                        $serviceId = "none"
+                    }
+                    $serviceRoute = $_.serviceRoute
+                    if ($null -eq $serviceRoute -or $serviceRoute -eq "") {
+                        $serviceRoute = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):service=${serviceId}:route=${serviceRoute}:command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
@@ -1914,7 +1922,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $missingChecks) {
                         $missingChecks = 0
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    $serviceId = $_.serviceId
+                    if ($null -eq $serviceId -or $serviceId -eq "") {
+                        $serviceId = "none"
+                    }
+                    $serviceRoute = $_.serviceRoute
+                    if ($null -eq $serviceRoute -or $serviceRoute -eq "") {
+                        $serviceRoute = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):service=${serviceId}:route=${serviceRoute}:command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
