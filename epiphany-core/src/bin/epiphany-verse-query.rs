@@ -2050,6 +2050,7 @@ fn main() -> Result<()> {
             let collaboration_tui_rows = collaboration_feedback_tui_rows(&feedback, &consensus);
             if !collaboration_tui_rows.iter().any(|row| {
                 row.contains("collaboration-feedback")
+                    && row.contains("owner=Persona->Imagination")
                     && row.contains(
                         "public=https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm",
                     )
@@ -2057,6 +2058,7 @@ fn main() -> Result<()> {
                     && row.contains("private=false")
             }) || !collaboration_tui_rows.iter().any(|row| {
                 row.contains("imagination-consensus")
+                    && row.contains("owner=Imagination")
                     && row.contains("adoptionGate=mind.review_then_bifrost_adoption")
                     && row.contains("private=false")
             }) {
@@ -5468,7 +5470,7 @@ fn collaboration_feedback_tui_rows(
     };
     vec![
         format!(
-            "OK | collaboration-feedback | {} | topic={} | public={} | candidates={} | route={} | {private_feedback}",
+            "OK | collaboration-feedback | owner=Persona->Imagination | {} | topic={} | public={} | candidates={} | route={} | {private_feedback}",
             feedback.feedback_id,
             feedback.collaboration_topic,
             public_refs,
@@ -5476,7 +5478,7 @@ fn collaboration_feedback_tui_rows(
             feedback.requested_consensus_route
         ),
         format!(
-            "OK | imagination-consensus | {} | packet={} | adoptionGate={} | public={} | {private_consensus}",
+            "OK | imagination-consensus | owner=Imagination | {} | packet={} | adoptionGate={} | public={} | {private_consensus}",
             consensus.receipt_id,
             consensus.consensus_packet_ref,
             consensus.adoption_gate,
