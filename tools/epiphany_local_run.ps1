@@ -1760,7 +1760,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             }
             Write-Host "Service policy directory: status=$($result.status), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), policyRows=$policyRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-poke-down") {
-            Write-Host "Swarm poke down: status=$($result.status), observed=$($result.observedDaemonCount), poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
+            $pokeRows = "none"
+            if ($null -ne $result.pokeRows -and $result.pokeRows.Count -gt 0) {
+                $pokeRows = ($result.pokeRows -join "; ")
+            }
+            Write-Host "Swarm poke down: status=$($result.status), observed=$($result.observedDaemonCount), poked=$($result.pokedDaemonCount), pokeRows=$pokeRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-triage") {
             $attention = "none"
             if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {

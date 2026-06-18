@@ -695,6 +695,7 @@ fn main() -> Result<()> {
             )?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let pokes = write_poke_receipts_for_non_ready_daemons(&args, &context)?;
+            let poke_tui_rows = pokes.iter().map(poke_result_tui_row).collect::<Vec<_>>();
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             println!(
                 "{}",
@@ -705,6 +706,8 @@ fn main() -> Result<()> {
                     "observedDaemonCount": context.daemon_statuses.len(),
                     "pokedDaemonCount": pokes.len(),
                     "pokes": pokes,
+                    "pokeRows": poke_tui_rows,
+                    "tuiRows": poke_tui_rows,
                     "privateStateExposed": false,
                 }))?
             );
@@ -1941,6 +1944,19 @@ fn main() -> Result<()> {
             {
                 anyhow::bail!(
                     "local Verse query smoke batch daemon poke had the wrong target/status/topology/private-state guard"
+                );
+            }
+            let batch_poke_tui_row = poke_result_tui_row(&batch_pokes[0]);
+            if !batch_poke_tui_row.contains("POKE")
+                || !batch_poke_tui_row.contains("Hands")
+                || !batch_poke_tui_row.contains("epiphany-daemon-hands")
+                || !batch_poke_tui_row.contains("privateVerse=epiphany.cluster.hands.private")
+                || !batch_poke_tui_row.contains("surface=eve://epiphany/hands")
+                || !batch_poke_tui_row.contains("receipt=daemon-poke-receipt-")
+                || !batch_poke_tui_row.contains("private=false")
+            {
+                anyhow::bail!(
+                    "local Verse query smoke batch daemon poke lost compact row topology/receipt/private-state fields"
                 );
             }
             let triage_overview = load_swarm_overview_report(&args)?;
@@ -5192,6 +5208,23 @@ fn write_poke_receipts_for_non_ready_daemons(
         )?);
     }
     Ok(pokes)
+}
+
+fn poke_result_tui_row(row: &serde_json::Value) -> String {
+    let target_display_name = row["targetDisplayName"].as_str().unwrap_or("unknown");
+    let target_daemon_id = row["targetDaemonId"].as_str().unwrap_or("unknown");
+    let observed_status = row["observedStatus"].as_str().unwrap_or("unknown");
+    let body_domain = row["bodyDomain"].as_str().unwrap_or("unknown");
+    let private_verse_id = row["privateVerseId"].as_str().unwrap_or("unknown");
+    let eve_surface_id = row["eveSurfaceId"].as_str().unwrap_or("unknown");
+    let intent_id = row["intentId"].as_str().unwrap_or("unknown");
+    let receipt_id = row["receiptId"].as_str().unwrap_or("unknown");
+    let receipt_status = row["receiptStatus"].as_str().unwrap_or("unknown");
+    let resulting_status = row["resultingStatus"].as_str().unwrap_or("unknown");
+    let private_state_exposed = row["privateStateExposed"].as_bool().unwrap_or(false);
+    format!(
+        "POKE | {target_display_name} | {target_daemon_id} | observed={observed_status} | body={body_domain} | privateVerse={private_verse_id} | surface={eve_surface_id} | intent={intent_id} | receipt={receipt_id} | receiptStatus={receipt_status} | result={resulting_status} | private={private_state_exposed}"
+    )
 }
 
 fn sanitize_id(value: &str) -> String {
