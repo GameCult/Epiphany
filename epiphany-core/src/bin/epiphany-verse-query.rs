@@ -2707,6 +2707,12 @@ fn main() -> Result<()> {
                                 "present",
                             )
                         ))
+                        && row.contains(&format!(
+                            "exec={}",
+                            elevated_powershell_runbook_command(
+                                &service_smoke_runbook_path.display().to_string(),
+                            )
+                        ))
                         && row.contains("audit=cluster-service-execution-audit")
                         && row.contains("aftercare=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit")
                 })
@@ -2718,6 +2724,7 @@ fn main() -> Result<()> {
                         && row.contains("failedChecks=6")
                         && row.contains("missingChecks=6")
                         && row.contains("artifact=present")
+                        && row.contains("exec=Start-Process PowerShell")
                         && row.contains("audit=service-execution-audit")
                         && row.contains("aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit")
                 })
@@ -3965,7 +3972,7 @@ fn swarm_action_rows(
 
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
     format!(
-        "{:03} | {} | {} | {} | {} | service={} | route={} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | audit={} | aftercare={}",
+        "{:03} | {} | {} | {} | {} | service={} | route={} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | exec={} | audit={} | aftercare={}",
         row.priority,
         row.family,
         row.status,
@@ -3980,6 +3987,7 @@ fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
         row.service_execution_missing_check_count,
         row.operator_artifact_status,
         row.operator_artifact_sha256,
+        row.operator_artifact_execution_command,
         row.completion_audit_wrapper_mode,
         row.operator_aftercare_command
     )
