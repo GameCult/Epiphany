@@ -2384,6 +2384,26 @@ fn main() -> Result<()> {
                 || service_receipt_directory.artifact_external_ref_count < 1
                 || service_receipt_directory.artifact_present_count < 1
                 || service_receipt_directory.artifact_missing_count != 0
+                || !service_receipt_directory.rows.iter().any(|row| {
+                    row.family == "cluster-service-execution-runbook"
+                        && row.artifact_status == "present"
+                        && row.artifact_sha256
+                            == operator_artifact_sha256(
+                                &service_smoke_runbook_path.display().to_string(),
+                                "present",
+                            )
+                })
+                || !service_receipt_directory.tui_rows.iter().any(|row| {
+                    row.contains("cluster-service-execution-runbook")
+                        && row.contains("artifact=present")
+                        && row.contains(&format!(
+                            "sha256={}",
+                            operator_artifact_sha256(
+                                &service_smoke_runbook_path.display().to_string(),
+                                "present",
+                            )
+                        ))
+                })
                 || !service_overview.swarm_action_rows.iter().any(|row| {
                     row.priority == 40
                         && row.family == "service-lifecycle"
@@ -2489,6 +2509,7 @@ fn main() -> Result<()> {
                     .display()
                     .to_string(),
                 artifact_status: "missing".to_string(),
+                artifact_sha256: "none".to_string(),
                 present: true,
                 private_state_exposed: false,
             };
@@ -3160,6 +3181,7 @@ struct ReceiptDirectoryRow {
     follow_up_command: String,
     artifact_ref: String,
     artifact_status: String,
+    artifact_sha256: String,
     present: bool,
     private_state_exposed: bool,
 }
@@ -3984,6 +4006,7 @@ fn receipt_directory_report(
             follow_up_command: WRAPPER_OVERVIEW_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_operator_run_receipt.is_some(),
             private_state_exposed: false,
         },
@@ -4013,6 +4036,7 @@ fn receipt_directory_report(
             follow_up_command: WRAPPER_POKE_NON_READY_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_daemon_poke_receipt.is_some(),
             private_state_exposed: context
                 .latest_daemon_poke_receipt
@@ -4051,6 +4075,7 @@ fn receipt_directory_report(
             follow_up_command: WRAPPER_INVOKE_TOOL_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_daemon_tool_invocation_receipt.is_some(),
             private_state_exposed: context
                 .latest_daemon_tool_invocation_receipt
@@ -4084,6 +4109,7 @@ fn receipt_directory_report(
             follow_up_command: WRAPPER_CONNECT_EVE_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_eve_connection_receipt.is_some(),
             private_state_exposed: context
                 .latest_eve_connection_receipt
@@ -4117,6 +4143,7 @@ fn receipt_directory_report(
             follow_up_command: WRAPPER_BIFROST_LEDGER_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_bifrost_github_publication_receipt.is_some(),
             private_state_exposed: context
                 .latest_bifrost_github_publication_receipt
@@ -4150,6 +4177,7 @@ fn receipt_directory_report(
             follow_up_command: WRAPPER_COLLABORATION_FEEDBACK_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_imagination_consensus_receipt.is_some(),
             private_state_exposed: context
                 .latest_imagination_consensus_receipt
@@ -4183,6 +4211,7 @@ fn receipt_directory_report(
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode status".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_coordinator_run_receipt.is_some(),
             private_state_exposed: context
                 .latest_coordinator_run_receipt
@@ -4218,6 +4247,7 @@ fn receipt_directory_report(
                     .to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_hands_action_gate.is_some(),
             private_state_exposed: context
                 .latest_hands_action_gate
@@ -4251,6 +4281,7 @@ fn receipt_directory_report(
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode status".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_role_review_event.is_some(),
             private_state_exposed: context
                 .latest_role_review_event
@@ -4284,6 +4315,7 @@ fn receipt_directory_report(
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode status".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_work_loop_summary.is_some(),
             private_state_exposed: false,
         },
@@ -4319,6 +4351,7 @@ fn receipt_directory_report(
             follow_up_command: WRAPPER_SERVICE_TICK_COMMAND.to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_daemon_scheduler_receipt.is_some(),
             private_state_exposed: context
                 .latest_daemon_scheduler_receipt
@@ -4353,6 +4386,7 @@ fn receipt_directory_report(
                 .to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_persona_speech_audit.is_some(),
             private_state_exposed: context
                 .latest_persona_speech_audit
@@ -4382,6 +4416,7 @@ fn receipt_directory_report(
             follow_up_command: "tools/epiphany_local_run.ps1 -Mode agent-state-soa".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
+            artifact_sha256: "none".to_string(),
             present: context.latest_agent_state_soa_summary.is_some(),
             private_state_exposed: context
                 .latest_agent_state_soa_summary
@@ -4463,8 +4498,14 @@ fn receipt_directory_tui_row(row: &ReceiptDirectoryRow) -> String {
         "OK"
     };
     format!(
-        "{compact_status} | {} | {} | {} | {} | {} | artifact={}",
-        row.owner, row.family, row.status, row.route, row.latest_id, row.artifact_status
+        "{compact_status} | {} | {} | {} | {} | {} | artifact={} | sha256={}",
+        row.owner,
+        row.family,
+        row.status,
+        row.route,
+        row.latest_id,
+        row.artifact_status,
+        row.artifact_sha256
     )
 }
 
@@ -4584,6 +4625,7 @@ fn receipt_directory_service_lifecycle_row(
         .map(|receipt| receipt.operator_artifact_ref.clone())
         .unwrap_or_else(|| "none".to_string());
     let artifact_status = operator_artifact_status(&artifact_ref).to_string();
+    let artifact_sha256 = operator_artifact_sha256(&artifact_ref, &artifact_status);
     ReceiptDirectoryRow {
         family: family.to_string(),
         owner: "daemon-supervisor".to_string(),
@@ -4600,6 +4642,7 @@ fn receipt_directory_service_lifecycle_row(
         follow_up_command: follow_up_command.to_string(),
         artifact_ref,
         artifact_status,
+        artifact_sha256,
         present: receipt.is_some(),
         private_state_exposed: receipt
             .map(|receipt| receipt.private_state_exposed)
