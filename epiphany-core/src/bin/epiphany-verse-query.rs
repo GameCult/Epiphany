@@ -104,10 +104,29 @@ const WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode service-execution-audit";
 const WRAPPER_SERVICE_EXECUTION_RUNBOOK_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode service-execution-runbook";
+const WRAPPER_SERVICE_EXECUTION_READINESS_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode service-execution-readiness";
+const WRAPPER_SERVICE_INSTALL_EXECUTE_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode service-install-execute";
+const WRAPPER_SERVICE_STATUS_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode service-status";
+const WRAPPER_SERVICE_RECONCILE_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode service-reconcile";
+const WRAPPER_SERVICE_START_EXECUTE_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode service-start-execute";
+const WRAPPER_SERVICE_STOP_EXECUTE_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode service-stop-execute";
 const WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit";
 const WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook";
+const WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-readiness";
+const WRAPPER_CLUSTER_SERVICE_INSTALL_EXECUTE_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode cluster-service-install-execute";
+const WRAPPER_CLUSTER_SERVICE_START_EXECUTE_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode cluster-service-start-execute";
+const WRAPPER_CLUSTER_SERVICE_STOP_EXECUTE_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode cluster-service-stop-execute";
 const DIRECT_BIFROST_PUBLICATION_COMMAND: &str =
     "epiphany-verse-query bifrost-publication --target-repository <repo> --changed-path <path>";
 
@@ -2680,6 +2699,7 @@ fn main() -> Result<()> {
                     .iter()
                     .any(|row| {
                         row.contains("epiphany-cluster-daemon-services::cluster-windows-service-execution-audit=incomplete")
+                            && row.contains("followUp=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit")
                     })
                 || !service_overview
                     .service_execution_failed_check_tui_rows
@@ -2688,6 +2708,7 @@ fn main() -> Result<()> {
                         row.contains(
                             "epiphany-daemon-supervisor-service::windows-service-execution-readiness=missing",
                         )
+                            && row.contains("followUp=tools/epiphany_local_run.ps1 -Mode service-execution-readiness")
                     })
             {
                 anyhow::bail!(
@@ -5044,21 +5065,48 @@ fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCh
     let receipt_id = check.receipt_id.as_deref().unwrap_or("missing");
     let artifact_ref = check.operator_artifact_ref.as_deref().unwrap_or("none");
     let allowed_statuses = check.allowed_statuses.join("|");
+    let follow_up = service_execution_check_follow_up_command(&check.action);
     let seal_status = if check.private_state_sealed {
         "sealed"
     } else {
         "private-state-exposed"
     };
     format!(
-        "{}::{}={} | allowed={} | receipt={} | artifact={} | {}",
+        "{}::{}={} | allowed={} | receipt={} | artifact={} | followUp={} | {}",
         service_id,
         check.action,
         observed_status,
         allowed_statuses,
         receipt_id,
         artifact_ref,
+        follow_up,
         seal_status
     )
+}
+
+fn service_execution_check_follow_up_command(action: &str) -> &'static str {
+    match action {
+        "cluster-windows-service-execution-runbook" => {
+            WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND
+        }
+        "cluster-windows-service-execution-readiness" => {
+            WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND
+        }
+        "cluster-windows-service-install" => WRAPPER_CLUSTER_SERVICE_INSTALL_EXECUTE_COMMAND,
+        "cluster-windows-service-start" => WRAPPER_CLUSTER_SERVICE_START_EXECUTE_COMMAND,
+        "cluster-windows-service-execution-audit" => {
+            WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
+        }
+        "cluster-windows-service-stop" => WRAPPER_CLUSTER_SERVICE_STOP_EXECUTE_COMMAND,
+        "windows-service-execution-runbook" => WRAPPER_SERVICE_EXECUTION_RUNBOOK_COMMAND,
+        "windows-service-execution-readiness" => WRAPPER_SERVICE_EXECUTION_READINESS_COMMAND,
+        "windows-service-install" => WRAPPER_SERVICE_INSTALL_EXECUTE_COMMAND,
+        "windows-service-start" => WRAPPER_SERVICE_START_EXECUTE_COMMAND,
+        "windows-service-status" => WRAPPER_SERVICE_STATUS_COMMAND,
+        "windows-service-reconcile" => WRAPPER_SERVICE_RECONCILE_COMMAND,
+        "windows-service-stop" => WRAPPER_SERVICE_STOP_EXECUTE_COMMAND,
+        _ => "none",
+    }
 }
 
 fn receipt_directory_row_needs_attention(row: &ReceiptDirectoryRow) -> bool {
