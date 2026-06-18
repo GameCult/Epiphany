@@ -139,6 +139,18 @@ const SERVICE_LIFECYCLE_OWNER: &str = "Idunn";
 const SERVICE_LIFECYCLE_HOSTED_BODY: &str = "Epiphany";
 
 fn main() -> Result<()> {
+    let handle = std::thread::Builder::new()
+        .name("epiphany-verse-query".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(run_cli)
+        .context("failed to spawn epiphany-verse-query worker thread")?;
+    match handle.join() {
+        Ok(result) => result,
+        Err(payload) => std::panic::resume_unwind(payload),
+    }
+}
+
+fn run_cli() -> Result<()> {
     let args = Args::parse()?;
     match args.command.as_str() {
         "seed" => {
