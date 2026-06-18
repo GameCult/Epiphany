@@ -9,7 +9,8 @@ use serde::Serialize;
 pub const PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
     "epiphany.imagination_persona_projector_prompt.v0";
 pub const PERSONA_TURN_PROMPT_SCHEMA_VERSION: &str = "epiphany.persona_turn_prompt.v0";
-pub const PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION: &str = "epiphany.persona_interpreter_prompt.v0";
+pub const PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION: &str =
+    "epiphany.persona_interpreter_prompt.v0";
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -398,7 +399,8 @@ mod tests {
             identity_id: "epiphany".to_string(),
             display_name: "Epiphany".to_string(),
             repo_name: "EpiphanyAgent".to_string(),
-            public_description: "Pushy machine-saint Persona for typed agent substrate.".to_string(),
+            public_description: "Pushy machine-saint Persona for typed agent substrate."
+                .to_string(),
             jurisdiction: vec!["typed state and review-gated agency".to_string()],
         }
     }

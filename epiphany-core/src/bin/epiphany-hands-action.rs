@@ -7,11 +7,14 @@ use epiphany_core::HandsActionReview;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
 use epiphany_core::hands_patch_receipt_for_review;
+use epiphany_core::hands_pr_receipt_for_review;
 use epiphany_core::put_hands_command_receipt;
 use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
+use epiphany_core::put_hands_pr_receipt;
 use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
+use epiphany_core::runtime_hands_commit_receipt;
 use serde_json::json;
 use std::env;
 use std::fs;
@@ -25,6 +28,7 @@ fn main() -> Result<()> {
         Command::RecordPatch(command) => record_patch(&args.store, command)?,
         Command::RecordCommand(command) => record_command(&args.store, command)?,
         Command::RecordCommit(command) => record_commit(&args.store, command)?,
+        Command::RecordPr(command) => record_pr(&args.store, command)?,
         Command::RecordPass(command) => record_pass(&args.store, command)?,
     };
     println!("{}", serde_json::to_string_pretty(&output)?);
@@ -42,6 +46,7 @@ enum Command {
     RecordPatch(RecordPatchArgs),
     RecordCommand(RecordCommandArgs),
     RecordCommit(RecordCommitArgs),
+    RecordPr(RecordPrArgs),
     RecordPass(RecordPassArgs),
 }
 
@@ -79,6 +84,16 @@ struct RecordCommitArgs {
 }
 
 #[derive(Debug)]
+struct RecordPrArgs {
+    gate: GateArgs,
+    commit_receipt_id: String,
+    pull_request_url: String,
+    pull_request_number: String,
+    pull_request_title: String,
+    bifrost_publication_receipt_id: String,
+}
+
+#[derive(Debug)]
 struct RecordPassArgs {
     gate: GateArgs,
     command: String,
@@ -104,6 +119,7 @@ impl Args {
             "record-patch" => Command::RecordPatch(parse_record_patch(tokens)?),
             "record-command" => Command::RecordCommand(parse_record_command(tokens)?),
             "record-commit" => Command::RecordCommit(parse_record_commit(tokens)?),
+            "record-pr" => Command::RecordPr(parse_record_pr(tokens)?),
             "record-pass" => Command::RecordPass(parse_record_pass(tokens)?),
             _ => return Err(anyhow!("unknown command {command_name}\n{}", usage())),
         };
@@ -160,6 +176,26 @@ fn parse_record_commit(tokens: impl Iterator<Item = String>) -> Result<RecordCom
         branch,
         changed_paths,
         validate_commit_sha: true,
+    })
+}
+
+fn parse_record_pr(tokens: impl Iterator<Item = String>) -> Result<RecordPrArgs> {
+    let mut options = ParsedOptions::parse(tokens)?;
+    let gate = options.take_gate()?;
+    let commit_receipt_id = options.take_required("--commit-receipt-id")?;
+    let pull_request_url = options.take_required("--pull-request-url")?;
+    let pull_request_number = options.take_required("--pull-request-number")?;
+    let pull_request_title = options.take_required("--pull-request-title")?;
+    let bifrost_publication_receipt_id =
+        options.take_required("--bifrost-publication-receipt-id")?;
+    options.finish()?;
+    Ok(RecordPrArgs {
+        gate,
+        commit_receipt_id,
+        pull_request_url,
+        pull_request_number,
+        pull_request_title,
+        bifrost_publication_receipt_id,
     })
 }
 
@@ -357,6 +393,60 @@ fn record_commit(store: &PathBuf, args: RecordCommitArgs) -> Result<serde_json::
         "reviewId": receipt.review_id,
         "commitSha": receipt.commit_sha,
         "branch": receipt.branch,
+        "changedPaths": receipt.changed_paths,
+        "store": store,
+    }))
+}
+
+fn record_pr(store: &PathBuf, args: RecordPrArgs) -> Result<serde_json::Value> {
+    let (intent, review) = load_gate(store, &args.gate, "pr")?;
+    let commit_receipt =
+        runtime_hands_commit_receipt(store, &args.commit_receipt_id)?.ok_or_else(|| {
+            anyhow!(
+                "Hands commit receipt {} was not found",
+                args.commit_receipt_id
+            )
+        })?;
+    if commit_receipt.intent_id != intent.intent_id || commit_receipt.review_id != review.review_id
+    {
+        return Err(anyhow!(
+            "Hands commit receipt {} belongs to intent {}/review {}, not {}/{}",
+            commit_receipt.receipt_id,
+            commit_receipt.intent_id,
+            commit_receipt.review_id,
+            intent.intent_id,
+            review.review_id
+        ));
+    }
+    let receipt_id = args
+        .gate
+        .receipt_id
+        .unwrap_or_else(|| generated_receipt_id("hands-pr"));
+    let receipt = hands_pr_receipt_for_review(
+        receipt_id,
+        &intent,
+        &review,
+        &commit_receipt,
+        args.pull_request_url,
+        args.pull_request_number,
+        args.pull_request_title,
+        args.bifrost_publication_receipt_id,
+        args.gate.summary,
+        now(),
+    );
+    put_hands_pr_receipt(store, &receipt)?;
+    Ok(json!({
+        "status": "ok",
+        "type": "epiphany.hands.pr_receipt",
+        "receiptId": receipt.receipt_id,
+        "intentId": receipt.intent_id,
+        "reviewId": receipt.review_id,
+        "commitReceiptId": receipt.commit_receipt_id,
+        "commitSha": receipt.commit_sha,
+        "branch": receipt.branch,
+        "pullRequestUrl": receipt.pull_request_url,
+        "pullRequestNumber": receipt.pull_request_number,
+        "bifrostPublicationReceiptId": receipt.bifrost_publication_receipt_id,
         "changedPaths": receipt.changed_paths,
         "store": store,
     }))
@@ -570,7 +660,7 @@ fn take_value(tokens: &mut impl Iterator<Item = String>, name: &str) -> Result<S
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-hands-action [--store path] <record-patch|record-command|record-commit|record-pass> (--gate-summary path | --intent-id id --review-id id) --summary text ..."
+    "usage: epiphany-hands-action [--store path] <record-patch|record-command|record-commit|record-pr|record-pass> (--gate-summary path | --intent-id id --review-id id) --summary text ..."
 }
 
 #[cfg(test)]
@@ -585,6 +675,7 @@ mod tests {
     use epiphany_core::runtime_hands_command_receipt;
     use epiphany_core::runtime_hands_commit_receipt;
     use epiphany_core::runtime_hands_patch_receipt;
+    use epiphany_core::runtime_hands_pr_receipt;
     use epiphany_core::runtime_latest_hands_receipt_chain_after;
 
     #[test]
@@ -682,16 +773,18 @@ mod tests {
         assert!(runtime_hands_command_receipt(&store, command_id)?.is_some());
         assert!(runtime_hands_commit_receipt(&store, commit_id)?.is_some());
 
-        let chain =
-            runtime_latest_hands_receipt_chain_after(&store, "2026-06-02T00:00:02Z")?
-                .expect("record-pass should produce a complete Hands receipt chain");
+        let chain = runtime_latest_hands_receipt_chain_after(&store, "2026-06-02T00:00:02Z")?
+            .expect("record-pass should produce a complete Hands receipt chain");
         assert_eq!(chain.patch_receipt_id, patch_id);
         assert_eq!(chain.command_receipt_id, command_id);
         assert_eq!(chain.commit_receipt_id, commit_id);
         assert_eq!(chain.intent_id, "hands-intent-test");
         assert_eq!(chain.review_id, "hands-review-test");
         assert_eq!(chain.runtime_job_id, "hands-job-test");
-        assert_eq!(chain.substrate_gate_grant_receipt_id, "substrate-grant-test");
+        assert_eq!(
+            chain.substrate_gate_grant_receipt_id,
+            "substrate-grant-test"
+        );
         assert_eq!(chain.command, "cargo test");
         assert_eq!(chain.exit_code, "0");
         assert_eq!(chain.commit_sha, "def456");
@@ -719,6 +812,96 @@ mod tests {
 
         assert!(result.is_err());
         assert!(runtime_hands_commit_receipt(&store, "hands-commit-test")?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn records_pr_receipt_against_commit_and_bifrost_publication() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime-spine.msgpack");
+        seed_gate(&store, vec!["src".to_string()])?;
+        record_commit(
+            &store,
+            RecordCommitArgs {
+                gate: gate_args("hands-commit-test"),
+                commit_sha: "abc123".to_string(),
+                branch: "codex/test".to_string(),
+                changed_paths: vec!["src/lib.rs".to_string()],
+                validate_commit_sha: false,
+            },
+        )?;
+
+        let result = record_pr(
+            &store,
+            RecordPrArgs {
+                gate: gate_args("hands-pr-test"),
+                commit_receipt_id: "hands-commit-test".to_string(),
+                pull_request_url: "https://github.com/GameCult/EpiphanyAgent/pull/1".to_string(),
+                pull_request_number: "1".to_string(),
+                pull_request_title: "Route Bifrost publication proof".to_string(),
+                bifrost_publication_receipt_id: "bifrost-publication-receipt-test".to_string(),
+            },
+        )?;
+
+        assert_eq!(
+            result
+                .pointer("/bifrostPublicationReceiptId")
+                .and_then(serde_json::Value::as_str),
+            Some("bifrost-publication-receipt-test")
+        );
+        let receipt =
+            runtime_hands_pr_receipt(&store, "hands-pr-test")?.expect("stored Hands PR receipt");
+        assert_eq!(receipt.commit_receipt_id, "hands-commit-test");
+        assert_eq!(receipt.commit_sha, "abc123");
+        assert_eq!(
+            receipt.pull_request_url,
+            "https://github.com/GameCult/EpiphanyAgent/pull/1"
+        );
+        assert_eq!(
+            receipt.bifrost_publication_receipt_id,
+            "bifrost-publication-receipt-test"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn refuses_pr_receipt_when_review_does_not_allow_publication() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime-spine.msgpack");
+        seed_gate_with_operations(
+            &store,
+            vec!["src".to_string()],
+            vec![
+                "patch".to_string(),
+                "command".to_string(),
+                "commit".to_string(),
+            ],
+        )?;
+        record_commit(
+            &store,
+            RecordCommitArgs {
+                gate: gate_args("hands-commit-test"),
+                commit_sha: "abc123".to_string(),
+                branch: "codex/test".to_string(),
+                changed_paths: vec!["src/lib.rs".to_string()],
+                validate_commit_sha: false,
+            },
+        )?;
+
+        let result = record_pr(
+            &store,
+            RecordPrArgs {
+                gate: gate_args("hands-pr-test"),
+                commit_receipt_id: "hands-commit-test".to_string(),
+                pull_request_url: "https://github.com/GameCult/EpiphanyAgent/pull/1".to_string(),
+                pull_request_number: "1".to_string(),
+                pull_request_title: "Route Bifrost publication proof".to_string(),
+                bifrost_publication_receipt_id: "bifrost-publication-receipt-test".to_string(),
+            },
+        );
+
+        assert!(result.is_err());
+        assert!(runtime_hands_pr_receipt(&store, "hands-pr-test")?.is_none());
         Ok(())
     }
 
@@ -769,6 +952,7 @@ mod tests {
                 "patch".to_string(),
                 "command".to_string(),
                 "commit".to_string(),
+                "pr".to_string(),
             ],
         )
     }

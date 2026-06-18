@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run", "mvp")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "bifrost-publication", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "service-policy-directory", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -9,6 +9,38 @@ param(
     [int]$MaxSteps = 4,
     [int]$TimeoutSeconds = 600,
     [int]$MaxRuntimeSeconds = 180,
+    [string]$DaemonId = "*",
+    [string]$ServiceId = "epiphany-daemon-supervisor-service",
+    [string]$ServiceName = "",
+    [string]$ServiceDisplayName = "",
+    [ValidateSet("auto", "demand", "disabled")]
+    [string]$ServiceStartType = "demand",
+    [string]$SchedulerId = "epiphany-daemon-supervisor",
+    [int]$LoopIntervalSeconds = 60,
+    [int]$ServiceMaxIterations = 0,
+    [string]$EveTargetClusterId = "epiphany.cluster.persona",
+    [string]$EveAdvertisementId = "",
+    [string]$CollaborationTopic = "local-swarm-collaboration",
+    [string]$CollaborationFeedbackSummary = "Persona recorded operator-safe local collaboration feedback for Imagination consensus discovery.",
+    [string]$PublicDiscussionRef = "eve://epiphany/persona#local-swarm-collaboration",
+    [string]$BifrostTargetRepository = "",
+    [string]$BifrostTargetBranch = "local-proof",
+    [string]$BifrostChangedPath = "tools/epiphany_local_run.ps1",
+    [string]$BifrostChangeSummary = "Operator-safe local proof that body changes route through Bifrost before GitHub publication.",
+    [string]$BifrostJustification = "Body publication requires Bifrost ledger, review, credit, and GitHub receipt state before public substrate exposure.",
+    [string]$BifrostVerificationReceipt = "verification-receipt-local-proof",
+    [string]$BifrostReviewReceipt = "review-receipt-local-proof",
+    [string]$BifrostAuthorAgent = "epiphany.Hands",
+    [string]$BifrostCreditSubject = "epiphany.swarm",
+    [string]$BifrostLedgerEntryId = "bifrost-ledger-local-proof",
+    [string]$BifrostHandsPrReceiptId = "hands-pr-receipt-local-proof",
+    [string]$BifrostPublicationUrl = "https://github.com/local-proof/epiphany/pull/local-proof",
+    [string]$ToolCapabilityId = "epiphany.cluster.hands.tool.repo-action",
+    [string]$ToolRequestingAgentId = "epiphany.Persona",
+    [string]$ToolRequestingClusterId = "epiphany.cluster.persona",
+    [string]$ToolInvocationReason = "",
+    [string]$ToolIntentId = "",
+    [string]$ToolReceiptId = "",
     [string]$PersonaInput = "",
     [switch]$SkipBuild,
     [switch]$AutoReview,
@@ -110,7 +142,7 @@ if ($CodexHome -eq "") {
     }
 }
 
-$runId = "local-" + (Get-Date -Format "yyyyMMdd-HHmmss")
+$runId = "local-" + (Get-Date -Format "yyyyMMdd-HHmmss-fff") + "-" + ([guid]::NewGuid().ToString("N").Substring(0, 8))
 $artifactRoot = Join-Path $Root ".epiphany-run\$runId"
 $dogfoodRoot = Join-Path $Root ".epiphany-dogfood\$runId"
 New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
@@ -121,6 +153,8 @@ $statusExe = Join-Path $TargetDir "debug\epiphany-mvp-status.exe"
 $operatorRunExe = Join-Path $TargetDir "debug\epiphany-operator-run.exe"
 $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
 $verseQueryExe = Join-Path $TargetDir "debug\epiphany-verse-query.exe"
+$daemonSupervisorExe = Join-Path $TargetDir "debug\epiphany-daemon-supervisor.exe"
+$clusterDaemonExe = Join-Path $TargetDir "debug\epiphany-cluster-daemon.exe"
 $handsActionExe = Join-Path $TargetDir "debug\epiphany-hands-action.exe"
 $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
@@ -129,21 +163,30 @@ $toolAdapterExe = Join-Path $TargetDir "debug\epiphany-tool-codex-mcp-spine.exe"
 $heartbeatExe = Join-Path $TargetDir "debug\epiphany-heartbeat-store.exe"
 $PersonaExe = Join-Path $TargetDir "debug\epiphany-persona-discord.exe"
 $characterLoopExe = Join-Path $TargetDir "debug\epiphany-character-loop.exe"
+$agentMemoryExe = Join-Path $TargetDir "debug\epiphany-agent-memory-store.exe"
 $modelProvider = "openai-codex"
-$operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.ccmp"
-$operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.ccmp"
+$cargoExe = "cargo"
+$userCargoExe = Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"
+if (Test-Path -LiteralPath $userCargoExe) {
+    $cargoExe = $userCargoExe
+}
 $localVerseStore = Join-Path $Root ".epiphany-run\cultmesh\local-verse.ccmp"
+$operatorRunStore = $localVerseStore
+$operatorSnapshotStore = $localVerseStore
 $operatorSnapshotId = "$runId-status"
+if ($BifrostTargetRepository -eq "") {
+    $BifrostTargetRepository = "repo:$Root"
+}
 $agentStore = Join-Path $Root "state\agents.msgpack"
 $heartbeatStore = Join-Path $Root "state\agent-heartbeats.msgpack"
 $runtimeStore = Join-Path $Workspace "state\runtime-spine.msgpack"
 $liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
-    if ($Mode -ne "status") {
+    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
         Invoke-Checked `
             -Label "build Codex app-server compatibility organ" `
-            -FilePath "cargo" `
+            -FilePath $cargoExe `
             -Arguments @("build", "-p", "codex-app-server", "--manifest-path", ".\vendor\codex\codex-rs\Cargo.toml") `
             -WorkingDirectory $Root `
             -StdoutPath (Join-Path $artifactRoot "build-codex-app-server.stdout.log") `
@@ -152,7 +195,7 @@ if (-not $SkipBuild) {
 
     Invoke-Checked `
         -Label "build Epiphany operator binaries" `
-        -FilePath "cargo" `
+        -FilePath $cargoExe `
         -Arguments @(
             "build",
             "--manifest-path", ".\epiphany-core\Cargo.toml",
@@ -160,12 +203,15 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-operator-run",
             "--bin", "epiphany-operator-snapshot",
             "--bin", "epiphany-verse-query",
+            "--bin", "epiphany-daemon-supervisor",
+            "--bin", "epiphany-cluster-daemon",
             "--bin", "epiphany-hands-action",
             "--bin", "epiphany-mvp-coordinator",
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
             "--bin", "epiphany-persona-discord",
             "--bin", "epiphany-character-loop",
+            "--bin", "epiphany-agent-memory-store",
             "--bin", "epiphany-agent-telemetry",
             "--bin", "epiphany-void-memory"
         ) `
@@ -176,14 +222,14 @@ if (-not $SkipBuild) {
     if ($liveRuntimeMode) {
         Invoke-Checked `
             -Label "build Epiphany model runtime" `
-            -FilePath "cargo" `
+            -FilePath $cargoExe `
             -Arguments @("build", "--manifest-path", ".\epiphany-openai-runtime\Cargo.toml", "--bin", "epiphany-model-runtime") `
             -WorkingDirectory $Root `
             -StdoutPath (Join-Path $artifactRoot "build-model-runtime.stdout.log") `
             -StderrPath (Join-Path $artifactRoot "build-model-runtime.stderr.log")
         Invoke-Checked `
             -Label "build quarantined Codex MCP tool adapter" `
-            -FilePath "cargo" `
+            -FilePath $cargoExe `
             -Arguments @("build", "--manifest-path", ".\epiphany-tool-codex-mcp-spine\Cargo.toml") `
             -WorkingDirectory $Root `
             -StdoutPath (Join-Path $artifactRoot "build-tool-adapter.stdout.log") `
@@ -191,20 +237,135 @@ if (-not $SkipBuild) {
     }
 }
 
-$requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQueryExe, $handsActionExe)
-if ($Mode -ne "status") {
+$requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQueryExe, $daemonSupervisorExe, $handsActionExe)
+if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
 }
+function Assert-SwarmBrakeAllowsLiveRun {
+    $brakeContextPath = Join-Path $artifactRoot "swarm-brake-preflight.stdout.json"
+    if (-not (Test-Path -LiteralPath $localVerseStore)) {
+        Invoke-Checked `
+            -Label "seed local Verse before swarm brake preflight" `
+            -FilePath $verseQueryExe `
+            -Arguments @(
+                "seed",
+                "--store", $localVerseStore,
+                "--runtime-id", "epiphany-local"
+            ) `
+            -WorkingDirectory $Root `
+            -StdoutPath (Join-Path $artifactRoot "swarm-brake-preflight-seed.stdout.json") `
+            -StderrPath (Join-Path $artifactRoot "swarm-brake-preflight-seed.stderr.log")
+    }
+
+    Invoke-Checked `
+        -Label "check local Verse swarm brake" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "query",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $brakeContextPath `
+        -StderrPath (Join-Path $artifactRoot "swarm-brake-preflight.stderr.log")
+
+    $context = Get-Content -LiteralPath $brakeContextPath -Raw | ConvertFrom-Json
+    $brake = $context.swarmBrake
+    if ($null -eq $brake) {
+        $brake = $context.swarm_brake
+    }
+    $brakeStatus = $null
+    $brakeScope = ""
+    $brakeReason = ""
+    $protected = @()
+    $affected = @()
+    if ($null -ne $brake) {
+        if ($brake -is [array]) {
+            $brakeStatus = $brake[2]
+            $brakeScope = $brake[3]
+            $brakeReason = $brake[4]
+            if ($null -ne $brake[6]) {
+                $affected = @($brake[6])
+            }
+            if ($null -ne $brake[7]) {
+                $protected = @($brake[7])
+            }
+        } else {
+            $brakeStatus = $brake.status
+            $brakeScope = $brake.scope
+            $brakeReason = $brake.reason
+            if ($null -ne $brake.protected_surfaces) {
+                $protected = @($brake.protected_surfaces)
+            } elseif ($null -ne $brake.protectedSurfaces) {
+                $protected = @($brake.protectedSurfaces)
+            }
+            if ($null -ne $brake.affected_clusters) {
+                $affected = @($brake.affected_clusters)
+            } elseif ($null -ne $brake.affectedClusters) {
+                $affected = @($brake.affectedClusters)
+            }
+        }
+    }
+    if ($brakeStatus -eq "engaged") {
+        throw "local Verse swarm brake engaged; refusing live mode '$Mode'. scope=$brakeScope; protected=$($protected -join ','); affected=$($affected -join ','); reason=$brakeReason"
+    }
+}
+
+if (@("plan", "run", "mvp", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute") -contains $Mode) {
+    if (-not (Test-Path -LiteralPath $verseQueryExe)) {
+        throw "required binary not found for swarm brake preflight: $verseQueryExe"
+    }
+    Assert-SwarmBrakeAllowsLiveRun
+}
+
 if ($liveRuntimeMode) {
     $requiredBinaries += @($modelRuntimeExe, $toolAdapterExe)
+}
+if (@("service-policy-directory", "service-tick", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute") -contains $Mode) {
+    $requiredBinaries += @($clusterDaemonExe)
 }
 if ($Mode -eq "mvp") {
     $requiredBinaries += @($heartbeatExe, $PersonaExe, $characterLoopExe)
 }
+$requiredBinaries += @($agentMemoryExe)
 foreach ($required in $requiredBinaries) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "required binary not found: $required"
     }
+}
+
+function Write-AgentStateSoaToLocalVerse {
+    param([string]$ArtifactSuffix = "")
+
+    if (-not (Test-Path -LiteralPath $agentStore)) {
+        return
+    }
+
+    $suffix = $ArtifactSuffix
+    if ($suffix -ne "") {
+        $suffix = "-$suffix"
+    }
+
+    Invoke-Checked `
+        -Label "refresh agent state SoA$suffix" `
+        -FilePath $agentMemoryExe `
+        -Arguments @("refresh-soa", "--store", $agentStore) `
+        -WorkingDirectory $Root `
+        -StdoutPath (Join-Path $artifactRoot "agent-state-soa-refresh$suffix.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "agent-state-soa-refresh$suffix.stderr.log")
+
+    Invoke-Checked `
+        -Label "mirror agent state SoA into local Verse$suffix" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "agent-state",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local",
+            "--agent-store", $agentStore
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath (Join-Path $artifactRoot "local-verse-agent-state-soa$suffix.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "local-verse-agent-state-soa$suffix.stderr.log")
 }
 
 $resultPath = ""
@@ -240,52 +401,904 @@ Invoke-Checked `
     -StdoutPath (Join-Path $artifactRoot "operator-run-intent.stdout.json") `
     -StderrPath (Join-Path $artifactRoot "operator-run-intent.stderr.log")
 
-if ($Mode -eq "status") {
-    $statusJson = Join-Path $artifactRoot "status.json"
-    $localVerseJson = Join-Path $artifactRoot "local-verse-context.json"
-    $resultPath = $statusJson
-    $statusArgs = @(
-        "--source", "native",
-        "--cwd", $Workspace,
-        "--thread-state-store", (Join-Path $Root "state\thread-state.msgpack"),
-        "--json",
-        "--result", $statusJson
-    )
-    if ($ThreadId -ne "") {
-        $statusArgs += @("--thread-id", $ThreadId)
-    }
+$compactReadOnlyModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "bifrost-publication", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "service-policy-directory")
+$isCompactReadOnlyMode = $compactReadOnlyModes -contains $Mode
+$shouldReadLocalVerse = $Mode -ne "smoke" -and -not $isCompactReadOnlyMode
+if ($shouldReadLocalVerse -and $Mode -ne "status" -and $Mode -ne "mvp") {
     Invoke-Checked `
-        -Label "run operator status" `
-        -FilePath $statusExe `
-        -Arguments $statusArgs `
-        -WorkingDirectory $Root `
-        -StdoutPath (Join-Path $artifactRoot "status.stdout.json") `
-        -StderrPath (Join-Path $artifactRoot "status.stderr.log")
-    Invoke-Checked `
-        -Label "read local Verse context" `
+        -Label "seed local Verse context" `
         -FilePath $verseQueryExe `
         -Arguments @(
-            "seed",
+            "seed-compact",
             "--store", $localVerseStore,
             "--runtime-id", "epiphany-local"
         ) `
         -WorkingDirectory $Root `
-        -StdoutPath $localVerseJson `
+        -StdoutPath (Join-Path $artifactRoot "local-verse-seed.stdout.json") `
         -StderrPath (Join-Path $artifactRoot "local-verse-context.stderr.log")
+    Write-AgentStateSoaToLocalVerse -ArtifactSuffix "initial"
+}
+
+if ($Mode -eq "status" -or $Mode -eq "mvp") {
+    $statusJson = Join-Path $artifactRoot "status.json"
+    $localVerseJson = Join-Path $artifactRoot "local-verse-context.json"
+    if ($Mode -eq "status") {
+        $resultPath = $statusJson
+        $statusArgs = @(
+            "--source", "native",
+            "--cwd", $Workspace,
+            "--thread-state-store", (Join-Path $Root "state\thread-state.msgpack"),
+            "--json",
+            "--result", $statusJson
+        )
+        if ($ThreadId -ne "") {
+            $statusArgs += @("--thread-id", $ThreadId)
+        }
+        Invoke-Checked `
+            -Label "run operator status" `
+            -FilePath $statusExe `
+            -Arguments $statusArgs `
+            -WorkingDirectory $Root `
+            -StdoutPath (Join-Path $artifactRoot "status.stdout.json") `
+            -StderrPath (Join-Path $artifactRoot "status.stderr.log")
+    }
     Invoke-Checked `
-        -Label "write CultMesh operator snapshot" `
-        -FilePath $operatorSnapshotExe `
+        -Label "seed local Verse context" `
+        -FilePath $verseQueryExe `
         -Arguments @(
-            "from-status",
-            "--store", $operatorSnapshotStore,
-            "--runtime-id", "epiphany-local",
-            "--snapshot-id", $operatorSnapshotId,
-            "--source-mode", "status",
-            "--input", $statusJson
+            "seed-compact",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
         ) `
         -WorkingDirectory $Root `
-        -StdoutPath (Join-Path $artifactRoot "operator-snapshot.stdout.json") `
-        -StderrPath (Join-Path $artifactRoot "operator-snapshot.stderr.log")
+        -StdoutPath (Join-Path $artifactRoot "local-verse-seed.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "local-verse-context.stderr.log")
+    Write-AgentStateSoaToLocalVerse -ArtifactSuffix "initial"
+    if ($Mode -eq "status") {
+        Invoke-Checked `
+            -Label "write CultMesh operator snapshot" `
+            -FilePath $operatorSnapshotExe `
+            -Arguments @(
+                "from-status",
+                "--store", $operatorSnapshotStore,
+                "--runtime-id", "epiphany-local",
+                "--snapshot-id", $operatorSnapshotId,
+                "--source-mode", "status",
+                "--input", $statusJson
+            ) `
+            -WorkingDirectory $Root `
+            -StdoutPath (Join-Path $artifactRoot "operator-snapshot.stdout.json") `
+            -StderrPath (Join-Path $artifactRoot "operator-snapshot.stderr.log")
+    }
+}
+
+if ($Mode -eq "agent-state-soa") {
+    Write-AgentStateSoaToLocalVerse -ArtifactSuffix "report"
+    $resultPath = Join-Path $artifactRoot "agent-state-soa-report.stdout.json"
+    Invoke-Checked `
+        -Label "read compact agent state SoA report" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "agent-state-report",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "agent-state-soa-report.stderr.log")
+}
+
+if ($Mode -eq "swarm-poke-down") {
+    $resultPath = Join-Path $artifactRoot "swarm-poke-down.stdout.json"
+    Invoke-Checked `
+        -Label "poke non-ready local Verse daemons" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "poke-down-daemons",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "swarm-poke-down.stderr.log")
+}
+
+if ($Mode -eq "swarm-triage") {
+    $resultPath = Join-Path $artifactRoot "swarm-triage.stdout.json"
+    Invoke-Checked `
+        -Label "triage and poke non-ready local Verse daemons" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "swarm-triage",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "swarm-triage.stderr.log")
+}
+
+if ($Mode -eq "swarm-status") {
+    $resultPath = Join-Path $artifactRoot "swarm-status.stdout.json"
+    Invoke-Checked `
+        -Label "read compact local Verse swarm status" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "swarm-status",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "swarm-status.stderr.log")
+}
+
+if ($Mode -eq "cluster-topology") {
+    $resultPath = Join-Path $artifactRoot "cluster-topology.stdout.json"
+    Invoke-Checked `
+        -Label "read compact cluster topology" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "cluster-topology",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "cluster-topology.stderr.log")
+}
+
+if ($Mode -eq "eve-surfaces") {
+    $resultPath = Join-Path $artifactRoot "eve-surfaces.stdout.json"
+    Invoke-Checked `
+        -Label "read compact Odin/Eve surface directory" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "eve-surfaces",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "eve-surfaces.stderr.log")
+}
+
+if ($Mode -eq "eve-connect") {
+    $resultPath = Join-Path $artifactRoot "eve-connect.stdout.json"
+    $connectArgs = @(
+        "connect-eve",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local"
+    )
+    if ($EveAdvertisementId -ne "") {
+        $connectArgs += @("--advertisement-id", $EveAdvertisementId)
+    } else {
+        $connectArgs += @("--target-cluster-id", $EveTargetClusterId)
+    }
+    Invoke-Checked `
+        -Label "record compact Odin/Eve connection receipt" `
+        -FilePath $verseQueryExe `
+        -Arguments $connectArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "eve-connect.stderr.log")
+}
+
+if ($Mode -eq "collaboration-feedback") {
+    Invoke-Checked `
+        -Label "record prerequisite Odin/Eve connection receipt" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "connect-eve",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local",
+            "--target-cluster-id", $EveTargetClusterId
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath (Join-Path $artifactRoot "collaboration-eve-connect.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "collaboration-eve-connect.stderr.log")
+
+    $resultPath = Join-Path $artifactRoot "collaboration-feedback.stdout.json"
+    Invoke-Checked `
+        -Label "record public collaboration feedback for Imagination consensus" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "collaboration-feedback",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local",
+            "--eve-connection-receipt-id", "eve-connection-receipt",
+            "--collaboration-topic", $CollaborationTopic,
+            "--feedback-summary", $CollaborationFeedbackSummary,
+            "--public-discussion-ref", $PublicDiscussionRef
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "collaboration-feedback.stderr.log")
+}
+
+if ($Mode -eq "bifrost-publication") {
+    $resultPath = Join-Path $artifactRoot "bifrost-publication.stdout.json"
+    Invoke-Checked `
+        -Label "record Bifrost body-change publication chain" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "bifrost-publication",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local",
+            "--target-repository", $BifrostTargetRepository,
+            "--target-branch", $BifrostTargetBranch,
+            "--change-summary", $BifrostChangeSummary,
+            "--justification", $BifrostJustification,
+            "--changed-path", $BifrostChangedPath,
+            "--verification-receipt", $BifrostVerificationReceipt,
+            "--review-receipt", $BifrostReviewReceipt,
+            "--author-agent", $BifrostAuthorAgent,
+            "--credit-subject", $BifrostCreditSubject,
+            "--ledger-entry-id", $BifrostLedgerEntryId,
+            "--hands-pr-receipt-id", $BifrostHandsPrReceiptId,
+            "--publication-url", $BifrostPublicationUrl
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "bifrost-publication.stderr.log")
+}
+
+if ($Mode -eq "bifrost-ledger") {
+    $resultPath = Join-Path $artifactRoot "bifrost-ledger.stdout.json"
+    Invoke-Checked `
+        -Label "read compact Bifrost ledger report" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "bifrost-ledger",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "bifrost-ledger.stderr.log")
+}
+
+if ($Mode -eq "receipt-directory") {
+    $resultPath = Join-Path $artifactRoot "receipt-directory.stdout.json"
+    Invoke-Checked `
+        -Label "read compact receipt directory" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "receipt-directory",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "receipt-directory.stderr.log")
+}
+
+if ($Mode -eq "tool-directory") {
+    $resultPath = Join-Path $artifactRoot "tool-directory.stdout.json"
+    Invoke-Checked `
+        -Label "read compact daemon tool directory" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "tool-directory",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "tool-directory.stderr.log")
+}
+
+if ($Mode -eq "tool-invoke") {
+    $resultPath = Join-Path $artifactRoot "tool-invoke.stdout.json"
+    $toolInvokeArgs = @(
+        "invoke-tool",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--capability-id", $ToolCapabilityId,
+        "--requesting-agent-id", $ToolRequestingAgentId,
+        "--source-cluster-id", $ToolRequestingClusterId
+    )
+    if ($ToolInvocationReason -ne "") {
+        $toolInvokeArgs += @("--reason", $ToolInvocationReason)
+    }
+    if ($ToolIntentId -ne "") {
+        $toolInvokeArgs += @("--intent-id", $ToolIntentId)
+    }
+    if ($ToolReceiptId -ne "") {
+        $toolInvokeArgs += @("--receipt-id", $ToolReceiptId)
+    }
+    Invoke-Checked `
+        -Label "record daemon tool invocation receipt" `
+        -FilePath $verseQueryExe `
+        -Arguments $toolInvokeArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "tool-invoke.stderr.log")
+}
+
+if ($Mode -eq "swarm-overview") {
+    $resultPath = Join-Path $artifactRoot "swarm-overview.stdout.json"
+    Invoke-Checked `
+        -Label "read compact swarm overview" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "swarm-overview",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "swarm-overview.stderr.log")
+}
+
+if ($Mode -eq "service-policy-directory") {
+    $resultPath = Join-Path $artifactRoot "daemon-service-policy-directory.stdout.json"
+    Invoke-Checked `
+        -Label "read daemon restart policy coverage" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "service-policy-directory",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-policy-directory.stderr.log")
+}
+
+if ($Mode -eq "service-runbook") {
+    $resultPath = Join-Path $artifactRoot "daemon-service-runbook.stdout.json"
+    $runbookPath = Join-Path $artifactRoot "epiphany-daemon-supervisor-service.ps1"
+    $runbookArgs = @(
+        "service-runbook",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $ServiceId,
+        "--loop-interval-seconds", "$LoopIntervalSeconds",
+        "--runbook-path", $runbookPath
+    )
+    if ($ServiceMaxIterations -gt 0) {
+        $runbookArgs += @("--max-iterations", "$ServiceMaxIterations")
+    }
+    Invoke-Checked `
+        -Label "write daemon supervisor service runbook" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $runbookArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-runbook.stderr.log")
+}
+
+if ($Mode -eq "cluster-service-runbook") {
+    $resultPath = Join-Path $artifactRoot "cluster-daemon-service-runbook.stdout.json"
+    $runbookPath = Join-Path $artifactRoot "epiphany-cluster-daemon-services.ps1"
+    $clusterServiceId = $ServiceId
+    if ($clusterServiceId -eq "epiphany-daemon-supervisor-service") {
+        $clusterServiceId = "epiphany-cluster-daemon-services"
+    }
+    $runbookArgs = @(
+        "cluster-service-runbook",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $clusterServiceId,
+        "--service-command", $clusterDaemonExe,
+        "--loop-interval-seconds", "$LoopIntervalSeconds",
+        "--runbook-path", $runbookPath
+    )
+    if ($ServiceMaxIterations -gt 0) {
+        $runbookArgs += @("--max-iterations", "$ServiceMaxIterations")
+    }
+    Invoke-Checked `
+        -Label "write cluster daemon service runbook" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $runbookArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "cluster-daemon-service-runbook.stderr.log")
+}
+
+if ($Mode -eq "cluster-service-install-plan" -or $Mode -eq "cluster-service-install-execute") {
+    $clusterInstallModeName = if ($Mode -eq "cluster-service-install-execute") { "execute" } else { "plan" }
+    $resultPath = Join-Path $artifactRoot "cluster-daemon-service-install-$clusterInstallModeName.stdout.json"
+    $installScriptPath = Join-Path $artifactRoot "epiphany-cluster-daemon-services-install.ps1"
+    $clusterServiceId = $ServiceId
+    if ($clusterServiceId -eq "epiphany-daemon-supervisor-service") {
+        $clusterServiceId = "epiphany-cluster-daemon-services"
+    }
+    $installArgs = @(
+        "cluster-service-install-plan",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $clusterServiceId,
+        "--service-command", $clusterDaemonExe,
+        "--service-start-type", $ServiceStartType,
+        "--loop-interval-seconds", "$LoopIntervalSeconds",
+        "--service-install-script-path", $installScriptPath
+    )
+    if ($ServiceName -ne "") {
+        $installArgs += @("--service-name", $ServiceName)
+    }
+    if ($ServiceDisplayName -ne "") {
+        $installArgs += @("--service-display-name", $ServiceDisplayName)
+    }
+    if ($ServiceMaxIterations -gt 0) {
+        $installArgs += @("--max-iterations", "$ServiceMaxIterations")
+    }
+    if ($Mode -eq "cluster-service-install-execute") {
+        $installArgs += @("--execute-install")
+    }
+    Invoke-Checked `
+        -Label "write cluster daemon Windows service install $clusterInstallModeName" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $installArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "cluster-daemon-service-install-$clusterInstallModeName.stderr.log")
+}
+
+if ($Mode -eq "cluster-service-audit") {
+    $resultPath = Join-Path $artifactRoot "cluster-daemon-service-audit.stdout.json"
+    $clusterServiceId = $ServiceId
+    if ($clusterServiceId -eq "epiphany-daemon-supervisor-service") {
+        $clusterServiceId = "epiphany-cluster-daemon-services"
+    }
+    $auditArgs = @(
+        "cluster-service-audit",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $clusterServiceId
+    )
+    if ($ServiceName -ne "") {
+        $auditArgs += @("--service-name", $ServiceName)
+    }
+    if ($ServiceDisplayName -ne "") {
+        $auditArgs += @("--service-display-name", $ServiceDisplayName)
+    }
+    Invoke-Checked `
+        -Label "audit cluster daemon Windows services" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $auditArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "cluster-daemon-service-audit.stderr.log")
+}
+
+if ($Mode -eq "cluster-service-start-plan" -or $Mode -eq "cluster-service-stop-plan" -or $Mode -eq "cluster-service-start-execute" -or $Mode -eq "cluster-service-stop-execute") {
+    $control = if ($Mode -eq "cluster-service-start-plan" -or $Mode -eq "cluster-service-start-execute") { "start" } else { "stop" }
+    $controlModeName = if ($Mode -eq "cluster-service-start-execute" -or $Mode -eq "cluster-service-stop-execute") { "execute" } else { "plan" }
+    $resultPath = Join-Path $artifactRoot "cluster-daemon-service-$control-$controlModeName.stdout.json"
+    $clusterServiceId = $ServiceId
+    if ($clusterServiceId -eq "epiphany-daemon-supervisor-service") {
+        $clusterServiceId = "epiphany-cluster-daemon-services"
+    }
+    $controlArgs = @(
+        "cluster-service-$control",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $clusterServiceId
+    )
+    if ($ServiceName -ne "") {
+        $controlArgs += @("--service-name", $ServiceName)
+    }
+    if ($ServiceDisplayName -ne "") {
+        $controlArgs += @("--service-display-name", $ServiceDisplayName)
+    }
+    if ($controlModeName -eq "execute") {
+        $controlArgs += @("--execute-control")
+    }
+    Invoke-Checked `
+        -Label "$controlModeName cluster daemon Windows service $control" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $controlArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "cluster-daemon-service-$control-$controlModeName.stderr.log")
+}
+
+if ($Mode -eq "cluster-service-execution-runbook") {
+    $resultPath = Join-Path $artifactRoot "cluster-daemon-service-execution-runbook.stdout.json"
+    $executionRunbookPath = Join-Path $artifactRoot "epiphany-cluster-daemon-services-execution-runbook.ps1"
+    $clusterServiceId = $ServiceId
+    if ($clusterServiceId -eq "epiphany-daemon-supervisor-service") {
+        $clusterServiceId = "epiphany-cluster-daemon-services"
+    }
+    $wrapperScriptPath = $PSCommandPath
+    if ($wrapperScriptPath -eq "") {
+        $wrapperScriptPath = Join-Path $Root "tools\epiphany_local_run.ps1"
+    }
+    $wrapperScriptPath = (Resolve-Path $wrapperScriptPath).Path
+
+    $baseWrapperArgs = @(
+        "-SkipBuild",
+        "-Root", $Root,
+        "-Workspace", $Workspace,
+        "-CodexHome", $CodexHome,
+        "-TargetDir", $TargetDir,
+        "-DaemonId", $DaemonId,
+        "-ServiceId", $clusterServiceId,
+        "-ServiceStartType", $ServiceStartType,
+        "-SchedulerId", $SchedulerId,
+        "-LoopIntervalSeconds", "$LoopIntervalSeconds",
+        "-ServiceMaxIterations", "$ServiceMaxIterations"
+    )
+    if ($ServiceName -ne "") {
+        $baseWrapperArgs += @("-ServiceName", $ServiceName)
+    }
+    if ($ServiceDisplayName -ne "") {
+        $baseWrapperArgs += @("-ServiceDisplayName", $ServiceDisplayName)
+    }
+
+    $clusterExecutionRunbookTryModes = @(
+        "cluster-service-execution-readiness",
+        "cluster-service-install-execute",
+        "cluster-service-start-execute",
+        "cluster-service-audit",
+        "cluster-service-stop-execute",
+        "cluster-service-audit"
+    )
+    $clusterExecutionRunbookFinalAuditMode = "cluster-service-execution-audit"
+
+    function New-ClusterRunbookCommand {
+        param([string]$RunbookMode)
+
+        $args = @("-Mode", $RunbookMode) + $baseWrapperArgs
+        return "& " + (ConvertTo-NativeArgument $wrapperScriptPath) + " " + (($args | ForEach-Object { ConvertTo-NativeArgument $_ }) -join " ")
+    }
+
+    $runbookLines = @(
+        "#Requires -RunAsAdministrator",
+        "Set-StrictMode -Version Latest",
+        '$ErrorActionPreference = "Stop"',
+        "",
+        "# Elevated Epiphany cluster daemon service execution rite.",
+        "# Run only under explicit operator authority. Each command writes typed operator and lifecycle receipts into the local Verse store.",
+        "# ServiceId: $clusterServiceId",
+        "# ServiceName prefix: $ServiceName",
+        "",
+        "try {"
+    ) + ($clusterExecutionRunbookTryModes | ForEach-Object {
+        "    " + (New-ClusterRunbookCommand $_)
+    }) + @(
+        "} finally {",
+        "    " + (New-ClusterRunbookCommand $clusterExecutionRunbookFinalAuditMode),
+        "}"
+    )
+    Set-Content -LiteralPath $executionRunbookPath -Value ($runbookLines -join [Environment]::NewLine) -Encoding UTF8
+
+    $runbookReceiptArgs = @(
+        "cluster-service-execution-runbook",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $clusterServiceId,
+        "--service-command", $wrapperScriptPath,
+        "--runbook-path", $executionRunbookPath,
+        "--artifact-ref", $executionRunbookPath,
+        "--reason", "Generated elevated cluster service execution runbook with final audit in finally."
+    )
+    Invoke-Checked `
+        -Label "record cluster daemon Windows service execution runbook receipt" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $runbookReceiptArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "cluster-daemon-service-execution-runbook.stderr.log")
+}
+
+if ($Mode -eq "cluster-service-execution-readiness") {
+    $resultPath = Join-Path $artifactRoot "cluster-daemon-service-execution-readiness.stdout.json"
+    $clusterServiceId = $ServiceId
+    if ($clusterServiceId -eq "epiphany-daemon-supervisor-service") {
+        $clusterServiceId = "epiphany-cluster-daemon-services"
+    }
+    $readinessArgs = @(
+        "cluster-service-execution-readiness",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $clusterServiceId
+    )
+    if ($ServiceName -ne "") {
+        $readinessArgs += @("--service-name", $ServiceName)
+    }
+    if ($ServiceDisplayName -ne "") {
+        $readinessArgs += @("--service-display-name", $ServiceDisplayName)
+    }
+    Invoke-Checked `
+        -Label "check cluster daemon Windows service execution readiness" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $readinessArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "cluster-daemon-service-execution-readiness.stderr.log")
+}
+
+if ($Mode -eq "cluster-service-execution-audit") {
+    $resultPath = Join-Path $artifactRoot "cluster-daemon-service-execution-audit.stdout.json"
+    $clusterServiceId = $ServiceId
+    if ($clusterServiceId -eq "epiphany-daemon-supervisor-service") {
+        $clusterServiceId = "epiphany-cluster-daemon-services"
+    }
+    $auditArgs = @(
+        "cluster-service-execution-audit",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $clusterServiceId
+    )
+    Invoke-Checked `
+        -Label "audit cluster daemon Windows service execution receipts" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $auditArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "cluster-daemon-service-execution-audit.stderr.log")
+}
+
+if ($Mode -eq "service-execution-runbook") {
+    $resultPath = Join-Path $artifactRoot "daemon-service-execution-runbook.stdout.json"
+    $executionRunbookPath = Join-Path $artifactRoot "epiphany-daemon-supervisor-execution-runbook.ps1"
+    $wrapperScriptPath = $PSCommandPath
+    if ($wrapperScriptPath -eq "") {
+        $wrapperScriptPath = Join-Path $Root "tools\epiphany_local_run.ps1"
+    }
+    $wrapperScriptPath = (Resolve-Path $wrapperScriptPath).Path
+
+    $baseWrapperArgs = @(
+        "-SkipBuild",
+        "-Root", $Root,
+        "-Workspace", $Workspace,
+        "-CodexHome", $CodexHome,
+        "-TargetDir", $TargetDir,
+        "-DaemonId", $DaemonId,
+        "-ServiceId", $ServiceId,
+        "-ServiceStartType", $ServiceStartType,
+        "-SchedulerId", $SchedulerId,
+        "-LoopIntervalSeconds", "$LoopIntervalSeconds",
+        "-ServiceMaxIterations", "$ServiceMaxIterations"
+    )
+    if ($ServiceName -ne "") {
+        $baseWrapperArgs += @("-ServiceName", $ServiceName)
+    }
+    if ($ServiceDisplayName -ne "") {
+        $baseWrapperArgs += @("-ServiceDisplayName", $ServiceDisplayName)
+    }
+
+    function New-RunbookCommand {
+        param([string]$RunbookMode)
+
+        $args = @("-Mode", $RunbookMode) + $baseWrapperArgs
+        return "& " + (ConvertTo-NativeArgument $wrapperScriptPath) + " " + (($args | ForEach-Object { ConvertTo-NativeArgument $_ }) -join " ")
+    }
+
+    $runbookLines = @(
+        "#Requires -RunAsAdministrator",
+        "Set-StrictMode -Version Latest",
+        '$ErrorActionPreference = "Stop"',
+        "",
+        "# Elevated Epiphany daemon service execution rite.",
+        "# Run only under explicit operator authority. Each command writes typed operator and lifecycle receipts into the local Verse store.",
+        "# ServiceId: $ServiceId",
+        "# ServiceName: $ServiceName",
+        "",
+        (New-RunbookCommand "service-execution-readiness"),
+        (New-RunbookCommand "service-install-execute"),
+        (New-RunbookCommand "service-start-execute"),
+        (New-RunbookCommand "service-status"),
+        (New-RunbookCommand "service-reconcile"),
+        (New-RunbookCommand "service-stop-execute"),
+        (New-RunbookCommand "service-status"),
+        (New-RunbookCommand "service-execution-audit")
+    )
+    Set-Content -LiteralPath $executionRunbookPath -Value ($runbookLines -join [Environment]::NewLine) -Encoding UTF8
+
+    $runbookReceiptArgs = @(
+        "service-execution-runbook",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $ServiceId,
+        "--service-command", $wrapperScriptPath,
+        "--runbook-path", $executionRunbookPath,
+        "--artifact-ref", $executionRunbookPath,
+        "--reason", "Generated elevated daemon service execution runbook."
+    )
+    if ($ServiceName -ne "") {
+        $runbookReceiptArgs += @("--service-name", $ServiceName)
+    }
+    if ($ServiceDisplayName -ne "") {
+        $runbookReceiptArgs += @("--service-display-name", $ServiceDisplayName)
+    }
+    Invoke-Checked `
+        -Label "record daemon Windows service execution runbook receipt" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $runbookReceiptArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-execution-runbook.stderr.log")
+}
+
+if ($Mode -eq "service-install-plan" -or $Mode -eq "service-install-execute") {
+    $installModeName = if ($Mode -eq "service-install-execute") { "execute" } else { "plan" }
+    $resultPath = Join-Path $artifactRoot "daemon-service-install-$installModeName.stdout.json"
+    $installScriptPath = Join-Path $artifactRoot "epiphany-daemon-supervisor-install.ps1"
+    $installArgs = @(
+        "windows-service-install",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $ServiceId,
+        "--service-start-type", $ServiceStartType,
+        "--loop-interval-seconds", "$LoopIntervalSeconds",
+        "--service-install-script-path", $installScriptPath
+    )
+    if ($ServiceName -ne "") {
+        $installArgs += @("--service-name", $ServiceName)
+    }
+    if ($ServiceDisplayName -ne "") {
+        $installArgs += @("--service-display-name", $ServiceDisplayName)
+    }
+    if ($ServiceMaxIterations -gt 0) {
+        $installArgs += @("--max-iterations", "$ServiceMaxIterations")
+    }
+    if ($Mode -eq "service-install-execute") {
+        $installArgs += @("--execute-install")
+    }
+    Invoke-Checked `
+        -Label "write daemon supervisor Windows service install $installModeName" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $installArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-install-$installModeName.stderr.log")
+}
+
+if ($Mode -eq "service-status") {
+    $resultPath = Join-Path $artifactRoot "daemon-service-status.stdout.json"
+    $statusArgs = @(
+        "windows-service-status",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $ServiceId
+    )
+    if ($ServiceName -ne "") {
+        $statusArgs += @("--service-name", $ServiceName)
+    }
+    Invoke-Checked `
+        -Label "query daemon supervisor Windows service status" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $statusArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-status.stderr.log")
+}
+
+if ($Mode -eq "service-tick") {
+    $resultPath = Join-Path $artifactRoot "daemon-service-tick.stdout.json"
+    Invoke-Checked `
+        -Label "run one daemon supervisor scheduler tick" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments @(
+            "tick",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local",
+            "--daemon-id", $DaemonId,
+            "--scheduler-id", $SchedulerId
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-tick.stderr.log")
+}
+
+if ($Mode -eq "service-reconcile") {
+    $resultPath = Join-Path $artifactRoot "daemon-service-reconcile.stdout.json"
+    $reconcileArgs = @(
+        "windows-service-reconcile",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $ServiceId,
+        "--service-start-type", $ServiceStartType
+    )
+    if ($ServiceName -ne "") {
+        $reconcileArgs += @("--service-name", $ServiceName)
+    }
+    Invoke-Checked `
+        -Label "reconcile daemon supervisor Windows service policy" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $reconcileArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-reconcile.stderr.log")
+}
+
+if ($Mode -eq "service-execution-readiness") {
+    $resultPath = Join-Path $artifactRoot "daemon-service-execution-readiness.stdout.json"
+    $readinessArgs = @(
+        "windows-service-execution-readiness",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $ServiceId
+    )
+    if ($ServiceName -ne "") {
+        $readinessArgs += @("--service-name", $ServiceName)
+    }
+    Invoke-Checked `
+        -Label "check daemon supervisor Windows service execution readiness" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $readinessArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-execution-readiness.stderr.log")
+}
+
+if ($Mode -eq "service-execution-audit") {
+    $resultPath = Join-Path $artifactRoot "daemon-service-execution-audit.stdout.json"
+    $auditArgs = @(
+        "windows-service-execution-audit",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $ServiceId
+    )
+    if ($ServiceName -ne "") {
+        $auditArgs += @("--service-name", $ServiceName)
+    }
+    Invoke-Checked `
+        -Label "audit daemon supervisor Windows service execution receipts" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $auditArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-execution-audit.stderr.log")
+}
+
+if ($Mode -eq "service-start-plan" -or $Mode -eq "service-stop-plan" -or $Mode -eq "service-start-execute" -or $Mode -eq "service-stop-execute") {
+    $control = if ($Mode -eq "service-start-plan" -or $Mode -eq "service-start-execute") { "start" } else { "stop" }
+    $controlModeName = if ($Mode -eq "service-start-execute" -or $Mode -eq "service-stop-execute") { "execute" } else { "plan" }
+    $resultPath = Join-Path $artifactRoot "daemon-service-$control-$controlModeName.stdout.json"
+    $controlArgs = @(
+        "windows-service-$control",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local",
+        "--daemon-id", $DaemonId,
+        "--scheduler-id", $SchedulerId,
+        "--service-id", $ServiceId
+    )
+    if ($ServiceName -ne "") {
+        $controlArgs += @("--service-name", $ServiceName)
+    }
+    if ($controlModeName -eq "execute") {
+        $controlArgs += @("--execute-control")
+    }
+    Invoke-Checked `
+        -Label "$controlModeName daemon supervisor Windows service $control" `
+        -FilePath $daemonSupervisorExe `
+        -Arguments $controlArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "daemon-service-$control-$controlModeName.stderr.log")
 }
 
 if ($Mode -eq "plan") {
@@ -361,6 +1374,8 @@ if ($Mode -eq "mvp") {
         -Arguments @(
             "bubble",
             "--artifact-dir", $PersonaArtifactDir,
+            "--cultmesh-store", $localVerseStore,
+            "--runtime-id", "epiphany-local",
             "--content", $PersonaInput,
             "--source", "epiphany/local-mvp",
             "--status", "ready",
@@ -409,6 +1424,25 @@ if ($liveRuntimeMode) {
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "coordinator-run.stdout.json") `
         -StderrPath (Join-Path $artifactRoot "coordinator-run.stderr.log")
+}
+
+$coordinatorSummaryPath = Join-Path (Join-Path $dogfoodRoot "coordinator") "coordinator-summary.json"
+if (($Mode -eq "plan" -or $liveRuntimeMode) -and (Test-Path -LiteralPath $coordinatorSummaryPath)) {
+    Invoke-Checked `
+        -Label "write CultMesh coordinator run receipt" `
+        -FilePath $operatorRunExe `
+        -Arguments @(
+            "coordinator-receipt",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local",
+            "--run-id", $runId,
+            "--artifact-root", (Join-Path $dogfoodRoot "coordinator"),
+            "--coordinator-summary", $coordinatorSummaryPath,
+            "--coordinator-receipt-id", "$runId-coordinator"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath (Join-Path $artifactRoot "coordinator-run-receipt.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "coordinator-run-receipt.stderr.log")
 }
 
 if ($Mode -eq "mvp" -and -not $SkipSleep) {
@@ -497,6 +1531,166 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Smoke: cold=$($result.coldAction), pressure=$($result.pressureAction), privateBackendMutationRejected=$($result.directBackendCompletionRejected)"
         } elseif ($Mode -eq "status") {
             Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action)"
+        } elseif ($Mode -eq "agent-state-soa") {
+            Write-Host "Agent state SoA: status=$($result.status), agents=$($result.agentCount), summaryRows=$($result.summarySoaTableRows), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "swarm-status") {
+            Write-Host "Swarm status: status=$($result.status), daemons=$($result.daemonCount), nonReady=$($result.nonReadyCount), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "cluster-topology") {
+            Write-Host "Cluster topology: status=$($result.status), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), daemons=$($result.daemonCount), publicDiscussion=$($result.publicDiscussionClusterCount), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "eve-surfaces") {
+            Write-Host "Eve surfaces: status=$($result.status), surfaces=$($result.surfaceCount), publicDiscussion=$($result.publicDiscussionSurfaceCount), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "eve-connect") {
+            Write-Host "Eve connect: status=$($result.status), target=$($result.targetClusterId), surface=$($result.targetEveSurfaceId), receipt=$($result.receiptId), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "collaboration-feedback") {
+            Write-Host "Collaboration feedback: status=$($result.status), feedback=$($result.feedbackId), consensus=$($result.consensusReceiptId), adoptionGate=$($result.adoptionGate), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "bifrost-publication") {
+            Write-Host "Bifrost publication: status=$($result.status), intent=$($result.intentId), publication=$($result.publicationReceiptId), github=$($result.githubPublicationReceiptId), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "bifrost-ledger") {
+            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "receipt-directory") {
+            Write-Host "Receipt directory: status=$($result.status), rows=$($result.rowCount), present=$($result.presentRowCount), absent=$($result.absentRowCount), attention=$($result.attentionRowCount), artifactNone=$($result.artifactNoneCount), artifactExternalRef=$($result.artifactExternalRefCount), artifactPresent=$($result.artifactPresentCount), artifactMissing=$($result.artifactMissingCount), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "tool-directory") {
+            Write-Host "Tool directory: status=$($result.status), tools=$($result.toolCount), hostReady=$($result.hostReadyCount), hostAttention=$($result.hostAttentionCount), privateStateExposed=$($result.invariants.privateStateExposed)"
+        } elseif ($Mode -eq "tool-invoke") {
+            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "swarm-overview") {
+            $attention = "none"
+            if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {
+                $attention = ($result.attentionDaemonIds -join ",")
+            }
+            $toolHostAttention = "none"
+            if ($null -ne $result.toolHostAttentionRows -and $result.toolHostAttentionRows.Count -gt 0) {
+                $toolHostAttention = (($result.toolHostAttentionRows | ForEach-Object {
+                    "$($_.hostDaemonId):$($_.capabilityId):$($_.hostStatus)"
+                }) -join "; ")
+            }
+            $serviceLifecycleAttention = "none"
+            if ($null -ne $result.serviceLifecycleAttentionRows -and $result.serviceLifecycleAttentionRows.Count -gt 0) {
+                $serviceLifecycleAttention = (($result.serviceLifecycleAttentionRows | ForEach-Object {
+                    $artifactStatus = $_.artifactStatus
+                    if ($null -eq $artifactStatus -or $artifactStatus -eq "") {
+                        $artifactStatus = "unknown"
+                    }
+                    "$($_.family):$($_.route):$($_.status):artifactStatus=${artifactStatus}"
+                }) -join "; ")
+            }
+            $actionQueue = "none"
+            if ($null -ne $result.swarmActionRows -and $result.swarmActionRows.Count -gt 0) {
+                $actionQueue = (($result.swarmActionRows | ForEach-Object {
+                    $artifact = $_.operatorArtifactRef
+                    if ($null -eq $artifact -or $artifact -eq "") {
+                        $artifact = "none"
+                    }
+                    $artifactStatus = $_.operatorArtifactStatus
+                    if ($null -eq $artifactStatus -or $artifactStatus -eq "") {
+                        $artifactStatus = "unknown"
+                    }
+                    $audit = $_.completionAuditWrapperMode
+                    if ($null -eq $audit -or $audit -eq "") {
+                        $audit = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:artifact=$artifact"
+                }) -join "; ")
+            }
+            Write-Host "Swarm overview: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "service-policy-directory") {
+            Write-Host "Service policy directory: status=$($result.status), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "swarm-poke-down") {
+            Write-Host "Swarm poke down: status=$($result.status), observed=$($result.observedDaemonCount), poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "swarm-triage") {
+            $attention = "none"
+            if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {
+                $attention = ($result.attentionDaemonIds -join ",")
+            }
+            $toolHostAttention = "none"
+            if ($null -ne $result.toolHostAttentionRows -and $result.toolHostAttentionRows.Count -gt 0) {
+                $toolHostAttention = (($result.toolHostAttentionRows | ForEach-Object {
+                    "$($_.hostDaemonId):$($_.capabilityId):$($_.hostStatus)"
+                }) -join "; ")
+            }
+            $serviceLifecycleAttention = "none"
+            if ($null -ne $result.serviceLifecycleAttentionRows -and $result.serviceLifecycleAttentionRows.Count -gt 0) {
+                $serviceLifecycleAttention = (($result.serviceLifecycleAttentionRows | ForEach-Object {
+                    $artifactStatus = $_.artifactStatus
+                    if ($null -eq $artifactStatus -or $artifactStatus -eq "") {
+                        $artifactStatus = "unknown"
+                    }
+                    "$($_.family):$($_.route):$($_.status):artifactStatus=${artifactStatus}"
+                }) -join "; ")
+            }
+            $actionQueue = "none"
+            if ($null -ne $result.swarmActionRows -and $result.swarmActionRows.Count -gt 0) {
+                $actionQueue = (($result.swarmActionRows | ForEach-Object {
+                    $artifact = $_.operatorArtifactRef
+                    if ($null -eq $artifact -or $artifact -eq "") {
+                        $artifact = "none"
+                    }
+                    $artifactStatus = $_.operatorArtifactStatus
+                    if ($null -eq $artifactStatus -or $artifactStatus -eq "") {
+                        $artifactStatus = "unknown"
+                    }
+                    $audit = $_.completionAuditWrapperMode
+                    if ($null -eq $audit -or $audit -eq "") {
+                        $audit = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:artifact=$artifact"
+                }) -join "; ")
+            }
+            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "service-runbook") {
+            Write-Host "Service runbook: service=$($result.serviceId), receipt=$($result.receiptId), path=$($result.runbookPath)"
+        } elseif ($Mode -eq "cluster-service-runbook") {
+            Write-Host "Cluster daemon service runbook: service=$($result.serviceId), daemons=$($result.daemonCount), receipt=$($result.receiptId), path=$($result.runbookPath)"
+        } elseif ($Mode -eq "cluster-service-install-plan" -or $Mode -eq "cluster-service-install-execute") {
+            Write-Host "Cluster daemon service install: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), path=$($result.installScriptPath)"
+        } elseif ($Mode -eq "cluster-service-audit") {
+            Write-Host "Cluster daemon service audit: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), missing=$($result.missingCount), running=$($result.runningCount), present=$($result.presentCount), queryFailed=$($result.queryFailedCount), receipt=$($result.receiptId)"
+        } elseif ($Mode -eq "cluster-service-start-plan" -or $Mode -eq "cluster-service-stop-plan" -or $Mode -eq "cluster-service-start-execute" -or $Mode -eq "cluster-service-stop-execute") {
+            Write-Host "Cluster daemon service control: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), planned=$($result.plannedCount), requested=$($result.requestedCount), refused=$($result.refusedCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+        } elseif ($Mode -eq "cluster-service-execution-readiness") {
+            Write-Host "Cluster daemon service execution readiness: service=$($result.serviceId), daemons=$($result.daemonCount), services=$($result.serviceCount), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId)"
+        } elseif ($Mode -eq "cluster-service-execution-runbook") {
+            Write-Host "Cluster daemon service execution runbook: service=$($result.serviceId), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), path=$($result.runbookPath)"
+        } elseif ($Mode -eq "cluster-service-execution-audit") {
+            Write-Host "Cluster daemon service execution audit: service=$($result.serviceId), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            $failedChecks = @($result.checks | Where-Object { -not $_.ok })
+            if ($failedChecks.Count -gt 0) {
+                $failedSummary = ($failedChecks | ForEach-Object {
+                    $observed = $_.observedStatus
+                    if ($null -eq $observed -or $observed -eq "") {
+                        $observed = "missing"
+                    }
+                    "$($_.action)=$observed"
+                }) -join "; "
+                Write-Host "Cluster daemon service execution failed checks: $failedSummary"
+            }
+        } elseif ($Mode -eq "service-execution-runbook") {
+            Write-Host "Service execution runbook: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), path=$($result.runbookPath)"
+        } elseif ($Mode -eq "service-install-plan" -or $Mode -eq "service-install-execute") {
+            Write-Host "Service install: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), path=$($result.installScriptPath)"
+        } elseif ($Mode -eq "service-status") {
+            Write-Host "Service status: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), receipt=$($result.receiptId)"
+        } elseif ($Mode -eq "service-tick") {
+            Write-Host "Scheduler tick: scheduler=$($result.schedulerId), daemonSelector=$($result.daemonId), status=$($result.status), outcomes=$($result.outcomeCount), restarted=$($result.restartedCount), refused=$($result.refusedCount), skipped=$($result.skippedCount), receipt=$($result.schedulerReceiptId), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "service-reconcile") {
+            Write-Host "Service reconcile: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), receipt=$($result.receiptId)"
+        } elseif ($Mode -eq "service-execution-readiness") {
+            Write-Host "Service execution readiness: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId)"
+        } elseif ($Mode -eq "service-execution-audit") {
+            Write-Host "Service execution audit: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            $failedChecks = @($result.checks | Where-Object { -not $_.ok })
+            if ($failedChecks.Count -gt 0) {
+                $failedSummary = ($failedChecks | ForEach-Object {
+                    $observed = $_.observedStatus
+                    if ($null -eq $observed -or $observed -eq "") {
+                        $observed = "missing"
+                    }
+                    "$($_.action)=$observed"
+                }) -join "; "
+                Write-Host "Service execution failed checks: $failedSummary"
+            }
+        } elseif ($Mode -eq "service-start-plan" -or $Mode -eq "service-stop-plan" -or $Mode -eq "service-start-execute" -or $Mode -eq "service-stop-execute") {
+            Write-Host "Service control: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), receipt=$($result.receiptId)"
         } else {
             Write-Host "Coordinator: thread=$($result.threadId), finalAction=$($result.finalAction.action), runtimePresent=$($result.runtimeSpine.present)"
         }
@@ -524,8 +1718,21 @@ Invoke-Checked `
     -FilePath $operatorRunExe `
     -Arguments $operatorRunReceiptArgs `
     -WorkingDirectory $Root `
-    -StdoutPath (Join-Path $artifactRoot "operator-run-receipt.stdout.json") `
-    -StderrPath (Join-Path $artifactRoot "operator-run-receipt.stderr.log")
+        -StdoutPath (Join-Path $artifactRoot "operator-run-receipt.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "operator-run-receipt.stderr.log")
+if ($shouldReadLocalVerse) {
+    Invoke-Checked `
+        -Label "read local Verse context" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "query",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath (Join-Path $artifactRoot "local-verse-context.json") `
+        -StderrPath (Join-Path $artifactRoot "local-verse-context.final.stderr.log")
+}
 Write-Host "Epiphany local run complete."
 Write-Host "Launcher artifacts: $artifactRoot"
 Write-Host "Coordinator artifacts: $dogfoodRoot"

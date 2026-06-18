@@ -1,12 +1,16 @@
+use crate::EpiphanyAgentStateSoaEntry;
 use crate::default_continuity_cultnet_contracts;
 use crate::default_eyes_cultnet_contracts;
 use crate::default_hands_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
+use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use cultcache_rs::CultSoaColumnValues;
 use cultcache_rs::DatabaseEntry;
+use cultcache_rs::SoaDocument;
 use cultmesh_rs::CultMesh;
 use cultmesh_rs::CultMeshNode;
 use cultmesh_rs::CultMeshNodeOptions;
@@ -39,17 +43,115 @@ pub const EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.operator_run_receipt.v0";
 pub const EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY: &str =
     "epiphany-local/operator-run-receipt/latest";
+pub const EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_TYPE: &str =
+    "epiphany.cultmesh.coordinator_run_receipt";
+pub const EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.coordinator_run_receipt.v0";
+pub const EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_LATEST_KEY: &str =
+    "epiphany-local/coordinator-run-receipt/latest";
+pub const EPIPHANY_CULTMESH_HANDS_ACTION_GATE_TYPE: &str = "epiphany.cultmesh.hands_action_gate";
+pub const EPIPHANY_CULTMESH_HANDS_ACTION_GATE_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.hands_action_gate.v0";
+pub const EPIPHANY_CULTMESH_HANDS_ACTION_GATE_LATEST_KEY: &str =
+    "epiphany-local/hands-action-gate/latest";
+pub const EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_TYPE: &str = "epiphany.cultmesh.role_review_event";
+pub const EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.role_review_event.v0";
+pub const EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_LATEST_KEY: &str =
+    "epiphany-local/role-review-event/latest";
 pub const EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_TYPE: &str =
     "epiphany.cultmesh.work_loop_telemetry";
 pub const EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.work_loop_telemetry.v0";
 pub const EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY: &str =
     "epiphany-internal/work-loop-telemetry/latest";
+pub const EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_TYPE: &str =
+    "epiphany.cultmesh.agent_state_soa_summary";
+pub const EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.agent_state_soa_summary.v0";
+pub const EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY: &str =
+    "epiphany-local/agent-state-soa-summary/latest";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_TYPE: &str = "epiphany.cultmesh.verse_policy";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION: &str = "epiphany.cultmesh.verse_policy.v0";
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE: &str = "epiphany.cultmesh.global_room_policy";
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.global_room_policy.v0";
+pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE: &str = "epiphany.cultmesh.cluster_topology";
+pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.cluster_topology.v0";
+pub const EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE: &str = "epiphany.cultmesh.odin_advertisement";
+pub const EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.odin_advertisement.v0";
+pub const EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE: &str =
+    "epiphany.cultmesh.eve_connection_intent";
+pub const EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.eve_connection_intent.v0";
+pub const EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY: &str =
+    "epiphany-local/eve-connection-intent/latest";
+pub const EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_TYPE: &str =
+    "epiphany.cultmesh.eve_connection_receipt";
+pub const EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.eve_connection_receipt.v0";
+pub const EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY: &str =
+    "epiphany-local/eve-connection-receipt/latest";
+pub const EPIPHANY_CULTMESH_EVE_SURFACE_STATE_TYPE: &str = "gamecult.eve.surface_state";
+pub const EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION: &str =
+    "gamecult.eve.surface_state.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_STATUS_TYPE: &str = "epiphany.cultmesh.daemon_status";
+pub const EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_status.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_TYPE: &str = "epiphany.cultmesh.daemon_poke_intent";
+pub const EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_poke_intent.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY: &str =
+    "epiphany-local/daemon-poke-intent/latest";
+pub const EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_TYPE: &str =
+    "epiphany.cultmesh.daemon_poke_receipt";
+pub const EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_poke_receipt.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY: &str =
+    "epiphany-local/daemon-poke-receipt/latest";
+pub const EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_TYPE: &str =
+    "epiphany.cultmesh.daemon_restart_policy";
+pub const EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_restart_policy.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_TYPE: &str =
+    "epiphany.cultmesh.daemon_scheduler_receipt";
+pub const EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_scheduler_receipt.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY: &str =
+    "epiphany-local/daemon-scheduler-receipt/latest";
+pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE: &str =
+    "epiphany.cultmesh.daemon_service_lifecycle_receipt";
+pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_service_lifecycle_receipt.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY: &str =
+    "epiphany-local/daemon-service-lifecycle-receipt/latest";
+pub const EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE: &str = "epiphany.cultmesh.swarm_brake";
+pub const EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION: &str = "epiphany.cultmesh.swarm_brake.v0";
+pub const EPIPHANY_CULTMESH_SWARM_BRAKE_KEY: &str = "epiphany-local/swarm-brake";
+pub const EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_TYPE: &str =
+    "epiphany.cultmesh.persona_speech_audit";
+pub const EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.persona_speech_audit.v0";
+pub const EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY: &str =
+    "epiphany-local/persona-speech-audit/latest";
+pub const EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_TYPE: &str =
+    "epiphany.cultmesh.daemon_tool_capability";
+pub const EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_tool_capability.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_TYPE: &str =
+    "epiphany.cultmesh.daemon_tool_invocation_intent";
+pub const EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_tool_invocation_intent.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_LATEST_KEY: &str =
+    "epiphany-local/daemon-tool-invocation-intent/latest";
+pub const EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_TYPE: &str =
+    "epiphany.cultmesh.daemon_tool_invocation_receipt";
+pub const EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_tool_invocation_receipt.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_LATEST_KEY: &str =
+    "epiphany-local/daemon-tool-invocation-receipt/latest";
 pub const EPIPHANY_CULTMESH_MIND_CONTRACT_TYPE: &str = "epiphany.cultmesh.mind_contract";
 pub const EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.mind_contract.v0";
@@ -70,6 +172,39 @@ pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_TYPE: &str =
     "epiphany.cultmesh.continuity_contract";
 pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.continuity_contract.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE: &str = "epiphany.cultmesh.bifrost_contract";
+pub const EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.bifrost_contract.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_TYPE: &str =
+    "gamecult.bifrost.body_change_publication_intent";
+pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION: &str =
+    "gamecult.bifrost.body_change_publication_intent.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY: &str =
+    "gamecult-local/bifrost/body-change-publication-intent/latest";
+pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_TYPE: &str =
+    "gamecult.bifrost.body_change_publication_receipt";
+pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.bifrost.body_change_publication_receipt.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY: &str =
+    "gamecult-local/bifrost/body-change-publication-receipt/latest";
+pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_TYPE: &str =
+    "gamecult.bifrost.github_publication_receipt";
+pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.bifrost.github_publication_receipt.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY: &str =
+    "gamecult-local/bifrost/github-publication-receipt/latest";
+pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE: &str =
+    "gamecult.bifrost.collaboration_feedback";
+pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION: &str =
+    "gamecult.bifrost.collaboration_feedback.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY: &str =
+    "gamecult-local/bifrost/collaboration-feedback/latest";
+pub const EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_TYPE: &str =
+    "gamecult.imagination.consensus_discovery_receipt";
+pub const EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.imagination.consensus_discovery_receipt.v0";
+pub const EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY: &str =
+    "gamecult-local/imagination/consensus-discovery-receipt/latest";
 pub const EPIPHANY_CULTMESH_INTERNAL_VERSE_ID: &str = "epiphany-internal";
 pub const EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID: &str = "gamecult-local";
 pub const EPIPHANY_CULTMESH_GLOBAL_VERSE_ID: &str = "epiphany-global";
@@ -253,6 +388,146 @@ pub struct EpiphanyCultMeshOperatorRunReceiptEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
+    type = "epiphany.cultmesh.coordinator_run_receipt",
+    schema = "EpiphanyCultMeshCoordinatorRunReceiptEntry"
+)]
+pub struct EpiphanyCultMeshCoordinatorRunReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub receipt_id: String,
+    #[cultcache(key = 4)]
+    pub source_document_type: String,
+    #[cultcache(key = 5)]
+    pub source_receipt_id: String,
+    #[cultcache(key = 6)]
+    pub source_store: String,
+    #[cultcache(key = 7)]
+    pub thread_id: String,
+    #[cultcache(key = 8)]
+    pub mode: String,
+    #[cultcache(key = 9)]
+    pub status: String,
+    #[cultcache(key = 10)]
+    pub final_action: String,
+    #[cultcache(key = 11)]
+    pub final_reason: String,
+    #[cultcache(key = 12)]
+    pub step_count: u64,
+    #[cultcache(key = 13)]
+    pub artifact_root: String,
+    #[cultcache(key = 14)]
+    pub artifact_refs: Vec<String>,
+    #[cultcache(key = 15)]
+    pub sealed_artifact_refs: Vec<String>,
+    #[cultcache(key = 16)]
+    pub created_at_utc: String,
+    #[cultcache(key = 17)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 18)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.hands_action_gate",
+    schema = "EpiphanyCultMeshHandsActionGateEntry"
+)]
+pub struct EpiphanyCultMeshHandsActionGateEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub gate_id: String,
+    #[cultcache(key = 4)]
+    pub source_coordinator_receipt_id: String,
+    #[cultcache(key = 5)]
+    pub source_summary_path: String,
+    #[cultcache(key = 6)]
+    pub thread_id: String,
+    #[cultcache(key = 7)]
+    pub mode: String,
+    #[cultcache(key = 8)]
+    pub status: String,
+    #[cultcache(key = 9)]
+    pub hands_intent_id: String,
+    #[cultcache(key = 10)]
+    pub hands_review_id: String,
+    #[cultcache(key = 11)]
+    pub substrate_gate_grant_receipt_id: String,
+    #[cultcache(key = 12)]
+    pub runtime_job_id: String,
+    #[cultcache(key = 13)]
+    pub requested_paths: Vec<String>,
+    #[cultcache(key = 14)]
+    pub required_receipts: Vec<String>,
+    #[cultcache(key = 15)]
+    pub record_pass_executable: String,
+    #[cultcache(key = 16)]
+    pub record_pass_args: Vec<String>,
+    #[cultcache(key = 17)]
+    pub created_at_utc: String,
+    #[cultcache(key = 18)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 19)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.role_review_event",
+    schema = "EpiphanyCultMeshRoleReviewEventEntry"
+)]
+pub struct EpiphanyCultMeshRoleReviewEventEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub event_id: String,
+    #[cultcache(key = 4)]
+    pub source_coordinator_receipt_id: String,
+    #[cultcache(key = 5)]
+    pub source_summary_path: String,
+    #[cultcache(key = 6)]
+    pub thread_id: String,
+    #[cultcache(key = 7)]
+    pub mode: String,
+    #[cultcache(key = 8)]
+    pub surface: String,
+    #[cultcache(key = 9)]
+    pub role_id: String,
+    #[cultcache(key = 10)]
+    pub review_status: String,
+    #[cultcache(key = 11)]
+    pub acceptance_receipt_id: String,
+    #[cultcache(key = 12)]
+    pub runtime_result_id: String,
+    #[cultcache(key = 13)]
+    pub runtime_job_id: String,
+    #[cultcache(key = 14)]
+    pub binding_id: String,
+    #[cultcache(key = 15)]
+    pub summary: String,
+    #[cultcache(key = 16)]
+    pub created_at_utc: String,
+    #[cultcache(key = 17)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 18)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
     type = "epiphany.cultmesh.work_loop_telemetry",
     schema = "EpiphanyCultMeshWorkLoopTelemetryEntry"
 )]
@@ -323,6 +598,95 @@ pub struct EpiphanyCultMeshWorkLoopTelemetryEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
+    type = "epiphany.cultmesh.agent_state_soa_summary",
+    schema = "EpiphanyCultMeshAgentStateSoaSummaryEntry"
+)]
+pub struct EpiphanyCultMeshAgentStateSoaSummaryEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub summary_id: String,
+    #[cultcache(key = 4)]
+    pub generated_at: String,
+    #[cultcache(key = 5)]
+    pub source_store: String,
+    #[cultcache(key = 6)]
+    pub row_count: u32,
+    #[cultcache(key = 7)]
+    pub role_ids: Vec<String>,
+    #[cultcache(key = 8)]
+    pub agent_ids: Vec<String>,
+    #[cultcache(key = 9)]
+    pub display_names: Vec<String>,
+    #[cultcache(key = 10)]
+    pub profile_kinds: Vec<String>,
+    #[cultcache(key = 11)]
+    pub portable_contracts: Vec<String>,
+    #[cultcache(key = 12)]
+    pub semantic_memory_counts: Vec<u32>,
+    #[cultcache(key = 13)]
+    pub episodic_memory_counts: Vec<u32>,
+    #[cultcache(key = 14)]
+    pub relationship_memory_counts: Vec<u32>,
+    #[cultcache(key = 15)]
+    pub goal_counts: Vec<u32>,
+    #[cultcache(key = 16)]
+    pub value_counts: Vec<u32>,
+    #[cultcache(key = 17)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 18)]
+    pub notes: Vec<String>,
+}
+
+impl SoaDocument for EpiphanyCultMeshAgentStateSoaSummaryEntry {
+    fn soa_columns(rows: &[Self]) -> std::collections::BTreeMap<&'static str, CultSoaColumnValues> {
+        let mut columns = std::collections::BTreeMap::new();
+        columns.insert(
+            "summaryId",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.summary_id.clone())
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "rowCount",
+            CultSoaColumnValues::new(rows.iter().map(|row| row.row_count).collect::<Vec<_>>()),
+        );
+        columns.insert(
+            "privateStateExposed",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.private_state_exposed)
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "roleIds",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.role_ids.clone())
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns.insert(
+            "portableContracts",
+            CultSoaColumnValues::new(
+                rows.iter()
+                    .map(|row| row.portable_contracts.clone())
+                    .collect::<Vec<_>>(),
+            ),
+        );
+        columns
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
     type = "epiphany.cultmesh.verse_policy",
     schema = "EpiphanyCultMeshVersePolicyEntry"
 )]
@@ -371,6 +735,586 @@ pub struct EpiphanyCultMeshGlobalRoomPolicyEntry {
     pub persona_posting_allowed: bool,
     #[cultcache(key = 8)]
     pub untrusted_ingress_allowed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.cluster_topology",
+    schema = "EpiphanyCultMeshClusterTopologyEntry"
+)]
+pub struct EpiphanyCultMeshClusterTopologyEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub cluster_id: String,
+    #[cultcache(key = 2)]
+    pub role_id: String,
+    #[cultcache(key = 3)]
+    pub display_name: String,
+    #[cultcache(key = 4)]
+    pub private_verse_id: String,
+    #[cultcache(key = 5)]
+    pub body_domain: String,
+    #[cultcache(key = 6)]
+    pub body_kind: String,
+    #[cultcache(key = 7)]
+    pub daemon_id: String,
+    #[cultcache(key = 8)]
+    pub daemon_surface_id: String,
+    #[cultcache(key = 9)]
+    pub eve_surface_id: String,
+    #[cultcache(key = 10)]
+    pub public_persona_discussion_allowed: bool,
+    #[cultcache(key = 11)]
+    pub odin_advertised: bool,
+    #[cultcache(key = 12)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.odin_advertisement",
+    schema = "EpiphanyCultMeshOdinAdvertisementEntry"
+)]
+pub struct EpiphanyCultMeshOdinAdvertisementEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub advertisement_id: String,
+    #[cultcache(key = 2)]
+    pub cluster_id: String,
+    #[cultcache(key = 3)]
+    pub advertised_verse_id: String,
+    #[cultcache(key = 4)]
+    pub body_domain: String,
+    #[cultcache(key = 5)]
+    pub body_kind: String,
+    #[cultcache(key = 6)]
+    pub daemon_surface_id: String,
+    #[cultcache(key = 7)]
+    pub eve_surface_id: String,
+    #[cultcache(key = 8)]
+    pub public_summary: String,
+    #[cultcache(key = 9)]
+    pub advertised_document_types: Vec<String>,
+    #[cultcache(key = 10)]
+    pub trust_boundary: String,
+    #[cultcache(key = 11)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 12)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.eve_connection_intent",
+    schema = "EpiphanyCultMeshEveConnectionIntentEntry"
+)]
+pub struct EpiphanyCultMeshEveConnectionIntentEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub intent_id: String,
+    #[cultcache(key = 2)]
+    pub source_cluster_id: String,
+    #[cultcache(key = 3)]
+    pub target_advertisement_id: String,
+    #[cultcache(key = 4)]
+    pub target_cluster_id: String,
+    #[cultcache(key = 5)]
+    pub target_eve_surface_id: String,
+    #[cultcache(key = 6)]
+    pub collaboration_topic: String,
+    #[cultcache(key = 7)]
+    pub requested_action: String,
+    #[cultcache(key = 8)]
+    pub feedback_route: String,
+    #[cultcache(key = 9)]
+    pub requested_document_types: Vec<String>,
+    #[cultcache(key = 10)]
+    pub private_state_requested: bool,
+    #[cultcache(key = 11)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.eve_connection_receipt",
+    schema = "EpiphanyCultMeshEveConnectionReceiptEntry"
+)]
+pub struct EpiphanyCultMeshEveConnectionReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub intent_id: String,
+    #[cultcache(key = 3)]
+    pub source_cluster_id: String,
+    #[cultcache(key = 4)]
+    pub target_cluster_id: String,
+    #[cultcache(key = 5)]
+    pub target_eve_surface_id: String,
+    #[cultcache(key = 6)]
+    pub status: String,
+    #[cultcache(key = 7)]
+    pub feedback_route: String,
+    #[cultcache(key = 8)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 9)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.eve.surface_state",
+    schema = "EpiphanyCultMeshEveSurfaceStateEntry"
+)]
+pub struct EpiphanyCultMeshEveSurfaceStateEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub surface_id: String,
+    #[cultcache(key = 2)]
+    pub cluster_id: String,
+    #[cultcache(key = 3)]
+    pub daemon_id: String,
+    #[cultcache(key = 4)]
+    pub body_domain: String,
+    #[cultcache(key = 5)]
+    pub tui_title: String,
+    #[cultcache(key = 6)]
+    pub tui_rows: Vec<String>,
+    #[cultcache(key = 7)]
+    pub exposed_document_types: Vec<String>,
+    #[cultcache(key = 8)]
+    pub supported_actions: Vec<String>,
+    #[cultcache(key = 9)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 10)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_status",
+    schema = "EpiphanyCultMeshDaemonStatusEntry"
+)]
+pub struct EpiphanyCultMeshDaemonStatusEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub daemon_id: String,
+    #[cultcache(key = 2)]
+    pub cluster_id: String,
+    #[cultcache(key = 3)]
+    pub body_domain: String,
+    #[cultcache(key = 4)]
+    pub daemon_surface_id: String,
+    #[cultcache(key = 5)]
+    pub eve_surface_id: String,
+    #[cultcache(key = 6)]
+    pub status: String,
+    #[cultcache(key = 7)]
+    pub last_heartbeat_utc: String,
+    #[cultcache(key = 8)]
+    pub supported_actions: Vec<String>,
+    #[cultcache(key = 9)]
+    pub operator_action: String,
+    #[cultcache(key = 10)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 11)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_poke_intent",
+    schema = "EpiphanyCultMeshDaemonPokeIntentEntry"
+)]
+pub struct EpiphanyCultMeshDaemonPokeIntentEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub intent_id: String,
+    #[cultcache(key = 2)]
+    pub requesting_agent_id: String,
+    #[cultcache(key = 3)]
+    pub target_daemon_id: String,
+    #[cultcache(key = 4)]
+    pub target_cluster_id: String,
+    #[cultcache(key = 5)]
+    pub daemon_surface_id: String,
+    #[cultcache(key = 6)]
+    pub eve_surface_id: String,
+    #[cultcache(key = 7)]
+    pub reason: String,
+    #[cultcache(key = 8)]
+    pub requested_action: String,
+    #[cultcache(key = 9)]
+    pub observed_status: String,
+    #[cultcache(key = 10)]
+    pub private_state_requested: bool,
+    #[cultcache(key = 11)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_poke_receipt",
+    schema = "EpiphanyCultMeshDaemonPokeReceiptEntry"
+)]
+pub struct EpiphanyCultMeshDaemonPokeReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub intent_id: String,
+    #[cultcache(key = 3)]
+    pub target_daemon_id: String,
+    #[cultcache(key = 4)]
+    pub target_cluster_id: String,
+    #[cultcache(key = 5)]
+    pub action_taken: String,
+    #[cultcache(key = 6)]
+    pub status: String,
+    #[cultcache(key = 7)]
+    pub resulting_status: String,
+    #[cultcache(key = 8)]
+    pub operator_artifact_ref: String,
+    #[cultcache(key = 9)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 10)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_restart_policy",
+    schema = "EpiphanyCultMeshDaemonRestartPolicyEntry"
+)]
+pub struct EpiphanyCultMeshDaemonRestartPolicyEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub policy_id: String,
+    #[cultcache(key = 2)]
+    pub daemon_id: String,
+    #[cultcache(key = 3)]
+    pub cluster_id: String,
+    #[cultcache(key = 4)]
+    pub restart_command: String,
+    #[cultcache(key = 5)]
+    pub restart_args: Vec<String>,
+    #[cultcache(key = 6)]
+    pub cwd: Option<String>,
+    #[cultcache(key = 7)]
+    pub cooldown_seconds: i64,
+    #[cultcache(key = 8)]
+    pub backoff_multiplier: u32,
+    #[cultcache(key = 9)]
+    pub failure_count: u32,
+    #[cultcache(key = 10)]
+    pub last_attempt_utc: Option<String>,
+    #[cultcache(key = 11)]
+    pub last_result_status: String,
+    #[cultcache(key = 12)]
+    pub enabled: bool,
+    #[cultcache(key = 13)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 14)]
+    pub notes: Vec<String>,
+    #[cultcache(key = 15)]
+    pub reconcile_interval_seconds: i64,
+    #[cultcache(key = 16)]
+    pub heartbeat_stale_seconds: i64,
+    #[cultcache(key = 17)]
+    pub last_reconcile_utc: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_scheduler_receipt",
+    schema = "EpiphanyCultMeshDaemonSchedulerReceiptEntry"
+)]
+pub struct EpiphanyCultMeshDaemonSchedulerReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub scheduler_id: String,
+    #[cultcache(key = 3)]
+    pub runtime_id: String,
+    #[cultcache(key = 4)]
+    pub daemon_selector: String,
+    #[cultcache(key = 5)]
+    pub iteration: u64,
+    #[cultcache(key = 6)]
+    pub status: String,
+    #[cultcache(key = 7)]
+    pub tick_started_utc: String,
+    #[cultcache(key = 8)]
+    pub tick_completed_utc: String,
+    #[cultcache(key = 9)]
+    pub next_wake_utc: Option<String>,
+    #[cultcache(key = 10)]
+    pub outcome_count: u32,
+    #[cultcache(key = 11)]
+    pub restarted_count: u32,
+    #[cultcache(key = 12)]
+    pub refused_count: u32,
+    #[cultcache(key = 13)]
+    pub skipped_count: u32,
+    #[cultcache(key = 14)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 15)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_service_lifecycle_receipt",
+    schema = "EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry"
+)]
+pub struct EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub service_id: String,
+    #[cultcache(key = 3)]
+    pub scheduler_id: String,
+    #[cultcache(key = 4)]
+    pub runtime_id: String,
+    #[cultcache(key = 5)]
+    pub daemon_selector: String,
+    #[cultcache(key = 6)]
+    pub action: String,
+    #[cultcache(key = 7)]
+    pub status: String,
+    #[cultcache(key = 8)]
+    pub command: String,
+    #[cultcache(key = 9)]
+    pub args: Vec<String>,
+    #[cultcache(key = 10)]
+    pub cwd: Option<String>,
+    #[cultcache(key = 11)]
+    pub process_id: Option<u32>,
+    #[cultcache(key = 12)]
+    pub exit_code: Option<i32>,
+    #[cultcache(key = 13)]
+    pub started_at_utc: String,
+    #[cultcache(key = 14)]
+    pub completed_at_utc: Option<String>,
+    #[cultcache(key = 15)]
+    pub operator_artifact_ref: String,
+    #[cultcache(key = 16)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 17)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.swarm_brake",
+    schema = "EpiphanyCultMeshSwarmBrakeEntry"
+)]
+pub struct EpiphanyCultMeshSwarmBrakeEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub brake_id: String,
+    #[cultcache(key = 2)]
+    pub status: String,
+    #[cultcache(key = 3)]
+    pub scope: String,
+    #[cultcache(key = 4)]
+    pub reason: String,
+    #[cultcache(key = 5)]
+    pub operator_agent_id: String,
+    #[cultcache(key = 6)]
+    pub affected_clusters: Vec<String>,
+    #[cultcache(key = 7)]
+    pub protected_surfaces: Vec<String>,
+    #[cultcache(key = 8)]
+    pub created_at_utc: String,
+    #[cultcache(key = 9)]
+    pub expires_at_utc: Option<String>,
+    #[cultcache(key = 10)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 11)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.persona_speech_audit",
+    schema = "EpiphanyCultMeshPersonaSpeechAuditEntry"
+)]
+pub struct EpiphanyCultMeshPersonaSpeechAuditEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub audit_id: String,
+    #[cultcache(key = 2)]
+    pub runtime_id: String,
+    #[cultcache(key = 3)]
+    pub verse_id: String,
+    #[cultcache(key = 4)]
+    pub persona_agent_id: String,
+    #[cultcache(key = 5)]
+    pub action_kind: String,
+    #[cultcache(key = 6)]
+    pub decision: String,
+    #[cultcache(key = 7)]
+    pub content_fingerprint: String,
+    #[cultcache(key = 8)]
+    pub opening_key: String,
+    #[cultcache(key = 9)]
+    pub topic_key: String,
+    #[cultcache(key = 10)]
+    pub requested_channel_id: String,
+    #[cultcache(key = 11)]
+    pub recent_window_count: u32,
+    #[cultcache(key = 12)]
+    pub repeated_opening_count: u32,
+    #[cultcache(key = 13)]
+    pub repeated_topic_count: u32,
+    #[cultcache(key = 14)]
+    pub same_channel_post_count: u32,
+    #[cultcache(key = 15)]
+    pub reasons: Vec<String>,
+    #[cultcache(key = 16)]
+    pub artifact_ref: String,
+    #[cultcache(key = 17)]
+    pub created_at_utc: String,
+    #[cultcache(key = 18)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 19)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_tool_capability",
+    schema = "EpiphanyCultMeshDaemonToolCapabilityEntry"
+)]
+pub struct EpiphanyCultMeshDaemonToolCapabilityEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub capability_id: String,
+    #[cultcache(key = 2)]
+    pub host_cluster_id: String,
+    #[cultcache(key = 3)]
+    pub host_daemon_id: String,
+    #[cultcache(key = 4)]
+    pub eve_surface_id: String,
+    #[cultcache(key = 5)]
+    pub tool_name: String,
+    #[cultcache(key = 6)]
+    pub operation: String,
+    #[cultcache(key = 7)]
+    pub input_contract_type: String,
+    #[cultcache(key = 8)]
+    pub receipt_contract_type: String,
+    #[cultcache(key = 9)]
+    pub available_to_all_agents: bool,
+    #[cultcache(key = 10)]
+    pub requires_receipt: bool,
+    #[cultcache(key = 11)]
+    pub authority_gate: String,
+    #[cultcache(key = 12)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 13)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_tool_invocation_intent",
+    schema = "EpiphanyCultMeshDaemonToolInvocationIntentEntry"
+)]
+pub struct EpiphanyCultMeshDaemonToolInvocationIntentEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub intent_id: String,
+    #[cultcache(key = 2)]
+    pub requesting_agent_id: String,
+    #[cultcache(key = 3)]
+    pub requesting_cluster_id: String,
+    #[cultcache(key = 4)]
+    pub capability_id: String,
+    #[cultcache(key = 5)]
+    pub host_cluster_id: String,
+    #[cultcache(key = 6)]
+    pub host_daemon_id: String,
+    #[cultcache(key = 7)]
+    pub eve_surface_id: String,
+    #[cultcache(key = 8)]
+    pub tool_name: String,
+    #[cultcache(key = 9)]
+    pub operation: String,
+    #[cultcache(key = 10)]
+    pub input_contract_type: String,
+    #[cultcache(key = 11)]
+    pub payload_ref: String,
+    #[cultcache(key = 12)]
+    pub payload_summary: String,
+    #[cultcache(key = 13)]
+    pub authority_gate: String,
+    #[cultcache(key = 14)]
+    pub requires_receipt: bool,
+    #[cultcache(key = 15)]
+    pub private_state_requested: bool,
+    #[cultcache(key = 16)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_tool_invocation_receipt",
+    schema = "EpiphanyCultMeshDaemonToolInvocationReceiptEntry"
+)]
+pub struct EpiphanyCultMeshDaemonToolInvocationReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub intent_id: String,
+    #[cultcache(key = 3)]
+    pub requesting_agent_id: String,
+    #[cultcache(key = 4)]
+    pub requesting_cluster_id: String,
+    #[cultcache(key = 5)]
+    pub capability_id: String,
+    #[cultcache(key = 6)]
+    pub host_cluster_id: String,
+    #[cultcache(key = 7)]
+    pub host_daemon_id: String,
+    #[cultcache(key = 8)]
+    pub tool_name: String,
+    #[cultcache(key = 9)]
+    pub operation: String,
+    #[cultcache(key = 10)]
+    pub status: String,
+    #[cultcache(key = 11)]
+    pub receipt_contract_type: String,
+    #[cultcache(key = 12)]
+    pub result_ref: String,
+    #[cultcache(key = 13)]
+    pub result_summary: String,
+    #[cultcache(key = 14)]
+    pub authority_gate: String,
+    #[cultcache(key = 15)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 16)]
+    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -541,6 +1485,214 @@ pub struct EpiphanyCultMeshContinuityContractEntry {
     pub notes: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.bifrost_contract",
+    schema = "EpiphanyCultMeshBifrostContractEntry"
+)]
+pub struct EpiphanyCultMeshBifrostContractEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub contract_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub document_type: String,
+    #[cultcache(key = 4)]
+    pub payload_schema_version: String,
+    #[cultcache(key = 5)]
+    pub authority: String,
+    #[cultcache(key = 6)]
+    pub operations: Vec<String>,
+    #[cultcache(key = 7)]
+    pub intent_document_types: Vec<String>,
+    #[cultcache(key = 8)]
+    pub receipt_document_types: Vec<String>,
+    #[cultcache(key = 9)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.bifrost.body_change_publication_intent",
+    schema = "EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry"
+)]
+pub struct EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub intent_id: String,
+    #[cultcache(key = 2)]
+    pub source_cluster_id: String,
+    #[cultcache(key = 3)]
+    pub source_agent_id: String,
+    #[cultcache(key = 4)]
+    pub body_domain: String,
+    #[cultcache(key = 5)]
+    pub target_repository: String,
+    #[cultcache(key = 6)]
+    pub target_branch: String,
+    #[cultcache(key = 7)]
+    pub change_summary: String,
+    #[cultcache(key = 8)]
+    pub justification: String,
+    #[cultcache(key = 9)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 10)]
+    pub verification_receipt_ids: Vec<String>,
+    #[cultcache(key = 11)]
+    pub review_receipt_ids: Vec<String>,
+    #[cultcache(key = 12)]
+    pub authorship_agent_ids: Vec<String>,
+    #[cultcache(key = 13)]
+    pub credit_subjects: Vec<String>,
+    #[cultcache(key = 14)]
+    pub github_publication_requested: bool,
+    #[cultcache(key = 15)]
+    pub private_state_included: bool,
+    #[cultcache(key = 16)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.bifrost.body_change_publication_receipt",
+    schema = "EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry"
+)]
+pub struct EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub intent_id: String,
+    #[cultcache(key = 3)]
+    pub status: String,
+    #[cultcache(key = 4)]
+    pub bifrost_ledger_entry_id: String,
+    #[cultcache(key = 5)]
+    pub github_publication_receipt_id: String,
+    #[cultcache(key = 6)]
+    pub credit_receipt_ids: Vec<String>,
+    #[cultcache(key = 7)]
+    pub accepted_changed_paths: Vec<String>,
+    #[cultcache(key = 8)]
+    pub reviewer_ids: Vec<String>,
+    #[cultcache(key = 9)]
+    pub publication_url: String,
+    #[cultcache(key = 10)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 11)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.bifrost.github_publication_receipt",
+    schema = "EpiphanyCultMeshBifrostGithubPublicationReceiptEntry"
+)]
+pub struct EpiphanyCultMeshBifrostGithubPublicationReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub bifrost_publication_receipt_id: String,
+    #[cultcache(key = 3)]
+    pub hands_pr_receipt_id: String,
+    #[cultcache(key = 4)]
+    pub target_repository: String,
+    #[cultcache(key = 5)]
+    pub target_branch: String,
+    #[cultcache(key = 6)]
+    pub pull_request_url: String,
+    #[cultcache(key = 7)]
+    pub pull_request_number: String,
+    #[cultcache(key = 8)]
+    pub commit_sha: String,
+    #[cultcache(key = 9)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 10)]
+    pub ledger_entry_id: String,
+    #[cultcache(key = 11)]
+    pub credit_receipt_ids: Vec<String>,
+    #[cultcache(key = 12)]
+    pub published_by_agent_id: String,
+    #[cultcache(key = 13)]
+    pub publication_status: String,
+    #[cultcache(key = 14)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 15)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.bifrost.collaboration_feedback",
+    schema = "EpiphanyCultMeshBifrostCollaborationFeedbackEntry"
+)]
+pub struct EpiphanyCultMeshBifrostCollaborationFeedbackEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub feedback_id: String,
+    #[cultcache(key = 2)]
+    pub source_persona_id: String,
+    #[cultcache(key = 3)]
+    pub source_cluster_id: String,
+    #[cultcache(key = 4)]
+    pub public_room_id: String,
+    #[cultcache(key = 5)]
+    pub eve_connection_receipt_id: String,
+    #[cultcache(key = 6)]
+    pub collaboration_topic: String,
+    #[cultcache(key = 7)]
+    pub feedback_summary: String,
+    #[cultcache(key = 8)]
+    pub public_discussion_refs: Vec<String>,
+    #[cultcache(key = 9)]
+    pub requested_consensus_route: String,
+    #[cultcache(key = 10)]
+    pub candidate_action_refs: Vec<String>,
+    #[cultcache(key = 11)]
+    pub private_state_included: bool,
+    #[cultcache(key = 12)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.imagination.consensus_discovery_receipt",
+    schema = "EpiphanyCultMeshImaginationConsensusReceiptEntry"
+)]
+pub struct EpiphanyCultMeshImaginationConsensusReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub feedback_id: String,
+    #[cultcache(key = 3)]
+    pub source_persona_id: String,
+    #[cultcache(key = 4)]
+    pub consensus_route: String,
+    #[cultcache(key = 5)]
+    pub status: String,
+    #[cultcache(key = 6)]
+    pub imagination_agent_ids: Vec<String>,
+    #[cultcache(key = 7)]
+    pub consensus_packet_ref: String,
+    #[cultcache(key = 8)]
+    pub adoption_gate: String,
+    #[cultcache(key = 9)]
+    pub public_feedback_refs: Vec<String>,
+    #[cultcache(key = 10)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 11)]
+    pub notes: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyLocalVerseContext {
@@ -553,11 +1705,68 @@ pub struct EpiphanyLocalVerseContext {
     pub prompt_assembly_note: String,
     pub verse_policies: Vec<EpiphanyCultMeshVersePolicyEntry>,
     pub global_room_policies: Vec<EpiphanyCultMeshGlobalRoomPolicyEntry>,
+    pub cluster_topology: Vec<EpiphanyCultMeshClusterTopologyEntry>,
+    pub odin_advertisements: Vec<EpiphanyCultMeshOdinAdvertisementEntry>,
+    pub eve_surface_states: Vec<EpiphanyCultMeshEveSurfaceStateEntry>,
+    pub daemon_statuses: Vec<EpiphanyCultMeshDaemonStatusEntry>,
+    pub latest_daemon_poke_intent: Option<EpiphanyCultMeshDaemonPokeIntentEntry>,
+    pub latest_daemon_poke_receipt: Option<EpiphanyCultMeshDaemonPokeReceiptEntry>,
+    pub daemon_restart_policies: Vec<EpiphanyCultMeshDaemonRestartPolicyEntry>,
+    pub latest_daemon_scheduler_receipt: Option<EpiphanyCultMeshDaemonSchedulerReceiptEntry>,
+    pub latest_daemon_service_lifecycle_receipt:
+        Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>,
+    pub swarm_brake: Option<EpiphanyCultMeshSwarmBrakeEntry>,
+    pub latest_persona_speech_audit: Option<EpiphanyCultMeshPersonaSpeechAuditEntry>,
+    pub daemon_tool_capabilities: Vec<EpiphanyCultMeshDaemonToolCapabilityEntry>,
+    pub latest_daemon_tool_invocation_intent:
+        Option<EpiphanyCultMeshDaemonToolInvocationIntentEntry>,
+    pub latest_daemon_tool_invocation_receipt:
+        Option<EpiphanyCultMeshDaemonToolInvocationReceiptEntry>,
+    pub latest_bifrost_body_change_publication_intent:
+        Option<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
+    pub latest_bifrost_body_change_publication_receipt:
+        Option<EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
+    pub latest_bifrost_github_publication_receipt:
+        Option<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
+    pub latest_bifrost_collaboration_feedback:
+        Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
+    pub latest_imagination_consensus_receipt:
+        Option<EpiphanyCultMeshImaginationConsensusReceiptEntry>,
     pub operator_status: Option<EpiphanyCultMeshOperatorStatusEntry>,
     pub latest_operator_snapshot: Option<EpiphanyCultMeshOperatorSnapshotEntry>,
     pub latest_operator_run_intent: Option<EpiphanyCultMeshOperatorRunIntentEntry>,
     pub latest_operator_run_receipt: Option<EpiphanyCultMeshOperatorRunReceiptEntry>,
+    pub latest_coordinator_run_receipt: Option<EpiphanyCultMeshCoordinatorRunReceiptEntry>,
+    pub latest_hands_action_gate: Option<EpiphanyCultMeshHandsActionGateEntry>,
+    pub latest_role_review_event: Option<EpiphanyCultMeshRoleReviewEventEntry>,
+    pub latest_work_loop_summary: Option<EpiphanyLocalVerseWorkLoopSummary>,
+    pub latest_agent_state_soa_summary: Option<EpiphanyCultMeshAgentStateSoaSummaryEntry>,
+    pub latest_eve_connection_intent: Option<EpiphanyCultMeshEveConnectionIntentEntry>,
+    pub latest_eve_connection_receipt: Option<EpiphanyCultMeshEveConnectionReceiptEntry>,
     pub contract_summaries: Vec<EpiphanyLocalVerseContractSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyLocalVerseWorkLoopSummary {
+    pub telemetry_id: String,
+    pub thread_id: String,
+    pub source_stage: String,
+    pub target_stages: Vec<String>,
+    pub hands_intent_id: String,
+    pub hands_review_id: String,
+    pub substrate_gate_grant_receipt_id: String,
+    pub hands_patch_receipt_id: String,
+    pub hands_command_receipt_id: String,
+    pub hands_commit_receipt_id: String,
+    pub commit_sha: String,
+    pub branch: String,
+    pub changed_path_count: usize,
+    pub source_ref_count: usize,
+    pub soul_receipt_ids: Vec<String>,
+    pub verification_assertion_count: usize,
+    pub summary: String,
+    pub sealed_preview_note: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -577,15 +1786,41 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshOperatorSnapshotEntry => EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorRunIntentEntry => EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorRunReceiptEntry => EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshCoordinatorRunReceiptEntry => EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshHandsActionGateEntry => EPIPHANY_CULTMESH_HANDS_ACTION_GATE_SCHEMA_VERSION,
+    EpiphanyCultMeshRoleReviewEventEntry => EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_SCHEMA_VERSION,
     EpiphanyCultMeshWorkLoopTelemetryEntry => EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION,
+    EpiphanyCultMeshAgentStateSoaSummaryEntry => EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
+    EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
+    EpiphanyCultMeshOdinAdvertisementEntry => EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION,
+    EpiphanyCultMeshEveConnectionIntentEntry => EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION,
+    EpiphanyCultMeshEveConnectionReceiptEntry => EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshEveSurfaceStateEntry => EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonStatusEntry => EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonPokeIntentEntry => EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonPokeReceiptEntry => EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonRestartPolicyEntry => EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonSchedulerReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshSwarmBrakeEntry => EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,
+    EpiphanyCultMeshPersonaSpeechAuditEntry => EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonToolCapabilityEntry => EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonToolInvocationIntentEntry => EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonToolInvocationReceiptEntry => EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshMindContractEntry => EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshSubstrateGateContractEntry => EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshEyesContractEntry => EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshHandsContractEntry => EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshSoulContractEntry => EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshContinuityContractEntry => EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION,
+    EpiphanyCultMeshBifrostContractEntry => EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION,
+    EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION,
+    EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshBifrostGithubPublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshBifrostCollaborationFeedbackEntry => EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION,
+    EpiphanyCultMeshImaginationConsensusReceiptEntry => EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION,
 });
 
 pub fn open_epiphany_cultmesh_node(
@@ -721,6 +1956,92 @@ pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
     })
 }
 
+pub fn epiphany_cultmesh_daemon_tool_invocation_from_status_json(
+    requesting_cluster_id: impl Into<String>,
+    status_path: impl Into<String>,
+    status_json: &Value,
+) -> Result<
+    Option<(
+        EpiphanyCultMeshDaemonToolInvocationIntentEntry,
+        Option<EpiphanyCultMeshDaemonToolInvocationReceiptEntry>,
+    )>,
+> {
+    let requesting_cluster_id = requesting_cluster_id.into();
+    let status_path = status_path.into();
+    let Some((index, invocation)) = status_json
+        .pointer("/tools/invocations")
+        .and_then(Value::as_array)
+        .and_then(|items| items.iter().enumerate().next_back())
+    else {
+        return Ok(None);
+    };
+    let intent_id = pointer_text(invocation, "/intentId", "");
+    if intent_id.trim().is_empty() {
+        return Ok(None);
+    }
+    let adapter = pointer_text(invocation, "/adapter", "epiphany-tool-adapter");
+    let server = pointer_text(invocation, "/server", "unknown-server");
+    let tool_name = pointer_text(invocation, "/toolName", "");
+    let status = pointer_text(invocation, "/status", "pending");
+    let intent = EpiphanyCultMeshDaemonToolInvocationIntentEntry {
+        schema_version: EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_SCHEMA_VERSION
+            .to_string(),
+        intent_id: intent_id.clone(),
+        requesting_agent_id: pointer_text(invocation, "/caller", "unknown-caller"),
+        requesting_cluster_id,
+        capability_id: format!("runtime-spine/{adapter}/{server}/{tool_name}"),
+        host_cluster_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+        host_daemon_id: format!("{adapter}:{server}"),
+        eve_surface_id: "epiphany-local/tools".to_string(),
+        tool_name: tool_name.clone(),
+        operation: "runtimeToolInvocation".to_string(),
+        input_contract_type: "epiphany.tool_invocation_intent.v0".to_string(),
+        payload_ref: format!("{status_path}#/tools/invocations/{index}"),
+        payload_summary: pointer_text(invocation, "/reason", ""),
+        authority_gate: "epiphany-tool-adapter".to_string(),
+        requires_receipt: true,
+        private_state_requested: false,
+        notes: vec![
+            "Mirror of the operator-safe native status tool invocation surface; runtime-spine tool intent remains the lifecycle owner.".to_string(),
+            "Raw MCP JSON stays quarantined behind epiphany.tool_invocation_intent.v0 / receipt documents.".to_string(),
+        ],
+    };
+    validate_daemon_tool_invocation_intent(&intent)?;
+    let receipt = invocation
+        .pointer("/receiptId")
+        .and_then(Value::as_str)
+        .filter(|receipt_id| !receipt_id.trim().is_empty())
+        .map(|receipt_id| {
+            let receipt = EpiphanyCultMeshDaemonToolInvocationReceiptEntry {
+                schema_version: EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION
+                    .to_string(),
+                receipt_id: receipt_id.to_string(),
+                intent_id: intent.intent_id.clone(),
+                requesting_agent_id: intent.requesting_agent_id.clone(),
+                requesting_cluster_id: intent.requesting_cluster_id.clone(),
+                capability_id: intent.capability_id.clone(),
+                host_cluster_id: intent.host_cluster_id.clone(),
+                host_daemon_id: intent.host_daemon_id.clone(),
+                tool_name: intent.tool_name.clone(),
+                operation: intent.operation.clone(),
+                status: status.clone(),
+                receipt_contract_type: "epiphany.tool_invocation_receipt.v0".to_string(),
+                result_ref: format!("runtime-spine://tool-invocation-receipts/{receipt_id}"),
+                result_summary: pointer_text(invocation, "/error", ""),
+                authority_gate: intent.authority_gate.clone(),
+                private_state_exposed: false,
+                notes: vec![
+                    "Mirror of the runtime-spine tool invocation receipt status; runtime-spine remains the receipt owner.".to_string(),
+                    "This local Verse receipt exposes routing/status only, not private tool payloads or raw MCP cargo.".to_string(),
+                ],
+            };
+            validate_daemon_tool_invocation_receipt(&receipt)?;
+            Ok::<EpiphanyCultMeshDaemonToolInvocationReceiptEntry, anyhow::Error>(receipt)
+        })
+        .transpose()?;
+    Ok(Some((intent, receipt)))
+}
+
 pub fn write_epiphany_cultmesh_operator_snapshot(
     store_path: impl AsRef<Path>,
     snapshot: EpiphanyCultMeshOperatorSnapshotEntry,
@@ -791,6 +2112,1643 @@ pub fn load_latest_epiphany_cultmesh_operator_run_receipt(
     node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)
 }
 
+pub fn epiphany_cultmesh_coordinator_run_receipt_from_summary_json(
+    runtime_id: impl Into<String>,
+    receipt_id: impl Into<String>,
+    created_at_utc: impl Into<String>,
+    artifact_root: impl Into<String>,
+    summary_json: &Value,
+) -> Result<EpiphanyCultMeshCoordinatorRunReceiptEntry> {
+    let artifact_root = artifact_root.into();
+    let artifact_refs = pointer_string_array(summary_json, "/artifactManifest")?;
+    let sealed_artifact_refs = summary_json
+        .pointer("/sealedArtifactManifest")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    item.get("path")
+                        .and_then(Value::as_str)
+                        .or_else(|| item.as_str())
+                        .map(str::to_string)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let step_count = summary_json
+        .pointer("/steps")
+        .and_then(Value::as_array)
+        .map_or(0, |items| items.len() as u64);
+    let receipt = EpiphanyCultMeshCoordinatorRunReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+        runtime_id: runtime_id.into(),
+        verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+        receipt_id: receipt_id.into(),
+        source_document_type: pointer_text(
+            summary_json,
+            "/coordinatorRunReceipt/documentType",
+            "epiphany.coordinator_run_receipt.v0",
+        ),
+        source_receipt_id: pointer_text(summary_json, "/coordinatorRunReceipt/receiptId", ""),
+        source_store: pointer_text(summary_json, "/coordinatorRunReceipt/store", ""),
+        thread_id: pointer_text(summary_json, "/threadId", ""),
+        mode: pointer_text(summary_json, "/mode", ""),
+        status: pointer_text(summary_json, "/finalAction/action", ""),
+        final_action: pointer_text(summary_json, "/finalAction/action", ""),
+        final_reason: pointer_text(summary_json, "/finalAction/reason", ""),
+        step_count,
+        artifact_root,
+        artifact_refs,
+        sealed_artifact_refs,
+        created_at_utc: created_at_utc.into(),
+        private_state_exposed: false,
+        notes: vec![
+            "CultMesh mirror of the runtime-spine coordinator receipt; runtime-spine remains the lifecycle owner.".to_string(),
+            "Coordinator JSON artifacts are display/audit evidence; sealed transcript and stderr paths are referenced but not opened here.".to_string(),
+        ],
+    };
+    validate_coordinator_run_receipt(&receipt)?;
+    Ok(receipt)
+}
+
+pub fn write_epiphany_cultmesh_coordinator_run_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: EpiphanyCultMeshCoordinatorRunReceiptEntry,
+) -> Result<EpiphanyCultMeshCoordinatorRunReceiptEntry> {
+    validate_coordinator_run_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, receipt.runtime_id.clone())?;
+    let receipt_key = epiphany_cultmesh_coordinator_run_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_coordinator_run_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshCoordinatorRunReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_LATEST_KEY)
+}
+
+pub fn epiphany_cultmesh_hands_action_gate_from_summary_json(
+    runtime_id: impl Into<String>,
+    created_at_utc: impl Into<String>,
+    source_summary_path: impl Into<String>,
+    summary_json: &Value,
+) -> Result<Option<EpiphanyCultMeshHandsActionGateEntry>> {
+    let Some(gate_json) = summary_json.pointer("/finalAction/handsActionGate") else {
+        return Ok(None);
+    };
+    let hands_intent_id = pointer_text(gate_json, "/intentId", "");
+    let hands_review_id = pointer_text(gate_json, "/reviewId", "");
+    let gate = EpiphanyCultMeshHandsActionGateEntry {
+        schema_version: EPIPHANY_CULTMESH_HANDS_ACTION_GATE_SCHEMA_VERSION.to_string(),
+        runtime_id: runtime_id.into(),
+        verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+        gate_id: format!("{hands_intent_id}:{hands_review_id}"),
+        source_coordinator_receipt_id: pointer_text(
+            summary_json,
+            "/coordinatorRunReceipt/receiptId",
+            "",
+        ),
+        source_summary_path: source_summary_path.into(),
+        thread_id: pointer_text(summary_json, "/threadId", ""),
+        mode: pointer_text(summary_json, "/mode", ""),
+        status: pointer_text(gate_json, "/status", ""),
+        hands_intent_id,
+        hands_review_id,
+        substrate_gate_grant_receipt_id: pointer_text(
+            gate_json,
+            "/substrateGateGrantReceiptId",
+            "",
+        ),
+        runtime_job_id: pointer_text(gate_json, "/runtimeJobId", ""),
+        requested_paths: pointer_string_array(gate_json, "/requestedPaths")?,
+        required_receipts: pointer_string_array(gate_json, "/requiredReceipts")?,
+        record_pass_executable: pointer_text(gate_json, "/recordPassCommand/executable", ""),
+        record_pass_args: pointer_string_array(gate_json, "/recordPassCommand/args")?,
+        created_at_utc: created_at_utc.into(),
+        private_state_exposed: false,
+        notes: vec![
+            "CultMesh mirror of the coordinator Hands action gate; runtime-spine Hands/Substrate Gate receipts remain the action owners.".to_string(),
+            "The record-pass command is an operator hint only; this mirror cannot approve, execute, or mutate the repo.".to_string(),
+        ],
+    };
+    validate_hands_action_gate(&gate)?;
+    Ok(Some(gate))
+}
+
+pub fn write_epiphany_cultmesh_hands_action_gate(
+    store_path: impl AsRef<Path>,
+    gate: EpiphanyCultMeshHandsActionGateEntry,
+) -> Result<EpiphanyCultMeshHandsActionGateEntry> {
+    validate_hands_action_gate(&gate)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, gate.runtime_id.clone())?;
+    let gate_key = epiphany_cultmesh_hands_action_gate_key(&gate.gate_id);
+    let written = node.put(gate_key.as_str(), &gate)?;
+    node.put(EPIPHANY_CULTMESH_HANDS_ACTION_GATE_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_hands_action_gate(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshHandsActionGateEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_HANDS_ACTION_GATE_LATEST_KEY)
+}
+
+pub fn epiphany_cultmesh_role_review_event_from_summary_json(
+    runtime_id: impl Into<String>,
+    created_at_utc: impl Into<String>,
+    source_summary_path: impl Into<String>,
+    summary_json: &Value,
+) -> Result<Option<EpiphanyCultMeshRoleReviewEventEntry>> {
+    let Some(event_json) = latest_role_review_event_json(summary_json) else {
+        return Ok(None);
+    };
+    let surface = pointer_text(event_json, "/type", "");
+    let role_id = pointer_text(event_json, "/roleId", "");
+    let acceptance = event_json
+        .pointer("/accepted/receipt")
+        .or_else(|| event_json.pointer("/accepted/acceptanceReceipt"))
+        .or_else(|| event_json.pointer("/superseded/patch/acceptanceReceipts/0"))
+        .or_else(|| event_json.pointer("/superseded/update/acceptanceReceipts/0"))
+        .or_else(|| event_json.pointer("/superseded/acceptanceReceipts/0"));
+    let review_status = acceptance
+        .map(|value| pointer_text(value, "/status", ""))
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| {
+            if surface == "roleFailureReview" {
+                "superseded".to_string()
+            } else {
+                "accepted".to_string()
+            }
+        });
+    let acceptance_receipt_id = acceptance
+        .map(|value| pointer_text(value, "/id", ""))
+        .unwrap_or_default();
+    let runtime_result_id = acceptance
+        .map(|value| pointer_text(value, "/result_id", ""))
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            acceptance
+                .map(|value| pointer_text(value, "/resultId", ""))
+                .filter(|value| !value.trim().is_empty())
+        })
+        .unwrap_or_default();
+    let runtime_job_id = acceptance
+        .map(|value| pointer_text(value, "/job_id", ""))
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            acceptance
+                .map(|value| pointer_text(value, "/jobId", ""))
+                .filter(|value| !value.trim().is_empty())
+        })
+        .unwrap_or_default();
+    let binding_id = acceptance
+        .map(|value| pointer_text(value, "/binding_id", ""))
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            acceptance
+                .map(|value| pointer_text(value, "/bindingId", ""))
+                .filter(|value| !value.trim().is_empty())
+        })
+        .unwrap_or_default();
+    let summary = acceptance
+        .map(|value| pointer_text(value, "/summary", ""))
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            event_json
+                .pointer("/accepted/note")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .or_else(|| {
+            event_json
+                .pointer("/superseded/note")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_default();
+    let event = EpiphanyCultMeshRoleReviewEventEntry {
+        schema_version: EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_SCHEMA_VERSION.to_string(),
+        runtime_id: runtime_id.into(),
+        verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+        event_id: format!("{surface}:{role_id}:{review_status}"),
+        source_coordinator_receipt_id: pointer_text(
+            summary_json,
+            "/coordinatorRunReceipt/receiptId",
+            "",
+        ),
+        source_summary_path: source_summary_path.into(),
+        thread_id: pointer_text(summary_json, "/threadId", ""),
+        mode: pointer_text(summary_json, "/mode", ""),
+        surface,
+        role_id,
+        review_status,
+        acceptance_receipt_id,
+        runtime_result_id,
+        runtime_job_id,
+        binding_id,
+        summary,
+        created_at_utc: created_at_utc.into(),
+        private_state_exposed: false,
+        notes: vec![
+            "CultMesh mirror of the latest coordinator role review event; thread-state acceptance receipts remain the review owner.".to_string(),
+            "This mirror is for operator discovery/readback only and cannot accept, supersede, or relaunch a lane.".to_string(),
+        ],
+    };
+    validate_role_review_event(&event)?;
+    Ok(Some(event))
+}
+
+pub fn write_epiphany_cultmesh_role_review_event(
+    store_path: impl AsRef<Path>,
+    event: EpiphanyCultMeshRoleReviewEventEntry,
+) -> Result<EpiphanyCultMeshRoleReviewEventEntry> {
+    validate_role_review_event(&event)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, event.runtime_id.clone())?;
+    let event_key = epiphany_cultmesh_role_review_event_key(&event.event_id);
+    let written = node.put(event_key.as_str(), &event)?;
+    node.put(EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_role_review_event(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshRoleReviewEventEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_LATEST_KEY)
+}
+
+fn validate_coordinator_run_receipt(
+    receipt: &EpiphanyCultMeshCoordinatorRunReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "coordinator run CultMesh receipts must not expose private state"
+        ));
+    }
+    for (label, value) in [
+        ("receipt id", receipt.receipt_id.as_str()),
+        ("source receipt id", receipt.source_receipt_id.as_str()),
+        ("source store", receipt.source_store.as_str()),
+        ("thread id", receipt.thread_id.as_str()),
+        ("mode", receipt.mode.as_str()),
+        ("final action", receipt.final_action.as_str()),
+        ("created at", receipt.created_at_utc.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("coordinator run CultMesh receipt missing {label}"));
+        }
+    }
+    if receipt
+        .sealed_artifact_refs
+        .iter()
+        .any(|path| path.trim().is_empty())
+    {
+        return Err(anyhow!(
+            "coordinator run CultMesh receipt has an empty sealed artifact ref"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_hands_action_gate(gate: &EpiphanyCultMeshHandsActionGateEntry) -> Result<()> {
+    if gate.private_state_exposed {
+        return Err(anyhow!(
+            "Hands action gate CultMesh mirrors must not expose private state"
+        ));
+    }
+    for (label, value) in [
+        ("gate id", gate.gate_id.as_str()),
+        (
+            "source coordinator receipt id",
+            gate.source_coordinator_receipt_id.as_str(),
+        ),
+        ("source summary path", gate.source_summary_path.as_str()),
+        ("thread id", gate.thread_id.as_str()),
+        ("mode", gate.mode.as_str()),
+        ("status", gate.status.as_str()),
+        ("Hands intent id", gate.hands_intent_id.as_str()),
+        ("Hands review id", gate.hands_review_id.as_str()),
+        (
+            "Substrate Gate grant receipt id",
+            gate.substrate_gate_grant_receipt_id.as_str(),
+        ),
+        ("created at", gate.created_at_utc.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("Hands action gate CultMesh mirror missing {label}"));
+        }
+    }
+    if gate.required_receipts.is_empty() {
+        return Err(anyhow!(
+            "Hands action gate CultMesh mirror missing required receipts"
+        ));
+    }
+    if gate
+        .requested_paths
+        .iter()
+        .any(|path| path.trim().is_empty())
+        || gate
+            .required_receipts
+            .iter()
+            .any(|receipt| receipt.trim().is_empty())
+        || gate
+            .record_pass_args
+            .iter()
+            .any(|arg| arg.trim().is_empty())
+    {
+        return Err(anyhow!(
+            "Hands action gate CultMesh mirror has an empty path, receipt, or command argument"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_role_review_event(event: &EpiphanyCultMeshRoleReviewEventEntry) -> Result<()> {
+    if event.private_state_exposed {
+        return Err(anyhow!(
+            "role review CultMesh mirrors must not expose private state"
+        ));
+    }
+    if !matches!(event.surface.as_str(), "roleAccept" | "roleFailureReview") {
+        return Err(anyhow!(
+            "role review CultMesh mirror has unsupported surface {:?}",
+            event.surface
+        ));
+    }
+    for (label, value) in [
+        ("event id", event.event_id.as_str()),
+        (
+            "source coordinator receipt id",
+            event.source_coordinator_receipt_id.as_str(),
+        ),
+        ("source summary path", event.source_summary_path.as_str()),
+        ("thread id", event.thread_id.as_str()),
+        ("mode", event.mode.as_str()),
+        ("role id", event.role_id.as_str()),
+        ("review status", event.review_status.as_str()),
+        ("created at", event.created_at_utc.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("role review CultMesh mirror missing {label}"));
+        }
+    }
+    Ok(())
+}
+
+fn latest_role_review_event_json(summary_json: &Value) -> Option<&Value> {
+    let steps = summary_json.pointer("/steps")?.as_array()?;
+    steps.iter().rev().find_map(|step| {
+        step.pointer("/events")
+            .and_then(Value::as_array)?
+            .iter()
+            .rev()
+            .find(|event| {
+                matches!(
+                    event.pointer("/type").and_then(Value::as_str),
+                    Some("roleAccept" | "roleFailureReview")
+                )
+            })
+    })
+}
+
+pub fn epiphany_cultmesh_eve_connection_intent_from_advertisement(
+    intent_id: impl Into<String>,
+    source_cluster_id: impl Into<String>,
+    target: &EpiphanyCultMeshOdinAdvertisementEntry,
+    collaboration_topic: impl Into<String>,
+    requested_action: impl Into<String>,
+) -> EpiphanyCultMeshEveConnectionIntentEntry {
+    EpiphanyCultMeshEveConnectionIntentEntry {
+        schema_version: EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION.to_string(),
+        intent_id: intent_id.into(),
+        source_cluster_id: source_cluster_id.into(),
+        target_advertisement_id: target.advertisement_id.clone(),
+        target_cluster_id: target.cluster_id.clone(),
+        target_eve_surface_id: target.eve_surface_id.clone(),
+        collaboration_topic: collaboration_topic.into(),
+        requested_action: requested_action.into(),
+        feedback_route: "imagination.consensus_discovery".to_string(),
+        requested_document_types: vec![
+            EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string(),
+            EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string(),
+        ],
+        private_state_requested: false,
+        notes: vec![
+            "Eve connection intent is a collaboration request over advertised metadata, not a private Verse read.".to_string(),
+            "Persona or peer feedback from this request routes to Imagination consensus discovery before adoption.".to_string(),
+            "Mind and Substrate Gate still review durable state mutation and repo access.".to_string(),
+        ],
+    }
+}
+
+pub fn epiphany_cultmesh_eve_connection_receipt_for_intent(
+    receipt_id: impl Into<String>,
+    intent: &EpiphanyCultMeshEveConnectionIntentEntry,
+    status: impl Into<String>,
+) -> EpiphanyCultMeshEveConnectionReceiptEntry {
+    EpiphanyCultMeshEveConnectionReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: receipt_id.into(),
+        intent_id: intent.intent_id.clone(),
+        source_cluster_id: intent.source_cluster_id.clone(),
+        target_cluster_id: intent.target_cluster_id.clone(),
+        target_eve_surface_id: intent.target_eve_surface_id.clone(),
+        status: status.into(),
+        feedback_route: intent.feedback_route.clone(),
+        private_state_exposed: false,
+        notes: vec![
+            "Receipt records an Eve collaboration request over CultMesh; it does not grant private state authority.".to_string(),
+            "Feedback remains routed through Imagination consensus discovery and later Mind/Bifrost review gates.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_eve_connection_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    intent: EpiphanyCultMeshEveConnectionIntentEntry,
+) -> Result<EpiphanyCultMeshEveConnectionIntentEntry> {
+    if intent.private_state_requested {
+        return Err(anyhow!(
+            "Eve connection intents must not request private Verse state"
+        ));
+    }
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let intent_key = epiphany_cultmesh_eve_connection_intent_key(&intent.intent_id);
+    let written = node.put(intent_key.as_str(), &intent)?;
+    node.put(EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn write_epiphany_cultmesh_eve_connection_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshEveConnectionReceiptEntry,
+) -> Result<EpiphanyCultMeshEveConnectionReceiptEntry> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Eve connection receipts must not expose private state"
+        ));
+    }
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_eve_connection_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_eve_connection_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshEveConnectionIntentEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY)
+}
+
+pub fn load_latest_epiphany_cultmesh_eve_connection_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshEveConnectionReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY)
+}
+
+pub fn epiphany_cultmesh_daemon_poke_intent_from_status(
+    intent_id: impl Into<String>,
+    requesting_agent_id: impl Into<String>,
+    status: &EpiphanyCultMeshDaemonStatusEntry,
+    reason: impl Into<String>,
+) -> EpiphanyCultMeshDaemonPokeIntentEntry {
+    EpiphanyCultMeshDaemonPokeIntentEntry {
+        schema_version: EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_SCHEMA_VERSION.to_string(),
+        intent_id: intent_id.into(),
+        requesting_agent_id: requesting_agent_id.into(),
+        target_daemon_id: status.daemon_id.clone(),
+        target_cluster_id: status.cluster_id.clone(),
+        daemon_surface_id: status.daemon_surface_id.clone(),
+        eve_surface_id: status.eve_surface_id.clone(),
+        reason: reason.into(),
+        requested_action: "pokeDaemon".to_string(),
+        observed_status: status.status.clone(),
+        private_state_requested: false,
+        notes: vec![
+            "Daemon poke intent is an operator-safe lifecycle action request, not a private Verse inspection.".to_string(),
+            "The target daemon owns the resulting status; this intent only records the requested poke.".to_string(),
+        ],
+    }
+}
+
+pub fn epiphany_cultmesh_daemon_poke_receipt_for_intent(
+    receipt_id: impl Into<String>,
+    intent: &EpiphanyCultMeshDaemonPokeIntentEntry,
+    status: impl Into<String>,
+    resulting_status: impl Into<String>,
+    operator_artifact_ref: impl Into<String>,
+) -> EpiphanyCultMeshDaemonPokeReceiptEntry {
+    EpiphanyCultMeshDaemonPokeReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: receipt_id.into(),
+        intent_id: intent.intent_id.clone(),
+        target_daemon_id: intent.target_daemon_id.clone(),
+        target_cluster_id: intent.target_cluster_id.clone(),
+        action_taken: intent.requested_action.clone(),
+        status: status.into(),
+        resulting_status: resulting_status.into(),
+        operator_artifact_ref: operator_artifact_ref.into(),
+        private_state_exposed: false,
+        notes: vec![
+            "Daemon poke receipt records lifecycle intervention proof without exposing private daemon state.".to_string(),
+            "Follow-up daemon status documents remain the liveness authority.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_daemon_poke_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    intent: EpiphanyCultMeshDaemonPokeIntentEntry,
+) -> Result<EpiphanyCultMeshDaemonPokeIntentEntry> {
+    validate_daemon_poke_intent(&intent)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let intent_key = epiphany_cultmesh_daemon_poke_intent_key(&intent.intent_id);
+    let written = node.put(intent_key.as_str(), &intent)?;
+    node.put(EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn write_epiphany_cultmesh_daemon_poke_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshDaemonPokeReceiptEntry,
+) -> Result<EpiphanyCultMeshDaemonPokeReceiptEntry> {
+    validate_daemon_poke_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_daemon_poke_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_daemon_poke_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshDaemonPokeIntentEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY)
+}
+
+pub fn load_latest_epiphany_cultmesh_daemon_poke_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshDaemonPokeReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY)
+}
+
+pub fn write_epiphany_cultmesh_daemon_restart_policy(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    policy: EpiphanyCultMeshDaemonRestartPolicyEntry,
+) -> Result<EpiphanyCultMeshDaemonRestartPolicyEntry> {
+    validate_daemon_restart_policy(&policy)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let key = epiphany_cultmesh_daemon_restart_policy_key(&policy.daemon_id);
+    let written = node.put(key.as_str(), &policy)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_epiphany_cultmesh_daemon_restart_policy(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    daemon_id: &str,
+) -> Result<Option<EpiphanyCultMeshDaemonRestartPolicyEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let key = epiphany_cultmesh_daemon_restart_policy_key(daemon_id);
+    node.get(key.as_str())
+}
+
+pub fn write_epiphany_cultmesh_daemon_scheduler_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshDaemonSchedulerReceiptEntry,
+) -> Result<EpiphanyCultMeshDaemonSchedulerReceiptEntry> {
+    validate_daemon_scheduler_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_daemon_scheduler_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_daemon_scheduler_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshDaemonSchedulerReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY)
+}
+
+pub fn write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> Result<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
+    validate_daemon_service_lifecycle_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_daemon_service_lifecycle_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)
+}
+
+pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    Ok(node
+        .get_all_with_keys::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>()?
+        .into_iter()
+        .filter(|(key, _)| key != EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)
+        .map(|(_, receipt)| receipt)
+        .collect())
+}
+
+pub fn default_epiphany_cultmesh_swarm_brake(
+    generated_at_utc: impl Into<String>,
+) -> EpiphanyCultMeshSwarmBrakeEntry {
+    EpiphanyCultMeshSwarmBrakeEntry {
+        schema_version: EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION.to_string(),
+        brake_id: "epiphany-local/swarm-brake/default".to_string(),
+        status: "released".to_string(),
+        scope: "swarm".to_string(),
+        reason: "No swarm brake is engaged; unattended automation still requires typed scheduler, cooldown, recovery, and operator receipt gates.".to_string(),
+        operator_agent_id: "epiphany.Self".to_string(),
+        affected_clusters: epiphany_cultmesh_cluster_topology()
+            .into_iter()
+            .map(|cluster| cluster.cluster_id)
+            .collect(),
+        protected_surfaces: vec![
+            "heartbeat.scheduler".to_string(),
+            "coordinator.run".to_string(),
+            "persona.public_speech".to_string(),
+            "daemon.tool_invocation".to_string(),
+            "daemon.lifecycle_poke".to_string(),
+        ],
+        created_at_utc: generated_at_utc.into(),
+        expires_at_utc: None,
+        private_state_exposed: false,
+        notes: vec![
+            "The swarm brake is the operator-safe pause surface for live-fire readiness.".to_string(),
+            "It may stop scheduling and daemon pokes, but it must not expose worker thoughts or private Verse state.".to_string(),
+            "Engaged brakes require a scoped reason so silence cannot masquerade as consent.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_swarm_brake(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    brake: EpiphanyCultMeshSwarmBrakeEntry,
+) -> Result<EpiphanyCultMeshSwarmBrakeEntry> {
+    validate_swarm_brake(&brake)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let written = node.put(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY, &brake)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_epiphany_cultmesh_swarm_brake(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshSwarmBrakeEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)
+}
+
+pub fn write_epiphany_cultmesh_persona_speech_audit(
+    store_path: impl AsRef<Path>,
+    audit: EpiphanyCultMeshPersonaSpeechAuditEntry,
+) -> Result<EpiphanyCultMeshPersonaSpeechAuditEntry> {
+    validate_persona_speech_audit(&audit)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, audit.runtime_id.clone())?;
+    let audit_key = epiphany_cultmesh_persona_speech_audit_key(&audit.audit_id);
+    let written = node.put(audit_key.as_str(), &audit)?;
+    node.put(EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_persona_speech_audit(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshPersonaSpeechAuditEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY)
+}
+
+pub fn validate_persona_speech_audit(
+    audit: &EpiphanyCultMeshPersonaSpeechAuditEntry,
+) -> Result<()> {
+    if audit.private_state_exposed {
+        return Err(anyhow!(
+            "Persona speech audit must not expose private state"
+        ));
+    }
+    if audit.audit_id.trim().is_empty()
+        || audit.runtime_id.trim().is_empty()
+        || audit.persona_agent_id.trim().is_empty()
+    {
+        return Err(anyhow!(
+            "Persona speech audit requires audit, runtime, and persona ids"
+        ));
+    }
+    if !matches!(audit.action_kind.as_str(), "draft" | "bubble" | "post") {
+        return Err(anyhow!(
+            "Persona speech audit action_kind must be draft, bubble, or post"
+        ));
+    }
+    if !matches!(audit.decision.as_str(), "eligible" | "blocked") {
+        return Err(anyhow!(
+            "Persona speech audit decision must be eligible or blocked"
+        ));
+    }
+    if audit.decision == "blocked" && audit.reasons.is_empty() {
+        return Err(anyhow!("blocked Persona speech audit requires reasons"));
+    }
+    if audit.content_fingerprint.trim().is_empty() || audit.created_at_utc.trim().is_empty() {
+        return Err(anyhow!(
+            "Persona speech audit requires fingerprint and timestamp"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_swarm_brake(brake: &EpiphanyCultMeshSwarmBrakeEntry) -> Result<()> {
+    if brake.private_state_exposed {
+        return Err(anyhow!("swarm brake must not expose private state"));
+    }
+    if brake.brake_id.trim().is_empty() || brake.scope.trim().is_empty() {
+        return Err(anyhow!("swarm brake requires brake id and scope"));
+    }
+    if brake.created_at_utc.trim().is_empty() {
+        return Err(anyhow!("swarm brake requires a creation timestamp"));
+    }
+    if !matches!(brake.status.as_str(), "released" | "engaged") {
+        return Err(anyhow!("swarm brake status must be released or engaged"));
+    }
+    if brake.status == "engaged" {
+        if brake.reason.trim().is_empty() || brake.operator_agent_id.trim().is_empty() {
+            return Err(anyhow!(
+                "engaged swarm brake requires operator id and reason"
+            ));
+        }
+        if brake.affected_clusters.is_empty() && brake.protected_surfaces.is_empty() {
+            return Err(anyhow!(
+                "engaged swarm brake requires affected clusters or protected surfaces"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_daemon_poke_intent(intent: &EpiphanyCultMeshDaemonPokeIntentEntry) -> Result<()> {
+    if intent.private_state_requested {
+        return Err(anyhow!(
+            "daemon poke intents must not request private state"
+        ));
+    }
+    if intent.target_daemon_id.trim().is_empty() || intent.target_cluster_id.trim().is_empty() {
+        return Err(anyhow!(
+            "daemon poke intents require daemon and cluster ids"
+        ));
+    }
+    if intent.requested_action != "pokeDaemon" {
+        return Err(anyhow!("daemon poke intents must request pokeDaemon"));
+    }
+    if intent.reason.trim().is_empty() {
+        return Err(anyhow!("daemon poke intents require a reason"));
+    }
+    Ok(())
+}
+
+fn validate_daemon_poke_receipt(receipt: &EpiphanyCultMeshDaemonPokeReceiptEntry) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "daemon poke receipts must not expose private state"
+        ));
+    }
+    if receipt.intent_id.trim().is_empty() || receipt.target_daemon_id.trim().is_empty() {
+        return Err(anyhow!(
+            "daemon poke receipts require intent and daemon ids"
+        ));
+    }
+    if receipt.action_taken != "pokeDaemon" {
+        return Err(anyhow!("daemon poke receipts must record pokeDaemon"));
+    }
+    if receipt.status.trim().is_empty() || receipt.resulting_status.trim().is_empty() {
+        return Err(anyhow!("daemon poke receipts require status results"));
+    }
+    Ok(())
+}
+
+fn validate_daemon_restart_policy(policy: &EpiphanyCultMeshDaemonRestartPolicyEntry) -> Result<()> {
+    if policy.private_state_exposed {
+        return Err(anyhow!(
+            "daemon restart policies must not expose private state"
+        ));
+    }
+    for (label, value) in [
+        ("policy id", policy.policy_id.as_str()),
+        ("daemon id", policy.daemon_id.as_str()),
+        ("cluster id", policy.cluster_id.as_str()),
+        ("restart command", policy.restart_command.as_str()),
+        ("last result status", policy.last_result_status.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("daemon restart policy missing {label}"));
+        }
+    }
+    if policy.cooldown_seconds < 0 {
+        return Err(anyhow!(
+            "daemon restart policy cooldown_seconds must be non-negative"
+        ));
+    }
+    if policy.backoff_multiplier == 0 {
+        return Err(anyhow!(
+            "daemon restart policy backoff_multiplier must be positive"
+        ));
+    }
+    if policy.reconcile_interval_seconds < 0 {
+        return Err(anyhow!(
+            "daemon restart policy reconcile_interval_seconds must be non-negative"
+        ));
+    }
+    if policy.heartbeat_stale_seconds < 0 {
+        return Err(anyhow!(
+            "daemon restart policy heartbeat_stale_seconds must be non-negative"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_daemon_scheduler_receipt(
+    receipt: &EpiphanyCultMeshDaemonSchedulerReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "daemon scheduler receipts must not expose private state"
+        ));
+    }
+    for (label, value) in [
+        ("receipt id", receipt.receipt_id.as_str()),
+        ("scheduler id", receipt.scheduler_id.as_str()),
+        ("runtime id", receipt.runtime_id.as_str()),
+        ("daemon selector", receipt.daemon_selector.as_str()),
+        ("status", receipt.status.as_str()),
+        ("tick started", receipt.tick_started_utc.as_str()),
+        ("tick completed", receipt.tick_completed_utc.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("daemon scheduler receipt missing {label}"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_daemon_service_lifecycle_receipt(
+    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "daemon service lifecycle receipts must not expose private state"
+        ));
+    }
+    for (label, value) in [
+        ("receipt id", receipt.receipt_id.as_str()),
+        ("service id", receipt.service_id.as_str()),
+        ("scheduler id", receipt.scheduler_id.as_str()),
+        ("runtime id", receipt.runtime_id.as_str()),
+        ("daemon selector", receipt.daemon_selector.as_str()),
+        ("action", receipt.action.as_str()),
+        ("status", receipt.status.as_str()),
+        ("command", receipt.command.as_str()),
+        ("started at", receipt.started_at_utc.as_str()),
+        (
+            "operator artifact ref",
+            receipt.operator_artifact_ref.as_str(),
+        ),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("daemon service lifecycle receipt missing {label}"));
+        }
+    }
+    Ok(())
+}
+
+pub fn epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
+    intent_id: impl Into<String>,
+    requesting_agent_id: impl Into<String>,
+    requesting_cluster_id: impl Into<String>,
+    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+    payload_ref: impl Into<String>,
+    payload_summary: impl Into<String>,
+) -> EpiphanyCultMeshDaemonToolInvocationIntentEntry {
+    EpiphanyCultMeshDaemonToolInvocationIntentEntry {
+        schema_version: EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_SCHEMA_VERSION.to_string(),
+        intent_id: intent_id.into(),
+        requesting_agent_id: requesting_agent_id.into(),
+        requesting_cluster_id: requesting_cluster_id.into(),
+        capability_id: capability.capability_id.clone(),
+        host_cluster_id: capability.host_cluster_id.clone(),
+        host_daemon_id: capability.host_daemon_id.clone(),
+        eve_surface_id: capability.eve_surface_id.clone(),
+        tool_name: capability.tool_name.clone(),
+        operation: capability.operation.clone(),
+        input_contract_type: capability.input_contract_type.clone(),
+        payload_ref: payload_ref.into(),
+        payload_summary: payload_summary.into(),
+        authority_gate: capability.authority_gate.clone(),
+        requires_receipt: capability.requires_receipt,
+        private_state_requested: false,
+        notes: vec![
+            "Any local CultMesh agent may submit this daemon tool invocation intent when it cites an advertised capability.".to_string(),
+            "The payload is referenced through the capability's typed input contract; this document is the routing envelope, not private state cargo.".to_string(),
+            "Execution remains gated by the advertised authority and must produce a typed receipt.".to_string(),
+        ],
+    }
+}
+
+pub fn epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent(
+    receipt_id: impl Into<String>,
+    intent: &EpiphanyCultMeshDaemonToolInvocationIntentEntry,
+    status: impl Into<String>,
+    receipt_contract_type: impl Into<String>,
+    result_ref: impl Into<String>,
+    result_summary: impl Into<String>,
+) -> EpiphanyCultMeshDaemonToolInvocationReceiptEntry {
+    EpiphanyCultMeshDaemonToolInvocationReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION
+            .to_string(),
+        receipt_id: receipt_id.into(),
+        intent_id: intent.intent_id.clone(),
+        requesting_agent_id: intent.requesting_agent_id.clone(),
+        requesting_cluster_id: intent.requesting_cluster_id.clone(),
+        capability_id: intent.capability_id.clone(),
+        host_cluster_id: intent.host_cluster_id.clone(),
+        host_daemon_id: intent.host_daemon_id.clone(),
+        tool_name: intent.tool_name.clone(),
+        operation: intent.operation.clone(),
+        status: status.into(),
+        receipt_contract_type: receipt_contract_type.into(),
+        result_ref: result_ref.into(),
+        result_summary: result_summary.into(),
+        authority_gate: intent.authority_gate.clone(),
+        private_state_exposed: false,
+        notes: vec![
+            "Receipt records the daemon tool response over CultMesh without exposing private Verse payloads.".to_string(),
+            "The receipt contract is the tool-specific proof surface; this routing receipt keeps the global directory auditable.".to_string(),
+        ],
+    }
+}
+
+fn validate_daemon_tool_invocation_intent(
+    intent: &EpiphanyCultMeshDaemonToolInvocationIntentEntry,
+) -> Result<()> {
+    if intent.private_state_requested {
+        return Err(anyhow!(
+            "daemon tool invocation intents must not request private Verse state"
+        ));
+    }
+    if !intent.requires_receipt {
+        return Err(anyhow!(
+            "daemon tool invocation intents must require typed receipts"
+        ));
+    }
+    for (label, value) in [
+        ("intent id", intent.intent_id.as_str()),
+        ("requesting agent id", intent.requesting_agent_id.as_str()),
+        (
+            "requesting cluster id",
+            intent.requesting_cluster_id.as_str(),
+        ),
+        ("capability id", intent.capability_id.as_str()),
+        ("host daemon id", intent.host_daemon_id.as_str()),
+        ("tool name", intent.tool_name.as_str()),
+        ("operation", intent.operation.as_str()),
+        ("input contract type", intent.input_contract_type.as_str()),
+        ("payload ref", intent.payload_ref.as_str()),
+        ("authority gate", intent.authority_gate.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("daemon tool invocation intent missing {label}"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_daemon_tool_invocation_receipt(
+    receipt: &EpiphanyCultMeshDaemonToolInvocationReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "daemon tool invocation receipts must not expose private Verse state"
+        ));
+    }
+    for (label, value) in [
+        ("receipt id", receipt.receipt_id.as_str()),
+        ("intent id", receipt.intent_id.as_str()),
+        ("requesting agent id", receipt.requesting_agent_id.as_str()),
+        (
+            "requesting cluster id",
+            receipt.requesting_cluster_id.as_str(),
+        ),
+        ("capability id", receipt.capability_id.as_str()),
+        ("host daemon id", receipt.host_daemon_id.as_str()),
+        ("tool name", receipt.tool_name.as_str()),
+        ("operation", receipt.operation.as_str()),
+        ("status", receipt.status.as_str()),
+        (
+            "receipt contract type",
+            receipt.receipt_contract_type.as_str(),
+        ),
+        ("result ref", receipt.result_ref.as_str()),
+        ("authority gate", receipt.authority_gate.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("daemon tool invocation receipt missing {label}"));
+        }
+    }
+    Ok(())
+}
+
+pub fn write_epiphany_cultmesh_daemon_tool_invocation_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    intent: EpiphanyCultMeshDaemonToolInvocationIntentEntry,
+) -> Result<EpiphanyCultMeshDaemonToolInvocationIntentEntry> {
+    validate_daemon_tool_invocation_intent(&intent)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let intent_key = epiphany_cultmesh_daemon_tool_invocation_intent_key(&intent.intent_id);
+    let written = node.put(intent_key.as_str(), &intent)?;
+    node.put(
+        EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn write_epiphany_cultmesh_daemon_tool_invocation_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshDaemonToolInvocationReceiptEntry,
+) -> Result<EpiphanyCultMeshDaemonToolInvocationReceiptEntry> {
+    validate_daemon_tool_invocation_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_daemon_tool_invocation_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_daemon_tool_invocation_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshDaemonToolInvocationIntentEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_LATEST_KEY)
+}
+
+pub fn load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshDaemonToolInvocationReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_LATEST_KEY)
+}
+
+pub fn epiphany_cultmesh_bifrost_body_change_publication_intent(
+    intent_id: impl Into<String>,
+    source_cluster_id: impl Into<String>,
+    source_agent_id: impl Into<String>,
+    body_domain: impl Into<String>,
+    target_repository: impl Into<String>,
+    target_branch: impl Into<String>,
+    change_summary: impl Into<String>,
+    justification: impl Into<String>,
+    changed_paths: Vec<String>,
+    verification_receipt_ids: Vec<String>,
+    review_receipt_ids: Vec<String>,
+    authorship_agent_ids: Vec<String>,
+    credit_subjects: Vec<String>,
+) -> EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry {
+    EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry {
+        schema_version: EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION
+            .to_string(),
+        intent_id: intent_id.into(),
+        source_cluster_id: source_cluster_id.into(),
+        source_agent_id: source_agent_id.into(),
+        body_domain: body_domain.into(),
+        target_repository: target_repository.into(),
+        target_branch: target_branch.into(),
+        change_summary: change_summary.into(),
+        justification: justification.into(),
+        changed_paths,
+        verification_receipt_ids,
+        review_receipt_ids,
+        authorship_agent_ids,
+        credit_subjects,
+        github_publication_requested: true,
+        private_state_included: false,
+        notes: vec![
+            "Bifrost publication intent routes a body change to the local trusted GameCult Verse before GitHub publication.".to_string(),
+            "GitHub is the publication substrate; Bifrost owns ledger attribution, review proof, and credit routing.".to_string(),
+            "Private worker/operator/agent state must stay sealed outside this operator-safe publication packet.".to_string(),
+        ],
+    }
+}
+
+pub fn epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent(
+    receipt_id: impl Into<String>,
+    intent: &EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry,
+    status: impl Into<String>,
+    bifrost_ledger_entry_id: impl Into<String>,
+    github_publication_receipt_id: impl Into<String>,
+    credit_receipt_ids: Vec<String>,
+    reviewer_ids: Vec<String>,
+    publication_url: impl Into<String>,
+) -> EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry {
+    EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION
+            .to_string(),
+        receipt_id: receipt_id.into(),
+        intent_id: intent.intent_id.clone(),
+        status: status.into(),
+        bifrost_ledger_entry_id: bifrost_ledger_entry_id.into(),
+        github_publication_receipt_id: github_publication_receipt_id.into(),
+        credit_receipt_ids,
+        accepted_changed_paths: intent.changed_paths.clone(),
+        reviewer_ids,
+        publication_url: publication_url.into(),
+        private_state_exposed: false,
+        notes: vec![
+            "Bifrost receipt records publication routing and ledger attribution before treating GitHub publication as blessed.".to_string(),
+            "Credit and GitHub receipts are referenced as typed proof surfaces, not hidden side effects.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_bifrost_body_change_publication_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    intent: EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry,
+) -> Result<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry> {
+    validate_bifrost_body_change_publication_intent(&intent)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let intent_key =
+        epiphany_cultmesh_bifrost_body_change_publication_intent_key(&intent.intent_id);
+    let written = node.put(intent_key.as_str(), &intent)?;
+    node.put(
+        EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry,
+) -> Result<EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry> {
+    validate_bifrost_body_change_publication_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key =
+        epiphany_cultmesh_bifrost_body_change_publication_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY)
+}
+
+pub fn load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
+    receipt_id: impl Into<String>,
+    publication_receipt: &EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry,
+    hands_pr_receipt_id: impl Into<String>,
+    target_repository: impl Into<String>,
+    target_branch: impl Into<String>,
+    pull_request_number: impl Into<String>,
+    commit_sha: impl Into<String>,
+    published_by_agent_id: impl Into<String>,
+) -> EpiphanyCultMeshBifrostGithubPublicationReceiptEntry {
+    EpiphanyCultMeshBifrostGithubPublicationReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_SCHEMA_VERSION
+            .to_string(),
+        receipt_id: receipt_id.into(),
+        bifrost_publication_receipt_id: publication_receipt.receipt_id.clone(),
+        hands_pr_receipt_id: hands_pr_receipt_id.into(),
+        target_repository: target_repository.into(),
+        target_branch: target_branch.into(),
+        pull_request_url: publication_receipt.publication_url.clone(),
+        pull_request_number: pull_request_number.into(),
+        commit_sha: commit_sha.into(),
+        changed_paths: publication_receipt.accepted_changed_paths.clone(),
+        ledger_entry_id: publication_receipt.bifrost_ledger_entry_id.clone(),
+        credit_receipt_ids: publication_receipt.credit_receipt_ids.clone(),
+        published_by_agent_id: published_by_agent_id.into(),
+        publication_status: publication_receipt.status.clone(),
+        private_state_exposed: false,
+        notes: vec![
+            "Bifrost GitHub publication receipt binds the Bifrost ledger decision to a concrete Hands PR receipt.".to_string(),
+            "GitHub is recorded as a publication substrate; Bifrost remains the routing and credit authority.".to_string(),
+            "This receipt must not expose private worker, operator, or agent-thought state.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_bifrost_github_publication_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshBifrostGithubPublicationReceiptEntry,
+) -> Result<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry> {
+    validate_bifrost_github_publication_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_bifrost_github_publication_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY)
+}
+
+pub fn epiphany_cultmesh_bifrost_collaboration_feedback(
+    feedback_id: impl Into<String>,
+    source_persona_id: impl Into<String>,
+    source_cluster_id: impl Into<String>,
+    public_room_id: impl Into<String>,
+    eve_connection_receipt_id: impl Into<String>,
+    collaboration_topic: impl Into<String>,
+    feedback_summary: impl Into<String>,
+    public_discussion_refs: Vec<String>,
+    candidate_action_refs: Vec<String>,
+) -> EpiphanyCultMeshBifrostCollaborationFeedbackEntry {
+    EpiphanyCultMeshBifrostCollaborationFeedbackEntry {
+        schema_version: EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION
+            .to_string(),
+        feedback_id: feedback_id.into(),
+        source_persona_id: source_persona_id.into(),
+        source_cluster_id: source_cluster_id.into(),
+        public_room_id: public_room_id.into(),
+        eve_connection_receipt_id: eve_connection_receipt_id.into(),
+        collaboration_topic: collaboration_topic.into(),
+        feedback_summary: feedback_summary.into(),
+        public_discussion_refs,
+        requested_consensus_route: "imagination.consensus_discovery".to_string(),
+        candidate_action_refs,
+        private_state_included: false,
+        notes: vec![
+            "Public Persona collaboration feedback is Bifrost-local witness, not implementation authority.".to_string(),
+            "Feedback routes to Imagination consensus discovery before any adoption or work item can be blessed.".to_string(),
+            "Private worker, operator, or agent-thought state must stay sealed outside this packet.".to_string(),
+        ],
+    }
+}
+
+pub fn epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
+    receipt_id: impl Into<String>,
+    feedback: &EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
+    status: impl Into<String>,
+    imagination_agent_ids: Vec<String>,
+    consensus_packet_ref: impl Into<String>,
+) -> EpiphanyCultMeshImaginationConsensusReceiptEntry {
+    EpiphanyCultMeshImaginationConsensusReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION
+            .to_string(),
+        receipt_id: receipt_id.into(),
+        feedback_id: feedback.feedback_id.clone(),
+        source_persona_id: feedback.source_persona_id.clone(),
+        consensus_route: feedback.requested_consensus_route.clone(),
+        status: status.into(),
+        imagination_agent_ids,
+        consensus_packet_ref: consensus_packet_ref.into(),
+        adoption_gate: "mind.review_then_bifrost_adoption".to_string(),
+        public_feedback_refs: feedback.public_discussion_refs.clone(),
+        private_state_exposed: false,
+        notes: vec![
+            "Imagination consensus receipt records that public feedback entered future-shape analysis, not that work was adopted.".to_string(),
+            "Mind and Bifrost remain the adoption gates before durable state or body changes.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_bifrost_collaboration_feedback(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    feedback: EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
+) -> Result<EpiphanyCultMeshBifrostCollaborationFeedbackEntry> {
+    validate_bifrost_collaboration_feedback(&feedback)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let feedback_key = epiphany_cultmesh_bifrost_collaboration_feedback_key(&feedback.feedback_id);
+    let written = node.put(feedback_key.as_str(), &feedback)?;
+    node.put(
+        EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn write_epiphany_cultmesh_imagination_consensus_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshImaginationConsensusReceiptEntry,
+) -> Result<EpiphanyCultMeshImaginationConsensusReceiptEntry> {
+    validate_imagination_consensus_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_imagination_consensus_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY)
+}
+
+pub fn load_latest_epiphany_cultmesh_imagination_consensus_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshImaginationConsensusReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY)
+}
+
+fn validate_bifrost_body_change_publication_intent(
+    intent: &EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry,
+) -> Result<()> {
+    if intent.private_state_included {
+        return Err(anyhow!(
+            "Bifrost body change publication intents must not include private state"
+        ));
+    }
+    if !intent.github_publication_requested {
+        return Err(anyhow!(
+            "Bifrost body change publication intents must request GitHub publication routing"
+        ));
+    }
+    if intent.justification.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication intents require justification"
+        ));
+    }
+    if intent.changed_paths.is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication intents require changed path scope"
+        ));
+    }
+    if intent.verification_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication intents require verification receipts"
+        ));
+    }
+    if intent.review_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication intents require review receipts"
+        ));
+    }
+    if intent.authorship_agent_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication intents require authorship"
+        ));
+    }
+    if intent.credit_subjects.is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication intents require credit metadata"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_bifrost_body_change_publication_receipt(
+    receipt: &EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Bifrost body change publication receipts must not expose private state"
+        ));
+    }
+    if receipt.bifrost_ledger_entry_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication receipts require a ledger entry"
+        ));
+    }
+    if receipt.github_publication_receipt_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication receipts require a GitHub publication receipt"
+        ));
+    }
+    if receipt.credit_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost body change publication receipts require credit receipts"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_bifrost_github_publication_receipt(
+    receipt: &EpiphanyCultMeshBifrostGithubPublicationReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Bifrost GitHub publication receipts must not expose private state"
+        ));
+    }
+    if receipt.bifrost_publication_receipt_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost GitHub publication receipts require a Bifrost publication receipt"
+        ));
+    }
+    if receipt.hands_pr_receipt_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost GitHub publication receipts require a Hands PR receipt"
+        ));
+    }
+    if receipt.pull_request_url.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost GitHub publication receipts require a pull request URL"
+        ));
+    }
+    if receipt.ledger_entry_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost GitHub publication receipts require a ledger entry"
+        ));
+    }
+    if receipt.credit_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost GitHub publication receipts require credit receipts"
+        ));
+    }
+    if receipt.changed_paths.is_empty() {
+        return Err(anyhow!(
+            "Bifrost GitHub publication receipts require changed paths"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_bifrost_collaboration_feedback(
+    feedback: &EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
+) -> Result<()> {
+    if feedback.private_state_included {
+        return Err(anyhow!(
+            "Bifrost collaboration feedback must not include private state"
+        ));
+    }
+    if feedback.source_persona_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost collaboration feedback requires a Persona source"
+        ));
+    }
+    if feedback.public_room_id.trim().is_empty() || feedback.public_discussion_refs.is_empty() {
+        return Err(anyhow!(
+            "Bifrost collaboration feedback requires public discussion references"
+        ));
+    }
+    if feedback.eve_connection_receipt_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost collaboration feedback requires an Eve connection receipt"
+        ));
+    }
+    if feedback.feedback_summary.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost collaboration feedback requires a feedback summary"
+        ));
+    }
+    if feedback.requested_consensus_route != "imagination.consensus_discovery" {
+        return Err(anyhow!(
+            "Bifrost collaboration feedback must route to Imagination consensus discovery"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_imagination_consensus_receipt(
+    receipt: &EpiphanyCultMeshImaginationConsensusReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Imagination consensus receipts must not expose private state"
+        ));
+    }
+    if receipt.feedback_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Imagination consensus receipts require a feedback id"
+        ));
+    }
+    if receipt.consensus_route != "imagination.consensus_discovery" {
+        return Err(anyhow!(
+            "Imagination consensus receipts must use the consensus discovery route"
+        ));
+    }
+    if receipt.imagination_agent_ids.is_empty() {
+        return Err(anyhow!(
+            "Imagination consensus receipts require Imagination agent ids"
+        ));
+    }
+    if receipt.consensus_packet_ref.trim().is_empty() {
+        return Err(anyhow!(
+            "Imagination consensus receipts require a consensus packet reference"
+        ));
+    }
+    if receipt.adoption_gate.trim().is_empty() {
+        return Err(anyhow!(
+            "Imagination consensus receipts require an adoption gate"
+        ));
+    }
+    Ok(())
+}
+
 pub fn write_epiphany_cultmesh_work_loop_telemetry(
     store_path: impl AsRef<Path>,
     telemetry: EpiphanyCultMeshWorkLoopTelemetryEntry,
@@ -810,6 +3768,137 @@ pub fn load_latest_epiphany_cultmesh_work_loop_telemetry(
     node.get(EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY)
 }
 
+pub fn epiphany_local_verse_work_loop_summary(
+    telemetry: &EpiphanyCultMeshWorkLoopTelemetryEntry,
+) -> EpiphanyLocalVerseWorkLoopSummary {
+    EpiphanyLocalVerseWorkLoopSummary {
+        telemetry_id: telemetry.telemetry_id.clone(),
+        thread_id: telemetry.thread_id.clone(),
+        source_stage: telemetry.source_stage.clone(),
+        target_stages: telemetry.target_stages.clone(),
+        hands_intent_id: telemetry.hands_intent_id.clone(),
+        hands_review_id: telemetry.hands_review_id.clone(),
+        substrate_gate_grant_receipt_id: telemetry.substrate_gate_grant_receipt_id.clone(),
+        hands_patch_receipt_id: telemetry.hands_patch_receipt_id.clone(),
+        hands_command_receipt_id: telemetry.hands_command_receipt_id.clone(),
+        hands_commit_receipt_id: telemetry.hands_commit_receipt_id.clone(),
+        commit_sha: telemetry.commit_sha.clone(),
+        branch: telemetry.branch.clone(),
+        changed_path_count: telemetry.changed_paths.len(),
+        source_ref_count: telemetry.source_refs.len(),
+        soul_receipt_ids: telemetry.soul_receipt_ids.clone(),
+        verification_assertion_count: telemetry.verification_assertions.len(),
+        summary: telemetry.summary.clone(),
+        sealed_preview_note: "Internal work-loop telemetry may carry receipt bodies, artifact previews, and commit diff previews; local Verse context exposes only this digest.".to_string(),
+    }
+}
+
+pub fn epiphany_cultmesh_agent_state_soa_summary_from_entry(
+    runtime_id: impl Into<String>,
+    summary_id: impl Into<String>,
+    soa: &EpiphanyAgentStateSoaEntry,
+) -> EpiphanyCultMeshAgentStateSoaSummaryEntry {
+    EpiphanyCultMeshAgentStateSoaSummaryEntry {
+        schema_version: EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION.to_string(),
+        runtime_id: runtime_id.into(),
+        verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+        summary_id: summary_id.into(),
+        generated_at: soa.generated_at.clone(),
+        source_store: soa.source_store.clone(),
+        row_count: soa.role_ids.len() as u32,
+        role_ids: soa.role_ids.clone(),
+        agent_ids: soa.agent_ids.clone(),
+        display_names: soa.display_names.clone(),
+        profile_kinds: soa.profile_kinds.clone(),
+        portable_contracts: soa.portable_contracts.clone(),
+        semantic_memory_counts: soa.semantic_memory_counts.clone(),
+        episodic_memory_counts: soa.episodic_memory_counts.clone(),
+        relationship_memory_counts: soa.relationship_memory_counts.clone(),
+        goal_counts: soa.goal_counts.clone(),
+        value_counts: soa.value_counts.clone(),
+        private_state_exposed: false,
+        notes: vec![
+            "Summary mirrors persisted epiphany.agent_state_soa.v0 column shape for local Verse discovery; agent memory text remains in the agent-memory store.".to_string(),
+            "CultMesh carries row/column topology for Odin, Eve, and prompt assembly without becoming the agent-memory owner.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_agent_state_soa_summary(
+    store_path: impl AsRef<Path>,
+    summary: EpiphanyCultMeshAgentStateSoaSummaryEntry,
+) -> Result<EpiphanyCultMeshAgentStateSoaSummaryEntry> {
+    validate_agent_state_soa_summary(&summary)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, summary.runtime_id.clone())?;
+    let written = node.put(summary.summary_id.clone(), &summary)?;
+    node.put(
+        EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_agent_state_soa_summary(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshAgentStateSoaSummaryEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY)
+}
+
+fn validate_agent_state_soa_summary(
+    summary: &EpiphanyCultMeshAgentStateSoaSummaryEntry,
+) -> Result<()> {
+    if summary.private_state_exposed {
+        return Err(anyhow!(
+            "agent state SoA summaries must not expose private state"
+        ));
+    }
+    if summary.schema_version != EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "agent state SoA summary schema_version must be {:?}",
+            EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION
+        ));
+    }
+    let len = summary.role_ids.len();
+    if summary.row_count as usize != len {
+        return Err(anyhow!(
+            "agent state SoA summary row_count is {}, expected {}",
+            summary.row_count,
+            len
+        ));
+    }
+    for (name, candidate) in [
+        ("agentIds", summary.agent_ids.len()),
+        ("displayNames", summary.display_names.len()),
+        ("profileKinds", summary.profile_kinds.len()),
+        ("portableContracts", summary.portable_contracts.len()),
+        ("semanticMemoryCounts", summary.semantic_memory_counts.len()),
+        ("episodicMemoryCounts", summary.episodic_memory_counts.len()),
+        (
+            "relationshipMemoryCounts",
+            summary.relationship_memory_counts.len(),
+        ),
+        ("goalCounts", summary.goal_counts.len()),
+        ("valueCounts", summary.value_counts.len()),
+    ] {
+        if candidate != len {
+            return Err(anyhow!(
+                "agent state SoA summary column {name} has length {candidate}, expected {len}"
+            ));
+        }
+    }
+    if summary
+        .role_ids
+        .iter()
+        .any(|role_id| role_id.trim().is_empty())
+    {
+        return Err(anyhow!("agent state SoA summary contains an empty role id"));
+    }
+    Ok(())
+}
+
 pub fn seed_epiphany_local_verse_context(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -817,6 +3906,7 @@ pub fn seed_epiphany_local_verse_context(
 ) -> Result<()> {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
+    let generated_at_utc = generated_at_utc.into();
     let status = EpiphanyCultMeshStatusEntry {
         schema_version: EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.to_string(),
         runtime_id: runtime_id.clone(),
@@ -828,12 +3918,38 @@ pub fn seed_epiphany_local_verse_context(
     write_epiphany_cultmesh_status(store_path, status)?;
     write_epiphany_cultmesh_verse_policies(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_global_room_policies(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_odin_advertisements(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_eve_surface_states(store_path, runtime_id.clone())?;
+    {
+        let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
+        for status in epiphany_cultmesh_daemon_statuses(generated_at_utc.clone()) {
+            if node
+                .get::<EpiphanyCultMeshDaemonStatusEntry>(status.daemon_id.as_str())?
+                .is_none()
+            {
+                write_epiphany_cultmesh_daemon_status(store_path, runtime_id.clone(), status)?;
+            }
+        }
+        if node
+            .get::<EpiphanyCultMeshSwarmBrakeEntry>(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?
+            .is_none()
+        {
+            write_epiphany_cultmesh_swarm_brake(
+                store_path,
+                runtime_id.clone(),
+                default_epiphany_cultmesh_swarm_brake(generated_at_utc.clone()),
+            )?;
+        }
+    }
+    write_epiphany_cultmesh_daemon_tool_capabilities(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_mind_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_substrate_gate_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_eyes_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_hands_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_soul_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_continuity_contracts(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_bifrost_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_operator_status(
         store_path,
         default_epiphany_cultmesh_operator_status(runtime_id, generated_at_utc),
@@ -859,6 +3975,54 @@ pub fn query_epiphany_local_verse_context(
     for room in epiphany_cultmesh_global_room_policies() {
         if let Some(loaded) = node.get::<EpiphanyCultMeshGlobalRoomPolicyEntry>(&room.room_id)? {
             global_room_policies.push(loaded);
+        }
+    }
+
+    let mut cluster_topology = Vec::new();
+    for cluster in epiphany_cultmesh_cluster_topology() {
+        if let Some(loaded) =
+            node.get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
+        {
+            cluster_topology.push(loaded);
+        }
+    }
+
+    let mut odin_advertisements = Vec::new();
+    for advertisement in epiphany_cultmesh_odin_advertisements() {
+        if let Some(loaded) =
+            node.get::<EpiphanyCultMeshOdinAdvertisementEntry>(&advertisement.advertisement_id)?
+        {
+            odin_advertisements.push(loaded);
+        }
+    }
+    let mut eve_surface_states = Vec::new();
+    for surface in epiphany_cultmesh_eve_surface_states() {
+        if let Some(loaded) =
+            node.get::<EpiphanyCultMeshEveSurfaceStateEntry>(&surface.surface_id)?
+        {
+            eve_surface_states.push(loaded);
+        }
+    }
+    let mut daemon_statuses = Vec::new();
+    for status in epiphany_cultmesh_daemon_statuses("") {
+        if let Some(loaded) = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&status.daemon_id)? {
+            daemon_statuses.push(loaded);
+        }
+    }
+    let mut daemon_restart_policies = Vec::new();
+    for status in &daemon_statuses {
+        let key = epiphany_cultmesh_daemon_restart_policy_key(&status.daemon_id);
+        if let Some(loaded) = node.get::<EpiphanyCultMeshDaemonRestartPolicyEntry>(key.as_str())? {
+            daemon_restart_policies.push(loaded);
+        }
+    }
+
+    let mut daemon_tool_capabilities = Vec::new();
+    for capability in epiphany_cultmesh_daemon_tool_capabilities() {
+        if let Some(loaded) =
+            node.get::<EpiphanyCultMeshDaemonToolCapabilityEntry>(&capability.capability_id)?
+        {
+            daemon_tool_capabilities.push(loaded);
         }
     }
 
@@ -893,6 +4057,11 @@ pub fn query_epiphany_local_verse_context(
         epiphany_cultmesh_continuity_contracts(),
         &mut contract_summaries,
     )?;
+    collect_contract_summaries(
+        &node,
+        epiphany_cultmesh_bifrost_contracts(),
+        &mut contract_summaries,
+    )?;
 
     Ok(EpiphanyLocalVerseContext {
         schema_version: "epiphany.local_verse_context.v0".to_string(),
@@ -904,12 +4073,245 @@ pub fn query_epiphany_local_verse_context(
         prompt_assembly_note: "Prompt assembly should query this compact typed bundle plus semantic memory context cuts; Verse context is injected dynamically as bounded context, not as durable truth.".to_string(),
         verse_policies,
         global_room_policies,
+        cluster_topology,
+        odin_advertisements,
+        eve_surface_states,
+        daemon_statuses,
+        latest_daemon_poke_intent: node.get(EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY)?,
+        latest_daemon_poke_receipt: node.get(EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY)?,
+        daemon_restart_policies,
+        latest_daemon_scheduler_receipt: node
+            .get(EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY)?,
+        latest_daemon_service_lifecycle_receipt: node
+            .get(EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)?,
+        swarm_brake: node.get(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?,
+        latest_persona_speech_audit: node
+            .get(EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY)?,
+        daemon_tool_capabilities,
+        latest_daemon_tool_invocation_intent: node
+            .get(EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_LATEST_KEY)?,
+        latest_daemon_tool_invocation_receipt: node
+            .get(EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_LATEST_KEY)?,
+        latest_bifrost_body_change_publication_intent: node
+            .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY)?,
+        latest_bifrost_body_change_publication_receipt: node
+            .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY)?,
+        latest_bifrost_github_publication_receipt: node
+            .get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY)?,
+        latest_bifrost_collaboration_feedback: node
+            .get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY)?,
+        latest_imagination_consensus_receipt: node
+            .get(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY)?,
         operator_status: node.get(EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY)?,
         latest_operator_snapshot: node.get(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY)?,
         latest_operator_run_intent: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY)?,
         latest_operator_run_receipt: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)?,
+        latest_coordinator_run_receipt: node
+            .get(EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_LATEST_KEY)?,
+        latest_hands_action_gate: node.get(EPIPHANY_CULTMESH_HANDS_ACTION_GATE_LATEST_KEY)?,
+        latest_role_review_event: node.get(EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_LATEST_KEY)?,
+        latest_work_loop_summary: node
+            .get::<EpiphanyCultMeshWorkLoopTelemetryEntry>(
+                EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY,
+            )?
+            .as_ref()
+            .map(epiphany_local_verse_work_loop_summary),
+        latest_agent_state_soa_summary: node
+            .get(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY)?,
+        latest_eve_connection_intent: node
+            .get(EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY)?,
+        latest_eve_connection_receipt: node
+            .get(EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY)?,
         contract_summaries,
     })
+}
+
+pub fn load_epiphany_cultmesh_daemon_liveness(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<
+    Vec<(
+        EpiphanyCultMeshClusterTopologyEntry,
+        EpiphanyCultMeshDaemonStatusEntry,
+    )>,
+> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut rows = Vec::new();
+    for cluster in epiphany_cultmesh_cluster_topology() {
+        let cluster = node
+            .get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
+            .unwrap_or(cluster);
+        let default_status = EpiphanyCultMeshDaemonStatusEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
+            daemon_id: cluster.daemon_id.clone(),
+            cluster_id: cluster.cluster_id.clone(),
+            body_domain: cluster.body_domain.clone(),
+            daemon_surface_id: cluster.daemon_surface_id.clone(),
+            eve_surface_id: cluster.eve_surface_id.clone(),
+            status: "unknown".to_string(),
+            last_heartbeat_utc: "unknown".to_string(),
+            supported_actions: vec![
+                "inspectStatus".to_string(),
+                "pokeDaemon".to_string(),
+                "watchHeartbeat".to_string(),
+            ],
+            operator_action: "pokeDaemon".to_string(),
+            private_state_exposed: false,
+            notes: vec![
+                "No daemon status document was found; operator should inspect or poke through typed lifecycle receipts.".to_string(),
+            ],
+        };
+        let status = node
+            .get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)?
+            .unwrap_or(default_status);
+        rows.push((cluster, status));
+    }
+    Ok(rows)
+}
+
+pub fn load_epiphany_cultmesh_daemon_restart_policy_directory(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<
+    Vec<(
+        EpiphanyCultMeshClusterTopologyEntry,
+        EpiphanyCultMeshDaemonStatusEntry,
+        Option<EpiphanyCultMeshDaemonRestartPolicyEntry>,
+    )>,
+> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut rows = Vec::new();
+    for cluster in epiphany_cultmesh_cluster_topology() {
+        let cluster = node
+            .get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
+            .unwrap_or(cluster);
+        let default_status = EpiphanyCultMeshDaemonStatusEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
+            daemon_id: cluster.daemon_id.clone(),
+            cluster_id: cluster.cluster_id.clone(),
+            body_domain: cluster.body_domain.clone(),
+            daemon_surface_id: cluster.daemon_surface_id.clone(),
+            eve_surface_id: cluster.eve_surface_id.clone(),
+            status: "unknown".to_string(),
+            last_heartbeat_utc: "unknown".to_string(),
+            supported_actions: vec![
+                "inspectStatus".to_string(),
+                "pokeDaemon".to_string(),
+                "watchHeartbeat".to_string(),
+            ],
+            operator_action: "pokeDaemon".to_string(),
+            private_state_exposed: false,
+            notes: vec![
+                "No daemon status document was found; operator should inspect or poke through typed lifecycle receipts.".to_string(),
+            ],
+        };
+        let status = node
+            .get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)?
+            .unwrap_or(default_status);
+        let policy = node.get::<EpiphanyCultMeshDaemonRestartPolicyEntry>(
+            &epiphany_cultmesh_daemon_restart_policy_key(&cluster.daemon_id),
+        )?;
+        rows.push((cluster, status, policy));
+    }
+    Ok(rows)
+}
+
+pub fn load_epiphany_cultmesh_eve_surface_directory(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<
+    Vec<(
+        EpiphanyCultMeshClusterTopologyEntry,
+        EpiphanyCultMeshOdinAdvertisementEntry,
+        EpiphanyCultMeshEveSurfaceStateEntry,
+    )>,
+> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut rows = Vec::new();
+    for cluster in epiphany_cultmesh_cluster_topology() {
+        let cluster = node
+            .get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
+            .unwrap_or(cluster);
+        let default_advertisement = epiphany_cultmesh_odin_advertisements()
+            .into_iter()
+            .find(|advertisement| advertisement.cluster_id == cluster.cluster_id)
+            .with_context(|| {
+                format!(
+                    "missing default Odin advertisement for cluster {}",
+                    cluster.cluster_id
+                )
+            })?;
+        let advertisement = node
+            .get::<EpiphanyCultMeshOdinAdvertisementEntry>(&default_advertisement.advertisement_id)?
+            .unwrap_or(default_advertisement);
+        let default_surface = epiphany_cultmesh_eve_surface_states()
+            .into_iter()
+            .find(|surface| surface.surface_id == cluster.eve_surface_id)
+            .with_context(|| {
+                format!(
+                    "missing default Eve surface state for cluster {}",
+                    cluster.cluster_id
+                )
+            })?;
+        let surface = node
+            .get::<EpiphanyCultMeshEveSurfaceStateEntry>(&default_surface.surface_id)?
+            .unwrap_or(default_surface);
+        rows.push((cluster, advertisement, surface));
+    }
+    Ok(rows)
+}
+
+pub fn load_epiphany_cultmesh_daemon_tool_directory(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<
+    Vec<(
+        EpiphanyCultMeshClusterTopologyEntry,
+        EpiphanyCultMeshDaemonStatusEntry,
+        EpiphanyCultMeshDaemonToolCapabilityEntry,
+    )>,
+> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut rows = Vec::new();
+    for capability in epiphany_cultmesh_daemon_tool_capabilities() {
+        let capability = node
+            .get::<EpiphanyCultMeshDaemonToolCapabilityEntry>(&capability.capability_id)?
+            .unwrap_or(capability);
+        let default_cluster = epiphany_cultmesh_cluster_topology()
+            .into_iter()
+            .find(|cluster| cluster.cluster_id == capability.host_cluster_id)
+            .with_context(|| {
+                format!(
+                    "missing default cluster topology for daemon tool {}",
+                    capability.capability_id
+                )
+            })?;
+        let cluster = node
+            .get::<EpiphanyCultMeshClusterTopologyEntry>(&default_cluster.cluster_id)?
+            .unwrap_or(default_cluster);
+        let default_status = epiphany_cultmesh_daemon_statuses("")
+            .into_iter()
+            .find(|status| status.daemon_id == capability.host_daemon_id)
+            .with_context(|| {
+                format!(
+                    "missing default daemon status for daemon tool {}",
+                    capability.capability_id
+                )
+            })?;
+        let status = node
+            .get::<EpiphanyCultMeshDaemonStatusEntry>(&default_status.daemon_id)?
+            .unwrap_or(default_status);
+        rows.push((cluster, status, capability));
+    }
+    Ok(rows)
 }
 
 pub trait EpiphanyCultMeshContractSummarySource: DatabaseEntry {
@@ -957,6 +4359,7 @@ impl_contract_summary_source!(EpiphanyCultMeshEyesContractEntry);
 impl_contract_summary_source!(EpiphanyCultMeshHandsContractEntry);
 impl_contract_summary_source!(EpiphanyCultMeshSoulContractEntry);
 impl_contract_summary_source!(EpiphanyCultMeshContinuityContractEntry);
+impl_contract_summary_source!(EpiphanyCultMeshBifrostContractEntry);
 
 fn collect_contract_summaries<T>(
     node: &CultMeshNode,
@@ -991,6 +4394,78 @@ fn epiphany_cultmesh_operator_run_intent_key(run_id: &str) -> String {
 
 fn epiphany_cultmesh_operator_run_receipt_key(run_id: &str) -> String {
     format!("epiphany-local/operator-run-receipt/{run_id}")
+}
+
+fn epiphany_cultmesh_coordinator_run_receipt_key(receipt_id: &str) -> String {
+    format!("epiphany-local/coordinator-run-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_hands_action_gate_key(gate_id: &str) -> String {
+    format!("epiphany-local/hands-action-gate/{gate_id}")
+}
+
+fn epiphany_cultmesh_role_review_event_key(event_id: &str) -> String {
+    format!("epiphany-local/role-review-event/{event_id}")
+}
+
+fn epiphany_cultmesh_persona_speech_audit_key(audit_id: &str) -> String {
+    format!("epiphany-local/persona-speech-audit/{audit_id}")
+}
+
+fn epiphany_cultmesh_eve_connection_intent_key(intent_id: &str) -> String {
+    format!("epiphany-local/eve-connection-intent/{intent_id}")
+}
+
+fn epiphany_cultmesh_eve_connection_receipt_key(receipt_id: &str) -> String {
+    format!("epiphany-local/eve-connection-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_daemon_tool_invocation_intent_key(intent_id: &str) -> String {
+    format!("epiphany-local/daemon-tool-invocation-intent/{intent_id}")
+}
+
+fn epiphany_cultmesh_daemon_poke_intent_key(intent_id: &str) -> String {
+    format!("epiphany-local/daemon-poke-intent/{intent_id}")
+}
+
+fn epiphany_cultmesh_daemon_poke_receipt_key(receipt_id: &str) -> String {
+    format!("epiphany-local/daemon-poke-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_daemon_restart_policy_key(daemon_id: &str) -> String {
+    format!("epiphany-local/daemon-restart-policy/{daemon_id}")
+}
+
+fn epiphany_cultmesh_daemon_scheduler_receipt_key(receipt_id: &str) -> String {
+    format!("epiphany-local/daemon-scheduler-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_daemon_service_lifecycle_receipt_key(receipt_id: &str) -> String {
+    format!("epiphany-local/daemon-service-lifecycle-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_daemon_tool_invocation_receipt_key(receipt_id: &str) -> String {
+    format!("epiphany-local/daemon-tool-invocation-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_bifrost_body_change_publication_intent_key(intent_id: &str) -> String {
+    format!("gamecult-local/bifrost/body-change-publication-intent/{intent_id}")
+}
+
+fn epiphany_cultmesh_bifrost_body_change_publication_receipt_key(receipt_id: &str) -> String {
+    format!("gamecult-local/bifrost/body-change-publication-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_bifrost_github_publication_receipt_key(receipt_id: &str) -> String {
+    format!("gamecult-local/bifrost/github-publication-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_bifrost_collaboration_feedback_key(feedback_id: &str) -> String {
+    format!("gamecult-local/bifrost/collaboration-feedback/{feedback_id}")
+}
+
+fn epiphany_cultmesh_imagination_consensus_receipt_key(receipt_id: &str) -> String {
+    format!("gamecult-local/imagination/consensus-discovery-receipt/{receipt_id}")
 }
 
 fn pointer_text(value: &Value, pointer: &str, fallback: &str) -> String {
@@ -1128,6 +4603,385 @@ pub fn write_epiphany_cultmesh_global_room_policies(
     let mut written = Vec::new();
     for room in epiphany_cultmesh_global_room_policies() {
         written.push(node.put(room.room_id.clone(), &room)?);
+    }
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn epiphany_cultmesh_cluster_topology() -> Vec<EpiphanyCultMeshClusterTopologyEntry> {
+    [
+        ("self", "coordinator", "Self", false),
+        ("hands", "implementation", "Hands", false),
+        ("persona", "Persona", "Persona", true),
+        ("imagination", "imagination", "Imagination", false),
+        ("eyes", "research", "Eyes", false),
+        ("modeling", "modeling", "Modeling", false),
+        ("soul", "verification", "Soul", false),
+    ]
+    .into_iter()
+    .map(
+        |(cluster_slug, role_id, display_name, public_persona_discussion_allowed)| {
+            let cluster_id = format!("epiphany.cluster.{cluster_slug}");
+            EpiphanyCultMeshClusterTopologyEntry {
+                schema_version: EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION.to_string(),
+                cluster_id: cluster_id.clone(),
+                role_id: role_id.to_string(),
+                display_name: display_name.to_string(),
+                private_verse_id: format!("{cluster_id}.private"),
+                body_domain: "repo:E:/Projects/EpiphanyAgent".to_string(),
+                body_kind: "repository".to_string(),
+                daemon_id: format!("epiphany-daemon-{cluster_slug}"),
+                daemon_surface_id: format!("epiphany-daemon-{cluster_slug}/local"),
+                eve_surface_id: format!("eve://epiphany/{cluster_slug}"),
+                public_persona_discussion_allowed,
+                odin_advertised: true,
+                notes: vec![
+                    format!(
+                        "CultMesh advertises this cluster topology as {EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE}."
+                    ),
+                    "Private Verse carries cluster-local typed state and is not public collaboration weather.".to_string(),
+                    "Odin may advertise compact metadata and Eve connection hints, but not private state payloads.".to_string(),
+                    "The body domain names the substrate this cluster serves; Substrate Gate still governs repo access.".to_string(),
+                ],
+            }
+        },
+    )
+    .collect()
+}
+
+pub fn write_epiphany_cultmesh_cluster_topology(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshClusterTopologyEntry>> {
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut written = Vec::new();
+    for cluster in epiphany_cultmesh_cluster_topology() {
+        written.push(node.put(cluster.cluster_id.clone(), &cluster)?);
+    }
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_epiphany_cultmesh_cluster_topology(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshClusterTopologyEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut topology = Vec::new();
+    for cluster in epiphany_cultmesh_cluster_topology() {
+        if let Some(loaded) =
+            node.get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
+        {
+            topology.push(loaded);
+        }
+    }
+    Ok(topology)
+}
+
+pub fn epiphany_cultmesh_odin_advertisements() -> Vec<EpiphanyCultMeshOdinAdvertisementEntry> {
+    epiphany_cultmesh_cluster_topology()
+        .into_iter()
+        .filter(|cluster| cluster.odin_advertised)
+        .map(|cluster| EpiphanyCultMeshOdinAdvertisementEntry {
+            schema_version: EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION.to_string(),
+            advertisement_id: format!("odin.advertisement.{}", cluster.cluster_id),
+            cluster_id: cluster.cluster_id.clone(),
+            advertised_verse_id: cluster.private_verse_id.clone(),
+            body_domain: cluster.body_domain.clone(),
+            body_kind: cluster.body_kind.clone(),
+            daemon_surface_id: cluster.daemon_surface_id.clone(),
+            eve_surface_id: cluster.eve_surface_id.clone(),
+            public_summary: format!(
+                "{} exposes an operator-safe Eve surface for compact CultMesh collaboration discovery.",
+                cluster.display_name
+            ),
+            advertised_document_types: vec![
+                EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE.to_string(),
+                EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string(),
+                EPIPHANY_CULTMESH_VERSE_POLICY_TYPE.to_string(),
+            ],
+            trust_boundary:
+                "Odin discovery metadata is operator-safe; private Verse payloads stay behind the cluster boundary."
+                    .to_string(),
+            private_state_exposed: false,
+            notes: vec![
+                "This advertisement is discovery metadata, not membership in the private Verse.".to_string(),
+                "Peers may use the Eve surface hint to request collaboration through CultMesh contracts.".to_string(),
+                "Mind and Substrate Gate still review adoption, state mutation, and repo access.".to_string(),
+            ],
+        })
+        .collect()
+}
+
+pub fn write_epiphany_cultmesh_odin_advertisements(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshOdinAdvertisementEntry>> {
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut written = Vec::new();
+    for advertisement in epiphany_cultmesh_odin_advertisements() {
+        written.push(node.put(advertisement.advertisement_id.clone(), &advertisement)?);
+    }
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn epiphany_cultmesh_eve_surface_states() -> Vec<EpiphanyCultMeshEveSurfaceStateEntry> {
+    epiphany_cultmesh_cluster_topology()
+        .into_iter()
+        .map(|cluster| {
+            let mut exposed_document_types = vec![
+                EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string(),
+                EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE.to_string(),
+                EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_TYPE.to_string(),
+                EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_TYPE.to_string(),
+            ];
+            if cluster.public_persona_discussion_allowed {
+                exposed_document_types
+                    .push(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string());
+                exposed_document_types
+                    .push(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_TYPE.to_string());
+            }
+            if cluster.role_id == "hands" {
+                exposed_document_types.push(
+                    EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_TYPE.to_string(),
+                );
+                exposed_document_types.push(
+                    EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_TYPE.to_string(),
+                );
+                exposed_document_types
+                    .push(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_TYPE.to_string());
+            }
+            EpiphanyCultMeshEveSurfaceStateEntry {
+                schema_version: EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION.to_string(),
+                surface_id: cluster.eve_surface_id.clone(),
+                cluster_id: cluster.cluster_id.clone(),
+                daemon_id: cluster.daemon_id.clone(),
+                body_domain: cluster.body_domain.clone(),
+                tui_title: format!("{} / {}", cluster.display_name, cluster.body_domain),
+                tui_rows: vec![
+                    format!("cluster {}", cluster.cluster_id),
+                    format!("body {}", cluster.body_domain),
+                    format!("daemon {}", cluster.daemon_id),
+                    format!("private {}", cluster.private_verse_id),
+                    "connect via CultMesh Eve intent; private Verse payloads are sealed".to_string(),
+                ],
+                exposed_document_types,
+                supported_actions: vec![
+                    "inspectCompactSurface".to_string(),
+                    "submitEveConnectionIntent".to_string(),
+                    "watchTypedReceipts".to_string(),
+                ],
+                private_state_exposed: false,
+                notes: vec![
+                    "Eve surface state is compact operator-safe TUI/API state owned by the cluster daemon.".to_string(),
+                    "Odin may advertise this surface id, but it must not synthesize the surface contents.".to_string(),
+                    "Rows are agent-friendly hints, not private Verse state dumps.".to_string(),
+                ],
+            }
+        })
+        .collect()
+}
+
+pub fn write_epiphany_cultmesh_eve_surface_states(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshEveSurfaceStateEntry>> {
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut written = Vec::new();
+    for surface in epiphany_cultmesh_eve_surface_states() {
+        validate_eve_surface_state(&surface)?;
+        written.push(node.put(surface.surface_id.clone(), &surface)?);
+    }
+    node.flush()?;
+    Ok(written)
+}
+
+fn validate_eve_surface_state(surface: &EpiphanyCultMeshEveSurfaceStateEntry) -> Result<()> {
+    if surface.private_state_exposed {
+        return Err(anyhow!("Eve surface states must not expose private state"));
+    }
+    if !surface.surface_id.starts_with("eve://") {
+        return Err(anyhow!("Eve surface states require an eve:// surface id"));
+    }
+    if surface.tui_rows.is_empty() {
+        return Err(anyhow!("Eve surface states require compact TUI rows"));
+    }
+    if surface.exposed_document_types.is_empty() {
+        return Err(anyhow!(
+            "Eve surface states require exposed document type hints"
+        ));
+    }
+    Ok(())
+}
+
+pub fn epiphany_cultmesh_daemon_statuses(
+    last_heartbeat_utc: impl Into<String>,
+) -> Vec<EpiphanyCultMeshDaemonStatusEntry> {
+    let last_heartbeat_utc = last_heartbeat_utc.into();
+    epiphany_cultmesh_cluster_topology()
+        .into_iter()
+        .map(|cluster| EpiphanyCultMeshDaemonStatusEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
+            daemon_id: cluster.daemon_id.clone(),
+            cluster_id: cluster.cluster_id.clone(),
+            body_domain: cluster.body_domain.clone(),
+            daemon_surface_id: cluster.daemon_surface_id.clone(),
+            eve_surface_id: cluster.eve_surface_id.clone(),
+            status: "ready".to_string(),
+            last_heartbeat_utc: last_heartbeat_utc.clone(),
+            supported_actions: vec![
+                "inspectStatus".to_string(),
+                "pokeDaemon".to_string(),
+                "watchHeartbeat".to_string(),
+                "submitTypedToolIntent".to_string(),
+            ],
+            operator_action: "none".to_string(),
+            private_state_exposed: false,
+            notes: vec![
+                "Daemon status is operator-safe liveness telemetry for the deployed cluster body.".to_string(),
+                "A down daemon should be poked through typed operator/daemon action receipts, not by private Verse rummaging.".to_string(),
+                "This status may name surfaces and actions but must not expose worker thoughts or private state.".to_string(),
+            ],
+        })
+        .collect()
+}
+
+pub fn write_epiphany_cultmesh_daemon_statuses(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    last_heartbeat_utc: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshDaemonStatusEntry>> {
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut written = Vec::new();
+    for status in epiphany_cultmesh_daemon_statuses(last_heartbeat_utc) {
+        validate_daemon_status(&status)?;
+        written.push(node.put(status.daemon_id.clone(), &status)?);
+    }
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn write_epiphany_cultmesh_daemon_status(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    status: EpiphanyCultMeshDaemonStatusEntry,
+) -> Result<EpiphanyCultMeshDaemonStatusEntry> {
+    validate_daemon_status(&status)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let written = node.put(status.daemon_id.clone(), &status)?;
+    node.flush()?;
+    Ok(written)
+}
+
+fn validate_daemon_status(status: &EpiphanyCultMeshDaemonStatusEntry) -> Result<()> {
+    if status.private_state_exposed {
+        return Err(anyhow!("daemon statuses must not expose private state"));
+    }
+    if status.daemon_id.trim().is_empty() || status.cluster_id.trim().is_empty() {
+        return Err(anyhow!("daemon statuses require daemon and cluster ids"));
+    }
+    if status.status.trim().is_empty() {
+        return Err(anyhow!("daemon statuses require a status"));
+    }
+    if status.last_heartbeat_utc.trim().is_empty() {
+        return Err(anyhow!("daemon statuses require a heartbeat timestamp"));
+    }
+    if status.supported_actions.is_empty() {
+        return Err(anyhow!(
+            "daemon statuses require supported operator actions"
+        ));
+    }
+    Ok(())
+}
+
+pub fn epiphany_cultmesh_daemon_tool_capabilities() -> Vec<EpiphanyCultMeshDaemonToolCapabilityEntry>
+{
+    let mut capabilities = Vec::new();
+    for cluster in epiphany_cultmesh_cluster_topology() {
+        capabilities.push(epiphany_cultmesh_daemon_tool_capability(
+            &cluster,
+            "status",
+            "readStatus",
+            EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE,
+            "epiphany.cultmesh.tool_status_receipt",
+            "none",
+        ));
+        capabilities.push(epiphany_cultmesh_daemon_tool_capability(
+            &cluster,
+            "eve-connect",
+            "submitEveConnectionIntent",
+            EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE,
+            EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_TYPE,
+            "imagination.consensus_discovery",
+        ));
+    }
+    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
+        &epiphany_cultmesh_cluster_topology()
+            .into_iter()
+            .find(|cluster| cluster.cluster_id == "epiphany.cluster.hands")
+            .expect("hands cluster topology exists"),
+        "repo-action",
+        "submitHandsActionIntent",
+        "epiphany.hands.action_intent",
+        "epiphany.hands.action_review",
+        "hands",
+    ));
+    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
+        &epiphany_cultmesh_cluster_topology()
+            .into_iter()
+            .find(|cluster| cluster.cluster_id == "epiphany.cluster.soul")
+            .expect("soul cluster topology exists"),
+        "verify",
+        "submitVerificationRequest",
+        "epiphany.soul.verification_request",
+        "epiphany.soul.verdict_receipt",
+        "soul",
+    ));
+    capabilities
+}
+
+fn epiphany_cultmesh_daemon_tool_capability(
+    cluster: &EpiphanyCultMeshClusterTopologyEntry,
+    tool_slug: &str,
+    operation: &str,
+    input_contract_type: &str,
+    receipt_contract_type: &str,
+    authority_gate: &str,
+) -> EpiphanyCultMeshDaemonToolCapabilityEntry {
+    EpiphanyCultMeshDaemonToolCapabilityEntry {
+        schema_version: EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_SCHEMA_VERSION.to_string(),
+        capability_id: format!("{}.tool.{tool_slug}", cluster.cluster_id),
+        host_cluster_id: cluster.cluster_id.clone(),
+        host_daemon_id: cluster.daemon_id.clone(),
+        eve_surface_id: cluster.eve_surface_id.clone(),
+        tool_name: tool_slug.to_string(),
+        operation: operation.to_string(),
+        input_contract_type: input_contract_type.to_string(),
+        receipt_contract_type: receipt_contract_type.to_string(),
+        available_to_all_agents: true,
+        requires_receipt: true,
+        authority_gate: authority_gate.to_string(),
+        private_state_exposed: false,
+        notes: vec![
+            format!(
+                "CultMesh advertises this daemon-hosted tool as {EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_TYPE}."
+            ),
+            "Every agent in the local CultMesh network may discover this tool at any time.".to_string(),
+            "Availability is global; execution still flows through the named typed contract and receipt gate.".to_string(),
+            "The tool advertisement must not expose private Verse payloads.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_daemon_tool_capabilities(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshDaemonToolCapabilityEntry>> {
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut written = Vec::new();
+    for capability in epiphany_cultmesh_daemon_tool_capabilities() {
+        written.push(node.put(capability.capability_id.clone(), &capability)?);
     }
     node.flush()?;
     Ok(written)
@@ -1320,6 +5174,84 @@ pub fn write_epiphany_cultmesh_continuity_contracts(
     Ok(written)
 }
 
+pub fn epiphany_cultmesh_bifrost_contracts() -> Vec<EpiphanyCultMeshBifrostContractEntry> {
+    vec![
+        EpiphanyCultMeshBifrostContractEntry {
+            schema_version: EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION.to_string(),
+            contract_id: "gamecult.bifrost.body_change.publication".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            document_type: EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_TYPE
+                .to_string(),
+            payload_schema_version:
+                EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION
+                    .to_string(),
+            authority: "bifrost".to_string(),
+            operations: vec![
+                "intentSubmit".to_string(),
+                "receiptWatch".to_string(),
+                "snapshot".to_string(),
+            ],
+            intent_document_types: vec![
+                EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_TYPE.to_string(),
+            ],
+            receipt_document_types: vec![
+                EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_TYPE.to_string(),
+                EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_TYPE.to_string(),
+                "gamecult.bifrost.credit_receipt".to_string(),
+            ],
+            notes: vec![
+                format!(
+                    "CultMesh advertises this Bifrost contract as {EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE}."
+                ),
+                "Body changes require justification, changed-path scope, verifier evidence, authorship, review, and credit metadata before GitHub publication.".to_string(),
+                "Bifrost is the credit and publication-routing authority; GitHub is a publication substrate, not the governance source.".to_string(),
+                "Epiphany clusters may prepare intents, but Bifrost receipts bless public publication and ledger attribution.".to_string(),
+            ],
+        },
+        EpiphanyCultMeshBifrostContractEntry {
+            schema_version: EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION.to_string(),
+            contract_id: "gamecult.bifrost.collaboration.feedback".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            document_type: EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string(),
+            payload_schema_version:
+                EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION.to_string(),
+            authority: "imaginationConsensus".to_string(),
+            operations: vec![
+                "recordPublicFeedback".to_string(),
+                "routeToImaginationConsensus".to_string(),
+                "refusePrivateState".to_string(),
+                "snapshot".to_string(),
+            ],
+            intent_document_types: vec![
+                EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string(),
+            ],
+            receipt_document_types: vec![
+                EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_TYPE.to_string(),
+            ],
+            notes: vec![
+                format!(
+                    "CultMesh advertises this Bifrost contract as {EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE}."
+                ),
+                "Persona public collaboration feedback routes to Imagination for consensus discovery before it becomes work.".to_string(),
+                "Public Persona discussion is thought weather until reviewed local adoption and Bifrost/GameCult receipts bind it to implementation.".to_string(),
+            ],
+        },
+    ]
+}
+
+pub fn write_epiphany_cultmesh_bifrost_contracts(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshBifrostContractEntry>> {
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut written = Vec::new();
+    for contract in epiphany_cultmesh_bifrost_contracts() {
+        written.push(node.put(contract.contract_id.clone(), &contract)?);
+    }
+    node.flush()?;
+    Ok(written)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1434,6 +5366,143 @@ mod tests {
     }
 
     #[test]
+    fn service_lifecycle_receipt_history_excludes_latest_mirror() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-service-lifecycle.ccmp");
+        let first = EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                .to_string(),
+            receipt_id: "service-lifecycle-first".to_string(),
+            service_id: "epiphany-daemon-supervisor-service".to_string(),
+            scheduler_id: "epiphany-daemon-supervisor".to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            daemon_selector: "epiphany-daemon-supervisor".to_string(),
+            action: "windows-service-execution-audit".to_string(),
+            status: "incomplete".to_string(),
+            command: "epiphany-daemon-supervisor".to_string(),
+            args: vec!["windows-service-execution-audit".to_string()],
+            cwd: Some("E:/Projects/EpiphanyAgent".to_string()),
+            process_id: None,
+            exit_code: Some(0),
+            started_at_utc: "2026-06-18T00:00:00Z".to_string(),
+            completed_at_utc: Some("2026-06-18T00:00:01Z".to_string()),
+            operator_artifact_ref: "artifact://service-lifecycle/first".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        };
+        let mut second = first.clone();
+        second.receipt_id = "service-lifecycle-second".to_string();
+        second.status = "written".to_string();
+        second.action = "windows-service-execution-runbook".to_string();
+        second.started_at_utc = "2026-06-18T00:01:00Z".to_string();
+        second.completed_at_utc = Some("2026-06-18T00:01:01Z".to_string());
+        second.operator_artifact_ref = "artifact://service-lifecycle/second".to_string();
+
+        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            &store,
+            "epiphany-test",
+            first.clone(),
+        )?;
+        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            &store,
+            "epiphany-test",
+            second.clone(),
+        )?;
+
+        let receipts =
+            load_epiphany_cultmesh_daemon_service_lifecycle_receipts(&store, "epiphany-test")?;
+        let mut ids = receipts
+            .iter()
+            .map(|receipt| receipt.receipt_id.as_str())
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        assert_eq!(
+            ids,
+            vec!["service-lifecycle-first", "service-lifecycle-second"]
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &store,
+                "epiphany-test"
+            )?,
+            Some(second)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn daemon_tool_invocation_mirrors_status_tools_into_local_verse() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-tools.ccmp");
+        let status_json = serde_json::json!({
+            "tools": {
+                "runtimeStore": "state/runtime-spine.msgpack",
+                "summary": {
+                    "intentCount": 1,
+                    "pendingCount": 0,
+                    "receiptCount": 1
+                },
+                "invocations": [
+                    {
+                        "intentId": "tool-intent-test",
+                        "adapter": "codex-mcp",
+                        "server": "epiphany_source",
+                        "toolName": "read_file",
+                        "callId": "call-test",
+                        "modelRequestId": "model-request-test",
+                        "caller": "verification",
+                        "reason": "Inspect source for Soul verdict.",
+                        "createdAt": "2026-06-18T00:00:00Z",
+                        "status": "ok",
+                        "receiptId": "tool-receipt-test",
+                        "completedAt": "2026-06-18T00:00:01Z"
+                    }
+                ]
+            }
+        });
+        let (intent, receipt) = epiphany_cultmesh_daemon_tool_invocation_from_status_json(
+            "epiphany-test",
+            ".epiphany-run/status.json",
+            &status_json,
+        )?
+        .expect("status should contain a tool invocation");
+        let receipt = receipt.expect("completed invocation should mirror a receipt");
+
+        assert_eq!(intent.intent_id, "tool-intent-test");
+        assert_eq!(intent.tool_name, "read_file");
+        assert_eq!(
+            intent.payload_ref,
+            ".epiphany-run/status.json#/tools/invocations/0"
+        );
+        assert_eq!(receipt.receipt_id, "tool-receipt-test");
+        assert!(!intent.private_state_requested);
+        assert!(!receipt.private_state_exposed);
+
+        write_epiphany_cultmesh_daemon_tool_invocation_intent(
+            &store,
+            "epiphany-test",
+            intent.clone(),
+        )?;
+        write_epiphany_cultmesh_daemon_tool_invocation_receipt(
+            &store,
+            "epiphany-test",
+            receipt.clone(),
+        )?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_tool_invocation_intent(&store, "epiphany-test")?,
+            Some(intent.clone())
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt(&store, "epiphany-test")?,
+            Some(receipt)
+        );
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(context.latest_daemon_tool_invocation_intent, Some(intent));
+        Ok(())
+    }
+
+    #[test]
     fn operator_run_intent_and_receipt_round_trip_as_native_cultmesh_documents() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-operator-run.ccmp");
@@ -1499,6 +5568,231 @@ mod tests {
     }
 
     #[test]
+    fn coordinator_run_receipt_mirrors_summary_into_local_verse() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-coordinator-run.ccmp");
+        let summary_json = serde_json::json!({
+            "threadId": "thread-test",
+            "mode": "run",
+            "steps": [{"index": 0}, {"index": 1}],
+            "finalAction": {
+                "action": "launchModeling",
+                "reason": "continue bounded work"
+            },
+            "coordinatorRunReceipt": {
+                "documentType": "epiphany.coordinator_run_receipt.v0",
+                "receiptId": "runtime-coordinator-receipt-test",
+                "store": "state/runtime-spine.msgpack"
+            },
+            "artifactManifest": [
+                "coordinator-summary.json",
+                "coordinator-steps.jsonl"
+            ],
+            "sealedArtifactManifest": [
+                {
+                    "path": "epiphany-transcript.jsonl",
+                    "reason": "sealed"
+                }
+            ]
+        });
+        let receipt = epiphany_cultmesh_coordinator_run_receipt_from_summary_json(
+            "epiphany-test",
+            "coordinator-cultmesh-test",
+            "2026-06-18T00:00:00Z",
+            ".epiphany-dogfood/coordinator",
+            &summary_json,
+        )?;
+
+        assert_eq!(
+            receipt.source_receipt_id,
+            "runtime-coordinator-receipt-test"
+        );
+        assert_eq!(receipt.final_action, "launchModeling");
+        assert_eq!(receipt.step_count, 2);
+        assert_eq!(
+            receipt.sealed_artifact_refs,
+            vec!["epiphany-transcript.jsonl"]
+        );
+        assert!(!receipt.private_state_exposed);
+
+        write_epiphany_cultmesh_coordinator_run_receipt(&store, receipt.clone())?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_coordinator_run_receipt(&store, "epiphany-test")?,
+            Some(receipt.clone())
+        );
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(
+            context.latest_coordinator_run_receipt,
+            Some(receipt.clone())
+        );
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        assert!(
+            node.documents()
+                .binding(EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_TYPE)
+                .is_some()
+        );
+
+        let mut leaked = receipt;
+        leaked.private_state_exposed = true;
+        let err = write_epiphany_cultmesh_coordinator_run_receipt(&store, leaked)
+            .expect_err("private coordinator receipt mirror must be refused");
+        assert!(err.to_string().contains("must not expose private state"));
+        Ok(())
+    }
+
+    #[test]
+    fn hands_action_gate_mirrors_summary_into_local_verse() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-hands-gate.ccmp");
+        let summary_json = serde_json::json!({
+            "threadId": "thread-test",
+            "mode": "run",
+            "coordinatorRunReceipt": {
+                "receiptId": "runtime-coordinator-receipt-test"
+            },
+            "finalAction": {
+                "action": "continueImplementation",
+                "handsActionGate": {
+                    "status": "ready",
+                    "runtimeJobId": "hands-job-test",
+                    "substrateGateGrantReceiptId": "substrate-grant-test",
+                    "intentId": "hands-intent-test",
+                    "reviewId": "hands-review-test",
+                    "requestedPaths": ["epiphany-core/src/cultmesh_integration.rs"],
+                    "requiredReceipts": [
+                        "epiphany.hands.patch_receipt.v0",
+                        "epiphany.hands.command_receipt.v0",
+                        "epiphany.hands.commit_receipt.v0"
+                    ],
+                    "recordPassCommand": {
+                        "executable": "epiphany-hands-action",
+                        "args": [
+                            "--store",
+                            "state/runtime-spine.msgpack",
+                            "record-pass",
+                            "--gate-summary",
+                            ".epiphany-dogfood/coordinator/coordinator-summary.json"
+                        ]
+                    }
+                }
+            }
+        });
+        let gate = epiphany_cultmesh_hands_action_gate_from_summary_json(
+            "epiphany-test",
+            "2026-06-18T00:00:00Z",
+            ".epiphany-dogfood/coordinator/coordinator-summary.json",
+            &summary_json,
+        )?
+        .expect("summary should contain a Hands action gate");
+
+        assert_eq!(gate.gate_id, "hands-intent-test:hands-review-test");
+        assert_eq!(
+            gate.source_coordinator_receipt_id,
+            "runtime-coordinator-receipt-test"
+        );
+        assert_eq!(gate.record_pass_executable, "epiphany-hands-action");
+        assert!(!gate.private_state_exposed);
+
+        write_epiphany_cultmesh_hands_action_gate(&store, gate.clone())?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_hands_action_gate(&store, "epiphany-test")?,
+            Some(gate.clone())
+        );
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(context.latest_hands_action_gate, Some(gate.clone()));
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        assert!(
+            node.documents()
+                .binding(EPIPHANY_CULTMESH_HANDS_ACTION_GATE_TYPE)
+                .is_some()
+        );
+
+        let mut leaked = gate;
+        leaked.private_state_exposed = true;
+        let err = write_epiphany_cultmesh_hands_action_gate(&store, leaked)
+            .expect_err("private Hands action gate mirror must be refused");
+        assert!(err.to_string().contains("must not expose private state"));
+        Ok(())
+    }
+
+    #[test]
+    fn role_review_event_mirrors_summary_into_local_verse() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-role-review.ccmp");
+        let summary_json = serde_json::json!({
+            "threadId": "thread-test",
+            "mode": "run",
+            "coordinatorRunReceipt": {
+                "receiptId": "runtime-coordinator-receipt-test"
+            },
+            "steps": [
+                {
+                    "events": [
+                        {
+                            "type": "roleFailureReview",
+                            "roleId": "verification",
+                            "superseded": {
+                                "patch": {
+                                    "acceptanceReceipts": [
+                                        {
+                                            "id": "role-failure-review-test",
+                                            "result_id": "result-verification-test",
+                                            "job_id": "job-verification-test",
+                                            "binding_id": "verification-review-worker",
+                                            "surface": "roleFailureReview",
+                                            "role_id": "verification",
+                                            "status": "superseded",
+                                            "accepted_at": "2026-06-18T00:00:00Z",
+                                            "summary": "Old failed Soul result reviewed before relaunch."
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        });
+        let event = epiphany_cultmesh_role_review_event_from_summary_json(
+            "epiphany-test",
+            "2026-06-18T00:00:01Z",
+            ".epiphany-dogfood/coordinator/coordinator-summary.json",
+            &summary_json,
+        )?
+        .expect("summary should contain a role review event");
+
+        assert_eq!(event.surface, "roleFailureReview");
+        assert_eq!(event.role_id, "verification");
+        assert_eq!(event.review_status, "superseded");
+        assert_eq!(event.acceptance_receipt_id, "role-failure-review-test");
+        assert_eq!(event.runtime_result_id, "result-verification-test");
+        assert!(!event.private_state_exposed);
+
+        write_epiphany_cultmesh_role_review_event(&store, event.clone())?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_role_review_event(&store, "epiphany-test")?,
+            Some(event.clone())
+        );
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(context.latest_role_review_event, Some(event.clone()));
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        assert!(
+            node.documents()
+                .binding(EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_TYPE)
+                .is_some()
+        );
+
+        let mut leaked = event;
+        leaked.private_state_exposed = true;
+        let err = write_epiphany_cultmesh_role_review_event(&store, leaked)
+            .expect_err("private role review mirror must be refused");
+        assert!(err.to_string().contains("must not expose private state"));
+        Ok(())
+    }
+
+    #[test]
     fn work_loop_telemetry_round_trips_as_internal_cultmesh_document() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-local-verse.ccmp");
@@ -1540,14 +5834,120 @@ mod tests {
 
         assert_eq!(
             load_latest_epiphany_cultmesh_work_loop_telemetry(&store, "epiphany-test")?,
-            Some(telemetry)
+            Some(telemetry.clone())
         );
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        let summary = context
+            .latest_work_loop_summary
+            .expect("local Verse context should expose a sealed work-loop digest");
+        assert_eq!(summary.telemetry_id, telemetry.telemetry_id);
+        assert_eq!(summary.hands_patch_receipt_id, "hands-patch-test");
+        assert_eq!(summary.hands_command_receipt_id, "hands-command-test");
+        assert_eq!(summary.hands_commit_receipt_id, "hands-commit-test");
+        assert_eq!(summary.changed_path_count, 1);
+        assert_eq!(summary.source_ref_count, 1);
+        assert_eq!(summary.verification_assertion_count, 1);
+        let serialized_summary = serde_json::to_string(&summary)?;
+        assert!(!serialized_summary.contains("patch receipt body"));
+        assert!(!serialized_summary.contains("diff --git"));
+        assert!(!serialized_summary.contains("stdout: ok"));
+        assert!(serialized_summary.contains("exposes only this digest"));
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         assert!(
             node.documents()
                 .binding(EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_TYPE)
                 .is_some()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn agent_state_soa_summary_mirrors_agent_store_shape_without_memory_text() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-local-verse.ccmp");
+        let soa = EpiphanyAgentStateSoaEntry {
+            schema_version: "epiphany.agent_state_soa.v0".to_string(),
+            generated_at: "2026-06-18T00:00:00Z".to_string(),
+            source_store: "state/agents.msgpack".to_string(),
+            role_ids: vec!["Persona".to_string(), "implementation".to_string()],
+            agent_ids: vec!["epiphany.Persona".to_string(), "epiphany.hands".to_string()],
+            display_names: vec!["Persona".to_string(), "Hands".to_string()],
+            profile_kinds: vec!["Persona".to_string(), "WorkOrgan".to_string()],
+            portable_contracts: vec![
+                "gamecult.persona_state.v0".to_string(),
+                "epiphany.work_organ_state.v0".to_string(),
+            ],
+            semantic_memory_counts: vec![3, 2],
+            episodic_memory_counts: vec![1, 0],
+            relationship_memory_counts: vec![2, 0],
+            goal_counts: vec![1, 1],
+            value_counts: vec![4, 3],
+        };
+        let summary = epiphany_cultmesh_agent_state_soa_summary_from_entry(
+            "epiphany-test",
+            "agent-state-soa-summary-test",
+            &soa,
+        );
+        write_epiphany_cultmesh_agent_state_soa_summary(&store, summary.clone())?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_agent_state_soa_summary(&store, "epiphany-test")?,
+            Some(summary.clone())
+        );
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(
+            context.latest_agent_state_soa_summary,
+            Some(summary.clone())
+        );
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        assert!(
+            node.documents()
+                .binding(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_TYPE)
+                .is_some()
+        );
+        let summary_table = node.soa::<EpiphanyCultMeshAgentStateSoaSummaryEntry>()?;
+        assert_eq!(summary_table.len(), 2);
+        assert!(
+            summary_table
+                .column::<String>("summaryId")?
+                .values()
+                .contains(&"agent-state-soa-summary-test".to_string())
+        );
+        assert!(
+            summary_table
+                .column::<u32>("rowCount")?
+                .values()
+                .contains(&2)
+        );
+        assert!(
+            summary_table
+                .column::<bool>("privateStateExposed")?
+                .values()
+                .iter()
+                .all(|exposed| !exposed)
+        );
+        assert!(
+            summary_table
+                .column::<Vec<String>>("portableContracts")?
+                .values()
+                .iter()
+                .any(|contracts| contracts.contains(&"gamecult.persona_state.v0".to_string()))
+        );
+        let serialized = serde_json::to_string(&summary)?;
+        assert!(serialized.contains("gamecult.persona_state.v0"));
+        assert!(!serialized.contains("privateNotes"));
+        assert!(!summary.private_state_exposed);
+
+        let mut leaked = summary.clone();
+        leaked.private_state_exposed = true;
+        let err = write_epiphany_cultmesh_agent_state_soa_summary(&store, leaked)
+            .expect_err("private-state agent summaries must be refused");
+        assert!(err.to_string().contains("must not expose private state"));
+
+        let mut drifted = summary;
+        drifted.agent_ids.pop();
+        let err = write_epiphany_cultmesh_agent_state_soa_summary(&store, drifted)
+            .expect_err("column length drift must be refused");
+        assert!(err.to_string().contains("column agentIds has length"));
         Ok(())
     }
 
@@ -1600,6 +6000,1005 @@ mod tests {
     }
 
     #[test]
+    fn cluster_topology_names_private_verses_body_daemons_and_eve_surfaces() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-cluster-topology.ccmp");
+        let written = write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
+        assert_eq!(written.len(), 7);
+
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        let persona =
+            node.get_required::<EpiphanyCultMeshClusterTopologyEntry>("epiphany.cluster.persona")?;
+        let hands =
+            node.get_required::<EpiphanyCultMeshClusterTopologyEntry>("epiphany.cluster.hands")?;
+
+        assert_eq!(persona.private_verse_id, "epiphany.cluster.persona.private");
+        assert_eq!(persona.body_domain, "repo:E:/Projects/EpiphanyAgent");
+        assert_eq!(persona.daemon_id, "epiphany-daemon-persona");
+        assert_eq!(persona.eve_surface_id, "eve://epiphany/persona");
+        assert!(persona.public_persona_discussion_allowed);
+        assert!(persona.odin_advertised);
+        assert!(!hands.public_persona_discussion_allowed);
+        assert!(
+            hands
+                .notes
+                .iter()
+                .any(|note| note.contains("Odin may advertise compact metadata"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn odin_advertisements_expose_eve_metadata_without_private_state() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-odin-advertisements.ccmp");
+        let written = write_epiphany_cultmesh_odin_advertisements(&store, "epiphany-test")?;
+        assert_eq!(written.len(), 7);
+
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        let persona = node.get_required::<EpiphanyCultMeshOdinAdvertisementEntry>(
+            "odin.advertisement.epiphany.cluster.persona",
+        )?;
+
+        assert_eq!(persona.cluster_id, "epiphany.cluster.persona");
+        assert_eq!(
+            persona.advertised_verse_id,
+            "epiphany.cluster.persona.private"
+        );
+        assert_eq!(persona.eve_surface_id, "eve://epiphany/persona");
+        assert!(!persona.private_state_exposed);
+        assert!(
+            persona
+                .advertised_document_types
+                .iter()
+                .any(|document_type| document_type == EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE)
+        );
+        assert!(
+            persona
+                .notes
+                .iter()
+                .any(|note| note.contains("discovery metadata"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn eve_surface_states_back_every_odin_advertised_surface() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-eve-surface-states.ccmp");
+        write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
+        let advertisements = write_epiphany_cultmesh_odin_advertisements(&store, "epiphany-test")?;
+        let surfaces = write_epiphany_cultmesh_eve_surface_states(&store, "epiphany-test")?;
+
+        assert_eq!(surfaces.len(), advertisements.len());
+        for advertisement in advertisements {
+            let surface = surfaces
+                .iter()
+                .find(|surface| surface.surface_id == advertisement.eve_surface_id)
+                .expect("advertised Eve surface has surface state");
+            assert_eq!(surface.cluster_id, advertisement.cluster_id);
+            assert!(surface.surface_id.starts_with("eve://"));
+            assert!(!surface.private_state_exposed);
+            assert!(!surface.tui_rows.is_empty());
+            assert!(
+                surface
+                    .supported_actions
+                    .iter()
+                    .any(|action| { action == "submitEveConnectionIntent" })
+            );
+        }
+
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(
+            context.eve_surface_states.len(),
+            context.odin_advertisements.len()
+        );
+        assert!(context.eve_surface_states.iter().any(|surface| {
+            surface.surface_id == "eve://epiphany/persona"
+                && surface
+                    .exposed_document_types
+                    .contains(&EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string())
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn eve_surface_state_refuses_private_state_exposure() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-eve-surface-private.ccmp");
+        let mut surface = epiphany_cultmesh_eve_surface_states()
+            .into_iter()
+            .find(|surface| surface.surface_id == "eve://epiphany/persona")
+            .expect("persona surface exists");
+        surface.private_state_exposed = true;
+
+        let mut node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        let error = validate_eve_surface_state(&surface)
+            .expect_err("private Eve surface states must be refused");
+        assert!(error.to_string().contains("private state"));
+        surface.private_state_exposed = false;
+        node.put(surface.surface_id.clone(), &surface)?;
+        node.flush()?;
+        Ok(())
+    }
+
+    #[test]
+    fn daemon_statuses_cover_every_cluster_without_private_state() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-daemon-statuses.ccmp");
+        write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
+        let statuses = write_epiphany_cultmesh_daemon_statuses(
+            &store,
+            "epiphany-test",
+            "2026-06-17T00:00:00Z",
+        )?;
+
+        assert_eq!(statuses.len(), epiphany_cultmesh_cluster_topology().len());
+        let hands = statuses
+            .iter()
+            .find(|status| status.daemon_id == "epiphany-daemon-hands")
+            .expect("Hands daemon status exists");
+        assert_eq!(hands.cluster_id, "epiphany.cluster.hands");
+        assert_eq!(hands.status, "ready");
+        assert!(!hands.private_state_exposed);
+        assert!(
+            hands
+                .supported_actions
+                .iter()
+                .any(|action| action == "pokeDaemon")
+        );
+        assert!(
+            hands
+                .supported_actions
+                .iter()
+                .any(|action| action == "watchHeartbeat")
+        );
+
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(
+            context.daemon_statuses.len(),
+            context.cluster_topology.len()
+        );
+        assert!(context.daemon_statuses.iter().all(|status| {
+            !status.private_state_exposed && !status.last_heartbeat_utc.is_empty()
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn daemon_status_refuses_private_state_exposure() -> Result<()> {
+        let mut status = epiphany_cultmesh_daemon_statuses("2026-06-17T00:00:00Z")
+            .into_iter()
+            .find(|status| status.daemon_id == "epiphany-daemon-persona")
+            .expect("Persona daemon status exists");
+        status.private_state_exposed = true;
+
+        let error =
+            validate_daemon_status(&status).expect_err("private daemon status must be refused");
+        assert!(error.to_string().contains("private state"));
+        Ok(())
+    }
+
+    #[test]
+    fn daemon_poke_intent_and_receipt_round_trip() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-daemon-poke.ccmp");
+        write_epiphany_cultmesh_daemon_statuses(&store, "epiphany-test", "2026-06-17T00:00:00Z")?;
+        let hands = epiphany_cultmesh_daemon_statuses("2026-06-17T00:00:00Z")
+            .into_iter()
+            .find(|status| status.daemon_id == "epiphany-daemon-hands")
+            .expect("Hands daemon status exists");
+        let intent = epiphany_cultmesh_daemon_poke_intent_from_status(
+            "daemon-poke-intent-test",
+            "epiphany.Self",
+            &hands,
+            "Hands daemon missed a heartbeat and needs operator-safe poke.",
+        );
+        let receipt = epiphany_cultmesh_daemon_poke_receipt_for_intent(
+            "daemon-poke-receipt-test",
+            &intent,
+            "completed",
+            "ready",
+            "cultmesh://epiphany-local/daemon-poke/test",
+        );
+
+        write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", intent.clone())?;
+        write_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test", receipt.clone())?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test")?,
+            Some(intent.clone())
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test")?,
+            Some(receipt)
+        );
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(
+            context
+                .latest_daemon_poke_intent
+                .as_ref()
+                .map(|intent| intent.requested_action.as_str()),
+            Some("pokeDaemon")
+        );
+        assert_eq!(
+            context
+                .latest_daemon_poke_receipt
+                .as_ref()
+                .map(|receipt| receipt.resulting_status.as_str()),
+            Some("ready")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn daemon_poke_refuses_private_state_and_wrong_action() -> Result<()> {
+        let hands = epiphany_cultmesh_daemon_statuses("2026-06-17T00:00:00Z")
+            .into_iter()
+            .find(|status| status.daemon_id == "epiphany-daemon-hands")
+            .expect("Hands daemon status exists");
+        let mut intent = epiphany_cultmesh_daemon_poke_intent_from_status(
+            "daemon-poke-intent-private-test",
+            "epiphany.Self",
+            &hands,
+            "Attempt forbidden private daemon poke.",
+        );
+        intent.private_state_requested = true;
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-daemon-poke-refusal.ccmp");
+        let error = write_epiphany_cultmesh_daemon_poke_intent(&store, "epiphany-test", intent)
+            .expect_err("private daemon poke intents must be refused");
+        assert!(error.to_string().contains("private state"));
+
+        let intent = epiphany_cultmesh_daemon_poke_intent_from_status(
+            "daemon-poke-intent-test",
+            "epiphany.Self",
+            &hands,
+            "Attempt malformed receipt.",
+        );
+        let mut receipt = epiphany_cultmesh_daemon_poke_receipt_for_intent(
+            "daemon-poke-receipt-wrong-action-test",
+            &intent,
+            "completed",
+            "ready",
+            "cultmesh://epiphany-local/daemon-poke/test",
+        );
+        receipt.action_taken = "inspectStatus".to_string();
+        let error = write_epiphany_cultmesh_daemon_poke_receipt(&store, "epiphany-test", receipt)
+            .expect_err("wrong daemon poke receipt action must be refused");
+        assert!(error.to_string().contains("pokeDaemon"));
+        Ok(())
+    }
+
+    #[test]
+    fn swarm_brake_round_trips_and_projects_status() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-swarm-brake.ccmp");
+        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-17T00:00:00Z")?;
+
+        let brake = load_epiphany_cultmesh_swarm_brake(&store, "epiphany-test")?
+            .expect("seeded swarm brake exists");
+        assert_eq!(brake.status, "released");
+        assert_eq!(brake.scope, "swarm");
+        assert!(!brake.private_state_exposed);
+        assert!(
+            brake
+                .affected_clusters
+                .iter()
+                .any(|cluster| cluster == "epiphany.cluster.persona")
+        );
+
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(
+            context
+                .swarm_brake
+                .as_ref()
+                .map(|brake| brake.status.as_str()),
+            Some("released")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn swarm_brake_refuses_private_state_or_unreasoned_engagement() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-swarm-brake-refusal.ccmp");
+        let mut brake = default_epiphany_cultmesh_swarm_brake("2026-06-17T00:00:00Z");
+        brake.private_state_exposed = true;
+        let error = write_epiphany_cultmesh_swarm_brake(&store, "epiphany-test", brake)
+            .expect_err("private swarm brake must be refused");
+        assert!(error.to_string().contains("private state"));
+
+        let mut brake = default_epiphany_cultmesh_swarm_brake("2026-06-17T00:00:00Z");
+        brake.status = "engaged".to_string();
+        brake.reason.clear();
+        let error = write_epiphany_cultmesh_swarm_brake(&store, "epiphany-test", brake)
+            .expect_err("unreasoned engaged swarm brake must be refused");
+        assert!(error.to_string().contains("operator id and reason"));
+        Ok(())
+    }
+
+    #[test]
+    fn persona_speech_audit_round_trips_and_projects_without_private_content() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-persona-speech-audit.ccmp");
+        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-17T00:00:00Z")?;
+        let audit = EpiphanyCultMeshPersonaSpeechAuditEntry {
+            schema_version: EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION.to_string(),
+            audit_id: "persona-speech-audit-test".to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            persona_agent_id: "epiphany.Persona".to_string(),
+            action_kind: "post".to_string(),
+            decision: "blocked".to_string(),
+            content_fingerprint: "topic::normalized-opening".to_string(),
+            opening_key: "rite noted modeling".to_string(),
+            topic_key: "modeling|soul|evidence".to_string(),
+            requested_channel_id: "123".to_string(),
+            recent_window_count: 6,
+            repeated_opening_count: 2,
+            repeated_topic_count: 2,
+            same_channel_post_count: 2,
+            reasons: vec!["repeated-opening".to_string()],
+            artifact_ref: "artifact://persona/speech-audit.json".to_string(),
+            created_at_utc: "2026-06-17T00:00:00Z".to_string(),
+            private_state_exposed: false,
+            notes: vec![
+                "CultMesh audit stores policy facts and fingerprints, not raw Persona prose."
+                    .to_string(),
+            ],
+        };
+
+        write_epiphany_cultmesh_persona_speech_audit(&store, audit.clone())?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_persona_speech_audit(&store, "epiphany-test")?,
+            Some(audit)
+        );
+
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        let projected = context
+            .latest_persona_speech_audit
+            .expect("speech audit should project into local Verse context");
+        assert_eq!(projected.decision, "blocked");
+        assert_eq!(projected.reasons, vec!["repeated-opening"]);
+        assert!(!projected.private_state_exposed);
+        Ok(())
+    }
+
+    #[test]
+    fn persona_speech_audit_refuses_private_state_and_unreasoned_blocks() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp
+            .path()
+            .join("epiphany-persona-speech-audit-refusal.ccmp");
+        let mut audit = EpiphanyCultMeshPersonaSpeechAuditEntry {
+            schema_version: EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION.to_string(),
+            audit_id: "persona-speech-audit-test".to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            persona_agent_id: "epiphany.Persona".to_string(),
+            action_kind: "post".to_string(),
+            decision: "eligible".to_string(),
+            content_fingerprint: "topic::normalized-opening".to_string(),
+            opening_key: "rite noted modeling".to_string(),
+            topic_key: "modeling|soul|evidence".to_string(),
+            requested_channel_id: "123".to_string(),
+            recent_window_count: 1,
+            repeated_opening_count: 0,
+            repeated_topic_count: 0,
+            same_channel_post_count: 0,
+            reasons: Vec::new(),
+            artifact_ref: "artifact://persona/speech-audit.json".to_string(),
+            created_at_utc: "2026-06-17T00:00:00Z".to_string(),
+            private_state_exposed: true,
+            notes: Vec::new(),
+        };
+        let error = write_epiphany_cultmesh_persona_speech_audit(&store, audit.clone())
+            .expect_err("private speech audit must be refused");
+        assert!(error.to_string().contains("private state"));
+
+        audit.private_state_exposed = false;
+        audit.decision = "blocked".to_string();
+        let error = write_epiphany_cultmesh_persona_speech_audit(&store, audit)
+            .expect_err("blocked speech audit without reasons must be refused");
+        assert!(error.to_string().contains("requires reasons"));
+        Ok(())
+    }
+
+    #[test]
+    fn eve_connection_intent_and_receipt_route_feedback_without_private_state() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-eve-connection.ccmp");
+        write_epiphany_cultmesh_odin_advertisements(&store, "epiphany-test")?;
+
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        let persona = node.get_required::<EpiphanyCultMeshOdinAdvertisementEntry>(
+            "odin.advertisement.epiphany.cluster.persona",
+        )?;
+        let intent = epiphany_cultmesh_eve_connection_intent_from_advertisement(
+            "eve-intent-test",
+            "epiphany.cluster.self",
+            &persona,
+            "Coordinate public Persona collaboration feedback.",
+            "requestDiscussion",
+        );
+        let receipt = epiphany_cultmesh_eve_connection_receipt_for_intent(
+            "eve-receipt-test",
+            &intent,
+            "accepted-for-consensus-discovery",
+        );
+
+        write_epiphany_cultmesh_eve_connection_intent(&store, "epiphany-test", intent.clone())?;
+        write_epiphany_cultmesh_eve_connection_receipt(&store, "epiphany-test", receipt.clone())?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_eve_connection_intent(&store, "epiphany-test")?,
+            Some(intent.clone())
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_eve_connection_receipt(&store, "epiphany-test")?,
+            Some(receipt.clone())
+        );
+        assert_eq!(intent.feedback_route, "imagination.consensus_discovery");
+        assert!(!intent.private_state_requested);
+        assert!(!receipt.private_state_exposed);
+        assert_eq!(receipt.status, "accepted-for-consensus-discovery");
+        Ok(())
+    }
+
+    #[test]
+    fn eve_connection_refuses_private_state_requests() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-eve-private-refusal.ccmp");
+        let target = epiphany_cultmesh_odin_advertisements()
+            .into_iter()
+            .find(|advertisement| advertisement.cluster_id == "epiphany.cluster.persona")
+            .expect("persona advertisement exists");
+        let mut intent = epiphany_cultmesh_eve_connection_intent_from_advertisement(
+            "eve-intent-private-test",
+            "epiphany.cluster.self",
+            &target,
+            "Attempt forbidden private state read.",
+            "requestPrivateState",
+        );
+        intent.private_state_requested = true;
+
+        let error = write_epiphany_cultmesh_eve_connection_intent(&store, "epiphany-test", intent)
+            .expect_err("private state requests must be refused");
+
+        assert!(
+            error
+                .to_string()
+                .contains("must not request private Verse state")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn daemon_tool_capabilities_make_every_local_tool_available_to_all_agents() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-daemon-tools.ccmp");
+        let written = write_epiphany_cultmesh_daemon_tool_capabilities(&store, "epiphany-test")?;
+        assert!(written.len() >= 16);
+
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        let persona_status = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
+            "epiphany.cluster.persona.tool.status",
+        )?;
+        let hands_action = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
+            "epiphany.cluster.hands.tool.repo-action",
+        )?;
+        let soul_verify = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
+            "epiphany.cluster.soul.tool.verify",
+        )?;
+
+        for capability in [
+            persona_status.clone(),
+            hands_action.clone(),
+            soul_verify.clone(),
+        ] {
+            assert!(capability.available_to_all_agents);
+            assert!(capability.requires_receipt);
+            assert!(!capability.private_state_exposed);
+            assert!(capability.eve_surface_id.starts_with("eve://epiphany/"));
+        }
+        assert_eq!(hands_action.authority_gate, "hands");
+        assert_eq!(soul_verify.authority_gate, "soul");
+        assert_eq!(persona_status.authority_gate, "none");
+        assert!(
+            hands_action
+                .notes
+                .iter()
+                .any(|note| note.contains("Every agent in the local CultMesh network"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn daemon_tool_invocation_intent_and_receipt_round_trip_for_any_agent() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-daemon-tool-invocation.ccmp");
+        write_epiphany_cultmesh_daemon_tool_capabilities(&store, "epiphany-test")?;
+
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        let hands_action = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
+            "epiphany.cluster.hands.tool.repo-action",
+        )?;
+        let intent = epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
+            "daemon-tool-intent-test",
+            "epiphany.Persona",
+            "epiphany.cluster.persona",
+            &hands_action,
+            "cultmesh://epiphany-local/hands-action-intent/test",
+            "Persona asks Hands to review a repo action through a globally advertised daemon tool.",
+        );
+        let receipt = epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent(
+            "daemon-tool-receipt-test",
+            &intent,
+            "accepted-for-hands-review",
+            hands_action.receipt_contract_type.clone(),
+            "cultmesh://epiphany-local/hands-action-review/test",
+            "Hands accepted the daemon tool invocation for typed review.",
+        );
+
+        write_epiphany_cultmesh_daemon_tool_invocation_intent(
+            &store,
+            "epiphany-test",
+            intent.clone(),
+        )?;
+        write_epiphany_cultmesh_daemon_tool_invocation_receipt(
+            &store,
+            "epiphany-test",
+            receipt.clone(),
+        )?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_tool_invocation_intent(&store, "epiphany-test")?,
+            Some(intent.clone())
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt(&store, "epiphany-test")?,
+            Some(receipt.clone())
+        );
+        assert_eq!(intent.requesting_cluster_id, "epiphany.cluster.persona");
+        assert_eq!(intent.host_cluster_id, "epiphany.cluster.hands");
+        assert_eq!(intent.authority_gate, "hands");
+        assert!(intent.requires_receipt);
+        assert!(!intent.private_state_requested);
+        assert_eq!(
+            receipt.receipt_contract_type,
+            "epiphany.hands.action_review"
+        );
+        assert!(!receipt.private_state_exposed);
+        Ok(())
+    }
+
+    #[test]
+    fn daemon_tool_invocation_refuses_private_state_requests() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp
+            .path()
+            .join("epiphany-daemon-tool-private-refusal.ccmp");
+        let capability = epiphany_cultmesh_daemon_tool_capabilities()
+            .into_iter()
+            .find(|capability| capability.capability_id == "epiphany.cluster.persona.tool.status")
+            .expect("persona status capability exists");
+        let mut intent = epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
+            "daemon-tool-private-test",
+            "epiphany.Self",
+            "epiphany.cluster.self",
+            &capability,
+            "cultmesh://epiphany-local/private-state/test",
+            "Attempt forbidden private state through a globally visible daemon tool.",
+        );
+        intent.private_state_requested = true;
+
+        let error =
+            write_epiphany_cultmesh_daemon_tool_invocation_intent(&store, "epiphany-test", intent)
+                .expect_err("private state requests must be refused");
+
+        assert!(
+            error
+                .to_string()
+                .contains("must not request private Verse state")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bifrost_body_change_publication_intent_and_receipt_round_trip() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp
+            .path()
+            .join("epiphany-bifrost-body-change-publication.ccmp");
+        let intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
+            "bifrost-publication-intent-test",
+            "epiphany.cluster.hands",
+            "epiphany.Hands",
+            "repo:E:/Projects/EpiphanyAgent",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "Route typed CultMesh publication proof through Bifrost.",
+            "Publication needs Bifrost ledger, credit, review, and GitHub routing proof.",
+            vec!["epiphany-core/src/cultmesh_integration.rs".to_string()],
+            vec!["soul-verdict-test".to_string()],
+            vec!["maintainer-review-test".to_string()],
+            vec!["epiphany.Hands".to_string()],
+            vec!["GameCult/EpiphanyAgent".to_string()],
+        );
+        let receipt = epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent(
+            "bifrost-publication-receipt-test",
+            &intent,
+            "accepted-for-github-publication",
+            "bifrost-ledger-test",
+            "github-publication-test",
+            vec!["credit-receipt-test".to_string()],
+            vec!["maintainer-review-test".to_string()],
+            "https://github.com/GameCult/EpiphanyAgent/pull/test",
+        );
+
+        write_epiphany_cultmesh_bifrost_body_change_publication_intent(
+            &store,
+            "epiphany-test",
+            intent.clone(),
+        )?;
+        write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+            &store,
+            "epiphany-test",
+            receipt.clone(),
+        )?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
+                &store,
+                "epiphany-test"
+            )?,
+            Some(intent.clone())
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+                &store,
+                "epiphany-test"
+            )?,
+            Some(receipt.clone())
+        );
+        assert!(intent.github_publication_requested);
+        assert!(!intent.private_state_included);
+        assert_eq!(intent.verification_receipt_ids, vec!["soul-verdict-test"]);
+        assert_eq!(receipt.bifrost_ledger_entry_id, "bifrost-ledger-test");
+        assert_eq!(
+            receipt.github_publication_receipt_id,
+            "github-publication-test"
+        );
+        assert!(!receipt.private_state_exposed);
+        Ok(())
+    }
+
+    #[test]
+    fn bifrost_body_change_publication_refuses_private_or_unverified_intents() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp
+            .path()
+            .join("epiphany-bifrost-publication-refusal.ccmp");
+        let mut intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
+            "bifrost-publication-private-test",
+            "epiphany.cluster.hands",
+            "epiphany.Hands",
+            "repo:E:/Projects/EpiphanyAgent",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "Attempt invalid publication.",
+            "This should be refused.",
+            vec!["epiphany-core/src/cultmesh_integration.rs".to_string()],
+            vec!["soul-verdict-test".to_string()],
+            vec!["maintainer-review-test".to_string()],
+            vec!["epiphany.Hands".to_string()],
+            vec!["GameCult/EpiphanyAgent".to_string()],
+        );
+        intent.private_state_included = true;
+
+        let error = write_epiphany_cultmesh_bifrost_body_change_publication_intent(
+            &store,
+            "epiphany-test",
+            intent,
+        )
+        .expect_err("private publication payloads must be refused");
+        assert!(error.to_string().contains("must not include private state"));
+
+        let unverified = epiphany_cultmesh_bifrost_body_change_publication_intent(
+            "bifrost-publication-unverified-test",
+            "epiphany.cluster.hands",
+            "epiphany.Hands",
+            "repo:E:/Projects/EpiphanyAgent",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "Attempt unverified publication.",
+            "This should be refused.",
+            vec!["epiphany-core/src/cultmesh_integration.rs".to_string()],
+            Vec::new(),
+            vec!["maintainer-review-test".to_string()],
+            vec!["epiphany.Hands".to_string()],
+            vec!["GameCult/EpiphanyAgent".to_string()],
+        );
+        let error = write_epiphany_cultmesh_bifrost_body_change_publication_intent(
+            &store,
+            "epiphany-test",
+            unverified,
+        )
+        .expect_err("unverified publication payloads must be refused");
+        assert!(error.to_string().contains("require verification receipts"));
+        Ok(())
+    }
+
+    #[test]
+    fn bifrost_github_publication_receipt_round_trips_with_hands_pr_proof() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-bifrost-github-publication.ccmp");
+        let intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
+            "bifrost-publication-intent-test",
+            "epiphany.cluster.hands",
+            "epiphany.Hands",
+            "repo:E:/Projects/EpiphanyAgent",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "Route typed GitHub publication proof through Bifrost.",
+            "Publication needs Bifrost ledger, Hands PR, credit, and review proof.",
+            vec!["epiphany-core/src/cultmesh_integration.rs".to_string()],
+            vec!["soul-verdict-test".to_string()],
+            vec!["maintainer-review-test".to_string()],
+            vec!["epiphany.Hands".to_string()],
+            vec!["GameCult/EpiphanyAgent".to_string()],
+        );
+        let publication = epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent(
+            "bifrost-publication-receipt-test",
+            &intent,
+            "accepted-for-github-publication",
+            "bifrost-ledger-test",
+            "github-publication-test",
+            vec!["credit-receipt-test".to_string()],
+            vec!["maintainer-review-test".to_string()],
+            "https://github.com/GameCult/EpiphanyAgent/pull/test",
+        );
+        let github = epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
+            "github-publication-test",
+            &publication,
+            "hands-pr-test",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "test",
+            "abc123",
+            "epiphany.Hands",
+        );
+
+        write_epiphany_cultmesh_bifrost_body_change_publication_intent(
+            &store,
+            "epiphany-test",
+            intent,
+        )?;
+        write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+            &store,
+            "epiphany-test",
+            publication.clone(),
+        )?;
+        write_epiphany_cultmesh_bifrost_github_publication_receipt(
+            &store,
+            "epiphany-test",
+            github.clone(),
+        )?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
+                &store,
+                "epiphany-test"
+            )?,
+            Some(github.clone())
+        );
+        assert_eq!(
+            github.bifrost_publication_receipt_id,
+            "bifrost-publication-receipt-test"
+        );
+        assert_eq!(github.hands_pr_receipt_id, "hands-pr-test");
+        assert_eq!(github.ledger_entry_id, "bifrost-ledger-test");
+        assert_eq!(github.credit_receipt_ids, vec!["credit-receipt-test"]);
+        assert_eq!(
+            github.pull_request_url,
+            "https://github.com/GameCult/EpiphanyAgent/pull/test"
+        );
+        assert!(!github.private_state_exposed);
+        Ok(())
+    }
+
+    #[test]
+    fn bifrost_github_publication_refuses_private_or_unlinked_receipts() -> Result<()> {
+        let publication = EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry {
+            schema_version:
+                EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "bifrost-publication-receipt-test".to_string(),
+            intent_id: "bifrost-publication-intent-test".to_string(),
+            status: "accepted-for-github-publication".to_string(),
+            bifrost_ledger_entry_id: "bifrost-ledger-test".to_string(),
+            github_publication_receipt_id: "github-publication-test".to_string(),
+            credit_receipt_ids: vec!["credit-receipt-test".to_string()],
+            accepted_changed_paths: vec!["epiphany-core/src/cultmesh_integration.rs".to_string()],
+            reviewer_ids: vec!["maintainer-review-test".to_string()],
+            publication_url: "https://github.com/GameCult/EpiphanyAgent/pull/test".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        };
+        let mut github = epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
+            "github-publication-test",
+            &publication,
+            "hands-pr-test",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "test",
+            "abc123",
+            "epiphany.Hands",
+        );
+        github.private_state_exposed = true;
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-bifrost-github-refusal.ccmp");
+        let error = write_epiphany_cultmesh_bifrost_github_publication_receipt(
+            &store,
+            "epiphany-test",
+            github,
+        )
+        .expect_err("private GitHub publication receipts must be refused");
+        assert!(error.to_string().contains("must not expose private state"));
+
+        let mut unlinked = epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
+            "github-publication-unlinked-test",
+            &publication,
+            "hands-pr-test",
+            "E:/Projects/EpiphanyAgent",
+            "codex/perfect-machine-cultmesh",
+            "test",
+            "abc123",
+            "epiphany.Hands",
+        );
+        unlinked.hands_pr_receipt_id.clear();
+        let error = write_epiphany_cultmesh_bifrost_github_publication_receipt(
+            &store,
+            "epiphany-test",
+            unlinked,
+        )
+        .expect_err("GitHub publication receipts without Hands PR proof must be refused");
+        assert!(error.to_string().contains("require a Hands PR receipt"));
+        Ok(())
+    }
+
+    #[test]
+    fn collaboration_feedback_routes_to_imagination_consensus() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp
+            .path()
+            .join("epiphany-bifrost-collaboration-feedback.ccmp");
+        let feedback = epiphany_cultmesh_bifrost_collaboration_feedback(
+            "collaboration-feedback-test",
+            "epiphany.Persona",
+            "epiphany.persona",
+            "epiphany-global/collaboration",
+            "eve-receipt-test",
+            "Persona asks for cross-body collaboration over Eve.",
+            "Public Persona discussion should be compared by Imagination before adoption.",
+            vec!["https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm".to_string()],
+            vec!["candidate-action:compare-daemon-surfaces".to_string()],
+        );
+        let consensus = epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
+            "imagination-consensus-test",
+            &feedback,
+            "queued-for-consensus-discovery",
+            vec!["epiphany.Imagination".to_string()],
+            "gamecult-local/imagination/consensus-packets/test",
+        );
+
+        write_epiphany_cultmesh_bifrost_collaboration_feedback(
+            &store,
+            "epiphany-test",
+            feedback.clone(),
+        )?;
+        write_epiphany_cultmesh_imagination_consensus_receipt(
+            &store,
+            "epiphany-test",
+            consensus.clone(),
+        )?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(&store, "epiphany-test")?,
+            Some(feedback)
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_imagination_consensus_receipt(&store, "epiphany-test")?,
+            Some(consensus)
+        );
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(
+            context
+                .latest_bifrost_collaboration_feedback
+                .as_ref()
+                .map(|feedback| feedback.requested_consensus_route.as_str()),
+            Some("imagination.consensus_discovery")
+        );
+        assert_eq!(
+            context
+                .latest_imagination_consensus_receipt
+                .as_ref()
+                .map(|receipt| receipt.adoption_gate.as_str()),
+            Some("mind.review_then_bifrost_adoption")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn collaboration_feedback_refuses_private_state_and_unanchored_public_claims() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-feedback-refusal.ccmp");
+        let mut private = epiphany_cultmesh_bifrost_collaboration_feedback(
+            "collaboration-feedback-private-test",
+            "epiphany.Persona",
+            "epiphany.persona",
+            "epiphany-global/collaboration",
+            "eve-receipt-test",
+            "Attempt invalid feedback.",
+            "This should not publish private state.",
+            vec!["https://gamecult.org/public-thread".to_string()],
+            Vec::new(),
+        );
+        private.private_state_included = true;
+        let error = write_epiphany_cultmesh_bifrost_collaboration_feedback(
+            &store,
+            "epiphany-test",
+            private,
+        )
+        .expect_err("private collaboration feedback must be refused");
+        assert!(error.to_string().contains("private state"));
+
+        let unanchored = epiphany_cultmesh_bifrost_collaboration_feedback(
+            "collaboration-feedback-unanchored-test",
+            "epiphany.Persona",
+            "epiphany.persona",
+            "epiphany-global/collaboration",
+            "eve-receipt-test",
+            "Attempt invalid feedback.",
+            "Public collaboration feedback must cite public discussion.",
+            Vec::new(),
+            Vec::new(),
+        );
+        let error = write_epiphany_cultmesh_bifrost_collaboration_feedback(
+            &store,
+            "epiphany-test",
+            unanchored,
+        )
+        .expect_err("unanchored collaboration feedback must be refused");
+        assert!(error.to_string().contains("public discussion"));
+
+        let feedback = epiphany_cultmesh_bifrost_collaboration_feedback(
+            "collaboration-feedback-test",
+            "epiphany.Persona",
+            "epiphany.persona",
+            "epiphany-global/collaboration",
+            "eve-receipt-test",
+            "Attempt invalid consensus.",
+            "Consensus receipts must keep private state sealed.",
+            vec!["https://gamecult.org/public-thread".to_string()],
+            Vec::new(),
+        );
+        let mut receipt = epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
+            "imagination-consensus-private-test",
+            &feedback,
+            "queued-for-consensus-discovery",
+            vec!["epiphany.Imagination".to_string()],
+            "gamecult-local/imagination/consensus-packets/test",
+        );
+        receipt.private_state_exposed = true;
+        let error =
+            write_epiphany_cultmesh_imagination_consensus_receipt(&store, "epiphany-test", receipt)
+                .expect_err("private consensus receipts must be refused");
+        assert!(error.to_string().contains("private state"));
+        Ok(())
+    }
+
+    #[test]
     fn local_verse_context_queries_compact_policy_status_and_contracts() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-local-verse.ccmp");
@@ -1612,6 +7011,24 @@ mod tests {
             == EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
             && policy.yggdrasil_tunnel_allowed));
         assert_eq!(context.global_room_policies.len(), 6);
+        assert_eq!(context.cluster_topology.len(), 7);
+        assert!(context.cluster_topology.iter().any(|cluster| {
+            cluster.cluster_id == "epiphany.cluster.persona"
+                && cluster.public_persona_discussion_allowed
+                && cluster.eve_surface_id == "eve://epiphany/persona"
+        }));
+        assert_eq!(context.odin_advertisements.len(), 7);
+        assert!(context.odin_advertisements.iter().any(|advertisement| {
+            advertisement.cluster_id == "epiphany.cluster.persona"
+                && advertisement.eve_surface_id == "eve://epiphany/persona"
+                && !advertisement.private_state_exposed
+        }));
+        assert!(context.daemon_tool_capabilities.len() >= 16);
+        assert!(context.daemon_tool_capabilities.iter().all(|capability| {
+            capability.available_to_all_agents
+                && capability.requires_receipt
+                && !capability.private_state_exposed
+        }));
         assert!(context.operator_status.is_some());
         assert!(
             context
@@ -1624,6 +7041,12 @@ mod tests {
                 .contract_summaries
                 .iter()
                 .any(|contract| contract.authority == "substrateGate")
+        );
+        assert!(
+            context
+                .contract_summaries
+                .iter()
+                .any(|contract| contract.authority == "bifrost")
         );
         assert!(context.odin_scope.contains("all-seer"));
         assert!(context.yggdrasil_scope.contains("Bifrost"));
@@ -1773,6 +7196,51 @@ mod tests {
                 .notes
                 .iter()
                 .any(|note| note.contains("deterministic protocol surface"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bifrost_contracts_route_body_changes_before_github_publication() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-bifrost-contracts.ccmp");
+        let written = write_epiphany_cultmesh_bifrost_contracts(&store, "epiphany-test")?;
+        assert_eq!(written.len(), 2);
+
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        let publication = node.get_required::<EpiphanyCultMeshBifrostContractEntry>(
+            "gamecult.bifrost.body_change.publication",
+        )?;
+        let feedback = node.get_required::<EpiphanyCultMeshBifrostContractEntry>(
+            "gamecult.bifrost.collaboration.feedback",
+        )?;
+
+        assert_eq!(publication.verse_id, EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID);
+        assert_eq!(publication.authority, "bifrost");
+        assert!(
+            publication
+                .receipt_document_types
+                .iter()
+                .any(|receipt| receipt == "gamecult.bifrost.github_publication_receipt")
+        );
+        assert!(
+            publication
+                .receipt_document_types
+                .iter()
+                .any(|receipt| receipt == "gamecult.bifrost.credit_receipt")
+        );
+        assert!(
+            publication
+                .notes
+                .iter()
+                .any(|note| note.contains("GitHub publication"))
+        );
+        assert_eq!(feedback.authority, "imaginationConsensus");
+        assert!(
+            feedback
+                .notes
+                .iter()
+                .any(|note| note.contains("thought weather"))
         );
         Ok(())
     }

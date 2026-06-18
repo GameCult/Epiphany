@@ -156,6 +156,43 @@ pub struct HandsCommitReceipt {
     pub contract: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(type = "epiphany.hands.pr_receipt", schema = "HandsPrReceipt")]
+pub struct HandsPrReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub intent_id: String,
+    #[cultcache(key = 3)]
+    pub review_id: String,
+    #[cultcache(key = 4)]
+    pub runtime_job_id: String,
+    #[cultcache(key = 5)]
+    pub commit_receipt_id: String,
+    #[cultcache(key = 6)]
+    pub commit_sha: String,
+    #[cultcache(key = 7)]
+    pub branch: String,
+    #[cultcache(key = 8)]
+    pub pull_request_url: String,
+    #[cultcache(key = 9)]
+    pub pull_request_number: String,
+    #[cultcache(key = 10)]
+    pub pull_request_title: String,
+    #[cultcache(key = 11)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 12)]
+    pub bifrost_publication_receipt_id: String,
+    #[cultcache(key = 13)]
+    pub summary: String,
+    #[cultcache(key = 14)]
+    pub emitted_at: String,
+    #[cultcache(key = 15)]
+    pub contract: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HandsCultNetContract {
@@ -360,6 +397,39 @@ pub fn hands_commit_receipt_for_review(
         summary,
         emitted_at,
         contract: "Hands commit receipt proves source publication consequences after a reviewed action; it is still subject to Soul verification and Mind admission.".to_string(),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn hands_pr_receipt_for_review(
+    receipt_id: String,
+    intent: &HandsActionIntent,
+    review: &HandsActionReview,
+    commit_receipt: &HandsCommitReceipt,
+    pull_request_url: String,
+    pull_request_number: String,
+    pull_request_title: String,
+    bifrost_publication_receipt_id: String,
+    summary: String,
+    emitted_at: String,
+) -> HandsPrReceipt {
+    HandsPrReceipt {
+        schema_version: HANDS_PR_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        intent_id: intent.intent_id.clone(),
+        review_id: review.review_id.clone(),
+        runtime_job_id: intent.runtime_job_id.clone(),
+        commit_receipt_id: commit_receipt.receipt_id.clone(),
+        commit_sha: commit_receipt.commit_sha.clone(),
+        branch: commit_receipt.branch.clone(),
+        pull_request_url,
+        pull_request_number,
+        pull_request_title,
+        changed_paths: commit_receipt.changed_paths.clone(),
+        bifrost_publication_receipt_id,
+        summary,
+        emitted_at,
+        contract: "Hands PR receipt proves GitHub pull-request publication as a consequence of a reviewed action, commit receipt, and Bifrost publication gate; GitHub remains a substrate, not governance authority.".to_string(),
     }
 }
 

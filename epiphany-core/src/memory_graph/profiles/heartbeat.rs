@@ -392,8 +392,7 @@ mod tests {
                 themes: vec![
                     HeartbeatIncubationTheme {
                         theme_id: "theme-body-soul".to_string(),
-                        summary: "Modeling and Soul keep touching evidence boundaries."
-                            .to_string(),
+                        summary: "Modeling and Soul keep touching evidence boundaries.".to_string(),
                         latent_question: "Should this become doctrine?".to_string(),
                         holding_close_because: "It is live but not settled.".to_string(),
                         why_it_pulls: "It affects future review gates.".to_string(),

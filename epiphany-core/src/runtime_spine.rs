@@ -722,6 +722,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<HandsPatchReceipt>()?;
     cache.register_entry_type::<HandsCommandReceipt>()?;
     cache.register_entry_type::<HandsCommitReceipt>()?;
+    cache.register_entry_type::<HandsPrReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
     cache.register_entry_type::<ContinuityRecoveryReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
@@ -1417,6 +1418,43 @@ pub fn runtime_hands_commit_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<HandsCommitReceipt>(receipt_id)
+}
+
+pub fn put_hands_pr_receipt(store_path: impl AsRef<Path>, receipt: &HandsPrReceipt) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "Hands PR receipt id")?;
+    validate_non_empty(&receipt.intent_id, "Hands PR intent")?;
+    validate_non_empty(&receipt.review_id, "Hands PR review")?;
+    validate_non_empty(&receipt.runtime_job_id, "Hands PR runtime job")?;
+    validate_non_empty(&receipt.commit_receipt_id, "Hands PR commit receipt")?;
+    validate_non_empty(&receipt.commit_sha, "Hands PR commit sha")?;
+    validate_non_empty(&receipt.branch, "Hands PR branch")?;
+    validate_non_empty(&receipt.pull_request_url, "Hands PR url")?;
+    validate_non_empty(&receipt.pull_request_number, "Hands PR number")?;
+    validate_non_empty(&receipt.pull_request_title, "Hands PR title")?;
+    validate_non_empty(
+        &receipt.bifrost_publication_receipt_id,
+        "Hands PR Bifrost publication receipt",
+    )?;
+    validate_non_empty(&receipt.summary, "Hands PR summary")?;
+    validate_non_empty(&receipt.emitted_at, "Hands PR timestamp")?;
+    if receipt.changed_paths.is_empty() {
+        return Err(anyhow!("Hands PR receipt must name changed paths"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_hands_pr_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<HandsPrReceipt>> {
+    validate_non_empty(receipt_id, "Hands PR receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<HandsPrReceipt>(receipt_id)
 }
 
 pub fn runtime_hands_receipt_chain_after(
@@ -3656,6 +3694,19 @@ mod tests {
             "2026-05-06T00:07:10Z".to_string(),
         );
         put_hands_commit_receipt(&store, &hands_commit)?;
+        let hands_pr = crate::hands_pr_receipt_for_review(
+            "hands-pr-1".to_string(),
+            &hands_intent,
+            &hands_review,
+            &hands_commit,
+            "https://github.com/GameCult/EpiphanyAgent/pull/1".to_string(),
+            "1".to_string(),
+            "Publish focused patch".to_string(),
+            "bifrost-publication-receipt-1".to_string(),
+            "Published focused patch as pull request.".to_string(),
+            "2026-05-06T00:07:20Z".to_string(),
+        );
+        put_hands_pr_receipt(&store, &hands_pr)?;
         let stored_intent = runtime_hands_action_intent(&store, "hands-intent-1")?
             .expect("Hands action intent should persist");
         assert_eq!(stored_intent, hands_intent);
@@ -3671,6 +3722,9 @@ mod tests {
         let stored_commit = runtime_hands_commit_receipt(&store, "hands-commit-1")?
             .expect("Hands commit receipt should persist");
         assert_eq!(stored_commit, hands_commit);
+        let stored_pr = runtime_hands_pr_receipt(&store, "hands-pr-1")?
+            .expect("Hands PR receipt should persist");
+        assert_eq!(stored_pr, hands_pr);
         assert!(runtime_hands_receipt_chain_after(
             &store,
             "2026-05-06T00:06:45Z"

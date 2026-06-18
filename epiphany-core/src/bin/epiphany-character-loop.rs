@@ -743,7 +743,9 @@ fn mood_label(arousal: f64, guardedness: f64, curiosity: f64) -> &'static str {
 
 fn reaction_recommended_use(role_id: &str, mode: &str) -> &'static str {
     match (role_id, mode) {
-        ("Persona", "draft") => "Prepare a reviewed Aquarium-facing draft; do not post automatically.",
+        ("Persona", "draft") => {
+            "Prepare a reviewed Aquarium-facing draft; do not post automatically."
+        }
         (_, "hold_and_verify") => "Bias toward verifier/modeler review before expression.",
         (_, "inspect") => {
             "Bias the next heartbeat toward a bounded retrieval or modeling inspection."

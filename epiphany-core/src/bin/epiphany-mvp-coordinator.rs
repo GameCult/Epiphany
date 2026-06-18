@@ -19,6 +19,7 @@ use epiphany_core::append_runtime_event;
 use epiphany_core::create_runtime_session;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::put_coordinator_run_receipt;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
@@ -76,6 +77,7 @@ struct Args {
     artifact_dir: PathBuf,
     agent_memory_dir: PathBuf,
     runtime_store: PathBuf,
+    local_verse_store: PathBuf,
     mode: String,
     max_steps: usize,
     poll_seconds: f64,
@@ -111,6 +113,10 @@ impl Args {
             artifact_dir: root.join(".epiphany-dogfood").join("coordinator"),
             agent_memory_dir: root.join("state").join("agents.msgpack"),
             runtime_store: root.join("state").join("runtime-spine.msgpack"),
+            local_verse_store: root
+                .join(".epiphany-run")
+                .join("cultmesh")
+                .join("local-verse.ccmp"),
             mode: "plan".to_string(),
             max_steps: 4,
             poll_seconds: 5.0,
@@ -152,6 +158,9 @@ impl Args {
                 }
                 "--runtime-store" => {
                     parsed.runtime_store = take_path(&mut args, "--runtime-store")?
+                }
+                "--local-verse-store" => {
+                    parsed.local_verse_store = take_path(&mut args, "--local-verse-store")?
                 }
                 "--mode" => parsed.mode = take_string(&mut args, "--mode")?,
                 "--max-steps" => {
@@ -200,6 +209,8 @@ impl Args {
 
 fn run_coordinator(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
+    let local_verse_store = status_cli::absolute_path(&args.local_verse_store)?;
+    assert_local_verse_brake_released(&local_verse_store, "epiphany-mvp-coordinator")?;
     let app_server = status_cli::absolute_path(&args.app_server)?;
     let mut cwd = status_cli::absolute_path(&args.cwd)?;
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
@@ -421,13 +432,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 }
                 if args.supersede_failed_results && role_result_needs_supersession(role_id, &result)
                 {
-                    let superseded = supersede_role_result(
-                        &mut client,
-                        &thread_id,
-                        role_id,
-                        revision,
-                        &result,
-                    )?;
+                    let superseded =
+                        supersede_role_result(&mut client, &thread_id, role_id, revision, &result)?;
                     push_event(
                         &mut step,
                         json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
@@ -747,6 +753,26 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     )?;
     status_cli::write_transcript_telemetry(&transcript_path, &telemetry_path)?;
     Ok(summary)
+}
+
+fn assert_local_verse_brake_released(local_verse_store: &Path, runner_name: &str) -> Result<()> {
+    if !local_verse_store.exists() {
+        return Ok(());
+    }
+    let Some(brake) = load_epiphany_cultmesh_swarm_brake(local_verse_store, "epiphany-local")?
+    else {
+        return Ok(());
+    };
+    if brake.status == "engaged" {
+        anyhow::bail!(
+            "{runner_name} refusing to run: local Verse swarm brake engaged; scope={}; protected={}; affected={}; reason={}",
+            brake.scope,
+            brake.protected_surfaces.join(","),
+            brake.affected_clusters.join(","),
+            brake.reason
+        );
+    }
+    Ok(())
 }
 
 fn collect_coordinator_status(

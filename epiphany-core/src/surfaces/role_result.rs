@@ -1102,10 +1102,7 @@ mod tests {
 
         let review = finding.self_persistence.as_ref().unwrap();
         assert_eq!(review.status, EpiphanyRoleSelfPersistenceStatus::Accepted);
-        assert_eq!(
-            review.target_agent_id.as_deref(),
-            Some("epiphany.modeling")
-        );
+        assert_eq!(review.target_agent_id.as_deref(), Some("epiphany.modeling"));
     }
 
     #[test]

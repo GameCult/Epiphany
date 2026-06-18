@@ -310,7 +310,9 @@ fn validate_status(status: &Value, rendered: &str) -> Result<()> {
         .and_then(Value::as_array);
     require(
         persona_actions.is_some_and(|items| {
-            items.iter().any(|item| item.as_str() == Some("personaBubble"))
+            items
+                .iter()
+                .any(|item| item.as_str() == Some("personaBubble"))
                 && items
                     .iter()
                     .any(|item| item.as_str() == Some("characterTurn"))

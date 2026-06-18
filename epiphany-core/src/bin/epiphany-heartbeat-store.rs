@@ -6,6 +6,7 @@ use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatHeatUpdateOptions;
 use epiphany_core::HeartbeatPumpOptions;
 use epiphany_core::HeartbeatQueueMentionOptions;
+use epiphany_core::HeartbeatStaleTurnRepairOptions;
 use epiphany_core::HeartbeatTickOptions;
 use epiphany_core::VoidRoutineOptions;
 use epiphany_core::apply_agent_self_patch_document;
@@ -13,9 +14,11 @@ use epiphany_core::complete_heartbeat_store;
 use epiphany_core::heartbeat_status_projection;
 use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
 use epiphany_core::initialize_heartbeat_store;
+use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_heartbeat_state_entry;
 use epiphany_core::pump_heartbeat_store;
 use epiphany_core::queue_heartbeat_pending_mention_store;
+use epiphany_core::recover_stale_heartbeat_store;
 use epiphany_core::run_void_routine_store;
 use epiphany_core::tick_heartbeat_store;
 use epiphany_core::update_heartbeat_heat_store;
@@ -33,6 +36,7 @@ fn main() -> Result<()> {
     };
     let mut store_path: Option<PathBuf> = None;
     let mut artifact_dir: Option<PathBuf> = None;
+    let mut local_verse_store: Option<PathBuf> = None;
     let mut target_heartbeat_rate = 1.0_f64;
     let mut min_heartbeat_rate = 0.05_f64;
     let mut max_heartbeat_rate = 4.0_f64;
@@ -73,11 +77,16 @@ fn main() -> Result<()> {
     let mut reply_to_message_id: Option<String> = None;
     let mut source_surface = "operator".to_string();
     let mut mention_id: Option<String> = None;
+    let mut max_age_seconds = 1800_i64;
+    let mut now_utc: Option<String> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--store" => store_path = Some(next_path(&mut args, "--store")?),
             "--artifact-dir" => artifact_dir = Some(next_path(&mut args, "--artifact-dir")?),
+            "--local-verse-store" => {
+                local_verse_store = Some(next_path(&mut args, "--local-verse-store")?)
+            }
             "--target-heartbeat-rate" => {
                 target_heartbeat_rate = next_value(&mut args, "--target-heartbeat-rate")?.parse()?
             }
@@ -138,6 +147,10 @@ fn main() -> Result<()> {
             }
             "--source-surface" => source_surface = next_value(&mut args, "--source-surface")?,
             "--mention-id" => mention_id = Some(next_value(&mut args, "--mention-id")?),
+            "--max-age-seconds" => {
+                max_age_seconds = next_value(&mut args, "--max-age-seconds")?.parse()?
+            }
+            "--now-utc" => now_utc = Some(next_value(&mut args, "--now-utc")?),
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
     }
@@ -169,6 +182,7 @@ fn main() -> Result<()> {
             );
         }
         "tick" => {
+            assert_swarm_brake_allows_heartbeat(&local_verse_store, "tick")?;
             let store_path = store_path.ok_or_else(|| anyhow!("tick requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("tick requires --artifact-dir"))?;
@@ -216,7 +230,25 @@ fn main() -> Result<()> {
             )?;
             println!("{}", result);
         }
+        "repair-stale" => {
+            let store_path = store_path.ok_or_else(|| anyhow!("repair-stale requires --store"))?;
+            let artifact_dir =
+                artifact_dir.ok_or_else(|| anyhow!("repair-stale requires --artifact-dir"))?;
+            let result = recover_stale_heartbeat_store(
+                &store_path,
+                &artifact_dir,
+                HeartbeatStaleTurnRepairOptions {
+                    max_age_seconds,
+                    now_utc,
+                    reason: heat_reason.unwrap_or_else(|| {
+                        "Operator requested stale heartbeat turn recovery.".to_string()
+                    }),
+                },
+            )?;
+            println!("{}", result);
+        }
         "pump" => {
+            assert_swarm_brake_allows_heartbeat(&local_verse_store, "pump")?;
             let store_path = store_path.ok_or_else(|| anyhow!("pump requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("pump requires --artifact-dir"))?;
@@ -250,6 +282,7 @@ fn main() -> Result<()> {
             println!("{}", result);
         }
         "heat" => {
+            assert_swarm_brake_allows_heartbeat(&local_verse_store, "heat")?;
             let store_path = store_path.ok_or_else(|| anyhow!("heat requires --store"))?;
             let result = update_heartbeat_heat_store(
                 &store_path,
@@ -267,6 +300,7 @@ fn main() -> Result<()> {
             println!("{}", result);
         }
         "queue-mention" => {
+            assert_swarm_brake_allows_heartbeat(&local_verse_store, "queue-mention")?;
             let store_path = store_path.ok_or_else(|| anyhow!("queue-mention requires --store"))?;
             let target_role_id = role.unwrap_or_else(|| "Persona".to_string());
             let result = queue_heartbeat_pending_mention_store(
@@ -320,6 +354,7 @@ fn main() -> Result<()> {
             }
         }
         "routine" => {
+            assert_swarm_brake_allows_heartbeat(&local_verse_store, "routine")?;
             let store_path = store_path.ok_or_else(|| anyhow!("routine requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("routine requires --artifact-dir"))?;
@@ -369,8 +404,34 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [--agent-store <path>] [--urgency <0..1>] [--min-heartbeat-rate <n>] [--max-heartbeat-rate <n>] [--min-concurrency <n>] [--max-concurrency <n>] [--max-ticks <n>]\n       epiphany-heartbeat-store heat --store <path> [--scope global|all|agent|role|arena|participant_kind|group] [--selector <id>] [--multiplier <n>] [--id <id>] [--label <text>] [--reason <text>] [--expires-after <scene-clock-delta>] [--clear]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store queue-mention --store <path> [--role Persona] --channel-id <id> --message-id <id> --author-id <id> --content <text> --visible-prompt <text> [--author-name <name>] [--reply-to-message-id <id>] [--source-surface <name>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--local-verse-store <path>] [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [--local-verse-store <path>] [--agent-store <path>] [--urgency <0..1>] [--min-heartbeat-rate <n>] [--max-heartbeat-rate <n>] [--min-concurrency <n>] [--max-concurrency <n>] [--max-ticks <n>]\n       epiphany-heartbeat-store heat --store <path> [--local-verse-store <path>] [--scope global|all|agent|role|arena|participant_kind|group] [--selector <id>] [--multiplier <n>] [--id <id>] [--label <text>] [--reason <text>] [--expires-after <scene-clock-delta>] [--clear]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store repair-stale --store <path> --artifact-dir <path> [--max-age-seconds <n>] [--reason <text>] [--now-utc <rfc3339>]\n       epiphany-heartbeat-store queue-mention --store <path> [--local-verse-store <path>] [--role Persona] --channel-id <id> --message-id <id> --author-id <id> --content <text> --visible-prompt <text> [--author-name <name>] [--reply-to-message-id <id>] [--source-surface <name>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--local-verse-store <path>] [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
+}
+
+fn assert_swarm_brake_allows_heartbeat(
+    local_verse_store: &Option<PathBuf>,
+    command: &str,
+) -> Result<()> {
+    let Some(local_verse_store) = local_verse_store else {
+        return Ok(());
+    };
+    if !local_verse_store.exists() {
+        return Ok(());
+    }
+    let Some(brake) = load_epiphany_cultmesh_swarm_brake(local_verse_store, "epiphany-local")?
+    else {
+        return Ok(());
+    };
+    if brake.status == "engaged" {
+        anyhow::bail!(
+            "epiphany-heartbeat-store {command} refusing to run: local Verse swarm brake engaged; scope={}; protected={}; affected={}; reason={}",
+            brake.scope,
+            brake.protected_surfaces.join(","),
+            brake.affected_clusters.join(","),
+            brake.reason
+        );
+    }
+    Ok(())
 }
 
 fn parse_scene_participant(raw: &str) -> Result<GhostlightSceneParticipantSeed> {
@@ -557,6 +618,45 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             agent_store: Some(temp_agent_store.clone()),
         },
     )?;
+    let stale_store_path = temp_dir.join("stale-heartbeats.msgpack");
+    initialize_heartbeat_store(&stale_store_path, 1.0)?;
+    let stale_work = tick_heartbeat_store(
+        &stale_store_path,
+        &artifact_dir,
+        HeartbeatTickOptions {
+            target_heartbeat_rate: 1.0,
+            coordinator_action: Some("continueImplementation".to_string()),
+            target_role: None,
+            urgency: 0.95,
+            schedule_id: "smoke-stale-work".to_string(),
+            source_scene_ref: "smoke/stale".to_string(),
+            defer_completion: true,
+            agent_store: Some(temp_agent_store.clone()),
+        },
+    )?;
+    let stale_repair = recover_stale_heartbeat_store(
+        &stale_store_path,
+        &artifact_dir,
+        HeartbeatStaleTurnRepairOptions {
+            max_age_seconds: 0,
+            now_utc: None,
+            reason: "Smoke-test stale heartbeat recovery receipt.".to_string(),
+        },
+    )?;
+    let after_stale_repair = tick_heartbeat_store(
+        &stale_store_path,
+        &artifact_dir,
+        HeartbeatTickOptions {
+            target_heartbeat_rate: 1.0,
+            coordinator_action: Some("continueImplementation".to_string()),
+            target_role: None,
+            urgency: 0.95,
+            schedule_id: "smoke-after-stale-repair".to_string(),
+            source_scene_ref: "smoke/stale".to_string(),
+            defer_completion: true,
+            agent_store: Some(temp_agent_store.clone()),
+        },
+    )?;
     let initiative_errors = validate_schedule_shape(&work["schedule"])
         .into_iter()
         .chain(validate_schedule_shape(&idle["schedule"]))
@@ -594,7 +694,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         && artifact_dir.join("smoke-work.initiative.json").exists()
         && artifact_dir.join("smoke-work.completion.json").exists()
         && artifact_dir.join("smoke-idle.rumination.json").exists()
-        && status["participants"].as_array().map(Vec::len) == Some(8)
+        && status["participants"].as_array().map(Vec::len) == Some(7)
         && routine["routine"]["schema_version"] == "epiphany.void_routine.v0"
         && routine["routine"]["memoryResonance"]["schema_version"]
             == "epiphany.memory_resonance.v0"
@@ -665,8 +765,16 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
     let ok = ok
         && relaxed_pump["pump"]["launched"].as_u64() == Some(0)
         && relaxed_pump["pump"]["pacing"]["targetConcurrency"].as_u64() == Some(0)
-        && alarmed_pump["pump"]["launched"].as_u64().unwrap_or(0) >= 6
-        && alarmed_pump["pump"]["pacing"]["targetConcurrency"].as_u64() == Some(8);
+        && alarmed_pump["pump"]["launched"].as_u64() == Some(7)
+        && alarmed_pump["pump"]["pacing"]["targetConcurrency"].as_u64() == Some(7)
+        && stale_work["event"]["turnStatus"] == "running"
+        && stale_repair["repaired"].as_u64() == Some(1)
+        && stale_repair["receipts"]
+            .as_array()
+            .and_then(|receipts| receipts.first())
+            .is_some_and(|receipt| receipt[10] == "repaired" && receipt[12] == false)
+        && after_stale_repair["event"]["selectedRole"] == stale_work["event"]["selectedRole"]
+        && after_stale_repair["event"]["turnStatus"] == "running";
 
     let result = serde_json::json!({
         "ok": ok,
@@ -680,6 +788,8 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         "personalityTiming": routine_status["participants"],
         "relaxedPump": relaxed_pump["pump"],
         "alarmedPump": alarmed_pump["pump"],
+        "staleRepair": stale_repair,
+        "afterStaleRepairEvent": after_stale_repair["event"],
         "validationErrors": validation_errors,
         "initiativeErrors": initiative_errors,
     });

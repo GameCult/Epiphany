@@ -1435,7 +1435,10 @@ pub fn render_status(status: &Value) -> String {
         ),
         String::new(),
         "Persona".to_string(),
-        format!("- latest artifact: {}", maybe(&latest_persona["name"], "none")),
+        format!(
+            "- latest artifact: {}",
+            maybe(&latest_persona["name"], "none")
+        ),
         format!(
             "- latest content: {}",
             maybe(&latest_persona["content"], "none")

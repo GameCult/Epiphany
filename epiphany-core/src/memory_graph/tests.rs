@@ -114,8 +114,7 @@ fn role_snapshot() -> EpiphanyMemoryGraphSnapshot {
             profile: EpiphanyMemoryProfile::RoleSelf,
             kind: EpiphanyMemoryNodeKind::RoleMemory,
             title: "Typed boundaries".to_string(),
-            claim: "Modeling remembers that typed boundaries keep the machine legible."
-                .to_string(),
+            claim: "Modeling remembers that typed boundaries keep the machine legible.".to_string(),
             question: "Which boundary is currently lying?".to_string(),
             tension: String::new(),
             action_implication: "Prefer one owned graph store over profile-local stores."

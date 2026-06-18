@@ -1,9 +1,12 @@
 use super::EpiphanyHeartbeatCognitionEntry;
+use super::EpiphanyHeartbeatStaleTurnRepairReceipt;
 use super::EpiphanyHeartbeatStateEntry;
 use super::HEARTBEAT_ARENA_MAINTENANCE;
 use super::HEARTBEAT_ARENA_SCENE;
 use super::HEARTBEAT_COGNITION_KEY;
 use super::HEARTBEAT_COGNITION_SCHEMA_VERSION;
+use super::HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY;
+use super::HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION;
 use super::HEARTBEAT_STATE_KEY;
 use super::HEARTBEAT_STATE_SCHEMA_VERSION;
 use super::LegacyHeartbeatStateWithCognition;
@@ -23,6 +26,7 @@ pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> 
     let mut cache = CultCache::new();
     cache.register_entry_type::<EpiphanyHeartbeatStateEntry>()?;
     cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
+    cache.register_entry_type::<EpiphanyHeartbeatStaleTurnRepairReceipt>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
     cache.pull_all_backing_stores()?;
     Ok(cache)
@@ -32,6 +36,7 @@ fn legacy_heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCach
     let mut cache = CultCache::new();
     cache.register_entry_type::<LegacyHeartbeatStateWithCognition>()?;
     cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
+    cache.register_entry_type::<EpiphanyHeartbeatStaleTurnRepairReceipt>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
     cache.pull_all_backing_stores()?;
     Ok(cache)
@@ -78,6 +83,66 @@ pub fn write_heartbeat_cognition_entry(
     validate_heartbeat_cognition(cognition)?;
     let mut cache = heartbeat_state_cache(store_path)?;
     cache.put(HEARTBEAT_COGNITION_KEY, cognition)
+}
+
+pub fn write_heartbeat_stale_turn_repair_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &EpiphanyHeartbeatStaleTurnRepairReceipt,
+) -> Result<EpiphanyHeartbeatStaleTurnRepairReceipt> {
+    validate_heartbeat_stale_turn_repair_receipt(receipt)?;
+    let mut cache = heartbeat_state_cache(store_path)?;
+    let written = cache.put(receipt.receipt_id.clone(), receipt)?;
+    cache.put(HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY, &written)?;
+    Ok(written)
+}
+
+pub fn load_latest_heartbeat_stale_turn_repair_receipt(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<EpiphanyHeartbeatStaleTurnRepairReceipt>> {
+    let cache = heartbeat_state_cache(store_path)?;
+    cache.get::<EpiphanyHeartbeatStaleTurnRepairReceipt>(HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY)
+}
+
+pub fn validate_heartbeat_stale_turn_repair_receipt(
+    receipt: &EpiphanyHeartbeatStaleTurnRepairReceipt,
+) -> Result<()> {
+    if receipt.schema_version != HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "heartbeat stale-turn repair schema_version is {:?}, expected {:?}",
+            receipt.schema_version,
+            HEARTBEAT_STALE_TURN_REPAIR_SCHEMA_VERSION
+        ));
+    }
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "heartbeat stale-turn repair receipt must not expose private state"
+        ));
+    }
+    if receipt.receipt_id.trim().is_empty()
+        || receipt.role_id.trim().is_empty()
+        || receipt.agent_id.trim().is_empty()
+        || receipt.action_id.trim().is_empty()
+    {
+        return Err(anyhow!(
+            "heartbeat stale-turn repair receipt requires receipt, role, agent, and action ids"
+        ));
+    }
+    if receipt.stale_age_seconds < 0 {
+        return Err(anyhow!(
+            "heartbeat stale-turn repair receipt stale_age_seconds must be non-negative"
+        ));
+    }
+    if receipt.reason.trim().is_empty() {
+        return Err(anyhow!(
+            "heartbeat stale-turn repair receipt requires a reason"
+        ));
+    }
+    if receipt.resulting_status != "repaired" {
+        return Err(anyhow!(
+            "heartbeat stale-turn repair receipt resulting_status must be repaired"
+        ));
+    }
+    Ok(())
 }
 
 pub fn validate_heartbeat_cognition(cognition: &EpiphanyHeartbeatCognitionEntry) -> Result<()> {
