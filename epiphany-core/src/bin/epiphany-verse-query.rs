@@ -2517,11 +2517,23 @@ fn main() -> Result<()> {
                             == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
                         && row.mutates_state
                         && row.requires_elevated_authority
+                        && row.service_execution_failed_check_count
+                            == service_overview.service_execution_failed_check_count
+                        && row.service_execution_missing_check_count
+                            == service_overview.service_execution_missing_check_count
                         && !row.private_state_exposed
                 })
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
                         && row.contains("command=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook")
+                        && row.contains(&format!(
+                            "failedChecks={}",
+                            service_overview.service_execution_failed_check_count
+                        ))
+                        && row.contains(&format!(
+                            "missingChecks={}",
+                            service_overview.service_execution_missing_check_count
+                        ))
                         && row.contains("artifact=present")
                         && row.contains(&format!(
                             "sha256={}",
@@ -2645,6 +2657,8 @@ fn main() -> Result<()> {
                 "cluster-service-execution-audit",
                 WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND,
                 Some(&missing_runbook_row),
+                0,
+                0,
             );
             if !missing_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -2659,6 +2673,8 @@ fn main() -> Result<()> {
                     && row.completion_audit_wrapper_mode == "cluster-service-execution-audit"
                     && row.completion_audit_wrapper_command
                         == WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
+                    && row.service_execution_failed_check_count == 0
+                    && row.service_execution_missing_check_count == 0
                     && !row.mutates_state
                     && !row.requires_elevated_authority
                     && !row.private_state_exposed
@@ -3081,6 +3097,8 @@ struct SwarmActionRow {
     effect_class: String,
     mutates_state: bool,
     requires_elevated_authority: bool,
+    service_execution_failed_check_count: usize,
+    service_execution_missing_check_count: usize,
     reason: String,
     private_state_exposed: bool,
 }
@@ -3474,6 +3492,8 @@ fn swarm_action_rows(
     service_lifecycle_recommended_wrapper_mode: &str,
     service_lifecycle_recommended_wrapper_command: &str,
     service_execution_runbook_row: Option<&ReceiptDirectoryRow>,
+    service_execution_failed_check_count: usize,
+    service_execution_missing_check_count: usize,
 ) -> (Vec<SwarmActionRow>, Vec<String>) {
     let mut rows = Vec::new();
     if liveness_status != "ready" {
@@ -3495,6 +3515,8 @@ fn swarm_action_rows(
             effect_class: "typed-lifecycle-poke".to_string(),
             mutates_state: true,
             requires_elevated_authority: false,
+            service_execution_failed_check_count: 0,
+            service_execution_missing_check_count: 0,
             reason: "One or more daemon bodies are non-ready; poke liveness before trusting hosted tools.".to_string(),
             private_state_exposed: false,
         });
@@ -3523,6 +3545,8 @@ fn swarm_action_rows(
             effect_class: "read-only".to_string(),
             mutates_state: false,
             requires_elevated_authority: false,
+            service_execution_failed_check_count: 0,
+            service_execution_missing_check_count: 0,
             reason: format!(
                 "Hosted tool capabilities are blocked by non-ready daemon bodies: {blocked}."
             ),
@@ -3550,6 +3574,8 @@ fn swarm_action_rows(
             effect_class: "read-only".to_string(),
             mutates_state: false,
             requires_elevated_authority: false,
+            service_execution_failed_check_count: 0,
+            service_execution_missing_check_count: 0,
             reason: format!(
                 "Restart policy coverage needs attention: missing={}, disabled={}, attention={}.",
                 policy_report.missing_count,
@@ -3578,6 +3604,8 @@ fn swarm_action_rows(
             effect_class: "service-lifecycle-readback".to_string(),
             mutates_state: false,
             requires_elevated_authority: false,
+            service_execution_failed_check_count: 0,
+            service_execution_missing_check_count: 0,
             reason: format!(
                 "Windows service lifecycle receipt {} needs readback/audit before the daemon swarm can be called service-ready.",
                 row.route
@@ -3667,6 +3695,8 @@ fn swarm_action_rows(
                 effect_class,
                 mutates_state,
                 requires_elevated_authority,
+                service_execution_failed_check_count,
+                service_execution_missing_check_count,
                 reason,
                 private_state_exposed: runbook_row.private_state_exposed,
             });
@@ -3691,6 +3721,8 @@ fn swarm_action_rows(
             effect_class: "none".to_string(),
             mutates_state: false,
             requires_elevated_authority: false,
+            service_execution_failed_check_count: 0,
+            service_execution_missing_check_count: 0,
             reason: "No liveness, restart-policy, tool-host, or service-lifecycle attention rows are present.".to_string(),
             private_state_exposed: false,
         });
@@ -3704,7 +3736,7 @@ fn swarm_action_rows(
 
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
     format!(
-        "{:03} | {} | {} | {} | {} | command={} | mutates={} | elevated={} | artifact={} | sha256={} | audit={}",
+        "{:03} | {} | {} | {} | {} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | audit={}",
         row.priority,
         row.family,
         row.status,
@@ -3713,6 +3745,8 @@ fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
         row.wrapper_command,
         row.mutates_state,
         row.requires_elevated_authority,
+        row.service_execution_failed_check_count,
+        row.service_execution_missing_check_count,
         row.operator_artifact_status,
         row.operator_artifact_sha256,
         row.completion_audit_wrapper_mode
@@ -4183,6 +4217,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &service_lifecycle_recommended_wrapper_mode,
         &service_lifecycle_recommended_wrapper_command,
         service_execution_runbook_row,
+        service_execution_failed_check_count,
+        service_execution_missing_check_count,
     );
     let private_state_exposed = daemon_report
         .rows

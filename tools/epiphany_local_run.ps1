@@ -1826,7 +1826,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $command -or $command -eq "") {
                         $command = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    $failedChecks = $_.serviceExecutionFailedCheckCount
+                    if ($null -eq $failedChecks) {
+                        $failedChecks = 0
+                    }
+                    $missingChecks = $_.serviceExecutionMissingCheckCount
+                    if ($null -eq $missingChecks) {
+                        $missingChecks = 0
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
@@ -1898,7 +1906,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $command -or $command -eq "") {
                         $command = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    $failedChecks = $_.serviceExecutionFailedCheckCount
+                    if ($null -eq $failedChecks) {
+                        $failedChecks = 0
+                    }
+                    $missingChecks = $_.serviceExecutionMissingCheckCount
+                    if ($null -eq $missingChecks) {
+                        $missingChecks = 0
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):failedChecks=${failedChecks}:missingChecks=${missingChecks}:artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
