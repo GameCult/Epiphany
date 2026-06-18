@@ -162,7 +162,10 @@ function Format-TuiRows {
 }
 
 function Format-ClusterServiceRows {
-    param([object]$Rows)
+    param(
+        [object]$Rows,
+        [string]$DefaultStatus = "unknown"
+    )
 
     $rowList = @($Rows)
     if ($null -eq $Rows -or $rowList.Count -eq 0) {
@@ -175,7 +178,7 @@ function Format-ClusterServiceRows {
             $status = $_.observedStatus
         }
         if ($null -eq $status -or $status -eq "") {
-            $status = "unknown"
+            $status = $DefaultStatus
         }
         $executed = $_.executed
         if ($null -eq $executed -or $executed -eq "") {
@@ -1919,7 +1922,8 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $serviceRows = Format-ClusterServiceRows $result.services
             Write-Host "Cluster daemon service control: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), planned=$($result.plannedCount), requested=$($result.requestedCount), refused=$($result.refusedCount), failed=$($result.failedCount), receipt=$($result.receiptId), serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-execution-readiness") {
-            Write-Host "Cluster daemon service execution readiness: service=$($result.serviceId), daemons=$($result.daemonCount), services=$($result.serviceCount), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId)"
+            $serviceRows = Format-ClusterServiceRows $result.services $result.status
+            Write-Host "Cluster daemon service execution readiness: service=$($result.serviceId), daemons=$($result.daemonCount), services=$($result.serviceCount), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId), serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-execution-runbook") {
             Write-Host "Cluster daemon service execution runbook: service=$($result.serviceId), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-execution-audit") {
