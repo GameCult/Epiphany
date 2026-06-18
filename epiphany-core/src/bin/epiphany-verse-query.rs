@@ -1455,6 +1455,7 @@ fn main() -> Result<()> {
                     && row.contains("Hands")
                     && row.contains("repo-action")
                     && row.contains("epiphany.cluster.hands.tool.repo-action")
+                    && row.contains("authority=hands")
                     && row.contains("allAgents=true")
                     && row.contains("receipt=true")
                     && row.contains("private=false")
@@ -3580,8 +3581,13 @@ fn daemon_tool_directory_tui_row(row: &DaemonToolDirectoryRow) -> String {
         "private=false"
     };
     format!(
-        "{compact_status} | {} | {} | {} | {} | {} | {availability} | {receipt} | {private}",
-        row.host_display_name, row.tool_name, row.operation, row.capability_id, row.eve_surface_id
+        "{compact_status} | {} | {} | {} | {} | {} | authority={} | {availability} | {receipt} | {private}",
+        row.host_display_name,
+        row.tool_name,
+        row.operation,
+        row.capability_id,
+        row.eve_surface_id,
+        row.authority_gate
     )
 }
 
