@@ -1611,7 +1611,20 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "bifrost-ledger") {
             Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "receipt-directory") {
-            Write-Host "Receipt directory: status=$($result.status), rows=$($result.rowCount), present=$($result.presentRowCount), absent=$($result.absentRowCount), attention=$($result.attentionRowCount), artifactNone=$($result.artifactNoneCount), artifactExternalRef=$($result.artifactExternalRefCount), artifactPresent=$($result.artifactPresentCount), artifactMissing=$($result.artifactMissingCount), privateStateExposed=$($result.privateStateExposed)"
+            $artifactHashes = "none"
+            if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
+                $presentArtifactHashes = @($result.rows | Where-Object { $_.artifactStatus -eq "present" } | ForEach-Object {
+                    $artifactSha256 = $_.artifactSha256
+                    if ($null -eq $artifactSha256 -or $artifactSha256 -eq "") {
+                        $artifactSha256 = "none"
+                    }
+                    "$($_.family):${artifactSha256}"
+                })
+                if ($presentArtifactHashes.Count -gt 0) {
+                    $artifactHashes = ($presentArtifactHashes -join "; ")
+                }
+            }
+            Write-Host "Receipt directory: status=$($result.status), rows=$($result.rowCount), present=$($result.presentRowCount), absent=$($result.absentRowCount), attention=$($result.attentionRowCount), artifactNone=$($result.artifactNoneCount), artifactExternalRef=$($result.artifactExternalRefCount), artifactPresent=$($result.artifactPresentCount), artifactMissing=$($result.artifactMissingCount), artifactHashes=$artifactHashes, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "tool-directory") {
             Write-Host "Tool directory: status=$($result.status), tools=$($result.toolCount), hostReady=$($result.hostReadyCount), hostAttention=$($result.hostAttentionCount), privateStateExposed=$($result.invariants.privateStateExposed)"
         } elseif ($Mode -eq "tool-invoke") {
