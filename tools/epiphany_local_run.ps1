@@ -1742,7 +1742,13 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
             Write-Host "Swarm overview: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
-            Write-Host "Service policy directory: status=$($result.status), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), privateStateExposed=$($result.privateStateExposed)"
+            $policyRows = "none"
+            if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
+                $policyRows = (($result.rows | ForEach-Object {
+                    "$($_.displayName):$($_.policyStatus):$($_.daemonId):last=$($_.lastResultStatus):reconcile=$($_.reconcileIntervalSeconds)s:stale=$($_.heartbeatStaleSeconds)s->$($_.followUpCommand)"
+                }) -join "; ")
+            }
+            Write-Host "Service policy directory: status=$($result.status), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), policyRows=$policyRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-poke-down") {
             Write-Host "Swarm poke down: status=$($result.status), observed=$($result.observedDaemonCount), poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-triage") {

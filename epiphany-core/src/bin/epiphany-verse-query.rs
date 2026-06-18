@@ -1724,7 +1724,12 @@ fn main() -> Result<()> {
                 || !policy_report
                     .tui_rows
                     .iter()
-                    .any(|row| row.contains("MISSING") && row.contains("Persona"))
+                    .any(|row| {
+                        row.contains("MISSING")
+                            && row.contains("Persona")
+                            && row.contains("followUp=epiphany-daemon-supervisor policy --daemon-id <daemon> --restart-command <exe>")
+                            && row.contains("private=false")
+                    })
             {
                 anyhow::bail!(
                     "local Verse query smoke lost compact daemon restart policy coverage report"
@@ -1772,6 +1777,13 @@ fn main() -> Result<()> {
                 || disabled_policy_report.missing_count != 6
                 || disabled_policy_report.attention_count != 7
                 || disabled_policy_report.status != "attention"
+                || !disabled_policy_report.tui_rows.iter().any(|row| {
+                    row.contains("DISABLED")
+                        && row.contains("Persona")
+                        && row.contains("last=never-attempted")
+                        && row.contains("followUp=epiphany-daemon-supervisor policy --daemon-id <daemon> --restart-command <exe>")
+                        && row.contains("private=false")
+                })
             {
                 anyhow::bail!(
                     "local Verse query smoke let a disabled daemon restart policy masquerade as recovery readiness"
@@ -3781,8 +3793,17 @@ fn daemon_restart_policy_directory_report_from_rows(
             _ => "MISSING",
         };
         tui_rows.push(format!(
-            "{compact_status} | {display_name} | {} | daemon={} | policy={}",
-            status.daemon_id, status.status, policy_id
+            "{compact_status} | {display_name} | {} | daemon={} | policy={} | cooldown={}s | reconcile={}s | stale={}s | failures={} | last={} | followUp={} | private={}",
+            status.daemon_id,
+            status.status,
+            policy_id,
+            cooldown_seconds,
+            reconcile_interval_seconds,
+            heartbeat_stale_seconds,
+            failure_count,
+            last_result_status,
+            follow_up_command,
+            private_row_exposed
         ));
         rows.push(DaemonRestartPolicyDirectoryRow {
             cluster_id: status.cluster_id.clone(),
