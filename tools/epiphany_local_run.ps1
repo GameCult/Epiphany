@@ -125,6 +125,31 @@ function Invoke-Checked {
     }
 }
 
+function Format-ServiceExecutionFailedChecks {
+    param([object]$Rows)
+
+    $rowList = @($Rows)
+    if ($null -eq $Rows -or $rowList.Count -eq 0) {
+        return "none"
+    }
+
+    return (($rowList | ForEach-Object {
+        $observed = $_.observedStatus
+        if ($null -eq $observed -or $observed -eq "") {
+            $observed = "missing"
+        }
+        $artifact = $_.operatorArtifactRef
+        if ($null -eq $artifact -or $artifact -eq "") {
+            $artifact = "none"
+        }
+        $artifactSha256 = "none"
+        if ($artifact -ne "none" -and (Test-Path -LiteralPath $artifact -PathType Leaf)) {
+            $artifactSha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        "$($_.action)=${observed}:artifact=${artifact}:sha256=${artifactSha256}"
+    }) -join "; ")
+}
+
 Set-Location -LiteralPath $Root
 $Root = (Resolve-Path ".").Path
 $env:CARGO_TARGET_DIR = $TargetDir
@@ -1676,16 +1701,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
-            $serviceExecutionFailedChecks = "none"
-            if ($null -ne $result.serviceExecutionFailedCheckRows -and $result.serviceExecutionFailedCheckRows.Count -gt 0) {
-                $serviceExecutionFailedChecks = (($result.serviceExecutionFailedCheckRows | ForEach-Object {
-                    $observed = $_.observedStatus
-                    if ($null -eq $observed -or $observed -eq "") {
-                        $observed = "missing"
-                    }
-                    "$($_.action)=${observed}"
-                }) -join "; ")
-            }
+            $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
             Write-Host "Swarm overview: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             Write-Host "Service policy directory: status=$($result.status), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), privateStateExposed=$($result.privateStateExposed)"
@@ -1738,16 +1754,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
-            $serviceExecutionFailedChecks = "none"
-            if ($null -ne $result.serviceExecutionFailedCheckRows -and $result.serviceExecutionFailedCheckRows.Count -gt 0) {
-                $serviceExecutionFailedChecks = (($result.serviceExecutionFailedCheckRows | ForEach-Object {
-                    $observed = $_.observedStatus
-                    if ($null -eq $observed -or $observed -eq "") {
-                        $observed = "missing"
-                    }
-                    "$($_.action)=${observed}"
-                }) -join "; ")
-            }
+            $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
             Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-runbook") {
             Write-Host "Service runbook: service=$($result.serviceId), receipt=$($result.receiptId), path=$($result.runbookPath)"
