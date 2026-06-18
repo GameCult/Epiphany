@@ -166,6 +166,7 @@ fn main() -> Result<()> {
                     "absentRowCount": report.absent_row_count,
                     "readyRowCount": report.ready_row_count,
                     "attentionRowCount": report.attention_row_count,
+                    "attentionRouteRows": report.attention_route_rows,
                     "missingRowCount": report.missing_row_count,
                     "artifactNoneCount": report.artifact_none_count,
                     "artifactExternalRefCount": report.artifact_external_ref_count,
@@ -2241,6 +2242,7 @@ fn main() -> Result<()> {
             let receipt_directory = receipt_directory_report(&context, &lifecycle_receipts);
             if receipt_directory.status != "ok"
                 || receipt_directory.private_state_exposed
+                || !receipt_directory.attention_route_rows.is_empty()
                 || receipt_directory.ready_row_count < 7
                 || receipt_directory.artifact_none_count != receipt_directory.rows.len()
                 || receipt_directory.artifact_external_ref_count != 0
@@ -2359,6 +2361,10 @@ fn main() -> Result<()> {
                 || service_receipt_directory.artifact_external_ref_count < 1
                 || service_receipt_directory.artifact_present_count < 1
                 || service_receipt_directory.artifact_missing_count != 0
+                || !service_receipt_directory
+                    .attention_route_rows
+                    .iter()
+                    .any(|row| row.starts_with("cluster-service-lifecycle:"))
                 || !service_receipt_directory.rows.iter().any(|row| {
                     row.family == "cluster-service-execution-runbook"
                         && row.artifact_status == "present"
@@ -3199,6 +3205,7 @@ struct ReceiptDirectoryReport {
     status: String,
     rows: Vec<ReceiptDirectoryRow>,
     tui_rows: Vec<String>,
+    attention_route_rows: Vec<String>,
     present_row_count: usize,
     absent_row_count: usize,
     ready_row_count: usize,
@@ -4503,6 +4510,11 @@ fn receipt_directory_report(
         .iter()
         .filter(|row| receipt_directory_row_needs_attention(row))
         .count();
+    let attention_route_rows = rows
+        .iter()
+        .filter(|row| receipt_directory_row_needs_attention(row))
+        .map(receipt_directory_attention_route_row)
+        .collect::<Vec<_>>();
     let missing_row_count = absent_row_count;
     let artifact_none_count = rows
         .iter()
@@ -4534,6 +4546,7 @@ fn receipt_directory_report(
         status,
         rows,
         tui_rows,
+        attention_route_rows,
         present_row_count,
         absent_row_count,
         ready_row_count,
@@ -4574,6 +4587,13 @@ fn receipt_directory_tui_row(row: &ReceiptDirectoryRow) -> String {
         row.follow_up_command,
         row.artifact_status,
         row.artifact_sha256
+    )
+}
+
+fn receipt_directory_attention_route_row(row: &ReceiptDirectoryRow) -> String {
+    format!(
+        "{}:{}:{}->{}",
+        row.family, row.status, row.route, row.follow_up_command
     )
 }
 

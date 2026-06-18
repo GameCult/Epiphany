@@ -1756,9 +1756,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 if ($presentArtifactHashes.Count -gt 0) {
                     $artifactHashes = ($presentArtifactHashes -join "; ")
                 }
-                $attentionRouteRows = @($result.rows | Where-Object { $_.privateStateExposed -eq $true -or $_.status -in @("down", "degraded", "incomplete", "not-elevated", "execution-refused-not-elevated", "failed", "query-failed", "drift", "disabled") } | ForEach-Object {
-                    "$($_.family):$($_.status):$($_.route)->$($_.followUpCommand)"
-                })
+                $attentionRouteRows = @($result.attentionRouteRows)
                 if ($attentionRouteRows.Count -gt 0) {
                     $attentionRoutes = ($attentionRouteRows -join "; ")
                 }
