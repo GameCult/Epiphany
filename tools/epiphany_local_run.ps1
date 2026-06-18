@@ -1634,7 +1634,17 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "bifrost-publication") {
             Write-Host "Bifrost publication: status=$($result.status), intent=$($result.intentId), publication=$($result.publicationReceiptId), github=$($result.githubPublicationReceiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-ledger") {
-            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), privateStateExposed=$($result.privateStateExposed)"
+            $publicRefs = "none"
+            if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
+                $publicRefs = (($result.rows | ForEach-Object {
+                    $publicRef = $_.publicRef
+                    if ($null -eq $publicRef -or $publicRef -eq "") {
+                        $publicRef = "none"
+                    }
+                    "$($_.documentKind)=${publicRef}"
+                }) -join "; ")
+            }
+            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), publicRefs=$publicRefs, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "receipt-directory") {
             $artifactHashes = "none"
             if ($null -ne $result.rows -and $result.rows.Count -gt 0) {

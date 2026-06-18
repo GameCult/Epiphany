@@ -2084,14 +2084,20 @@ fn main() -> Result<()> {
                 || bifrost_ledger_report.collaboration_chain_count != 2
                 || bifrost_ledger_report.rows.len() != 5
                 || bifrost_ledger_report.private_state_exposed
-                || !bifrost_ledger_report
-                    .tui_rows
-                    .iter()
-                    .any(|row| row.contains("github-publication-receipt"))
-                || !bifrost_ledger_report
-                    .tui_rows
-                    .iter()
-                    .any(|row| row.contains("imagination-consensus-receipt"))
+                || !bifrost_ledger_report.tui_rows.iter().any(|row| {
+                    row.contains("github-publication-receipt")
+                        && row.contains(
+                            "public=https://github.com/GameCult/EpiphanyAgent/pull/smoke",
+                        )
+                        && row.contains("private=false")
+                })
+                || !bifrost_ledger_report.tui_rows.iter().any(|row| {
+                    row.contains("imagination-consensus-receipt")
+                        && row.contains(
+                            "public=https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm",
+                        )
+                        && row.contains("private=false")
+                })
             {
                 anyhow::bail!("local Verse query smoke lost compact Bifrost ledger readback");
             }
@@ -4911,9 +4917,14 @@ fn push_bifrost_ledger_row(
     } else {
         "OK"
     };
+    let private = if row.private_state_exposed {
+        "private=true"
+    } else {
+        "private=false"
+    };
     tui_rows.push(format!(
-        "{compact_status} | {} | {} | {} | {}",
-        row.document_kind, row.id, row.status, row.route
+        "{compact_status} | {} | {} | {} | {} | public={} | {private}",
+        row.document_kind, row.id, row.status, row.route, row.public_ref
     ));
     rows.push(row);
 }
