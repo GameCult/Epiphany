@@ -1620,7 +1620,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "status") {
             Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action)"
         } elseif ($Mode -eq "agent-state-soa") {
-            Write-Host "Agent state SoA: status=$($result.status), agents=$($result.agentCount), summaryRows=$($result.summarySoaTableRows), privateStateExposed=$($result.privateStateExposed)"
+            $agentRows = "none"
+            if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
+                $agentRows = ($result.tuiRows -join "; ")
+            }
+            Write-Host "Agent state SoA: status=$($result.status), agents=$($result.agentCount), summaryRows=$($result.summarySoaTableRows), agentRows=$agentRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-status") {
             $daemonRows = "none"
             if ($null -ne $result.rows -and $result.rows.Count -gt 0) {

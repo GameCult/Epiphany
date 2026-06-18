@@ -582,44 +582,7 @@ fn main() -> Result<()> {
             }) {
                 anyhow::bail!("agent state SoA report would expose private state");
             }
-            let tui_rows = summary
-                .role_ids
-                .iter()
-                .enumerate()
-                .map(|(index, role)| {
-                    format!(
-                        "{} | {} | {} | sem={} epi={} rel={} goals={} values={}",
-                        role,
-                        summary
-                            .agent_ids
-                            .get(index)
-                            .map(String::as_str)
-                            .unwrap_or("?"),
-                        summary
-                            .profile_kinds
-                            .get(index)
-                            .map(String::as_str)
-                            .unwrap_or("?"),
-                        summary
-                            .semantic_memory_counts
-                            .get(index)
-                            .copied()
-                            .unwrap_or_default(),
-                        summary
-                            .episodic_memory_counts
-                            .get(index)
-                            .copied()
-                            .unwrap_or_default(),
-                        summary
-                            .relationship_memory_counts
-                            .get(index)
-                            .copied()
-                            .unwrap_or_default(),
-                        summary.goal_counts.get(index).copied().unwrap_or_default(),
-                        summary.value_counts.get(index).copied().unwrap_or_default(),
-                    )
-                })
-                .collect::<Vec<_>>();
+            let tui_rows = agent_state_soa_tui_rows(&summary);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
@@ -2304,6 +2267,22 @@ fn main() -> Result<()> {
             {
                 anyhow::bail!("local Verse agent state SoA summary lost standing swarm shape");
             }
+            let agent_state_tui_rows = agent_state_soa_tui_rows(agent_summary);
+            if !agent_state_tui_rows.iter().any(|row| {
+                row.contains("Persona")
+                    && row.contains("epiphany.Persona")
+                    && row.contains("contract=gamecult.persona_state.v0")
+                    && row.contains("private=false")
+            }) || !agent_state_tui_rows.iter().any(|row| {
+                row.contains("implementation")
+                    && row.contains("epiphany.hands")
+                    && row.contains("contract=epiphany.work_organ_state.v0")
+                    && row.contains("private=false")
+            }) {
+                anyhow::bail!(
+                    "local Verse agent state SoA compact rows lost contract/private-state guards"
+                );
+            }
             let node = open_epiphany_cultmesh_node(&args.store, args.runtime_id.clone())?;
             let agent_summary_table = node.soa::<EpiphanyCultMeshAgentStateSoaSummaryEntry>()?;
             let summary_ids = agent_summary_table.column::<String>("summaryId")?;
@@ -2672,6 +2651,53 @@ struct DaemonLivenessReport {
     rows: Vec<DaemonLivenessRow>,
     tui_rows: Vec<String>,
     non_ready_count: usize,
+}
+
+fn agent_state_soa_tui_rows(summary: &EpiphanyCultMeshAgentStateSoaSummaryEntry) -> Vec<String> {
+    summary
+        .role_ids
+        .iter()
+        .enumerate()
+        .map(|(index, role)| {
+            format!(
+                "{} | {} | {} | contract={} | sem={} epi={} rel={} goals={} values={} | private={}",
+                role,
+                summary
+                    .agent_ids
+                    .get(index)
+                    .map(String::as_str)
+                    .unwrap_or("?"),
+                summary
+                    .profile_kinds
+                    .get(index)
+                    .map(String::as_str)
+                    .unwrap_or("?"),
+                summary
+                    .portable_contracts
+                    .get(index)
+                    .map(String::as_str)
+                    .unwrap_or("?"),
+                summary
+                    .semantic_memory_counts
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+                summary
+                    .episodic_memory_counts
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+                summary
+                    .relationship_memory_counts
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+                summary.goal_counts.get(index).copied().unwrap_or_default(),
+                summary.value_counts.get(index).copied().unwrap_or_default(),
+                summary.private_state_exposed
+            )
+        })
+        .collect()
 }
 
 #[derive(Serialize)]
