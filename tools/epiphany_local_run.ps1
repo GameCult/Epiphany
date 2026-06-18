@@ -1651,7 +1651,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             }
             Write-Host "Receipt directory: status=$($result.status), rows=$($result.rowCount), present=$($result.presentRowCount), absent=$($result.absentRowCount), attention=$($result.attentionRowCount), artifactNone=$($result.artifactNoneCount), artifactExternalRef=$($result.artifactExternalRefCount), artifactPresent=$($result.artifactPresentCount), artifactMissing=$($result.artifactMissingCount), artifactHashes=$artifactHashes, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "tool-directory") {
-            Write-Host "Tool directory: status=$($result.status), tools=$($result.toolCount), hostReady=$($result.hostReadyCount), hostAttention=$($result.hostAttentionCount), privateStateExposed=$($result.invariants.privateStateExposed)"
+            Write-Host "Tool directory: status=$($result.status), tools=$($result.toolCount), hostReady=$($result.hostReadyCount), hostAttention=$($result.hostAttentionCount), availableToAllAgents=$($result.invariants.availableToAllAgents), requiresReceipt=$($result.invariants.requiresReceipt), privateStateExposed=$($result.invariants.privateStateExposed)"
         } elseif ($Mode -eq "tool-invoke") {
             Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-overview") {

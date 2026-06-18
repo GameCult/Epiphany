@@ -1606,8 +1606,13 @@ fn main() -> Result<()> {
                     && row.contains("Hands")
                     && row.contains("repo-action")
                     && row.contains("epiphany.cluster.hands.tool.repo-action")
+                    && row.contains("allAgents=true")
+                    && row.contains("receipt=true")
+                    && row.contains("private=false")
             }) {
-                anyhow::bail!("local Verse query smoke lost compact Hands repo-action tool row");
+                anyhow::bail!(
+                    "local Verse query smoke lost compact Hands repo-action tool contract row"
+                );
             }
             if DIRECT_INVOKE_TOOL_COMMAND
                 != "epiphany-verse-query invoke-tool --capability-id <capability>"
@@ -3270,8 +3275,23 @@ fn daemon_tool_directory_tui_row(row: &DaemonToolDirectoryRow) -> String {
     } else {
         "POKE"
     };
+    let availability = if row.available_to_all_agents {
+        "allAgents=true"
+    } else {
+        "allAgents=false"
+    };
+    let receipt = if row.requires_receipt {
+        "receipt=true"
+    } else {
+        "receipt=false"
+    };
+    let private = if row.private_state_exposed {
+        "private=true"
+    } else {
+        "private=false"
+    };
     format!(
-        "{compact_status} | {} | {} | {} | {} | {}",
+        "{compact_status} | {} | {} | {} | {} | {} | {availability} | {receipt} | {private}",
         row.host_display_name, row.tool_name, row.operation, row.capability_id, row.eve_surface_id
     )
 }
