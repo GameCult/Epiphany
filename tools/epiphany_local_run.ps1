@@ -161,6 +161,38 @@ function Format-TuiRows {
     return ($rowList -join "; ")
 }
 
+function Format-ClusterServiceRows {
+    param([object]$Rows)
+
+    $rowList = @($Rows)
+    if ($null -eq $Rows -or $rowList.Count -eq 0) {
+        return "none"
+    }
+
+    return (($rowList | ForEach-Object {
+        $status = $_.status
+        if ($null -eq $status -or $status -eq "") {
+            $status = $_.observedStatus
+        }
+        if ($null -eq $status -or $status -eq "") {
+            $status = "unknown"
+        }
+        $executed = $_.executed
+        if ($null -eq $executed -or $executed -eq "") {
+            $executed = "n/a"
+        }
+        $exitCode = $_.exitCode
+        if ($null -eq $exitCode -or $exitCode -eq "") {
+            $exitCode = "none"
+        }
+        $startType = $_.startType
+        if ($null -eq $startType -or $startType -eq "") {
+            $startType = "none"
+        }
+        "$($_.daemonId):${status}:service=$($_.serviceName):cluster=$($_.clusterId):executed=${executed}:exit=${exitCode}:startType=${startType}:private=$($_.privateStateExposed)"
+    }) -join "; ")
+}
+
 Set-Location -LiteralPath $Root
 $Root = (Resolve-Path ".").Path
 $env:CARGO_TARGET_DIR = $TargetDir
@@ -1878,11 +1910,14 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "cluster-service-runbook") {
             Write-Host "Cluster daemon service runbook: service=$($result.serviceId), daemons=$($result.daemonCount), receipt=$($result.receiptId), path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-install-plan" -or $Mode -eq "cluster-service-install-execute") {
-            Write-Host "Cluster daemon service install: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), path=$($result.installScriptPath)"
+            $serviceRows = Format-ClusterServiceRows $result.services
+            Write-Host "Cluster daemon service install: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executed=$($result.executed), receipt=$($result.receiptId), serviceRows=$serviceRows, path=$($result.installScriptPath)"
         } elseif ($Mode -eq "cluster-service-audit") {
-            Write-Host "Cluster daemon service audit: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), missing=$($result.missingCount), running=$($result.runningCount), present=$($result.presentCount), queryFailed=$($result.queryFailedCount), receipt=$($result.receiptId)"
+            $serviceRows = Format-ClusterServiceRows $result.services
+            Write-Host "Cluster daemon service audit: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), missing=$($result.missingCount), running=$($result.runningCount), present=$($result.presentCount), queryFailed=$($result.queryFailedCount), receipt=$($result.receiptId), serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-start-plan" -or $Mode -eq "cluster-service-stop-plan" -or $Mode -eq "cluster-service-start-execute" -or $Mode -eq "cluster-service-stop-execute") {
-            Write-Host "Cluster daemon service control: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), planned=$($result.plannedCount), requested=$($result.requestedCount), refused=$($result.refusedCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            $serviceRows = Format-ClusterServiceRows $result.services
+            Write-Host "Cluster daemon service control: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), planned=$($result.plannedCount), requested=$($result.requestedCount), refused=$($result.refusedCount), failed=$($result.failedCount), receipt=$($result.receiptId), serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-execution-readiness") {
             Write-Host "Cluster daemon service execution readiness: service=$($result.serviceId), daemons=$($result.daemonCount), services=$($result.serviceCount), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId)"
         } elseif ($Mode -eq "cluster-service-execution-runbook") {
