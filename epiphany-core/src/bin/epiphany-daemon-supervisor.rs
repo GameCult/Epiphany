@@ -11,8 +11,10 @@ use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
+use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
+use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::query_epiphany_local_verse_context;
@@ -1087,7 +1089,7 @@ fn windows_service_execution_audit(args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .collect::<Vec<_>>();
-    let report = service_execution_audit_report(&receipts);
+    let report = epiphany_service_execution_audit_report(&receipts);
     let receipt = service_lifecycle_receipt(
         &args,
         "windows-service-execution-audit",
@@ -1168,7 +1170,7 @@ fn windows_service_execution_audit_smoke(args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .collect::<Vec<_>>();
-    let complete_report = service_execution_audit_report(&receipts);
+    let complete_report = epiphany_service_execution_audit_report(&receipts);
     if complete_report.status != "complete"
         || complete_report.missing_count != 0
         || complete_report.failed_count != 0
@@ -1200,7 +1202,7 @@ fn windows_service_execution_audit_smoke(args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .collect::<Vec<_>>();
-    let incomplete_report = service_execution_audit_report(&receipts);
+    let incomplete_report = epiphany_service_execution_audit_report(&receipts);
     if incomplete_report.status != "incomplete" || incomplete_report.failed_count == 0 {
         anyhow::bail!("service execution audit smoke failed to reject drifted reconcile receipt");
     }
@@ -1316,7 +1318,7 @@ fn cluster_windows_service_execution_audit(args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .collect::<Vec<_>>();
-    let report = cluster_service_execution_audit_report(&receipts);
+    let report = epiphany_cluster_service_execution_audit_report(&receipts);
     let receipt = service_lifecycle_receipt(
         &args,
         "cluster-windows-service-execution-audit",
@@ -1370,7 +1372,7 @@ fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
         ),
         ("cluster-windows-service-install", "installed"),
         ("cluster-windows-service-start", "start-requested"),
-        ("cluster-windows-service-audit", "complete"),
+        ("cluster-windows-service-execution-audit", "complete"),
         ("cluster-windows-service-stop", "stop-requested"),
     ] {
         let receipt = service_lifecycle_receipt(
@@ -1398,7 +1400,7 @@ fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .collect::<Vec<_>>();
-    let complete_report = cluster_service_execution_audit_report(&receipts);
+    let complete_report = epiphany_cluster_service_execution_audit_report(&receipts);
     if complete_report.status != "complete"
         || complete_report.missing_count != 0
         || complete_report.failed_count != 0
@@ -1410,10 +1412,10 @@ fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
     }
     let incomplete = service_lifecycle_receipt(
         &args,
-        "cluster-windows-service-audit",
+        "cluster-windows-service-execution-audit",
         "incomplete",
         "smoke".to_string(),
-        vec!["cluster-windows-service-audit".to_string()],
+        vec!["cluster-windows-service-execution-audit".to_string()],
         None,
         Some(0),
         started_at,
@@ -1432,7 +1434,7 @@ fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .collect::<Vec<_>>();
-    let incomplete_report = cluster_service_execution_audit_report(&receipts);
+    let incomplete_report = epiphany_cluster_service_execution_audit_report(&receipts);
     if incomplete_report.status != "incomplete" || incomplete_report.failed_count == 0 {
         anyhow::bail!(
             "cluster service execution audit smoke failed to reject incomplete audit receipt"
@@ -2709,182 +2711,6 @@ fn service_lifecycle_receipt(
                 .to_string(),
         ],
     }
-}
-
-fn service_execution_audit_report(
-    receipts: &[EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
-) -> ServiceExecutionAuditReport {
-    let expected = [
-        ("windows-service-execution-runbook", &["written"][..]),
-        (
-            "windows-service-execution-readiness",
-            &["elevated-ready"][..],
-        ),
-        ("windows-service-install", &["installed"][..]),
-        ("windows-service-start", &["start-requested"][..]),
-        (
-            "windows-service-status",
-            &["running", "present", "stopped"][..],
-        ),
-        ("windows-service-reconcile", &["in-sync"][..]),
-        ("windows-service-stop", &["stop-requested"][..]),
-    ];
-    let mut checks = Vec::new();
-    let mut missing_count = 0_usize;
-    let mut failed_count = 0_usize;
-    let mut private_state_exposed = false;
-    for (action, allowed_statuses) in expected {
-        let receipt = latest_lifecycle_receipt_for_action(receipts, action);
-        let (receipt_id, observed_status, ok, sealed) = match receipt {
-            Some(receipt) => {
-                let status_ok = allowed_statuses
-                    .iter()
-                    .any(|allowed| *allowed == receipt.status);
-                (
-                    Some(receipt.receipt_id.clone()),
-                    Some(receipt.status.clone()),
-                    status_ok,
-                    !receipt.private_state_exposed,
-                )
-            }
-            None => {
-                missing_count += 1;
-                (None, None, false, true)
-            }
-        };
-        if !ok {
-            failed_count += 1;
-        }
-        if !sealed {
-            private_state_exposed = true;
-        }
-        checks.push(json!({
-            "action": action,
-            "allowedStatuses": allowed_statuses,
-            "receiptId": receipt_id,
-            "observedStatus": observed_status,
-            "ok": ok,
-            "privateStateSealed": sealed,
-        }));
-    }
-    let status = if missing_count == 0 && failed_count == 0 && !private_state_exposed {
-        "complete"
-    } else {
-        "incomplete"
-    }
-    .to_string();
-    ServiceExecutionAuditReport {
-        status,
-        receipt_count: receipts.len(),
-        missing_count,
-        failed_count,
-        private_state_exposed,
-        checks,
-    }
-}
-
-fn cluster_service_execution_audit_report(
-    receipts: &[EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
-) -> ServiceExecutionAuditReport {
-    let expected = [
-        (
-            "cluster-windows-service-execution-runbook",
-            &["written"][..],
-        ),
-        (
-            "cluster-windows-service-execution-readiness",
-            &["elevated-ready"][..],
-        ),
-        ("cluster-windows-service-install", &["installed"][..]),
-        ("cluster-windows-service-start", &["start-requested"][..]),
-        ("cluster-windows-service-audit", &["complete"][..]),
-        ("cluster-windows-service-stop", &["stop-requested"][..]),
-    ];
-    let mut checks = Vec::new();
-    let mut missing_count = 0_usize;
-    let mut failed_count = 0_usize;
-    let mut private_state_exposed = false;
-    for (action, allowed_statuses) in expected {
-        let receipt = latest_lifecycle_receipt_for_action(receipts, action);
-        let (receipt_id, observed_status, ok, sealed) = match receipt {
-            Some(receipt) => {
-                let status_ok = allowed_statuses
-                    .iter()
-                    .any(|allowed| *allowed == receipt.status);
-                (
-                    Some(receipt.receipt_id.clone()),
-                    Some(receipt.status.clone()),
-                    status_ok,
-                    !receipt.private_state_exposed,
-                )
-            }
-            None => {
-                missing_count += 1;
-                (None, None, false, true)
-            }
-        };
-        if !ok {
-            failed_count += 1;
-        }
-        if !sealed {
-            private_state_exposed = true;
-        }
-        checks.push(json!({
-            "action": action,
-            "allowedStatuses": allowed_statuses,
-            "receiptId": receipt_id,
-            "observedStatus": observed_status,
-            "ok": ok,
-            "privateStateSealed": sealed,
-        }));
-    }
-    let status = if missing_count == 0 && failed_count == 0 && !private_state_exposed {
-        "complete"
-    } else {
-        "incomplete"
-    }
-    .to_string();
-    ServiceExecutionAuditReport {
-        status,
-        receipt_count: receipts.len(),
-        missing_count,
-        failed_count,
-        private_state_exposed,
-        checks,
-    }
-}
-
-fn latest_lifecycle_receipt_for_action<'a>(
-    receipts: &'a [EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
-    action: &str,
-) -> Option<&'a EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
-    receipts
-        .iter()
-        .filter(|receipt| receipt.action == action)
-        .max_by(|left, right| {
-            lifecycle_receipt_sort_key(left).cmp(&lifecycle_receipt_sort_key(right))
-        })
-}
-
-fn lifecycle_receipt_sort_key(
-    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
-) -> (&str, &str) {
-    (
-        receipt
-            .completed_at_utc
-            .as_deref()
-            .unwrap_or(receipt.started_at_utc.as_str()),
-        receipt.receipt_id.as_str(),
-    )
-}
-
-struct ServiceExecutionAuditReport {
-    status: String,
-    receipt_count: usize,
-    missing_count: usize,
-    failed_count: usize,
-    private_state_exposed: bool,
-    checks: Vec<Value>,
 }
 
 fn run_restart_command(policy: &EpiphanyCultMeshDaemonRestartPolicyEntry) -> Result<RestartOutput> {

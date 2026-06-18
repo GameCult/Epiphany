@@ -1117,6 +1117,163 @@ pub struct EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
     pub notes: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyServiceExecutionAuditCheck {
+    pub action: String,
+    pub allowed_statuses: Vec<String>,
+    pub receipt_id: Option<String>,
+    pub observed_status: Option<String>,
+    pub ok: bool,
+    pub private_state_sealed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyServiceExecutionAuditReport {
+    pub status: String,
+    pub receipt_count: usize,
+    pub missing_count: usize,
+    pub failed_count: usize,
+    pub private_state_exposed: bool,
+    pub checks: Vec<EpiphanyServiceExecutionAuditCheck>,
+}
+
+pub fn epiphany_service_execution_audit_report(
+    receipts: &[EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
+) -> EpiphanyServiceExecutionAuditReport {
+    epiphany_service_execution_audit_report_for_expected(
+        receipts,
+        &[
+            ("windows-service-execution-runbook", &["written"][..]),
+            (
+                "windows-service-execution-readiness",
+                &["elevated-ready"][..],
+            ),
+            ("windows-service-install", &["installed"][..]),
+            ("windows-service-start", &["start-requested"][..]),
+            (
+                "windows-service-status",
+                &["running", "present", "stopped"][..],
+            ),
+            ("windows-service-reconcile", &["in-sync"][..]),
+            ("windows-service-stop", &["stop-requested"][..]),
+        ],
+    )
+}
+
+pub fn epiphany_cluster_service_execution_audit_report(
+    receipts: &[EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
+) -> EpiphanyServiceExecutionAuditReport {
+    epiphany_service_execution_audit_report_for_expected(
+        receipts,
+        &[
+            (
+                "cluster-windows-service-execution-runbook",
+                &["written"][..],
+            ),
+            (
+                "cluster-windows-service-execution-readiness",
+                &["elevated-ready"][..],
+            ),
+            ("cluster-windows-service-install", &["installed"][..]),
+            ("cluster-windows-service-start", &["start-requested"][..]),
+            ("cluster-windows-service-execution-audit", &["complete"][..]),
+            ("cluster-windows-service-stop", &["stop-requested"][..]),
+        ],
+    )
+}
+
+fn epiphany_service_execution_audit_report_for_expected(
+    receipts: &[EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
+    expected: &[(&str, &[&str])],
+) -> EpiphanyServiceExecutionAuditReport {
+    let mut checks = Vec::new();
+    let mut missing_count = 0_usize;
+    let mut failed_count = 0_usize;
+    let mut private_state_exposed = false;
+
+    for (action, allowed_statuses) in expected {
+        let receipt = latest_lifecycle_receipt_for_action(receipts, action);
+        let (receipt_id, observed_status, ok, sealed) = match receipt {
+            Some(receipt) => {
+                let status_ok = allowed_statuses
+                    .iter()
+                    .any(|allowed| *allowed == receipt.status);
+                (
+                    Some(receipt.receipt_id.clone()),
+                    Some(receipt.status.clone()),
+                    status_ok,
+                    !receipt.private_state_exposed,
+                )
+            }
+            None => {
+                missing_count += 1;
+                (None, None, false, true)
+            }
+        };
+
+        if !ok {
+            failed_count += 1;
+        }
+        if !sealed {
+            private_state_exposed = true;
+        }
+
+        checks.push(EpiphanyServiceExecutionAuditCheck {
+            action: (*action).to_string(),
+            allowed_statuses: allowed_statuses
+                .iter()
+                .map(|status| (*status).to_string())
+                .collect(),
+            receipt_id,
+            observed_status,
+            ok,
+            private_state_sealed: sealed,
+        });
+    }
+
+    let status = if missing_count == 0 && failed_count == 0 && !private_state_exposed {
+        "complete"
+    } else {
+        "incomplete"
+    }
+    .to_string();
+
+    EpiphanyServiceExecutionAuditReport {
+        status,
+        receipt_count: receipts.len(),
+        missing_count,
+        failed_count,
+        private_state_exposed,
+        checks,
+    }
+}
+
+fn latest_lifecycle_receipt_for_action<'a>(
+    receipts: &'a [EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
+    action: &str,
+) -> Option<&'a EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
+    receipts
+        .iter()
+        .filter(|receipt| receipt.action == action)
+        .max_by(|left, right| {
+            lifecycle_receipt_sort_key(left).cmp(&lifecycle_receipt_sort_key(right))
+        })
+}
+
+fn lifecycle_receipt_sort_key(
+    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> (&str, &str) {
+    (
+        receipt
+            .completed_at_utc
+            .as_deref()
+            .unwrap_or(receipt.started_at_utc.as_str()),
+        receipt.receipt_id.as_str(),
+    )
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.cultmesh.swarm_brake",

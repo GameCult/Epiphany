@@ -22,7 +22,9 @@ use epiphany_core::EpiphanyCultMeshOdinAdvertisementEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
+use epiphany_core::EpiphanyServiceExecutionAuditCheck;
 use epiphany_core::default_epiphany_cultmesh_swarm_brake;
+use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_agent_state_soa_summary_from_entry;
 use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_intent;
 use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
@@ -2413,9 +2415,33 @@ fn main() -> Result<()> {
                     .service_lifecycle_attention_tui_rows
                     .iter()
                     .any(|row| row.contains("artifact=external-ref"))
+                || service_overview.service_execution_failed_check_count == 0
+                || service_overview.service_execution_missing_check_count == 0
+                || !service_overview
+                    .service_execution_failed_check_rows
+                    .iter()
+                    .any(|check| {
+                        check.action == "cluster-windows-service-execution-readiness"
+                            && check.observed_status.is_none()
+                            && !check.ok
+                            && check.private_state_sealed
+                    })
+                || !service_overview
+                    .service_execution_failed_check_rows
+                    .iter()
+                    .any(|check| {
+                        check.action == "cluster-windows-service-execution-audit"
+                            && check.observed_status.as_deref() == Some("incomplete")
+                            && !check.ok
+                            && check.private_state_sealed
+                    })
+                || !service_overview
+                    .service_execution_failed_check_tui_rows
+                    .iter()
+                    .any(|row| row.contains("cluster-windows-service-execution-audit=incomplete"))
             {
                 anyhow::bail!(
-                    "local Verse query smoke did not expose sealed service lifecycle readback plus elevated operator runbook action rows"
+                    "local Verse query smoke did not expose sealed service lifecycle readback plus service execution failed-check anatomy"
                 );
             }
             let missing_runbook_row = ReceiptDirectoryRow {
@@ -2800,6 +2826,10 @@ struct SwarmOverviewReport {
     tool_host_attention_tui_rows: Vec<String>,
     service_lifecycle_attention_rows: Vec<ReceiptDirectoryRow>,
     service_lifecycle_attention_tui_rows: Vec<String>,
+    service_execution_failed_check_count: usize,
+    service_execution_missing_check_count: usize,
+    service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
+    service_execution_failed_check_tui_rows: Vec<String>,
     topology_report: ClusterTopologyReport,
     daemon_report: DaemonLivenessReport,
     surface_report: EveSurfaceReport,
@@ -2863,6 +2893,10 @@ struct SwarmOverviewOutput {
     tool_host_attention_tui_rows: Vec<String>,
     service_lifecycle_attention_count: usize,
     service_lifecycle_attention_rows: Vec<ReceiptDirectoryRow>,
+    service_execution_failed_check_count: usize,
+    service_execution_missing_check_count: usize,
+    service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
+    service_execution_failed_check_tui_rows: Vec<String>,
     policy_covered_count: usize,
     policy_enabled_count: usize,
     policy_disabled_count: usize,
@@ -2919,6 +2953,10 @@ impl SwarmOverviewOutput {
             tool_host_attention_tui_rows: report.tool_host_attention_tui_rows,
             service_lifecycle_attention_count: report.service_lifecycle_attention_rows.len(),
             service_lifecycle_attention_rows: report.service_lifecycle_attention_rows,
+            service_execution_failed_check_count: report.service_execution_failed_check_count,
+            service_execution_missing_check_count: report.service_execution_missing_check_count,
+            service_execution_failed_check_rows: report.service_execution_failed_check_rows,
+            service_execution_failed_check_tui_rows: report.service_execution_failed_check_tui_rows,
             policy_covered_count: report.policy_report.covered_count,
             policy_enabled_count: report.policy_report.enabled_count,
             policy_disabled_count: report.policy_report.disabled_count,
@@ -2967,6 +3005,10 @@ struct SwarmTriageOutput {
     service_lifecycle_attention_count: usize,
     service_lifecycle_attention_rows: Vec<ReceiptDirectoryRow>,
     service_lifecycle_attention_tui_rows: Vec<String>,
+    service_execution_failed_check_count: usize,
+    service_execution_missing_check_count: usize,
+    service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
+    service_execution_failed_check_tui_rows: Vec<String>,
     poked_daemon_count: usize,
     pokes: Vec<serde_json::Value>,
     commands: serde_json::Value,
@@ -3018,6 +3060,10 @@ impl SwarmTriageOutput {
             service_lifecycle_attention_count: report.service_lifecycle_attention_rows.len(),
             service_lifecycle_attention_rows: report.service_lifecycle_attention_rows,
             service_lifecycle_attention_tui_rows: report.service_lifecycle_attention_tui_rows,
+            service_execution_failed_check_count: report.service_execution_failed_check_count,
+            service_execution_missing_check_count: report.service_execution_missing_check_count,
+            service_execution_failed_check_rows: report.service_execution_failed_check_rows,
+            service_execution_failed_check_tui_rows: report.service_execution_failed_check_tui_rows,
             poked_daemon_count,
             pokes,
             commands: json!({
@@ -3646,6 +3692,23 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .iter()
         .map(receipt_directory_tui_row)
         .collect::<Vec<_>>();
+    let cluster_lifecycle_receipts = lifecycle_receipts
+        .iter()
+        .filter(|receipt| receipt.service_id == "epiphany-cluster-daemon-services")
+        .cloned()
+        .collect::<Vec<_>>();
+    let service_execution_audit =
+        epiphany_cluster_service_execution_audit_report(&cluster_lifecycle_receipts);
+    let service_execution_failed_check_rows = service_execution_audit
+        .checks
+        .iter()
+        .filter(|check| !check.ok || !check.private_state_sealed)
+        .cloned()
+        .collect::<Vec<_>>();
+    let service_execution_failed_check_tui_rows = service_execution_failed_check_rows
+        .iter()
+        .map(service_execution_audit_check_tui_row)
+        .collect::<Vec<_>>();
     let liveness_status =
         if daemon_report.non_ready_count == 0 && tool_report.host_attention_count == 0 {
             "ready".to_string()
@@ -3770,6 +3833,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .any(|row| row.private_state_exposed)
         || tool_report.rows.iter().any(|row| row.private_state_exposed)
         || policy_report.private_state_exposed
+        || service_execution_audit.private_state_exposed
         || service_lifecycle_rows
             .iter()
             .any(|row| row.private_state_exposed);
@@ -3791,6 +3855,10 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         tool_host_attention_tui_rows,
         service_lifecycle_attention_rows,
         service_lifecycle_attention_tui_rows,
+        service_execution_failed_check_count: service_execution_audit.failed_count,
+        service_execution_missing_check_count: service_execution_audit.missing_count,
+        service_execution_failed_check_rows,
+        service_execution_failed_check_tui_rows,
         topology_report,
         daemon_report,
         surface_report,
@@ -4313,6 +4381,21 @@ fn receipt_directory_tui_row(row: &ReceiptDirectoryRow) -> String {
     format!(
         "{compact_status} | {} | {} | {} | {} | {} | artifact={}",
         row.owner, row.family, row.status, row.route, row.latest_id, row.artifact_status
+    )
+}
+
+fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCheck) -> String {
+    let observed_status = check.observed_status.as_deref().unwrap_or("missing");
+    let receipt_id = check.receipt_id.as_deref().unwrap_or("missing");
+    let allowed_statuses = check.allowed_statuses.join("|");
+    let seal_status = if check.private_state_sealed {
+        "sealed"
+    } else {
+        "private-state-exposed"
+    };
+    format!(
+        "{}={} | allowed={} | receipt={} | {}",
+        check.action, observed_status, allowed_statuses, receipt_id, seal_status
     )
 }
 

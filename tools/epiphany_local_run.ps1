@@ -1592,7 +1592,17 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:artifact=$artifact"
                 }) -join "; ")
             }
-            Write-Host "Swarm overview: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, privateStateExposed=$($result.privateStateExposed)"
+            $serviceExecutionFailedChecks = "none"
+            if ($null -ne $result.serviceExecutionFailedCheckRows -and $result.serviceExecutionFailedCheckRows.Count -gt 0) {
+                $serviceExecutionFailedChecks = (($result.serviceExecutionFailedCheckRows | ForEach-Object {
+                    $observed = $_.observedStatus
+                    if ($null -eq $observed -or $observed -eq "") {
+                        $observed = "missing"
+                    }
+                    "$($_.action)=${observed}"
+                }) -join "; ")
+            }
+            Write-Host "Swarm overview: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             Write-Host "Service policy directory: status=$($result.status), daemons=$($result.daemonCount), covered=$($result.coveredCount), enabled=$($result.enabledCount), disabled=$($result.disabledCount), missing=$($result.missingCount), attention=$($result.attentionCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-poke-down") {
@@ -1636,7 +1646,17 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:audit=${audit}:artifact=$artifact"
                 }) -join "; ")
             }
-            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
+            $serviceExecutionFailedChecks = "none"
+            if ($null -ne $result.serviceExecutionFailedCheckRows -and $result.serviceExecutionFailedCheckRows.Count -gt 0) {
+                $serviceExecutionFailedChecks = (($result.serviceExecutionFailedCheckRows | ForEach-Object {
+                    $observed = $_.observedStatus
+                    if ($null -eq $observed -or $observed -eq "") {
+                        $observed = "missing"
+                    }
+                    "$($_.action)=${observed}"
+                }) -join "; ")
+            }
+            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, attention=$attention, toolHostAttention=$toolHostAttention, serviceLifecycleAttention=$serviceLifecycleAttention, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-runbook") {
             Write-Host "Service runbook: service=$($result.serviceId), receipt=$($result.receiptId), path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-runbook") {
