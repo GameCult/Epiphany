@@ -1732,7 +1732,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $aftercare -or $aftercare -eq "") {
                         $aftercare = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    $command = $_.wrapperCommand
+                    if ($null -eq $command -or $command -eq "") {
+                        $command = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows
@@ -1785,7 +1789,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     if ($null -eq $aftercare -or $aftercare -eq "") {
                         $aftercare = "none"
                     }
-                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
+                    $command = $_.wrapperCommand
+                    if ($null -eq $command -or $command -eq "") {
+                        $command = "none"
+                    }
+                    "$($_.priority):$($_.family):$($_.wrapperMode):$($_.status):command=${command}:mutates=$($_.mutatesState):elevated=$($_.requiresElevatedAuthority):artifactStatus=${artifactStatus}:sha256=${artifactSha256}:audit=${audit}:aftercare=${aftercare}:artifact=$artifact"
                 }) -join "; ")
             }
             $serviceExecutionFailedChecks = Format-ServiceExecutionFailedChecks $result.serviceExecutionFailedCheckRows

@@ -2483,6 +2483,7 @@ fn main() -> Result<()> {
                 })
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
+                        && row.contains("command=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook")
                         && row.contains("artifact=present")
                         && row.contains(&format!(
                             "sha256={}",
@@ -3581,12 +3582,13 @@ fn swarm_action_rows(
 
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
     format!(
-        "{:03} | {} | {} | {} | {} | mutates={} | elevated={} | artifact={} | sha256={} | audit={}",
+        "{:03} | {} | {} | {} | {} | command={} | mutates={} | elevated={} | artifact={} | sha256={} | audit={}",
         row.priority,
         row.family,
         row.status,
         row.wrapper_mode,
         row.authority_gate,
+        row.wrapper_command,
         row.mutates_state,
         row.requires_elevated_authority,
         row.operator_artifact_status,
