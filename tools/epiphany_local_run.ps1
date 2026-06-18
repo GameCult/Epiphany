@@ -886,27 +886,56 @@ if ($Mode -eq "swarm-online-runbook") {
     $quotedRoot = ConvertTo-PowerShellLiteral $Root
     $runbookLines = @(
         "# Epiphany swarm online runbook.",
+        "# Lifecycle owner: Idunn. This artifact routes operator authority to Idunn-owned service lifecycle receipts.",
         "# Generated from compact CultMesh swarm action rows.",
         "# Run only with explicit operator authority. The individual sealed runbooks write lifecycle receipts.",
         "# After execution, this runbook executes the advertised aftercare audit command(s).",
         "Set-StrictMode -Version Latest",
         '$ErrorActionPreference = "Stop"',
         "Set-Location -LiteralPath $quotedRoot",
+        '$failureCount = 0',
         ""
     )
     foreach ($row in $authorityRows) {
+        $serviceLiteral = ConvertTo-PowerShellLiteral $row.serviceId
+        $routeLiteral = ConvertTo-PowerShellLiteral $row.serviceRoute
+        $artifactLiteral = ConvertTo-PowerShellLiteral $row.operatorArtifactRef
+        $shaLiteral = ConvertTo-PowerShellLiteral $row.operatorArtifactSha256
+        $aftercareLiteral = ConvertTo-PowerShellLiteral $row.operatorAftercareCommand
         $runbookLines += "# Service: $($row.serviceId)"
         $runbookLines += "# Route: $($row.serviceRoute)"
         $runbookLines += "# Artifact: $($row.operatorArtifactRef)"
         $runbookLines += "# SHA-256: $($row.operatorArtifactSha256)"
         $runbookLines += "# Aftercare: $($row.operatorAftercareCommand)"
-        $runbookLines += $row.operatorArtifactExecutionCommand
+        $runbookLines += "Write-Host `"Running Idunn service lifecycle runbook for Epiphany: service=$serviceLiteral route=$routeLiteral artifact=$artifactLiteral sha256=$shaLiteral aftercare=$aftercareLiteral`""
+        $runbookLines += "try {"
+        $runbookLines += "    `$process = Start-Process PowerShell -Verb RunAs -Wait -PassThru -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$artifactLiteral)"
+        $runbookLines += "    `$exitCode = `$process.ExitCode"
+        $runbookLines += "    if (`$null -eq `$exitCode) { `$exitCode = -1 }"
+        $runbookLines += "    Write-Host `"Idunn service lifecycle runbook exit: service=$serviceLiteral route=$routeLiteral exitCode=`$exitCode`""
+        $runbookLines += "    if (`$exitCode -ne 0) { `$failureCount += 1 }"
+        $runbookLines += "} catch {"
+        $runbookLines += "    `$failureCount += 1"
+        $runbookLines += "    Write-Host `"Idunn service lifecycle runbook launch failed: service=$serviceLiteral route=$routeLiteral error=`$(`$_.Exception.Message)`""
+        $runbookLines += "}"
         $runbookLines += ""
     }
     $runbookLines += "# Aftercare audit command(s):"
     foreach ($aftercare in $aftercareCommands) {
-        $runbookLines += $aftercare
+        $aftercareLiteral = ConvertTo-PowerShellLiteral $aftercare
+        $runbookLines += "Write-Host `"Running Idunn aftercare audit for Epiphany service lifecycle: command=$aftercareLiteral`""
+        $runbookLines += "try {"
+        $runbookLines += "    Invoke-Expression $aftercareLiteral"
+        $runbookLines += "} catch {"
+        $runbookLines += "    `$failureCount += 1"
+        $runbookLines += "    Write-Host `"Idunn aftercare audit failed: command=$aftercareLiteral error=`$(`$_.Exception.Message)`""
+        $runbookLines += "}"
     }
+    $runbookLines += 'if ($failureCount -gt 0) {'
+    $runbookLines += '    Write-Host "Idunn service lifecycle runbook for Epiphany failed: failures=$failureCount"'
+    $runbookLines += '    exit 1'
+    $runbookLines += '}'
+    $runbookLines += 'Write-Host "Idunn service lifecycle runbook for Epiphany completed: failures=0"'
     Set-Content -LiteralPath $runbookPath -Value ($runbookLines -join [Environment]::NewLine) -Encoding UTF8
     $runbookSha256 = Get-LocalArtifactSha256 $runbookPath
     [pscustomobject]@{
@@ -916,8 +945,13 @@ if ($Mode -eq "swarm-online-runbook") {
         runbookPath = $runbookPath
         artifactSha256 = $runbookSha256
         commandCount = $authorityRows.Count
+        lifecycleOwner = "Idunn"
+        hostedBody = "Epiphany"
         commands = @($authorityRows | ForEach-Object { $_.operatorArtifactExecutionCommand })
         aftercareCommands = $aftercareCommands
+        detectsChildExitCodes = $true
+        continuesAfterChildFailure = $true
+        exitsNonzeroAfterChildOrAftercareFailure = $true
         sourceOverviewPath = $overviewPath
         privateStateExposed = $false
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $resultPath -Encoding UTF8
@@ -2030,7 +2064,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.aftercareCommands -and $result.aftercareCommands.Count -gt 0) {
                 $aftercare = ($result.aftercareCommands -join "; ")
             }
-            Write-Host "Swarm online runbook: status=$($result.status), commands=$($result.commandCount), artifactSha256=$($result.artifactSha256), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Swarm online runbook: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), artifactSha256=$($result.artifactSha256), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             $policyRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
