@@ -1255,10 +1255,19 @@ fn cluster_windows_service_execution_runbook(args: Args) -> Result<()> {
         "cluster-service-audit",
     ];
     let final_audit_mode = "cluster-service-execution-audit";
+    let step_failure_policy = "continue-after-step-failure";
+    let continue_after_step_failure = true;
+    let nonzero_exit_fails_step = true;
+    let exits_nonzero_after_final_audit = true;
+    let final_audit_runs_in_finally = true;
     let mut service_args = vec![
         format!("runbookPath={}", runbook_path.display()),
         format!("tryModes={}", try_modes.join(",")),
         format!("finally={final_audit_mode}"),
+        format!("stepFailurePolicy={step_failure_policy}"),
+        format!("continueAfterStepFailure={continue_after_step_failure}"),
+        format!("nonzeroExitFailsStep={nonzero_exit_fails_step}"),
+        format!("exitsNonzeroAfterFinalAudit={exits_nonzero_after_final_audit}"),
     ];
     if let Some(reason) = &args.reason {
         service_args.push(format!("reason={reason}"));
@@ -1295,7 +1304,11 @@ fn cluster_windows_service_execution_runbook(args: Args) -> Result<()> {
             "runbookPath": runbook_path,
             "runbookTryModes": try_modes,
             "finalAuditMode": final_audit_mode,
-            "finalAuditRunsInFinally": true,
+            "finalAuditRunsInFinally": final_audit_runs_in_finally,
+            "stepFailurePolicy": step_failure_policy,
+            "continueAfterStepFailure": continue_after_step_failure,
+            "nonzeroExitFailsStep": nonzero_exit_fails_step,
+            "exitsNonzeroAfterFinalAudit": exits_nonzero_after_final_audit,
             "privateStateExposed": written.private_state_exposed,
         }))?
     );
@@ -1490,9 +1503,20 @@ fn windows_service_execution_runbook(args: Args) -> Result<()> {
         "service-status",
         "service-execution-audit",
     ];
+    let final_audit_mode = "service-execution-audit";
+    let step_failure_policy = "continue-after-step-failure";
+    let continue_after_step_failure = true;
+    let nonzero_exit_fails_step = true;
+    let exits_nonzero_after_final_audit = true;
+    let final_audit_runs_in_finally = true;
     let mut service_args = vec![
         format!("runbookPath={}", runbook_path.display()),
         format!("modes={}", modes.join(",")),
+        format!("finally={final_audit_mode}"),
+        format!("stepFailurePolicy={step_failure_policy}"),
+        format!("continueAfterStepFailure={continue_after_step_failure}"),
+        format!("nonzeroExitFailsStep={nonzero_exit_fails_step}"),
+        format!("exitsNonzeroAfterFinalAudit={exits_nonzero_after_final_audit}"),
     ];
     if let Some(reason) = &args.reason {
         service_args.push(format!("reason={reason}"));
@@ -1529,6 +1553,12 @@ fn windows_service_execution_runbook(args: Args) -> Result<()> {
             "receiptId": written.receipt_id,
             "runbookPath": runbook_path,
             "runbookModes": modes,
+            "finalAuditMode": final_audit_mode,
+            "finalAuditRunsInFinally": final_audit_runs_in_finally,
+            "stepFailurePolicy": step_failure_policy,
+            "continueAfterStepFailure": continue_after_step_failure,
+            "nonzeroExitFailsStep": nonzero_exit_fails_step,
+            "exitsNonzeroAfterFinalAudit": exits_nonzero_after_final_audit,
             "privateStateExposed": written.private_state_exposed,
         }))?
     );
