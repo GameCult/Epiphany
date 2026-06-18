@@ -955,22 +955,52 @@ if ($Mode -eq "cluster-service-execution-runbook") {
         return "& " + (ConvertTo-NativeArgument $wrapperScriptPath) + " " + (($args | ForEach-Object { ConvertTo-NativeArgument $_ }) -join " ")
     }
 
+    function New-RunbookStepLine {
+        param([string]$RunbookMode)
+
+        return "Invoke-EpiphanyRunbookStep -Name " + (ConvertTo-NativeArgument $RunbookMode) + " -Command " + (ConvertTo-NativeArgument (New-ClusterRunbookCommand $RunbookMode))
+    }
+
     $runbookLines = @(
         "#Requires -RunAsAdministrator",
         "Set-StrictMode -Version Latest",
         '$ErrorActionPreference = "Stop"',
+        '$epiphanyRunbookFailures = New-Object System.Collections.Generic.List[string]',
         "",
         "# Elevated Epiphany cluster daemon service execution rite.",
         "# Run only under explicit operator authority. Each command writes typed operator and lifecycle receipts into the local Verse store.",
+        "# Individual steps continue after failure so the local Verse gets the fullest possible receipt trail.",
         "# ServiceId: $clusterServiceId",
         "# ServiceName prefix: $ServiceName",
         "",
+        "function Invoke-EpiphanyRunbookStep {",
+        "    param(",
+        "        [Parameter(Mandatory = `$true)][string]`$Name,",
+        "        [Parameter(Mandatory = `$true)][string]`$Command",
+        "    )",
+        "    Write-Host `"==> `$Name`"",
+        "    try {",
+        "        `$global:LASTEXITCODE = 0",
+        "        Invoke-Expression `$Command",
+        "        if (`$null -ne `$global:LASTEXITCODE -and `$global:LASTEXITCODE -ne 0) {",
+        "            throw `"Command exited with code `$global:LASTEXITCODE`"",
+        "        }",
+        "    } catch {",
+        "        `$epiphanyRunbookFailures.Add(`"`${Name}: `$(`$_.Exception.Message)`")",
+        "        Write-Warning `"Epiphany runbook step failed: `${Name}: `$(`$_.Exception.Message)`"",
+        "    }",
+        "}",
+        "",
         "try {"
     ) + ($clusterExecutionRunbookTryModes | ForEach-Object {
-        "    " + (New-ClusterRunbookCommand $_)
+        "    " + (New-RunbookStepLine $_)
     }) + @(
         "} finally {",
-        "    " + (New-ClusterRunbookCommand $clusterExecutionRunbookFinalAuditMode),
+        "    " + (New-RunbookStepLine $clusterExecutionRunbookFinalAuditMode),
+        "}",
+        'if ($epiphanyRunbookFailures.Count -gt 0) {',
+        '    Write-Error ("Epiphany runbook completed with {0} failed step(s): {1}" -f $epiphanyRunbookFailures.Count, ($epiphanyRunbookFailures -join "; "))',
+        "    exit 1",
         "}"
     )
     Set-Content -LiteralPath $executionRunbookPath -Value ($runbookLines -join [Environment]::NewLine) -Encoding UTF8
@@ -1084,24 +1114,57 @@ if ($Mode -eq "service-execution-runbook") {
         return "& " + (ConvertTo-NativeArgument $wrapperScriptPath) + " " + (($args | ForEach-Object { ConvertTo-NativeArgument $_ }) -join " ")
     }
 
+    function New-ServiceRunbookStepLine {
+        param([string]$RunbookMode)
+
+        return "Invoke-EpiphanyRunbookStep -Name " + (ConvertTo-NativeArgument $RunbookMode) + " -Command " + (ConvertTo-NativeArgument (New-RunbookCommand $RunbookMode))
+    }
+
     $runbookLines = @(
         "#Requires -RunAsAdministrator",
         "Set-StrictMode -Version Latest",
         '$ErrorActionPreference = "Stop"',
+        '$epiphanyRunbookFailures = New-Object System.Collections.Generic.List[string]',
         "",
         "# Elevated Epiphany daemon service execution rite.",
         "# Run only under explicit operator authority. Each command writes typed operator and lifecycle receipts into the local Verse store.",
+        "# Individual steps continue after failure so the local Verse gets the fullest possible receipt trail.",
         "# ServiceId: $ServiceId",
         "# ServiceName: $ServiceName",
         "",
-        (New-RunbookCommand "service-execution-readiness"),
-        (New-RunbookCommand "service-install-execute"),
-        (New-RunbookCommand "service-start-execute"),
-        (New-RunbookCommand "service-status"),
-        (New-RunbookCommand "service-reconcile"),
-        (New-RunbookCommand "service-stop-execute"),
-        (New-RunbookCommand "service-status"),
-        (New-RunbookCommand "service-execution-audit")
+        "function Invoke-EpiphanyRunbookStep {",
+        "    param(",
+        "        [Parameter(Mandatory = `$true)][string]`$Name,",
+        "        [Parameter(Mandatory = `$true)][string]`$Command",
+        "    )",
+        "    Write-Host `"==> `$Name`"",
+        "    try {",
+        "        `$global:LASTEXITCODE = 0",
+        "        Invoke-Expression `$Command",
+        "        if (`$null -ne `$global:LASTEXITCODE -and `$global:LASTEXITCODE -ne 0) {",
+        "            throw `"Command exited with code `$global:LASTEXITCODE`"",
+        "        }",
+        "    } catch {",
+        "        `$epiphanyRunbookFailures.Add(`"`${Name}: `$(`$_.Exception.Message)`")",
+        "        Write-Warning `"Epiphany runbook step failed: `${Name}: `$(`$_.Exception.Message)`"",
+        "    }",
+        "}",
+        "",
+        "try {",
+        "    " + (New-ServiceRunbookStepLine "service-execution-readiness"),
+        "    " + (New-ServiceRunbookStepLine "service-install-execute"),
+        "    " + (New-ServiceRunbookStepLine "service-start-execute"),
+        "    " + (New-ServiceRunbookStepLine "service-status"),
+        "    " + (New-ServiceRunbookStepLine "service-reconcile"),
+        "    " + (New-ServiceRunbookStepLine "service-stop-execute"),
+        "    " + (New-ServiceRunbookStepLine "service-status"),
+        "} finally {",
+        "    " + (New-ServiceRunbookStepLine "service-execution-audit"),
+        "}",
+        'if ($epiphanyRunbookFailures.Count -gt 0) {',
+        '    Write-Error ("Epiphany runbook completed with {0} failed step(s): {1}" -f $epiphanyRunbookFailures.Count, ($epiphanyRunbookFailures -join "; "))',
+        "    exit 1",
+        "}"
     )
     Set-Content -LiteralPath $executionRunbookPath -Value ($runbookLines -join [Environment]::NewLine) -Encoding UTF8
 
