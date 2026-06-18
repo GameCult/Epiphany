@@ -1488,6 +1488,22 @@ fn main() -> Result<()> {
                     "local Verse query smoke lost compact Hands repo-action tool contract row"
                 );
             }
+            if !tool_report.tui_rows.iter().any(|row| {
+                row.contains("READY")
+                    && row.contains("Self")
+                    && row.contains("service-health")
+                    && row.contains("epiphany.cluster.self.tool.service-health")
+                    && row.contains("authority=daemon.service_lifecycle")
+                    && row.contains("input=epiphany.cultmesh.daemon_service_lifecycle_query")
+                    && row.contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
+                    && row.contains("allAgents=true")
+                    && row.contains("receipt=true")
+                    && row.contains("private=false")
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke lost compact Self service-health tool contract row"
+                );
+            }
             if DIRECT_INVOKE_TOOL_COMMAND
                 != "epiphany-verse-query invoke-tool --capability-id <capability>"
                 || !WRAPPER_INVOKE_TOOL_COMMAND.contains("-Mode tool-invoke")

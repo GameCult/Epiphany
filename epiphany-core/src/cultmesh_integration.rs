@@ -5105,6 +5105,17 @@ pub fn epiphany_cultmesh_daemon_tool_capabilities() -> Vec<EpiphanyCultMeshDaemo
     capabilities.push(epiphany_cultmesh_daemon_tool_capability(
         &epiphany_cultmesh_cluster_topology()
             .into_iter()
+            .find(|cluster| cluster.cluster_id == "epiphany.cluster.self")
+            .expect("self cluster topology exists"),
+        "service-health",
+        "readServiceLifecycleStatus",
+        "epiphany.cultmesh.daemon_service_lifecycle_query",
+        EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE,
+        "daemon.service_lifecycle",
+    ));
+    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
+        &epiphany_cultmesh_cluster_topology()
+            .into_iter()
             .find(|cluster| cluster.cluster_id == "epiphany.cluster.hands")
             .expect("hands cluster topology exists"),
         "repo-action",
@@ -6710,6 +6721,9 @@ mod tests {
         let persona_status = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
             "epiphany.cluster.persona.tool.status",
         )?;
+        let self_service_health = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
+            "epiphany.cluster.self.tool.service-health",
+        )?;
         let hands_action = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
             "epiphany.cluster.hands.tool.repo-action",
         )?;
@@ -6719,6 +6733,7 @@ mod tests {
 
         for capability in [
             persona_status.clone(),
+            self_service_health.clone(),
             hands_action.clone(),
             soul_verify.clone(),
         ] {
@@ -6730,6 +6745,15 @@ mod tests {
         assert_eq!(hands_action.authority_gate, "hands");
         assert_eq!(soul_verify.authority_gate, "soul");
         assert_eq!(persona_status.authority_gate, "none");
+        assert_eq!(self_service_health.authority_gate, "daemon.service_lifecycle");
+        assert_eq!(
+            self_service_health.input_contract_type,
+            "epiphany.cultmesh.daemon_service_lifecycle_query"
+        );
+        assert_eq!(
+            self_service_health.receipt_contract_type,
+            EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE
+        );
         assert!(
             hands_action
                 .notes
