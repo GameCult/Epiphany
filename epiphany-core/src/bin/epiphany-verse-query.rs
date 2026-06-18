@@ -46,12 +46,15 @@ use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
 use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
+use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
+use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
@@ -1495,7 +1498,8 @@ fn main() -> Result<()> {
                     && row.contains("epiphany.cluster.self.tool.service-health")
                     && row.contains("authority=daemon.service_lifecycle")
                     && row.contains("input=epiphany.cultmesh.daemon_service_lifecycle_query")
-                    && row.contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
+                    && row
+                        .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
                     && row.contains("allAgents=true")
                     && row.contains("receipt=true")
                     && row.contains("private=false")
@@ -1736,6 +1740,8 @@ fn main() -> Result<()> {
                     intent_id: "daemon-tool-intent-smoke",
                     receipt_id: "daemon-tool-receipt-smoke",
                     receipt_status: "accepted-for-hands-review",
+                    receipt_contract_type: &hands_repo_action.receipt_contract_type,
+                    result_ref: "cultmesh://epiphany-local/hands-action-review/smoke",
                     authority_gate: &hands_repo_action.authority_gate,
                     all_agents: hands_repo_action.available_to_all_agents,
                     requires_receipt: hands_repo_action.requires_receipt,
@@ -1758,6 +1764,60 @@ fn main() -> Result<()> {
             {
                 anyhow::bail!(
                     "local Verse query smoke lost compact daemon tool invocation routing row"
+                );
+            }
+            let service_health = context
+                .daemon_tool_capabilities
+                .iter()
+                .find(|capability| {
+                    capability.capability_id == "epiphany.cluster.self.tool.service-health"
+                })
+                .context("missing Self service-health daemon tool capability")?;
+            let service_health_receipt_status = default_daemon_tool_receipt_status(service_health);
+            let service_health_result_ref = default_daemon_tool_result_ref(
+                service_health,
+                "daemon-tool-receipt-service-health-smoke",
+            );
+            let service_health_row =
+                daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
+                    requester: "Persona",
+                    requesting_agent_id: "epiphany.Persona",
+                    requesting_private_verse: "epiphany.cluster.persona.private",
+                    requesting_surface: "eve://epiphany/persona",
+                    host: "Self",
+                    host_daemon_id: &service_health.host_daemon_id,
+                    host_private_verse: "epiphany.cluster.self.private",
+                    host_surface: "eve://epiphany/self",
+                    capability_id: &service_health.capability_id,
+                    tool_name: &service_health.tool_name,
+                    operation: &service_health.operation,
+                    intent_id: "daemon-tool-intent-service-health-smoke",
+                    receipt_id: "daemon-tool-receipt-service-health-smoke",
+                    receipt_status: &service_health_receipt_status,
+                    receipt_contract_type: &service_health.receipt_contract_type,
+                    result_ref: &service_health_result_ref,
+                    authority_gate: &service_health.authority_gate,
+                    all_agents: service_health.available_to_all_agents,
+                    requires_receipt: service_health.requires_receipt,
+                    private_state_exposed: false,
+                });
+            if !service_health_row.contains("tool=service-health")
+                || !service_health_row.contains("host=Self")
+                || !service_health_row.contains("operation=readServiceLifecycleStatus")
+                || !service_health_row
+                    .contains("receiptStatus=accepted-for-service-lifecycle-readback")
+                || !service_health_row
+                    .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
+                || !service_health_row.contains(
+                    "resultRef=cultmesh://epiphany-local/daemon-service-lifecycle/receipt-directory",
+                )
+                || !service_health_row.contains("authority=daemon.service_lifecycle")
+                || !service_health_row.contains("allAgents=true")
+                || !service_health_row.contains("receiptRequired=true")
+                || !service_health_row.contains("private=false")
+            {
+                anyhow::bail!(
+                    "local Verse query smoke lost service-health daemon tool readback route"
                 );
             }
             let no_op_pokes = write_poke_receipts_for_non_ready_daemons(&args, &context)?;
@@ -5682,24 +5742,25 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         args.runtime_id.clone(),
         Utc::now().to_rfc3339(),
     )?;
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
     let capability_id = args
         .capability_id
         .as_deref()
         .context("invoke-tool requires --capability-id from the tool directory")?;
-    let capability = context
-        .daemon_tool_capabilities
+    let tool_directory =
+        load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
+    let (host_cluster_from_directory, daemon_status, capability) = tool_directory
         .iter()
-        .find(|capability| capability.capability_id == capability_id)
+        .find(|(_cluster, _status, capability)| capability.capability_id == capability_id)
         .with_context(|| format!("local Verse has no daemon tool capability {capability_id:?}"))?;
-    assert_swarm_brake_allows_surface(
-        &context,
+    let swarm_brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_surface_entry(
+        swarm_brake.as_ref(),
         "daemon.tool_invocation",
         &capability.host_cluster_id,
         &capability.host_daemon_id,
     )?;
-    let daemon_status = daemon_status_for_capability(&context, capability)?;
     assert_daemon_ready_for_tool_invocation(daemon_status, capability)?;
+    let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
     let requesting_agent_id = args
         .requesting_agent_id
         .clone()
@@ -5729,7 +5790,7 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
     });
     let intent = epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
         intent_id,
-        requesting_agent_id,
+        requesting_agent_id.clone(),
         requesting_cluster_id,
         capability,
         payload_ref,
@@ -5743,17 +5804,15 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
     let receipt_status = args
         .receipt_status
         .clone()
-        .unwrap_or_else(|| "accepted-for-daemon-routing".to_string());
+        .unwrap_or_else(|| default_daemon_tool_receipt_status(capability));
     let result_ref = args
         .result_ref
         .clone()
-        .unwrap_or_else(|| format!("cultmesh://epiphany-local/tool-receipt/{receipt_id}"));
-    let result_summary = args.receipt_summary.clone().unwrap_or_else(|| {
-        format!(
-            "{} accepted typed invocation routing for {}.",
-            capability.host_daemon_id, capability.tool_name
-        )
-    });
+        .unwrap_or_else(|| default_daemon_tool_result_ref(capability, &receipt_id));
+    let result_summary = args
+        .receipt_summary
+        .clone()
+        .unwrap_or_else(|| default_daemon_tool_result_summary(capability, &requesting_agent_id));
     let receipt = epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent(
         receipt_id,
         &intent,
@@ -5767,15 +5826,29 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         args.runtime_id.clone(),
         receipt,
     )?;
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    if context.latest_daemon_tool_invocation_intent.is_none()
-        || context.latest_daemon_tool_invocation_receipt.is_none()
+    let latest_intent = load_latest_epiphany_cultmesh_daemon_tool_invocation_intent(
+        &args.store,
+        args.runtime_id.clone(),
+    )?
+    .context("local Verse lost latest daemon tool invocation intent after write")?;
+    let latest_receipt = load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt(
+        &args.store,
+        args.runtime_id.clone(),
+    )?
+    .context("local Verse lost latest daemon tool invocation receipt after write")?;
+    if latest_intent.intent_id != written_intent.intent_id
+        || latest_receipt.receipt_id != written_receipt.receipt_id
     {
-        anyhow::bail!("local Verse query lost daemon tool invocation intent/receipt after write");
+        anyhow::bail!(
+            "local Verse latest daemon tool invocation does not match the just-written intent/receipt"
+        );
     }
     let requesting_cluster =
-        cluster_topology_for_id(&context, &written_intent.requesting_cluster_id)?;
-    let host_cluster = cluster_topology_for_id(&context, &written_intent.host_cluster_id)?;
+        cluster_topology_entry_for_id(&topology, &written_intent.requesting_cluster_id)?;
+    let host_cluster = topology
+        .iter()
+        .find(|cluster| cluster.cluster_id == written_intent.host_cluster_id)
+        .unwrap_or(host_cluster_from_directory);
     let invocation_tui_row = daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
         requester: &requesting_cluster.display_name,
         requesting_agent_id: &written_intent.requesting_agent_id,
@@ -5791,6 +5864,8 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         intent_id: &written_intent.intent_id,
         receipt_id: &written_receipt.receipt_id,
         receipt_status: &written_receipt.status,
+        receipt_contract_type: &written_receipt.receipt_contract_type,
+        result_ref: &written_receipt.result_ref,
         authority_gate: &written_intent.authority_gate,
         all_agents: capability.available_to_all_agents,
         requires_receipt: written_intent.requires_receipt,
@@ -5801,7 +5876,7 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         serde_json::to_string_pretty(&json!({
             "status": "ok",
             "store": args.store,
-            "runtimeId": context.runtime_id,
+            "runtimeId": args.runtime_id,
             "capabilityId": written_intent.capability_id,
             "requestingAgentId": written_intent.requesting_agent_id,
             "requestingClusterId": written_intent.requesting_cluster_id,
@@ -5820,6 +5895,9 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "intentId": written_intent.intent_id,
             "receiptId": written_receipt.receipt_id,
             "receiptStatus": written_receipt.status,
+            "receiptContractType": written_receipt.receipt_contract_type,
+            "resultRef": written_receipt.result_ref,
+            "resultSummary": written_receipt.result_summary,
             "availableToAllAgents": capability.available_to_all_agents,
             "requiresReceipt": written_intent.requires_receipt,
             "authorityGate": written_intent.authority_gate,
@@ -5830,6 +5908,51 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         }))?
     );
     Ok(())
+}
+
+fn default_daemon_tool_receipt_status(
+    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+) -> String {
+    if is_service_health_capability(capability) {
+        "accepted-for-service-lifecycle-readback".to_string()
+    } else {
+        "accepted-for-daemon-routing".to_string()
+    }
+}
+
+fn default_daemon_tool_result_ref(
+    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+    receipt_id: &str,
+) -> String {
+    if is_service_health_capability(capability) {
+        "cultmesh://epiphany-local/daemon-service-lifecycle/receipt-directory".to_string()
+    } else {
+        format!("cultmesh://epiphany-local/tool-receipt/{receipt_id}")
+    }
+}
+
+fn default_daemon_tool_result_summary(
+    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+    requesting_agent_id: &str,
+) -> String {
+    if is_service_health_capability(capability) {
+        format!(
+            "{requesting_agent_id} requested service health; {} accepted typed routing to daemon service lifecycle readback via epiphany-verse-query receipt-directory or {}.",
+            capability.host_daemon_id, WRAPPER_RECEIPT_DIRECTORY_COMMAND
+        )
+    } else {
+        format!(
+            "{} accepted typed invocation routing for {}.",
+            capability.host_daemon_id, capability.tool_name
+        )
+    }
+}
+
+fn is_service_health_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEntry) -> bool {
+    capability.capability_id == "epiphany.cluster.self.tool.service-health"
+        && capability.tool_name == "service-health"
+        && capability.operation == "readServiceLifecycleStatus"
+        && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
 }
 
 fn poke_result_tui_row(row: &serde_json::Value) -> String {
@@ -5864,6 +5987,8 @@ struct DaemonToolInvocationTuiFields<'a> {
     intent_id: &'a str,
     receipt_id: &'a str,
     receipt_status: &'a str,
+    receipt_contract_type: &'a str,
+    result_ref: &'a str,
     authority_gate: &'a str,
     all_agents: bool,
     requires_receipt: bool,
@@ -5885,12 +6010,14 @@ fn daemon_tool_invocation_tui_row(fields: DaemonToolInvocationTuiFields<'_>) -> 
     let intent_id = fields.intent_id;
     let receipt_id = fields.receipt_id;
     let receipt_status = fields.receipt_status;
+    let receipt_contract_type = fields.receipt_contract_type;
+    let result_ref = fields.result_ref;
     let authority_gate = fields.authority_gate;
     let all_agents = fields.all_agents;
     let requires_receipt = fields.requires_receipt;
     let private_state_exposed = fields.private_state_exposed;
     format!(
-        "INVOKE | {requester} | agent={requesting_agent_id} | requestPrivateVerse={requesting_private_verse} | requestSurface={requesting_surface} | host={host} | hostDaemon={host_daemon_id} | hostPrivateVerse={host_private_verse} | hostSurface={host_surface} | tool={tool_name} | operation={operation} | capability={capability_id} | intent={intent_id} | receipt={receipt_id} | receiptStatus={receipt_status} | authority={authority_gate} | allAgents={all_agents} | receiptRequired={requires_receipt} | private={private_state_exposed}"
+        "INVOKE | {requester} | agent={requesting_agent_id} | requestPrivateVerse={requesting_private_verse} | requestSurface={requesting_surface} | host={host} | hostDaemon={host_daemon_id} | hostPrivateVerse={host_private_verse} | hostSurface={host_surface} | tool={tool_name} | operation={operation} | capability={capability_id} | intent={intent_id} | receipt={receipt_id} | receiptStatus={receipt_status} | receiptType={receipt_contract_type} | resultRef={result_ref} | authority={authority_gate} | allAgents={all_agents} | receiptRequired={requires_receipt} | private={private_state_exposed}"
     )
 }
 
@@ -5907,7 +6034,21 @@ fn assert_swarm_brake_allows_surface(
     cluster_id: &str,
     daemon_id: &str,
 ) -> Result<()> {
-    let Some(brake) = context.swarm_brake.as_ref() else {
+    assert_swarm_brake_allows_surface_entry(
+        context.swarm_brake.as_ref(),
+        surface,
+        cluster_id,
+        daemon_id,
+    )
+}
+
+fn assert_swarm_brake_allows_surface_entry(
+    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
+    surface: &str,
+    cluster_id: &str,
+    daemon_id: &str,
+) -> Result<()> {
+    let Some(brake) = brake else {
         return Ok(());
     };
     if brake.status != "engaged" {
@@ -5946,23 +6087,14 @@ fn cluster_topology_for_id<'a>(
         .with_context(|| format!("local Verse has no cluster topology row for {cluster_id:?}"))
 }
 
-fn daemon_status_for_capability<'a>(
-    context: &'a EpiphanyLocalVerseContext,
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-) -> Result<&'a EpiphanyCultMeshDaemonStatusEntry> {
-    context
-        .daemon_statuses
+fn cluster_topology_entry_for_id<'a>(
+    topology: &'a [EpiphanyCultMeshClusterTopologyEntry],
+    cluster_id: &str,
+) -> Result<&'a EpiphanyCultMeshClusterTopologyEntry> {
+    topology
         .iter()
-        .find(|status| {
-            status.daemon_id == capability.host_daemon_id
-                && status.cluster_id == capability.host_cluster_id
-        })
-        .with_context(|| {
-            format!(
-                "local Verse has no daemon status for host daemon {:?}",
-                capability.host_daemon_id
-            )
-        })
+        .find(|cluster| cluster.cluster_id == cluster_id)
+        .with_context(|| format!("local Verse has no cluster topology row for {cluster_id:?}"))
 }
 
 fn assert_daemon_ready_for_tool_invocation(

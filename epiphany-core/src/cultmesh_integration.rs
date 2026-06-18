@@ -6745,7 +6745,10 @@ mod tests {
         assert_eq!(hands_action.authority_gate, "hands");
         assert_eq!(soul_verify.authority_gate, "soul");
         assert_eq!(persona_status.authority_gate, "none");
-        assert_eq!(self_service_health.authority_gate, "daemon.service_lifecycle");
+        assert_eq!(
+            self_service_health.authority_gate,
+            "daemon.service_lifecycle"
+        );
         assert_eq!(
             self_service_health.input_contract_type,
             "epiphany.cultmesh.daemon_service_lifecycle_query"
