@@ -2609,6 +2609,7 @@ fn main() -> Result<()> {
                             )
                         ))
                         && row.contains("audit=cluster-service-execution-audit")
+                        && row.contains("aftercare=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit")
                 })
                 || !service_overview.swarm_action_tui_rows.iter().any(|row| {
                     row.contains("service-execution-authority")
@@ -2619,6 +2620,7 @@ fn main() -> Result<()> {
                         && row.contains("missingChecks=6")
                         && row.contains("artifact=present")
                         && row.contains("audit=service-execution-audit")
+                        && row.contains("aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit")
                 })
                 || !service_overview
                     .service_lifecycle_attention_rows
@@ -3858,7 +3860,7 @@ fn swarm_action_rows(
 
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
     format!(
-        "{:03} | {} | {} | {} | {} | service={} | route={} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | audit={}",
+        "{:03} | {} | {} | {} | {} | service={} | route={} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | audit={} | aftercare={}",
         row.priority,
         row.family,
         row.status,
@@ -3873,7 +3875,8 @@ fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
         row.service_execution_missing_check_count,
         row.operator_artifact_status,
         row.operator_artifact_sha256,
-        row.completion_audit_wrapper_mode
+        row.completion_audit_wrapper_mode,
+        row.operator_aftercare_command
     )
 }
 
