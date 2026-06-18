@@ -1997,7 +1997,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Cluster daemon service audit: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), missing=$($result.missingCount), running=$($result.runningCount), present=$($result.presentCount), queryFailed=$($result.queryFailedCount), receipt=$($result.receiptId), serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-start-plan" -or $Mode -eq "cluster-service-stop-plan" -or $Mode -eq "cluster-service-start-execute" -or $Mode -eq "cluster-service-stop-execute") {
             $serviceRows = Format-ClusterServiceRows $result.services
-            Write-Host "Cluster daemon service control: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), planned=$($result.plannedCount), requested=$($result.requestedCount), refused=$($result.refusedCount), failed=$($result.failedCount), receipt=$($result.receiptId), serviceRows=$serviceRows"
+            Write-Host "Cluster daemon service control: service=$($result.serviceId), daemons=$($result.daemonCount), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), planned=$($result.plannedCount), requested=$($result.requestedCount), refused=$($result.refusedCount), failed=$($result.failedCount), receipt=$($result.receiptId), followUp=tools/epiphany_local_run.ps1 -Mode cluster-service-audit, aftercare=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit, serviceRows=$serviceRows"
         } elseif ($Mode -eq "cluster-service-execution-readiness") {
             $serviceRows = Format-ClusterServiceRows $result.services $result.status
             Write-Host "Cluster daemon service execution readiness: service=$($result.serviceId), daemons=$($result.daemonCount), services=$($result.serviceCount), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId), serviceRows=$serviceRows"
@@ -2091,7 +2091,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             }
             Write-Host "Service execution failed check rows: $failedCheckRows"
         } elseif ($Mode -eq "service-start-plan" -or $Mode -eq "service-stop-plan" -or $Mode -eq "service-start-execute" -or $Mode -eq "service-stop-execute") {
-            Write-Host "Service control: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), receipt=$($result.receiptId)"
+            Write-Host "Service control: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), executeRequested=$($result.executeRequested), executed=$($result.executed), receipt=$($result.receiptId), followUp=tools/epiphany_local_run.ps1 -Mode service-status, aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit"
         } else {
             Write-Host "Coordinator: thread=$($result.threadId), finalAction=$($result.finalAction.action), runtimePresent=$($result.runtimeSpine.present)"
         }
