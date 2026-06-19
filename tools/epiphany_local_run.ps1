@@ -2232,11 +2232,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $daemonRows = Format-TuiRows $result.daemonTuiRows
             $toolRows = Format-TuiRows $result.toolTuiRows
             $policyRows = Format-TuiRows $result.policyTuiRows
+            $swarmOnlineTool = "none"
+            if ($null -ne $result.commands -and $null -ne $result.commands.wrapperInvokeSwarmOnlineRunbookTool) {
+                $swarmOnlineTool = $result.commands.wrapperInvokeSwarmOnlineRunbookTool
+            }
             $overviewLabel = "Swarm overview"
             if ($Mode -eq "gjallar") {
                 $overviewLabel = "Gjallar"
             }
-            Write-Host "${overviewLabel}: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolRows=$toolRows, policyRows=$policyRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "${overviewLabel}: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), swarmOnlineTool=$swarmOnlineTool, actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolRows=$toolRows, policyRows=$policyRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-online-runbook") {
             $aftercare = "none"
             if ($null -ne $result.aftercareCommands -and $result.aftercareCommands.Count -gt 0) {

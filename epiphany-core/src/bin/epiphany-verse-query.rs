@@ -95,6 +95,7 @@ const WRAPPER_POKE_NON_READY_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode
 const DIRECT_INVOKE_TOOL_COMMAND: &str =
     "epiphany-verse-query invoke-tool --capability-id <capability>";
 const WRAPPER_INVOKE_TOOL_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode tool-invoke -ToolCapabilityId <capability> -ToolRequestingAgentId <agent> -ToolRequestingClusterId <cluster>";
+const WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode tool-invoke -ToolCapabilityId epiphany.cluster.self.tool.swarm-online-runbook -ToolRequestingAgentId <agent> -ToolRequestingClusterId <cluster>";
 const WRAPPER_CONNECT_EVE_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode eve-connect -EveTargetClusterId <cluster>";
 const WRAPPER_COLLABORATION_FEEDBACK_COMMAND: &str =
@@ -753,7 +754,8 @@ fn run_cli() -> Result<()> {
                 "bifrostLedger": "epiphany-verse-query bifrost-ledger",
                 "wrapperBifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
                 "invokeTool": DIRECT_INVOKE_TOOL_COMMAND,
-                "wrapperInvokeTool": WRAPPER_INVOKE_TOOL_COMMAND
+                "wrapperInvokeTool": WRAPPER_INVOKE_TOOL_COMMAND,
+                "wrapperInvokeSwarmOnlineRunbookTool": WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND
             });
             println!(
                 "{}",
@@ -1648,6 +1650,9 @@ fn run_cli() -> Result<()> {
                 || !WRAPPER_RECEIPT_DIRECTORY_COMMAND.contains("-Mode receipt-directory")
                 || !WRAPPER_GJALLAR_COMMAND.contains("-Mode gjallar")
                 || !WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND.contains("-Mode swarm-online-runbook")
+                || !WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND.contains("-Mode tool-invoke")
+                || !WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND
+                    .contains("-ToolCapabilityId epiphany.cluster.self.tool.swarm-online-runbook")
                 || !WRAPPER_SERVICE_TICK_COMMAND.contains("-Mode service-tick")
                 || !WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND
                     .contains("-Mode service-policy-directory")
@@ -4060,7 +4065,8 @@ impl SwarmTriageOutput {
                 "bifrostLedger": "epiphany-verse-query bifrost-ledger",
                 "wrapperBifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
                 "invokeTool": DIRECT_INVOKE_TOOL_COMMAND,
-                "wrapperInvokeTool": WRAPPER_INVOKE_TOOL_COMMAND
+                "wrapperInvokeTool": WRAPPER_INVOKE_TOOL_COMMAND,
+                "wrapperInvokeSwarmOnlineRunbookTool": WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND
             }),
             topology_tui_rows: report.topology_report.tui_rows,
             daemon_tui_rows: report.daemon_report.tui_rows,
