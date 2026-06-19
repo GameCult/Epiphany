@@ -904,6 +904,45 @@ if ($Mode -eq "swarm-online-runbook") {
         throw "swarm-online-runbook found no present elevated service execution artifacts in swarm overview"
     }
 
+    $childArtifactPreflightRows = @($authorityRows | ForEach-Object {
+        $artifactPresent = $false
+        $artifactActualSha256 = "none"
+        $artifactSha256Matches = $false
+        if ($null -ne $_.operatorArtifactRef -and $_.operatorArtifactRef -ne "" -and $_.operatorArtifactRef -ne "none" -and (Test-Path -LiteralPath $_.operatorArtifactRef -PathType Leaf)) {
+            $artifactPresent = $true
+            $artifactActualSha256 = (Get-FileHash -LiteralPath $_.operatorArtifactRef -Algorithm SHA256).Hash.ToLowerInvariant()
+            $artifactSha256Matches = ($_.operatorArtifactSha256 -ne "none" -and $artifactActualSha256 -eq $_.operatorArtifactSha256)
+        }
+        [pscustomobject]@{
+            serviceId = $_.serviceId
+            serviceRoute = $_.serviceRoute
+            artifactRef = $_.operatorArtifactRef
+            expectedSha256 = $_.operatorArtifactSha256
+            actualSha256 = $artifactActualSha256
+            artifactPresent = $artifactPresent
+            artifactSha256Matches = $artifactSha256Matches
+            privateStateExposed = $_.privateStateExposed
+        }
+    })
+    $childArtifactPresentCount = @($childArtifactPreflightRows | Where-Object { $_.artifactPresent }).Count
+    $childArtifactHashVerifiedCount = @($childArtifactPreflightRows | Where-Object { $_.artifactSha256Matches }).Count
+    $childArtifactMismatchCount = @($childArtifactPreflightRows | Where-Object { $_.artifactPresent -and -not $_.artifactSha256Matches }).Count
+    $childArtifactMissingCount = @($childArtifactPreflightRows | Where-Object { -not $_.artifactPresent }).Count
+    $serviceExecutionFailedCheckCount = 0
+    $serviceExecutionMissingCheckCount = 0
+    $privateStateExposed = $false
+    foreach ($row in $authorityRows) {
+        $serviceExecutionFailedCheckCount += [int]$row.serviceExecutionFailedCheckCount
+        $serviceExecutionMissingCheckCount += [int]$row.serviceExecutionMissingCheckCount
+        if ($row.privateStateExposed) {
+            $privateStateExposed = $true
+        }
+    }
+    $preflightStatus = "ready-for-elevated-operator"
+    if ($childArtifactMissingCount -gt 0 -or $childArtifactMismatchCount -gt 0 -or $privateStateExposed) {
+        $preflightStatus = "blocked-regenerate-runbooks"
+    }
+
     $aftercareCommands = @($authorityRows | ForEach-Object { $_.operatorAftercareCommand } | Where-Object { $null -ne $_ -and $_ -ne "" -and $_ -ne "none" } | Select-Object -Unique)
     $aftercareRows = @($authorityRows | Where-Object {
         $null -ne $_.operatorAftercareCommand -and
@@ -995,30 +1034,34 @@ if ($Mode -eq "swarm-online-runbook") {
     $runbookSha256 = Get-LocalArtifactSha256 $runbookPath
     $elevatedCommand = Get-ElevatedRunbookCommand $runbookPath
     $childRunbookRows = @($authorityRows | ForEach-Object {
+        $authorityRow = $_
+        $preflightRow = @($childArtifactPreflightRows | Where-Object { $_.artifactRef -eq $authorityRow.operatorArtifactRef } | Select-Object -First 1)
         [pscustomobject]@{
-            priority = $_.priority
-            family = $_.family
-            status = $_.status
-            lifecycleOwner = $_.lifecycleOwner
-            hostedBody = $_.hostedBody
-            serviceId = $_.serviceId
-            serviceRoute = $_.serviceRoute
-            wrapperMode = $_.wrapperMode
-            wrapperCommand = $_.wrapperCommand
-            authorityGate = $_.authorityGate
-            effectClass = $_.effectClass
-            mutatesState = $_.mutatesState
-            requiresElevatedAuthority = $_.requiresElevatedAuthority
-            artifactRef = $_.operatorArtifactRef
-            artifactStatus = $_.operatorArtifactStatus
-            artifactSha256 = $_.operatorArtifactSha256
-            artifactExecutionCommand = $_.operatorArtifactExecutionCommand
-            aftercareCommand = $_.operatorAftercareCommand
-            completionAuditWrapperMode = $_.completionAuditWrapperMode
-            completionAuditWrapperCommand = $_.completionAuditWrapperCommand
-            serviceExecutionFailedCheckCount = $_.serviceExecutionFailedCheckCount
-            serviceExecutionMissingCheckCount = $_.serviceExecutionMissingCheckCount
-            privateStateExposed = $_.privateStateExposed
+            priority = $authorityRow.priority
+            family = $authorityRow.family
+            status = $authorityRow.status
+            lifecycleOwner = $authorityRow.lifecycleOwner
+            hostedBody = $authorityRow.hostedBody
+            serviceId = $authorityRow.serviceId
+            serviceRoute = $authorityRow.serviceRoute
+            wrapperMode = $authorityRow.wrapperMode
+            wrapperCommand = $authorityRow.wrapperCommand
+            authorityGate = $authorityRow.authorityGate
+            effectClass = $authorityRow.effectClass
+            mutatesState = $authorityRow.mutatesState
+            requiresElevatedAuthority = $authorityRow.requiresElevatedAuthority
+            artifactRef = $authorityRow.operatorArtifactRef
+            artifactStatus = $authorityRow.operatorArtifactStatus
+            artifactSha256 = $authorityRow.operatorArtifactSha256
+            artifactActualSha256 = $preflightRow.actualSha256
+            artifactSha256Verified = $preflightRow.artifactSha256Matches
+            artifactExecutionCommand = $authorityRow.operatorArtifactExecutionCommand
+            aftercareCommand = $authorityRow.operatorAftercareCommand
+            completionAuditWrapperMode = $authorityRow.completionAuditWrapperMode
+            completionAuditWrapperCommand = $authorityRow.completionAuditWrapperCommand
+            serviceExecutionFailedCheckCount = $authorityRow.serviceExecutionFailedCheckCount
+            serviceExecutionMissingCheckCount = $authorityRow.serviceExecutionMissingCheckCount
+            privateStateExposed = $authorityRow.privateStateExposed
         }
     })
     $aftercareRunbookRows = @($aftercareRows | ForEach-Object {
@@ -1034,17 +1077,25 @@ if ($Mode -eq "swarm-online-runbook") {
     })
     [pscustomobject]@{
         status = "ok"
+        preflightStatus = $preflightStatus
         store = $localVerseStore
         runtimeId = "epiphany-local"
         runbookPath = $runbookPath
         artifactSha256 = $runbookSha256
         elevatedCommand = $elevatedCommand
         commandCount = $authorityRows.Count
+        childArtifactPresentCount = $childArtifactPresentCount
+        childArtifactHashVerifiedCount = $childArtifactHashVerifiedCount
+        childArtifactMismatchCount = $childArtifactMismatchCount
+        childArtifactMissingCount = $childArtifactMissingCount
+        serviceExecutionFailedCheckCount = $serviceExecutionFailedCheckCount
+        serviceExecutionMissingCheckCount = $serviceExecutionMissingCheckCount
         lifecycleOwner = "Idunn"
         hostedBody = "Epiphany"
         commands = @($authorityRows | ForEach-Object { $_.operatorArtifactExecutionCommand })
         aftercareCommands = $aftercareCommands
         childRunbookRows = $childRunbookRows
+        childArtifactPreflightRows = $childArtifactPreflightRows
         aftercareRows = $aftercareRunbookRows
         detectsChildExitCodes = $true
         continuesAfterChildFailure = $true
@@ -1052,7 +1103,7 @@ if ($Mode -eq "swarm-online-runbook") {
         usesExplicitAftercareArguments = $true
         exitsNonzeroAfterChildOrAftercareFailure = $true
         sourceOverviewPath = $overviewPath
-        privateStateExposed = $false
+        privateStateExposed = $privateStateExposed
     } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $resultPath -Encoding UTF8
 }
 
@@ -2195,7 +2246,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.aftercareRows) {
                 $aftercareRows = @($result.aftercareRows).Count
             }
-            Write-Host "Swarm online runbook: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), childRows=$childRows, aftercareRows=$aftercareRows, artifactSha256=$($result.artifactSha256), elevatedCommand=$($result.elevatedCommand), verifiesChildArtifactSha256=$($result.verifiesChildArtifactSha256), usesExplicitAftercareArguments=$($result.usesExplicitAftercareArguments), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Swarm online runbook: status=$($result.status), preflight=$($result.preflightStatus), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), childRows=$childRows, present=$($result.childArtifactPresentCount), hashVerified=$($result.childArtifactHashVerifiedCount), hashMismatch=$($result.childArtifactMismatchCount), missingArtifacts=$($result.childArtifactMissingCount), failedChecks=$($result.serviceExecutionFailedCheckCount), missingChecks=$($result.serviceExecutionMissingCheckCount), aftercareRows=$aftercareRows, artifactSha256=$($result.artifactSha256), elevatedCommand=$($result.elevatedCommand), verifiesChildArtifactSha256=$($result.verifiesChildArtifactSha256), usesExplicitAftercareArguments=$($result.usesExplicitAftercareArguments), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             $policyRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
