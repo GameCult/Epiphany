@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use chrono::DateTime;
 use chrono::Utc;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
 use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
@@ -175,6 +176,8 @@ struct TickArgs {
     local_verse_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
+    cooldown_seconds: u64,
+    active_timeout_seconds: u64,
     dry_run: bool,
 }
 
@@ -644,6 +647,8 @@ fn parse_tick_args(args: impl Iterator<Item = String>) -> Result<TickArgs> {
     let mut local_verse_store = None;
     let mut artifact_dir = None;
     let mut runtime_store = None;
+    let mut cooldown_seconds = 0_u64;
+    let mut active_timeout_seconds = 900_u64;
     let mut dry_run = false;
 
     let mut args = args.peekable();
@@ -657,6 +662,12 @@ fn parse_tick_args(args: impl Iterator<Item = String>) -> Result<TickArgs> {
             }
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
             "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
+            "--cooldown-seconds" => {
+                cooldown_seconds = take_u64(&mut args, "--cooldown-seconds")?;
+            }
+            "--active-timeout-seconds" => {
+                active_timeout_seconds = take_u64(&mut args, "--active-timeout-seconds")?;
+            }
             "--dry-run" | "--no-execute" => dry_run = true,
             other => return Err(anyhow!("unexpected tick argument {other:?}")),
         }
@@ -669,6 +680,8 @@ fn parse_tick_args(args: impl Iterator<Item = String>) -> Result<TickArgs> {
         local_verse_store,
         artifact_dir,
         runtime_store,
+        cooldown_seconds,
+        active_timeout_seconds,
         dry_run,
     })
 }
@@ -2000,7 +2013,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                         },
                         "nextSafeMove": "Release or narrow the local Verse swarm brake before repo-work scheduler mutation."
                     });
-                    let receipt_path = artifact_dir.join(format!("work-tick-{item_slug}.json"));
+                    let receipt_path = tick_receipt_path(&artifact_dir, &item_slug);
                     write_json(&receipt_path, &receipt)?;
                     return Ok(json!({
                         "schemaVersion": "epiphany.repo_work_scheduler_tick.v0",
@@ -2019,6 +2032,199 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         }
     }
 
+    let active_receipt_path = tick_active_receipt_path(&artifact_dir, &item_slug);
+    let last_completed_receipt_path = tick_last_completed_receipt_path(&artifact_dir, &item_slug);
+    let mut recovered_active_turn = Value::Null;
+
+    if active_receipt_path.exists() {
+        let active_receipt = read_json(&active_receipt_path)?;
+        let active_started_at = parse_utc_rfc3339(&active_receipt, "startedAt")
+            .or_else(|| parse_utc_rfc3339(&active_receipt, "createdAt"));
+        let active_age_seconds = active_started_at.map(seconds_since);
+        let active_is_stale = active_age_seconds
+            .map(|age| age >= args.active_timeout_seconds as i64)
+            .unwrap_or(false);
+
+        if args.active_timeout_seconds == 0 || !active_is_stale {
+            let after_receipts = repo_work_receipt_state(
+                &accept_receipt_path,
+                &plan_receipt_path,
+                &run_receipt_path,
+                &adopt_receipt_path,
+                &execute_receipt_path,
+                &publish_receipt_path,
+                &sync_receipt_path,
+            );
+            let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            let receipt = json!({
+                "schemaVersion": "epiphany.repo_work_scheduler_tick_receipt.v0",
+                "createdAt": now,
+                "workspace": workspace,
+                "item": item,
+                "localVerseStore": local_verse_store,
+                "scheduler": {
+                    "owner": "Self",
+                    "pulseKind": "repo-work-local",
+                    "oneStepOnly": true,
+                    "dryRun": args.dry_run,
+                    "cooldownSeconds": args.cooldown_seconds,
+                    "activeTimeoutSeconds": args.active_timeout_seconds
+                },
+                "status": "refused-active-turn",
+                "action": "none",
+                "reason": "repo-work scheduler pulse already active for this work item",
+                "physiology": {
+                    "activeReceiptPath": active_receipt_path,
+                    "lastCompletedReceiptPath": last_completed_receipt_path,
+                    "activeAgeSeconds": active_age_seconds,
+                    "activeTimeoutSeconds": args.active_timeout_seconds,
+                    "privateStateExposed": false
+                },
+                "beforeReceipts": before_receipts,
+                "afterReceipts": after_receipts,
+                "advancedResult": Value::Null,
+                "authority": {
+                    "branchLocalOnly": true,
+                    "publicationAuthorized": false,
+                    "mergeAuthorized": false,
+                    "serviceLifecycleAuthorized": false,
+                    "crossRepoMutationAuthorized": false,
+                    "privateStateExposed": false,
+                    "mutationBlockedBy": "epiphany.repo_work_scheduler_active_turn"
+                },
+                "nextSafeMove": "Wait for the active scheduler pulse to finish, or let the active-turn timeout recover a stale marker."
+            });
+            let receipt_path = tick_receipt_path(&artifact_dir, &item_slug);
+            write_json(&receipt_path, &receipt)?;
+            return Ok(json!({
+                "schemaVersion": "epiphany.repo_work_scheduler_tick.v0",
+                "status": receipt["status"],
+                "action": receipt["action"],
+                "workspace": receipt["workspace"],
+                "item": receipt["item"],
+                "receiptPath": receipt_path,
+                "reason": receipt["reason"],
+                "authority": receipt["authority"],
+                "privateStateExposed": false,
+                "nextSafeMove": receipt["nextSafeMove"],
+            }));
+        }
+
+        fs::remove_file(&active_receipt_path).with_context(|| {
+            format!(
+                "failed to clear stale active tick receipt {}",
+                active_receipt_path.display()
+            )
+        })?;
+        recovered_active_turn = json!({
+            "activeReceiptPath": active_receipt_path,
+            "activeAgeSeconds": active_age_seconds,
+            "activeTimeoutSeconds": args.active_timeout_seconds,
+            "recovered": true,
+            "privateStateExposed": false
+        });
+    }
+
+    if args.cooldown_seconds > 0 && last_completed_receipt_path.exists() {
+        let last_completed_receipt = read_json(&last_completed_receipt_path)?;
+        if let Some(last_created_at) = parse_utc_rfc3339(&last_completed_receipt, "createdAt") {
+            let elapsed_seconds = seconds_since(last_created_at);
+            if elapsed_seconds < args.cooldown_seconds as i64 {
+                let after_receipts = repo_work_receipt_state(
+                    &accept_receipt_path,
+                    &plan_receipt_path,
+                    &run_receipt_path,
+                    &adopt_receipt_path,
+                    &execute_receipt_path,
+                    &publish_receipt_path,
+                    &sync_receipt_path,
+                );
+                let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+                let receipt = json!({
+                    "schemaVersion": "epiphany.repo_work_scheduler_tick_receipt.v0",
+                    "createdAt": now,
+                    "workspace": workspace,
+                    "item": item,
+                    "localVerseStore": local_verse_store,
+                    "scheduler": {
+                        "owner": "Self",
+                        "pulseKind": "repo-work-local",
+                        "oneStepOnly": true,
+                        "dryRun": args.dry_run,
+                        "cooldownSeconds": args.cooldown_seconds,
+                        "activeTimeoutSeconds": args.active_timeout_seconds
+                    },
+                    "status": "refused-by-cooldown",
+                    "action": "none",
+                    "reason": format!(
+                        "repo-work scheduler cooldown has not elapsed: {elapsed_seconds}s < {}s",
+                        args.cooldown_seconds
+                    ),
+                    "physiology": {
+                        "activeReceiptPath": active_receipt_path,
+                        "lastCompletedReceiptPath": last_completed_receipt_path,
+                        "elapsedSeconds": elapsed_seconds,
+                        "cooldownSeconds": args.cooldown_seconds,
+                        "privateStateExposed": false
+                    },
+                    "beforeReceipts": before_receipts,
+                    "afterReceipts": after_receipts,
+                    "advancedResult": Value::Null,
+                    "authority": {
+                        "branchLocalOnly": true,
+                        "publicationAuthorized": false,
+                        "mergeAuthorized": false,
+                        "serviceLifecycleAuthorized": false,
+                        "crossRepoMutationAuthorized": false,
+                        "privateStateExposed": false,
+                        "mutationBlockedBy": "epiphany.repo_work_scheduler_cooldown"
+                    },
+                    "nextSafeMove": "Wait for scheduler cooldown to elapse before pulsing this work item again."
+                });
+                let receipt_path = tick_receipt_path(&artifact_dir, &item_slug);
+                write_json(&receipt_path, &receipt)?;
+                return Ok(json!({
+                    "schemaVersion": "epiphany.repo_work_scheduler_tick.v0",
+                    "status": receipt["status"],
+                    "action": receipt["action"],
+                    "workspace": receipt["workspace"],
+                    "item": receipt["item"],
+                    "receiptPath": receipt_path,
+                    "reason": receipt["reason"],
+                    "authority": receipt["authority"],
+                    "privateStateExposed": false,
+                    "nextSafeMove": receipt["nextSafeMove"],
+                }));
+            }
+        }
+    }
+
+    let active_started_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let active_marker = json!({
+        "schemaVersion": "epiphany.repo_work_scheduler_tick_active.v0",
+        "createdAt": active_started_at,
+        "startedAt": active_started_at,
+        "workspace": workspace,
+        "item": item,
+        "scheduler": {
+            "owner": "Self",
+            "pulseKind": "repo-work-local",
+            "oneStepOnly": true,
+            "dryRun": args.dry_run,
+            "cooldownSeconds": args.cooldown_seconds,
+            "activeTimeoutSeconds": args.active_timeout_seconds
+        },
+        "authority": {
+            "branchLocalOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "privateStateExposed": false
+        }
+    });
+    write_json(&active_receipt_path, &active_marker)?;
+
     let mut action = "none".to_string();
     let status;
     let reason;
@@ -2033,7 +2239,8 @@ fn run_tick(args: TickArgs) -> Result<Value> {
     } else if publish_receipt_path.exists() {
         action = "none".to_string();
         status = "noop".to_string();
-        reason = "publication receipt exists; scheduler stops before merge/sync authority".to_string();
+        reason =
+            "publication receipt exists; scheduler stops before merge/sync authority".to_string();
         next_safe_move =
             "Wait for maintainer/Bifrost merge receipt, then run epiphany-work sync.".to_string();
     } else if execute_receipt_path.exists() {
@@ -2082,7 +2289,8 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             status = "blocked".to_string();
             reason = "run receipt exists but no matching plan receipt exists".to_string();
             next_safe_move =
-                "Write an Imagination/Self action plan before adopting Hands authority.".to_string();
+                "Write an Imagination/Self action plan before adopting Hands authority."
+                    .to_string();
         } else if args.dry_run {
             action = "adopt-from-plan".to_string();
             status = "would-advance".to_string();
@@ -2106,7 +2314,8 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             status = "advanced".to_string();
             reason = "adopted queued Hands run packet from typed action plan".to_string();
             next_safe_move =
-                "Run another scheduler pulse to execute the approved branch-local plan.".to_string();
+                "Run another scheduler pulse to execute the approved branch-local plan."
+                    .to_string();
         }
     } else if plan_receipt_path.exists() {
         let plan_receipt = read_json(&plan_receipt_path)?;
@@ -2116,8 +2325,8 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         if requested_paths.is_empty() {
             status = "blocked".to_string();
             reason = "plan receipt has no changedPaths for the Substrate Gate".to_string();
-            next_safe_move = "Repair the plan receipt or write a new plan with changed paths."
-                .to_string();
+            next_safe_move =
+                "Repair the plan receipt or write a new plan with changed paths.".to_string();
         } else if args.dry_run {
             action = "run-from-plan".to_string();
             status = "would-advance".to_string();
@@ -2137,8 +2346,8 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 requested_paths,
             })?;
             status = "advanced".to_string();
-            reason = "opened queued Substrate Gate and Hands run packet from plan paths"
-                .to_string();
+            reason =
+                "opened queued Substrate Gate and Hands run packet from plan paths".to_string();
             next_safe_move =
                 "Run another scheduler pulse to adopt the plan into Hands authority.".to_string();
         }
@@ -2146,7 +2355,8 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         status = "blocked".to_string();
         reason = "accepted work item has no matching action plan receipt".to_string();
         next_safe_move =
-            "Create an Imagination/Self plan receipt before scheduler can advance work.".to_string();
+            "Create an Imagination/Self plan receipt before scheduler can advance work."
+                .to_string();
     }
 
     let after_receipts = repo_work_receipt_state(
@@ -2169,11 +2379,21 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             "owner": "Self",
             "pulseKind": "repo-work-local",
             "oneStepOnly": true,
-            "dryRun": args.dry_run
+            "dryRun": args.dry_run,
+            "cooldownSeconds": args.cooldown_seconds,
+            "activeTimeoutSeconds": args.active_timeout_seconds
         },
         "status": status,
         "action": action,
         "reason": reason,
+        "physiology": {
+            "activeReceiptPath": active_receipt_path,
+            "lastCompletedReceiptPath": last_completed_receipt_path,
+            "recoveredActiveTurn": recovered_active_turn,
+            "cooldownSeconds": args.cooldown_seconds,
+            "activeTimeoutSeconds": args.active_timeout_seconds,
+            "privateStateExposed": false
+        },
         "beforeReceipts": before_receipts,
         "afterReceipts": after_receipts,
         "advancedResult": advanced_result,
@@ -2187,8 +2407,17 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         },
         "nextSafeMove": next_safe_move
     });
-    let receipt_path = artifact_dir.join(format!("work-tick-{item_slug}.json"));
+    let receipt_path = tick_receipt_path(&artifact_dir, &item_slug);
     write_json(&receipt_path, &receipt)?;
+    write_json(&last_completed_receipt_path, &receipt)?;
+    if active_receipt_path.exists() {
+        fs::remove_file(&active_receipt_path).with_context(|| {
+            format!(
+                "failed to clear active tick receipt {}",
+                active_receipt_path.display()
+            )
+        })?;
+    }
     Ok(json!({
         "schemaVersion": "epiphany.repo_work_scheduler_tick.v0",
         "status": receipt["status"],
@@ -2588,6 +2817,28 @@ fn write_json(path: &Path, value: &Value) -> Result<()> {
         .with_context(|| format!("failed to write {}", path.display()))
 }
 
+fn tick_receipt_path(artifact_dir: &Path, item_slug: &str) -> PathBuf {
+    artifact_dir.join(format!("work-tick-{item_slug}.json"))
+}
+
+fn tick_active_receipt_path(artifact_dir: &Path, item_slug: &str) -> PathBuf {
+    artifact_dir.join(format!("work-tick-active-{item_slug}.json"))
+}
+
+fn tick_last_completed_receipt_path(artifact_dir: &Path, item_slug: &str) -> PathBuf {
+    artifact_dir.join(format!("work-tick-last-{item_slug}.json"))
+}
+
+fn parse_utc_rfc3339(value: &Value, field: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value.get(field)?.as_str()?)
+        .ok()
+        .map(|timestamp| timestamp.with_timezone(&Utc))
+}
+
+fn seconds_since(timestamp: DateTime<Utc>) -> i64 {
+    Utc::now().signed_duration_since(timestamp).num_seconds()
+}
+
 fn ensure_git_repo(workspace: &Path) -> Result<()> {
     let output = Command::new("git")
         .arg("-C")
@@ -2610,6 +2861,12 @@ fn take_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Path
 fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
     args.next()
         .ok_or_else(|| anyhow!("missing value for {name}"))
+}
+
+fn take_u64(args: &mut impl Iterator<Item = String>, name: &str) -> Result<u64> {
+    take_string(args, name)?
+        .parse::<u64>()
+        .with_context(|| format!("invalid integer for {name}"))
 }
 
 fn sanitize(value: &str) -> String {

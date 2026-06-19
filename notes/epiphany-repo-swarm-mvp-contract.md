@@ -456,6 +456,24 @@ swarm brake is engaged, `tick` writes the same scheduler receipt family with
 new run/adopt/execute receipt. A brake is a machine stop, not a suggestion
 written in nice ink.
 
+The pulse now also owns its first scheduler physiology markers:
+
+- `.epiphany/work/work-tick-active-<item>.json` is written before the pulse
+  attempts a branch-local action and cleared only after the final tick receipt
+  is written. If a later pulse sees a live marker, it writes
+  `status=refused-active-turn`, action `none`, and creates no new
+  run/adopt/execute receipt.
+- `.epiphany/work/work-tick-last-<item>.json` stores the last completed tick
+  receipt. When `--cooldown-seconds <n>` is supplied, a later pulse refuses as
+  `status=refused-by-cooldown` until that completion-anchored interval elapses.
+  Cooldown begins after completion, not at launch.
+- `--active-timeout-seconds <n>` lets a stale active marker recover. A stale
+  marker is removed, the next safe branch-local step may proceed, and the final
+  tick receipt records `physiology.recoveredActiveTurn.recovered=true`.
+
+These markers are scheduler receipts, not hidden daemon memory. They carry the
+same authority seal and `privateStateExposed=false`.
+
 The pulse stops once branch-local execution has been recorded. It does not
 publish, merge, synthesize Soul/Mind receipts, install services, or impersonate
 Idunn. Those gates remain owned by their organs.
@@ -483,6 +501,17 @@ Verse before the first pulse. `epiphany-work tick` returned
 the brake allowed the next pulse to advance `run-from-plan`, and the refusal
 receipt reported `privateStateExposed=false`.
 
+A third smoke proved scheduler physiology on a disposable fresh repo Body. A
+synthetic active marker made `epiphany-work tick --cooldown-seconds 60` return
+`refused-active-turn:none`. After clearing the marker, the next pulse advanced
+`advanced:run-from-plan`, wrote `work-run-<item>.json`, cleared the active
+marker, and wrote `work-tick-last-<item>.json`. An immediate third pulse with
+the same cooldown returned `refused-by-cooldown:none` and did not create an
+adoption receipt. A final stale-marker proof with
+`--active-timeout-seconds 1` recovered the marker, advanced
+`advanced:adopt-from-plan`, and recorded `recoveredActiveTurn=true`. All
+summaries reported `privateStateExposed=false`.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
@@ -499,9 +528,11 @@ This plan starts from the current state: ten native front doors exist, but the
 work loop is not yet a full physiology. `init`, `online`, `accept`, `plan`,
 `run`, `adopt`, `execute`, `tick`, `publish`, and `sync` prove the typed path
 from repo birth to branch-local scheduler pulse, Bifrost/GitHub publication
-receipts, and upstream-main sync proof. They do not yet prove daemonized
-scheduling, cooldown physiology, Soul/Modeling/Mind closure after execution, or
-a repo Persona that can turn
+receipts, and upstream-main sync proof. `tick` now also proves brake refusal,
+active-turn refusal, completion-anchored cooldown refusal, and stale active-turn
+recovery through typed scheduler receipts. The chain does not yet prove
+daemonized cadence, Soul/Modeling/Mind closure after execution, or a repo
+Persona that can turn
 conversation into autonomous action without the operator feeding plan details by
 hand.
 
@@ -554,8 +585,10 @@ The chain is typed and sealed enough to be useful:
   and writes `upstreamMainSynced=true` only after git proves the published
   commit is contained by upstream main.
 - `epiphany-work tick` is the first Self-owned scheduler pulse: it advances one
-  safe branch-local step across plan-backed `run`, `adopt`, or `execute`, then
-  stops before Soul/Mind/Bifrost gates.
+  safe branch-local step across plan-backed `run`, `adopt`, or `execute`,
+  refuses under local Verse brake, refuses while an active turn is live, refuses
+  during explicit completion-anchored cooldown, recovers stale active markers,
+  then stops before Soul/Mind/Bifrost gates.
 
 The scar is equally important: this is still an operator-triggered pulse, not a
 daemonized physiology. The operator can prove each organ, but the swarm does
@@ -569,10 +602,10 @@ physiology while preserving the same authority receipts.
 
 Required organs before MVP:
 
-- Scheduler physiology: the first `epiphany-work tick` pulse exists; remaining
-  work is daemonized cadence, cooldown after completion, active-turn/brake
-  integration, stale-turn recovery, and handoff from branch-local execution to
-  Soul/Modeling/Mind closure.
+- Scheduler physiology: the first `epiphany-work tick` pulse now has brake,
+  active-turn, cooldown, and stale-turn recovery receipts. Remaining work is
+  daemonized cadence/policy around that pulse and handoff from branch-local
+  execution to Soul/Modeling/Mind closure.
 - Persona-to-plan automation: repo Persona input becomes candidate action
   pressure, Mind/Interpreter extracts work-shaped intent, and Imagination
   writes the plan packet without the operator hand-authoring shell details.
