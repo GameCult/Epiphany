@@ -2612,6 +2612,26 @@ fn run_cli() -> Result<()> {
                 },
             )?;
             let service_overview = load_swarm_overview_report(&args)?;
+            let (service_health_readback, service_health_private_state_exposed) =
+                service_health_readback_from_idunn(&args)?;
+            let service_health_action_rows = service_health_readback["serviceActionRows"]
+                .as_array()
+                .context("service-health readback lost service action rows")?;
+            let service_health_action_tui_rows = service_health_readback["serviceActionTuiRows"]
+                .as_array()
+                .context("service-health readback lost service action TUI rows")?;
+            let service_health_diagnostic = format!(
+                "status={:?}, mode={:?}, command={:?}, attention={:?}, failed={:?}, missing={:?}, actions={}, privateHelper={}, privateJson={:?}",
+                service_health_readback["status"].as_str(),
+                service_health_readback["recommendedWrapperMode"].as_str(),
+                service_health_readback["recommendedWrapperCommand"].as_str(),
+                service_health_readback["serviceLifecycleAttentionCount"].as_u64(),
+                service_health_readback["serviceExecutionFailedCheckCount"].as_u64(),
+                service_health_readback["serviceExecutionMissingCheckCount"].as_u64(),
+                service_health_action_rows.len(),
+                service_health_private_state_exposed,
+                service_health_readback["privateStateExposed"].as_bool(),
+            );
             let service_receipt_directory = {
                 let context =
                     query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -2853,9 +2873,52 @@ fn run_cli() -> Result<()> {
                         )
                             && row.contains("followUp=tools/epiphany_local_run.ps1 -Mode service-execution-readiness")
                     })
+                || service_health_readback["status"].as_str() != Some("attention")
+                || service_health_readback["recommendedWrapperMode"].as_str()
+                    != Some("cluster-service-execution-audit")
+                || service_health_readback["recommendedWrapperCommand"].as_str()
+                    != Some(WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND)
+                || service_health_readback["serviceLifecycleAttentionCount"].as_u64() != Some(2)
+                || service_health_readback["serviceExecutionFailedCheckCount"].as_u64()
+                    != Some(11)
+                || service_health_readback["serviceExecutionMissingCheckCount"].as_u64()
+                    != Some(10)
+                || service_health_action_rows.len() != 4
+                || service_health_private_state_exposed
+                || service_health_readback["privateStateExposed"].as_bool() != Some(false)
+                || !service_health_action_rows.iter().any(|row| {
+                    row["family"].as_str() == Some("service-lifecycle")
+                        && row["lifecycleOwner"].as_str() == Some(SERVICE_LIFECYCLE_OWNER)
+                        && row["hostedBody"].as_str() == Some(SERVICE_LIFECYCLE_HOSTED_BODY)
+                        && row["effectClass"].as_str() == Some("service-lifecycle-readback")
+                        && row["mutatesState"].as_bool() == Some(false)
+                        && row["requiresElevatedAuthority"].as_bool() == Some(false)
+                        && row["serviceExecutionFailedCheckCount"].as_u64() == Some(5)
+                        && row["privateStateExposed"].as_bool() == Some(false)
+                })
+                || !service_health_action_rows.iter().any(|row| {
+                    row["family"].as_str() == Some("service-execution-authority")
+                        && row["lifecycleOwner"].as_str() == Some(SERVICE_LIFECYCLE_OWNER)
+                        && row["hostedBody"].as_str() == Some(SERVICE_LIFECYCLE_HOSTED_BODY)
+                        && row["effectClass"].as_str() == Some("elevated-service-control")
+                        && row["mutatesState"].as_bool() == Some(true)
+                        && row["requiresElevatedAuthority"].as_bool() == Some(true)
+                        && row["operatorAftercareCommand"].as_str()
+                            == Some(WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND)
+                        && row["serviceExecutionFailedCheckCount"].as_u64() == Some(5)
+                        && row["privateStateExposed"].as_bool() == Some(false)
+                })
+                || !service_health_action_tui_rows.iter().any(|row| {
+                    row.as_str().is_some_and(|row| {
+                        row.contains("service-lifecycle")
+                            && row.contains("owner=Idunn")
+                            && row.contains("hostedBody=Epiphany")
+                            && row.contains("failedChecks=5")
+                    })
+                })
             {
                 anyhow::bail!(
-                    "local Verse query smoke did not expose sealed service lifecycle readback plus cluster and service execution failed-check anatomy"
+                    "local Verse query smoke did not expose sealed Idunn-owned service lifecycle readback plus service-health payload anatomy: {service_health_diagnostic}"
                 );
             }
             let readiness_follow_up_receipt = EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
@@ -6040,48 +6103,7 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         .unwrap_or(host_cluster_from_directory);
     let (service_health_readback, service_health_readback_private_state_exposed) =
         if is_service_health_capability(capability) {
-            let overview = load_swarm_overview_report(args)?;
-            let service_action_rows = overview
-                .swarm_action_rows
-                .iter()
-                .filter(|row| {
-                    row.family == "service-lifecycle" || row.family == "service-execution-authority"
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            let service_action_tui_rows = service_action_rows
-                .iter()
-                .map(swarm_action_tui_row)
-                .collect::<Vec<_>>();
-            let private_state_exposed = overview
-                .service_lifecycle_attention_rows
-                .iter()
-                .any(|row| row.private_state_exposed)
-                || overview
-                    .service_execution_failed_check_rows
-                    .iter()
-                    .any(|check| !check.private_state_sealed)
-                || service_action_rows
-                    .iter()
-                    .any(|row| row.private_state_exposed);
-            (
-                json!({
-                    "status": overview.recovery_status,
-                    "recommendedWrapperMode": overview.service_lifecycle_recommended_wrapper_mode,
-                    "recommendedWrapperCommand": overview.service_lifecycle_recommended_wrapper_command,
-                    "serviceLifecycleAttentionCount": overview.service_lifecycle_attention_rows.len(),
-                    "serviceLifecycleAttentionRows": overview.service_lifecycle_attention_rows,
-                    "serviceLifecycleAttentionTuiRows": overview.service_lifecycle_attention_tui_rows,
-                    "serviceExecutionFailedCheckCount": overview.service_execution_failed_check_count,
-                    "serviceExecutionMissingCheckCount": overview.service_execution_missing_check_count,
-                    "serviceExecutionFailedCheckRows": overview.service_execution_failed_check_rows,
-                    "serviceExecutionFailedCheckTuiRows": overview.service_execution_failed_check_tui_rows,
-                    "serviceActionRows": service_action_rows,
-                    "serviceActionTuiRows": service_action_tui_rows,
-                    "privateStateExposed": private_state_exposed,
-                }),
-                private_state_exposed,
-            )
+            service_health_readback_from_idunn(args)?
         } else {
             (serde_json::Value::Null, false)
         };
@@ -6158,6 +6180,51 @@ fn default_daemon_tool_receipt_status(
     } else {
         "accepted-for-daemon-routing".to_string()
     }
+}
+
+fn service_health_readback_from_idunn(args: &Args) -> Result<(serde_json::Value, bool)> {
+    let overview = load_swarm_overview_report(args)?;
+    let service_action_rows = overview
+        .swarm_action_rows
+        .iter()
+        .filter(|row| {
+            row.family == "service-lifecycle" || row.family == "service-execution-authority"
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let service_action_tui_rows = service_action_rows
+        .iter()
+        .map(swarm_action_tui_row)
+        .collect::<Vec<_>>();
+    let private_state_exposed = overview
+        .service_lifecycle_attention_rows
+        .iter()
+        .any(|row| row.private_state_exposed)
+        || overview
+            .service_execution_failed_check_rows
+            .iter()
+            .any(|check| !check.private_state_sealed)
+        || service_action_rows
+            .iter()
+            .any(|row| row.private_state_exposed);
+    Ok((
+        json!({
+            "status": overview.recovery_status,
+            "recommendedWrapperMode": overview.service_lifecycle_recommended_wrapper_mode,
+            "recommendedWrapperCommand": overview.service_lifecycle_recommended_wrapper_command,
+            "serviceLifecycleAttentionCount": overview.service_lifecycle_attention_rows.len(),
+            "serviceLifecycleAttentionRows": overview.service_lifecycle_attention_rows,
+            "serviceLifecycleAttentionTuiRows": overview.service_lifecycle_attention_tui_rows,
+            "serviceExecutionFailedCheckCount": overview.service_execution_failed_check_count,
+            "serviceExecutionMissingCheckCount": overview.service_execution_missing_check_count,
+            "serviceExecutionFailedCheckRows": overview.service_execution_failed_check_rows,
+            "serviceExecutionFailedCheckTuiRows": overview.service_execution_failed_check_tui_rows,
+            "serviceActionRows": service_action_rows,
+            "serviceActionTuiRows": service_action_tui_rows,
+            "privateStateExposed": private_state_exposed,
+        }),
+        private_state_exposed,
+    ))
 }
 
 fn default_daemon_tool_result_ref(
