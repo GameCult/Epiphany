@@ -20,6 +20,14 @@ building architectural Jenga:
 - swarm speech and action stay gated until scheduling, memory, repetition, and
   review boundaries are coherent
 
+The repo-swarm MVP contract lives in
+`notes/epiphany-repo-swarm-mvp-contract.md`. Its correction is binding:
+autonomous unbounded work inside an Epiphany-owned Body is in scope. The MVP is
+not a permission cage where every local edit waits for a human. The safety
+boundary is typed authority: branch-local work inside the owned repo Body may
+continue autonomously, while publication, merge, privilege escalation,
+cross-body mutation, and authority changes require the owning gate.
+
 ## VoidBot Lessons To Carry Forward
 
 VoidBot's ordinary spine is not the rotten part. Its durable lessons are:
@@ -74,6 +82,10 @@ operation.
 - One state authority per document kind.
 - One scheduler for standing initiative.
 - One explicit brake for swarm operation.
+- Autonomous branch-local work inside the swarm's owned Body is allowed and is
+  the desired operating mode.
+- Upstream publication is Bifrost territory, not implicit branch-local
+  authority.
 - No lane receives a new heartbeat while its previous turn is running.
 - No model output rewrites durable state directly.
 - No public speech without typed eligibility and receipt checks.
@@ -136,6 +148,15 @@ Before live fire, Epiphany needs these gates closed:
    - Operator artifacts must seal direct thought, raw transcripts, and long
      prompt-shaped notes by default.
 
+8. **Autonomous Branch Work**
+   - A repo swarm must own a git branch/worktree as its sacrificial workbench.
+   - Hands may edit, run checks, and commit autonomously inside that branch when
+     Substrate Gate, Hands, Soul, and Mind receipts support the work.
+   - Bifrost gates PR/upstream publication and credit; it does not gate every
+     local branch edit.
+   - Cross-body collaboration must travel through Odin/Eve/CultMesh/Bifrost
+     contracts instead of direct workspace rummaging.
+
 ## Ranked Next Cuts
 
 Keep:
@@ -174,6 +195,8 @@ Rebuild:
 
 ## Immediate Work Queue
 
+0. Land the repo-swarm MVP contract and make repo initialization create a
+   branch-local autonomous workbench by default.
 1. Add typed swarm pause/brake state and status projection.
 2. Add stale active-turn recovery receipts to heartbeat state if the current
    heartbeat store cannot prove recovery cleanly.

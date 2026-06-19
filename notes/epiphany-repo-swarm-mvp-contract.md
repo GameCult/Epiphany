@@ -1,0 +1,163 @@
+# Epiphany Repo Swarm MVP Contract
+
+This note defines the MVP target for running Epiphany swarms for repositories.
+
+It corrects a dangerous false boundary: autonomous unbounded work inside an
+Epiphany-owned Body is not out of scope. It is the point. The forbidden thing is
+not autonomy; the forbidden thing is authority confusion.
+
+## Objective
+
+Given a repository Body, Epiphany can initialize and run a repo-owned swarm that:
+
+- keeps a living typed map of the repo and its own work
+- accepts ideas, pressure, corrections, and taste through its Persona
+- routes Persona input through Imagination into concrete plans and action items
+- schedules and executes autonomous branch-local work through its own organs
+- verifies consequences before calling them true
+- admits durable state through Mind after review
+- publishes reviewed body changes through Bifrost to GitHub
+
+The swarm should be able to keep working without a human approving every local
+edit, command, or commit. Human attention is required for grants outside the
+Body, publication/merge, privilege escalation, and authority changes.
+
+## Authority Model
+
+An Epiphany swarm has standing authority over its Body.
+
+For a repo swarm, the Body is normally:
+
+- the repository working tree
+- the swarm's repo-local state stores
+- the swarm's branch-local git workspace
+- its local private Verse documents
+- its local daemon body and Idunn lifecycle receipts
+- its own Persona/Eve public surfaces, subject to speech gates
+
+Standing authority means the swarm may autonomously inspect, plan, edit, run
+checks, commit to its work branch, update its map, maintain its memory, and
+continue bounded work loops inside that Body.
+
+Standing authority does not mean:
+
+- direct mutation of another repo Body
+- publishing to upstream main without Bifrost publication receipts
+- bypassing git branch isolation
+- bypassing Substrate Gate for substrate access
+- bypassing Hands receipts for edits/commands/commits
+- bypassing Soul verification
+- bypassing Mind admission for durable state
+- bypassing Persona speech eligibility for public speech
+- exposing private Verse, raw worker thought, or sealed transcripts
+- letting Self, Gjallar, or a wrapper impersonate Idunn's daemon lifecycle owner
+
+Cross-body collaboration travels through advertised Verse/Eve surfaces, Odin
+discovery, coordinator messages, Bifrost receipts, and explicit callbacks. It is
+not workspace rummaging with a nicer robe.
+
+## Autonomy Boundary
+
+Autonomy is in scope when all of these are true:
+
+- the target is inside the swarm's owned Body
+- the work happens on a git branch owned by the swarm
+- the work can be represented as typed plans, intents, receipts, and evidence
+- publication to upstream is routed through Bifrost
+- privileged host actions are routed through their owning organ, such as Idunn
+  for daemon lifecycle
+- public speech is audited at the parent surface
+- durable belief and map updates pass through Mind review
+
+Autonomy is out of scope when any of these are true:
+
+- the swarm wants to mutate another Body directly
+- the swarm wants to publish, merge, deploy, or escalate authority without the
+  appropriate gate
+- an organ tries to replace another organ's ownership instead of sending an
+  intent or receipt
+- the work cannot leave an operator-safe receipt trail
+- private thought or private Verse content would be exposed to public/operator
+  surfaces
+
+## Persona To Work Loop
+
+Persona is the public conversation surface, not the whole organism.
+
+The intended loop is:
+
+```text
+Human or peer talks to Persona
+  -> Persona responds as the project-facing person
+  -> Mind/Interpreter extracts candidate ideas, corrections, pressure, and asks
+  -> Imagination forms concrete plans and action-item candidates
+  -> Self chooses whether and when to schedule work
+  -> Eyes/Modeling/Hands/Soul execute the work loop inside the Body
+  -> Mind admits durable state changes
+  -> Bifrost publishes reviewed body-change receipts when upstream publication is wanted
+```
+
+Banter can stay banter. Work-shaped ideas become typed planning pressure only
+after Imagination and Self make them concrete enough to route.
+
+## Git Branch Contract
+
+Every autonomous repo swarm needs a branch-local work area.
+
+The default branch shape should be:
+
+```text
+epiphany/<swarm-id>/<objective-or-topic>
+```
+
+The branch is the sacrificial workbench. Epiphany may commit autonomously there
+after Hands and Soul receipts support the consequence. Upstream publication is
+not branch-local work; it is Bifrost territory.
+
+Required branch receipts:
+
+- branch creation or branch selection receipt
+- Hands patch/command/commit receipts for body changes
+- Soul verification receipt for the branch state
+- Mind state-admission receipt for durable map/memory effects
+- Bifrost publication intent/receipt before PR or upstream publication
+
+## MVP Definition Of Done
+
+The first MVP is done when a fresh repository can run:
+
+```powershell
+epiphany-repo init --workspace <repo>
+epiphany-swarm online --workspace <repo>
+epiphany-work accept --workspace <repo> --from persona-or-bifrost --item <id>
+epiphany-work run --workspace <repo>
+epiphany-work publish --workspace <repo>
+```
+
+And produce a proof bundle showing:
+
+- repo-local agent-state SoA for the standing faculties
+- cluster topology with private Verse ids, body domain, daemons, and Eve surfaces
+- Idunn daemon lifecycle status with services ready or explicitly braked
+- global daemon tool directory available to all local agents
+- Persona speech audit receipts
+- Imagination plan/action-item receipts
+- Self routing/coordinator receipts
+- Substrate Gate grants for repo access
+- Eyes evidence packets for inspected claims
+- Modeling map/checkpoint updates
+- Hands patch/command/commit receipts
+- Soul verification receipts
+- Mind admission receipts
+- Bifrost publication/credit receipts for upstream-facing work
+- sealed private state and no raw worker thought leakage
+
+## Migration Implication
+
+The next migration plan must treat autonomous branch-local work as a required
+capability, not a later danger to avoid. The safety design is not "make Epiphany
+ask before doing anything." The safety design is "make Epiphany's authority
+typed, local to its Body, branch-contained, interruptible, inspectable,
+receipt-backed, and publication-gated."
+
+That is the machine we are building.

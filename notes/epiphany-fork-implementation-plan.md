@@ -107,6 +107,13 @@ subsystems must communicate through CultNet contracts, and vendored Codex should
 remain relatively vanilla bridge machinery for OpenAI auth/model transport and
 useful Codex-native app-server/runtime affordances.
 
+The repo-swarm MVP contract is now explicit in
+`notes/epiphany-repo-swarm-mvp-contract.md`: autonomous branch-local work inside
+an Epiphany-owned Body is not a future hazard to avoid; it is the product
+target. The migration path must make that autonomy typed, branch-contained,
+receipt-backed, interruptible, and Bifrost-publication-gated instead of
+turning Epiphany into a human-permission queue for every local edit.
+
 The older teardown/rebuild pair remains useful source history:
 `notes/archive/epiphany-architectural-teardown.md` names the host-seam rot, and
 `notes/archive/epiphany-ideal-architecture-rebuild-plan.md` records the completed
