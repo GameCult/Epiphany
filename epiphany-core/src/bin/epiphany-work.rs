@@ -12,10 +12,16 @@ use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::hands_action_review_for_intent;
+use epiphany_core::hands_command_receipt_for_review;
+use epiphany_core::hands_commit_receipt_for_review;
+use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::hands_pr_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
+use epiphany_core::put_hands_command_receipt;
+use epiphany_core::put_hands_commit_receipt;
+use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_hands_pr_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_hands_action_intent;
@@ -40,6 +46,7 @@ fn main() -> Result<()> {
         "accept" => run_accept(parse_accept_args(args)?),
         "run" => run_work(parse_run_args(args)?),
         "adopt" | "promote" => run_adopt(parse_adopt_args(args)?),
+        "execute" | "exec" => run_execute(parse_execute_args(args)?),
         "publish" => run_publish(parse_publish_args(args)?),
         other => Err(anyhow!("unknown epiphany-work command {other:?}")),
     }?;
@@ -85,6 +92,20 @@ struct AdoptArgs {
     artifact_dir: Option<PathBuf>,
     plan_summary: String,
     adoption_evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct ExecuteArgs {
+    workspace: PathBuf,
+    epiphany_root: PathBuf,
+    item: Option<String>,
+    adopt_receipt: Option<PathBuf>,
+    runtime_store: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    command: String,
+    changed_paths: Vec<String>,
+    commit_message: String,
+    summary: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -260,6 +281,58 @@ fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
         artifact_dir,
         plan_summary: plan_summary.context("missing --plan-summary")?,
         adoption_evidence_refs,
+    })
+}
+
+fn parse_execute_args(args: impl Iterator<Item = String>) -> Result<ExecuteArgs> {
+    let mut workspace = None;
+    let mut epiphany_root = None;
+    let mut item = None;
+    let mut adopt_receipt = None;
+    let mut runtime_store = None;
+    let mut artifact_dir = None;
+    let mut command = None;
+    let mut changed_paths = Vec::new();
+    let mut commit_message = None;
+    let mut summary = None;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--adopt-receipt" => adopt_receipt = Some(take_path(&mut args, "--adopt-receipt")?),
+            "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--command" => command = Some(take_string(&mut args, "--command")?),
+            "--changed-path" | "--path" => {
+                changed_paths.push(take_string(&mut args, "--changed-path")?);
+            }
+            "--commit-message" => {
+                commit_message = Some(take_string(&mut args, "--commit-message")?)
+            }
+            "--summary" => summary = Some(take_string(&mut args, "--summary")?),
+            other => return Err(anyhow!("unexpected execute argument {other:?}")),
+        }
+    }
+    if changed_paths.is_empty() {
+        return Err(anyhow!(
+            "execute requires at least one --changed-path scoped by the approved Hands gate"
+        ));
+    }
+    Ok(ExecuteArgs {
+        workspace: workspace.context("missing --workspace")?,
+        epiphany_root: epiphany_root
+            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
+        item,
+        adopt_receipt,
+        runtime_store,
+        artifact_dir,
+        command: command.context("missing --command")?,
+        changed_paths,
+        commit_message: commit_message.context("missing --commit-message")?,
+        summary,
     })
 }
 
@@ -850,6 +923,206 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
     }))
 }
 
+fn run_execute(args: ExecuteArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let _epiphany_root = args
+        .epiphany_root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
+    let adopt_receipt_path =
+        resolve_adopt_receipt(&workspace, args.item.as_deref(), args.adopt_receipt)?;
+    let adopt_receipt = read_json(&adopt_receipt_path)?;
+    let runtime_store = args.runtime_store.unwrap_or_else(|| {
+        path_from_json(&adopt_receipt, &["runtimeStore"]).unwrap_or_else(|| {
+            workspace
+                .join(".epiphany")
+                .join("state")
+                .join("runtime-spine.msgpack")
+        })
+    });
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    let gate = adopt_receipt
+        .get("handsActionGate")
+        .ok_or_else(|| anyhow!("adopt receipt has no handsActionGate"))?;
+    let intent_id = gate
+        .get("intentId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("adopt receipt handsActionGate has no intentId"))?;
+    let review_id = gate
+        .get("reviewId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("adopt receipt handsActionGate has no reviewId"))?;
+    let intent = runtime_hands_action_intent(&runtime_store, intent_id)?
+        .ok_or_else(|| anyhow!("runtime-spine has no Hands intent {intent_id}"))?;
+    let review = runtime_hands_action_review(&runtime_store, review_id)?
+        .ok_or_else(|| anyhow!("runtime-spine has no Hands review {review_id}"))?;
+    ensure_hands_review_allows(&intent, &review, "patch")?;
+    ensure_hands_review_allows(&intent, &review, "command")?;
+    ensure_hands_review_allows(&intent, &review, "commit")?;
+    validate_paths_within_gate(&intent, &args.changed_paths)?;
+    let branch = git_output(&workspace, &["branch", "--show-current"])?;
+    if !branch.starts_with("epiphany/") {
+        return Err(anyhow!(
+            "execute requires an epiphany/* work branch; current branch is {branch:?}"
+        ));
+    }
+
+    let item = adopt_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+    let stdout_artifact = artifact_dir.join(format!("work-execute-{item_slug}.stdout.log"));
+    let stderr_artifact = artifact_dir.join(format!("work-execute-{item_slug}.stderr.log"));
+    let execution = Command::new("powershell")
+        .arg("-NoProfile")
+        .arg("-Command")
+        .arg(&args.command)
+        .current_dir(&workspace)
+        .output()
+        .with_context(|| format!("failed to execute command in {}", workspace.display()))?;
+    fs::write(&stdout_artifact, &execution.stdout)
+        .with_context(|| format!("failed to write {}", stdout_artifact.display()))?;
+    fs::write(&stderr_artifact, &execution.stderr)
+        .with_context(|| format!("failed to write {}", stderr_artifact.display()))?;
+    let exit_code = execution
+        .status
+        .code()
+        .map(|code| code.to_string())
+        .unwrap_or_else(|| "terminated-by-signal".to_string());
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let summary = args
+        .summary
+        .unwrap_or_else(|| format!("Executed approved repo work item {item} on branch {branch}."));
+    let command_receipt_id = format!("repo-work-execute-{item_slug}-hands-command");
+    let command_receipt = hands_command_receipt_for_review(
+        command_receipt_id,
+        &intent,
+        &review,
+        args.command.clone(),
+        exit_code.clone(),
+        normalize_path_for_receipt(&stdout_artifact),
+        normalize_path_for_receipt(&stderr_artifact),
+        summary.clone(),
+        now.clone(),
+    );
+    put_hands_command_receipt(&runtime_store, &command_receipt)?;
+    if !execution.status.success() {
+        let failed_receipt = json!({
+            "schemaVersion": "epiphany.repo_work_execute_receipt.v0",
+            "createdAt": now,
+            "workspace": workspace,
+            "runtimeStore": runtime_store,
+            "adoptReceiptPath": adopt_receipt_path,
+            "item": item,
+            "status": "command-failed",
+            "branch": branch,
+            "changedPaths": args.changed_paths,
+            "commandReceiptId": command_receipt.receipt_id,
+            "exitCode": command_receipt.exit_code,
+            "stdoutArtifact": command_receipt.stdout_artifact,
+            "stderrArtifact": command_receipt.stderr_artifact,
+            "privateStateExposed": false,
+        });
+        let receipt_path = artifact_dir.join(format!("work-execute-{item_slug}.json"));
+        write_json(&receipt_path, &failed_receipt)?;
+        return Ok(json!({
+            "schemaVersion": "epiphany.repo_work_execute.v0",
+            "status": failed_receipt["status"],
+            "workspace": failed_receipt["workspace"],
+            "receiptPath": receipt_path,
+            "item": failed_receipt["item"],
+            "handsReceipts": {
+                "commandReceiptId": failed_receipt["commandReceiptId"]
+            },
+            "privateStateExposed": false,
+            "nextSafeMove": "Inspect command artifacts and either rerun execution after a new adoption review or record a failure review."
+        }));
+    }
+
+    let normalized_paths = normalize_paths(args.changed_paths.clone());
+    let patch_receipt_id = format!("repo-work-execute-{item_slug}-hands-patch");
+    let patch_receipt = hands_patch_receipt_for_review(
+        patch_receipt_id,
+        &intent,
+        &review,
+        normalized_paths.clone(),
+        summary.clone(),
+        now.clone(),
+    );
+    put_hands_patch_receipt(&runtime_store, &patch_receipt)?;
+    git_add_paths(&workspace, &normalized_paths)?;
+    ensure_staged_changes(&workspace)?;
+    git_commit(&workspace, &args.commit_message)?;
+    let commit_sha = git_output(&workspace, &["rev-parse", "HEAD"])?;
+    let commit_receipt_id = format!("repo-work-execute-{item_slug}-hands-commit");
+    let commit_receipt = hands_commit_receipt_for_review(
+        commit_receipt_id,
+        &intent,
+        &review,
+        commit_sha,
+        branch.clone(),
+        normalized_paths.clone(),
+        summary.clone(),
+        Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+    );
+    put_hands_commit_receipt(&runtime_store, &commit_receipt)?;
+
+    let execute_receipt = json!({
+        "schemaVersion": "epiphany.repo_work_execute_receipt.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "runtimeStore": runtime_store,
+        "adoptReceiptPath": adopt_receipt_path,
+        "item": item,
+        "status": "branch-local-commit-recorded",
+        "branch": branch,
+        "changedPaths": normalized_paths,
+        "command": command_receipt.command,
+        "exitCode": command_receipt.exit_code,
+        "stdoutArtifact": command_receipt.stdout_artifact,
+        "stderrArtifact": command_receipt.stderr_artifact,
+        "handsReceipts": {
+            "patchReceiptId": patch_receipt.receipt_id,
+            "commandReceiptId": command_receipt.receipt_id,
+            "commitReceiptId": commit_receipt.receipt_id,
+            "commitSha": commit_receipt.commit_sha
+        },
+        "authority": {
+            "branchLocalCommitCreated": true,
+            "publicationAuthorized": false,
+            "durableStateAdmitted": false,
+            "privateStateExposed": false
+        },
+        "nextSafeMove": "Route Soul verification and Mind review before publication; use epiphany-work publish only after review receipts exist."
+    });
+    let receipt_path = artifact_dir.join(format!("work-execute-{item_slug}.json"));
+    write_json(&receipt_path, &execute_receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_execute.v0",
+        "status": execute_receipt["status"],
+        "workspace": execute_receipt["workspace"],
+        "runtimeStore": execute_receipt["runtimeStore"],
+        "receiptPath": receipt_path,
+        "item": execute_receipt["item"],
+        "branch": execute_receipt["branch"],
+        "changedPaths": execute_receipt["changedPaths"],
+        "handsReceipts": execute_receipt["handsReceipts"],
+        "authority": execute_receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": execute_receipt["nextSafeMove"],
+    }))
+}
+
 fn run_publish(args: PublishArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -1235,6 +1508,148 @@ fn latest_receipt_in(work_dir: &Path, prefix: &str) -> Option<PathBuf> {
     }
     candidates.sort_by_key(|(modified, _path)| *modified);
     candidates.pop().map(|(_modified, path)| path)
+}
+
+fn ensure_hands_review_allows(
+    intent: &HandsActionIntent,
+    review: &epiphany_core::HandsActionReview,
+    operation: &str,
+) -> Result<()> {
+    if review.intent_id != intent.intent_id {
+        return Err(anyhow!(
+            "Hands review {} belongs to {}, not {}",
+            review.review_id,
+            review.intent_id,
+            intent.intent_id
+        ));
+    }
+    if review.decision != "approved" {
+        return Err(anyhow!(
+            "Hands review {} decision is {}, not approved",
+            review.review_id,
+            review.decision
+        ));
+    }
+    if !review
+        .allowed_operations
+        .iter()
+        .any(|allowed| allowed == operation)
+    {
+        return Err(anyhow!(
+            "Hands review {} does not allow {operation}",
+            review.review_id
+        ));
+    }
+    Ok(())
+}
+
+fn validate_paths_within_gate(intent: &HandsActionIntent, paths: &[String]) -> Result<()> {
+    let requested = normalize_paths(intent.requested_paths.clone());
+    for path in paths {
+        let normalized = normalize_path(path);
+        if requested.iter().any(|allowed| {
+            allowed == "."
+                || normalized == *allowed
+                || normalized.starts_with(&format!("{}/", allowed.trim_end_matches('/')))
+        }) {
+            continue;
+        }
+        return Err(anyhow!(
+            "changed path {normalized:?} is outside approved Hands path scope {:?}",
+            requested
+        ));
+    }
+    Ok(())
+}
+
+fn normalize_paths(paths: Vec<String>) -> Vec<String> {
+    paths
+        .into_iter()
+        .map(|path| normalize_path(&path))
+        .collect()
+}
+
+fn normalize_path(path: &str) -> String {
+    let normalized = path.replace('\\', "/");
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        ".".to_string()
+    } else {
+        trimmed.trim_start_matches("./").to_string()
+    }
+}
+
+fn normalize_path_for_receipt(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
+}
+
+fn git_output(workspace: &Path, args: &[&str]) -> Result<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(workspace)
+        .args(args)
+        .output()
+        .with_context(|| format!("failed to run git {}", args.join(" ")))?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn git_add_paths(workspace: &Path, paths: &[String]) -> Result<()> {
+    let mut command = Command::new("git");
+    command.arg("-C").arg(workspace).arg("add").arg("--");
+    for path in paths {
+        command.arg(path);
+    }
+    let output = command
+        .output()
+        .with_context(|| format!("failed to run git add in {}", workspace.display()))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "git add failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
+}
+
+fn ensure_staged_changes(workspace: &Path) -> Result<()> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(workspace)
+        .args(["diff", "--cached", "--quiet"])
+        .output()
+        .with_context(|| format!("failed to inspect staged diff in {}", workspace.display()))?;
+    if output.status.success() {
+        Err(anyhow!(
+            "execute staged no changed paths; refusing empty commit"
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn git_commit(workspace: &Path, message: &str) -> Result<()> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(workspace)
+        .args(["commit", "-m", message])
+        .output()
+        .with_context(|| format!("failed to run git commit in {}", workspace.display()))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "git commit failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
 }
 
 fn cargo_json(manifest_path: &Path, bin_name: &str, args: &[String]) -> Result<Value> {

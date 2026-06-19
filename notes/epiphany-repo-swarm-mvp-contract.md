@@ -132,6 +132,7 @@ epiphany-swarm online --workspace <repo>
 epiphany-work accept --workspace <repo> --from persona-or-bifrost --item <id>
 epiphany-work run --workspace <repo>
 epiphany-work adopt --workspace <repo> --item <id> --plan-summary <text> --adoption-evidence-ref <ref>
+epiphany-work execute --workspace <repo> --item <id> --command <command> --changed-path <path> --commit-message <text>
 epiphany-work publish --workspace <repo>
 ```
 
@@ -280,9 +281,44 @@ After adoption, `epiphany-hands-action record-pass` successfully consumed the
 approved gate and emitted the Hands receipt triplet. The same action recorder
 still refuses queued or mismatched gates.
 
-### Landed Work Publication Gate
+### Landed Work Execution Gate
 
 The sixth front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- execute --workspace <repo> --item <id> --command <command> --changed-path <path> --commit-message <text>
+```
+
+It reads the named or latest work-adopt receipt, requires an approved Hands
+gate that allows `patch`, `command`, and `commit`, verifies the declared changed
+paths are inside the Hands intent path scope, requires the repo to be on an
+`epiphany/*` branch, runs the command inside the repo Body, captures stdout and
+stderr artifacts, stages only the declared changed paths, creates a branch-local
+git commit, and writes the typed Hands patch, command, and commit receipts.
+
+This is the first native executor for repo-swarm work. It removes the smoke
+recorder from the normal branch-local execution path. It still does not verify
+the consequence, admit durable state, authorize publication, merge, or claim
+upstream main is synced.
+
+The first smoke proved:
+
+```powershell
+epiphany-repo init --workspace <repo> --switch-branch
+epiphany-swarm online --workspace <repo>
+epiphany-work accept --workspace <repo> --from persona --item first-request
+epiphany-work run --workspace <repo> --item first-request --requested-path README.md
+epiphany-work adopt --workspace <repo> --item first-request --plan-summary '...' --adoption-evidence-ref 'imagination-consensus:repo-work-consensus-first-request'
+epiphany-work execute --workspace <repo> --item first-request --command "Add-Content -Path README.md -Value '...'" --changed-path README.md --commit-message 'Execute approved repo work'
+```
+
+The execute receipt produced a real branch-local commit on
+`epiphany/smoke/execute`, Hands patch/command/commit receipts,
+`publicationAuthorized=false`, and `privateStateExposed=false`.
+
+### Landed Work Publication Gate
+
+The seventh front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- publish --workspace <repo> --item <id> --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>
@@ -300,7 +336,7 @@ This is publication routing, not merge authority:
 `mergeAuthorized=false`. Upstream main is not considered synced until a later
 merge/sync receipt proves it.
 
-The first smoke proved the six-command sequence:
+The first smoke proved the publication sequence:
 
 ```powershell
 epiphany-repo init --workspace <repo>
@@ -308,15 +344,16 @@ epiphany-swarm online --workspace <repo>
 epiphany-work accept --workspace <repo> --from persona --item first-request
 epiphany-work run --workspace <repo> --item first-request
 epiphany-work adopt --workspace <repo> --item first-request --plan-summary '...' --adoption-evidence-ref 'imagination-consensus:repo-work-consensus-first-request'
+epiphany-work execute --workspace <repo> --item first-request --command '...' --changed-path README.md --commit-message '...'
 epiphany-work publish --workspace <repo> --item first-request --change-summary '...' --justification '...' --verification-receipt 'soul-verdict:...' --review-receipt 'mind-review:...' --ledger-entry-id 'bifrost-ledger:...' --pull-request-url 'https://...' --pull-request-title '...'
 ```
 
 The publish receipt produced a Hands PR receipt, Bifrost publication receipt,
 GitHub publication receipt, `privateStateExposed=false`, and an explicit
-`upstreamMainSynced=false` guard. The next cut is either a real autonomous
-executor that consumes approved gates without a smoke recorder, or a
-merge/sync gate that can prove upstream main actually matches the accepted
-publication.
+`upstreamMainSynced=false` guard. The next cut is a merge/sync gate that can
+prove upstream main actually matches the accepted publication, plus a less
+manual planner/executor bridge that supplies executable commands from
+Imagination/Self rather than operator CLI arguments.
 
 ## Migration Implication
 
