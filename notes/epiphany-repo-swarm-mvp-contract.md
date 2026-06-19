@@ -152,6 +152,27 @@ And produce a proof bundle showing:
 - Bifrost publication/credit receipts for upstream-facing work
 - sealed private state and no raw worker thought leakage
 
+### Landed Init Front Door
+
+The first front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo -- init --workspace <repo>
+```
+
+It delegates to the reviewed startup-only repo birth runner, writes
+`.epiphany/repo-init/repo-swarm-init-receipt.json`, creates repo-local stores
+under `.epiphany/state/`, emits the planned branch workbench receipt for
+`epiphany/<swarm-id>/<objective-or-topic>`, and leaves branch mutation explicit
+behind `--create-branch` or `--switch-branch`.
+
+This is not the full swarm. It proves the first usable repo initialization
+surface: birth packets, review gates, local state paths, and branch authority
+are discoverable from one command. The next missing organs are
+`epiphany-swarm online`, repo-local SoA/topology publication, and the
+Persona/Imagination work-item intake that turns conversation into accepted
+action items.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
