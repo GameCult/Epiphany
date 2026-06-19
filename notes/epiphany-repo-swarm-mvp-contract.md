@@ -364,3 +364,254 @@ typed, local to its Body, branch-contained, interruptible, inspectable,
 receipt-backed, and publication-gated."
 
 That is the machine we are building.
+
+## Full Migration Plan To Repo Swarm MVP
+
+This plan starts from the current state: seven native front doors exist, but the
+work loop is still operator-shaped. `init`, `online`, `accept`, `run`, `adopt`,
+`execute`, and `publish` prove the typed path from repo birth to Bifrost/GitHub
+publication receipts. They do not yet prove upstream-main sync, less-manual
+planning, continuous scheduling, or a repo Persona that can turn conversation
+into autonomous action without the operator feeding every command by hand.
+
+The MVP target is narrower than the full Perfect Machine and wider than a demo:
+a fresh repository can host an Epiphany swarm that initializes its Body,
+publishes its Persona, accepts ideas through Persona or Bifrost, turns those
+ideas into concrete action items through Imagination, schedules branch-local
+work through Self, executes through Hands, verifies through Soul, admits state
+through Mind, and publishes reviewed outcomes through Bifrost while private
+state stays sealed.
+
+### Phase 0: Authority Freeze
+
+Owner: Self, with Mind as the durable-state gate.
+
+Purpose: lock the current doctrine so the migration does not drift back into
+human-permission theater or unsafe ambient autonomy.
+
+Required cuts:
+
+- Keep this note as the repo-swarm authority map.
+- Keep `state/map.yaml` pointing at this note as the current autonomy doctrine.
+- Treat branch-local autonomous work as allowed inside the owned Body.
+- Treat publication, merge, deployment, service lifecycle mutation, cross-repo
+  mutation, public speech, and durable belief changes as gated effects.
+- Preserve Gjallar as sight, Odin as discovery, Idunn as daemon lifecycle owner,
+  Bifrost as publication/ledger gate, and Eve/CultUI as interface projection.
+
+MVP exit proof:
+
+- Rehydrate status names the same authority boundary.
+- A new agent can read this note and know which organ owns each effect.
+
+### Phase 1: Close The Publication Loop
+
+Owner: Bifrost for publication authority; Hands/Soul/Mind for repo consequence
+receipts; Self for routing.
+
+Purpose: stop claiming work is finished when it merely reached a PR-like
+publication receipt. Upstream main must be proven, not implied.
+
+Required cuts:
+
+- Add `epiphany-work sync` or `epiphany-work sync-main`.
+- Read the publish receipt, Hands PR receipt, and Hands commit receipt.
+- Require an explicit maintainer merge/sync receipt or Bifrost merge receipt.
+- Verify the published commit is an ancestor of the configured upstream main
+  ref, normally `origin/main`.
+- Write a repo-local sync receipt with `upstreamMainSynced=true` only after git
+  ancestry proves it.
+- Keep the command non-mutating for MVP unless a later Bifrost/GitHub executor
+  explicitly owns merge mutation.
+
+MVP exit proof:
+
+```powershell
+epiphany-work publish --workspace <repo> --item <id> ...
+epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <bifrost-or-maintainer-ref>
+```
+
+The proof bundle shows publication authorized, upstream main synced, merge
+authority traced to Bifrost or maintainer review, and no private-state exposure.
+
+### Phase 2: Replace Operator Commands With Imagination Plans
+
+Owner: Imagination for concrete plan formation; Self for scheduling; Hands for
+action execution.
+
+Purpose: remove the operator as the hidden planner/executor. The current
+`execute --command <command>` shape is useful quarantine scaffolding, not the
+MVP organism.
+
+Required cuts:
+
+- Make `epiphany-work adopt` consume a typed Imagination action plan receipt
+  instead of only `--plan-summary` prose.
+- Define the plan body as ordered action candidates with objective, requested
+  paths, allowed command families, expected evidence, verification asks, stop
+  conditions, and rollback hints.
+- Let Self choose one adopted action item and emit the next Hands intent.
+- Let Hands derive the executable command packet from the accepted action item
+  when the command is mechanical and inside the repo Body.
+- Keep ambiguous, privileged, destructive, cross-repo, or external-network
+  commands as escalation intents instead of silently executing them.
+
+MVP exit proof:
+
+- A Persona/Bifrost idea becomes an Imagination plan receipt.
+- Self schedules one action item without the operator writing the shell command.
+- Hands executes the derived branch-local command and records patch, command,
+  and commit receipts.
+
+### Phase 3: Make Persona The Front Door
+
+Owner: Persona for public conversation; Mind/Interpreter for extracting
+candidate state/effect pressure; Imagination for planning.
+
+Purpose: humans should talk to the project, not pre-author complete
+implementation briefs for a CLI harness.
+
+Required cuts:
+
+- Give each initialized repo at least one Persona record and public surface
+  advertisement.
+- Route Persona speech through the existing parent-side speech audit.
+- Add a repo-local Persona intake command or daemon route that records the
+  public utterance, response, extracted candidate actions, and discussion refs.
+- Feed work-shaped candidate actions into `epiphany-work accept`.
+- Keep banter as conversation unless Mind/Interpreter extracts a candidate
+  action and Imagination makes it concrete.
+
+MVP exit proof:
+
+- A human message to the repo Persona creates a speech audit and candidate
+  action receipt.
+- The candidate action becomes a work accept receipt with no Hands authority
+  yet.
+- The same path works for Bifrost-originated work items.
+
+### Phase 4: Run The Swarm As Physiology
+
+Owner: heartbeat scheduler and Self; Idunn for daemon survival.
+
+Purpose: migrate from a manually stepped CLI chain to a living repo swarm that
+can keep working when it has safe branch-local work available.
+
+Required cuts:
+
+- Add a repo-local scheduler pulse that reads accepted/adopted work, active
+  Hands/Soul/Modeling/Mind receipts, cooldowns, brakes, and branch status.
+- Ensure no lane wakes again while its previous heartbeat turn is active.
+- Let cooldown begin after completion, not launch.
+- Honor local Verse swarm brake and repo-specific pause receipts.
+- Let idle time produce rumination, memory pressure, and Imagination candidate
+  refinement without hammering Hands.
+- Keep Idunn-owned service lifecycle checks separate from Self scheduling.
+
+MVP exit proof:
+
+- `epiphany-swarm run --workspace <repo>` or an Idunn-hosted daemon pulse can
+  advance one safe work item without the operator driving each step.
+- A brake stops work before new mutation.
+- A stale active turn is recovered or refused with a typed receipt.
+
+### Phase 5: Seal The Repo Mind
+
+Owner: Mind for durable state; Modeling for machine-map updates; Eyes for
+evidence; Soul for verification.
+
+Purpose: make the swarm remember what changed without treating transcripts,
+stdout, or wrapper JSON as the mind.
+
+Required cuts:
+
+- Ensure each meaningful branch-local consequence routes through Soul before
+  Modeling updates the repo map.
+- Require Mind admission receipts for durable repo map, memory, and objective
+  changes.
+- Store repo-local state in CultCache-shaped documents under `.epiphany/state`
+  and advertise compact summaries through local Verse.
+- Keep raw worker thoughts, raw result payloads, and full transcripts sealed.
+- Add a compact repo work ledger view for current work item, branch, last
+  verified consequence, current blocker, and next safe action.
+
+MVP exit proof:
+
+- After a Hands commit, Soul verifies the changed Body.
+- Modeling proposes a source-grounded map update.
+- Mind admits or rejects the update.
+- The repo-local overview shows the durable lesson without exposing private
+  worker thought.
+
+### Phase 6: Publish Operator-Safe Proof Bundles
+
+Owner: Bifrost for public labor/credit ledger; Gjallar/Odin for discovery and
+sight; Eve/CultUI for interface projection.
+
+Purpose: make repo-swarm work legible enough for maintainers, peers, and future
+agents without opening private state.
+
+Required cuts:
+
+- Emit one proof bundle per work item with receipt ids, changed paths, branch,
+  commit, verification result, map admission result, Bifrost publication refs,
+  GitHub/PR refs, sync status, and credit refs.
+- Add compact Eve/CultUI rows for repo work queue, active branch work, blocked
+  work, publication status, and upstream sync.
+- Make Gjallar announce the repo swarm's operator-safe status through Odin's
+  discovery map without giving Gjallar lifecycle or mutation authority.
+- Keep Bifrost ledger and credit receipts as the public labor trail.
+
+MVP exit proof:
+
+- A maintainer can inspect a compact proof bundle and decide whether the
+  branch-local work deserves merge/publication.
+- A future agent can rehydrate from map, ledger, and receipts without reading
+  sealed thought streams.
+
+### Phase 7: Fresh Repo MVP Run
+
+Owner: the repo swarm as a whole, with organ ownership preserved.
+
+Purpose: prove the product path on a repository that was not hand-prepared by
+the supervising Codex session.
+
+Required scenario:
+
+```powershell
+epiphany-repo init --workspace <repo> --switch-branch
+epiphany-swarm online --workspace <repo>
+epiphany-persona intake --workspace <repo> --persona <id> --message <text>
+epiphany-work accept --workspace <repo> --item <id>
+epiphany-work adopt --workspace <repo> --item <id> --from-plan <plan-receipt>
+epiphany-swarm run --workspace <repo> --until blocked-or-published
+epiphany-work publish --workspace <repo> --item <id> ...
+epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
+```
+
+MVP exit proof:
+
+- The repo has an Epiphany branch with real commits.
+- The branch has Hands, Soul, Modeling, and Mind receipts.
+- The work item has Bifrost publication and upstream sync proof.
+- The repo Persona remains the human-facing surface.
+- The proof bundle says `privateStateExposed=false`.
+- Ambient daemon/tool availability is visible through Gjallar/Odin, while
+  Idunn remains the daemon keeper.
+
+## MVP Non-Goals
+
+The MVP does not require:
+
+- autonomous merge to upstream main
+- autonomous service install/start/stop
+- cross-repo direct mutation
+- exporting private worker thought
+- replacing GitHub, Bifrost, Odin, Gjallar, Idunn, or Eve ownership with
+  wrapper summaries
+- solving every future repo Persona style problem
+- full distributed dreaming across public Verses
+
+The MVP does require a real repo swarm that can take an idea, form a plan,
+work a branch, verify itself, remember the lesson, and publish proof without a
+human writing every implementation command.
