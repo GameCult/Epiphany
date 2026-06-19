@@ -3204,6 +3204,49 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke did not demote missing service runbook artifacts to non-elevated regeneration"
                 );
             }
+            let synthetic_runbook_action = ServiceExecutionRunbookAction {
+                family: "cluster-service-execution-runbook".to_string(),
+                route:
+                    "epiphany-cluster-daemon-services::cluster-windows-service-execution-runbook"
+                        .to_string(),
+                artifact_ref:
+                    "smoke://cluster-service-execution-audit/cluster-windows-service-execution-runbook"
+                        .to_string(),
+                follow_up_command: WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND.to_string(),
+                private_state_exposed: false,
+                failed_check_count: 5,
+                missing_check_count: 0,
+                service_id: "epiphany-cluster-daemon-services".to_string(),
+                completion_audit_wrapper_mode: "cluster-service-execution-audit".to_string(),
+                completion_audit_wrapper_command: WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
+                    .to_string(),
+            };
+            let (synthetic_artifact_rows, _) = swarm_action_rows(
+                "ready",
+                &[],
+                &ready_policy_report,
+                &[],
+                &[],
+                &[synthetic_runbook_action],
+            );
+            if !synthetic_artifact_rows.iter().any(|row| {
+                row.priority == 50
+                    && row.family == "service-execution-authority"
+                    && row.status == "runbook-artifact-missing"
+                    && row.wrapper_mode == "cluster-service-execution-runbook"
+                    && row.effect_class == "service-lifecycle-runbook-regeneration"
+                    && row.operator_artifact_status == "missing"
+                    && row.operator_artifact_sha256 == "none"
+                    && row.operator_artifact_execution_command == "none"
+                    && row.operator_aftercare_command == "none"
+                    && !row.mutates_state
+                    && !row.requires_elevated_authority
+                    && !row.private_state_exposed
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke treated a synthetic service runbook artifact as elevated authority"
+                );
+            }
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
@@ -4203,7 +4246,8 @@ fn swarm_action_rows(
         });
     }
     for (index, runbook_action) in service_execution_runbook_actions.iter().enumerate() {
-        let artifact_status = operator_artifact_status(&runbook_action.artifact_ref).to_string();
+        let artifact_status =
+            service_execution_runbook_artifact_status(&runbook_action.artifact_ref).to_string();
         let (
             status,
             action,
@@ -4477,6 +4521,14 @@ fn operator_artifact_status(artifact_ref: &str) -> &'static str {
         "present"
     } else {
         "missing"
+    }
+}
+
+fn service_execution_runbook_artifact_status(artifact_ref: &str) -> &'static str {
+    if artifact_ref.starts_with("smoke://") {
+        "missing"
+    } else {
+        operator_artifact_status(artifact_ref)
     }
 }
 
