@@ -135,6 +135,7 @@ epiphany-work run --workspace <repo>
 epiphany-work adopt --workspace <repo> --item <id> --from-plan <plan-receipt>
 epiphany-work execute --workspace <repo> --item <id> --from-plan <plan-receipt>
 epiphany-work tick --workspace <repo> --item <id>
+epiphany-work serve --workspace <repo> --item <id> --max-iterations <n>
 epiphany-work publish --workspace <repo>
 epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
 ```
@@ -474,6 +475,25 @@ The pulse now also owns its first scheduler physiology markers:
 These markers are scheduler receipts, not hidden daemon memory. They carry the
 same authority seal and `privateStateExposed=false`.
 
+`epiphany-work serve` is Self's cadence wrapper around the same tick artery:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- serve --workspace <repo> --item <id> --max-iterations 2 --loop-interval-seconds 30 --cooldown-seconds 30
+```
+
+It writes `.epiphany/work/work-scheduler-serve-<item>.json` as
+`epiphany.repo_work_scheduler_serve_receipt.v0` with `status=serve-running`
+before the first pulse, then repeatedly invokes the same receipt-gated `tick`
+path. `--max-iterations <n>` is bounded proof mode; omitting it is unbounded
+service mode. Unbounded mode refuses a zero-second loop interval so Self cannot
+become a hot polling idol. Bounded proof mode overwrites the same serve receipt
+with `status=serve-complete` and finite iteration outputs, while the tick
+receipts remain the durable per-pulse trail for long-running mode.
+
+This is scheduler cadence, not service lifecycle. It does not install itself,
+spawn Windows services, restart daemons, or take Idunn's daemon survival
+authority.
+
 The pulse stops once branch-local execution has been recorded. It does not
 publish, merge, synthesize Soul/Mind receipts, install services, or impersonate
 Idunn. Those gates remain owned by their organs.
@@ -512,6 +532,14 @@ adoption receipt. A final stale-marker proof with
 `advanced:adopt-from-plan`, and recorded `recoveredActiveTurn=true`. All
 summaries reported `privateStateExposed=false`.
 
+A fourth smoke proved cadence mode. On a disposable fresh repo Body,
+`epiphany-work serve --max-iterations 2 --loop-interval-seconds 0 --cooldown-seconds 60`
+wrote `epiphany.repo_work_scheduler_serve_receipt.v0`; iteration one advanced
+`advanced:run-from-plan`, iteration two refused `refused-by-cooldown:none`,
+`work-run-<item>.json` existed, `work-adopt-<item>.json` did not, and the
+serve receipt reported `privateStateExposed=false`. A separate negative check
+proved unbounded `serve --loop-interval-seconds 0` refuses with exit code 1.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
@@ -530,9 +558,9 @@ work loop is not yet a full physiology. `init`, `online`, `accept`, `plan`,
 from repo birth to branch-local scheduler pulse, Bifrost/GitHub publication
 receipts, and upstream-main sync proof. `tick` now also proves brake refusal,
 active-turn refusal, completion-anchored cooldown refusal, and stale active-turn
-recovery through typed scheduler receipts. The chain does not yet prove
-daemonized cadence, Soul/Modeling/Mind closure after execution, or a repo
-Persona that can turn
+recovery through typed scheduler receipts; `serve` now proves bounded cadence
+around that same tick artery. The chain does not yet prove Soul/Modeling/Mind
+closure after execution, or a repo Persona that can turn
 conversation into autonomous action without the operator feeding plan details by
 hand.
 
@@ -589,10 +617,15 @@ The chain is typed and sealed enough to be useful:
   refuses under local Verse brake, refuses while an active turn is live, refuses
   during explicit completion-anchored cooldown, recovers stale active markers,
   then stops before Soul/Mind/Bifrost gates.
+- `epiphany-work serve` is the first Self-owned cadence loop around that pulse:
+  bounded proof mode records finite iteration outputs, unbounded service mode
+  relies on per-pulse tick receipts, and zero-interval unbounded polling is
+  refused.
 
-The scar is equally important: this is still an operator-triggered pulse, not a
-daemonized physiology. The operator can prove each organ, but the swarm does
-not yet breathe on its own cadence.
+The scar is equally important: this is still an operator-started cadence loop,
+not installed service lifecycle. The operator can prove the scheduler breathes,
+but Idunn-owned service installation/startup remains an explicit elevated
+authority boundary.
 
 ### Remaining MVP Organs
 
@@ -603,9 +636,11 @@ physiology while preserving the same authority receipts.
 Required organs before MVP:
 
 - Scheduler physiology: the first `epiphany-work tick` pulse now has brake,
-  active-turn, cooldown, and stale-turn recovery receipts. Remaining work is
-  daemonized cadence/policy around that pulse and handoff from branch-local
-  execution to Soul/Modeling/Mind closure.
+  active-turn, cooldown, and stale-turn recovery receipts, and
+  `epiphany-work serve` adds bounded/unbounded cadence around that pulse.
+  Remaining work is handoff from branch-local execution to Soul/Modeling/Mind
+  closure and any later Idunn service lifecycle integration under explicit
+  operator authority.
 - Persona-to-plan automation: repo Persona input becomes candidate action
   pressure, Mind/Interpreter extracts work-shaped intent, and Imagination
   writes the plan packet without the operator hand-authoring shell details.

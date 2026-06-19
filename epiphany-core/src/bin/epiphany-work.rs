@@ -53,6 +53,7 @@ fn main() -> Result<()> {
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
         "tick" | "pulse" | "schedule" => run_tick(parse_tick_args(args)?),
+        "serve" | "loop" | "daemon" => run_serve(parse_serve_args(args)?),
         other => Err(anyhow!("unknown epiphany-work command {other:?}")),
     }?;
     println!("{}", serde_json::to_string_pretty(&result)?);
@@ -179,6 +180,14 @@ struct TickArgs {
     cooldown_seconds: u64,
     active_timeout_seconds: u64,
     dry_run: bool,
+}
+
+#[derive(Clone, Debug)]
+struct ServeArgs {
+    tick: TickArgs,
+    scheduler_id: String,
+    loop_interval_seconds: u64,
+    max_iterations: u64,
 }
 
 fn parse_accept_args(args: impl Iterator<Item = String>) -> Result<AcceptArgs> {
@@ -683,6 +692,67 @@ fn parse_tick_args(args: impl Iterator<Item = String>) -> Result<TickArgs> {
         cooldown_seconds,
         active_timeout_seconds,
         dry_run,
+    })
+}
+
+fn parse_serve_args(args: impl Iterator<Item = String>) -> Result<ServeArgs> {
+    let mut workspace = None;
+    let mut epiphany_root = None;
+    let mut item = None;
+    let mut local_verse_store = None;
+    let mut artifact_dir = None;
+    let mut runtime_store = None;
+    let mut cooldown_seconds = 30_u64;
+    let mut active_timeout_seconds = 900_u64;
+    let mut dry_run = false;
+    let mut scheduler_id = "epiphany-repo-work-scheduler".to_string();
+    let mut loop_interval_seconds = 30_u64;
+    let mut max_iterations = 0_u64;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--local-verse-store" | "--store" => {
+                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
+            }
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
+            "--cooldown-seconds" => {
+                cooldown_seconds = take_u64(&mut args, "--cooldown-seconds")?;
+            }
+            "--active-timeout-seconds" => {
+                active_timeout_seconds = take_u64(&mut args, "--active-timeout-seconds")?;
+            }
+            "--scheduler-id" => scheduler_id = take_string(&mut args, "--scheduler-id")?,
+            "--loop-interval-seconds" | "--serve-interval-seconds" => {
+                loop_interval_seconds = take_u64(&mut args, "--loop-interval-seconds")?;
+            }
+            "--max-iterations" => {
+                max_iterations = take_u64(&mut args, "--max-iterations")?;
+            }
+            "--dry-run" | "--no-execute" => dry_run = true,
+            other => return Err(anyhow!("unexpected serve argument {other:?}")),
+        }
+    }
+    Ok(ServeArgs {
+        tick: TickArgs {
+            workspace: workspace.context("missing --workspace")?,
+            epiphany_root: epiphany_root
+                .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
+            item,
+            local_verse_store,
+            artifact_dir,
+            runtime_store,
+            cooldown_seconds,
+            active_timeout_seconds,
+            dry_run,
+        },
+        scheduler_id,
+        loop_interval_seconds,
+        max_iterations,
     })
 }
 
@@ -1907,6 +1977,153 @@ fn run_sync(args: SyncArgs) -> Result<Value> {
     }))
 }
 
+fn run_serve(args: ServeArgs) -> Result<Value> {
+    if args.max_iterations == 0 && args.loop_interval_seconds == 0 {
+        return Err(anyhow!(
+            "unbounded repo-work serve mode requires --loop-interval-seconds greater than 0"
+        ));
+    }
+
+    let workspace = args
+        .tick
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.tick.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let artifact_dir = args
+        .tick
+        .artifact_dir
+        .clone()
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    let accept_receipt_path = resolve_accept_receipt(&workspace, args.tick.item.as_deref(), None)?;
+    let accept_receipt = read_json(&accept_receipt_path)?;
+    let item = accept_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+    let started_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let serve_mode = if args.max_iterations == 0 {
+        "unbounded-service"
+    } else {
+        "bounded-proof"
+    };
+    let receipt_path = scheduler_serve_receipt_path(&artifact_dir, &item_slug);
+    let start_receipt = json!({
+        "schemaVersion": "epiphany.repo_work_scheduler_serve_receipt.v0",
+        "createdAt": started_at,
+        "startedAt": started_at,
+        "completedAt": Value::Null,
+        "status": "serve-running",
+        "workspace": workspace,
+        "item": item,
+        "scheduler": {
+            "owner": "Self",
+            "schedulerId": args.scheduler_id,
+            "serveMode": serve_mode,
+            "pulseKind": "repo-work-local",
+            "oneStepPerPulse": true,
+            "loopIntervalSeconds": args.loop_interval_seconds,
+            "maxIterations": args.max_iterations,
+            "cooldownSeconds": args.tick.cooldown_seconds,
+            "activeTimeoutSeconds": args.tick.active_timeout_seconds,
+            "dryRun": args.tick.dry_run
+        },
+        "iterations": 0,
+        "outputs": [],
+        "lastOutput": Value::Null,
+        "authority": {
+            "branchLocalOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "privateStateExposed": false
+        },
+        "nextSafeMove": "Repo-work scheduler cadence is running; inspect per-pulse tick receipts for the durable trail."
+    });
+    write_json(&receipt_path, &start_receipt)?;
+
+    let mut outputs = Vec::new();
+    let mut iteration = 0_u64;
+    let last_output = loop {
+        iteration = iteration.saturating_add(1);
+        let next_wake_utc = if args.max_iterations == 0 || iteration < args.max_iterations {
+            Some(
+                (Utc::now() + chrono::Duration::seconds(args.loop_interval_seconds as i64))
+                    .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            )
+        } else {
+            None
+        };
+        let tick_output = run_tick(args.tick.clone())?;
+        let iteration_output = json!({
+            "iteration": iteration,
+            "nextWakeUtc": next_wake_utc,
+            "tick": tick_output
+        });
+        if args.max_iterations != 0 {
+            outputs.push(iteration_output.clone());
+        }
+        if args.max_iterations != 0 && iteration >= args.max_iterations {
+            break iteration_output;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(args.loop_interval_seconds));
+    };
+
+    let completed_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_work_scheduler_serve_receipt.v0",
+        "createdAt": completed_at,
+        "startedAt": started_at,
+        "completedAt": completed_at,
+        "status": "serve-complete",
+        "workspace": workspace,
+        "item": item,
+        "scheduler": {
+            "owner": "Self",
+            "schedulerId": args.scheduler_id,
+            "serveMode": serve_mode,
+            "pulseKind": "repo-work-local",
+            "oneStepPerPulse": true,
+            "loopIntervalSeconds": args.loop_interval_seconds,
+            "maxIterations": args.max_iterations,
+            "cooldownSeconds": args.tick.cooldown_seconds,
+            "activeTimeoutSeconds": args.tick.active_timeout_seconds,
+            "dryRun": args.tick.dry_run
+        },
+        "iterations": iteration,
+        "outputs": outputs,
+        "lastOutput": last_output,
+        "authority": {
+            "branchLocalOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "privateStateExposed": false
+        },
+        "nextSafeMove": "Continue cadence only while repo-work receipts still identify a safe branch-local step; route Soul/Modeling/Mind closure after execution."
+    });
+    write_json(&receipt_path, &receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_scheduler_serve.v0",
+        "status": "serve-complete",
+        "workspace": receipt["workspace"],
+        "item": receipt["item"],
+        "scheduler": receipt["scheduler"],
+        "iterations": receipt["iterations"],
+        "receiptPath": receipt_path,
+        "lastOutput": receipt["lastOutput"],
+        "authority": receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": receipt["nextSafeMove"],
+    }))
+}
+
 fn run_tick(args: TickArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -2827,6 +3044,10 @@ fn tick_active_receipt_path(artifact_dir: &Path, item_slug: &str) -> PathBuf {
 
 fn tick_last_completed_receipt_path(artifact_dir: &Path, item_slug: &str) -> PathBuf {
     artifact_dir.join(format!("work-tick-last-{item_slug}.json"))
+}
+
+fn scheduler_serve_receipt_path(artifact_dir: &Path, item_slug: &str) -> PathBuf {
+    artifact_dir.join(format!("work-scheduler-serve-{item_slug}.json"))
 }
 
 fn parse_utc_rfc3339(value: &Value, field: &str) -> Option<DateTime<Utc>> {
