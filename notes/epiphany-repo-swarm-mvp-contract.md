@@ -216,6 +216,37 @@ epiphany-work accept --workspace <repo> --from persona --item first-request
 The accepted item produced an Imagination consensus receipt, candidate action
 ref, public discussion ref, and `privateStateExposed=false`.
 
+### Landed Work Run Gate
+
+The fourth front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- run --workspace <repo>
+```
+
+It reads the latest or named work-accept receipt, opens the repo-local
+runtime-spine store, persists a Substrate Gate read/snapshot grant, persists a
+Hands action intent, and persists a Hands review with
+`decision=queued-for-adoption`. This is the first concrete run packet, but it
+is still not mutation authority: `epiphany-hands-action record-pass` refuses it
+because the Hands review is not `approved`.
+
+The first smoke proved the four-command sequence:
+
+```powershell
+epiphany-repo init --workspace <repo>
+epiphany-swarm online --workspace <repo>
+epiphany-work accept --workspace <repo> --from persona --item first-request
+epiphany-work run --workspace <repo> --item first-request
+```
+
+The run receipt produced a runtime-spine Substrate Gate grant, Hands intent,
+Hands review, and operator-safe gate summary with
+`handsAuthorityGranted=false`, `mutationBlockedBy=hands.review.decision !=
+approved`, and `privateStateExposed=false`. The next cut is the adoption step
+that can promote a queued gate to an approved branch-local Hands action after
+Imagination/Self/Mind evidence exists.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
