@@ -6038,6 +6038,55 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         .iter()
         .find(|cluster| cluster.cluster_id == written_intent.host_cluster_id)
         .unwrap_or(host_cluster_from_directory);
+    let (service_health_readback, service_health_readback_private_state_exposed) =
+        if is_service_health_capability(capability) {
+            let overview = load_swarm_overview_report(args)?;
+            let service_action_rows = overview
+                .swarm_action_rows
+                .iter()
+                .filter(|row| {
+                    row.family == "service-lifecycle" || row.family == "service-execution-authority"
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            let service_action_tui_rows = service_action_rows
+                .iter()
+                .map(swarm_action_tui_row)
+                .collect::<Vec<_>>();
+            let private_state_exposed = overview
+                .service_lifecycle_attention_rows
+                .iter()
+                .any(|row| row.private_state_exposed)
+                || overview
+                    .service_execution_failed_check_rows
+                    .iter()
+                    .any(|check| !check.private_state_sealed)
+                || service_action_rows
+                    .iter()
+                    .any(|row| row.private_state_exposed);
+            (
+                json!({
+                    "status": overview.recovery_status,
+                    "recommendedWrapperMode": overview.service_lifecycle_recommended_wrapper_mode,
+                    "recommendedWrapperCommand": overview.service_lifecycle_recommended_wrapper_command,
+                    "serviceLifecycleAttentionCount": overview.service_lifecycle_attention_rows.len(),
+                    "serviceLifecycleAttentionRows": overview.service_lifecycle_attention_rows,
+                    "serviceLifecycleAttentionTuiRows": overview.service_lifecycle_attention_tui_rows,
+                    "serviceExecutionFailedCheckCount": overview.service_execution_failed_check_count,
+                    "serviceExecutionMissingCheckCount": overview.service_execution_missing_check_count,
+                    "serviceExecutionFailedCheckRows": overview.service_execution_failed_check_rows,
+                    "serviceExecutionFailedCheckTuiRows": overview.service_execution_failed_check_tui_rows,
+                    "serviceActionRows": service_action_rows,
+                    "serviceActionTuiRows": service_action_tui_rows,
+                    "privateStateExposed": private_state_exposed,
+                }),
+                private_state_exposed,
+            )
+        } else {
+            (serde_json::Value::Null, false)
+        };
+    let private_state_exposed =
+        written_receipt.private_state_exposed || service_health_readback_private_state_exposed;
     let invocation_tui_row = daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
         requester: &requesting_cluster.display_name,
         requesting_agent_id: &written_intent.requesting_agent_id,
@@ -6058,7 +6107,7 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         authority_gate: &written_intent.authority_gate,
         all_agents: capability.available_to_all_agents,
         requires_receipt: written_intent.requires_receipt,
-        private_state_exposed: written_receipt.private_state_exposed,
+        private_state_exposed,
     });
     println!(
         "{}",
@@ -6091,7 +6140,9 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "requiresReceipt": written_intent.requires_receipt,
             "authorityGate": written_intent.authority_gate,
             "privateStateRequested": written_intent.private_state_requested,
-            "privateStateExposed": written_receipt.private_state_exposed,
+            "serviceHealthReadback": service_health_readback,
+            "serviceHealthReadbackPrivateStateExposed": service_health_readback_private_state_exposed,
+            "privateStateExposed": private_state_exposed,
             "invocationRows": [invocation_tui_row.clone()],
             "tuiRows": [invocation_tui_row],
         }))?

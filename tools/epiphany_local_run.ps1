@@ -2066,7 +2066,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.invocationRows -and $result.invocationRows.Count -gt 0) {
                 $invocationRows = ($result.invocationRows -join "; ")
             }
-            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
+            $serviceHealth = "none"
+            if ($null -ne $result.serviceHealthReadback -and $null -ne $result.serviceHealthReadback.status) {
+                $serviceHealth = "status=$($result.serviceHealthReadback.status):attentionRows=$(@($result.serviceHealthReadback.serviceLifecycleAttentionRows).Count):actionRows=$(@($result.serviceHealthReadback.serviceActionRows).Count):failedChecks=$($result.serviceHealthReadback.serviceExecutionFailedCheckCount):missingChecks=$($result.serviceHealthReadback.serviceExecutionMissingCheckCount):private=$($result.serviceHealthReadback.privateStateExposed)"
+            }
+            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), serviceHealth=$serviceHealth, invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-overview" -or $Mode -eq "gjallar") {
             $attention = "none"
             if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {
