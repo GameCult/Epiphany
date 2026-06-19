@@ -278,9 +278,45 @@ epiphany-work adopt --workspace <repo> --item first-request --plan-summary '...'
 
 After adoption, `epiphany-hands-action record-pass` successfully consumed the
 approved gate and emitted the Hands receipt triplet. The same action recorder
-still refuses queued or mismatched gates. The next cut is the publication step:
-`epiphany-work publish --workspace <repo>` must route reviewed body changes
-through Soul/Mind/Bifrost receipts before upstream-facing work is allowed.
+still refuses queued or mismatched gates.
+
+### Landed Work Publication Gate
+
+The sixth front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- publish --workspace <repo> --item <id> --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>
+```
+
+It reads the named or latest work-adopt receipt, requires the Hands review to
+be approved, finds or accepts a Hands commit receipt for the adopted gate, then
+requires Soul verification refs and Mind or maintainer review refs before
+routing publication through Bifrost. The command writes Bifrost body-change
+publication intent, Bifrost publication receipt, Bifrost GitHub publication
+receipt, and a matching Hands PR receipt into the repo-local stores.
+
+This is publication routing, not merge authority:
+`publicationAuthorized=true`, `upstreamMainSynced=false`, and
+`mergeAuthorized=false`. Upstream main is not considered synced until a later
+merge/sync receipt proves it.
+
+The first smoke proved the six-command sequence:
+
+```powershell
+epiphany-repo init --workspace <repo>
+epiphany-swarm online --workspace <repo>
+epiphany-work accept --workspace <repo> --from persona --item first-request
+epiphany-work run --workspace <repo> --item first-request
+epiphany-work adopt --workspace <repo> --item first-request --plan-summary '...' --adoption-evidence-ref 'imagination-consensus:repo-work-consensus-first-request'
+epiphany-work publish --workspace <repo> --item first-request --change-summary '...' --justification '...' --verification-receipt 'soul-verdict:...' --review-receipt 'mind-review:...' --ledger-entry-id 'bifrost-ledger:...' --pull-request-url 'https://...' --pull-request-title '...'
+```
+
+The publish receipt produced a Hands PR receipt, Bifrost publication receipt,
+GitHub publication receipt, `privateStateExposed=false`, and an explicit
+`upstreamMainSynced=false` guard. The next cut is either a real autonomous
+executor that consumes approved gates without a smoke recorder, or a
+merge/sync gate that can prove upstream main actually matches the accepted
+publication.
 
 ## Migration Implication
 
