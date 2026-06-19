@@ -168,10 +168,27 @@ behind `--create-branch` or `--switch-branch`.
 
 This is not the full swarm. It proves the first usable repo initialization
 surface: birth packets, review gates, local state paths, and branch authority
-are discoverable from one command. The next missing organs are
-`epiphany-swarm online`, repo-local SoA/topology publication, and the
-Persona/Imagination work-item intake that turns conversation into accepted
-action items.
+are discoverable from one command.
+
+### Landed Online Front Door
+
+The second front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-swarm -- online --workspace <repo>
+```
+
+It requires the init receipt, seeds a repo-local `.epiphany/local-verse.ccmp`,
+bootstraps `.epiphany/state/agents.msgpack` from the standing-faculty template
+when absent, refreshes the repo-local agent-state SoA, queries the existing
+CultMesh topology/liveness/tool/overview surfaces, and writes
+`.epiphany/swarm-online/repo-swarm-online-receipt.json`. The first smoke proved
+7 agent SoA rows, 7 cluster/private-Verse/daemon rows, 19 globally available
+daemon tools, and `privateStateExposed=false`.
+
+This still does not execute elevated Idunn service mutation and does not accept
+work items. It makes a fresh repo inspectably online as a local typed Verse
+Body so the next missing organ is `epiphany-work accept --workspace <repo>`.
 
 ## Migration Implication
 
