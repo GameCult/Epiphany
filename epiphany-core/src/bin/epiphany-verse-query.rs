@@ -3127,6 +3127,10 @@ fn run_cli() -> Result<()> {
                             && row.contains("followUp=tools/epiphany_local_run.ps1 -Mode service-execution-readiness")
                     })
                 || service_health_readback["status"].as_str() != Some("attention")
+                || service_health_readback["lifecycleOwner"].as_str()
+                    != Some(SERVICE_LIFECYCLE_OWNER)
+                || service_health_readback["hostedBody"].as_str()
+                    != Some(SERVICE_LIFECYCLE_HOSTED_BODY)
                 || service_health_readback["recommendedWrapperMode"].as_str()
                     != Some("cluster-service-execution-audit")
                 || service_health_readback["recommendedWrapperCommand"].as_str()
@@ -3150,6 +3154,10 @@ fn run_cli() -> Result<()> {
                 || service_health_preflight_rows.len() != 2
                 || swarm_online_runbook_readback["status"].as_str()
                     != Some("ready-for-elevated-operator")
+                || swarm_online_runbook_readback["lifecycleOwner"].as_str()
+                    != Some(SERVICE_LIFECYCLE_OWNER)
+                || swarm_online_runbook_readback["hostedBody"].as_str()
+                    != Some(SERVICE_LIFECYCLE_HOSTED_BODY)
                 || swarm_online_runbook_readback["wrapperMode"].as_str()
                     != Some("swarm-online-runbook")
                 || swarm_online_runbook_readback["wrapperCommand"].as_str()
@@ -6779,6 +6787,8 @@ fn service_health_readback_from_idunn(args: &Args) -> Result<(serde_json::Value,
             json!({
                 "serviceId": row.service_id,
                 "serviceRoute": row.service_route,
+                "lifecycleOwner": row.lifecycle_owner,
+                "hostedBody": row.hosted_body,
                 "status": row.status,
                 "wrapperMode": row.wrapper_mode,
                 "wrapperCommand": row.wrapper_command,
@@ -6853,6 +6863,8 @@ fn service_health_readback_from_idunn(args: &Args) -> Result<(serde_json::Value,
     Ok((
         json!({
             "status": overview.recovery_status,
+            "lifecycleOwner": SERVICE_LIFECYCLE_OWNER,
+            "hostedBody": SERVICE_LIFECYCLE_HOSTED_BODY,
             "recommendedWrapperMode": overview.service_lifecycle_recommended_wrapper_mode,
             "recommendedWrapperCommand": overview.service_lifecycle_recommended_wrapper_command,
             "onlinePreflightStatus": online_preflight_status,
