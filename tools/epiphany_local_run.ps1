@@ -121,6 +121,13 @@ function Invoke-Checked {
     $process.WaitForExit()
     $exitCode = $process.ExitCode
     if ($exitCode -ne 0) {
+        $stderrTail = ""
+        if ($StderrPath -ne "" -and (Test-Path -LiteralPath $StderrPath)) {
+            $stderrTail = ((Get-Content -LiteralPath $StderrPath -Tail 20) -join "`n").Trim()
+        }
+        if ($stderrTail -ne "") {
+            throw "$Label failed with exit code $exitCode`n$stderrTail"
+        }
         throw "$Label failed with exit code $exitCode"
     }
 }

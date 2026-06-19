@@ -2054,6 +2054,27 @@ fn run_cli() -> Result<()> {
             let degraded_tool_directory =
                 load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
             let degraded_tool_report = daemon_tool_directory_report(&degraded_tool_directory);
+            let degraded_hands_status = context
+                .daemon_statuses
+                .iter()
+                .find(|status| status.daemon_id == "epiphany-daemon-hands")
+                .context("missing degraded Hands daemon status")?;
+            let degraded_tool_refusal =
+                assert_daemon_ready_for_tool_invocation(degraded_hands_status, hands_repo_action)
+                    .expect_err("degraded Hands tool invocation should fail closed")
+                    .to_string();
+            if !degraded_tool_refusal.contains("owner=Idunn")
+                || !degraded_tool_refusal.contains("hostedBody=Epiphany")
+                || !degraded_tool_refusal.contains("sight=epiphany-verse-query swarm-status")
+                || !degraded_tool_refusal.contains(WRAPPER_POKE_NON_READY_COMMAND)
+                || !degraded_tool_refusal.contains(
+                    "singlePoke=epiphany-verse-query poke-daemon --daemon-id epiphany-daemon-hands",
+                )
+            {
+                anyhow::bail!(
+                    "local Verse query smoke degraded tool refusal lost Idunn poke/readback routing"
+                );
+            }
             let degraded_overview_status = if degraded_report.non_ready_count == 0
                 && degraded_tool_report.host_attention_count == 0
             {
@@ -6769,11 +6790,15 @@ fn assert_daemon_ready_for_tool_invocation(
 ) -> Result<()> {
     if status.status != "ready" {
         anyhow::bail!(
-            "host daemon {} is not ready for tool invocation {}; daemonStatus={}; operatorAction={}",
+            "host daemon {} is not ready for tool invocation {}; daemonStatus={}; operatorAction={}; owner={}; hostedBody={}; sight=epiphany-verse-query swarm-status; poke={}; singlePoke=epiphany-verse-query poke-daemon --daemon-id {}",
             status.daemon_id,
             capability.capability_id,
             status.status,
-            status.operator_action
+            status.operator_action,
+            SERVICE_LIFECYCLE_OWNER,
+            SERVICE_LIFECYCLE_HOSTED_BODY,
+            WRAPPER_POKE_NON_READY_COMMAND,
+            status.daemon_id
         );
     }
     if !status
@@ -6782,9 +6807,15 @@ fn assert_daemon_ready_for_tool_invocation(
         .any(|action| action == "submitTypedToolIntent")
     {
         anyhow::bail!(
-            "host daemon {} does not advertise submitTypedToolIntent for capability {}",
+            "host daemon {} does not advertise submitTypedToolIntent for capability {}; daemonStatus={}; operatorAction={}; owner={}; hostedBody={}; sight=epiphany-verse-query swarm-status; poke={}; singlePoke=epiphany-verse-query poke-daemon --daemon-id {}",
             status.daemon_id,
-            capability.capability_id
+            capability.capability_id,
+            status.status,
+            status.operator_action,
+            SERVICE_LIFECYCLE_OWNER,
+            SERVICE_LIFECYCLE_HOSTED_BODY,
+            WRAPPER_POKE_NON_READY_COMMAND,
+            status.daemon_id
         );
     }
     Ok(())
