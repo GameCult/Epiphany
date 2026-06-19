@@ -48,6 +48,7 @@ fn main() -> Result<()> {
         "adopt" | "promote" => run_adopt(parse_adopt_args(args)?),
         "execute" | "exec" => run_execute(parse_execute_args(args)?),
         "publish" => run_publish(parse_publish_args(args)?),
+        "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
         other => Err(anyhow!("unknown epiphany-work command {other:?}")),
     }?;
     println!("{}", serde_json::to_string_pretty(&result)?);
@@ -132,6 +133,16 @@ struct PublishArgs {
     pull_request_number: String,
     pull_request_title: String,
     publication_status: String,
+}
+
+#[derive(Clone, Debug)]
+struct SyncArgs {
+    workspace: PathBuf,
+    item: Option<String>,
+    publish_receipt: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    upstream_ref: String,
+    merge_receipts: Vec<String>,
 }
 
 fn parse_accept_args(args: impl Iterator<Item = String>) -> Result<AcceptArgs> {
@@ -459,6 +470,45 @@ fn parse_publish_args(args: impl Iterator<Item = String>) -> Result<PublishArgs>
         pull_request_title: pull_request_title.context("missing --pull-request-title")?,
         publication_status: publication_status
             .unwrap_or_else(|| "accepted-for-github-publication".to_string()),
+    })
+}
+
+fn parse_sync_args(args: impl Iterator<Item = String>) -> Result<SyncArgs> {
+    let mut workspace = None;
+    let mut item = None;
+    let mut publish_receipt = None;
+    let mut artifact_dir = None;
+    let mut upstream_ref = None;
+    let mut merge_receipts = Vec::new();
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--publish-receipt" => {
+                publish_receipt = Some(take_path(&mut args, "--publish-receipt")?);
+            }
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--upstream-ref" => upstream_ref = Some(take_string(&mut args, "--upstream-ref")?),
+            "--merge-receipt" | "--sync-receipt" => {
+                merge_receipts.push(take_string(&mut args, "--merge-receipt")?);
+            }
+            other => return Err(anyhow!("unexpected sync argument {other:?}")),
+        }
+    }
+    if merge_receipts.is_empty() {
+        return Err(anyhow!(
+            "sync requires at least one --merge-receipt or --sync-receipt from Bifrost or maintainer review"
+        ));
+    }
+    Ok(SyncArgs {
+        workspace: workspace.context("missing --workspace")?,
+        item,
+        publish_receipt,
+        artifact_dir,
+        upstream_ref: upstream_ref.unwrap_or_else(|| "origin/main".to_string()),
+        merge_receipts,
     })
 }
 
@@ -1424,6 +1474,114 @@ fn run_publish(args: PublishArgs) -> Result<Value> {
     }))
 }
 
+fn run_sync(args: SyncArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let publish_receipt_path =
+        resolve_publish_receipt(&workspace, args.item.as_deref(), args.publish_receipt)?;
+    let publish_receipt = read_json(&publish_receipt_path)?;
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let item = publish_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+    let published_commit_sha = publish_receipt
+        .get("handsReceipts")
+        .and_then(|hands| hands.get("commitSha"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("publish receipt has no handsReceipts.commitSha"))?
+        .to_string();
+    let commit_receipt_id = publish_receipt
+        .get("handsReceipts")
+        .and_then(|hands| hands.get("commitReceiptId"))
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    let pr_receipt_id = publish_receipt
+        .get("handsReceipts")
+        .and_then(|hands| hands.get("prReceiptId"))
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    let upstream_commit_sha =
+        git_output(&workspace, &["rev-parse", "--verify", &args.upstream_ref])
+            .with_context(|| format!("failed to resolve upstream ref {}", args.upstream_ref))?;
+    let canonical_published_commit = git_output(
+        &workspace,
+        &["rev-parse", "--verify", &published_commit_sha],
+    )
+    .with_context(|| format!("failed to resolve published commit {published_commit_sha}"))?;
+    let upstream_main_synced = git_status_success(
+        &workspace,
+        &[
+            "merge-base",
+            "--is-ancestor",
+            &canonical_published_commit,
+            &args.upstream_ref,
+        ],
+    )?;
+    let status = if upstream_main_synced {
+        "upstream-main-synced"
+    } else {
+        "upstream-main-not-synced"
+    };
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let sync_receipt = json!({
+        "schemaVersion": "epiphany.repo_work_sync_receipt.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "publishReceiptPath": publish_receipt_path,
+        "item": item,
+        "status": status,
+        "upstreamRef": args.upstream_ref,
+        "upstreamCommitSha": upstream_commit_sha,
+        "publishedCommitSha": canonical_published_commit,
+        "mergeReceipts": args.merge_receipts,
+        "handsReceipts": {
+            "commitReceiptId": commit_receipt_id,
+            "prReceiptId": pr_receipt_id
+        },
+        "bifrost": publish_receipt["bifrost"],
+        "authority": {
+            "publicationAuthorized": true,
+            "upstreamMainSynced": upstream_main_synced,
+            "mergeAuthorized": upstream_main_synced,
+            "mergeAuthorityReceipts": args.merge_receipts,
+            "privateStateExposed": false
+        },
+        "nextSafeMove": if upstream_main_synced {
+            "Update durable map/Mind receipts and proof bundle; upstream main now contains the published work."
+        } else {
+            "Wait for maintainer/Bifrost merge, then rerun epiphany-work sync against upstream main."
+        }
+    });
+    let receipt_path = artifact_dir.join(format!("work-sync-{item_slug}.json"));
+    write_json(&receipt_path, &sync_receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_sync.v0",
+        "status": sync_receipt["status"],
+        "workspace": sync_receipt["workspace"],
+        "receiptPath": receipt_path,
+        "item": sync_receipt["item"],
+        "upstreamRef": sync_receipt["upstreamRef"],
+        "upstreamCommitSha": sync_receipt["upstreamCommitSha"],
+        "publishedCommitSha": sync_receipt["publishedCommitSha"],
+        "authority": sync_receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": sync_receipt["nextSafeMove"],
+    }))
+}
+
 fn resolve_accept_receipt(
     workspace: &Path,
     item: Option<&str>,
@@ -1489,6 +1647,25 @@ fn resolve_adopt_receipt(
     latest_receipt_in(&work_dir, "work-adopt-").ok_or_else(|| {
         anyhow!(
             "no work adopt receipt found; run epiphany-work adopt first or pass --adopt-receipt"
+        )
+    })
+}
+
+fn resolve_publish_receipt(
+    workspace: &Path,
+    item: Option<&str>,
+    explicit: Option<PathBuf>,
+) -> Result<PathBuf> {
+    if let Some(path) = explicit {
+        return Ok(path);
+    }
+    let work_dir = workspace.join(".epiphany").join("work");
+    if let Some(item) = item {
+        return Ok(work_dir.join(format!("work-publish-{}.json", sanitize(item))));
+    }
+    latest_receipt_in(&work_dir, "work-publish-").ok_or_else(|| {
+        anyhow!(
+            "no work publish receipt found; run epiphany-work publish first or pass --publish-receipt"
         )
     })
 }
@@ -1598,6 +1775,16 @@ fn git_output(workspace: &Path, args: &[&str]) -> Result<String> {
         ));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn git_status_success(workspace: &Path, args: &[&str]) -> Result<bool> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(workspace)
+        .args(args)
+        .output()
+        .with_context(|| format!("failed to run git {}", args.join(" ")))?;
+    Ok(output.status.success())
 }
 
 fn git_add_paths(workspace: &Path, paths: &[String]) -> Result<()> {
@@ -1752,10 +1939,11 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <accept|run|adopt|publish> ...\n\
+        "usage: epiphany-work <accept|run|adopt|publish|sync> ...\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] --plan-summary <text> --adoption-evidence-ref <ref>\n\
-         publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>"
+         publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
+         sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>"
     );
 }

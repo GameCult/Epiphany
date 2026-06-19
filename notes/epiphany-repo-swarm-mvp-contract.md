@@ -134,6 +134,7 @@ epiphany-work run --workspace <repo>
 epiphany-work adopt --workspace <repo> --item <id> --plan-summary <text> --adoption-evidence-ref <ref>
 epiphany-work execute --workspace <repo> --item <id> --command <command> --changed-path <path> --commit-message <text>
 epiphany-work publish --workspace <repo>
+epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
 ```
 
 And produce a proof bundle showing:
@@ -152,6 +153,7 @@ And produce a proof bundle showing:
 - Soul verification receipts
 - Mind admission receipts
 - Bifrost publication/credit receipts for upstream-facing work
+- upstream-main sync proof for merged/published work
 - sealed private state and no raw worker thought leakage
 
 ### Landed Init Front Door
@@ -354,6 +356,38 @@ GitHub publication receipt, `privateStateExposed=false`, and an explicit
 prove upstream main actually matches the accepted publication, plus a less
 manual planner/executor bridge that supplies executable commands from
 Imagination/Self rather than operator CLI arguments.
+
+### Landed Upstream Sync Proof Gate
+
+The eighth front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
+```
+
+It reads the named or latest work-publish receipt, requires at least one
+explicit maintainer or Bifrost merge/sync receipt, resolves the published Hands
+commit and the configured upstream ref, and asks git whether the published
+commit is an ancestor of upstream main. It does not perform a merge. It writes
+`.epiphany/work/work-sync-<item>.json` with `upstreamMainSynced=true` only when
+git ancestry proves the published commit is contained by the upstream ref.
+
+The first smoke proved both sides of the gate:
+
+```powershell
+epiphany-work sync --workspace <repo> --item first-request --upstream-ref main --merge-receipt maintainer-merge:sync-smoke-pre
+# status: upstream-main-not-synced
+
+git switch main
+git merge --ff-only epiphany/smoke/sync
+
+epiphany-work sync --workspace <repo> --item first-request --upstream-ref main --merge-receipt maintainer-merge:sync-smoke-post
+# status: upstream-main-synced
+```
+
+The synced receipt produced `publicationAuthorized=true`,
+`upstreamMainSynced=true`, `mergeAuthorized=true`,
+`mergeAuthorityReceipts=[...]`, and `privateStateExposed=false`.
 
 ## Migration Implication
 
