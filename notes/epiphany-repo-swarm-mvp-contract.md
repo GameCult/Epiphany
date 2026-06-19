@@ -449,6 +449,13 @@ the strict authority seal: branch-local only, no publication, no merge, no
 service lifecycle authority, no cross-repo mutation, and
 `privateStateExposed=false`.
 
+The pulse reads the repo-local `localVerseStore` recorded by intake, or an
+explicit `--local-verse-store`, before advancing work. If the local CultMesh
+swarm brake is engaged, `tick` writes the same scheduler receipt family with
+`status=refused-by-swarm-brake`, action `none`, the brake scope/reason, and no
+new run/adopt/execute receipt. A brake is a machine stop, not a suggestion
+written in nice ink.
+
 The pulse stops once branch-local execution has been recorded. It does not
 publish, merge, synthesize Soul/Mind receipts, install services, or impersonate
 Idunn. Those gates remain owned by their organs.
@@ -469,6 +476,12 @@ epiphany-work tick --workspace <repo> --item first-request
 The execute receipt produced a real branch-local commit from the typed plan
 packet, the fourth pulse stopped at the Soul/Mind/Bifrost boundary, and the
 proof returned `privateStateExposed=false`.
+
+A second smoke engaged `epiphany.cultmesh.swarm_brake.v0` in the repo-local
+Verse before the first pulse. `epiphany-work tick` returned
+`refused-by-swarm-brake:none`, no `work-run-<item>.json` appeared, releasing
+the brake allowed the next pulse to advance `run-from-plan`, and the refusal
+receipt reported `privateStateExposed=false`.
 
 ## Migration Implication
 

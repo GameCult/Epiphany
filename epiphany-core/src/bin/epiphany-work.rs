@@ -17,6 +17,7 @@ use epiphany_core::hands_commit_receipt_for_review;
 use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::hands_pr_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_hands_command_receipt;
@@ -171,6 +172,7 @@ struct TickArgs {
     workspace: PathBuf,
     epiphany_root: PathBuf,
     item: Option<String>,
+    local_verse_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     dry_run: bool,
@@ -639,6 +641,7 @@ fn parse_tick_args(args: impl Iterator<Item = String>) -> Result<TickArgs> {
     let mut workspace = None;
     let mut epiphany_root = None;
     let mut item = None;
+    let mut local_verse_store = None;
     let mut artifact_dir = None;
     let mut runtime_store = None;
     let mut dry_run = false;
@@ -649,6 +652,9 @@ fn parse_tick_args(args: impl Iterator<Item = String>) -> Result<TickArgs> {
             "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
             "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
             "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--local-verse-store" | "--store" => {
+                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
+            }
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
             "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
             "--dry-run" | "--no-execute" => dry_run = true,
@@ -660,6 +666,7 @@ fn parse_tick_args(args: impl Iterator<Item = String>) -> Result<TickArgs> {
         epiphany_root: epiphany_root
             .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
         item,
+        local_verse_store,
         artifact_dir,
         runtime_store,
         dry_run,
@@ -1912,6 +1919,10 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         .unwrap_or("work-item")
         .to_string();
     let item_slug = sanitize(&item);
+    let local_verse_store = args.local_verse_store.clone().or_else(|| {
+        path_from_json(&accept_receipt, &["localVerseStore"])
+            .or_else(|| path_from_json(&accept_receipt, &["localVerseStorePath"]))
+    });
 
     let plan_receipt_path = work_receipt_path(&workspace, "plan", &item);
     let run_receipt_path = work_receipt_path(&workspace, "run", &item);
@@ -1929,6 +1940,84 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         &publish_receipt_path,
         &sync_receipt_path,
     );
+
+    if let Some(brake_store) = local_verse_store.as_ref() {
+        if brake_store.exists() {
+            if let Some(brake) = load_epiphany_cultmesh_swarm_brake(brake_store, "epiphany-local")?
+            {
+                if brake.status == "engaged" {
+                    let after_receipts = repo_work_receipt_state(
+                        &accept_receipt_path,
+                        &plan_receipt_path,
+                        &run_receipt_path,
+                        &adopt_receipt_path,
+                        &execute_receipt_path,
+                        &publish_receipt_path,
+                        &sync_receipt_path,
+                    );
+                    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+                    let receipt = json!({
+                        "schemaVersion": "epiphany.repo_work_scheduler_tick_receipt.v0",
+                        "createdAt": now,
+                        "workspace": workspace,
+                        "item": item,
+                        "localVerseStore": brake_store,
+                        "scheduler": {
+                            "owner": "Self",
+                            "pulseKind": "repo-work-local",
+                            "oneStepOnly": true,
+                            "dryRun": args.dry_run
+                        },
+                        "status": "refused-by-swarm-brake",
+                        "action": "none",
+                        "reason": format!(
+                            "local Verse swarm brake engaged; scope={}; protected={}; affected={}; reason={}",
+                            brake.scope,
+                            brake.protected_surfaces.join(","),
+                            brake.affected_clusters.join(","),
+                            brake.reason
+                        ),
+                        "brake": {
+                            "brakeId": brake.brake_id,
+                            "status": brake.status,
+                            "scope": brake.scope,
+                            "reason": brake.reason,
+                            "affectedClusters": brake.affected_clusters,
+                            "protectedSurfaces": brake.protected_surfaces,
+                            "privateStateExposed": brake.private_state_exposed
+                        },
+                        "beforeReceipts": before_receipts,
+                        "afterReceipts": after_receipts,
+                        "advancedResult": Value::Null,
+                        "authority": {
+                            "branchLocalOnly": true,
+                            "publicationAuthorized": false,
+                            "mergeAuthorized": false,
+                            "serviceLifecycleAuthorized": false,
+                            "crossRepoMutationAuthorized": false,
+                            "privateStateExposed": false,
+                            "mutationBlockedBy": "epiphany.cultmesh.swarm_brake"
+                        },
+                        "nextSafeMove": "Release or narrow the local Verse swarm brake before repo-work scheduler mutation."
+                    });
+                    let receipt_path = artifact_dir.join(format!("work-tick-{item_slug}.json"));
+                    write_json(&receipt_path, &receipt)?;
+                    return Ok(json!({
+                        "schemaVersion": "epiphany.repo_work_scheduler_tick.v0",
+                        "status": receipt["status"],
+                        "action": receipt["action"],
+                        "workspace": receipt["workspace"],
+                        "item": receipt["item"],
+                        "receiptPath": receipt_path,
+                        "reason": receipt["reason"],
+                        "authority": receipt["authority"],
+                        "privateStateExposed": false,
+                        "nextSafeMove": receipt["nextSafeMove"],
+                    }));
+                }
+            }
+        }
+    }
 
     let mut action = "none".to_string();
     let status;
@@ -2075,6 +2164,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         "createdAt": now,
         "workspace": workspace,
         "item": item,
+        "localVerseStore": local_verse_store,
         "scheduler": {
             "owner": "Self",
             "pulseKind": "repo-work-local",
@@ -2554,6 +2644,6 @@ fn print_usage() {
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
-         tick --workspace <repo> [--item <id>] [--runtime-store <path>] [--dry-run]"
+         tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]"
     );
 }
