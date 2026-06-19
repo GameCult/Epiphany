@@ -1893,6 +1893,58 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke lost daemon status readback for globally invokable status tools"
                 );
             }
+            let persona_eve_connect = context
+                .daemon_tool_capabilities
+                .iter()
+                .find(|capability| {
+                    capability.capability_id == "epiphany.cluster.persona.tool.eve-connect"
+                })
+                .context("missing Persona eve-connect daemon tool capability")?;
+            let persona_surface_directory =
+                load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
+            let (persona_cluster, persona_advertisement, persona_surface) =
+                persona_surface_directory
+                    .iter()
+                    .find(|(cluster, _advertisement, _surface)| {
+                        cluster.cluster_id == persona_eve_connect.host_cluster_id
+                    })
+                    .context("missing Persona Eve surface for eve-connect readback")?;
+            let (eve_connection_readback, eve_connection_private_state_exposed) =
+                eve_connection_readback_from_host(
+                    persona_cluster,
+                    persona_advertisement,
+                    persona_surface,
+                    persona_eve_connect,
+                );
+            let supported_actions = eve_connection_readback["supportedActions"]
+                .as_array()
+                .context("eve-connect readback lost supported actions")?;
+            if eve_connection_readback["targetClusterId"].as_str()
+                != Some("epiphany.cluster.persona")
+                || eve_connection_readback["targetDisplayName"].as_str() != Some("Persona")
+                || eve_connection_readback["targetEveSurfaceId"].as_str()
+                    != Some("eve://epiphany/persona")
+                || eve_connection_readback["targetPrivateVerseId"].as_str()
+                    != Some("epiphany.cluster.persona.private")
+                || eve_connection_readback["connectionCommand"].as_str()
+                    != Some(
+                        "epiphany-verse-query connect-eve --target-cluster-id epiphany.cluster.persona",
+                    )
+                || eve_connection_readback["wrapperConnectionCommand"].as_str()
+                    != Some(
+                        "tools/epiphany_local_run.ps1 -Mode eve-connect -EveTargetClusterId epiphany.cluster.persona",
+                    )
+                || eve_connection_readback["publicPersonaDiscussionAllowed"].as_bool() != Some(true)
+                || !supported_actions
+                    .iter()
+                    .any(|action| action.as_str() == Some("submitEveConnectionIntent"))
+                || eve_connection_private_state_exposed
+                || eve_connection_readback["privateStateExposed"].as_bool() != Some(false)
+            {
+                anyhow::bail!(
+                    "local Verse query smoke lost Eve surface readback for globally invokable eve-connect tools"
+                );
+            }
             let no_op_pokes = write_poke_receipts_for_non_ready_daemons(&args, &context)?;
             if !no_op_pokes.is_empty() {
                 anyhow::bail!("local Verse query smoke poked ready daemons during no-op sweep");
@@ -6156,9 +6208,29 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         } else {
             (serde_json::Value::Null, false)
         };
+    let (eve_connection_readback, eve_connection_readback_private_state_exposed) =
+        if is_eve_connect_capability(capability) {
+            let surface_directory =
+                load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
+            let (target_cluster, target_advertisement, target_surface) = surface_directory
+                .iter()
+                .find(|(cluster, _advertisement, _surface)| {
+                    cluster.cluster_id == capability.host_cluster_id
+                })
+                .context("local Verse lost Eve surface for eve-connect capability host")?;
+            eve_connection_readback_from_host(
+                target_cluster,
+                target_advertisement,
+                target_surface,
+                capability,
+            )
+        } else {
+            (serde_json::Value::Null, false)
+        };
     let private_state_exposed = written_receipt.private_state_exposed
         || service_health_readback_private_state_exposed
-        || daemon_status_readback_private_state_exposed;
+        || daemon_status_readback_private_state_exposed
+        || eve_connection_readback_private_state_exposed;
     let invocation_tui_row = daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
         requester: &requesting_cluster.display_name,
         requesting_agent_id: &written_intent.requesting_agent_id,
@@ -6214,6 +6286,8 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "privateStateRequested": written_intent.private_state_requested,
             "daemonStatusReadback": daemon_status_readback,
             "daemonStatusReadbackPrivateStateExposed": daemon_status_readback_private_state_exposed,
+            "eveConnectionReadback": eve_connection_readback,
+            "eveConnectionReadbackPrivateStateExposed": eve_connection_readback_private_state_exposed,
             "serviceHealthReadback": service_health_readback,
             "serviceHealthReadbackPrivateStateExposed": service_health_readback_private_state_exposed,
             "privateStateExposed": private_state_exposed,
@@ -6231,6 +6305,8 @@ fn default_daemon_tool_receipt_status(
         "accepted-for-service-lifecycle-readback".to_string()
     } else if is_daemon_status_capability(capability) {
         "accepted-for-daemon-status-readback".to_string()
+    } else if is_eve_connect_capability(capability) {
+        "accepted-for-eve-surface-readback".to_string()
     } else {
         "accepted-for-daemon-routing".to_string()
     }
@@ -6268,6 +6344,46 @@ fn daemon_status_readback_from_host(
             "availableToAllAgents": true,
             "hostedToolCount": hosted_tool_capability_ids.len(),
             "hostedToolCapabilityIds": hosted_tool_capability_ids,
+            "privateStateExposed": private_state_exposed,
+        }),
+        private_state_exposed,
+    )
+}
+
+fn eve_connection_readback_from_host(
+    target_cluster: &EpiphanyCultMeshClusterTopologyEntry,
+    target_advertisement: &EpiphanyCultMeshOdinAdvertisementEntry,
+    target_surface: &EpiphanyCultMeshEveSurfaceStateEntry,
+    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+) -> (serde_json::Value, bool) {
+    let private_state_exposed = target_advertisement.private_state_exposed
+        || target_surface.private_state_exposed
+        || capability.private_state_exposed;
+    (
+        json!({
+            "targetAdvertisementId": target_advertisement.advertisement_id,
+            "targetClusterId": target_cluster.cluster_id,
+            "targetDisplayName": target_cluster.display_name,
+            "targetBodyDomain": target_cluster.body_domain,
+            "targetPrivateVerseId": target_cluster.private_verse_id,
+            "targetDaemonId": target_cluster.daemon_id,
+            "targetEveSurfaceId": target_surface.surface_id,
+            "targetTuiTitle": target_surface.tui_title,
+            "publicPersonaDiscussionAllowed": target_cluster.public_persona_discussion_allowed,
+            "supportedActions": target_surface.supported_actions,
+            "exposedDocumentTypes": target_surface.exposed_document_types,
+            "connectionCommand": format!(
+                "epiphany-verse-query connect-eve --target-cluster-id {}",
+                target_cluster.cluster_id
+            ),
+            "wrapperConnectionCommand": format!(
+                "tools/epiphany_local_run.ps1 -Mode eve-connect -EveTargetClusterId {}",
+                target_cluster.cluster_id
+            ),
+            "feedbackRoute": format!(
+                "cultmesh://epiphany-local/eve/{}/feedback",
+                target_cluster.cluster_id
+            ),
             "privateStateExposed": private_state_exposed,
         }),
         private_state_exposed,
@@ -6330,6 +6446,11 @@ fn default_daemon_tool_result_ref(
             "cultmesh://epiphany-local/daemon-status/{}",
             capability.host_daemon_id
         )
+    } else if is_eve_connect_capability(capability) {
+        format!(
+            "cultmesh://epiphany-local/eve-surface/{}",
+            capability.host_cluster_id
+        )
     } else {
         format!("cultmesh://epiphany-local/tool-receipt/{receipt_id}")
     }
@@ -6348,6 +6469,11 @@ fn default_daemon_tool_result_summary(
         format!(
             "{requesting_agent_id} requested daemon status; {} returned compact topology/liveness/tool readback through the daemon tool bus.",
             capability.host_daemon_id
+        )
+    } else if is_eve_connect_capability(capability) {
+        format!(
+            "{requesting_agent_id} requested Eve surface connection readback; {} returned compact CultMesh surface routing for {}.",
+            capability.host_daemon_id, capability.host_cluster_id
         )
     } else {
         format!(
@@ -6369,6 +6495,13 @@ fn is_daemon_status_capability(capability: &EpiphanyCultMeshDaemonToolCapability
         && capability.operation == "readStatus"
         && capability.input_contract_type == "epiphany.cultmesh.odin_advertisement"
         && capability.receipt_contract_type == "epiphany.cultmesh.tool_status_receipt"
+}
+
+fn is_eve_connect_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEntry) -> bool {
+    capability.tool_name == "eve-connect"
+        && capability.operation == "submitEveConnectionIntent"
+        && capability.input_contract_type == "epiphany.cultmesh.eve_connection_intent"
+        && capability.receipt_contract_type == "epiphany.cultmesh.eve_connection_receipt"
 }
 
 fn poke_result_tui_row(row: &serde_json::Value) -> String {

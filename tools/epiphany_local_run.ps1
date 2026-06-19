@@ -2074,7 +2074,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.daemonStatusReadback -and $null -ne $result.daemonStatusReadback.status) {
                 $daemonStatus = "status=$($result.daemonStatusReadback.status):cluster=$($result.daemonStatusReadback.clusterId):daemon=$($result.daemonStatusReadback.daemonId):surface=$($result.daemonStatusReadback.eveSurfaceId):tools=$($result.daemonStatusReadback.hostedToolCount):private=$($result.daemonStatusReadback.privateStateExposed)"
             }
-            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), daemonStatus=$daemonStatus, serviceHealth=$serviceHealth, invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
+            $eveConnection = "none"
+            if ($null -ne $result.eveConnectionReadback -and $null -ne $result.eveConnectionReadback.targetClusterId) {
+                $eveConnection = "target=$($result.eveConnectionReadback.targetClusterId):surface=$($result.eveConnectionReadback.targetEveSurfaceId):publicDiscussion=$($result.eveConnectionReadback.publicPersonaDiscussionAllowed):actions=$(@($result.eveConnectionReadback.supportedActions).Count):private=$($result.eveConnectionReadback.privateStateExposed)"
+            }
+            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), daemonStatus=$daemonStatus, eveConnection=$eveConnection, serviceHealth=$serviceHealth, invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-overview" -or $Mode -eq "gjallar") {
             $attention = "none"
             if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {
