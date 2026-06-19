@@ -454,6 +454,117 @@ work through Self, executes through Hands, verifies through Soul, admits state
 through Mind, and publishes reviewed outcomes through Bifrost while private
 state stays sealed.
 
+### Current State: The Blessed Chain
+
+The repo swarm can already prove the following chain on a fresh repo Body:
+
+```text
+repo birth
+  -> local Verse online
+  -> Persona/Bifrost work intake
+  -> Imagination/Self action plan receipt
+  -> Substrate Gate + Hands queued run packet
+  -> plan-backed branch-local Hands adoption
+  -> plan-backed branch-local execution and commit
+  -> Bifrost/GitHub publication receipts
+  -> upstream-main ancestry proof after explicit merge receipt
+```
+
+The chain is typed and sealed enough to be useful:
+
+- `epiphany-repo init` writes the repo swarm birth receipt, local state layout,
+  and branch workbench plan.
+- `epiphany-swarm online` seeds repo-local CultMesh state, standing-faculty SoA,
+  topology, liveness, daemon tool directory, and private-state seals.
+- `epiphany-work accept` records Persona/Bifrost pressure without granting
+  Hands, durable-state, publication, or merge authority.
+- `epiphany-work plan` records the first typed Imagination/Self action plan:
+  objective, command, changed paths, commit message, verification asks, stop
+  conditions, and rollback hints.
+- `epiphany-work run` opens the Substrate Gate and queues a Hands packet, but
+  leaves mutation blocked until adoption.
+- `epiphany-work adopt --from-plan` converts the queued packet into
+  branch-local Hands authority using typed plan evidence.
+- `epiphany-work execute --from-plan` consumes that authority on an
+  `epiphany/*` branch, runs the planned command, stages only planned paths,
+  commits, and records Hands patch/command/commit receipts.
+- `epiphany-work publish` requires Hands commit proof plus Soul and Mind/review
+  refs before routing Bifrost/GitHub publication receipts; it does not claim
+  merge or upstream sync.
+- `epiphany-work sync` requires an explicit maintainer/Bifrost merge receipt
+  and writes `upstreamMainSynced=true` only after git proves the published
+  commit is contained by upstream main.
+
+The scar is equally important: this is still a manually pulsed chain. The
+operator can prove each organ, but the swarm does not yet breathe on its own.
+
+### Remaining MVP Organs
+
+The remaining migration is not "add more CLI commands until it looks alive."
+The remaining migration is to replace manual stepping with organ-owned
+physiology while preserving the same authority receipts.
+
+Required organs before MVP:
+
+- Scheduler physiology: Self or heartbeat can advance one safe branch-local
+  step when typed receipts make that step legal, and can refuse or sleep when
+  they do not.
+- Persona-to-plan automation: repo Persona input becomes candidate action
+  pressure, Mind/Interpreter extracts work-shaped intent, and Imagination
+  writes the plan packet without the operator hand-authoring shell details.
+- Soul/Modeling/Mind closure: a Hands commit is verified, modeled, and admitted
+  before Self schedules another implementation turn.
+- Repo work overview: the current item, branch, receipts, blocker, next safe
+  action, and publication/sync state are visible through compact CultMesh/Eve
+  surfaces without opening private thought.
+- Proof bundle: maintainers and future agents can inspect operator-safe receipt
+  chains, commit refs, verification verdicts, map admission, Bifrost/GitHub
+  refs, credit refs, and sync state.
+
+Scheduler authority is intentionally narrow for the first cut. It may advance
+`accept -> plan -> run -> adopt -> execute` only when each upstream receipt
+exists, the repo is on an owned `epiphany/*` branch for mutation, the planned
+paths stay inside the Hands gate, and no brake or active turn blocks the lane.
+It may not publish, merge, install services, mutate another repo, expose
+private state, or impersonate Idunn's daemon lifecycle authority.
+
+### MVP Runbook Shape
+
+The intended MVP runbook is:
+
+```powershell
+epiphany-repo init --workspace <repo> --switch-branch
+epiphany-swarm online --workspace <repo>
+epiphany-persona intake --workspace <repo> --persona <id> --message <text>
+epiphany-swarm run --workspace <repo> --until blocked-or-published
+epiphany-work publish --workspace <repo> --item <id> ...
+epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
+```
+
+Under that short operator surface, the swarm must still emit the same typed
+chain:
+
+```text
+Persona speech audit
+  -> candidate action extraction
+  -> work accept receipt
+  -> Imagination action plan receipt
+  -> Self scheduler tick receipt
+  -> Substrate Gate grant
+  -> Hands intent/review/adoption receipts
+  -> Hands patch/command/commit receipts
+  -> Soul verification receipt
+  -> Modeling map update proposal
+  -> Mind state-admission receipt
+  -> Bifrost publication and credit receipts
+  -> GitHub/PR receipt
+  -> upstream-main sync receipt
+```
+
+This is the difference between a demo and a repo swarm: the human talks to the
+project, the project forms a plan, the branch work happens inside its owned
+Body, and the proof bundle tells the truth without leaking the private mind.
+
 ### Phase 0: Authority Freeze
 
 Owner: Self, with Mind as the durable-state gate.
