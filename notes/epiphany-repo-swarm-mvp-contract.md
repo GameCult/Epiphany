@@ -134,6 +134,7 @@ epiphany-work plan --workspace <repo> --item <id> --objective <text> --plan-summ
 epiphany-work run --workspace <repo>
 epiphany-work adopt --workspace <repo> --item <id> --from-plan <plan-receipt>
 epiphany-work execute --workspace <repo> --item <id> --from-plan <plan-receipt>
+epiphany-work tick --workspace <repo> --item <id>
 epiphany-work publish --workspace <repo>
 epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
 ```
@@ -426,6 +427,49 @@ The synced receipt produced `publicationAuthorized=true`,
 `upstreamMainSynced=true`, `mergeAuthorized=true`,
 `mergeAuthorityReceipts=[...]`, and `privateStateExposed=false`.
 
+### Landed Work Scheduler Pulse
+
+The tenth front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- tick --workspace <repo> --item <id>
+```
+
+It reads the repo-local work receipt chain and advances exactly one safe
+branch-local step when the necessary upstream receipts already exist:
+
+- accepted item plus plan receipt -> `run-from-plan`
+- queued run packet plus plan receipt -> `adopt-from-plan`
+- approved adoption plus plan receipt -> `execute-from-plan`
+
+The scheduler writes `.epiphany/work/work-tick-<item>.json` as
+`epiphany.repo_work_scheduler_tick_receipt.v0`, owned by Self. The receipt
+records before/after receipt state, action, status, reason, next safe move, and
+the strict authority seal: branch-local only, no publication, no merge, no
+service lifecycle authority, no cross-repo mutation, and
+`privateStateExposed=false`.
+
+The pulse stops once branch-local execution has been recorded. It does not
+publish, merge, synthesize Soul/Mind receipts, install services, or impersonate
+Idunn. Those gates remain owned by their organs.
+
+The first smoke proved:
+
+```powershell
+epiphany-work tick --workspace <repo> --item first-request
+# advanced: run-from-plan
+epiphany-work tick --workspace <repo> --item first-request
+# advanced: adopt-from-plan
+epiphany-work tick --workspace <repo> --item first-request
+# advanced: execute-from-plan
+epiphany-work tick --workspace <repo> --item first-request
+# noop: none
+```
+
+The execute receipt produced a real branch-local commit from the typed plan
+packet, the fourth pulse stopped at the Soul/Mind/Bifrost boundary, and the
+proof returned `privateStateExposed=false`.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
@@ -438,11 +482,13 @@ That is the machine we are building.
 
 ## Full Migration Plan To Repo Swarm MVP
 
-This plan starts from the current state: nine native front doors exist, but the
+This plan starts from the current state: ten native front doors exist, but the
 work loop is not yet a full physiology. `init`, `online`, `accept`, `plan`,
-`run`, `adopt`, `execute`, `publish`, and `sync` prove the typed path from repo
-birth to Bifrost/GitHub publication receipts and upstream-main sync proof. They
-do not yet prove continuous scheduling or a repo Persona that can turn
+`run`, `adopt`, `execute`, `tick`, `publish`, and `sync` prove the typed path
+from repo birth to branch-local scheduler pulse, Bifrost/GitHub publication
+receipts, and upstream-main sync proof. They do not yet prove daemonized
+scheduling, cooldown physiology, Soul/Modeling/Mind closure after execution, or
+a repo Persona that can turn
 conversation into autonomous action without the operator feeding plan details by
 hand.
 
@@ -494,9 +540,13 @@ The chain is typed and sealed enough to be useful:
 - `epiphany-work sync` requires an explicit maintainer/Bifrost merge receipt
   and writes `upstreamMainSynced=true` only after git proves the published
   commit is contained by upstream main.
+- `epiphany-work tick` is the first Self-owned scheduler pulse: it advances one
+  safe branch-local step across plan-backed `run`, `adopt`, or `execute`, then
+  stops before Soul/Mind/Bifrost gates.
 
-The scar is equally important: this is still a manually pulsed chain. The
-operator can prove each organ, but the swarm does not yet breathe on its own.
+The scar is equally important: this is still an operator-triggered pulse, not a
+daemonized physiology. The operator can prove each organ, but the swarm does
+not yet breathe on its own cadence.
 
 ### Remaining MVP Organs
 
@@ -506,9 +556,10 @@ physiology while preserving the same authority receipts.
 
 Required organs before MVP:
 
-- Scheduler physiology: Self or heartbeat can advance one safe branch-local
-  step when typed receipts make that step legal, and can refuse or sleep when
-  they do not.
+- Scheduler physiology: the first `epiphany-work tick` pulse exists; remaining
+  work is daemonized cadence, cooldown after completion, active-turn/brake
+  integration, stale-turn recovery, and handoff from branch-local execution to
+  Soul/Modeling/Mind closure.
 - Persona-to-plan automation: repo Persona input becomes candidate action
   pressure, Mind/Interpreter extracts work-shaped intent, and Imagination
   writes the plan packet without the operator hand-authoring shell details.
@@ -521,7 +572,7 @@ Required organs before MVP:
   chains, commit refs, verification verdicts, map admission, Bifrost/GitHub
   refs, credit refs, and sync state.
 
-Scheduler authority is intentionally narrow for the first cut. It may advance
+Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt
 exists, the repo is on an owned `epiphany/*` branch for mutation, the planned
 paths stay inside the Hands gate, and no brake or active turn blocks the lane.
@@ -685,6 +736,9 @@ Required cuts:
 
 - Add a repo-local scheduler pulse that reads accepted/adopted work, active
   Hands/Soul/Modeling/Mind receipts, cooldowns, brakes, and branch status.
+- Keep `epiphany-work tick` as the first native pulse: one safe branch-local
+  advancement per invocation, with a scheduler receipt for advanced, blocked,
+  dry-run, or no-op outcomes.
 - Ensure no lane wakes again while its previous heartbeat turn is active.
 - Let cooldown begin after completion, not launch.
 - Honor local Verse swarm brake and repo-specific pause receipts.

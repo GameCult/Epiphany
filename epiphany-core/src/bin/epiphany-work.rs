@@ -50,6 +50,7 @@ fn main() -> Result<()> {
         "execute" | "exec" => run_execute(parse_execute_args(args)?),
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
+        "tick" | "pulse" | "schedule" => run_tick(parse_tick_args(args)?),
         other => Err(anyhow!("unknown epiphany-work command {other:?}")),
     }?;
     println!("{}", serde_json::to_string_pretty(&result)?);
@@ -163,6 +164,16 @@ struct SyncArgs {
     artifact_dir: Option<PathBuf>,
     upstream_ref: String,
     merge_receipts: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct TickArgs {
+    workspace: PathBuf,
+    epiphany_root: PathBuf,
+    item: Option<String>,
+    artifact_dir: Option<PathBuf>,
+    runtime_store: Option<PathBuf>,
+    dry_run: bool,
 }
 
 fn parse_accept_args(args: impl Iterator<Item = String>) -> Result<AcceptArgs> {
@@ -621,6 +632,37 @@ fn parse_sync_args(args: impl Iterator<Item = String>) -> Result<SyncArgs> {
         artifact_dir,
         upstream_ref: upstream_ref.unwrap_or_else(|| "origin/main".to_string()),
         merge_receipts,
+    })
+}
+
+fn parse_tick_args(args: impl Iterator<Item = String>) -> Result<TickArgs> {
+    let mut workspace = None;
+    let mut epiphany_root = None;
+    let mut item = None;
+    let mut artifact_dir = None;
+    let mut runtime_store = None;
+    let mut dry_run = false;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
+            "--dry-run" | "--no-execute" => dry_run = true,
+            other => return Err(anyhow!("unexpected tick argument {other:?}")),
+        }
+    }
+    Ok(TickArgs {
+        workspace: workspace.context("missing --workspace")?,
+        epiphany_root: epiphany_root
+            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
+        item,
+        artifact_dir,
+        runtime_store,
+        dry_run,
     })
 }
 
@@ -1415,6 +1457,7 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
             "durableStateAdmitted": false,
             "privateStateExposed": false
         },
+        "privateStateExposed": false,
         "nextSafeMove": "Route Soul verification and Mind review before publication; use epiphany-work publish only after review receipts exist."
     });
     let receipt_path = artifact_dir.join(format!("work-execute-{item_slug}.json"));
@@ -1844,6 +1887,232 @@ fn run_sync(args: SyncArgs) -> Result<Value> {
     }))
 }
 
+fn run_tick(args: TickArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let epiphany_root = args
+        .epiphany_root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
+    let artifact_dir = args
+        .artifact_dir
+        .clone()
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let accept_receipt_path = resolve_accept_receipt(&workspace, args.item.as_deref(), None)?;
+    let accept_receipt = read_json(&accept_receipt_path)?;
+    let item = accept_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+
+    let plan_receipt_path = work_receipt_path(&workspace, "plan", &item);
+    let run_receipt_path = work_receipt_path(&workspace, "run", &item);
+    let adopt_receipt_path = work_receipt_path(&workspace, "adopt", &item);
+    let execute_receipt_path = work_receipt_path(&workspace, "execute", &item);
+    let publish_receipt_path = work_receipt_path(&workspace, "publish", &item);
+    let sync_receipt_path = work_receipt_path(&workspace, "sync", &item);
+
+    let before_receipts = repo_work_receipt_state(
+        &accept_receipt_path,
+        &plan_receipt_path,
+        &run_receipt_path,
+        &adopt_receipt_path,
+        &execute_receipt_path,
+        &publish_receipt_path,
+        &sync_receipt_path,
+    );
+
+    let mut action = "none".to_string();
+    let status;
+    let reason;
+    let next_safe_move;
+    let mut advanced_result = Value::Null;
+
+    if sync_receipt_path.exists() {
+        action = "none".to_string();
+        status = "noop".to_string();
+        reason = "work item already has an upstream sync receipt".to_string();
+        next_safe_move = "No branch-local scheduler action remains for this item.".to_string();
+    } else if publish_receipt_path.exists() {
+        action = "none".to_string();
+        status = "noop".to_string();
+        reason = "publication receipt exists; scheduler stops before merge/sync authority".to_string();
+        next_safe_move =
+            "Wait for maintainer/Bifrost merge receipt, then run epiphany-work sync.".to_string();
+    } else if execute_receipt_path.exists() {
+        action = "none".to_string();
+        status = "noop".to_string();
+        reason =
+            "branch-local execution is recorded; scheduler stops before Soul/Mind/Bifrost gates"
+                .to_string();
+        next_safe_move =
+            "Route Soul verification and Mind review before epiphany-work publish.".to_string();
+    } else if adopt_receipt_path.exists() {
+        if !plan_receipt_path.exists() {
+            status = "blocked".to_string();
+            reason = "adoption receipt exists but no matching plan receipt exists".to_string();
+            next_safe_move = "Restore or pass a plan receipt before execution.".to_string();
+        } else if args.dry_run {
+            action = "execute-from-plan".to_string();
+            status = "would-advance".to_string();
+            reason = "approved adoption and plan receipt exist".to_string();
+            next_safe_move =
+                "Rerun without --dry-run to execute the adopted branch-local plan.".to_string();
+        } else {
+            action = "execute-from-plan".to_string();
+            advanced_result = run_execute(ExecuteArgs {
+                workspace: workspace.clone(),
+                epiphany_root: epiphany_root.clone(),
+                item: Some(item.clone()),
+                adopt_receipt: Some(adopt_receipt_path.clone()),
+                plan_receipt: Some(plan_receipt_path.clone()),
+                runtime_store: args.runtime_store.clone(),
+                artifact_dir: Some(artifact_dir.clone()),
+                command: None,
+                changed_paths: Vec::new(),
+                commit_message: None,
+                summary: Some(format!(
+                    "Scheduler pulse executed adopted repo work item {item}."
+                )),
+            })?;
+            status = "advanced".to_string();
+            reason = "executed approved branch-local plan through Hands".to_string();
+            next_safe_move =
+                "Route Soul verification and Mind review before publication.".to_string();
+        }
+    } else if run_receipt_path.exists() {
+        if !plan_receipt_path.exists() {
+            status = "blocked".to_string();
+            reason = "run receipt exists but no matching plan receipt exists".to_string();
+            next_safe_move =
+                "Write an Imagination/Self action plan before adopting Hands authority.".to_string();
+        } else if args.dry_run {
+            action = "adopt-from-plan".to_string();
+            status = "would-advance".to_string();
+            reason = "queued run packet and plan receipt exist".to_string();
+            next_safe_move =
+                "Rerun without --dry-run to adopt the plan into branch-local Hands authority."
+                    .to_string();
+        } else {
+            action = "adopt-from-plan".to_string();
+            advanced_result = run_adopt(AdoptArgs {
+                workspace: workspace.clone(),
+                epiphany_root: epiphany_root.clone(),
+                item: Some(item.clone()),
+                run_receipt: Some(run_receipt_path.clone()),
+                plan_receipt: Some(plan_receipt_path.clone()),
+                runtime_store: args.runtime_store.clone(),
+                artifact_dir: Some(artifact_dir.clone()),
+                plan_summary: None,
+                adoption_evidence_refs: vec![format!("self.scheduler:repo-work-tick-{item_slug}")],
+            })?;
+            status = "advanced".to_string();
+            reason = "adopted queued Hands run packet from typed action plan".to_string();
+            next_safe_move =
+                "Run another scheduler pulse to execute the approved branch-local plan.".to_string();
+        }
+    } else if plan_receipt_path.exists() {
+        let plan_receipt = read_json(&plan_receipt_path)?;
+        let requested_paths = first_plan_action(&plan_receipt)
+            .map(|action| string_array_field(action, "changedPaths"))
+            .unwrap_or_default();
+        if requested_paths.is_empty() {
+            status = "blocked".to_string();
+            reason = "plan receipt has no changedPaths for the Substrate Gate".to_string();
+            next_safe_move = "Repair the plan receipt or write a new plan with changed paths."
+                .to_string();
+        } else if args.dry_run {
+            action = "run-from-plan".to_string();
+            status = "would-advance".to_string();
+            reason = "accepted item and plan receipt exist".to_string();
+            next_safe_move =
+                "Rerun without --dry-run to open the queued Substrate Gate and Hands run packet."
+                    .to_string();
+        } else {
+            action = "run-from-plan".to_string();
+            advanced_result = run_work(RunArgs {
+                workspace: workspace.clone(),
+                epiphany_root: epiphany_root.clone(),
+                item: Some(item.clone()),
+                accept_receipt: Some(accept_receipt_path.clone()),
+                runtime_store: args.runtime_store.clone(),
+                artifact_dir: Some(artifact_dir.clone()),
+                requested_paths,
+            })?;
+            status = "advanced".to_string();
+            reason = "opened queued Substrate Gate and Hands run packet from plan paths"
+                .to_string();
+            next_safe_move =
+                "Run another scheduler pulse to adopt the plan into Hands authority.".to_string();
+        }
+    } else {
+        status = "blocked".to_string();
+        reason = "accepted work item has no matching action plan receipt".to_string();
+        next_safe_move =
+            "Create an Imagination/Self plan receipt before scheduler can advance work.".to_string();
+    }
+
+    let after_receipts = repo_work_receipt_state(
+        &accept_receipt_path,
+        &plan_receipt_path,
+        &run_receipt_path,
+        &adopt_receipt_path,
+        &execute_receipt_path,
+        &publish_receipt_path,
+        &sync_receipt_path,
+    );
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_work_scheduler_tick_receipt.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "item": item,
+        "scheduler": {
+            "owner": "Self",
+            "pulseKind": "repo-work-local",
+            "oneStepOnly": true,
+            "dryRun": args.dry_run
+        },
+        "status": status,
+        "action": action,
+        "reason": reason,
+        "beforeReceipts": before_receipts,
+        "afterReceipts": after_receipts,
+        "advancedResult": advanced_result,
+        "authority": {
+            "branchLocalOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "privateStateExposed": false
+        },
+        "nextSafeMove": next_safe_move
+    });
+    let receipt_path = artifact_dir.join(format!("work-tick-{item_slug}.json"));
+    write_json(&receipt_path, &receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_scheduler_tick.v0",
+        "status": receipt["status"],
+        "action": receipt["action"],
+        "workspace": receipt["workspace"],
+        "item": receipt["item"],
+        "receiptPath": receipt_path,
+        "reason": receipt["reason"],
+        "authority": receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": receipt["nextSafeMove"],
+    }))
+}
+
 fn resolve_accept_receipt(
     workspace: &Path,
     item: Option<&str>,
@@ -1929,6 +2198,40 @@ fn resolve_publish_receipt(
         anyhow!(
             "no work publish receipt found; run epiphany-work publish first or pass --publish-receipt"
         )
+    })
+}
+
+fn work_receipt_path(workspace: &Path, kind: &str, item: &str) -> PathBuf {
+    workspace
+        .join(".epiphany")
+        .join("work")
+        .join(format!("work-{kind}-{}.json", sanitize(item)))
+}
+
+fn repo_work_receipt_state(
+    accept: &Path,
+    plan: &Path,
+    run: &Path,
+    adopt: &Path,
+    execute: &Path,
+    publish: &Path,
+    sync: &Path,
+) -> Value {
+    json!({
+        "accept": receipt_path_state(accept),
+        "plan": receipt_path_state(plan),
+        "run": receipt_path_state(run),
+        "adopt": receipt_path_state(adopt),
+        "execute": receipt_path_state(execute),
+        "publish": receipt_path_state(publish),
+        "sync": receipt_path_state(sync),
+    })
+}
+
+fn receipt_path_state(path: &Path) -> Value {
+    json!({
+        "path": path,
+        "exists": path.exists(),
     })
 }
 
@@ -2243,13 +2546,14 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <accept|plan|run|adopt|execute|publish|sync> ...\n\
+        "usage: epiphany-work <accept|plan|run|adopt|execute|publish|sync|tick> ...\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
-         sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>"
+         sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
+         tick --workspace <repo> [--item <id>] [--runtime-store <path>] [--dry-run]"
     );
 }
