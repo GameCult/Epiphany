@@ -9,8 +9,13 @@ use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
 use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
 use epiphany_core::HANDS_PR_RECEIPT_TYPE;
 use epiphany_core::HandsActionIntent;
+use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
+use epiphany_core::MindGatewayDecision;
+use epiphany_core::MindGatewayReview;
 use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SoulVerdictReceipt;
 use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
@@ -19,12 +24,16 @@ use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::hands_pr_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_hands_command_receipt;
 use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_hands_pr_receipt;
+use epiphany_core::put_mind_gateway_review;
+use epiphany_core::put_mind_state_commit_receipt;
+use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
@@ -50,6 +59,7 @@ fn main() -> Result<()> {
         "run" => run_work(parse_run_args(args)?),
         "adopt" | "promote" => run_adopt(parse_adopt_args(args)?),
         "execute" | "exec" => run_execute(parse_execute_args(args)?),
+        "close" | "closure" | "verify-close" => run_close(parse_close_args(args)?),
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
         "tick" | "pulse" | "schedule" => run_tick(parse_tick_args(args)?),
@@ -134,11 +144,25 @@ struct ExecuteArgs {
 }
 
 #[derive(Clone, Debug)]
+struct CloseArgs {
+    workspace: PathBuf,
+    item: Option<String>,
+    execute_receipt: Option<PathBuf>,
+    runtime_store: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    verification_command: Option<String>,
+    verification_summary: Option<String>,
+    modeling_summary: Option<String>,
+    state_revision: u64,
+}
+
+#[derive(Clone, Debug)]
 struct PublishArgs {
     workspace: PathBuf,
     epiphany_root: PathBuf,
     item: Option<String>,
     adopt_receipt: Option<PathBuf>,
+    closure_receipt: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     local_verse_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
@@ -484,11 +508,59 @@ fn parse_execute_args(args: impl Iterator<Item = String>) -> Result<ExecuteArgs>
     })
 }
 
+fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
+    let mut workspace = None;
+    let mut item = None;
+    let mut execute_receipt = None;
+    let mut runtime_store = None;
+    let mut artifact_dir = None;
+    let mut verification_command = None;
+    let mut verification_summary = None;
+    let mut modeling_summary = None;
+    let mut state_revision = 0_u64;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--execute-receipt" | "--from-execute" => {
+                execute_receipt = Some(take_path(&mut args, "--execute-receipt")?);
+            }
+            "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--verification-command" => {
+                verification_command = Some(take_string(&mut args, "--verification-command")?);
+            }
+            "--verification-summary" => {
+                verification_summary = Some(take_string(&mut args, "--verification-summary")?);
+            }
+            "--modeling-summary" => {
+                modeling_summary = Some(take_string(&mut args, "--modeling-summary")?);
+            }
+            "--state-revision" => state_revision = take_u64(&mut args, "--state-revision")?,
+            other => return Err(anyhow!("unexpected close argument {other:?}")),
+        }
+    }
+    Ok(CloseArgs {
+        workspace: workspace.context("missing --workspace")?,
+        item,
+        execute_receipt,
+        runtime_store,
+        artifact_dir,
+        verification_command,
+        verification_summary,
+        modeling_summary,
+        state_revision,
+    })
+}
+
 fn parse_publish_args(args: impl Iterator<Item = String>) -> Result<PublishArgs> {
     let mut workspace = None;
     let mut epiphany_root = None;
     let mut item = None;
     let mut adopt_receipt = None;
+    let mut closure_receipt = None;
     let mut runtime_store = None;
     let mut local_verse_store = None;
     let mut artifact_dir = None;
@@ -515,6 +587,9 @@ fn parse_publish_args(args: impl Iterator<Item = String>) -> Result<PublishArgs>
             "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
             "--item" => item = Some(take_string(&mut args, "--item")?),
             "--adopt-receipt" => adopt_receipt = Some(take_path(&mut args, "--adopt-receipt")?),
+            "--closure-receipt" | "--close-receipt" => {
+                closure_receipt = Some(take_path(&mut args, "--closure-receipt")?);
+            }
             "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
             "--local-verse-store" | "--store" => {
                 local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
@@ -560,6 +635,22 @@ fn parse_publish_args(args: impl Iterator<Item = String>) -> Result<PublishArgs>
             other => return Err(anyhow!("unexpected publish argument {other:?}")),
         }
     }
+    if let Some(path) = closure_receipt.as_ref() {
+        let closure = read_json(path)?;
+        if closure.get("status").and_then(Value::as_str) != Some("closed") {
+            return Err(anyhow!("closure receipt {} is not closed", path.display()));
+        }
+        if verification_receipts.is_empty() {
+            if let Some(id) = string_from_json(&closure, &["soul", "verdictReceiptId"]) {
+                verification_receipts.push(id);
+            }
+        }
+        if review_receipts.is_empty() {
+            if let Some(id) = string_from_json(&closure, &["mind", "stateCommitReceiptId"]) {
+                review_receipts.push(id);
+            }
+        }
+    }
     if verification_receipts.is_empty() {
         return Err(anyhow!(
             "publish requires at least one --verification-receipt from Soul"
@@ -576,6 +667,7 @@ fn parse_publish_args(args: impl Iterator<Item = String>) -> Result<PublishArgs>
             .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
         item,
         adopt_receipt,
+        closure_receipt,
         runtime_store,
         local_verse_store,
         artifact_dir,
@@ -1568,6 +1660,262 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
     }))
 }
 
+fn run_close(args: CloseArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let execute_receipt_path =
+        resolve_execute_receipt(&workspace, args.item.as_deref(), args.execute_receipt)?;
+    let execute_receipt = read_json(&execute_receipt_path)?;
+    if execute_receipt.get("status").and_then(Value::as_str) != Some("branch-local-commit-recorded")
+    {
+        return Err(anyhow!(
+            "close requires a branch-local-commit-recorded execute receipt"
+        ));
+    }
+    let runtime_store = args.runtime_store.unwrap_or_else(|| {
+        path_from_json(&execute_receipt, &["runtimeStore"]).unwrap_or_else(|| {
+            workspace
+                .join(".epiphany")
+                .join("state")
+                .join("runtime-spine.msgpack")
+        })
+    });
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    let item = execute_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+    let commit_sha = string_from_json(&execute_receipt, &["handsReceipts", "commitSha"])
+        .ok_or_else(|| anyhow!("execute receipt has no handsReceipts.commitSha"))?;
+    let patch_receipt_id = string_from_json(&execute_receipt, &["handsReceipts", "patchReceiptId"])
+        .ok_or_else(|| anyhow!("execute receipt has no handsReceipts.patchReceiptId"))?;
+    let command_receipt_id =
+        string_from_json(&execute_receipt, &["handsReceipts", "commandReceiptId"])
+            .ok_or_else(|| anyhow!("execute receipt has no handsReceipts.commandReceiptId"))?;
+    let commit_receipt_id =
+        string_from_json(&execute_receipt, &["handsReceipts", "commitReceiptId"])
+            .ok_or_else(|| anyhow!("execute receipt has no handsReceipts.commitReceiptId"))?;
+    let commit_receipt = runtime_hands_commit_receipt(&runtime_store, &commit_receipt_id)?
+        .ok_or_else(|| anyhow!("runtime-spine has no Hands commit receipt {commit_receipt_id}"))?;
+    if commit_receipt.commit_sha != commit_sha {
+        return Err(anyhow!(
+            "execute receipt commit sha does not match runtime Hands commit receipt"
+        ));
+    }
+    let verification_command = args
+        .verification_command
+        .unwrap_or_else(|| format!("git show --stat --oneline {commit_sha}"));
+    let stdout_artifact = artifact_dir.join(format!("work-close-{item_slug}.stdout.log"));
+    let stderr_artifact = artifact_dir.join(format!("work-close-{item_slug}.stderr.log"));
+    let verification = Command::new("powershell")
+        .arg("-NoProfile")
+        .arg("-Command")
+        .arg(&verification_command)
+        .current_dir(&workspace)
+        .output()
+        .with_context(|| {
+            format!(
+                "failed to run closure verification in {}",
+                workspace.display()
+            )
+        })?;
+    fs::write(&stdout_artifact, &verification.stdout)
+        .with_context(|| format!("failed to write {}", stdout_artifact.display()))?;
+    fs::write(&stderr_artifact, &verification.stderr)
+        .with_context(|| format!("failed to write {}", stderr_artifact.display()))?;
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let verification_passed = verification.status.success();
+    let soul_verdict_id = format!("repo-work-close-{item_slug}-soul-verdict");
+    let soul_summary = args.verification_summary.unwrap_or_else(|| {
+        if verification_passed {
+            format!("Soul verified branch-local commit {commit_sha} for repo work item {item}.")
+        } else {
+            format!("Soul verification failed for branch-local commit {commit_sha}.")
+        }
+    });
+    let mut evidence_ids = vec![
+        patch_receipt_id.clone(),
+        command_receipt_id.clone(),
+        commit_receipt_id.clone(),
+        normalize_path_for_receipt(&stdout_artifact),
+        normalize_path_for_receipt(&stderr_artifact),
+    ];
+    evidence_ids.extend(string_array_from_json(&execute_receipt, &["changedPaths"]));
+    let soul_verdict = SoulVerdictReceipt {
+        schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: soul_verdict_id.clone(),
+        source_result_id: format!("repo-work-execute-{item_slug}"),
+        source_job_id: format!("repo-work-close-{item_slug}"),
+        verdict: if verification_passed {
+            "passed".to_string()
+        } else {
+            "failed".to_string()
+        },
+        summary: soul_summary.clone(),
+        evidence_ids: evidence_ids.clone(),
+        risks: if verification_passed {
+            Vec::new()
+        } else {
+            vec!["Closure verification command failed; publication remains blocked.".to_string()]
+        },
+        emitted_at: now.clone(),
+        contract: "Soul verdict for repo-work closure; verifies the Hands patch/command/commit consequence before Modeling/Mind closure and Bifrost publication.".to_string(),
+    };
+    put_soul_verdict_receipt(&runtime_store, &soul_verdict)?;
+
+    let closure_receipt_path = artifact_dir.join(format!("work-close-{item_slug}.json"));
+    if !verification_passed {
+        let failed_receipt = json!({
+            "schemaVersion": "epiphany.repo_work_closure_receipt.v0",
+            "createdAt": now,
+            "workspace": workspace,
+            "runtimeStore": runtime_store,
+            "executeReceiptPath": execute_receipt_path,
+            "item": item,
+            "status": "verification-failed",
+            "soul": {
+                "verdictReceiptId": soul_verdict.receipt_id,
+                "verdict": soul_verdict.verdict,
+                "summary": soul_verdict.summary,
+                "stdoutArtifact": normalize_path_for_receipt(&stdout_artifact),
+                "stderrArtifact": normalize_path_for_receipt(&stderr_artifact)
+            },
+            "authority": {
+                "branchLocalOnly": true,
+                "publicationGateSatisfied": false,
+                "durableStateAdmitted": false,
+                "privateStateExposed": false
+            },
+            "privateStateExposed": false,
+            "nextSafeMove": "Repair or re-run branch-local work, then close again before publication."
+        });
+        write_json(&closure_receipt_path, &failed_receipt)?;
+        return Ok(json!({
+            "schemaVersion": "epiphany.repo_work_closure.v0",
+            "status": failed_receipt["status"],
+            "workspace": failed_receipt["workspace"],
+            "receiptPath": closure_receipt_path,
+            "item": failed_receipt["item"],
+            "soul": failed_receipt["soul"],
+            "authority": failed_receipt["authority"],
+            "privateStateExposed": false,
+            "nextSafeMove": failed_receipt["nextSafeMove"],
+        }));
+    }
+
+    let modeling_summary = args.modeling_summary.unwrap_or_else(|| {
+        format!(
+            "Modeling records repo work item {item} changed [{}] at commit {commit_sha}; scheduler should stop implementation until publication review.",
+            string_array_from_json(&execute_receipt, &["changedPaths"]).join(", ")
+        )
+    });
+    let gateway_id = format!("repo-work-close-{item_slug}-mind-review");
+    let mind_review = MindGatewayReview {
+        schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+        gateway_id: gateway_id.clone(),
+        source_kind: "repo_work_closure".to_string(),
+        source_role_id: "modeling".to_string(),
+        decision: MindGatewayDecision::Accept,
+        allowed_effects: vec![
+            "repoWorkClosure".to_string(),
+            "modelingSummary".to_string(),
+            "publicationGate".to_string(),
+        ],
+        refused_effects: Vec::new(),
+        reasons: vec![
+            "Soul passed the branch-local Hands consequence.".to_string(),
+            "Modeling summary is source-grounded in execute receipt and commit proof.".to_string(),
+            "Mind admits closure metadata only; Bifrost still gates publication and merge.".to_string(),
+        ],
+        contract: "Mind review for repo-work closure; admits the verified Modeling summary and publication gate without granting merge or service authority.".to_string(),
+    };
+    put_mind_gateway_review(&runtime_store, &mind_review)?;
+    let mind_commit_id = format!("repo-work-close-{item_slug}-mind-commit");
+    let mind_commit = mind_state_commit_receipt(
+        mind_commit_id.clone(),
+        &mind_review,
+        args.state_revision,
+        vec![
+            "repoWork.closure".to_string(),
+            "repoWork.modelingSummary".to_string(),
+        ],
+        Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+    );
+    put_mind_state_commit_receipt(&runtime_store, &mind_commit)?;
+
+    let closure_receipt = json!({
+        "schemaVersion": "epiphany.repo_work_closure_receipt.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "runtimeStore": runtime_store,
+        "executeReceiptPath": execute_receipt_path,
+        "item": item,
+        "status": "closed",
+        "handsReceipts": {
+            "patchReceiptId": patch_receipt_id,
+            "commandReceiptId": command_receipt_id,
+            "commitReceiptId": commit_receipt_id,
+            "commitSha": commit_sha
+        },
+        "soul": {
+            "verdictReceiptId": soul_verdict.receipt_id,
+            "verdict": soul_verdict.verdict,
+            "summary": soul_verdict.summary,
+            "stdoutArtifact": normalize_path_for_receipt(&stdout_artifact),
+            "stderrArtifact": normalize_path_for_receipt(&stderr_artifact)
+        },
+        "modeling": {
+            "summary": modeling_summary,
+            "changedPaths": execute_receipt["changedPaths"],
+            "commitSha": execute_receipt["handsReceipts"]["commitSha"],
+            "source": "epiphany.repo_work_execute_receipt.v0"
+        },
+        "mind": {
+            "gatewayReviewId": mind_review.gateway_id,
+            "stateCommitReceiptId": mind_commit.receipt_id,
+            "stateRevision": mind_commit.state_revision,
+            "changedFields": mind_commit.changed_fields
+        },
+        "authority": {
+            "branchLocalOnly": true,
+            "publicationGateSatisfied": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "durableStateAdmitted": true,
+            "privateStateExposed": false
+        },
+        "privateStateExposed": false,
+        "nextSafeMove": "Use epiphany-work publish --closure-receipt <receipt> with Bifrost/GitHub refs; merge remains gated by maintainers and sync receipts."
+    });
+    write_json(&closure_receipt_path, &closure_receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_closure.v0",
+        "status": closure_receipt["status"],
+        "workspace": closure_receipt["workspace"],
+        "runtimeStore": closure_receipt["runtimeStore"],
+        "receiptPath": closure_receipt_path,
+        "item": closure_receipt["item"],
+        "handsReceipts": closure_receipt["handsReceipts"],
+        "soul": closure_receipt["soul"],
+        "modeling": closure_receipt["modeling"],
+        "mind": closure_receipt["mind"],
+        "authority": closure_receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": closure_receipt["nextSafeMove"],
+    }))
+}
+
 fn run_publish(args: PublishArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -1810,6 +2158,7 @@ fn run_publish(args: PublishArgs) -> Result<Value> {
         "adoptReceiptPath": adopt_receipt_path,
         "runReceiptPath": run_receipt_path,
         "onlineReceiptPath": online_receipt_path,
+        "closureReceiptPath": args.closure_receipt,
         "item": item,
         "status": "publication-receipts-recorded",
         "targetRepository": target_repository,
@@ -2158,6 +2507,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
     let run_receipt_path = work_receipt_path(&workspace, "run", &item);
     let adopt_receipt_path = work_receipt_path(&workspace, "adopt", &item);
     let execute_receipt_path = work_receipt_path(&workspace, "execute", &item);
+    let close_receipt_path = work_receipt_path(&workspace, "close", &item);
     let publish_receipt_path = work_receipt_path(&workspace, "publish", &item);
     let sync_receipt_path = work_receipt_path(&workspace, "sync", &item);
 
@@ -2167,6 +2517,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         &run_receipt_path,
         &adopt_receipt_path,
         &execute_receipt_path,
+        &close_receipt_path,
         &publish_receipt_path,
         &sync_receipt_path,
     );
@@ -2182,6 +2533,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                         &run_receipt_path,
                         &adopt_receipt_path,
                         &execute_receipt_path,
+                        &close_receipt_path,
                         &publish_receipt_path,
                         &sync_receipt_path,
                     );
@@ -2269,6 +2621,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 &run_receipt_path,
                 &adopt_receipt_path,
                 &execute_receipt_path,
+                &close_receipt_path,
                 &publish_receipt_path,
                 &sync_receipt_path,
             );
@@ -2353,6 +2706,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                     &run_receipt_path,
                     &adopt_receipt_path,
                     &execute_receipt_path,
+                    &close_receipt_path,
                     &publish_receipt_path,
                     &sync_receipt_path,
                 );
@@ -2460,6 +2814,13 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             "publication receipt exists; scheduler stops before merge/sync authority".to_string();
         next_safe_move =
             "Wait for maintainer/Bifrost merge receipt, then run epiphany-work sync.".to_string();
+    } else if close_receipt_path.exists() {
+        action = "none".to_string();
+        status = "noop".to_string();
+        reason = "Soul/Modeling/Mind closure is recorded; scheduler stops before Bifrost publication authority".to_string();
+        next_safe_move =
+            "Route Bifrost/GitHub publication through epiphany-work publish --closure-receipt."
+                .to_string();
     } else if execute_receipt_path.exists() {
         action = "none".to_string();
         status = "noop".to_string();
@@ -2582,6 +2943,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         &run_receipt_path,
         &adopt_receipt_path,
         &execute_receipt_path,
+        &close_receipt_path,
         &publish_receipt_path,
         &sync_receipt_path,
     );
@@ -2737,6 +3099,25 @@ fn resolve_publish_receipt(
     })
 }
 
+fn resolve_execute_receipt(
+    workspace: &Path,
+    item: Option<&str>,
+    explicit: Option<PathBuf>,
+) -> Result<PathBuf> {
+    if let Some(path) = explicit {
+        return Ok(path);
+    }
+    let work_dir = workspace.join(".epiphany").join("work");
+    if let Some(item) = item {
+        return Ok(work_dir.join(format!("work-execute-{}.json", sanitize(item))));
+    }
+    latest_receipt_in(&work_dir, "work-execute-").ok_or_else(|| {
+        anyhow!(
+            "no work execute receipt found; run epiphany-work execute first or pass --execute-receipt"
+        )
+    })
+}
+
 fn work_receipt_path(workspace: &Path, kind: &str, item: &str) -> PathBuf {
     workspace
         .join(".epiphany")
@@ -2750,6 +3131,7 @@ fn repo_work_receipt_state(
     run: &Path,
     adopt: &Path,
     execute: &Path,
+    close: &Path,
     publish: &Path,
     sync: &Path,
 ) -> Value {
@@ -2759,6 +3141,7 @@ fn repo_work_receipt_state(
         "run": receipt_path_state(run),
         "adopt": receipt_path_state(adopt),
         "execute": receipt_path_state(execute),
+        "close": receipt_path_state(close),
         "publish": receipt_path_state(publish),
         "sync": receipt_path_state(sync),
     })

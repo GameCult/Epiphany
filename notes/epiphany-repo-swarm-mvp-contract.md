@@ -134,9 +134,10 @@ epiphany-work plan --workspace <repo> --item <id> --objective <text> --plan-summ
 epiphany-work run --workspace <repo>
 epiphany-work adopt --workspace <repo> --item <id> --from-plan <plan-receipt>
 epiphany-work execute --workspace <repo> --item <id> --from-plan <plan-receipt>
+epiphany-work close --workspace <repo> --item <id>
 epiphany-work tick --workspace <repo> --item <id>
 epiphany-work serve --workspace <repo> --item <id> --max-iterations <n>
-epiphany-work publish --workspace <repo>
+epiphany-work publish --workspace <repo> --closure-receipt <close-receipt>
 epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
 ```
 
@@ -495,8 +496,8 @@ spawn Windows services, restart daemons, or take Idunn's daemon survival
 authority.
 
 The pulse stops once branch-local execution has been recorded. It does not
-publish, merge, synthesize Soul/Mind receipts, install services, or impersonate
-Idunn. Those gates remain owned by their organs.
+publish, merge, install services, or impersonate Idunn. Soul/Mind closure is a
+separate gate and remains explicit.
 
 The first smoke proved:
 
@@ -540,6 +541,41 @@ wrote `epiphany.repo_work_scheduler_serve_receipt.v0`; iteration one advanced
 serve receipt reported `privateStateExposed=false`. A separate negative check
 proved unbounded `serve --loop-interval-seconds 0` refuses with exit code 1.
 
+`epiphany-work close` is the first Soul/Modeling/Mind closure gate for a
+branch-local Hands commit:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- close --workspace <repo> --item <id>
+```
+
+It reads `work-execute-<item>.json`, requires
+`status=branch-local-commit-recorded`, verifies the Hands commit receipt still
+matches the recorded git SHA, then runs a verification command in the repo Body
+(`git show --stat --oneline <commit>` by default, or
+`--verification-command <command>` when supplied). The command stdout/stderr are
+sealed under `.epiphany/work/`, Soul writes
+`epiphany.soul.verdict_receipt`, Modeling records the execution/commit summary,
+and Mind writes gateway review plus state-commit receipts into runtime-spine.
+The final `.epiphany/work/work-close-<item>.json` receipt is
+`epiphany.repo_work_closure_receipt.v0` with
+`durableStateAdmitted=true`, `publicationGateSatisfied=true`, and
+`privateStateExposed=false`. It still does not grant publication, merge,
+service lifecycle, cross-repo mutation, or private-state exposure authority.
+
+`epiphany-work publish --closure-receipt <work-close-...json>` can consume the
+Soul verdict and Mind state-commit ids from that closure receipt when explicit
+verification/review refs are not supplied. `epiphany-work tick` also recognizes
+an existing close receipt and no-ops before Bifrost publication authority, so
+Self cannot smuggle a local commit into public consequence.
+
+A fifth smoke proved the closure chain on a disposable fresh repo Body:
+`execute` recorded `branch-local-commit-recorded`, `close` returned
+`closed:passed`, Mind wrote
+`repo-work-close-close-request-mind-commit`,
+`publish --closure-receipt` consumed the Soul verdict and Mind commit ids,
+the next tick returned `noop:none`, and every receipt summary reported
+`privateStateExposed=false`.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
@@ -552,17 +588,18 @@ That is the machine we are building.
 
 ## Full Migration Plan To Repo Swarm MVP
 
-This plan starts from the current state: ten native front doors exist, but the
-work loop is not yet a full physiology. `init`, `online`, `accept`, `plan`,
-`run`, `adopt`, `execute`, `tick`, `publish`, and `sync` prove the typed path
+This plan starts from the current state: eleven native front doors exist, but
+the work loop is not yet a full physiology. `init`, `online`, `accept`, `plan`,
+`run`, `adopt`, `execute`, `close`, `tick`, `publish`, and `sync` prove the typed path
 from repo birth to branch-local scheduler pulse, Bifrost/GitHub publication
 receipts, and upstream-main sync proof. `tick` now also proves brake refusal,
 active-turn refusal, completion-anchored cooldown refusal, and stale active-turn
 recovery through typed scheduler receipts; `serve` now proves bounded cadence
-around that same tick artery. The chain does not yet prove Soul/Modeling/Mind
-closure after execution, or a repo Persona that can turn
-conversation into autonomous action without the operator feeding plan details by
-hand.
+around that same tick artery; `close` now proves first deterministic
+Soul/Modeling/Mind closure over Hands commit receipts. The chain does not yet
+prove a repo Persona that can turn conversation into autonomous action without
+the operator feeding plan details by hand, and deeper model-authored
+Soul/Modeling closure remains future work.
 
 The MVP target is narrower than the full Perfect Machine and wider than a demo:
 a fresh repository can host an Epiphany swarm that initializes its Body,
@@ -584,6 +621,7 @@ repo birth
   -> Substrate Gate + Hands queued run packet
   -> plan-backed branch-local Hands adoption
   -> plan-backed branch-local execution and commit
+  -> deterministic Soul/Modeling/Mind closure
   -> Bifrost/GitHub publication receipts
   -> upstream-main ancestry proof after explicit merge receipt
 ```
@@ -606,9 +644,12 @@ The chain is typed and sealed enough to be useful:
 - `epiphany-work execute --from-plan` consumes that authority on an
   `epiphany/*` branch, runs the planned command, stages only planned paths,
   commits, and records Hands patch/command/commit receipts.
+- `epiphany-work close` consumes the execute receipt, verifies the Hands commit,
+  writes Soul verdict, Modeling summary, and Mind gateway/state-commit receipts,
+  then seals the closure receipt without granting publication or merge.
 - `epiphany-work publish` requires Hands commit proof plus Soul and Mind/review
-  refs before routing Bifrost/GitHub publication receipts; it does not claim
-  merge or upstream sync.
+  refs, or consumes those refs from a closure receipt, before routing
+  Bifrost/GitHub publication receipts; it does not claim merge or upstream sync.
 - `epiphany-work sync` requires an explicit maintainer/Bifrost merge receipt
   and writes `upstreamMainSynced=true` only after git proves the published
   commit is contained by upstream main.
@@ -638,14 +679,15 @@ Required organs before MVP:
 - Scheduler physiology: the first `epiphany-work tick` pulse now has brake,
   active-turn, cooldown, and stale-turn recovery receipts, and
   `epiphany-work serve` adds bounded/unbounded cadence around that pulse.
-  Remaining work is handoff from branch-local execution to Soul/Modeling/Mind
-  closure and any later Idunn service lifecycle integration under explicit
+  Remaining work is optional handoff from branch-local execution into the close
+  gate and any later Idunn service lifecycle integration under explicit
   operator authority.
 - Persona-to-plan automation: repo Persona input becomes candidate action
   pressure, Mind/Interpreter extracts work-shaped intent, and Imagination
   writes the plan packet without the operator hand-authoring shell details.
-- Soul/Modeling/Mind closure: a Hands commit is verified, modeled, and admitted
-  before Self schedules another implementation turn.
+- Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
+  commits; richer model-authored Soul/Modeling review remains to replace the
+  current local verification rite where appropriate.
 - Repo work overview: the current item, branch, receipts, blocker, next safe
   action, and publication/sync state are visible through compact CultMesh/Eve
   surfaces without opening private thought.
