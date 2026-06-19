@@ -2778,15 +2778,26 @@ fn run_cli() -> Result<()> {
             let service_health_action_tui_rows = service_health_readback["serviceActionTuiRows"]
                 .as_array()
                 .context("service-health readback lost service action TUI rows")?;
+            let service_health_preflight_rows = service_health_readback["onlinePreflightRows"]
+                .as_array()
+                .context("service-health readback lost online preflight rows")?;
             let service_health_diagnostic = format!(
-                "status={:?}, mode={:?}, command={:?}, attention={:?}, failed={:?}, missing={:?}, actions={}, privateHelper={}, privateJson={:?}",
+                "status={:?}, mode={:?}, command={:?}, preflight={:?}, preflightCommand={:?}, childRunbooks={:?}, present={:?}, hashVerified={:?}, hashMismatch={:?}, missingArtifacts={:?}, attention={:?}, failed={:?}, missing={:?}, actions={}, preflightRows={}, privateHelper={}, privateJson={:?}",
                 service_health_readback["status"].as_str(),
                 service_health_readback["recommendedWrapperMode"].as_str(),
                 service_health_readback["recommendedWrapperCommand"].as_str(),
+                service_health_readback["onlinePreflightStatus"].as_str(),
+                service_health_readback["onlinePreflightCommand"].as_str(),
+                service_health_readback["onlinePreflightChildRunbookCount"].as_u64(),
+                service_health_readback["onlinePreflightPresentCount"].as_u64(),
+                service_health_readback["onlinePreflightHashVerifiedCount"].as_u64(),
+                service_health_readback["onlinePreflightMismatchCount"].as_u64(),
+                service_health_readback["onlinePreflightMissingArtifactCount"].as_u64(),
                 service_health_readback["serviceLifecycleAttentionCount"].as_u64(),
                 service_health_readback["serviceExecutionFailedCheckCount"].as_u64(),
                 service_health_readback["serviceExecutionMissingCheckCount"].as_u64(),
                 service_health_action_rows.len(),
+                service_health_preflight_rows.len(),
                 service_health_private_state_exposed,
                 service_health_readback["privateStateExposed"].as_bool(),
             );
@@ -3036,6 +3047,23 @@ fn run_cli() -> Result<()> {
                     != Some("cluster-service-execution-audit")
                 || service_health_readback["recommendedWrapperCommand"].as_str()
                     != Some(WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND)
+                || service_health_readback["onlinePreflightStatus"].as_str()
+                    != Some("ready-for-elevated-operator")
+                || service_health_readback["onlinePreflightCommand"].as_str()
+                    != Some(WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND)
+                || service_health_readback["onlinePreflightChildRunbookCount"].as_u64()
+                    != Some(2)
+                || service_health_readback["onlinePreflightPresentCount"].as_u64() != Some(2)
+                || service_health_readback["onlinePreflightHashVerifiedCount"].as_u64()
+                    != Some(2)
+                || service_health_readback["onlinePreflightMismatchCount"].as_u64() != Some(0)
+                || service_health_readback["onlinePreflightMissingArtifactCount"].as_u64()
+                    != Some(0)
+                || service_health_readback["onlinePreflightFailedCheckCount"].as_u64()
+                    != Some(11)
+                || service_health_readback["onlinePreflightMissingCheckCount"].as_u64()
+                    != Some(10)
+                || service_health_preflight_rows.len() != 2
                 || service_health_readback["serviceLifecycleAttentionCount"].as_u64() != Some(2)
                 || service_health_readback["serviceExecutionFailedCheckCount"].as_u64()
                     != Some(11)
@@ -3064,6 +3092,26 @@ fn run_cli() -> Result<()> {
                         && row["operatorAftercareCommand"].as_str()
                             == Some(WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND)
                         && row["serviceExecutionFailedCheckCount"].as_u64() == Some(5)
+                        && row["privateStateExposed"].as_bool() == Some(false)
+                })
+                || !service_health_preflight_rows.iter().any(|row| {
+                    let expected_sha = operator_artifact_sha256(
+                        &service_smoke_runbook_path.display().to_string(),
+                        "present",
+                    );
+                    row["serviceId"].as_str() == Some("epiphany-cluster-daemon-services")
+                        && row["serviceRoute"].as_str()
+                            == Some(
+                                "epiphany-cluster-daemon-services::cluster-windows-service-execution-runbook",
+                            )
+                        && row["artifactStatus"].as_str() == Some("present")
+                        && row["expectedArtifactSha256"].as_str() == Some(expected_sha.as_str())
+                        && row["artifactPresent"].as_bool() == Some(true)
+                        && row["artifactSha256Matches"].as_bool() == Some(true)
+                        && row["aftercareCommand"].as_str()
+                            == Some(WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND)
+                        && row["failedChecks"].as_u64() == Some(5)
+                        && row["missingChecks"].as_u64() == Some(4)
                         && row["privateStateExposed"].as_bool() == Some(false)
                 })
                 || !service_health_action_tui_rows.iter().any(|row| {
@@ -6578,6 +6626,72 @@ fn service_health_readback_from_idunn(args: &Args) -> Result<(serde_json::Value,
         .iter()
         .map(swarm_action_tui_row)
         .collect::<Vec<_>>();
+    let service_authority_rows = service_action_rows
+        .iter()
+        .filter(|row| row.family == "service-execution-authority")
+        .collect::<Vec<_>>();
+    let online_preflight_rows = service_authority_rows
+        .iter()
+        .map(|row| {
+            let actual_artifact_sha256 =
+                operator_artifact_sha256(&row.operator_artifact_ref, &row.operator_artifact_status);
+            let artifact_present = row.operator_artifact_status == "present";
+            let artifact_sha256_matches = artifact_present
+                && row.operator_artifact_sha256 != "none"
+                && row.operator_artifact_sha256 == actual_artifact_sha256;
+            json!({
+                "serviceId": row.service_id,
+                "serviceRoute": row.service_route,
+                "status": row.status,
+                "wrapperMode": row.wrapper_mode,
+                "wrapperCommand": row.wrapper_command,
+                "artifactRef": row.operator_artifact_ref,
+                "artifactStatus": row.operator_artifact_status,
+                "expectedArtifactSha256": row.operator_artifact_sha256,
+                "actualArtifactSha256": actual_artifact_sha256,
+                "artifactPresent": artifact_present,
+                "artifactSha256Matches": artifact_sha256_matches,
+                "elevatedCommand": row.operator_artifact_execution_command,
+                "aftercareCommand": row.operator_aftercare_command,
+                "failedChecks": row.service_execution_failed_check_count,
+                "missingChecks": row.service_execution_missing_check_count,
+                "privateStateExposed": row.private_state_exposed,
+            })
+        })
+        .collect::<Vec<_>>();
+    let online_preflight_child_runbook_count = service_authority_rows.len();
+    let online_preflight_present_count = service_authority_rows
+        .iter()
+        .filter(|row| row.operator_artifact_status == "present")
+        .count();
+    let online_preflight_hash_verified_count = service_authority_rows
+        .iter()
+        .filter(|row| {
+            row.operator_artifact_status == "present"
+                && row.operator_artifact_sha256 != "none"
+                && row.operator_artifact_sha256
+                    == operator_artifact_sha256(
+                        &row.operator_artifact_ref,
+                        &row.operator_artifact_status,
+                    )
+        })
+        .count();
+    let online_preflight_missing_artifact_count = service_authority_rows
+        .iter()
+        .filter(|row| row.operator_artifact_status != "present")
+        .count();
+    let online_preflight_mismatch_count = service_authority_rows
+        .iter()
+        .filter(|row| {
+            row.operator_artifact_status == "present"
+                && (row.operator_artifact_sha256 == "none"
+                    || row.operator_artifact_sha256
+                        != operator_artifact_sha256(
+                            &row.operator_artifact_ref,
+                            &row.operator_artifact_status,
+                        ))
+        })
+        .count();
     let private_state_exposed = overview
         .service_lifecycle_attention_rows
         .iter()
@@ -6589,11 +6703,31 @@ fn service_health_readback_from_idunn(args: &Args) -> Result<(serde_json::Value,
         || service_action_rows
             .iter()
             .any(|row| row.private_state_exposed);
+    let online_preflight_status = if online_preflight_child_runbook_count == 0 {
+        "not-applicable"
+    } else if online_preflight_missing_artifact_count > 0
+        || online_preflight_mismatch_count > 0
+        || private_state_exposed
+    {
+        "blocked-regenerate-runbooks"
+    } else {
+        "ready-for-elevated-operator"
+    };
     Ok((
         json!({
             "status": overview.recovery_status,
             "recommendedWrapperMode": overview.service_lifecycle_recommended_wrapper_mode,
             "recommendedWrapperCommand": overview.service_lifecycle_recommended_wrapper_command,
+            "onlinePreflightStatus": online_preflight_status,
+            "onlinePreflightCommand": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
+            "onlinePreflightChildRunbookCount": online_preflight_child_runbook_count,
+            "onlinePreflightPresentCount": online_preflight_present_count,
+            "onlinePreflightHashVerifiedCount": online_preflight_hash_verified_count,
+            "onlinePreflightMismatchCount": online_preflight_mismatch_count,
+            "onlinePreflightMissingArtifactCount": online_preflight_missing_artifact_count,
+            "onlinePreflightFailedCheckCount": overview.service_execution_failed_check_count,
+            "onlinePreflightMissingCheckCount": overview.service_execution_missing_check_count,
+            "onlinePreflightRows": online_preflight_rows,
             "serviceLifecycleAttentionCount": overview.service_lifecycle_attention_rows.len(),
             "serviceLifecycleAttentionRows": overview.service_lifecycle_attention_rows,
             "serviceLifecycleAttentionTuiRows": overview.service_lifecycle_attention_tui_rows,

@@ -2126,7 +2126,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             }
             $serviceHealth = "none"
             if ($null -ne $result.serviceHealthReadback -and $null -ne $result.serviceHealthReadback.status) {
-                $serviceHealth = "status=$($result.serviceHealthReadback.status):attentionRows=$(@($result.serviceHealthReadback.serviceLifecycleAttentionRows).Count):actionRows=$(@($result.serviceHealthReadback.serviceActionRows).Count):failedChecks=$($result.serviceHealthReadback.serviceExecutionFailedCheckCount):missingChecks=$($result.serviceHealthReadback.serviceExecutionMissingCheckCount):private=$($result.serviceHealthReadback.privateStateExposed)"
+                $serviceHealth = "status=$($result.serviceHealthReadback.status):preflight=$($result.serviceHealthReadback.onlinePreflightStatus):childRunbooks=$($result.serviceHealthReadback.onlinePreflightChildRunbookCount):present=$($result.serviceHealthReadback.onlinePreflightPresentCount):hashVerified=$($result.serviceHealthReadback.onlinePreflightHashVerifiedCount):missingArtifacts=$($result.serviceHealthReadback.onlinePreflightMissingArtifactCount):attentionRows=$(@($result.serviceHealthReadback.serviceLifecycleAttentionRows).Count):actionRows=$(@($result.serviceHealthReadback.serviceActionRows).Count):failedChecks=$($result.serviceHealthReadback.serviceExecutionFailedCheckCount):missingChecks=$($result.serviceHealthReadback.serviceExecutionMissingCheckCount):private=$($result.serviceHealthReadback.privateStateExposed)"
             }
             $daemonStatus = "none"
             if ($null -ne $result.daemonStatusReadback -and $null -ne $result.daemonStatusReadback.status) {
