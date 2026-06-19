@@ -2070,7 +2070,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.serviceHealthReadback -and $null -ne $result.serviceHealthReadback.status) {
                 $serviceHealth = "status=$($result.serviceHealthReadback.status):attentionRows=$(@($result.serviceHealthReadback.serviceLifecycleAttentionRows).Count):actionRows=$(@($result.serviceHealthReadback.serviceActionRows).Count):failedChecks=$($result.serviceHealthReadback.serviceExecutionFailedCheckCount):missingChecks=$($result.serviceHealthReadback.serviceExecutionMissingCheckCount):private=$($result.serviceHealthReadback.privateStateExposed)"
             }
-            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), serviceHealth=$serviceHealth, invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
+            $daemonStatus = "none"
+            if ($null -ne $result.daemonStatusReadback -and $null -ne $result.daemonStatusReadback.status) {
+                $daemonStatus = "status=$($result.daemonStatusReadback.status):cluster=$($result.daemonStatusReadback.clusterId):daemon=$($result.daemonStatusReadback.daemonId):surface=$($result.daemonStatusReadback.eveSurfaceId):tools=$($result.daemonStatusReadback.hostedToolCount):private=$($result.daemonStatusReadback.privateStateExposed)"
+            }
+            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), daemonStatus=$daemonStatus, serviceHealth=$serviceHealth, invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-overview" -or $Mode -eq "gjallar") {
             $attention = "none"
             if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {

@@ -1854,6 +1854,45 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke lost service-health daemon tool readback route"
                 );
             }
+            let self_status = context
+                .daemon_tool_capabilities
+                .iter()
+                .find(|capability| capability.capability_id == "epiphany.cluster.self.tool.status")
+                .context("missing Self status daemon tool capability")?;
+            let self_cluster = cluster_topology_for_id(&context, "epiphany.cluster.self")?;
+            let self_daemon_status = context
+                .daemon_statuses
+                .iter()
+                .find(|status| status.daemon_id == self_status.host_daemon_id)
+                .context("missing Self daemon status for status tool readback")?;
+            let (daemon_status_readback, daemon_status_private_state_exposed) =
+                daemon_status_readback_from_host(
+                    self_cluster,
+                    self_daemon_status,
+                    &context.daemon_tool_capabilities,
+                );
+            let hosted_tool_ids = daemon_status_readback["hostedToolCapabilityIds"]
+                .as_array()
+                .context("status readback lost hosted tool capability ids")?;
+            if daemon_status_readback["status"].as_str() != Some("ready")
+                || daemon_status_readback["clusterId"].as_str() != Some("epiphany.cluster.self")
+                || daemon_status_readback["displayName"].as_str() != Some("Self")
+                || daemon_status_readback["daemonId"].as_str() != Some("epiphany-daemon-self")
+                || daemon_status_readback["privateVerseId"].as_str()
+                    != Some("epiphany.cluster.self.private")
+                || daemon_status_readback["eveSurfaceId"].as_str() != Some("eve://epiphany/self")
+                || daemon_status_readback["availableToAllAgents"].as_bool() != Some(true)
+                || daemon_status_readback["hostedToolCount"].as_u64() != Some(3)
+                || !hosted_tool_ids
+                    .iter()
+                    .any(|id| id.as_str() == Some("epiphany.cluster.self.tool.service-health"))
+                || daemon_status_private_state_exposed
+                || daemon_status_readback["privateStateExposed"].as_bool() != Some(false)
+            {
+                anyhow::bail!(
+                    "local Verse query smoke lost daemon status readback for globally invokable status tools"
+                );
+            }
             let no_op_pokes = write_poke_receipts_for_non_ready_daemons(&args, &context)?;
             if !no_op_pokes.is_empty() {
                 anyhow::bail!("local Verse query smoke poked ready daemons during no-op sweep");
@@ -6107,8 +6146,19 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         } else {
             (serde_json::Value::Null, false)
         };
-    let private_state_exposed =
-        written_receipt.private_state_exposed || service_health_readback_private_state_exposed;
+    let (daemon_status_readback, daemon_status_readback_private_state_exposed) =
+        if is_daemon_status_capability(capability) {
+            let host_capabilities = tool_directory
+                .iter()
+                .map(|(_cluster, _status, capability)| capability.clone())
+                .collect::<Vec<_>>();
+            daemon_status_readback_from_host(host_cluster, daemon_status, &host_capabilities)
+        } else {
+            (serde_json::Value::Null, false)
+        };
+    let private_state_exposed = written_receipt.private_state_exposed
+        || service_health_readback_private_state_exposed
+        || daemon_status_readback_private_state_exposed;
     let invocation_tui_row = daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
         requester: &requesting_cluster.display_name,
         requesting_agent_id: &written_intent.requesting_agent_id,
@@ -6162,6 +6212,8 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "requiresReceipt": written_intent.requires_receipt,
             "authorityGate": written_intent.authority_gate,
             "privateStateRequested": written_intent.private_state_requested,
+            "daemonStatusReadback": daemon_status_readback,
+            "daemonStatusReadbackPrivateStateExposed": daemon_status_readback_private_state_exposed,
             "serviceHealthReadback": service_health_readback,
             "serviceHealthReadbackPrivateStateExposed": service_health_readback_private_state_exposed,
             "privateStateExposed": private_state_exposed,
@@ -6177,9 +6229,49 @@ fn default_daemon_tool_receipt_status(
 ) -> String {
     if is_service_health_capability(capability) {
         "accepted-for-service-lifecycle-readback".to_string()
+    } else if is_daemon_status_capability(capability) {
+        "accepted-for-daemon-status-readback".to_string()
     } else {
         "accepted-for-daemon-routing".to_string()
     }
+}
+
+fn daemon_status_readback_from_host(
+    host_cluster: &EpiphanyCultMeshClusterTopologyEntry,
+    daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
+    capabilities: &[EpiphanyCultMeshDaemonToolCapabilityEntry],
+) -> (serde_json::Value, bool) {
+    let hosted_tool_capability_ids = capabilities
+        .iter()
+        .filter(|capability| capability.host_cluster_id == host_cluster.cluster_id)
+        .map(|capability| capability.capability_id.clone())
+        .collect::<Vec<_>>();
+    let private_state_exposed = daemon_status.private_state_exposed
+        || capabilities
+            .iter()
+            .filter(|capability| capability.host_cluster_id == host_cluster.cluster_id)
+            .any(|capability| capability.private_state_exposed);
+    (
+        json!({
+            "status": daemon_status.status,
+            "clusterId": host_cluster.cluster_id,
+            "roleId": host_cluster.role_id,
+            "displayName": host_cluster.display_name,
+            "bodyDomain": host_cluster.body_domain,
+            "bodyKind": host_cluster.body_kind,
+            "privateVerseId": host_cluster.private_verse_id,
+            "daemonId": daemon_status.daemon_id,
+            "daemonSurfaceId": daemon_status.daemon_surface_id,
+            "eveSurfaceId": host_cluster.eve_surface_id,
+            "odinAdvertised": host_cluster.odin_advertised,
+            "publicPersonaDiscussionAllowed": host_cluster.public_persona_discussion_allowed,
+            "availableToAllAgents": true,
+            "hostedToolCount": hosted_tool_capability_ids.len(),
+            "hostedToolCapabilityIds": hosted_tool_capability_ids,
+            "privateStateExposed": private_state_exposed,
+        }),
+        private_state_exposed,
+    )
 }
 
 fn service_health_readback_from_idunn(args: &Args) -> Result<(serde_json::Value, bool)> {
@@ -6233,6 +6325,11 @@ fn default_daemon_tool_result_ref(
 ) -> String {
     if is_service_health_capability(capability) {
         "cultmesh://epiphany-local/daemon-service-lifecycle/receipt-directory".to_string()
+    } else if is_daemon_status_capability(capability) {
+        format!(
+            "cultmesh://epiphany-local/daemon-status/{}",
+            capability.host_daemon_id
+        )
     } else {
         format!("cultmesh://epiphany-local/tool-receipt/{receipt_id}")
     }
@@ -6247,6 +6344,11 @@ fn default_daemon_tool_result_summary(
             "{requesting_agent_id} requested service health; {} accepted typed routing to daemon service lifecycle readback via epiphany-verse-query receipt-directory or {}.",
             capability.host_daemon_id, WRAPPER_RECEIPT_DIRECTORY_COMMAND
         )
+    } else if is_daemon_status_capability(capability) {
+        format!(
+            "{requesting_agent_id} requested daemon status; {} returned compact topology/liveness/tool readback through the daemon tool bus.",
+            capability.host_daemon_id
+        )
     } else {
         format!(
             "{} accepted typed invocation routing for {}.",
@@ -6260,6 +6362,13 @@ fn is_service_health_capability(capability: &EpiphanyCultMeshDaemonToolCapabilit
         && capability.tool_name == "service-health"
         && capability.operation == "readServiceLifecycleStatus"
         && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
+}
+
+fn is_daemon_status_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEntry) -> bool {
+    capability.tool_name == "status"
+        && capability.operation == "readStatus"
+        && capability.input_contract_type == "epiphany.cultmesh.odin_advertisement"
+        && capability.receipt_contract_type == "epiphany.cultmesh.tool_status_receipt"
 }
 
 fn poke_result_tui_row(row: &serde_json::Value) -> String {
