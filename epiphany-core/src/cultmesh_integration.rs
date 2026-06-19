@@ -5118,6 +5118,17 @@ pub fn epiphany_cultmesh_daemon_tool_capabilities() -> Vec<EpiphanyCultMeshDaemo
             .into_iter()
             .find(|cluster| cluster.cluster_id == "epiphany.cluster.self")
             .expect("self cluster topology exists"),
+        "service-policy-directory",
+        "readServicePolicyDirectory",
+        "epiphany.cultmesh.daemon_restart_policy_directory_query",
+        EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE,
+        "daemon.service_lifecycle",
+    ));
+    capabilities.push(epiphany_cultmesh_daemon_tool_capability(
+        &epiphany_cultmesh_cluster_topology()
+            .into_iter()
+            .find(|cluster| cluster.cluster_id == "epiphany.cluster.self")
+            .expect("self cluster topology exists"),
         "swarm-online-runbook",
         "prepareSwarmOnlineRunbook",
         "epiphany.cultmesh.daemon_service_online_runbook_request",
@@ -6726,7 +6737,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-tools.ccmp");
         let written = write_epiphany_cultmesh_daemon_tool_capabilities(&store, "epiphany-test")?;
-        assert!(written.len() >= 18);
+        assert!(written.len() >= 19);
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let persona_status = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
@@ -6735,6 +6746,10 @@ mod tests {
         let self_service_health = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
             "epiphany.cluster.self.tool.service-health",
         )?;
+        let self_service_policy_directory = node
+            .get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
+                "epiphany.cluster.self.tool.service-policy-directory",
+            )?;
         let self_swarm_online_runbook = node
             .get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
                 "epiphany.cluster.self.tool.swarm-online-runbook",
@@ -6749,6 +6764,7 @@ mod tests {
         for capability in [
             persona_status.clone(),
             self_service_health.clone(),
+            self_service_policy_directory.clone(),
             self_swarm_online_runbook.clone(),
             hands_action.clone(),
             soul_verify.clone(),
@@ -6771,6 +6787,22 @@ mod tests {
         );
         assert_eq!(
             self_service_health.receipt_contract_type,
+            EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE
+        );
+        assert_eq!(
+            self_service_policy_directory.authority_gate,
+            "daemon.service_lifecycle"
+        );
+        assert_eq!(
+            self_service_policy_directory.operation,
+            "readServicePolicyDirectory"
+        );
+        assert_eq!(
+            self_service_policy_directory.input_contract_type,
+            "epiphany.cultmesh.daemon_restart_policy_directory_query"
+        );
+        assert_eq!(
+            self_service_policy_directory.receipt_contract_type,
             EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE
         );
         assert_eq!(

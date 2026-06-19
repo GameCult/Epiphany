@@ -1483,7 +1483,7 @@ fn run_cli() -> Result<()> {
             {
                 anyhow::bail!("local Verse query smoke lost Eve connection intent/receipt");
             }
-            if context.daemon_tool_capabilities.len() < 18 {
+            if context.daemon_tool_capabilities.len() < 19 {
                 anyhow::bail!("local Verse query smoke expected daemon tool capabilities");
             }
             if !context.daemon_tool_capabilities.iter().all(|capability| {
@@ -1498,7 +1498,7 @@ fn run_cli() -> Result<()> {
             let tool_directory =
                 load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
             let tool_report = daemon_tool_directory_report(&tool_directory);
-            if tool_report.rows.len() < 18 || tool_report.host_attention_count != 0 {
+            if tool_report.rows.len() < 19 || tool_report.host_attention_count != 0 {
                 anyhow::bail!(
                     "local Verse query smoke expected globally visible tools hosted by ready daemons"
                 );
@@ -1534,6 +1534,23 @@ fn run_cli() -> Result<()> {
             }) {
                 anyhow::bail!(
                     "local Verse query smoke lost compact Self service-health tool contract row"
+                );
+            }
+            if !tool_report.tui_rows.iter().any(|row| {
+                row.contains("READY")
+                    && row.contains("Self")
+                    && row.contains("service-policy-directory")
+                    && row.contains("epiphany.cluster.self.tool.service-policy-directory")
+                    && row.contains("authority=daemon.service_lifecycle")
+                    && row.contains("input=epiphany.cultmesh.daemon_restart_policy_directory_query")
+                    && row
+                        .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
+                    && row.contains("allAgents=true")
+                    && row.contains("receipt=true")
+                    && row.contains("private=false")
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke lost compact Self service-policy-directory tool contract row"
                 );
             }
             if !tool_report.tui_rows.iter().any(|row| {
@@ -1922,6 +1939,62 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke lost service-health daemon tool readback route"
                 );
             }
+            let service_policy_directory = context
+                .daemon_tool_capabilities
+                .iter()
+                .find(|capability| {
+                    capability.capability_id
+                        == "epiphany.cluster.self.tool.service-policy-directory"
+                })
+                .context("missing Self service-policy-directory daemon tool capability")?;
+            let service_policy_directory_receipt_status =
+                default_daemon_tool_receipt_status(service_policy_directory);
+            let service_policy_directory_result_ref = default_daemon_tool_result_ref(
+                service_policy_directory,
+                "daemon-tool-receipt-service-policy-directory-smoke",
+            );
+            let service_policy_directory_row =
+                daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
+                    requester: "Persona",
+                    requesting_agent_id: "epiphany.Persona",
+                    requesting_private_verse: "epiphany.cluster.persona.private",
+                    requesting_surface: "eve://epiphany/persona",
+                    host: "Self",
+                    host_daemon_id: &service_policy_directory.host_daemon_id,
+                    host_private_verse: "epiphany.cluster.self.private",
+                    host_surface: "eve://epiphany/self",
+                    capability_id: &service_policy_directory.capability_id,
+                    tool_name: &service_policy_directory.tool_name,
+                    operation: &service_policy_directory.operation,
+                    intent_id: "daemon-tool-intent-service-policy-directory-smoke",
+                    receipt_id: "daemon-tool-receipt-service-policy-directory-smoke",
+                    receipt_status: &service_policy_directory_receipt_status,
+                    receipt_contract_type: &service_policy_directory.receipt_contract_type,
+                    result_ref: &service_policy_directory_result_ref,
+                    authority_gate: &service_policy_directory.authority_gate,
+                    all_agents: service_policy_directory.available_to_all_agents,
+                    requires_receipt: service_policy_directory.requires_receipt,
+                    private_state_exposed: false,
+                });
+            if !service_policy_directory_row.contains("tool=service-policy-directory")
+                || !service_policy_directory_row.contains("host=Self")
+                || !service_policy_directory_row.contains("operation=readServicePolicyDirectory")
+                || !service_policy_directory_row
+                    .contains("receiptStatus=accepted-for-service-policy-directory-readback")
+                || !service_policy_directory_row
+                    .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
+                || !service_policy_directory_row.contains(
+                    "resultRef=cultmesh://epiphany-local/daemon-service-lifecycle/service-policy-directory",
+                )
+                || !service_policy_directory_row.contains("authority=daemon.service_lifecycle")
+                || !service_policy_directory_row.contains("allAgents=true")
+                || !service_policy_directory_row.contains("receiptRequired=true")
+                || !service_policy_directory_row.contains("private=false")
+            {
+                anyhow::bail!(
+                    "local Verse query smoke lost service-policy-directory daemon tool readback route"
+                );
+            }
             let swarm_online_runbook = context
                 .daemon_tool_capabilities
                 .iter()
@@ -2005,10 +2078,13 @@ fn run_cli() -> Result<()> {
                     != Some("epiphany.cluster.self.private")
                 || daemon_status_readback["eveSurfaceId"].as_str() != Some("eve://epiphany/self")
                 || daemon_status_readback["availableToAllAgents"].as_bool() != Some(true)
-                || daemon_status_readback["hostedToolCount"].as_u64() != Some(4)
+                || daemon_status_readback["hostedToolCount"].as_u64() != Some(5)
                 || !hosted_tool_ids
                     .iter()
                     .any(|id| id.as_str() == Some("epiphany.cluster.self.tool.service-health"))
+                || !hosted_tool_ids.iter().any(|id| {
+                    id.as_str() == Some("epiphany.cluster.self.tool.service-policy-directory")
+                })
                 || !hosted_tool_ids.iter().any(|id| {
                     id.as_str() == Some("epiphany.cluster.self.tool.swarm-online-runbook")
                 })
@@ -6483,6 +6559,12 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         } else {
             (serde_json::Value::Null, false)
         };
+    let (service_policy_directory_readback, service_policy_directory_private_state_exposed) =
+        if is_service_policy_directory_capability(capability) {
+            service_policy_directory_readback_from_idunn(args)?
+        } else {
+            (serde_json::Value::Null, false)
+        };
     let (daemon_status_readback, daemon_status_readback_private_state_exposed) =
         if is_daemon_status_capability(capability) {
             let host_capabilities = tool_directory
@@ -6521,6 +6603,7 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
     let private_state_exposed = written_receipt.private_state_exposed
         || service_health_readback_private_state_exposed
         || swarm_online_runbook_readback_private_state_exposed
+        || service_policy_directory_private_state_exposed
         || daemon_status_readback_private_state_exposed
         || eve_connection_readback_private_state_exposed
         || authority_tool_readback_private_state_exposed;
@@ -6609,6 +6692,14 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         json!(swarm_online_runbook_readback_private_state_exposed),
     );
     output_map.insert(
+        "servicePolicyDirectoryReadback".to_string(),
+        service_policy_directory_readback,
+    );
+    output_map.insert(
+        "servicePolicyDirectoryReadbackPrivateStateExposed".to_string(),
+        json!(service_policy_directory_private_state_exposed),
+    );
+    output_map.insert(
         "invocationRows".to_string(),
         json!([invocation_tui_row.clone()]),
     );
@@ -6624,6 +6715,8 @@ fn default_daemon_tool_receipt_status(
         "accepted-for-service-lifecycle-readback".to_string()
     } else if is_swarm_online_runbook_capability(capability) {
         "accepted-for-swarm-online-runbook-readback".to_string()
+    } else if is_service_policy_directory_capability(capability) {
+        "accepted-for-service-policy-directory-readback".to_string()
     } else if is_daemon_status_capability(capability) {
         "accepted-for-daemon-status-readback".to_string()
     } else if is_eve_connect_capability(capability) {
@@ -6917,6 +7010,40 @@ fn swarm_online_runbook_readback_from_idunn(args: &Args) -> Result<(serde_json::
     ))
 }
 
+fn service_policy_directory_readback_from_idunn(args: &Args) -> Result<(serde_json::Value, bool)> {
+    seed_epiphany_local_verse_context(
+        &args.store,
+        args.runtime_id.clone(),
+        Utc::now().to_rfc3339(),
+    )?;
+    let policy_directory = load_epiphany_cultmesh_daemon_restart_policy_directory(
+        &args.store,
+        args.runtime_id.clone(),
+    )?;
+    let report = daemon_restart_policy_directory_report_from_rows(&policy_directory);
+    Ok((
+        json!({
+            "status": report.status,
+            "lifecycleOwner": report.lifecycle_owner,
+            "hostedBody": report.hosted_body,
+            "daemonCount": report.rows.len(),
+            "coveredCount": report.covered_count,
+            "enabledCount": report.enabled_count,
+            "disabledCount": report.disabled_count,
+            "missingCount": report.missing_count,
+            "attentionCount": report.attention_count,
+            "policyCommand": "epiphany-daemon-supervisor policy --daemon-id <daemon> --restart-command <exe> [--restart-arg <arg>...]",
+            "wrapperPolicyDirectory": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
+            "tickCommand": "epiphany-daemon-supervisor tick",
+            "wrapperTick": WRAPPER_SERVICE_TICK_COMMAND,
+            "policyRows": report.rows,
+            "policyTuiRows": report.tui_rows,
+            "privateStateExposed": report.private_state_exposed,
+        }),
+        report.private_state_exposed,
+    ))
+}
+
 fn default_daemon_tool_result_ref(
     capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
     receipt_id: &str,
@@ -6925,6 +7052,8 @@ fn default_daemon_tool_result_ref(
         "cultmesh://epiphany-local/daemon-service-lifecycle/receipt-directory".to_string()
     } else if is_swarm_online_runbook_capability(capability) {
         "cultmesh://epiphany-local/daemon-service-lifecycle/swarm-online-runbook".to_string()
+    } else if is_service_policy_directory_capability(capability) {
+        "cultmesh://epiphany-local/daemon-service-lifecycle/service-policy-directory".to_string()
     } else if is_daemon_status_capability(capability) {
         format!(
             "cultmesh://epiphany-local/daemon-status/{}",
@@ -6958,6 +7087,11 @@ fn default_daemon_tool_result_summary(
         format!(
             "{requesting_agent_id} requested Idunn swarm online runbook handoff; {} returned compact preflight/readback for {} without executing elevated service control.",
             capability.host_daemon_id, WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND
+        )
+    } else if is_service_policy_directory_capability(capability) {
+        format!(
+            "{requesting_agent_id} requested Idunn scheduler policy coverage; {} returned compact restart-policy directory readback for {} without executing service control.",
+            capability.host_daemon_id, WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND
         )
     } else if is_daemon_status_capability(capability) {
         format!(
@@ -6995,6 +7129,15 @@ fn is_swarm_online_runbook_capability(
     capability.capability_id == "epiphany.cluster.self.tool.swarm-online-runbook"
         && capability.tool_name == "swarm-online-runbook"
         && capability.operation == "prepareSwarmOnlineRunbook"
+        && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
+}
+
+fn is_service_policy_directory_capability(
+    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+) -> bool {
+    capability.capability_id == "epiphany.cluster.self.tool.service-policy-directory"
+        && capability.tool_name == "service-policy-directory"
+        && capability.operation == "readServicePolicyDirectory"
         && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
 }
 
