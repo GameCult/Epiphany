@@ -3,6 +3,9 @@ use anyhow::Result;
 use anyhow::anyhow;
 use chrono::Utc;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
+use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
+use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
 use epiphany_core::HandsActionIntent;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
@@ -12,6 +15,8 @@ use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
+use epiphany_core::runtime_hands_action_intent;
+use epiphany_core::runtime_hands_action_review;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -29,6 +34,7 @@ fn main() -> Result<()> {
     let result = match command.as_str() {
         "accept" => run_accept(parse_accept_args(args)?),
         "run" => run_work(parse_run_args(args)?),
+        "adopt" | "promote" => run_adopt(parse_adopt_args(args)?),
         other => Err(anyhow!("unknown epiphany-work command {other:?}")),
     }?;
     println!("{}", serde_json::to_string_pretty(&result)?);
@@ -61,6 +67,18 @@ struct RunArgs {
     runtime_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
     requested_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct AdoptArgs {
+    workspace: PathBuf,
+    epiphany_root: PathBuf,
+    item: Option<String>,
+    run_receipt: Option<PathBuf>,
+    runtime_store: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    plan_summary: String,
+    adoption_evidence_refs: Vec<String>,
 }
 
 fn parse_accept_args(args: impl Iterator<Item = String>) -> Result<AcceptArgs> {
@@ -166,6 +184,50 @@ fn parse_run_args(args: impl Iterator<Item = String>) -> Result<RunArgs> {
         runtime_store,
         artifact_dir,
         requested_paths,
+    })
+}
+
+fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
+    let mut workspace = None;
+    let mut epiphany_root = None;
+    let mut item = None;
+    let mut run_receipt = None;
+    let mut runtime_store = None;
+    let mut artifact_dir = None;
+    let mut plan_summary = None;
+    let mut adoption_evidence_refs = Vec::new();
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--run-receipt" => run_receipt = Some(take_path(&mut args, "--run-receipt")?),
+            "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--plan-summary" => plan_summary = Some(take_string(&mut args, "--plan-summary")?),
+            "--adoption-evidence-ref" | "--evidence-ref" => {
+                adoption_evidence_refs.push(take_string(&mut args, "--adoption-evidence-ref")?);
+            }
+            other => return Err(anyhow!("unexpected adopt argument {other:?}")),
+        }
+    }
+    if adoption_evidence_refs.is_empty() {
+        return Err(anyhow!(
+            "adopt requires at least one --adoption-evidence-ref proving Imagination/Self/Mind adoption"
+        ));
+    }
+    Ok(AdoptArgs {
+        workspace: workspace.context("missing --workspace")?,
+        epiphany_root: epiphany_root
+            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
+        item,
+        run_receipt,
+        runtime_store,
+        artifact_dir,
+        plan_summary: plan_summary.context("missing --plan-summary")?,
+        adoption_evidence_refs,
     })
 }
 
@@ -490,6 +552,146 @@ fn run_work(args: RunArgs) -> Result<Value> {
     }))
 }
 
+fn run_adopt(args: AdoptArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let _epiphany_root = args
+        .epiphany_root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
+    let run_receipt_path = resolve_run_receipt(&workspace, args.item.as_deref(), args.run_receipt)?;
+    let run_receipt = read_json(&run_receipt_path)?;
+    let runtime_store = args.runtime_store.unwrap_or_else(|| {
+        path_from_json(&run_receipt, &["runtimeStore"]).unwrap_or_else(|| {
+            workspace
+                .join(".epiphany")
+                .join("state")
+                .join("runtime-spine.msgpack")
+        })
+    });
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    let gate = run_receipt
+        .get("handsActionGate")
+        .ok_or_else(|| anyhow!("run receipt has no handsActionGate"))?;
+    let intent_id = gate
+        .get("intentId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("run receipt handsActionGate has no intentId"))?;
+    let review_id = gate
+        .get("reviewId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("run receipt handsActionGate has no reviewId"))?;
+    let intent = runtime_hands_action_intent(&runtime_store, intent_id)?
+        .ok_or_else(|| anyhow!("runtime-spine has no Hands intent {intent_id}"))?;
+    let queued_review = runtime_hands_action_review(&runtime_store, review_id)?
+        .ok_or_else(|| anyhow!("runtime-spine has no Hands review {review_id}"))?;
+    if queued_review.intent_id != intent.intent_id {
+        return Err(anyhow!(
+            "Hands review {} belongs to {}, not {}",
+            queued_review.review_id,
+            queued_review.intent_id,
+            intent.intent_id
+        ));
+    }
+    if queued_review.decision != "queued-for-adoption" {
+        return Err(anyhow!(
+            "Hands review {} decision is {}, not queued-for-adoption",
+            queued_review.review_id,
+            queued_review.decision
+        ));
+    }
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let mut approved_review = hands_action_review_for_intent(
+        review_id.to_string(),
+        &intent,
+        "approved".to_string(),
+        vec![
+            "patch".to_string(),
+            "command".to_string(),
+            "commit".to_string(),
+        ],
+        vec![
+            format!("Adopted plan: {}", args.plan_summary),
+            format!(
+                "Adoption evidence refs: {}",
+                args.adoption_evidence_refs.join(", ")
+            ),
+            "Bifrost still gates publication and merge.".to_string(),
+        ],
+        now.clone(),
+    );
+    approved_review.required_receipts = vec![
+        HANDS_PATCH_RECEIPT_TYPE.to_string(),
+        HANDS_COMMAND_RECEIPT_TYPE.to_string(),
+        HANDS_COMMIT_RECEIPT_TYPE.to_string(),
+    ];
+    put_hands_action_review(&runtime_store, &approved_review)?;
+
+    let item = run_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+    let adoption_receipt = json!({
+        "schemaVersion": "epiphany.repo_work_adoption_receipt.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "runtimeId": run_receipt["runtimeId"],
+        "runtimeStore": runtime_store,
+        "runReceiptPath": run_receipt_path,
+        "item": item,
+        "status": "approved-for-branch-local-hands-action",
+        "planSummary": args.plan_summary,
+        "adoptionEvidenceRefs": args.adoption_evidence_refs,
+        "handsActionGate": {
+            "intentId": intent.intent_id,
+            "reviewId": approved_review.review_id,
+            "runtimeJobId": intent.runtime_job_id,
+            "substrateGateGrantReceiptId": intent.substrate_gate_grant_receipt_id,
+            "decision": approved_review.decision,
+            "allowedOperations": approved_review.allowed_operations,
+            "requiredReceipts": approved_review.required_receipts,
+            "recordPassCommand": format!(
+                "epiphany-hands-action --store {} record-pass --intent-id {} --review-id {} --summary <summary> --changed-path <path> --command <command> --exit-code <code> --stdout-artifact <stdout> --stderr-artifact <stderr> --commit-sha <sha> --branch <branch>",
+                runtime_store.display(),
+                intent.intent_id,
+                approved_review.review_id
+            )
+        },
+        "authority": {
+            "handsAuthorityGranted": true,
+            "durableStateAdmitted": false,
+            "publicationAuthorized": false,
+            "publicationGate": "Bifrost",
+            "requiredReceiptsBeforeCompletion": approved_review.required_receipts
+        },
+        "nextSafeMove": "Execute branch-local work through Hands and record patch/command/commit receipts; Bifrost still gates publish/merge."
+    });
+    let receipt_path = artifact_dir.join(format!("work-adopt-{item_slug}.json"));
+    write_json(&receipt_path, &adoption_receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_adoption.v0",
+        "status": "approved-for-branch-local-hands-action",
+        "workspace": adoption_receipt["workspace"],
+        "runtimeId": adoption_receipt["runtimeId"],
+        "runtimeStore": adoption_receipt["runtimeStore"],
+        "receiptPath": receipt_path,
+        "item": adoption_receipt["item"],
+        "handsActionGate": adoption_receipt["handsActionGate"],
+        "authority": adoption_receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": adoption_receipt["nextSafeMove"],
+    }))
+}
+
 fn resolve_accept_receipt(
     workspace: &Path,
     item: Option<&str>,
@@ -521,6 +723,40 @@ fn resolve_accept_receipt(
         .pop()
         .map(|(_modified, path)| path)
         .ok_or_else(|| anyhow!("no work accept receipt found; run epiphany-work accept first or pass --accept-receipt"))
+}
+
+fn resolve_run_receipt(
+    workspace: &Path,
+    item: Option<&str>,
+    explicit: Option<PathBuf>,
+) -> Result<PathBuf> {
+    if let Some(path) = explicit {
+        return Ok(path);
+    }
+    let work_dir = workspace.join(".epiphany").join("work");
+    if let Some(item) = item {
+        return Ok(work_dir.join(format!("work-run-{}.json", sanitize(item))));
+    }
+    latest_receipt_in(&work_dir, "work-run-").ok_or_else(|| {
+        anyhow!("no work run receipt found; run epiphany-work run first or pass --run-receipt")
+    })
+}
+
+fn latest_receipt_in(work_dir: &Path, prefix: &str) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if work_dir.exists() {
+        for entry in fs::read_dir(work_dir).ok()? {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            let name = path.file_name().and_then(|name| name.to_str())?;
+            if name.starts_with(prefix) && name.ends_with(".json") {
+                let modified = entry.metadata().ok()?.modified().ok()?;
+                candidates.push((modified, path));
+            }
+        }
+    }
+    candidates.sort_by_key(|(modified, _path)| *modified);
+    candidates.pop().map(|(_modified, path)| path)
 }
 
 fn cargo_json(manifest_path: &Path, bin_name: &str, args: &[String]) -> Result<Value> {
@@ -623,8 +859,9 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <accept|run> ...\n\
+        "usage: epiphany-work <accept|run|adopt> ...\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]"
+         run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
+         adopt --workspace <repo> [--item <id>] [--run-receipt <path>] --plan-summary <text> --adoption-evidence-ref <ref>"
     );
 }

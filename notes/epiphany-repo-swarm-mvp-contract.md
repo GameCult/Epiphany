@@ -131,6 +131,7 @@ epiphany-repo init --workspace <repo>
 epiphany-swarm online --workspace <repo>
 epiphany-work accept --workspace <repo> --from persona-or-bifrost --item <id>
 epiphany-work run --workspace <repo>
+epiphany-work adopt --workspace <repo> --item <id> --plan-summary <text> --adoption-evidence-ref <ref>
 epiphany-work publish --workspace <repo>
 ```
 
@@ -243,9 +244,43 @@ epiphany-work run --workspace <repo> --item first-request
 The run receipt produced a runtime-spine Substrate Gate grant, Hands intent,
 Hands review, and operator-safe gate summary with
 `handsAuthorityGranted=false`, `mutationBlockedBy=hands.review.decision !=
-approved`, and `privateStateExposed=false`. The next cut is the adoption step
-that can promote a queued gate to an approved branch-local Hands action after
-Imagination/Self/Mind evidence exists.
+approved`, and `privateStateExposed=false`.
+
+### Landed Work Adoption Gate
+
+The fifth front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- adopt --workspace <repo> --item <id> --plan-summary <text> --adoption-evidence-ref <ref>
+```
+
+It reads the named or latest work-run receipt, loads the repo-local runtime
+spine, requires the Hands review to still be `queued-for-adoption`, and replaces
+that review with an approved branch-local Hands action gate. Adoption requires
+at least one explicit evidence ref for the Imagination/Self/Mind adoption chain.
+The approved review allows `patch`, `command`, and `commit`, and requires the
+typed Hands patch, command, and commit receipt families before the work can be
+claimed complete.
+
+This is local Hands authority, not publication authority:
+`handsAuthorityGranted=true`, `durableStateAdmitted=false`,
+`publicationAuthorized=false`, and `publicationGate=Bifrost`.
+
+The first smoke proved the five-command sequence:
+
+```powershell
+epiphany-repo init --workspace <repo>
+epiphany-swarm online --workspace <repo>
+epiphany-work accept --workspace <repo> --from persona --item first-request
+epiphany-work run --workspace <repo> --item first-request
+epiphany-work adopt --workspace <repo> --item first-request --plan-summary '...' --adoption-evidence-ref 'imagination-consensus:repo-work-consensus-first-request'
+```
+
+After adoption, `epiphany-hands-action record-pass` successfully consumed the
+approved gate and emitted the Hands receipt triplet. The same action recorder
+still refuses queued or mismatched gates. The next cut is the publication step:
+`epiphany-work publish --workspace <repo>` must route reviewed body changes
+through Soul/Mind/Bifrost receipts before upstream-facing work is allowed.
 
 ## Migration Implication
 
