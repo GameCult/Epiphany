@@ -1481,7 +1481,7 @@ fn run_cli() -> Result<()> {
             {
                 anyhow::bail!("local Verse query smoke lost Eve connection intent/receipt");
             }
-            if context.daemon_tool_capabilities.len() < 16 {
+            if context.daemon_tool_capabilities.len() < 18 {
                 anyhow::bail!("local Verse query smoke expected daemon tool capabilities");
             }
             if !context.daemon_tool_capabilities.iter().all(|capability| {
@@ -1496,7 +1496,7 @@ fn run_cli() -> Result<()> {
             let tool_directory =
                 load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
             let tool_report = daemon_tool_directory_report(&tool_directory);
-            if tool_report.rows.len() < 16 || tool_report.host_attention_count != 0 {
+            if tool_report.rows.len() < 18 || tool_report.host_attention_count != 0 {
                 anyhow::bail!(
                     "local Verse query smoke expected globally visible tools hosted by ready daemons"
                 );
@@ -1534,6 +1534,23 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke lost compact Self service-health tool contract row"
                 );
             }
+            if !tool_report.tui_rows.iter().any(|row| {
+                row.contains("READY")
+                    && row.contains("Self")
+                    && row.contains("swarm-online-runbook")
+                    && row.contains("epiphany.cluster.self.tool.swarm-online-runbook")
+                    && row.contains("authority=daemon.service_lifecycle")
+                    && row.contains("input=epiphany.cultmesh.daemon_service_online_runbook_request")
+                    && row
+                        .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
+                    && row.contains("allAgents=true")
+                    && row.contains("receipt=true")
+                    && row.contains("private=false")
+            }) {
+                anyhow::bail!(
+                    "local Verse query smoke lost compact Self swarm-online-runbook tool contract row"
+                );
+            }
             if DIRECT_INVOKE_TOOL_COMMAND
                 != "epiphany-verse-query invoke-tool --capability-id <capability>"
                 || !WRAPPER_INVOKE_TOOL_COMMAND.contains("-Mode tool-invoke")
@@ -1559,7 +1576,7 @@ fn run_cli() -> Result<()> {
                 || topology_report.daemon_count != 7
                 || overview_surface_report.rows.len() != 7
                 || overview_surface_report.public_discussion_count != 1
-                || overview_tool_report.rows.len() < 16
+                || overview_tool_report.rows.len() < 18
                 || overview_tool_report.host_attention_count != 0
             {
                 anyhow::bail!("local Verse query smoke lost compact swarm overview invariants");
@@ -1900,6 +1917,61 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke lost service-health daemon tool readback route"
                 );
             }
+            let swarm_online_runbook = context
+                .daemon_tool_capabilities
+                .iter()
+                .find(|capability| {
+                    capability.capability_id == "epiphany.cluster.self.tool.swarm-online-runbook"
+                })
+                .context("missing Self swarm-online-runbook daemon tool capability")?;
+            let swarm_online_runbook_receipt_status =
+                default_daemon_tool_receipt_status(swarm_online_runbook);
+            let swarm_online_runbook_result_ref = default_daemon_tool_result_ref(
+                swarm_online_runbook,
+                "daemon-tool-receipt-swarm-online-runbook-smoke",
+            );
+            let swarm_online_runbook_row =
+                daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
+                    requester: "Persona",
+                    requesting_agent_id: "epiphany.Persona",
+                    requesting_private_verse: "epiphany.cluster.persona.private",
+                    requesting_surface: "eve://epiphany/persona",
+                    host: "Self",
+                    host_daemon_id: &swarm_online_runbook.host_daemon_id,
+                    host_private_verse: "epiphany.cluster.self.private",
+                    host_surface: "eve://epiphany/self",
+                    capability_id: &swarm_online_runbook.capability_id,
+                    tool_name: &swarm_online_runbook.tool_name,
+                    operation: &swarm_online_runbook.operation,
+                    intent_id: "daemon-tool-intent-swarm-online-runbook-smoke",
+                    receipt_id: "daemon-tool-receipt-swarm-online-runbook-smoke",
+                    receipt_status: &swarm_online_runbook_receipt_status,
+                    receipt_contract_type: &swarm_online_runbook.receipt_contract_type,
+                    result_ref: &swarm_online_runbook_result_ref,
+                    authority_gate: &swarm_online_runbook.authority_gate,
+                    all_agents: swarm_online_runbook.available_to_all_agents,
+                    requires_receipt: swarm_online_runbook.requires_receipt,
+                    private_state_exposed: false,
+                });
+            if !swarm_online_runbook_row.contains("tool=swarm-online-runbook")
+                || !swarm_online_runbook_row.contains("host=Self")
+                || !swarm_online_runbook_row.contains("operation=prepareSwarmOnlineRunbook")
+                || !swarm_online_runbook_row
+                    .contains("receiptStatus=accepted-for-swarm-online-runbook-readback")
+                || !swarm_online_runbook_row
+                    .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
+                || !swarm_online_runbook_row.contains(
+                    "resultRef=cultmesh://epiphany-local/daemon-service-lifecycle/swarm-online-runbook",
+                )
+                || !swarm_online_runbook_row.contains("authority=daemon.service_lifecycle")
+                || !swarm_online_runbook_row.contains("allAgents=true")
+                || !swarm_online_runbook_row.contains("receiptRequired=true")
+                || !swarm_online_runbook_row.contains("private=false")
+            {
+                anyhow::bail!(
+                    "local Verse query smoke lost swarm-online-runbook daemon tool readback route"
+                );
+            }
             let self_status = context
                 .daemon_tool_capabilities
                 .iter()
@@ -1928,10 +2000,13 @@ fn run_cli() -> Result<()> {
                     != Some("epiphany.cluster.self.private")
                 || daemon_status_readback["eveSurfaceId"].as_str() != Some("eve://epiphany/self")
                 || daemon_status_readback["availableToAllAgents"].as_bool() != Some(true)
-                || daemon_status_readback["hostedToolCount"].as_u64() != Some(3)
+                || daemon_status_readback["hostedToolCount"].as_u64() != Some(4)
                 || !hosted_tool_ids
                     .iter()
                     .any(|id| id.as_str() == Some("epiphany.cluster.self.tool.service-health"))
+                || !hosted_tool_ids.iter().any(|id| {
+                    id.as_str() == Some("epiphany.cluster.self.tool.swarm-online-runbook")
+                })
                 || daemon_status_private_state_exposed
                 || daemon_status_readback["privateStateExposed"].as_bool() != Some(false)
             {
@@ -2772,6 +2847,8 @@ fn run_cli() -> Result<()> {
             let service_overview = load_swarm_overview_report(&args)?;
             let (service_health_readback, service_health_private_state_exposed) =
                 service_health_readback_from_idunn(&args)?;
+            let (swarm_online_runbook_readback, swarm_online_runbook_private_state_exposed) =
+                swarm_online_runbook_readback_from_idunn(&args)?;
             let service_health_action_rows = service_health_readback["serviceActionRows"]
                 .as_array()
                 .context("service-health readback lost service action rows")?;
@@ -2782,7 +2859,7 @@ fn run_cli() -> Result<()> {
                 .as_array()
                 .context("service-health readback lost online preflight rows")?;
             let service_health_diagnostic = format!(
-                "status={:?}, mode={:?}, command={:?}, preflight={:?}, preflightCommand={:?}, childRunbooks={:?}, present={:?}, hashVerified={:?}, hashMismatch={:?}, missingArtifacts={:?}, attention={:?}, failed={:?}, missing={:?}, actions={}, preflightRows={}, privateHelper={}, privateJson={:?}",
+                "status={:?}, mode={:?}, command={:?}, preflight={:?}, preflightCommand={:?}, childRunbooks={:?}, present={:?}, hashVerified={:?}, hashMismatch={:?}, missingArtifacts={:?}, attention={:?}, failed={:?}, missing={:?}, actions={}, preflightRows={}, swarmOnline={:?}, swarmOnlinePrivate={}, privateHelper={}, privateJson={:?}",
                 service_health_readback["status"].as_str(),
                 service_health_readback["recommendedWrapperMode"].as_str(),
                 service_health_readback["recommendedWrapperCommand"].as_str(),
@@ -2798,6 +2875,8 @@ fn run_cli() -> Result<()> {
                 service_health_readback["serviceExecutionMissingCheckCount"].as_u64(),
                 service_health_action_rows.len(),
                 service_health_preflight_rows.len(),
+                swarm_online_runbook_readback["status"].as_str(),
+                swarm_online_runbook_private_state_exposed,
                 service_health_private_state_exposed,
                 service_health_readback["privateStateExposed"].as_bool(),
             );
@@ -3064,6 +3143,25 @@ fn run_cli() -> Result<()> {
                 || service_health_readback["onlinePreflightMissingCheckCount"].as_u64()
                     != Some(10)
                 || service_health_preflight_rows.len() != 2
+                || swarm_online_runbook_readback["status"].as_str()
+                    != Some("ready-for-elevated-operator")
+                || swarm_online_runbook_readback["wrapperMode"].as_str()
+                    != Some("swarm-online-runbook")
+                || swarm_online_runbook_readback["wrapperCommand"].as_str()
+                    != Some(WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND)
+                || swarm_online_runbook_readback["elevatedExecutionRequiresOperator"].as_bool()
+                    != Some(true)
+                || swarm_online_runbook_readback["childRunbookCount"].as_u64() != Some(2)
+                || swarm_online_runbook_readback["childArtifactPresentCount"].as_u64() != Some(2)
+                || swarm_online_runbook_readback["childArtifactHashVerifiedCount"].as_u64()
+                    != Some(2)
+                || swarm_online_runbook_readback["childArtifactMissingCount"].as_u64() != Some(0)
+                || swarm_online_runbook_readback["serviceExecutionFailedCheckCount"].as_u64()
+                    != Some(11)
+                || swarm_online_runbook_readback["serviceExecutionMissingCheckCount"].as_u64()
+                    != Some(10)
+                || swarm_online_runbook_readback["privateStateExposed"].as_bool() != Some(false)
+                || swarm_online_runbook_private_state_exposed
                 || service_health_readback["serviceLifecycleAttentionCount"].as_u64() != Some(2)
                 || service_health_readback["serviceExecutionFailedCheckCount"].as_u64()
                     != Some(11)
@@ -6365,6 +6463,12 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         } else {
             (serde_json::Value::Null, false)
         };
+    let (swarm_online_runbook_readback, swarm_online_runbook_readback_private_state_exposed) =
+        if is_swarm_online_runbook_capability(capability) {
+            swarm_online_runbook_readback_from_idunn(args)?
+        } else {
+            (serde_json::Value::Null, false)
+        };
     let (daemon_status_readback, daemon_status_readback_private_state_exposed) =
         if is_daemon_status_capability(capability) {
             let host_capabilities = tool_directory
@@ -6402,6 +6506,7 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         };
     let private_state_exposed = written_receipt.private_state_exposed
         || service_health_readback_private_state_exposed
+        || swarm_online_runbook_readback_private_state_exposed
         || daemon_status_readback_private_state_exposed
         || eve_connection_readback_private_state_exposed
         || authority_tool_readback_private_state_exposed;
@@ -6427,9 +6532,7 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         requires_receipt: written_intent.requires_receipt,
         private_state_exposed,
     });
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
+    let mut output = json!({
             "status": "ok",
             "store": args.store,
             "runtimeId": args.runtime_id,
@@ -6458,19 +6561,45 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "requiresReceipt": written_intent.requires_receipt,
             "authorityGate": written_intent.authority_gate,
             "privateStateRequested": written_intent.private_state_requested,
-            "daemonStatusReadback": daemon_status_readback,
-            "daemonStatusReadbackPrivateStateExposed": daemon_status_readback_private_state_exposed,
-            "eveConnectionReadback": eve_connection_readback,
-            "eveConnectionReadbackPrivateStateExposed": eve_connection_readback_private_state_exposed,
-            "authorityToolReadback": authority_tool_readback,
-            "authorityToolReadbackPrivateStateExposed": authority_tool_readback_private_state_exposed,
-            "serviceHealthReadback": service_health_readback,
-            "serviceHealthReadbackPrivateStateExposed": service_health_readback_private_state_exposed,
             "privateStateExposed": private_state_exposed,
-            "invocationRows": [invocation_tui_row.clone()],
-            "tuiRows": [invocation_tui_row],
-        }))?
+    });
+    let output_map = output
+        .as_object_mut()
+        .context("daemon tool invocation output must be a JSON object")?;
+    output_map.insert("daemonStatusReadback".to_string(), daemon_status_readback);
+    output_map.insert(
+        "daemonStatusReadbackPrivateStateExposed".to_string(),
+        json!(daemon_status_readback_private_state_exposed),
     );
+    output_map.insert("eveConnectionReadback".to_string(), eve_connection_readback);
+    output_map.insert(
+        "eveConnectionReadbackPrivateStateExposed".to_string(),
+        json!(eve_connection_readback_private_state_exposed),
+    );
+    output_map.insert("authorityToolReadback".to_string(), authority_tool_readback);
+    output_map.insert(
+        "authorityToolReadbackPrivateStateExposed".to_string(),
+        json!(authority_tool_readback_private_state_exposed),
+    );
+    output_map.insert("serviceHealthReadback".to_string(), service_health_readback);
+    output_map.insert(
+        "serviceHealthReadbackPrivateStateExposed".to_string(),
+        json!(service_health_readback_private_state_exposed),
+    );
+    output_map.insert(
+        "swarmOnlineRunbookReadback".to_string(),
+        swarm_online_runbook_readback,
+    );
+    output_map.insert(
+        "swarmOnlineRunbookReadbackPrivateStateExposed".to_string(),
+        json!(swarm_online_runbook_readback_private_state_exposed),
+    );
+    output_map.insert(
+        "invocationRows".to_string(),
+        json!([invocation_tui_row.clone()]),
+    );
+    output_map.insert("tuiRows".to_string(), json!([invocation_tui_row]));
+    println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
 }
 
@@ -6479,6 +6608,8 @@ fn default_daemon_tool_receipt_status(
 ) -> String {
     if is_service_health_capability(capability) {
         "accepted-for-service-lifecycle-readback".to_string()
+    } else if is_swarm_online_runbook_capability(capability) {
+        "accepted-for-swarm-online-runbook-readback".to_string()
     } else if is_daemon_status_capability(capability) {
         "accepted-for-daemon-status-readback".to_string()
     } else if is_eve_connect_capability(capability) {
@@ -6743,12 +6874,39 @@ fn service_health_readback_from_idunn(args: &Args) -> Result<(serde_json::Value,
     ))
 }
 
+fn swarm_online_runbook_readback_from_idunn(args: &Args) -> Result<(serde_json::Value, bool)> {
+    let (service_health, private_state_exposed) = service_health_readback_from_idunn(args)?;
+    Ok((
+        json!({
+            "status": service_health["onlinePreflightStatus"],
+            "lifecycleOwner": SERVICE_LIFECYCLE_OWNER,
+            "hostedBody": SERVICE_LIFECYCLE_HOSTED_BODY,
+            "wrapperMode": "swarm-online-runbook",
+            "wrapperCommand": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
+            "elevatedExecutionRequiresOperator": true,
+            "elevatedExecutionCommandSource": "swarm-online-runbook artifact output",
+            "childRunbookCount": service_health["onlinePreflightChildRunbookCount"],
+            "childArtifactPresentCount": service_health["onlinePreflightPresentCount"],
+            "childArtifactHashVerifiedCount": service_health["onlinePreflightHashVerifiedCount"],
+            "childArtifactMismatchCount": service_health["onlinePreflightMismatchCount"],
+            "childArtifactMissingCount": service_health["onlinePreflightMissingArtifactCount"],
+            "serviceExecutionFailedCheckCount": service_health["onlinePreflightFailedCheckCount"],
+            "serviceExecutionMissingCheckCount": service_health["onlinePreflightMissingCheckCount"],
+            "childPreflightRows": service_health["onlinePreflightRows"],
+            "privateStateExposed": private_state_exposed,
+        }),
+        private_state_exposed,
+    ))
+}
+
 fn default_daemon_tool_result_ref(
     capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
     receipt_id: &str,
 ) -> String {
     if is_service_health_capability(capability) {
         "cultmesh://epiphany-local/daemon-service-lifecycle/receipt-directory".to_string()
+    } else if is_swarm_online_runbook_capability(capability) {
+        "cultmesh://epiphany-local/daemon-service-lifecycle/swarm-online-runbook".to_string()
     } else if is_daemon_status_capability(capability) {
         format!(
             "cultmesh://epiphany-local/daemon-status/{}",
@@ -6778,6 +6936,11 @@ fn default_daemon_tool_result_summary(
             "{requesting_agent_id} requested service health; {} accepted typed routing to daemon service lifecycle readback via epiphany-verse-query receipt-directory or {}.",
             capability.host_daemon_id, WRAPPER_RECEIPT_DIRECTORY_COMMAND
         )
+    } else if is_swarm_online_runbook_capability(capability) {
+        format!(
+            "{requesting_agent_id} requested Idunn swarm online runbook handoff; {} returned compact preflight/readback for {} without executing elevated service control.",
+            capability.host_daemon_id, WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND
+        )
     } else if is_daemon_status_capability(capability) {
         format!(
             "{requesting_agent_id} requested daemon status; {} returned compact topology/liveness/tool readback through the daemon tool bus.",
@@ -6805,6 +6968,15 @@ fn is_service_health_capability(capability: &EpiphanyCultMeshDaemonToolCapabilit
     capability.capability_id == "epiphany.cluster.self.tool.service-health"
         && capability.tool_name == "service-health"
         && capability.operation == "readServiceLifecycleStatus"
+        && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
+}
+
+fn is_swarm_online_runbook_capability(
+    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+) -> bool {
+    capability.capability_id == "epiphany.cluster.self.tool.swarm-online-runbook"
+        && capability.tool_name == "swarm-online-runbook"
+        && capability.operation == "prepareSwarmOnlineRunbook"
         && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
 }
 
