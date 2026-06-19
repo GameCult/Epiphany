@@ -868,6 +868,11 @@ if ($Mode -eq "swarm-online-runbook") {
     $overviewPath = Join-Path $artifactRoot "swarm-online-overview.stdout.json"
     $runbookPath = Join-Path $artifactRoot "epiphany-swarm-online-runbook.ps1"
     $resultPath = Join-Path $artifactRoot "swarm-online-runbook.stdout.json"
+    $wrapperScriptPath = $PSCommandPath
+    if ($wrapperScriptPath -eq "") {
+        $wrapperScriptPath = Join-Path $Root "tools\epiphany_local_run.ps1"
+    }
+    $wrapperScriptPath = (Resolve-Path $wrapperScriptPath).Path
     Invoke-Checked `
         -Label "read compact swarm overview for online runbook" `
         -FilePath $verseQueryExe `
@@ -893,6 +898,14 @@ if ($Mode -eq "swarm-online-runbook") {
     }
 
     $aftercareCommands = @($authorityRows | ForEach-Object { $_.operatorAftercareCommand } | Where-Object { $null -ne $_ -and $_ -ne "" -and $_ -ne "none" } | Select-Object -Unique)
+    $aftercareRows = @($authorityRows | Where-Object {
+        $null -ne $_.operatorAftercareCommand -and
+        $_.operatorAftercareCommand -ne "" -and
+        $_.operatorAftercareCommand -ne "none" -and
+        $null -ne $_.completionAuditWrapperMode -and
+        $_.completionAuditWrapperMode -ne "" -and
+        $_.completionAuditWrapperMode -ne "none"
+    } | Sort-Object operatorAftercareCommand, serviceId -Unique)
     $quotedRoot = ConvertTo-PowerShellLiteral $Root
     $runbookLines = @(
         "# Epiphany swarm online runbook.",
@@ -936,14 +949,34 @@ if ($Mode -eq "swarm-online-runbook") {
         $runbookLines += ""
     }
     $runbookLines += "# Aftercare audit command(s):"
-    foreach ($aftercare in $aftercareCommands) {
-        $aftercareLiteral = ConvertTo-PowerShellLiteral $aftercare
-        $runbookLines += "Write-Host `"Running Idunn aftercare audit for Epiphany service lifecycle: command=$aftercareLiteral`""
+    foreach ($aftercareRow in $aftercareRows) {
+        $aftercareCommandLiteral = ConvertTo-PowerShellLiteral $aftercareRow.operatorAftercareCommand
+        $aftercareModeLiteral = ConvertTo-PowerShellLiteral $aftercareRow.completionAuditWrapperMode
+        $aftercareServiceLiteral = ConvertTo-PowerShellLiteral $aftercareRow.serviceId
+        $aftercareScriptLiteral = ConvertTo-PowerShellLiteral $wrapperScriptPath
+        $aftercareArgs = @(
+            "-Mode", $aftercareRow.completionAuditWrapperMode,
+            "-SkipBuild",
+            "-Root", $Root,
+            "-Workspace", $Workspace,
+            "-CodexHome", $CodexHome,
+            "-TargetDir", $TargetDir,
+            "-DaemonId", $DaemonId,
+            "-ServiceId", $aftercareRow.serviceId,
+            "-ServiceStartType", $ServiceStartType,
+            "-SchedulerId", $SchedulerId,
+            "-LoopIntervalSeconds", "$LoopIntervalSeconds",
+            "-ServiceMaxIterations", "$ServiceMaxIterations"
+        )
+        $aftercareArgsLiteral = ConvertTo-PowerShellArrayLiteral $aftercareArgs
+        $runbookLines += "Write-Host `"Running Idunn aftercare audit for Epiphany service lifecycle: command=$aftercareCommandLiteral mode=$aftercareModeLiteral service=$aftercareServiceLiteral`""
         $runbookLines += "try {"
-        $runbookLines += "    Invoke-Expression $aftercareLiteral"
+        $runbookLines += "    `$global:LASTEXITCODE = 0"
+        $runbookLines += "    & $aftercareScriptLiteral $aftercareArgsLiteral"
+        $runbookLines += "    if (`$null -ne `$global:LASTEXITCODE -and `$global:LASTEXITCODE -ne 0) { throw `"Aftercare exited with code `$global:LASTEXITCODE`" }"
         $runbookLines += "} catch {"
         $runbookLines += "    `$failureCount += 1"
-        $runbookLines += "    Write-Host `"Idunn aftercare audit failed: command=$aftercareLiteral error=`$(`$_.Exception.Message)`""
+        $runbookLines += "    Write-Host `"Idunn aftercare audit failed: command=$aftercareCommandLiteral mode=$aftercareModeLiteral service=$aftercareServiceLiteral error=`$(`$_.Exception.Message)`""
         $runbookLines += "}"
     }
     $runbookLines += 'if ($failureCount -gt 0) {'
@@ -969,6 +1002,7 @@ if ($Mode -eq "swarm-online-runbook") {
         detectsChildExitCodes = $true
         continuesAfterChildFailure = $true
         verifiesChildArtifactSha256 = $true
+        usesExplicitAftercareArguments = $true
         exitsNonzeroAfterChildOrAftercareFailure = $true
         sourceOverviewPath = $overviewPath
         privateStateExposed = $false
@@ -2090,7 +2124,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.aftercareCommands -and $result.aftercareCommands.Count -gt 0) {
                 $aftercare = ($result.aftercareCommands -join "; ")
             }
-            Write-Host "Swarm online runbook: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), artifactSha256=$($result.artifactSha256), elevatedCommand=$($result.elevatedCommand), verifiesChildArtifactSha256=$($result.verifiesChildArtifactSha256), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Swarm online runbook: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), artifactSha256=$($result.artifactSha256), elevatedCommand=$($result.elevatedCommand), verifiesChildArtifactSha256=$($result.verifiesChildArtifactSha256), usesExplicitAftercareArguments=$($result.usesExplicitAftercareArguments), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             $policyRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
