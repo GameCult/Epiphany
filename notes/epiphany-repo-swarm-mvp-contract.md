@@ -186,9 +186,35 @@ CultMesh topology/liveness/tool/overview surfaces, and writes
 7 agent SoA rows, 7 cluster/private-Verse/daemon rows, 19 globally available
 daemon tools, and `privateStateExposed=false`.
 
-This still does not execute elevated Idunn service mutation and does not accept
-work items. It makes a fresh repo inspectably online as a local typed Verse
-Body so the next missing organ is `epiphany-work accept --workspace <repo>`.
+This still does not execute elevated Idunn service mutation. It makes a fresh
+repo inspectably online as a local typed Verse Body.
+
+### Landed Work Intake Front Door
+
+The third front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- accept --workspace <repo> --from persona-or-bifrost --item <id>
+```
+
+It requires the online receipt, writes public Persona/Bifrost feedback through
+the existing CultMesh `collaboration-feedback` artery, routes the item to
+Imagination consensus discovery, and writes
+`.epiphany/work/work-accept-<item>.json`. This is intake, not execution:
+`handsAuthorityGranted=false`, `durableStateAdmitted=false`, and
+`publicationAuthorized=false` until Imagination/Self/Mind/Bifrost gates adopt a
+concrete plan.
+
+The first smoke proved the three-command sequence:
+
+```powershell
+epiphany-repo init --workspace <repo>
+epiphany-swarm online --workspace <repo>
+epiphany-work accept --workspace <repo> --from persona --item first-request
+```
+
+The accepted item produced an Imagination consensus receipt, candidate action
+ref, public discussion ref, and `privateStateExposed=false`.
 
 ## Migration Implication
 
