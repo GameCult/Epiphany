@@ -130,6 +130,7 @@ The first MVP is done when a fresh repository can run:
 epiphany-repo init --workspace <repo>
 epiphany-swarm online --workspace <repo>
 epiphany-work accept --workspace <repo> --from persona-or-bifrost --item <id>
+epiphany-work derive-plan --workspace <repo> --item <id>
 epiphany-work plan --workspace <repo> --item <id> --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text>
 epiphany-work run --workspace <repo>
 epiphany-work adopt --workspace <repo> --item <id> --from-plan <plan-receipt>
@@ -226,23 +227,35 @@ ref, public discussion ref, and `privateStateExposed=false`.
 
 ### Landed Work Plan Gate
 
-The fourth front door exists as native Rust:
+The fourth and fifth front doors exist as native Rust:
 
 ```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- derive-plan --workspace <repo> --item <id>
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- plan --workspace <repo> --item <id> --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text>
 ```
 
-It reads the named or latest work-accept receipt and writes
+Both commands read the named or latest work-accept receipt and write
 `.epiphany/work/work-plan-<item>.json` as a typed
 `epiphany.repo_work_action_plan_receipt.v0`. The receipt names Imagination as
 planner, Self as router, Mind as state gate, the objective, plan summary,
 adoption evidence refs, and one branch-local command action with changed paths,
 commit message, verification asks, stop conditions, and rollback hints.
 
-This is still not Hands authority. It is the first less-manual bridge between
-Imagination/Self planning and Hands execution: `adopt --from-plan <receipt>`
-can approve the plan, and `execute --from-plan <receipt>` can consume the
-planned command/paths/commit message without the operator retyping them.
+`epiphany-work plan` is the manual compatibility reliquary: the operator supplies
+objective, summary, shell command, paths, and commit message. `epiphany-work
+derive-plan` is the first Persona/Bifrost-to-plan automation: it consumes the
+accepted pressure summary, candidate action refs, and consensus receipt, then
+derives a safe append-only `EPIPHANY_WORKLOG.md` plan with
+`operatorAuthoredShellDetails=false`. Its receipt includes
+`epiphany.repo_work_plan_derivation.v0`, mode `append-worklog`, and explicitly
+marks the path as deterministic quarantine rather than final model-authored
+Imagination.
+
+This is still not Hands authority. It is the first non-operator-shell bridge
+between Imagination/Self planning and Hands execution: `adopt --from-plan
+<receipt>` can approve the plan, and `execute --from-plan <receipt>` can
+consume the planned command/paths/commit message without the operator retyping
+them.
 
 The first smoke proved:
 
@@ -258,9 +271,26 @@ The execute receipt produced a real branch-local commit from the typed plan
 packet, with Hands patch/command/commit receipts and
 `privateStateExposed=false`.
 
+A later smoke proved the derived route:
+
+```powershell
+epiphany-work accept --workspace <repo> --from persona --item derive-request --summary '...'
+epiphany-work derive-plan --workspace <repo> --item derive-request
+epiphany-work run --workspace <repo> --item derive-request
+epiphany-work adopt --workspace <repo> --item derive-request --from-plan <work-plan-derive-request.json>
+epiphany-work execute --workspace <repo> --item derive-request --from-plan <work-plan-derive-request.json>
+epiphany-work close --workspace <repo> --item derive-request
+```
+
+The derived plan used mode `append-worklog`,
+`operatorAuthoredShellDetails=false`, changed only `EPIPHANY_WORKLOG.md`,
+executed into `branch-local-commit-recorded`, closed as `closed:passed`, and
+reported `privateStateExposed=false` across accept, plan, run, adopt, execute,
+and close.
+
 ### Landed Work Run Gate
 
-The fifth front door exists as native Rust:
+The seventh front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- run --workspace <repo>
@@ -323,7 +353,7 @@ still refuses queued or mismatched gates.
 
 ### Landed Work Execution Gate
 
-The seventh front door exists as native Rust:
+The eighth front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- execute --workspace <repo> --item <id> --command <command> --changed-path <path> --commit-message <text>
@@ -360,7 +390,7 @@ The execute receipt produced a real branch-local commit on
 
 ### Landed Work Publication Gate
 
-The eighth front door exists as native Rust:
+The ninth front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- publish --workspace <repo> --item <id> --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>
@@ -392,14 +422,11 @@ epiphany-work publish --workspace <repo> --item first-request --change-summary '
 
 The publish receipt produced a Hands PR receipt, Bifrost publication receipt,
 GitHub publication receipt, `privateStateExposed=false`, and an explicit
-`upstreamMainSynced=false` guard. The next cut is a merge/sync gate that can
-prove upstream main actually matches the accepted publication, plus a less
-manual planner/executor bridge that supplies executable commands from
-Imagination/Self rather than operator CLI arguments.
+`upstreamMainSynced=false` guard.
 
 ### Landed Upstream Sync Proof Gate
 
-The ninth front door exists as native Rust:
+The tenth front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
@@ -431,7 +458,7 @@ The synced receipt produced `publicationAuthorized=true`,
 
 ### Landed Work Scheduler Pulse
 
-The tenth front door exists as native Rust:
+The eleventh front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- tick --workspace <repo> --item <id>
@@ -588,18 +615,19 @@ That is the machine we are building.
 
 ## Full Migration Plan To Repo Swarm MVP
 
-This plan starts from the current state: eleven native front doors exist, but
-the work loop is not yet a full physiology. `init`, `online`, `accept`, `plan`,
-`run`, `adopt`, `execute`, `close`, `tick`, `publish`, and `sync` prove the typed path
-from repo birth to branch-local scheduler pulse, Bifrost/GitHub publication
-receipts, and upstream-main sync proof. `tick` now also proves brake refusal,
-active-turn refusal, completion-anchored cooldown refusal, and stale active-turn
-recovery through typed scheduler receipts; `serve` now proves bounded cadence
-around that same tick artery; `close` now proves first deterministic
-Soul/Modeling/Mind closure over Hands commit receipts. The chain does not yet
-prove a repo Persona that can turn conversation into autonomous action without
-the operator feeding plan details by hand, and deeper model-authored
-Soul/Modeling closure remains future work.
+This plan starts from the current state: twelve native front doors exist, but
+the work loop is not yet a full physiology. `init`, `online`, `accept`,
+`derive-plan`, `plan`, `run`, `adopt`, `execute`, `close`, `tick`, `publish`,
+and `sync` prove the typed path from repo birth to branch-local scheduler
+pulse, Bifrost/GitHub publication receipts, and upstream-main sync proof.
+`tick` now also proves brake refusal, active-turn refusal,
+completion-anchored cooldown refusal, and stale active-turn recovery through
+typed scheduler receipts; `serve` now proves bounded cadence around that same
+tick artery; `close` now proves first deterministic Soul/Modeling/Mind closure
+over Hands commit receipts; `derive-plan` now proves a deterministic
+Persona/Bifrost pressure-to-plan bridge with no operator-authored shell
+details. The chain does not yet prove fully model-authored Imagination planning
+or deeper model-authored Soul/Modeling closure.
 
 The MVP target is narrower than the full Perfect Machine and wider than a demo:
 a fresh repository can host an Epiphany swarm that initializes its Body,
@@ -617,7 +645,7 @@ The repo swarm can already prove the following chain on a fresh repo Body:
 repo birth
   -> local Verse online
   -> Persona/Bifrost work intake
-  -> Imagination/Self action plan receipt
+  -> derived or manual Imagination/Self action plan receipt
   -> Substrate Gate + Hands queued run packet
   -> plan-backed branch-local Hands adoption
   -> plan-backed branch-local execution and commit
@@ -634,9 +662,13 @@ The chain is typed and sealed enough to be useful:
   topology, liveness, daemon tool directory, and private-state seals.
 - `epiphany-work accept` records Persona/Bifrost pressure without granting
   Hands, durable-state, publication, or merge authority.
-- `epiphany-work plan` records the first typed Imagination/Self action plan:
+- `epiphany-work derive-plan` records the first deterministic
+  Persona/Bifrost-to-plan bridge: accepted pressure becomes a safe append-only
+  action plan with `operatorAuthoredShellDetails=false`.
+- `epiphany-work plan` records a manual typed Imagination/Self action plan:
   objective, command, changed paths, commit message, verification asks, stop
-  conditions, and rollback hints.
+  conditions, and rollback hints. It remains a compatibility reliquary until
+  model-authored Imagination can cover richer action classes.
 - `epiphany-work run` opens the Substrate Gate and queues a Hands packet, but
   leaves mutation blocked until adoption.
 - `epiphany-work adopt --from-plan` converts the queued packet into
@@ -682,9 +714,10 @@ Required organs before MVP:
   Remaining work is optional handoff from branch-local execution into the close
   gate and any later Idunn service lifecycle integration under explicit
   operator authority.
-- Persona-to-plan automation: repo Persona input becomes candidate action
-  pressure, Mind/Interpreter extracts work-shaped intent, and Imagination
-  writes the plan packet without the operator hand-authoring shell details.
+- Persona-to-plan depth: deterministic append-worklog derivation exists for
+  accepted Persona/Bifrost pressure; remaining work is model-authored
+  Imagination planning for richer action classes without operator shell
+  details.
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.

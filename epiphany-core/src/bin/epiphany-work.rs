@@ -55,6 +55,9 @@ fn main() -> Result<()> {
     };
     let result = match command.as_str() {
         "accept" => run_accept(parse_accept_args(args)?),
+        "derive-plan" | "imagine" | "plan-from-pressure" => {
+            run_derive_plan(parse_derive_plan_args(args)?)
+        }
         "plan" => run_plan(parse_plan_args(args)?),
         "run" => run_work(parse_run_args(args)?),
         "adopt" | "promote" => run_adopt(parse_adopt_args(args)?),
@@ -113,6 +116,30 @@ struct PlanArgs {
     verification_asks: Vec<String>,
     stop_conditions: Vec<String>,
     rollback_hints: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct DerivePlanArgs {
+    workspace: PathBuf,
+    item: Option<String>,
+    accept_receipt: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    target_path: String,
+    model_ref: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct PlanReceiptInputs {
+    objective: String,
+    plan_summary: String,
+    command: String,
+    changed_paths: Vec<String>,
+    commit_message: String,
+    adoption_evidence_refs: Vec<String>,
+    verification_asks: Vec<String>,
+    stop_conditions: Vec<String>,
+    rollback_hints: Vec<String>,
+    derivation: Option<Value>,
 }
 
 #[derive(Clone, Debug)]
@@ -399,6 +426,40 @@ fn parse_plan_args(args: impl Iterator<Item = String>) -> Result<PlanArgs> {
             stop_conditions
         },
         rollback_hints,
+    })
+}
+
+fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePlanArgs> {
+    let mut workspace = None;
+    let mut item = None;
+    let mut accept_receipt = None;
+    let mut artifact_dir = None;
+    let mut target_path = "EPIPHANY_WORKLOG.md".to_string();
+    let mut model_ref = None;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--accept-receipt" => accept_receipt = Some(take_path(&mut args, "--accept-receipt")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--target-path" | "--changed-path" | "--path" => {
+                target_path = take_string(&mut args, "--target-path")?;
+            }
+            "--model-ref" | "--imagination-ref" => {
+                model_ref = Some(take_string(&mut args, "--model-ref")?);
+            }
+            other => return Err(anyhow!("unexpected derive-plan argument {other:?}")),
+        }
+    }
+    Ok(DerivePlanArgs {
+        workspace: workspace.context("missing --workspace")?,
+        item,
+        accept_receipt,
+        artifact_dir,
+        target_path,
+        model_ref,
     })
 }
 
@@ -1184,17 +1245,145 @@ fn run_plan(args: PlanArgs) -> Result<Value> {
     fs::create_dir_all(&artifact_dir)
         .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
 
+    write_plan_receipt(
+        workspace,
+        accept_receipt_path,
+        &accept_receipt,
+        artifact_dir,
+        PlanReceiptInputs {
+            objective: args.objective,
+            plan_summary: args.plan_summary,
+            command: args.command,
+            changed_paths: args.changed_paths,
+            commit_message: args.commit_message,
+            adoption_evidence_refs: args.adoption_evidence_refs,
+            verification_asks: args.verification_asks,
+            stop_conditions: args.stop_conditions,
+            rollback_hints: args.rollback_hints,
+            derivation: None,
+        },
+    )
+}
+
+fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let accept_receipt_path =
+        resolve_accept_receipt(&workspace, args.item.as_deref(), args.accept_receipt)?;
+    let accept_receipt = read_json(&accept_receipt_path)?;
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let item = accept_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let summary = accept_receipt
+        .get("summary")
+        .and_then(Value::as_str)
+        .unwrap_or("Accepted repo work item.");
+    let source = accept_receipt
+        .get("source")
+        .and_then(Value::as_str)
+        .unwrap_or("persona");
+    let target_path = validate_plan_target_path(&args.target_path)?;
+    let objective = format!(
+        "Respond to {source} work item {item}: {}",
+        compact_line(summary)
+    );
+    let plan_summary = format!(
+        "Imagination derived a safe append-only worklog update from accepted {} pressure.",
+        source
+    );
+    let worklog_line = format!(
+        "- {} [{}]: {}",
+        Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        item,
+        compact_line(summary)
+    );
+    let command = format!(
+        "Add-Content -LiteralPath {} -Value {}",
+        powershell_single_quoted(&target_path),
+        powershell_single_quoted(&worklog_line)
+    );
+    let mut evidence_refs = vec![format!("accept-receipt:{}", accept_receipt_path.display())];
+    if let Some(consensus_id) =
+        string_from_json(&accept_receipt, &["feedback", "consensusReceiptId"])
+    {
+        evidence_refs.push(format!("imagination-consensus:{consensus_id}"));
+    }
+    if let Some(model_ref) = args.model_ref {
+        evidence_refs.push(format!("imagination-model:{model_ref}"));
+    } else {
+        evidence_refs.push("imagination-derivation:deterministic-append-worklog.v0".to_string());
+    }
+
+    write_plan_receipt(
+        workspace,
+        accept_receipt_path,
+        &accept_receipt,
+        artifact_dir,
+        PlanReceiptInputs {
+            objective,
+            plan_summary,
+            command,
+            changed_paths: vec![target_path],
+            commit_message: format!("Record repo work item {}", item),
+            adoption_evidence_refs: evidence_refs,
+            verification_asks: vec![
+                "Soul verifies the worklog path changed and the appended line matches the accepted pressure.".to_string(),
+            ],
+            stop_conditions: vec![
+                "Stop if the command exits nonzero or changes paths outside the derived plan.".to_string(),
+            ],
+            rollback_hints: vec![
+                "Remove the appended worklog line if the pressure was misinterpreted.".to_string(),
+            ],
+            derivation: Some(json!({
+                "schemaVersion": "epiphany.repo_work_plan_derivation.v0",
+                "mode": "append-worklog",
+                "owner": "Imagination",
+                "router": "Self",
+                "inputPressure": {
+                    "source": source,
+                    "summary": summary,
+                    "candidateActionRefs": accept_receipt["feedback"]["candidateActionRefs"],
+                    "publicDiscussionRefs": accept_receipt["feedback"]["publicDiscussionRefs"],
+                },
+                "operatorAuthoredShellDetails": false,
+                "modelAuthored": false,
+                "deterministicQuarantine": true,
+                "nextUpgrade": "replace this deterministic derivation with model-authored Imagination planning over the same receipt contract"
+            })),
+        },
+    )
+}
+
+fn write_plan_receipt(
+    workspace: PathBuf,
+    accept_receipt_path: PathBuf,
+    accept_receipt: &Value,
+    artifact_dir: PathBuf,
+    inputs: PlanReceiptInputs,
+) -> Result<Value> {
     let item = accept_receipt
         .get("item")
         .and_then(Value::as_str)
         .unwrap_or("work-item")
         .to_string();
     let item_slug = sanitize(&item);
-    let normalized_paths = normalize_paths(args.changed_paths.clone());
+    let normalized_paths = normalize_paths(inputs.changed_paths.clone());
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let plan_id = format!("repo-work-plan-{item_slug}");
     let action_id = format!("{plan_id}-action-1");
-    let plan_receipt = json!({
+    let mut plan_receipt = json!({
         "schemaVersion": "epiphany.repo_work_action_plan_receipt.v0",
         "createdAt": now,
         "workspace": workspace,
@@ -1207,18 +1396,18 @@ fn run_plan(args: PlanArgs) -> Result<Value> {
             "router": "Self",
             "stateGate": "Mind"
         },
-        "objective": args.objective,
-        "planSummary": args.plan_summary,
-        "adoptionEvidenceRefs": args.adoption_evidence_refs,
+        "objective": inputs.objective,
+        "planSummary": inputs.plan_summary,
+        "adoptionEvidenceRefs": inputs.adoption_evidence_refs,
         "actions": [{
             "actionId": action_id,
             "kind": "repo.branch_local_command",
-            "command": args.command,
+            "command": inputs.command,
             "changedPaths": normalized_paths,
-            "commitMessage": args.commit_message,
-            "verificationAsks": args.verification_asks,
-            "stopConditions": args.stop_conditions,
-            "rollbackHints": args.rollback_hints
+            "commitMessage": inputs.commit_message,
+            "verificationAsks": inputs.verification_asks,
+            "stopConditions": inputs.stop_conditions,
+            "rollbackHints": inputs.rollback_hints
         }],
         "authority": {
             "handsAuthorityGranted": false,
@@ -1229,6 +1418,9 @@ fn run_plan(args: PlanArgs) -> Result<Value> {
         "privateStateExposed": false,
         "nextSafeMove": "Run epiphany-work adopt --from-plan <receipt> after Self/Mind accept this Imagination action plan."
     });
+    if let Some(derivation) = inputs.derivation {
+        plan_receipt["derivation"] = derivation;
+    }
     let receipt_path = artifact_dir.join(format!("work-plan-{item_slug}.json"));
     write_json(&receipt_path, &plan_receipt)?;
     Ok(json!({
@@ -1240,6 +1432,7 @@ fn run_plan(args: PlanArgs) -> Result<Value> {
         "planId": plan_receipt["planId"],
         "objective": plan_receipt["objective"],
         "action": plan_receipt["actions"][0],
+        "derivation": plan_receipt.get("derivation").cloned().unwrap_or(Value::Null),
         "authority": plan_receipt["authority"],
         "privateStateExposed": false,
         "nextSafeMove": plan_receipt["nextSafeMove"],
@@ -3240,6 +3433,44 @@ fn normalize_path(path: &str) -> String {
     }
 }
 
+fn validate_plan_target_path(path: &str) -> Result<String> {
+    let normalized = normalize_path(path);
+    if normalized == "." || normalized.is_empty() {
+        return Err(anyhow!("derived plan target path cannot be empty"));
+    }
+    if normalized.starts_with('/')
+        || normalized.contains(':')
+        || normalized
+            .split('/')
+            .any(|part| part == ".." || part.is_empty())
+    {
+        return Err(anyhow!(
+            "derived plan target path {normalized:?} must be a clean repo-relative path"
+        ));
+    }
+    Ok(normalized)
+}
+
+fn compact_line(text: &str) -> String {
+    let compact = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .to_string();
+    let mut chars = compact.chars();
+    let truncated = chars.by_ref().take(240).collect::<String>();
+    if chars.next().is_some() {
+        format!("{truncated}...")
+    } else {
+        compact
+    }
+}
+
+fn powershell_single_quoted(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
 fn normalize_path_for_receipt(path: &Path) -> String {
     path.display().to_string().replace('\\', "/")
 }
@@ -3497,12 +3728,14 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <accept|plan|run|adopt|execute|publish|sync|tick> ...\n\
+        "usage: epiphany-work <accept|derive-plan|plan|run|adopt|execute|close|publish|sync|tick|serve> ...\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--target-path EPIPHANY_WORKLOG.md] [--model-ref <ref>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
+         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]"
