@@ -82,6 +82,7 @@ use serde::Serialize;
 use serde_json::json;
 use sha2::Digest;
 use sha2::Sha256;
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -2663,6 +2664,8 @@ fn run_cli() -> Result<()> {
                             == "smoke://verse-query/cluster-windows-service-execution-audit"
                         && row.operator_artifact_status == "external-ref"
                         && row.operator_artifact_sha256 == "none"
+                        && row.service_execution_failed_check_count == 5
+                        && row.service_execution_missing_check_count == 4
                         && !row.mutates_state
                         && !row.requires_elevated_authority
                         && !row.private_state_exposed
@@ -2675,6 +2678,8 @@ fn run_cli() -> Result<()> {
                             == "smoke://verse-query/windows-service-execution-audit"
                         && row.operator_artifact_status == "external-ref"
                         && row.operator_artifact_sha256 == "none"
+                        && row.service_execution_failed_check_count == 6
+                        && row.service_execution_missing_check_count == 6
                         && !row.mutates_state
                         && !row.requires_elevated_authority
                         && !row.private_state_exposed
@@ -2685,6 +2690,8 @@ fn run_cli() -> Result<()> {
                         && row.contains("hostedBody=Epiphany")
                         && row.contains("artifact=external-ref")
                         && row.contains("sha256=none")
+                        && row.contains("failedChecks=5")
+                        && row.contains("missingChecks=4")
                         && row.contains("audit=none")
                 })
                 || !service_overview.swarm_action_rows.iter().any(|row| {
@@ -2949,6 +2956,7 @@ fn run_cli() -> Result<()> {
                 "ready",
                 &[],
                 &ready_policy_report,
+                &[],
                 &[],
                 &[missing_artifact_action],
             );
@@ -3819,9 +3827,23 @@ fn swarm_action_rows(
     tool_host_attention_rows: &[DaemonToolDirectoryRow],
     policy_report: &DaemonRestartPolicyDirectoryReport,
     service_lifecycle_attention_rows: &[ReceiptDirectoryRow],
+    service_execution_failed_check_rows: &[EpiphanyServiceExecutionAuditCheck],
     service_execution_runbook_actions: &[ServiceExecutionRunbookAction],
 ) -> (Vec<SwarmActionRow>, Vec<String>) {
     let mut rows = Vec::new();
+    let mut service_execution_check_counts = BTreeMap::<String, (usize, usize)>::new();
+    for check in service_execution_failed_check_rows {
+        let Some(service_id) = check.service_id.as_deref() else {
+            continue;
+        };
+        let counts = service_execution_check_counts
+            .entry(service_id.to_string())
+            .or_insert((0, 0));
+        counts.0 += 1;
+        if check.observed_status.is_none() {
+            counts.1 += 1;
+        }
+    }
     if liveness_status != "ready" {
         rows.push(SwarmActionRow {
             priority: 10,
@@ -3924,6 +3946,10 @@ fn swarm_action_rows(
         });
     }
     for (index, row) in service_lifecycle_attention_rows.iter().enumerate() {
+        let (failed_check_count, missing_check_count) = service_execution_check_counts
+            .get(&row.service_id)
+            .copied()
+            .unwrap_or((0, 0));
         rows.push(SwarmActionRow {
             priority: 40 + index as u32,
             family: "service-lifecycle".to_string(),
@@ -3944,8 +3970,8 @@ fn swarm_action_rows(
             effect_class: "service-lifecycle-readback".to_string(),
             mutates_state: false,
             requires_elevated_authority: false,
-            service_execution_failed_check_count: 0,
-            service_execution_missing_check_count: 0,
+            service_execution_failed_check_count: failed_check_count,
+            service_execution_missing_check_count: missing_check_count,
             service_id: row.service_id.clone(),
             service_route: row.service_route.clone(),
             reason: format!(
@@ -4649,6 +4675,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &tool_host_attention_rows,
         &policy_report,
         &service_lifecycle_attention_rows,
+        &service_execution_failed_check_rows,
         &service_execution_runbook_actions,
     );
     let private_state_exposed = daemon_report
