@@ -938,12 +938,14 @@ if ($Mode -eq "swarm-online-runbook") {
     $runbookLines += 'Write-Host "Idunn service lifecycle runbook for Epiphany completed: failures=0"'
     Set-Content -LiteralPath $runbookPath -Value ($runbookLines -join [Environment]::NewLine) -Encoding UTF8
     $runbookSha256 = Get-LocalArtifactSha256 $runbookPath
+    $elevatedCommand = Get-ElevatedRunbookCommand $runbookPath
     [pscustomobject]@{
         status = "ok"
         store = $localVerseStore
         runtimeId = "epiphany-local"
         runbookPath = $runbookPath
         artifactSha256 = $runbookSha256
+        elevatedCommand = $elevatedCommand
         commandCount = $authorityRows.Count
         lifecycleOwner = "Idunn"
         hostedBody = "Epiphany"
@@ -2072,7 +2074,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.aftercareCommands -and $result.aftercareCommands.Count -gt 0) {
                 $aftercare = ($result.aftercareCommands -join "; ")
             }
-            Write-Host "Swarm online runbook: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), artifactSha256=$($result.artifactSha256), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Swarm online runbook: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), artifactSha256=$($result.artifactSha256), elevatedCommand=$($result.elevatedCommand), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             $policyRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
