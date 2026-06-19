@@ -2322,7 +2322,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $artifactSha256 = Get-LocalArtifactSha256 $result.runbookPath
             Write-Host "Cluster daemon service execution runbook: service=$($result.serviceId), status=$($result.status), finalAuditInFinally=$($result.finalAuditRunsInFinally), continueAfterStepFailure=$($result.continueAfterStepFailure), nonzeroExitFailsStep=$($result.nonzeroExitFailsStep), exitsNonzeroAfterFinalAudit=$($result.exitsNonzeroAfterFinalAudit), artifactSha256=$artifactSha256, elevatedCommand=$elevatedCommand, aftercare=tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit, path=$($result.runbookPath)"
         } elseif ($Mode -eq "cluster-service-execution-audit") {
-            Write-Host "Cluster daemon service execution audit: service=$($result.serviceId), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            Write-Host "Cluster daemon service execution audit: service=$($result.serviceId), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId), runbookSha256=$($result.runbookSha256), elevatedCommand=$($result.elevatedCommand), aftercare=$($result.aftercareCommand), requiresElevatedAuthority=$($result.requiresElevatedAuthority)"
             $failedCheckRows = Format-ServiceExecutionFailedChecks @($result.checks | Where-Object { -not $_.ok })
             $runbookWitnessChecks = @($result.checks | Where-Object { $_.ok -and $null -ne $_.operatorArtifactRef -and $_.operatorArtifactRef -ne "" -and $_.operatorArtifactRef -ne "none" })
             if ($runbookWitnessChecks.Count -gt 0) {
@@ -2372,7 +2372,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "service-execution-readiness") {
             Write-Host "Service execution readiness: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), elevated=$($result.elevated), receipt=$($result.receiptId), followUp=tools/epiphany_local_run.ps1 -Mode service-execution-runbook, aftercare=tools/epiphany_local_run.ps1 -Mode service-execution-audit"
         } elseif ($Mode -eq "service-execution-audit") {
-            Write-Host "Service execution audit: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId)"
+            Write-Host "Service execution audit: service=$($result.serviceId), name=$($result.serviceName), status=$($result.status), missing=$($result.missingCount), failed=$($result.failedCount), receipt=$($result.receiptId), runbookSha256=$($result.runbookSha256), elevatedCommand=$($result.elevatedCommand), aftercare=$($result.aftercareCommand), requiresElevatedAuthority=$($result.requiresElevatedAuthority)"
             $failedCheckRows = Format-ServiceExecutionFailedChecks @($result.checks | Where-Object { -not $_.ok })
             $runbookWitnessChecks = @($result.checks | Where-Object { $_.ok -and $null -ne $_.operatorArtifactRef -and $_.operatorArtifactRef -ne "" -and $_.operatorArtifactRef -ne "none" })
             if ($runbookWitnessChecks.Count -gt 0) {

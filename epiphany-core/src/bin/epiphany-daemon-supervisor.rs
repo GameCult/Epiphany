@@ -11,6 +11,7 @@ use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
+use epiphany_core::EpiphanyServiceExecutionAuditReport;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
@@ -27,6 +28,8 @@ use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use serde_json::Value;
 use serde_json::json;
+use sha2::Digest;
+use sha2::Sha256;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -1092,6 +1095,8 @@ fn windows_service_execution_audit(args: Args) -> Result<()> {
     .filter(|receipt| receipt.service_id == args.service_id)
     .collect::<Vec<_>>();
     let report = epiphany_service_execution_audit_report(&receipts);
+    let runbook_witness =
+        service_execution_runbook_witness(&report, "windows-service-execution-runbook");
     let receipt = service_lifecycle_receipt(
         &args,
         "windows-service-execution-audit",
@@ -1124,6 +1129,12 @@ fn windows_service_execution_audit(args: Args) -> Result<()> {
             "receiptCount": report.receipt_count,
             "missingCount": report.missing_count,
             "failedCount": report.failed_count,
+            "runbookPath": runbook_witness.runbook_path,
+            "runbookSha256": runbook_witness.runbook_sha256,
+            "elevatedCommand": runbook_witness.elevated_command,
+            "requiresElevatedAuthority": runbook_witness.requires_elevated_authority,
+            "aftercareMode": "service-execution-audit",
+            "aftercareCommand": "tools/epiphany_local_run.ps1 -Mode service-execution-audit",
             "checks": report.checks,
             "privateStateExposed": written.private_state_exposed || report.private_state_exposed,
         }))?
@@ -1334,6 +1345,8 @@ fn cluster_windows_service_execution_audit(args: Args) -> Result<()> {
     .filter(|receipt| receipt.service_id == args.service_id)
     .collect::<Vec<_>>();
     let report = epiphany_cluster_service_execution_audit_report(&receipts);
+    let runbook_witness =
+        service_execution_runbook_witness(&report, "cluster-windows-service-execution-runbook");
     let receipt = service_lifecycle_receipt(
         &args,
         "cluster-windows-service-execution-audit",
@@ -1365,6 +1378,12 @@ fn cluster_windows_service_execution_audit(args: Args) -> Result<()> {
             "receiptCount": report.receipt_count,
             "missingCount": report.missing_count,
             "failedCount": report.failed_count,
+            "runbookPath": runbook_witness.runbook_path,
+            "runbookSha256": runbook_witness.runbook_sha256,
+            "elevatedCommand": runbook_witness.elevated_command,
+            "requiresElevatedAuthority": runbook_witness.requires_elevated_authority,
+            "aftercareMode": "cluster-service-execution-audit",
+            "aftercareCommand": "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit",
             "checks": report.checks,
             "privateStateExposed": written.private_state_exposed || report.private_state_exposed,
         }))?
@@ -1469,6 +1488,57 @@ fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
         }))?
     );
     Ok(())
+}
+
+struct ServiceExecutionRunbookWitness {
+    runbook_path: String,
+    runbook_sha256: String,
+    elevated_command: String,
+    requires_elevated_authority: bool,
+}
+
+fn service_execution_runbook_witness(
+    report: &EpiphanyServiceExecutionAuditReport,
+    runbook_action: &str,
+) -> ServiceExecutionRunbookWitness {
+    let runbook_path = report
+        .checks
+        .iter()
+        .find(|check| check.action == runbook_action)
+        .and_then(|check| check.operator_artifact_ref.clone())
+        .unwrap_or_else(|| "none".to_string());
+    let runbook_sha256 = local_file_sha256(&runbook_path).unwrap_or_else(|| "none".to_string());
+    let elevated_command = if runbook_sha256 == "none" {
+        "none".to_string()
+    } else {
+        elevated_powershell_runbook_command(&runbook_path)
+    };
+    ServiceExecutionRunbookWitness {
+        runbook_path,
+        runbook_sha256,
+        elevated_command,
+        requires_elevated_authority: true,
+    }
+}
+
+fn local_file_sha256(path: &str) -> Option<String> {
+    if path.trim().is_empty() || path == "none" {
+        return None;
+    }
+    let path = PathBuf::from(path);
+    if !path.is_file() {
+        return None;
+    }
+    let bytes = fs::read(path).ok()?;
+    let digest = Sha256::digest(&bytes);
+    Some(format!("{digest:x}"))
+}
+
+fn elevated_powershell_runbook_command(path: &str) -> String {
+    let escaped = path.replace('\'', "''");
+    format!(
+        "Start-Process PowerShell -Verb RunAs -Wait -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File','{escaped}')"
+    )
 }
 
 fn windows_service_execution_runbook(args: Args) -> Result<()> {
@@ -2901,6 +2971,7 @@ impl Args {
         let mut values = env::args().skip(1);
         let command = values.next().unwrap_or_else(|| "reconcile".to_string());
         let mut store = PathBuf::from(".epiphany-run/cultmesh/local-verse.ccmp");
+        let mut store_explicit = false;
         let mut runtime_id = "epiphany-local".to_string();
         let mut daemon_id = None;
         let mut restart_command = None;
@@ -2935,7 +3006,10 @@ impl Args {
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
-                "--store" => store = PathBuf::from(values.next().context("missing --store value")?),
+                "--store" => {
+                    store = PathBuf::from(values.next().context("missing --store value")?);
+                    store_explicit = true;
+                }
                 "--runtime-id" => {
                     runtime_id = values.next().context("missing --runtime-id value")?
                 }
@@ -3057,6 +3131,13 @@ impl Args {
                 }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
+        }
+
+        if !store_explicit && command.contains("smoke") {
+            store = PathBuf::from(format!(
+                ".epiphany-smoke/daemon-supervisor-{}/local-verse.ccmp",
+                sanitize_id(&command)
+            ));
         }
 
         if let Some(parent) = store.parent() {
