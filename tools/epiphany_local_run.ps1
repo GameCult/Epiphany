@@ -2078,7 +2078,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.eveConnectionReadback -and $null -ne $result.eveConnectionReadback.targetClusterId) {
                 $eveConnection = "target=$($result.eveConnectionReadback.targetClusterId):surface=$($result.eveConnectionReadback.targetEveSurfaceId):publicDiscussion=$($result.eveConnectionReadback.publicPersonaDiscussionAllowed):actions=$(@($result.eveConnectionReadback.supportedActions).Count):private=$($result.eveConnectionReadback.privateStateExposed)"
             }
-            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), daemonStatus=$daemonStatus, eveConnection=$eveConnection, serviceHealth=$serviceHealth, invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
+            $authorityTool = "none"
+            if ($null -ne $result.authorityToolReadback -and $null -ne $result.authorityToolReadback.authorityGate) {
+                $authorityTool = "gate=$($result.authorityToolReadback.authorityGate):input=$($result.authorityToolReadback.inputContractType):receipt=$($result.authorityToolReadback.receiptContractType):host=$($result.authorityToolReadback.hostClusterId):private=$($result.authorityToolReadback.privateStateExposed)"
+            }
+            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), daemonStatus=$daemonStatus, eveConnection=$eveConnection, authorityTool=$authorityTool, serviceHealth=$serviceHealth, invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-overview" -or $Mode -eq "gjallar") {
             $attention = "none"
             if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {

@@ -1800,6 +1800,52 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke lost compact daemon tool invocation routing row"
                 );
             }
+            let (hands_authority_readback, hands_authority_private_state_exposed) =
+                authority_tool_readback_from_capability(hands_cluster, hands_repo_action);
+            if hands_authority_readback["authorityGate"].as_str() != Some("hands")
+                || hands_authority_readback["hostClusterId"].as_str()
+                    != Some("epiphany.cluster.hands")
+                || hands_authority_readback["toolName"].as_str() != Some("repo-action")
+                || hands_authority_readback["inputContractType"].as_str()
+                    != Some("epiphany.hands.action_intent")
+                || hands_authority_readback["receiptContractType"].as_str()
+                    != Some("epiphany.hands.action_review")
+                || hands_authority_readback["intentRoute"].as_str()
+                    != Some(
+                        "cultmesh://epiphany-local/authority/hands/epiphany.cluster.hands.tool.repo-action/intent",
+                    )
+                || hands_authority_readback["receiptRoute"].as_str()
+                    != Some(
+                        "cultmesh://epiphany-local/authority/hands/epiphany.cluster.hands.tool.repo-action/receipt",
+                    )
+                || hands_authority_readback["privateStateExposed"].as_bool() != Some(false)
+                || hands_authority_private_state_exposed
+            {
+                anyhow::bail!(
+                    "local Verse query smoke lost Hands authority-tool readback contract"
+                );
+            }
+            let soul_verify = context
+                .daemon_tool_capabilities
+                .iter()
+                .find(|capability| capability.capability_id == "epiphany.cluster.soul.tool.verify")
+                .context("missing Soul verify daemon tool capability")?;
+            let soul_cluster = cluster_topology_for_id(&context, "epiphany.cluster.soul")?;
+            let (soul_authority_readback, soul_authority_private_state_exposed) =
+                authority_tool_readback_from_capability(soul_cluster, soul_verify);
+            if soul_authority_readback["authorityGate"].as_str() != Some("soul")
+                || soul_authority_readback["hostClusterId"].as_str()
+                    != Some("epiphany.cluster.soul")
+                || soul_authority_readback["toolName"].as_str() != Some("verify")
+                || soul_authority_readback["inputContractType"].as_str()
+                    != Some("epiphany.soul.verification_request")
+                || soul_authority_readback["receiptContractType"].as_str()
+                    != Some("epiphany.soul.verdict_receipt")
+                || soul_authority_readback["privateStateExposed"].as_bool() != Some(false)
+                || soul_authority_private_state_exposed
+            {
+                anyhow::bail!("local Verse query smoke lost Soul authority-tool readback contract");
+            }
             let service_health = context
                 .daemon_tool_capabilities
                 .iter()
@@ -6227,10 +6273,17 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         } else {
             (serde_json::Value::Null, false)
         };
+    let (authority_tool_readback, authority_tool_readback_private_state_exposed) =
+        if is_authority_tool_capability(capability) {
+            authority_tool_readback_from_capability(host_cluster, capability)
+        } else {
+            (serde_json::Value::Null, false)
+        };
     let private_state_exposed = written_receipt.private_state_exposed
         || service_health_readback_private_state_exposed
         || daemon_status_readback_private_state_exposed
-        || eve_connection_readback_private_state_exposed;
+        || eve_connection_readback_private_state_exposed
+        || authority_tool_readback_private_state_exposed;
     let invocation_tui_row = daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
         requester: &requesting_cluster.display_name,
         requesting_agent_id: &written_intent.requesting_agent_id,
@@ -6288,6 +6341,8 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "daemonStatusReadbackPrivateStateExposed": daemon_status_readback_private_state_exposed,
             "eveConnectionReadback": eve_connection_readback,
             "eveConnectionReadbackPrivateStateExposed": eve_connection_readback_private_state_exposed,
+            "authorityToolReadback": authority_tool_readback,
+            "authorityToolReadbackPrivateStateExposed": authority_tool_readback_private_state_exposed,
             "serviceHealthReadback": service_health_readback,
             "serviceHealthReadbackPrivateStateExposed": service_health_readback_private_state_exposed,
             "privateStateExposed": private_state_exposed,
@@ -6307,6 +6362,8 @@ fn default_daemon_tool_receipt_status(
         "accepted-for-daemon-status-readback".to_string()
     } else if is_eve_connect_capability(capability) {
         "accepted-for-eve-surface-readback".to_string()
+    } else if is_authority_tool_capability(capability) {
+        "accepted-for-authority-contract-readback".to_string()
     } else {
         "accepted-for-daemon-routing".to_string()
     }
@@ -6390,6 +6447,50 @@ fn eve_connection_readback_from_host(
     )
 }
 
+fn authority_tool_readback_from_capability(
+    host_cluster: &EpiphanyCultMeshClusterTopologyEntry,
+    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+) -> (serde_json::Value, bool) {
+    let intent_route = format!(
+        "cultmesh://epiphany-local/authority/{}/{}/intent",
+        capability.authority_gate, capability.capability_id
+    );
+    let receipt_route = format!(
+        "cultmesh://epiphany-local/authority/{}/{}/receipt",
+        capability.authority_gate, capability.capability_id
+    );
+    let review_command = match capability.authority_gate.as_str() {
+        "hands" => "epiphany-hands-action record-pass --gate-from <coordinator-summary.json>",
+        "soul" => {
+            "tools/epiphany_local_run.ps1 -Mode mvp # route verification through Soul lane receipts"
+        }
+        _ => "none",
+    };
+    (
+        json!({
+            "authorityGate": capability.authority_gate,
+            "capabilityId": capability.capability_id,
+            "toolName": capability.tool_name,
+            "operation": capability.operation,
+            "hostClusterId": host_cluster.cluster_id,
+            "hostDisplayName": host_cluster.display_name,
+            "hostDaemonId": capability.host_daemon_id,
+            "hostBodyDomain": host_cluster.body_domain,
+            "hostPrivateVerseId": host_cluster.private_verse_id,
+            "hostEveSurfaceId": host_cluster.eve_surface_id,
+            "inputContractType": capability.input_contract_type,
+            "receiptContractType": capability.receipt_contract_type,
+            "intentRoute": intent_route,
+            "receiptRoute": receipt_route,
+            "reviewCommand": review_command,
+            "availableToAllAgents": capability.available_to_all_agents,
+            "requiresReceipt": capability.requires_receipt,
+            "privateStateExposed": capability.private_state_exposed,
+        }),
+        capability.private_state_exposed,
+    )
+}
+
 fn service_health_readback_from_idunn(args: &Args) -> Result<(serde_json::Value, bool)> {
     let overview = load_swarm_overview_report(args)?;
     let service_action_rows = overview
@@ -6451,6 +6552,11 @@ fn default_daemon_tool_result_ref(
             "cultmesh://epiphany-local/eve-surface/{}",
             capability.host_cluster_id
         )
+    } else if is_authority_tool_capability(capability) {
+        format!(
+            "cultmesh://epiphany-local/authority/{}/{}/receipt",
+            capability.authority_gate, capability.capability_id
+        )
     } else {
         format!("cultmesh://epiphany-local/tool-receipt/{receipt_id}")
     }
@@ -6474,6 +6580,11 @@ fn default_daemon_tool_result_summary(
         format!(
             "{requesting_agent_id} requested Eve surface connection readback; {} returned compact CultMesh surface routing for {}.",
             capability.host_daemon_id, capability.host_cluster_id
+        )
+    } else if is_authority_tool_capability(capability) {
+        format!(
+            "{requesting_agent_id} requested authority contract readback; {} returned the {} input/receipt contract for {}.",
+            capability.host_daemon_id, capability.authority_gate, capability.tool_name
         )
     } else {
         format!(
@@ -6502,6 +6613,12 @@ fn is_eve_connect_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEn
         && capability.operation == "submitEveConnectionIntent"
         && capability.input_contract_type == "epiphany.cultmesh.eve_connection_intent"
         && capability.receipt_contract_type == "epiphany.cultmesh.eve_connection_receipt"
+}
+
+fn is_authority_tool_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEntry) -> bool {
+    matches!(capability.authority_gate.as_str(), "hands" | "soul")
+        && !capability.input_contract_type.is_empty()
+        && !capability.receipt_contract_type.is_empty()
 }
 
 fn poke_result_tui_row(row: &serde_json::Value) -> String {
