@@ -44,6 +44,7 @@ fn main() -> Result<()> {
     };
     let result = match command.as_str() {
         "accept" => run_accept(parse_accept_args(args)?),
+        "plan" => run_plan(parse_plan_args(args)?),
         "run" => run_work(parse_run_args(args)?),
         "adopt" | "promote" => run_adopt(parse_adopt_args(args)?),
         "execute" | "exec" => run_execute(parse_execute_args(args)?),
@@ -84,14 +85,32 @@ struct RunArgs {
 }
 
 #[derive(Clone, Debug)]
+struct PlanArgs {
+    workspace: PathBuf,
+    item: Option<String>,
+    accept_receipt: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    objective: String,
+    plan_summary: String,
+    command: String,
+    changed_paths: Vec<String>,
+    commit_message: String,
+    adoption_evidence_refs: Vec<String>,
+    verification_asks: Vec<String>,
+    stop_conditions: Vec<String>,
+    rollback_hints: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
 struct AdoptArgs {
     workspace: PathBuf,
     epiphany_root: PathBuf,
     item: Option<String>,
     run_receipt: Option<PathBuf>,
+    plan_receipt: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
-    plan_summary: String,
+    plan_summary: Option<String>,
     adoption_evidence_refs: Vec<String>,
 }
 
@@ -101,11 +120,12 @@ struct ExecuteArgs {
     epiphany_root: PathBuf,
     item: Option<String>,
     adopt_receipt: Option<PathBuf>,
+    plan_receipt: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
-    command: String,
+    command: Option<String>,
     changed_paths: Vec<String>,
-    commit_message: String,
+    commit_message: Option<String>,
     summary: Option<String>,
 }
 
@@ -251,11 +271,94 @@ fn parse_run_args(args: impl Iterator<Item = String>) -> Result<RunArgs> {
     })
 }
 
+fn parse_plan_args(args: impl Iterator<Item = String>) -> Result<PlanArgs> {
+    let mut workspace = None;
+    let mut item = None;
+    let mut accept_receipt = None;
+    let mut artifact_dir = None;
+    let mut objective = None;
+    let mut plan_summary = None;
+    let mut command = None;
+    let mut changed_paths = Vec::new();
+    let mut commit_message = None;
+    let mut adoption_evidence_refs = Vec::new();
+    let mut verification_asks = Vec::new();
+    let mut stop_conditions = Vec::new();
+    let mut rollback_hints = Vec::new();
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--accept-receipt" => accept_receipt = Some(take_path(&mut args, "--accept-receipt")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--objective" => objective = Some(take_string(&mut args, "--objective")?),
+            "--plan-summary" | "--summary" => {
+                plan_summary = Some(take_string(&mut args, "--plan-summary")?);
+            }
+            "--command" => command = Some(take_string(&mut args, "--command")?),
+            "--changed-path" | "--path" | "--requested-path" => {
+                changed_paths.push(take_string(&mut args, "--changed-path")?);
+            }
+            "--commit-message" => {
+                commit_message = Some(take_string(&mut args, "--commit-message")?);
+            }
+            "--adoption-evidence-ref" | "--evidence-ref" => {
+                adoption_evidence_refs.push(take_string(&mut args, "--adoption-evidence-ref")?);
+            }
+            "--verification-ask" => {
+                verification_asks.push(take_string(&mut args, "--verification-ask")?);
+            }
+            "--stop-condition" => {
+                stop_conditions.push(take_string(&mut args, "--stop-condition")?);
+            }
+            "--rollback-hint" => {
+                rollback_hints.push(take_string(&mut args, "--rollback-hint")?);
+            }
+            other => return Err(anyhow!("unexpected plan argument {other:?}")),
+        }
+    }
+    if changed_paths.is_empty() {
+        return Err(anyhow!(
+            "plan requires at least one --changed-path for the future Hands gate"
+        ));
+    }
+    Ok(PlanArgs {
+        workspace: workspace.context("missing --workspace")?,
+        item,
+        accept_receipt,
+        artifact_dir,
+        objective: objective.context("missing --objective")?,
+        plan_summary: plan_summary.context("missing --plan-summary")?,
+        command: command.context("missing --command")?,
+        changed_paths,
+        commit_message: commit_message.context("missing --commit-message")?,
+        adoption_evidence_refs: if adoption_evidence_refs.is_empty() {
+            vec!["imagination.plan:operator-reviewed".to_string()]
+        } else {
+            adoption_evidence_refs
+        },
+        verification_asks: if verification_asks.is_empty() {
+            vec!["Soul verifies the declared changed paths and command artifacts.".to_string()]
+        } else {
+            verification_asks
+        },
+        stop_conditions: if stop_conditions.is_empty() {
+            vec!["Stop if the command exits nonzero or changes paths outside the plan.".to_string()]
+        } else {
+            stop_conditions
+        },
+        rollback_hints,
+    })
+}
+
 fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
     let mut workspace = None;
     let mut epiphany_root = None;
     let mut item = None;
     let mut run_receipt = None;
+    let mut plan_receipt = None;
     let mut runtime_store = None;
     let mut artifact_dir = None;
     let mut plan_summary = None;
@@ -268,6 +371,9 @@ fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
             "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
             "--item" => item = Some(take_string(&mut args, "--item")?),
             "--run-receipt" => run_receipt = Some(take_path(&mut args, "--run-receipt")?),
+            "--from-plan" | "--plan-receipt" => {
+                plan_receipt = Some(take_path(&mut args, "--from-plan")?);
+            }
             "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
             "--plan-summary" => plan_summary = Some(take_string(&mut args, "--plan-summary")?),
@@ -277,9 +383,9 @@ fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
             other => return Err(anyhow!("unexpected adopt argument {other:?}")),
         }
     }
-    if adoption_evidence_refs.is_empty() {
+    if adoption_evidence_refs.is_empty() && plan_receipt.is_none() {
         return Err(anyhow!(
-            "adopt requires at least one --adoption-evidence-ref proving Imagination/Self/Mind adoption"
+            "adopt requires at least one --adoption-evidence-ref or --from-plan proving Imagination/Self/Mind adoption"
         ));
     }
     Ok(AdoptArgs {
@@ -288,9 +394,10 @@ fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
             .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
         item,
         run_receipt,
+        plan_receipt,
         runtime_store,
         artifact_dir,
-        plan_summary: plan_summary.context("missing --plan-summary")?,
+        plan_summary,
         adoption_evidence_refs,
     })
 }
@@ -300,6 +407,7 @@ fn parse_execute_args(args: impl Iterator<Item = String>) -> Result<ExecuteArgs>
     let mut epiphany_root = None;
     let mut item = None;
     let mut adopt_receipt = None;
+    let mut plan_receipt = None;
     let mut runtime_store = None;
     let mut artifact_dir = None;
     let mut command = None;
@@ -314,6 +422,9 @@ fn parse_execute_args(args: impl Iterator<Item = String>) -> Result<ExecuteArgs>
             "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
             "--item" => item = Some(take_string(&mut args, "--item")?),
             "--adopt-receipt" => adopt_receipt = Some(take_path(&mut args, "--adopt-receipt")?),
+            "--from-plan" | "--plan-receipt" => {
+                plan_receipt = Some(take_path(&mut args, "--from-plan")?);
+            }
             "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
             "--command" => command = Some(take_string(&mut args, "--command")?),
@@ -327,9 +438,9 @@ fn parse_execute_args(args: impl Iterator<Item = String>) -> Result<ExecuteArgs>
             other => return Err(anyhow!("unexpected execute argument {other:?}")),
         }
     }
-    if changed_paths.is_empty() {
+    if changed_paths.is_empty() && plan_receipt.is_none() {
         return Err(anyhow!(
-            "execute requires at least one --changed-path scoped by the approved Hands gate"
+            "execute requires at least one --changed-path or --from-plan scoped by the approved Hands gate"
         ));
     }
     Ok(ExecuteArgs {
@@ -338,11 +449,12 @@ fn parse_execute_args(args: impl Iterator<Item = String>) -> Result<ExecuteArgs>
             .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
         item,
         adopt_receipt,
+        plan_receipt,
         runtime_store,
         artifact_dir,
-        command: command.context("missing --command")?,
+        command,
         changed_paths,
-        commit_message: commit_message.context("missing --commit-message")?,
+        commit_message,
         summary,
     })
 }
@@ -833,6 +945,83 @@ fn run_work(args: RunArgs) -> Result<Value> {
     }))
 }
 
+fn run_plan(args: PlanArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let accept_receipt_path =
+        resolve_accept_receipt(&workspace, args.item.as_deref(), args.accept_receipt)?;
+    let accept_receipt = read_json(&accept_receipt_path)?;
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let item = accept_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+    let normalized_paths = normalize_paths(args.changed_paths.clone());
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let plan_id = format!("repo-work-plan-{item_slug}");
+    let action_id = format!("{plan_id}-action-1");
+    let plan_receipt = json!({
+        "schemaVersion": "epiphany.repo_work_action_plan_receipt.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "acceptReceiptPath": accept_receipt_path,
+        "item": item,
+        "planId": plan_id,
+        "status": "planned-for-self-adoption",
+        "planner": {
+            "owner": "Imagination",
+            "router": "Self",
+            "stateGate": "Mind"
+        },
+        "objective": args.objective,
+        "planSummary": args.plan_summary,
+        "adoptionEvidenceRefs": args.adoption_evidence_refs,
+        "actions": [{
+            "actionId": action_id,
+            "kind": "repo.branch_local_command",
+            "command": args.command,
+            "changedPaths": normalized_paths,
+            "commitMessage": args.commit_message,
+            "verificationAsks": args.verification_asks,
+            "stopConditions": args.stop_conditions,
+            "rollbackHints": args.rollback_hints
+        }],
+        "authority": {
+            "handsAuthorityGranted": false,
+            "durableStateAdmitted": false,
+            "publicationAuthorized": false,
+            "nextGate": "self.mind.adoption_then_hands"
+        },
+        "privateStateExposed": false,
+        "nextSafeMove": "Run epiphany-work adopt --from-plan <receipt> after Self/Mind accept this Imagination action plan."
+    });
+    let receipt_path = artifact_dir.join(format!("work-plan-{item_slug}.json"));
+    write_json(&receipt_path, &plan_receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_plan.v0",
+        "status": plan_receipt["status"],
+        "workspace": plan_receipt["workspace"],
+        "receiptPath": receipt_path,
+        "item": plan_receipt["item"],
+        "planId": plan_receipt["planId"],
+        "objective": plan_receipt["objective"],
+        "action": plan_receipt["actions"][0],
+        "authority": plan_receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": plan_receipt["nextSafeMove"],
+    }))
+}
+
 fn run_adopt(args: AdoptArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -845,6 +1034,16 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
     let run_receipt_path = resolve_run_receipt(&workspace, args.item.as_deref(), args.run_receipt)?;
     let run_receipt = read_json(&run_receipt_path)?;
+    let plan_receipt_path = if let Some(path) = args.plan_receipt {
+        Some(path)
+    } else {
+        None
+    };
+    let plan_receipt = if let Some(path) = plan_receipt_path.as_ref() {
+        Some(read_json(path)?)
+    } else {
+        None
+    };
     let runtime_store = args.runtime_store.unwrap_or_else(|| {
         path_from_json(&run_receipt, &["runtimeStore"]).unwrap_or_else(|| {
             workspace
@@ -889,6 +1088,26 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         ));
     }
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let plan_summary = if let Some(summary) = args.plan_summary {
+        summary
+    } else if let Some(plan) = plan_receipt.as_ref() {
+        string_from_json(plan, &["planSummary"])
+            .ok_or_else(|| anyhow!("plan receipt has no planSummary"))?
+    } else {
+        return Err(anyhow!("missing --plan-summary or --from-plan"));
+    };
+    let mut adoption_evidence_refs = args.adoption_evidence_refs;
+    if let Some(plan) = plan_receipt.as_ref() {
+        adoption_evidence_refs.extend(string_array_from_json(plan, &["adoptionEvidenceRefs"]));
+        if adoption_evidence_refs.is_empty() {
+            adoption_evidence_refs.push(format!(
+                "repo-work-plan:{}",
+                plan.get("planId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown")
+            ));
+        }
+    }
     let mut approved_review = hands_action_review_for_intent(
         review_id.to_string(),
         &intent,
@@ -899,10 +1118,10 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             "commit".to_string(),
         ],
         vec![
-            format!("Adopted plan: {}", args.plan_summary),
+            format!("Adopted plan: {plan_summary}"),
             format!(
                 "Adoption evidence refs: {}",
-                args.adoption_evidence_refs.join(", ")
+                adoption_evidence_refs.join(", ")
             ),
             "Bifrost still gates publication and merge.".to_string(),
         ],
@@ -928,10 +1147,11 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         "runtimeId": run_receipt["runtimeId"],
         "runtimeStore": runtime_store,
         "runReceiptPath": run_receipt_path,
+        "planReceiptPath": plan_receipt_path,
         "item": item,
         "status": "approved-for-branch-local-hands-action",
-        "planSummary": args.plan_summary,
-        "adoptionEvidenceRefs": args.adoption_evidence_refs,
+        "planSummary": plan_summary,
+        "adoptionEvidenceRefs": adoption_evidence_refs,
         "handsActionGate": {
             "intentId": intent.intent_id,
             "reviewId": approved_review.review_id,
@@ -986,6 +1206,16 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
     let adopt_receipt_path =
         resolve_adopt_receipt(&workspace, args.item.as_deref(), args.adopt_receipt)?;
     let adopt_receipt = read_json(&adopt_receipt_path)?;
+    let plan_receipt_path = if let Some(path) = args.plan_receipt {
+        Some(path)
+    } else {
+        path_from_json(&adopt_receipt, &["planReceiptPath"])
+    };
+    let plan_receipt = if let Some(path) = plan_receipt_path.as_ref() {
+        Some(read_json(path)?)
+    } else {
+        None
+    };
     let runtime_store = args.runtime_store.unwrap_or_else(|| {
         path_from_json(&adopt_receipt, &["runtimeStore"]).unwrap_or_else(|| {
             workspace
@@ -1017,7 +1247,37 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
     ensure_hands_review_allows(&intent, &review, "patch")?;
     ensure_hands_review_allows(&intent, &review, "command")?;
     ensure_hands_review_allows(&intent, &review, "commit")?;
-    validate_paths_within_gate(&intent, &args.changed_paths)?;
+    let planned_action = plan_receipt.as_ref().and_then(first_plan_action).cloned();
+    let command = if let Some(command) = args.command {
+        command
+    } else if let Some(action) = planned_action.as_ref() {
+        string_from_value(action, "command").ok_or_else(|| anyhow!("plan action has no command"))?
+    } else {
+        return Err(anyhow!("missing --command or --from-plan"));
+    };
+    let changed_paths = if args.changed_paths.is_empty() {
+        if let Some(action) = planned_action.as_ref() {
+            string_array_field(action, "changedPaths")
+        } else {
+            Vec::new()
+        }
+    } else {
+        args.changed_paths
+    };
+    if changed_paths.is_empty() {
+        return Err(anyhow!(
+            "execute requires at least one changed path from --changed-path or --from-plan"
+        ));
+    }
+    let commit_message = if let Some(message) = args.commit_message {
+        message
+    } else if let Some(action) = planned_action.as_ref() {
+        string_from_value(action, "commitMessage")
+            .ok_or_else(|| anyhow!("plan action has no commitMessage"))?
+    } else {
+        return Err(anyhow!("missing --commit-message or --from-plan"));
+    };
+    validate_paths_within_gate(&intent, &changed_paths)?;
     let branch = git_output(&workspace, &["branch", "--show-current"])?;
     if !branch.starts_with("epiphany/") {
         return Err(anyhow!(
@@ -1036,7 +1296,7 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
     let execution = Command::new("powershell")
         .arg("-NoProfile")
         .arg("-Command")
-        .arg(&args.command)
+        .arg(&command)
         .current_dir(&workspace)
         .output()
         .with_context(|| format!("failed to execute command in {}", workspace.display()))?;
@@ -1058,7 +1318,7 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
         command_receipt_id,
         &intent,
         &review,
-        args.command.clone(),
+        command.clone(),
         exit_code.clone(),
         normalize_path_for_receipt(&stdout_artifact),
         normalize_path_for_receipt(&stderr_artifact),
@@ -1076,7 +1336,8 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
             "item": item,
             "status": "command-failed",
             "branch": branch,
-            "changedPaths": args.changed_paths,
+            "changedPaths": changed_paths,
+            "planReceiptPath": plan_receipt_path,
             "commandReceiptId": command_receipt.receipt_id,
             "exitCode": command_receipt.exit_code,
             "stdoutArtifact": command_receipt.stdout_artifact,
@@ -1099,7 +1360,7 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
         }));
     }
 
-    let normalized_paths = normalize_paths(args.changed_paths.clone());
+    let normalized_paths = normalize_paths(changed_paths.clone());
     let patch_receipt_id = format!("repo-work-execute-{item_slug}-hands-patch");
     let patch_receipt = hands_patch_receipt_for_review(
         patch_receipt_id,
@@ -1112,7 +1373,7 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
     put_hands_patch_receipt(&runtime_store, &patch_receipt)?;
     git_add_paths(&workspace, &normalized_paths)?;
     ensure_staged_changes(&workspace)?;
-    git_commit(&workspace, &args.commit_message)?;
+    git_commit(&workspace, &commit_message)?;
     let commit_sha = git_output(&workspace, &["rev-parse", "HEAD"])?;
     let commit_receipt_id = format!("repo-work-execute-{item_slug}-hands-commit");
     let commit_receipt = hands_commit_receipt_for_review(
@@ -1133,6 +1394,7 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
         "workspace": workspace,
         "runtimeStore": runtime_store,
         "adoptReceiptPath": adopt_receipt_path,
+        "planReceiptPath": plan_receipt_path,
         "item": item,
         "status": "branch-local-commit-recorded",
         "branch": branch,
@@ -1877,6 +2139,48 @@ fn string_from_json(value: &Value, path: &[&str]) -> Option<String> {
     cursor.as_str().map(ToString::to_string)
 }
 
+fn string_array_from_json(value: &Value, path: &[&str]) -> Vec<String> {
+    let mut cursor = value;
+    for segment in path {
+        let Some(next) = cursor.get(*segment) else {
+            return Vec::new();
+        };
+        cursor = next;
+    }
+    cursor
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn first_plan_action(plan: &Value) -> Option<&Value> {
+    plan.get("actions")?.as_array()?.first()
+}
+
+fn string_from_value(value: &Value, field: &str) -> Option<String> {
+    value.get(field)?.as_str().map(ToString::to_string)
+}
+
+fn string_array_field(value: &Value, field: &str) -> Vec<String> {
+    value
+        .get(field)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn read_json(path: &Path) -> Result<Value> {
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
@@ -1939,10 +2243,12 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <accept|run|adopt|publish|sync> ...\n\
+        "usage: epiphany-work <accept|plan|run|adopt|execute|publish|sync> ...\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
+         plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
-         adopt --workspace <repo> [--item <id>] [--run-receipt <path>] --plan-summary <text> --adoption-evidence-ref <ref>\n\
+         adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
+         execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>"
     );

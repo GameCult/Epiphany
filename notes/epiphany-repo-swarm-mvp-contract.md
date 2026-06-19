@@ -130,9 +130,10 @@ The first MVP is done when a fresh repository can run:
 epiphany-repo init --workspace <repo>
 epiphany-swarm online --workspace <repo>
 epiphany-work accept --workspace <repo> --from persona-or-bifrost --item <id>
+epiphany-work plan --workspace <repo> --item <id> --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text>
 epiphany-work run --workspace <repo>
-epiphany-work adopt --workspace <repo> --item <id> --plan-summary <text> --adoption-evidence-ref <ref>
-epiphany-work execute --workspace <repo> --item <id> --command <command> --changed-path <path> --commit-message <text>
+epiphany-work adopt --workspace <repo> --item <id> --from-plan <plan-receipt>
+epiphany-work execute --workspace <repo> --item <id> --from-plan <plan-receipt>
 epiphany-work publish --workspace <repo>
 epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
 ```
@@ -220,9 +221,43 @@ epiphany-work accept --workspace <repo> --from persona --item first-request
 The accepted item produced an Imagination consensus receipt, candidate action
 ref, public discussion ref, and `privateStateExposed=false`.
 
-### Landed Work Run Gate
+### Landed Work Plan Gate
 
 The fourth front door exists as native Rust:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- plan --workspace <repo> --item <id> --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text>
+```
+
+It reads the named or latest work-accept receipt and writes
+`.epiphany/work/work-plan-<item>.json` as a typed
+`epiphany.repo_work_action_plan_receipt.v0`. The receipt names Imagination as
+planner, Self as router, Mind as state gate, the objective, plan summary,
+adoption evidence refs, and one branch-local command action with changed paths,
+commit message, verification asks, stop conditions, and rollback hints.
+
+This is still not Hands authority. It is the first less-manual bridge between
+Imagination/Self planning and Hands execution: `adopt --from-plan <receipt>`
+can approve the plan, and `execute --from-plan <receipt>` can consume the
+planned command/paths/commit message without the operator retyping them.
+
+The first smoke proved:
+
+```powershell
+epiphany-work accept --workspace <repo> --from persona --item first-request
+epiphany-work plan --workspace <repo> --item first-request --objective '...' --plan-summary '...' --command "Add-Content ..." --changed-path README.md --commit-message '...'
+epiphany-work run --workspace <repo> --item first-request --requested-path README.md
+epiphany-work adopt --workspace <repo> --item first-request --from-plan <work-plan-first-request.json>
+epiphany-work execute --workspace <repo> --item first-request --from-plan <work-plan-first-request.json>
+```
+
+The execute receipt produced a real branch-local commit from the typed plan
+packet, with Hands patch/command/commit receipts and
+`privateStateExposed=false`.
+
+### Landed Work Run Gate
+
+The fifth front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- run --workspace <repo>
@@ -251,7 +286,7 @@ approved`, and `privateStateExposed=false`.
 
 ### Landed Work Adoption Gate
 
-The fifth front door exists as native Rust:
+The sixth front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- adopt --workspace <repo> --item <id> --plan-summary <text> --adoption-evidence-ref <ref>
@@ -285,7 +320,7 @@ still refuses queued or mismatched gates.
 
 ### Landed Work Execution Gate
 
-The sixth front door exists as native Rust:
+The seventh front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- execute --workspace <repo> --item <id> --command <command> --changed-path <path> --commit-message <text>
@@ -297,6 +332,8 @@ paths are inside the Hands intent path scope, requires the repo to be on an
 `epiphany/*` branch, runs the command inside the repo Body, captures stdout and
 stderr artifacts, stages only the declared changed paths, creates a branch-local
 git commit, and writes the typed Hands patch, command, and commit receipts.
+When passed `--from-plan <receipt>`, it reads the command, changed paths, and
+commit message from the typed action plan receipt.
 
 This is the first native executor for repo-swarm work. It removes the smoke
 recorder from the normal branch-local execution path. It still does not verify
@@ -320,7 +357,7 @@ The execute receipt produced a real branch-local commit on
 
 ### Landed Work Publication Gate
 
-The seventh front door exists as native Rust:
+The eighth front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- publish --workspace <repo> --item <id> --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>
@@ -359,7 +396,7 @@ Imagination/Self rather than operator CLI arguments.
 
 ### Landed Upstream Sync Proof Gate
 
-The eighth front door exists as native Rust:
+The ninth front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
@@ -401,12 +438,13 @@ That is the machine we are building.
 
 ## Full Migration Plan To Repo Swarm MVP
 
-This plan starts from the current state: seven native front doors exist, but the
-work loop is still operator-shaped. `init`, `online`, `accept`, `run`, `adopt`,
-`execute`, and `publish` prove the typed path from repo birth to Bifrost/GitHub
-publication receipts. They do not yet prove upstream-main sync, less-manual
-planning, continuous scheduling, or a repo Persona that can turn conversation
-into autonomous action without the operator feeding every command by hand.
+This plan starts from the current state: nine native front doors exist, but the
+work loop is not yet a full physiology. `init`, `online`, `accept`, `plan`,
+`run`, `adopt`, `execute`, `publish`, and `sync` prove the typed path from repo
+birth to Bifrost/GitHub publication receipts and upstream-main sync proof. They
+do not yet prove continuous scheduling or a repo Persona that can turn
+conversation into autonomous action without the operator feeding plan details by
+hand.
 
 The MVP target is narrower than the full Perfect Machine and wider than a demo:
 a fresh repository can host an Epiphany swarm that initializes its Body,
@@ -479,8 +517,9 @@ MVP organism.
 
 Required cuts:
 
-- Make `epiphany-work adopt` consume a typed Imagination action plan receipt
-  instead of only `--plan-summary` prose.
+- Keep `epiphany-work plan` as the typed Imagination/Self action plan receipt
+  producer and grow it toward model/planner-authored packets instead of
+  operator-authored packets.
 - Define the plan body as ordered action candidates with objective, requested
   paths, allowed command families, expected evidence, verification asks, stop
   conditions, and rollback hints.
@@ -494,8 +533,8 @@ MVP exit proof:
 
 - A Persona/Bifrost idea becomes an Imagination plan receipt.
 - Self schedules one action item without the operator writing the shell command.
-- Hands executes the derived branch-local command and records patch, command,
-  and commit receipts.
+- Hands executes the command from the typed action plan and records patch,
+  command, and commit receipts.
 
 ### Phase 3: Make Persona The Front Door
 
