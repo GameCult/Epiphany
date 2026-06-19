@@ -65,6 +65,7 @@ fn main() -> Result<()> {
         "close" | "closure" | "verify-close" => run_close(parse_close_args(args)?),
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
+        "overview" | "proof-bundle" | "status" => run_overview(parse_overview_args(args)?),
         "tick" | "pulse" | "schedule" => run_tick(parse_tick_args(args)?),
         "serve" | "loop" | "daemon" => run_serve(parse_serve_args(args)?),
         other => Err(anyhow!("unknown epiphany-work command {other:?}")),
@@ -218,6 +219,15 @@ struct SyncArgs {
     artifact_dir: Option<PathBuf>,
     upstream_ref: String,
     merge_receipts: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct OverviewArgs {
+    workspace: PathBuf,
+    item: Option<String>,
+    accept_receipt: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    write_receipt: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -799,6 +809,33 @@ fn parse_sync_args(args: impl Iterator<Item = String>) -> Result<SyncArgs> {
         artifact_dir,
         upstream_ref: upstream_ref.unwrap_or_else(|| "origin/main".to_string()),
         merge_receipts,
+    })
+}
+
+fn parse_overview_args(args: impl Iterator<Item = String>) -> Result<OverviewArgs> {
+    let mut workspace = None;
+    let mut item = None;
+    let mut accept_receipt = None;
+    let mut artifact_dir = None;
+    let mut write_receipt = true;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--accept-receipt" => accept_receipt = Some(take_path(&mut args, "--accept-receipt")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--no-write" | "--read-only" => write_receipt = false,
+            other => return Err(anyhow!("unexpected overview argument {other:?}")),
+        }
+    }
+    Ok(OverviewArgs {
+        workspace: workspace.context("missing --workspace")?,
+        item,
+        accept_receipt,
+        artifact_dir,
+        write_receipt,
     })
 }
 
@@ -2519,6 +2556,172 @@ fn run_sync(args: SyncArgs) -> Result<Value> {
     }))
 }
 
+fn run_overview(args: OverviewArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let accept_receipt_path =
+        resolve_accept_receipt(&workspace, args.item.as_deref(), args.accept_receipt)?;
+    let accept_receipt = read_json(&accept_receipt_path)?;
+    let item = accept_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+
+    let plan_receipt_path = work_receipt_path(&workspace, "plan", &item);
+    let run_receipt_path = work_receipt_path(&workspace, "run", &item);
+    let adopt_receipt_path = work_receipt_path(&workspace, "adopt", &item);
+    let execute_receipt_path = work_receipt_path(&workspace, "execute", &item);
+    let close_receipt_path = work_receipt_path(&workspace, "close", &item);
+    let publish_receipt_path = work_receipt_path(&workspace, "publish", &item);
+    let sync_receipt_path = work_receipt_path(&workspace, "sync", &item);
+    let overview_receipt_path = artifact_dir.join(format!("work-overview-{item_slug}.json"));
+
+    let plan_receipt = read_json_if_exists(&plan_receipt_path)?;
+    let run_receipt = read_json_if_exists(&run_receipt_path)?;
+    let adopt_receipt = read_json_if_exists(&adopt_receipt_path)?;
+    let execute_receipt = read_json_if_exists(&execute_receipt_path)?;
+    let close_receipt = read_json_if_exists(&close_receipt_path)?;
+    let publish_receipt = read_json_if_exists(&publish_receipt_path)?;
+    let sync_receipt = read_json_if_exists(&sync_receipt_path)?;
+
+    let branch = git_output(&workspace, &["rev-parse", "--abbrev-ref", "HEAD"])?;
+    let commit_sha = execute_receipt
+        .as_ref()
+        .and_then(|receipt| string_from_json(receipt, &["handsReceipts", "commitSha"]));
+    let changed_paths = execute_receipt
+        .as_ref()
+        .map(|receipt| string_array_from_json(receipt, &["changedPaths"]))
+        .or_else(|| {
+            plan_receipt.as_ref().and_then(|receipt| {
+                first_plan_action(receipt).map(|action| string_array_field(action, "changedPaths"))
+            })
+        })
+        .unwrap_or_default();
+    let closure_status = close_receipt
+        .as_ref()
+        .and_then(|receipt| receipt.get("status").and_then(Value::as_str))
+        .unwrap_or("missing");
+    let soul_verdict = close_receipt
+        .as_ref()
+        .and_then(|receipt| string_from_json(receipt, &["soul", "verdict"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let publication_status = publish_receipt
+        .as_ref()
+        .and_then(|receipt| receipt.get("publicationStatus").and_then(Value::as_str))
+        .or_else(|| {
+            publish_receipt
+                .as_ref()
+                .and_then(|receipt| receipt.get("status").and_then(Value::as_str))
+        })
+        .unwrap_or("missing");
+    let sync_status = sync_receipt
+        .as_ref()
+        .and_then(|receipt| receipt.get("status").and_then(Value::as_str))
+        .unwrap_or("missing");
+    let (gate, blocker, next_safe_move) = repo_work_overview_gate(
+        plan_receipt.as_ref(),
+        run_receipt.as_ref(),
+        adopt_receipt.as_ref(),
+        execute_receipt.as_ref(),
+        close_receipt.as_ref(),
+        publish_receipt.as_ref(),
+        sync_receipt.as_ref(),
+    );
+
+    let receipt_chain = repo_work_receipt_state(
+        &accept_receipt_path,
+        &plan_receipt_path,
+        &run_receipt_path,
+        &adopt_receipt_path,
+        &execute_receipt_path,
+        &close_receipt_path,
+        &publish_receipt_path,
+        &sync_receipt_path,
+    );
+    let proof_bundle = json!({
+        "acceptReceiptPath": accept_receipt_path,
+        "planReceiptPath": existing_path_value(&plan_receipt_path),
+        "runReceiptPath": existing_path_value(&run_receipt_path),
+        "adoptReceiptPath": existing_path_value(&adopt_receipt_path),
+        "executeReceiptPath": existing_path_value(&execute_receipt_path),
+        "closeReceiptPath": existing_path_value(&close_receipt_path),
+        "publishReceiptPath": existing_path_value(&publish_receipt_path),
+        "syncReceiptPath": existing_path_value(&sync_receipt_path),
+        "changedPaths": changed_paths,
+        "commitSha": commit_sha,
+        "soulVerdict": soul_verdict,
+        "mindStateCommitReceiptId": close_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["mind", "stateCommitReceiptId"])),
+        "bifrostPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["bifrost", "publicationReceiptId"])),
+        "githubPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["github", "publicationReceiptId"])),
+        "upstreamMainSynced": sync_receipt.as_ref().and_then(|receipt| receipt.get("upstreamMainSynced").and_then(Value::as_bool)).unwrap_or(false),
+        "privateStateExposed": false
+    });
+    let rows = json!([
+        {"key": "item", "value": item, "status": "current"},
+        {"key": "branch", "value": branch, "status": "current"},
+        {"key": "gate", "value": gate, "status": if blocker == "none" { "ready" } else { "blocked" }},
+        {"key": "blocker", "value": blocker, "status": if blocker == "none" { "clear" } else { "attention" }},
+        {"key": "closure", "value": closure_status, "status": closure_status},
+        {"key": "publication", "value": publication_status, "status": publication_status},
+        {"key": "sync", "value": sync_status, "status": sync_status},
+        {"key": "private", "value": "false", "status": "sealed"}
+    ]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_work_overview_receipt.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "item": item,
+        "branch": branch,
+        "currentGate": gate,
+        "blocker": blocker,
+        "nextSafeMove": next_safe_move,
+        "receiptChain": receipt_chain,
+        "proofBundle": proof_bundle,
+        "rows": rows,
+        "authority": {
+            "owner": "Eyes/Gjallar",
+            "sightOnly": true,
+            "branchLocalOnly": false,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "privateStateExposed": false
+        },
+        "privateStateExposed": false
+    });
+    if args.write_receipt {
+        write_json(&overview_receipt_path, &receipt)?;
+    }
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_overview.v0",
+        "status": "overview-ready",
+        "workspace": receipt["workspace"],
+        "item": receipt["item"],
+        "branch": receipt["branch"],
+        "currentGate": receipt["currentGate"],
+        "blocker": receipt["blocker"],
+        "nextSafeMove": receipt["nextSafeMove"],
+        "receiptPath": if args.write_receipt { Value::String(overview_receipt_path.display().to_string()) } else { Value::Null },
+        "proofBundle": receipt["proofBundle"],
+        "rows": receipt["rows"],
+        "authority": receipt["authority"],
+        "privateStateExposed": false
+    }))
+}
+
 fn run_serve(args: ServeArgs) -> Result<Value> {
     if args.max_iterations == 0 && args.loop_interval_seconds == 0 {
         return Err(anyhow!(
@@ -3347,6 +3550,82 @@ fn receipt_path_state(path: &Path) -> Value {
     })
 }
 
+fn existing_path_value(path: &Path) -> Value {
+    if path.exists() {
+        Value::String(path.display().to_string())
+    } else {
+        Value::Null
+    }
+}
+
+fn read_json_if_exists(path: &Path) -> Result<Option<Value>> {
+    if path.exists() {
+        read_json(path).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+fn repo_work_overview_gate(
+    plan: Option<&Value>,
+    run: Option<&Value>,
+    adopt: Option<&Value>,
+    execute: Option<&Value>,
+    close: Option<&Value>,
+    publish: Option<&Value>,
+    sync: Option<&Value>,
+) -> (&'static str, &'static str, &'static str) {
+    if sync.is_some() {
+        (
+            "complete-or-awaiting-new-work",
+            "none",
+            "No local branch-work action remains for this item.",
+        )
+    } else if publish.is_some() {
+        (
+            "awaiting-upstream-sync",
+            "merge-or-sync-receipt-missing",
+            "After maintainer/Bifrost merge, run epiphany-work sync.",
+        )
+    } else if close.is_some() {
+        (
+            "awaiting-publication",
+            "bifrost-publication-missing",
+            "Run epiphany-work publish --closure-receipt when publication is authorized.",
+        )
+    } else if execute.is_some() {
+        (
+            "awaiting-closure",
+            "soul-modeling-mind-closure-missing",
+            "Run epiphany-work close before publication.",
+        )
+    } else if adopt.is_some() {
+        (
+            "ready-to-execute",
+            "none",
+            "Run epiphany-work execute --from-plan or pulse epiphany-work tick.",
+        )
+    } else if run.is_some() {
+        (
+            "ready-to-adopt",
+            "none",
+            "Run epiphany-work adopt --from-plan or pulse epiphany-work tick.",
+        )
+    } else if plan.is_some() {
+        (
+            "ready-to-run",
+            "none",
+            "Run epiphany-work run or pulse epiphany-work tick.",
+        )
+    } else {
+        (
+            "awaiting-plan",
+            "plan-receipt-missing",
+            "Run epiphany-work derive-plan or epiphany-work plan.",
+        )
+    }
+}
+
 fn latest_receipt_in(work_dir: &Path, prefix: &str) -> Option<PathBuf> {
     let mut candidates = Vec::new();
     if work_dir.exists() {
@@ -3728,7 +4007,7 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <accept|derive-plan|plan|run|adopt|execute|close|publish|sync|tick|serve> ...\n\
+        "usage: epiphany-work <accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|serve> ...\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--target-path EPIPHANY_WORKLOG.md] [--model-ref <ref>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
@@ -3738,6 +4017,7 @@ fn print_usage() {
          close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
+         overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
          tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]"
     );
 }

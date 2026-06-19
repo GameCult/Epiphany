@@ -136,6 +136,7 @@ epiphany-work run --workspace <repo>
 epiphany-work adopt --workspace <repo> --item <id> --from-plan <plan-receipt>
 epiphany-work execute --workspace <repo> --item <id> --from-plan <plan-receipt>
 epiphany-work close --workspace <repo> --item <id>
+epiphany-work overview --workspace <repo> --item <id>
 epiphany-work tick --workspace <repo> --item <id>
 epiphany-work serve --workspace <repo> --item <id> --max-iterations <n>
 epiphany-work publish --workspace <repo> --closure-receipt <close-receipt>
@@ -290,7 +291,7 @@ and close.
 
 ### Landed Work Run Gate
 
-The seventh front door exists as native Rust:
+The sixth front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- run --workspace <repo>
@@ -319,7 +320,7 @@ approved`, and `privateStateExposed=false`.
 
 ### Landed Work Adoption Gate
 
-The sixth front door exists as native Rust:
+The seventh front door exists as native Rust:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- adopt --workspace <repo> --item <id> --plan-summary <text> --adoption-evidence-ref <ref>
@@ -603,6 +604,36 @@ A fifth smoke proved the closure chain on a disposable fresh repo Body:
 the next tick returned `noop:none`, and every receipt summary reported
 `privateStateExposed=false`.
 
+`epiphany-work overview` is the first compact repo work sight/proof surface:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- overview --workspace <repo> --item <id>
+```
+
+It reads the accepted item plus plan, run, adopt, execute, close, publish, and
+sync receipts, asks git for the current branch, computes the current gate,
+blocker, and next safe action, and writes
+`.epiphany/work/work-overview-<item>.json` as
+`epiphany.repo_work_overview_receipt.v0`. The receipt carries compact
+agent-friendly rows plus an operator-safe proof bundle: receipt paths, changed
+paths, branch, commit SHA, Soul verdict, Mind state-commit id, Bifrost/GitHub
+publication ids when present, upstream-main sync status, and
+`privateStateExposed=false`.
+
+This is sight, not scheduling. The authority owner is `Eyes/Gjallar`, with
+`sightOnly=true`; it does not publish, merge, mutate services, cross repo
+boundaries, repair missing gates, or expose private worker thought.
+
+The first overview smoke proved both sides of the sight surface. Immediately
+after accept, overview reported `currentGate=awaiting-plan`,
+`blocker=plan-receipt-missing`. After `derive-plan -> run -> adopt -> execute
+-> close`, overview reported `currentGate=awaiting-publication`,
+`blocker=bifrost-publication-missing`, branch
+`epiphany/repo-work-overview-.../first-awakening`, a present commit SHA,
+changed path `EPIPHANY_WORKLOG.md`, Soul verdict `passed`, compact rows for
+item/branch/gate/blocker/closure/publication/sync/private, an overview receipt
+artifact, and `privateStateExposed=false`.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
@@ -615,19 +646,22 @@ That is the machine we are building.
 
 ## Full Migration Plan To Repo Swarm MVP
 
-This plan starts from the current state: twelve native front doors exist, but
+This plan starts from the current state: thirteen native front doors exist, but
 the work loop is not yet a full physiology. `init`, `online`, `accept`,
 `derive-plan`, `plan`, `run`, `adopt`, `execute`, `close`, `tick`, `publish`,
-and `sync` prove the typed path from repo birth to branch-local scheduler
-pulse, Bifrost/GitHub publication receipts, and upstream-main sync proof.
+`overview`, and `sync` prove the typed path from repo birth to branch-local
+scheduler pulse, Bifrost/GitHub publication receipts, compact proof-bundle
+sight, and upstream-main sync proof.
 `tick` now also proves brake refusal, active-turn refusal,
 completion-anchored cooldown refusal, and stale active-turn recovery through
 typed scheduler receipts; `serve` now proves bounded cadence around that same
 tick artery; `close` now proves first deterministic Soul/Modeling/Mind closure
 over Hands commit receipts; `derive-plan` now proves a deterministic
 Persona/Bifrost pressure-to-plan bridge with no operator-authored shell
-details. The chain does not yet prove fully model-authored Imagination planning
-or deeper model-authored Soul/Modeling closure.
+details; `overview` now proves compact local proof-bundle sight over the
+receipt chain. The chain does not yet prove fully model-authored Imagination
+planning, deeper model-authored Soul/Modeling closure, or Eve/Gjallar/Odin
+projection of repo work overview rows.
 
 The MVP target is narrower than the full Perfect Machine and wider than a demo:
 a fresh repository can host an Epiphany swarm that initializes its Body,
@@ -650,6 +684,7 @@ repo birth
   -> plan-backed branch-local Hands adoption
   -> plan-backed branch-local execution and commit
   -> deterministic Soul/Modeling/Mind closure
+  -> compact repo work overview/proof bundle
   -> Bifrost/GitHub publication receipts
   -> upstream-main ancestry proof after explicit merge receipt
 ```
@@ -679,6 +714,10 @@ The chain is typed and sealed enough to be useful:
 - `epiphany-work close` consumes the execute receipt, verifies the Hands commit,
   writes Soul verdict, Modeling summary, and Mind gateway/state-commit receipts,
   then seals the closure receipt without granting publication or merge.
+- `epiphany-work overview` reads the receipt chain and emits compact
+  Eyes/Gjallar-owned sight rows plus a proof bundle for current gate, blocker,
+  next safe action, branch, changed paths, commit, closure, publication, sync,
+  and private-state seal.
 - `epiphany-work publish` requires Hands commit proof plus Soul and Mind/review
   refs, or consumes those refs from a closure receipt, before routing
   Bifrost/GitHub publication receipts; it does not claim merge or upstream sync.
@@ -721,12 +760,13 @@ Required organs before MVP:
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.
-- Repo work overview: the current item, branch, receipts, blocker, next safe
-  action, and publication/sync state are visible through compact CultMesh/Eve
-  surfaces without opening private thought.
-- Proof bundle: maintainers and future agents can inspect operator-safe receipt
-  chains, commit refs, verification verdicts, map admission, Bifrost/GitHub
-  refs, credit refs, and sync state.
+- Repo work projection: local `epiphany-work overview` proof bundles exist;
+  remaining work is to mirror compact rows through CultMesh/Eve and Gjallar so
+  Personas and peer bodies can inspect them through Verse sight surfaces.
+- Proof bundle depth: maintainers and future agents can inspect local
+  operator-safe receipt chains, commit refs, verification verdicts, map
+  admission, Bifrost/GitHub refs, credit refs, and sync state; remaining work is
+  richer packaging for published/credited labor.
 
 Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt
