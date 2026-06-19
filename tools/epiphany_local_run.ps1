@@ -182,6 +182,16 @@ function ConvertTo-PowerShellLiteral {
     return "'" + $Value.Replace("'", "''") + "'"
 }
 
+function ConvertTo-PowerShellArrayLiteral {
+    param([string[]]$Values)
+
+    if ($null -eq $Values -or $Values.Count -eq 0) {
+        return "@()"
+    }
+
+    return "@(" + (($Values | ForEach-Object { ConvertTo-PowerShellLiteral $_ }) -join ", ") + ")"
+}
+
 function Get-ElevatedRunbookCommand {
     param([string]$RunbookPath)
 
@@ -1228,17 +1238,16 @@ if ($Mode -eq "cluster-service-execution-runbook") {
     )
     $clusterExecutionRunbookFinalAuditMode = "cluster-service-execution-audit"
 
-    function New-ClusterRunbookCommand {
+    function New-ClusterRunbookArgs {
         param([string]$RunbookMode)
 
-        $args = @("-Mode", $RunbookMode) + $baseWrapperArgs
-        return "& " + (ConvertTo-NativeArgument $wrapperScriptPath) + " " + (($args | ForEach-Object { ConvertTo-NativeArgument $_ }) -join " ")
+        return @("-Mode", $RunbookMode) + $baseWrapperArgs
     }
 
     function New-RunbookStepLine {
         param([string]$RunbookMode)
 
-        return "Invoke-EpiphanyRunbookStep -Name " + (ConvertTo-NativeArgument $RunbookMode) + " -Command " + (ConvertTo-NativeArgument (New-ClusterRunbookCommand $RunbookMode))
+        return "Invoke-EpiphanyRunbookStep -Name " + (ConvertTo-PowerShellLiteral $RunbookMode) + " -ScriptPath " + (ConvertTo-PowerShellLiteral $wrapperScriptPath) + " -Arguments " + (ConvertTo-PowerShellArrayLiteral (New-ClusterRunbookArgs $RunbookMode))
     }
 
     $runbookLines = @(
@@ -1256,12 +1265,13 @@ if ($Mode -eq "cluster-service-execution-runbook") {
         "function Invoke-EpiphanyRunbookStep {",
         "    param(",
         "        [Parameter(Mandatory = `$true)][string]`$Name,",
-        "        [Parameter(Mandatory = `$true)][string]`$Command",
+        "        [Parameter(Mandatory = `$true)][string]`$ScriptPath,",
+        "        [Parameter(Mandatory = `$true)][string[]]`$Arguments",
         "    )",
         "    Write-Host `"==> `$Name`"",
         "    try {",
         "        `$global:LASTEXITCODE = 0",
-        "        Invoke-Expression `$Command",
+        "        & `$ScriptPath @Arguments",
         "        if (`$null -ne `$global:LASTEXITCODE -and `$global:LASTEXITCODE -ne 0) {",
         "            throw `"Command exited with code `$global:LASTEXITCODE`"",
         "        }",
@@ -1387,17 +1397,16 @@ if ($Mode -eq "service-execution-runbook") {
         $baseWrapperArgs += @("-ServiceDisplayName", $ServiceDisplayName)
     }
 
-    function New-RunbookCommand {
+    function New-ServiceRunbookArgs {
         param([string]$RunbookMode)
 
-        $args = @("-Mode", $RunbookMode) + $baseWrapperArgs
-        return "& " + (ConvertTo-NativeArgument $wrapperScriptPath) + " " + (($args | ForEach-Object { ConvertTo-NativeArgument $_ }) -join " ")
+        return @("-Mode", $RunbookMode) + $baseWrapperArgs
     }
 
     function New-ServiceRunbookStepLine {
         param([string]$RunbookMode)
 
-        return "Invoke-EpiphanyRunbookStep -Name " + (ConvertTo-NativeArgument $RunbookMode) + " -Command " + (ConvertTo-NativeArgument (New-RunbookCommand $RunbookMode))
+        return "Invoke-EpiphanyRunbookStep -Name " + (ConvertTo-PowerShellLiteral $RunbookMode) + " -ScriptPath " + (ConvertTo-PowerShellLiteral $wrapperScriptPath) + " -Arguments " + (ConvertTo-PowerShellArrayLiteral (New-ServiceRunbookArgs $RunbookMode))
     }
 
     $runbookLines = @(
@@ -1415,12 +1424,13 @@ if ($Mode -eq "service-execution-runbook") {
         "function Invoke-EpiphanyRunbookStep {",
         "    param(",
         "        [Parameter(Mandatory = `$true)][string]`$Name,",
-        "        [Parameter(Mandatory = `$true)][string]`$Command",
+        "        [Parameter(Mandatory = `$true)][string]`$ScriptPath,",
+        "        [Parameter(Mandatory = `$true)][string[]]`$Arguments",
         "    )",
         "    Write-Host `"==> `$Name`"",
         "    try {",
         "        `$global:LASTEXITCODE = 0",
-        "        Invoke-Expression `$Command",
+        "        & `$ScriptPath @Arguments",
         "        if (`$null -ne `$global:LASTEXITCODE -and `$global:LASTEXITCODE -ne 0) {",
         "            throw `"Command exited with code `$global:LASTEXITCODE`"",
         "        }",
