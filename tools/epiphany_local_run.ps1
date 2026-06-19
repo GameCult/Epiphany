@@ -909,6 +909,11 @@ if ($Mode -eq "swarm-online-runbook") {
         $runbookLines += "# Aftercare: $($row.operatorAftercareCommand)"
         $runbookLines += "Write-Host `"Running Idunn service lifecycle runbook for Epiphany: service=$serviceLiteral route=$routeLiteral artifact=$artifactLiteral sha256=$shaLiteral aftercare=$aftercareLiteral`""
         $runbookLines += "try {"
+        $runbookLines += "    if (-not (Test-Path -LiteralPath $artifactLiteral -PathType Leaf)) { throw `"missing child runbook artifact: $artifactLiteral`" }"
+        $runbookLines += "    if ($shaLiteral -ne 'none') {"
+        $runbookLines += "        `$actualSha256 = (Get-FileHash -LiteralPath $artifactLiteral -Algorithm SHA256).Hash.ToLowerInvariant()"
+        $runbookLines += "        if (`$actualSha256 -ne $shaLiteral) { throw `"child runbook SHA-256 mismatch: expected=$shaLiteral actual=`$actualSha256 artifact=$artifactLiteral`" }"
+        $runbookLines += "    }"
         $runbookLines += "    `$process = Start-Process PowerShell -Verb RunAs -Wait -PassThru -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$artifactLiteral)"
         $runbookLines += "    `$exitCode = `$process.ExitCode"
         $runbookLines += "    if (`$null -eq `$exitCode) { `$exitCode = -1 }"
@@ -953,6 +958,7 @@ if ($Mode -eq "swarm-online-runbook") {
         aftercareCommands = $aftercareCommands
         detectsChildExitCodes = $true
         continuesAfterChildFailure = $true
+        verifiesChildArtifactSha256 = $true
         exitsNonzeroAfterChildOrAftercareFailure = $true
         sourceOverviewPath = $overviewPath
         privateStateExposed = $false
@@ -2074,7 +2080,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.aftercareCommands -and $result.aftercareCommands.Count -gt 0) {
                 $aftercare = ($result.aftercareCommands -join "; ")
             }
-            Write-Host "Swarm online runbook: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), artifactSha256=$($result.artifactSha256), elevatedCommand=$($result.elevatedCommand), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Swarm online runbook: status=$($result.status), owner=$($result.lifecycleOwner), hostedBody=$($result.hostedBody), commands=$($result.commandCount), artifactSha256=$($result.artifactSha256), elevatedCommand=$($result.elevatedCommand), verifiesChildArtifactSha256=$($result.verifiesChildArtifactSha256), aftercare=$aftercare, path=$($result.runbookPath), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-policy-directory") {
             $policyRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
