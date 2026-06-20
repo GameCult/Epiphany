@@ -414,6 +414,7 @@ fn run_swarm(args: RunArgs) -> Result<Value> {
             "queueRunStatus": queue_status,
             "actionableCount": actionable_count,
             "queueCount": queue_run["queueCount"],
+            "queueRows": queue_run["queueRows"],
             "selectedRows": queue_run["selectedRows"],
             "outputs": queue_run["outputs"],
             "receiptPath": queue_run["receiptPath"],
@@ -542,7 +543,13 @@ fn classify_run_stop(
     let selected_row = final_iteration
         .and_then(|iteration| iteration.get("selectedRows"))
         .and_then(Value::as_array)
-        .and_then(|rows| rows.first());
+        .and_then(|rows| rows.first())
+        .or_else(|| {
+            final_iteration
+                .and_then(|iteration| iteration.get("queueRows"))
+                .and_then(Value::as_array)
+                .and_then(|rows| rows.first())
+        });
     let selected_output = final_iteration
         .and_then(|iteration| iteration.get("outputs"))
         .and_then(Value::as_array)
@@ -616,7 +623,7 @@ fn classify_run_stop(
             "blocked-or-noop" if actionable_count == 0 => {
                 let owner = match selected_gate.as_str() {
                     "awaiting-publication" => "Bifrost",
-                    "awaiting-sync" => "Bifrost/GitHub",
+                    "awaiting-sync" | "awaiting-upstream-sync" => "Bifrost/GitHub",
                     "awaiting-closure" => "Soul",
                     "ready-to-run" | "ready-to-adopt" | "ready-to-execute" => "Self",
                     _ => "Self",
@@ -625,7 +632,7 @@ fn classify_run_stop(
                     "awaiting-publication" => {
                         "epiphany-work publish --workspace <repo> --closure-receipt <receipt>"
                     }
-                    "awaiting-sync" => {
+                    "awaiting-sync" | "awaiting-upstream-sync" => {
                         "epiphany-work sync --workspace <repo> --publish-receipt <receipt>"
                     }
                     "awaiting-closure" => {

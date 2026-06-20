@@ -64,6 +64,9 @@ fn run_smoke(args: Args) -> Result<Value> {
     fs::create_dir_all(&smoke_dir)
         .with_context(|| format!("failed to create {}", smoke_dir.display()))?;
 
+    let origin = smoke_dir.join("origin.git");
+    git(["init", "--bare", path_str(&origin)?], &smoke_dir)?;
+
     let repo = smoke_dir.join("repo-body");
     fs::create_dir_all(&repo).with_context(|| format!("failed to create {}", repo.display()))?;
     git(["init"], &repo)?;
@@ -82,6 +85,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         ["commit", "-m", "Seed swarm stop classification smoke"],
         &repo,
     )?;
+    git(["branch", "-M", "main"], &repo)?;
+    git(["remote", "add", "origin", path_str(&origin)?], &repo)?;
+    git(["push", "-u", "origin", "main"], &repo)?;
 
     let runtime_id = "swarm-stop-classification-smoke";
     let local_verse = repo.join(".epiphany").join("local-verse.ccmp");
@@ -173,24 +179,24 @@ fn run_smoke(args: Args) -> Result<Value> {
         false,
     )?;
 
-    let item = "dry-run-preview";
+    let item = "gate-proof";
     cargo_json(
         &manifest,
         "epiphany-work",
         &[
-            "accept",
+            "persona-intake",
             "--workspace",
             path_str(&repo)?,
-            "--from",
-            "persona",
+            "--epiphany-root",
+            path_str(&root)?,
+            "--runtime-id",
+            runtime_id,
             "--item",
             item,
-            "--summary",
+            "--message",
             "Prove a dry-run swarm pulse can classify a ready-to-run queue row without mutation.",
-            "--candidate-action-ref",
-            "candidate-action://swarm-stop-classification/dry-run-preview",
-            "--public-discussion-ref",
-            "eve://epiphany/persona/swarm-stop-classification",
+            "--topic",
+            "swarm-stop-classification",
         ],
         &root,
     )?;
@@ -204,7 +210,7 @@ fn run_smoke(args: Args) -> Result<Value> {
             "--item",
             item,
             "--action-family",
-            "planning-note",
+            "repo-status-section",
             "--model-ref",
             "swarm-stop-classification-smoke-imagination-v1",
             "--model-authored",
@@ -269,11 +275,230 @@ fn run_smoke(args: Args) -> Result<Value> {
         false,
     )?;
 
+    git(
+        [
+            "checkout",
+            "-B",
+            "epiphany/swarm-stop-classification/gate-proof",
+        ],
+        &repo,
+    )?;
+    let publication_pipeline = cargo_json(
+        &manifest,
+        "epiphany-swarm",
+        &[
+            "run",
+            "--workspace",
+            path_str(&repo)?,
+            "--epiphany-root",
+            path_str(&root)?,
+            "--runtime-id",
+            runtime_id,
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--max-iterations",
+            "4",
+            "--max-items",
+            "1",
+            "--cooldown-seconds",
+            "0",
+        ],
+        &root,
+    )?;
+    require_eq(
+        &publication_pipeline,
+        &["stopClassification", "category"],
+        "iteration-limit",
+    )?;
+    let publication_gate_run = cargo_json(
+        &manifest,
+        "epiphany-swarm",
+        &[
+            "run",
+            "--workspace",
+            path_str(&repo)?,
+            "--epiphany-root",
+            path_str(&root)?,
+            "--runtime-id",
+            runtime_id,
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--max-iterations",
+            "1",
+            "--max-items",
+            "1",
+            "--cooldown-seconds",
+            "0",
+        ],
+        &root,
+    )?;
+    require_eq(
+        &publication_gate_run,
+        &["stopClassification", "category"],
+        "authority-gated",
+    )?;
+    require_eq(
+        &publication_gate_run,
+        &["stopClassification", "owner"],
+        "Bifrost",
+    )?;
+    require_eq(
+        &publication_gate_run,
+        &["stopClassification", "authorityGate"],
+        "awaiting-publication",
+    )?;
+    require_eq(
+        &publication_gate_run,
+        &["stopClassification", "blocker"],
+        "bifrost-publication-missing",
+    )?;
+    require_bool(
+        &publication_gate_run,
+        &["stopClassification", "mutatesState"],
+        false,
+    )?;
+    require_bool(
+        &publication_gate_run,
+        &["stopClassification", "requiresElevatedAuthority"],
+        false,
+    )?;
+    require_bool(
+        &publication_gate_run,
+        &["stopClassification", "privateStateExposed"],
+        false,
+    )?;
+
+    let closure_receipt = repo
+        .join(".epiphany")
+        .join("work")
+        .join(format!("work-close-{item}.json"));
+    let publish = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "publish",
+            "--workspace",
+            path_str(&repo)?,
+            "--epiphany-root",
+            path_str(&root)?,
+            "--item",
+            item,
+            "--closure-receipt",
+            path_str(&closure_receipt)?,
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--change-summary",
+            "Swarm stop classification publication gate proof.",
+            "--justification",
+            "Disposable Bifrost proof for gated repo-swarm stop classification.",
+            "--ledger-entry-id",
+            "swarm-stop-classification-publication-ledger",
+            "--pull-request-url",
+            "https://example.invalid/GameCult/swarm-stop-classification/pull/1",
+            "--pull-request-number",
+            "1",
+            "--pull-request-title",
+            "Swarm stop classification publication gate proof",
+        ],
+        &root,
+    )?;
+    require_eq(&publish, &["status"], "publication-receipts-recorded")?;
+    cargo_json(
+        &manifest,
+        "epiphany-work",
+        &["overview", "--workspace", path_str(&repo)?, "--item", item],
+        &root,
+    )?;
+    let sync_gate_run = cargo_json(
+        &manifest,
+        "epiphany-swarm",
+        &[
+            "run",
+            "--workspace",
+            path_str(&repo)?,
+            "--epiphany-root",
+            path_str(&root)?,
+            "--runtime-id",
+            runtime_id,
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--max-iterations",
+            "1",
+            "--max-items",
+            "1",
+            "--cooldown-seconds",
+            "0",
+        ],
+        &root,
+    )?;
+    require_eq(
+        &sync_gate_run,
+        &["stopClassification", "category"],
+        "authority-gated",
+    )?;
+    require_eq(
+        &sync_gate_run,
+        &["stopClassification", "owner"],
+        "Bifrost/GitHub",
+    )?;
+    require_eq(
+        &sync_gate_run,
+        &["stopClassification", "authorityGate"],
+        "awaiting-upstream-sync",
+    )?;
+    require_eq(
+        &sync_gate_run,
+        &["stopClassification", "blocker"],
+        "merge-or-sync-receipt-missing",
+    )?;
+    require_bool(
+        &sync_gate_run,
+        &["stopClassification", "mutatesState"],
+        false,
+    )?;
+    require_bool(
+        &sync_gate_run,
+        &["stopClassification", "requiresElevatedAuthority"],
+        false,
+    )?;
+    require_bool(
+        &sync_gate_run,
+        &["stopClassification", "privateStateExposed"],
+        false,
+    )?;
+
+    git(["push", "origin", "HEAD:main"], &repo)?;
+    git(["fetch", "origin", "main"], &repo)?;
+    let publish_receipt = repo
+        .join(".epiphany")
+        .join("work")
+        .join(format!("work-publish-{item}.json"));
+    let sync = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "sync",
+            "--workspace",
+            path_str(&repo)?,
+            "--item",
+            item,
+            "--publish-receipt",
+            path_str(&publish_receipt)?,
+            "--upstream-ref",
+            "origin/main",
+            "--merge-receipt",
+            "maintainer-merge:swarm-stop-classification-smoke",
+        ],
+        &root,
+    )?;
+    require_eq(&sync, &["status"], "upstream-main-synced")?;
+
     let summary = json!({
         "schemaVersion": "epiphany.repo_swarm_stop_classification_smoke.v0",
         "status": "ok",
         "smokeDir": smoke_dir,
         "repo": repo,
+        "origin": origin,
         "emptyStopCategory": empty_run["stopClassification"]["category"],
         "emptyStopOwner": empty_run["stopClassification"]["owner"],
         "emptyStopGate": empty_run["stopClassification"]["authorityGate"],
@@ -281,6 +506,16 @@ fn run_smoke(args: Args) -> Result<Value> {
         "dryRunStopOwner": dry_run["stopClassification"]["owner"],
         "dryRunStopGate": dry_run["stopClassification"]["authorityGate"],
         "dryRunSelectedItem": dry_run["stopClassification"]["selectedItem"],
+        "publicationStopCategory": publication_gate_run["stopClassification"]["category"],
+        "publicationStopOwner": publication_gate_run["stopClassification"]["owner"],
+        "publicationStopGate": publication_gate_run["stopClassification"]["authorityGate"],
+        "publicationStopBlocker": publication_gate_run["stopClassification"]["blocker"],
+        "syncStopCategory": sync_gate_run["stopClassification"]["category"],
+        "syncStopOwner": sync_gate_run["stopClassification"]["owner"],
+        "syncStopGate": sync_gate_run["stopClassification"]["authorityGate"],
+        "syncStopBlocker": sync_gate_run["stopClassification"]["blocker"],
+        "syncStatus": sync["status"],
+        "upstreamMainSynced": sync["authority"]["upstreamMainSynced"],
         "mutatesState": false,
         "requiresElevatedAuthority": false,
         "privateStateExposed": false,

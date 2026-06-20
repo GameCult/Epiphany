@@ -9068,6 +9068,7 @@ fn run_queue(args: QueueArgs) -> Result<Value> {
         "maxItems": receipt["maxItems"],
         "dryRun": receipt["dryRun"],
         "receiptPath": receipt_path,
+        "queueRows": receipt["queueRows"],
         "selectedRows": receipt["selectedRows"],
         "outputs": receipt["outputs"],
         "authority": receipt["authority"],
