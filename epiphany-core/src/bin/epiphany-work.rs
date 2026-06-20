@@ -4025,13 +4025,39 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             "Route Bifrost/GitHub publication through epiphany-work publish --closure-receipt."
                 .to_string();
     } else if execute_receipt_path.exists() {
-        action = "none".to_string();
-        status = "noop".to_string();
-        reason =
-            "branch-local execution is recorded; scheduler stops before Soul/Mind/Bifrost gates"
+        if args.dry_run {
+            action = "close-from-execute".to_string();
+            status = "would-advance".to_string();
+            reason =
+                "branch-local execution receipt exists and Soul/Modeling/Mind closure is missing"
+                    .to_string();
+            next_safe_move =
+                "Rerun without --dry-run to close the executed branch-local work before publication."
+                    .to_string();
+        } else {
+            action = "close-from-execute".to_string();
+            advanced_result = run_close(CloseArgs {
+                workspace: workspace.clone(),
+                item: Some(item.clone()),
+                execute_receipt: Some(execute_receipt_path.clone()),
+                runtime_store: args.runtime_store.clone(),
+                artifact_dir: Some(artifact_dir.clone()),
+                verification_command: None,
+                verification_summary: Some(format!(
+                    "Scheduler pulse closed executed repo work item {item}."
+                )),
+                modeling_summary: Some(format!(
+                    "Modeling records scheduler-closed repo work item {item}; publication remains gated by Bifrost."
+                )),
+                state_revision: 0,
+            })?;
+            status = "advanced".to_string();
+            reason = "closed executed branch-local work through Soul, Modeling, and Mind receipts"
                 .to_string();
-        next_safe_move =
-            "Route Soul verification and Mind review before epiphany-work publish.".to_string();
+            next_safe_move =
+                "Route Bifrost/GitHub publication through epiphany-work publish --closure-receipt."
+                    .to_string();
+        }
     } else if adopt_receipt_path.exists() {
         if !plan_receipt_path.exists() {
             status = "blocked".to_string();
@@ -4472,7 +4498,10 @@ fn load_repo_work_overview_queue_from_store(
 }
 
 fn repo_work_gate_is_tick_actionable(gate: &str) -> bool {
-    matches!(gate, "ready-to-run" | "ready-to-adopt" | "ready-to-execute")
+    matches!(
+        gate,
+        "ready-to-run" | "ready-to-adopt" | "ready-to-execute" | "awaiting-closure"
+    )
 }
 
 fn overview_workspace_matches(
