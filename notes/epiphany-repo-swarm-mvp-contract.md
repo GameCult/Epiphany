@@ -768,6 +768,19 @@ published `repo-work-public-proof-checklist-request` to
 `bifrost-public-proof-publication-checklist-request`, `status=ok`, and
 `privateStateExposed=false`.
 
+Wrapper mode `tools/epiphany_local_run.ps1 -Mode bifrost-public-proof` now
+exposes the same Bifrost mouth for operators and agents. It reads the latest
+repo-local public proof row from `<workspace>\.epiphany\local-verse.ccmp` when
+`-BifrostPublicProofId` is omitted, then writes the Bifrost receipt with
+explicit ledger/review/credit/public-room inputs and prints a compact summary.
+Wrapper proof `local-20260620-132418-144-62ba9369` against
+`.epiphany-smoke\checklist-note-20260620-031347` wrote
+`bifrost-public-proof-publication-wrapper-checklist`; ledger artifact
+`24-bifrost-ledger-after-wrapper-public-proof.json` reported
+`publicProofPublicationCount=1`, latest receipt
+`bifrost-public-proof-publication-wrapper-checklist`, and
+`privateStateExposed=false`.
+
 The first Verse projection smoke proved the local CultMesh sight path: overview
 mirrored `repo-work-overview-verse-overview-request` into the repo-local Verse,
 `epiphany-verse-query smoke --store <local-verse> --runtime-id repo-swarm-local`
@@ -1277,9 +1290,10 @@ Required organs before MVP:
   redacted proof row through
   `gamecult.bifrost.public_proof_publication_receipt.v0` with public Verse
   target, public room, ledger, review, credit, proof ref, and SHA-256 readback.
-  Remaining work is UX polish around this mouth plus richer safe-family and
-  closure depth, not basic local public-proof export, local CultMesh readback,
-  Bifrost/GitHub/sync row visibility, or public-proof publication closure.
+  Remaining work is richer safe-family and closure depth, not basic local
+  public-proof export, local CultMesh readback, Bifrost/GitHub/sync row
+  visibility, public-proof publication closure, or the standard wrapper mouth
+  for that closure.
 
 Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt
