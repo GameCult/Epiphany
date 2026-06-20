@@ -678,6 +678,22 @@ globally invokable Persona `eve-connect` daemon tool embeds the queue in its
 items through `eve-surfaces`, `connect-eve`, and `invoke-tool`, with no
 mutation, elevation, or private-state exposure.
 
+The first runnable queue surface is now native too. `epiphany-work queue-run`
+reads the typed `epiphany.cultmesh.repo_work_overview.v0` queue from the
+repo-local Verse, selects only tick-actionable rows (`ready-to-run`,
+`ready-to-adopt`, `ready-to-execute`) for the current repo Body, delegates each
+selected item to the existing Self-owned `tick` artery, and refreshes the
+overview after a real advancement. It writes
+`epiphany.repo_work_queue_run_receipt.v0` as `work-queue-run.json`; it does not
+publish, merge, close, install services, mutate another repo, or inspect private
+worker thought. `tools/epiphany_local_run.ps1 -Mode repo-work-queue-run` is the
+operator wrapper over the same surface. Proofs:
+`.epiphany-smoke\queue-run-20260620-014314` selected item `first` from a
+two-item queue, advanced `run-from-plan`, refreshed its gate to
+`ready-to-adopt`, and left blocked item `second` at `awaiting-plan`; wrapper
+artifact `local-20260620-014627-174-aada0241` dry-ran the next selected step as
+`adopt-from-plan` with `privateStateExposed=false`.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
@@ -754,10 +770,10 @@ temptation wearing clean robes.
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. | Add a repo Persona intake mouth so humans can talk to the project instead of hand-authoring CLI work items. |
 | Imagination planning | `derive-plan` deterministically creates append-only worklog plans; `plan` remains manual quarantine scaffolding. | Replace operator-authored shell details with model-authored, typed Imagination action items for richer safe command families. |
-| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery. | Wire the same pulse into a usable repo-swarm run surface and optional Idunn-hosted lifecycle without taking Idunn's authority. |
+| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`. | Add optional Idunn-hosted lifecycle for the same queue-run surface without taking Idunn's authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
-| Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; Gjallar enumerates the history as queue rows and non-mutating action rows; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows. | Wire the queue into a usable repo-swarm run surface and richer Persona-to-plan loop without moving action authority out of Hands/Self/Bifrost. |
+| Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; Gjallar enumerates the history as queue rows and non-mutating action rows; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop without moving action authority out of Hands/Self/Bifrost. |
 | Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
 | Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
 | Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |
@@ -883,6 +899,11 @@ The chain is typed and sealed enough to be useful:
   refuses under local Verse brake, refuses while an active turn is live, refuses
   during explicit completion-anchored cooldown, recovers stale active markers,
   then stops before Soul/Mind/Bifrost gates.
+- `epiphany-work queue-run` is the first queue-aware run surface: it reads the
+  typed repo-local overview queue, selects only tick-actionable rows for the
+  current repo Body, delegates to `tick`, refreshes overview after advancement,
+  and writes a queue-run receipt. Wrapper:
+  `tools/epiphany_local_run.ps1 -Mode repo-work-queue-run`.
 - `epiphany-work serve` is the first Self-owned cadence loop around that pulse:
   bounded proof mode records finite iteration outputs, unbounded service mode
   relies on per-pulse tick receipts, and zero-interval unbounded polling is
@@ -914,12 +935,14 @@ Required organs before MVP:
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.
-- Repo work projection: local `epiphany-work overview` proof bundles, typed
+- Repo work projection/run surface: local `epiphany-work overview` proof bundles, typed
   `epiphany.cultmesh.repo_work_overview.v0` event history plus latest-key
   projection, and Gjallar multi-item `repo-work-overview` action/readback rows
   exist. Persona's Eve surface, direct Eve connection, and globally invokable
-  Persona Eve tool readback now expose peer-readable queue rows. Remaining work
-  is a usable repo-swarm run surface and richer Persona-to-plan depth.
+  Persona Eve tool readback now expose peer-readable queue rows, and
+  `epiphany-work queue-run` plus wrapper `repo-work-queue-run` consume that
+  queue for safe branch-local pulses. Remaining work is richer
+  Persona-to-plan depth.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, commit refs, verification verdicts, map
   admission, Bifrost/GitHub refs, credit refs, and sync state; remaining work is

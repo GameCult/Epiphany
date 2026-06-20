@@ -26,7 +26,9 @@ use epiphany_core::hands_commit_receipt_for_review;
 use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::hands_pr_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
@@ -71,6 +73,9 @@ fn main() -> Result<()> {
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
         "overview" | "proof-bundle" | "status" => run_overview(parse_overview_args(args)?),
         "tick" | "pulse" | "schedule" => run_tick(parse_tick_args(args)?),
+        "queue-run" | "run-queue" | "queue-tick" | "scheduler-run" => {
+            run_queue(parse_queue_args(args)?)
+        }
         "serve" | "loop" | "daemon" => run_serve(parse_serve_args(args)?),
         other => Err(anyhow!("unknown epiphany-work command {other:?}")),
     }?;
@@ -242,6 +247,20 @@ struct TickArgs {
     local_verse_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
+    cooldown_seconds: u64,
+    active_timeout_seconds: u64,
+    dry_run: bool,
+}
+
+#[derive(Clone, Debug)]
+struct QueueArgs {
+    workspace: PathBuf,
+    epiphany_root: PathBuf,
+    local_verse_store: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    runtime_store: Option<PathBuf>,
+    runtime_id: String,
+    max_items: u64,
     cooldown_seconds: u64,
     active_timeout_seconds: u64,
     dry_run: bool,
@@ -947,6 +966,55 @@ fn parse_serve_args(args: impl Iterator<Item = String>) -> Result<ServeArgs> {
         scheduler_id,
         loop_interval_seconds,
         max_iterations,
+    })
+}
+
+fn parse_queue_args(args: impl Iterator<Item = String>) -> Result<QueueArgs> {
+    let mut workspace = None;
+    let mut epiphany_root = None;
+    let mut local_verse_store = None;
+    let mut artifact_dir = None;
+    let mut runtime_store = None;
+    let mut runtime_id = "repo-swarm-local".to_string();
+    let mut max_items = 1_u64;
+    let mut cooldown_seconds = 0_u64;
+    let mut active_timeout_seconds = 900_u64;
+    let mut dry_run = false;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
+            "--local-verse-store" | "--store" => {
+                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
+            }
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
+            "--runtime-id" => runtime_id = take_string(&mut args, "--runtime-id")?,
+            "--max-items" => max_items = take_u64(&mut args, "--max-items")?,
+            "--cooldown-seconds" => {
+                cooldown_seconds = take_u64(&mut args, "--cooldown-seconds")?;
+            }
+            "--active-timeout-seconds" => {
+                active_timeout_seconds = take_u64(&mut args, "--active-timeout-seconds")?;
+            }
+            "--dry-run" | "--no-execute" => dry_run = true,
+            other => return Err(anyhow!("unexpected queue-run argument {other:?}")),
+        }
+    }
+    Ok(QueueArgs {
+        workspace: workspace.context("missing --workspace")?,
+        epiphany_root: epiphany_root
+            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
+        local_verse_store,
+        artifact_dir,
+        runtime_store,
+        runtime_id,
+        max_items,
+        cooldown_seconds,
+        active_timeout_seconds,
+        dry_run,
     })
 }
 
@@ -2941,6 +3009,147 @@ fn run_serve(args: ServeArgs) -> Result<Value> {
     }))
 }
 
+fn run_queue(args: QueueArgs) -> Result<Value> {
+    if args.max_items == 0 {
+        return Err(anyhow!("queue-run requires --max-items greater than 0"));
+    }
+
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let local_verse_store = args
+        .local_verse_store
+        .clone()
+        .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"));
+    if !local_verse_store.exists() {
+        return Err(anyhow!(
+            "repo-work queue-run requires a local Verse store at {}; run epiphany-swarm online and epiphany-work overview first, or pass --local-verse-store",
+            local_verse_store.display()
+        ));
+    }
+    let artifact_dir = args
+        .artifact_dir
+        .clone()
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let (latest_repo_work_overview, repo_work_overviews) =
+        load_repo_work_overview_queue_from_store(&local_verse_store, &args.runtime_id)?;
+    let selected = repo_work_overviews
+        .iter()
+        .filter(|overview| overview_workspace_matches(overview, &workspace))
+        .filter(|overview| repo_work_gate_is_tick_actionable(&overview.current_gate))
+        .take(args.max_items as usize)
+        .cloned()
+        .collect::<Vec<_>>();
+    let queue_rows = repo_work_queue_selection_rows(&repo_work_overviews, &workspace);
+    let selected_rows = repo_work_queue_selection_rows(&selected, &workspace);
+
+    let started_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let mut outputs = Vec::new();
+    for overview in &selected {
+        let tick_output = run_tick(TickArgs {
+            workspace: workspace.clone(),
+            epiphany_root: args.epiphany_root.clone(),
+            item: Some(overview.item.clone()),
+            local_verse_store: Some(local_verse_store.clone()),
+            artifact_dir: Some(artifact_dir.clone()),
+            runtime_store: args.runtime_store.clone(),
+            cooldown_seconds: args.cooldown_seconds,
+            active_timeout_seconds: args.active_timeout_seconds,
+            dry_run: args.dry_run,
+        })?;
+        let refreshed_overview = if args.dry_run {
+            Value::Null
+        } else {
+            run_overview(OverviewArgs {
+                workspace: workspace.clone(),
+                item: Some(overview.item.clone()),
+                accept_receipt: None,
+                artifact_dir: Some(artifact_dir.clone()),
+                write_receipt: true,
+            })?
+        };
+        outputs.push(json!({
+            "item": overview.item,
+            "overviewId": overview.overview_id,
+            "gateBefore": overview.current_gate,
+            "blockerBefore": overview.blocker,
+            "tick": tick_output,
+            "refreshedOverview": refreshed_overview
+        }));
+    }
+
+    let status = if selected.is_empty() {
+        "blocked-or-noop"
+    } else if args.dry_run {
+        "would-advance"
+    } else {
+        "advanced"
+    };
+    let next_safe_move = if selected.is_empty() {
+        "No tick-actionable repo-work queue rows were found; inspect queue rows for plan, closure, publication, or sync gates."
+    } else if args.dry_run {
+        "Rerun queue-run without --dry-run to pulse the selected repo-work items."
+    } else {
+        "Inspect refreshed repo-work overview rows, then continue queue-run only while branch-local gates remain tick-actionable."
+    };
+    let completed_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let receipt_path = artifact_dir.join("work-queue-run.json");
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_work_queue_run_receipt.v0",
+        "createdAt": completed_at,
+        "startedAt": started_at,
+        "completedAt": completed_at,
+        "status": status,
+        "workspace": workspace,
+        "localVerseStore": local_verse_store,
+        "runtimeId": args.runtime_id,
+        "latestRepoWorkOverview": latest_repo_work_overview.as_ref().map(|overview| overview.overview_id.clone()),
+        "queueCount": repo_work_overviews.len(),
+        "actionableCount": selected.len(),
+        "maxItems": args.max_items,
+        "dryRun": args.dry_run,
+        "queueRows": queue_rows,
+        "selectedRows": selected_rows,
+        "outputs": outputs,
+        "authority": {
+            "owner": "Self",
+            "selectionOnly": false,
+            "delegatesActuationTo": "epiphany.repo_work_scheduler_tick",
+            "branchLocalOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "privateStateExposed": false
+        },
+        "nextSafeMove": next_safe_move,
+        "privateStateExposed": false
+    });
+    write_json(&receipt_path, &receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_queue_run.v0",
+        "status": receipt["status"],
+        "workspace": receipt["workspace"],
+        "localVerseStore": receipt["localVerseStore"],
+        "runtimeId": receipt["runtimeId"],
+        "queueCount": receipt["queueCount"],
+        "actionableCount": receipt["actionableCount"],
+        "maxItems": receipt["maxItems"],
+        "dryRun": receipt["dryRun"],
+        "receiptPath": receipt_path,
+        "selectedRows": receipt["selectedRows"],
+        "outputs": receipt["outputs"],
+        "authority": receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": receipt["nextSafeMove"],
+    }))
+}
+
 fn run_tick(args: TickArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -3711,6 +3920,76 @@ fn repo_work_overview_gate(
     }
 }
 
+fn load_repo_work_overview_queue_from_store(
+    store: &Path,
+    runtime_id: &str,
+) -> Result<(
+    Option<EpiphanyCultMeshRepoWorkOverviewEntry>,
+    Vec<EpiphanyCultMeshRepoWorkOverviewEntry>,
+)> {
+    let latest = load_latest_epiphany_cultmesh_repo_work_overview(store, runtime_id.to_string())?;
+    let mut overviews = load_epiphany_cultmesh_repo_work_overviews(store, runtime_id.to_string())?;
+    if let Some(latest_overview) = latest.as_ref() {
+        if !overviews
+            .iter()
+            .any(|overview| overview.overview_id == latest_overview.overview_id)
+        {
+            overviews.push(latest_overview.clone());
+            overviews.sort_by(|a, b| {
+                b.generated_at
+                    .cmp(&a.generated_at)
+                    .then_with(|| a.overview_id.cmp(&b.overview_id))
+            });
+        }
+    }
+    Ok((latest, overviews))
+}
+
+fn repo_work_gate_is_tick_actionable(gate: &str) -> bool {
+    matches!(gate, "ready-to-run" | "ready-to-adopt" | "ready-to-execute")
+}
+
+fn overview_workspace_matches(
+    overview: &EpiphanyCultMeshRepoWorkOverviewEntry,
+    workspace: &Path,
+) -> bool {
+    let overview_path = PathBuf::from(&overview.workspace);
+    overview_path
+        .canonicalize()
+        .map(|path| path == workspace)
+        .unwrap_or_else(|_| {
+            normalize_path_text(&overview.workspace)
+                == normalize_path_text(&workspace.display().to_string())
+        })
+}
+
+fn normalize_path_text(value: &str) -> String {
+    value.replace('\\', "/").to_ascii_lowercase()
+}
+
+fn repo_work_queue_selection_rows(
+    overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
+    workspace: &Path,
+) -> Vec<String> {
+    overviews
+        .iter()
+        .map(|overview| {
+            let workspace_match = overview_workspace_matches(overview, workspace);
+            let tick_actionable = repo_work_gate_is_tick_actionable(&overview.current_gate);
+            format!(
+                "QUEUE-RUN | item={} | gate={} | blocker={} | actionable={} | workspaceMatch={} | next={} | private={}",
+                overview.item,
+                overview.current_gate,
+                overview.blocker,
+                tick_actionable,
+                workspace_match,
+                overview.next_safe_move,
+                overview.private_state_exposed
+            )
+        })
+        .collect()
+}
+
 fn latest_receipt_in(work_dir: &Path, prefix: &str) -> Option<PathBuf> {
     let mut candidates = Vec::new();
     if work_dir.exists() {
@@ -4092,7 +4371,7 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|serve> ...\n\
+        "usage: epiphany-work <accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|queue-run|serve> ...\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--target-path EPIPHANY_WORKLOG.md] [--model-ref <ref>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
@@ -4103,6 +4382,7 @@ fn print_usage() {
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
-         tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]"
+         tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]\n\
+         queue-run --workspace <repo> [--local-verse-store <path>] [--runtime-id repo-swarm-local] [--max-items 1] [--dry-run]"
     );
 }
