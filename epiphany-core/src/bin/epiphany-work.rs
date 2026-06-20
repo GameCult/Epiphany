@@ -47,6 +47,8 @@ use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use serde_json::Value;
 use serde_json::json;
+use sha2::Digest;
+use sha2::Sha256;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -3273,7 +3275,41 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         &publish_receipt_path,
         &sync_receipt_path,
     );
+    let proof_artifacts = repo_work_proof_artifact_rows(&[
+        ("accept", &accept_receipt_path),
+        ("plan", &plan_receipt_path),
+        ("run", &run_receipt_path),
+        ("adopt", &adopt_receipt_path),
+        ("execute", &execute_receipt_path),
+        ("close", &close_receipt_path),
+        ("publish", &publish_receipt_path),
+        ("sync", &sync_receipt_path),
+    ])?;
+    let proof_bundle_tui_rows = repo_work_proof_bundle_tui_rows(
+        &item,
+        &branch,
+        gate,
+        blocker,
+        closure_status,
+        publication_status,
+        sync_status,
+        proof_artifacts
+            .iter()
+            .filter(|row| row.get("artifactStatus").and_then(Value::as_str) == Some("present"))
+            .count(),
+    );
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let now_for_entry = now.clone();
     let proof_bundle = json!({
+        "schemaVersion": "epiphany.repo_work_proof_bundle.v0",
+        "bundleId": format!("repo-work-proof-bundle-{item_slug}"),
+        "generatedAt": now,
+        "workspace": workspace,
+        "item": item,
+        "branch": branch,
+        "currentGate": gate,
+        "blocker": blocker,
+        "nextSafeMove": next_safe_move,
         "acceptReceiptPath": accept_receipt_path,
         "planReceiptPath": existing_path_value(&plan_receipt_path),
         "runReceiptPath": existing_path_value(&run_receipt_path),
@@ -3289,6 +3325,8 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "bifrostPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["bifrost", "publicationReceiptId"])),
         "githubPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["github", "publicationReceiptId"])),
         "upstreamMainSynced": sync_receipt.as_ref().and_then(|receipt| receipt.get("upstreamMainSynced").and_then(Value::as_bool)).unwrap_or(false),
+        "artifactRows": proof_artifacts,
+        "tuiRows": proof_bundle_tui_rows,
         "privateStateExposed": false
     });
     let rows = json!([
@@ -3301,8 +3339,6 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         {"key": "sync", "value": sync_status, "status": sync_status},
         {"key": "private", "value": "false", "status": "sealed"}
     ]);
-    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let now_for_entry = now.clone();
     let receipt = json!({
         "schemaVersion": "epiphany.repo_work_overview_receipt.v0",
         "createdAt": now,
@@ -4412,6 +4448,66 @@ fn repo_work_existing_receipt_refs(receipts: &[(&str, &Path)]) -> Vec<String> {
         .collect()
 }
 
+fn repo_work_proof_artifact_rows(receipts: &[(&str, &Path)]) -> Result<Vec<Value>> {
+    receipts
+        .iter()
+        .map(|(kind, path)| {
+            if !path.exists() {
+                return Ok(json!({
+                    "kind": kind,
+                    "expectedPath": path.display().to_string(),
+                    "path": Value::Null,
+                    "artifactStatus": "missing",
+                    "artifactSha256": "none",
+                    "schemaVersion": "missing",
+                    "documentStatus": "missing",
+                    "privateStateExposed": false
+                }));
+            }
+
+            let document = read_json(path).with_context(|| {
+                format!(
+                    "failed to read proof artifact {} at {}",
+                    kind,
+                    path.display()
+                )
+            })?;
+            let schema_version = string_from_json(&document, &["schemaVersion"])
+                .unwrap_or_else(|| "unknown".to_string());
+            let document_status =
+                string_from_json(&document, &["status"]).unwrap_or_else(|| "unknown".to_string());
+            Ok(json!({
+                "kind": kind,
+                "expectedPath": path.display().to_string(),
+                "path": existing_path_value(path),
+                "artifactStatus": "present",
+                "artifactSha256": file_sha256(path)?,
+                "schemaVersion": schema_version,
+                "documentStatus": document_status,
+                "privateStateExposed": false
+            }))
+        })
+        .collect()
+}
+
+fn repo_work_proof_bundle_tui_rows(
+    item: &str,
+    branch: &str,
+    gate: &str,
+    blocker: &str,
+    closure_status: &str,
+    publication_status: &str,
+    sync_status: &str,
+    present_artifact_count: usize,
+) -> Vec<String> {
+    vec![
+        format!("PROOF | item={item} | gate={gate} | blocker={blocker} | private=false"),
+        format!(
+            "PROOF | branch={branch} | artifactsPresent={present_artifact_count} | closure={closure_status} | publication={publication_status} | sync={sync_status}"
+        ),
+    ]
+}
+
 fn repo_work_overview_gate(
     plan: Option<&Value>,
     run: Option<&Value>,
@@ -4884,6 +4980,12 @@ fn read_json(path: &Path) -> Result<Value> {
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     serde_json::from_str(&raw).with_context(|| format!("failed to decode {}", path.display()))
+}
+
+fn file_sha256(path: &Path) -> Result<String> {
+    let bytes = fs::read(path).with_context(|| format!("failed to hash {}", path.display()))?;
+    let digest = Sha256::digest(&bytes);
+    Ok(format!("{digest:x}"))
 }
 
 fn write_json(path: &Path, value: &Value) -> Result<()> {

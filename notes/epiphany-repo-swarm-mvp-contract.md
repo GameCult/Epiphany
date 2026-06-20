@@ -629,11 +629,16 @@ sync receipts, asks git for the current branch, computes the current gate,
 blocker, and next safe action, and writes
 `.epiphany/work/work-overview-<item>.json` as
 `epiphany.repo_work_overview_receipt.v0`. The receipt carries compact
-agent-friendly rows plus an operator-safe proof bundle: receipt paths, changed
-paths, branch, commit SHA, Soul verdict, Mind state-commit id, Bifrost/GitHub
-publication ids when present, upstream-main sync status, and
-`privateStateExposed=false`. When the accept receipt names a local Verse store,
-overview also mirrors those compact rows as
+agent-friendly rows plus an operator-safe proof bundle. The proof bundle is
+`epiphany.repo_work_proof_bundle.v0`; it carries bundle id, generated time,
+workspace, item, branch, current gate, blocker, next safe move, changed paths,
+commit SHA, Soul verdict, Mind state-commit id, Bifrost/GitHub publication ids
+when present, upstream-main sync status, compact TUI rows, and
+`privateStateExposed=false`. Its `artifactRows` enumerate the expected accept,
+plan, run, adopt, execute, close, publish, and sync receipts with expected path,
+present/missing status, document schema, document status, SHA-256 hash when
+present, and private-state seal. When the accept receipt names a local Verse
+store, overview also mirrors the compact overview rows as
 `epiphany.cultmesh.repo_work_overview.v0` under
 `gamecult-local/repo-work-overview/latest`, so Eve/Gjallar/Odin sight can read
 the same typed surface without opening the `.epiphany/work` artifact body.
@@ -651,6 +656,13 @@ after accept, overview reported `currentGate=awaiting-plan`,
 changed path `EPIPHANY_WORKLOG.md`, Soul verdict `passed`, compact rows for
 item/branch/gate/blocker/closure/publication/sync/private, an overview receipt
 artifact, and `privateStateExposed=false`.
+
+The first hashed proof-bundle smoke extended the same closed run artifact:
+`.epiphany-smoke\tick-close-20260620-025526\08-overview-proof-bundle.json`.
+It reported `schemaVersion=epiphany.repo_work_proof_bundle.v0`, TUI rows for
+`awaiting-publication` / `bifrost-publication-missing`, six present artifacts
+from accept through close with SHA-256 hashes, missing publish/sync artifacts,
+and `privateStateExposed=false` on every row.
 
 The first Verse projection smoke proved the local CultMesh sight path: overview
 mirrored `repo-work-overview-verse-overview-request` into the repo-local Verse,
@@ -1089,9 +1101,9 @@ Required organs before MVP:
   `epiphany-work serve` adds bounded/unbounded cadence around that pulse, and
   `epiphany-swarm run` plus wrapper expose the bounded repo-swarm run mouth
   over the typed queue. Idunn-owned non-mutating queue-run service plan/runbook
-  receipts also exist. Remaining work is optional handoff from branch-local
-  execution into the close gate and any later Idunn service launch/install
-  under explicit operator authority.
+  receipts also exist, and the queue/tick path now hands branch-local execution
+  into `close-from-execute`. Remaining work is any later Idunn service
+  launch/install under explicit operator authority.
 - Persona-to-plan depth: deterministic `append-worklog` and `planning-note`
   derivations exist for accepted Persona/Bifrost pressure,
   `persona-intake` gives the project Persona a speech-audited mouth into that
@@ -1111,9 +1123,10 @@ Required organs before MVP:
   `epiphany-swarm run` consume that queue for safe branch-local pulses through
   closure. Remaining work is richer safe-family depth.
 - Proof bundle depth: maintainers and future agents can inspect local
-  operator-safe receipt chains, commit refs, verification verdicts, map
-  admission, Bifrost/GitHub refs, credit refs, and sync state; remaining work is
-  richer packaging for published/credited labor.
+  operator-safe receipt chains, artifact schema/status rows, SHA-256 receipt
+  hashes, compact TUI rows, commit refs, verification verdicts, map admission,
+  Bifrost/GitHub refs, credit refs, and sync state; remaining work is richer
+  packaging for published/credited labor.
 
 Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt
@@ -1334,9 +1347,11 @@ agents without opening private state.
 
 Required cuts:
 
-- Emit one proof bundle per work item with receipt ids, changed paths, branch,
-  commit, verification result, map admission result, Bifrost publication refs,
-  GitHub/PR refs, sync status, and credit refs.
+- Emit one proof bundle per work item with receipt ids, expected artifact paths,
+  present/missing status, document schemas/statuses, SHA-256 receipt hashes,
+  changed paths, branch, commit, verification result, map admission result,
+  Bifrost publication refs, GitHub/PR refs, sync status, compact TUI rows, and
+  credit refs.
 - Add compact Eve/CultUI rows for repo work queue, active branch work, blocked
   work, publication status, and upstream sync.
 - Make Gjallar announce the repo swarm's operator-safe status through Odin's
