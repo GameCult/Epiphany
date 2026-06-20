@@ -822,6 +822,18 @@ CultMesh receipt-ref ingestion path with
 `idunnAftercareAuditReceiptSource=cultmesh`, `deploymentComplete=true`, and
 `privateStateExposed=false`.
 
+Gjallar/Odin now expose those Idunn proof coordinates as sight, not authority.
+`epiphany-verse-query gjallar`, `swarm-overview`, `swarm-triage`, and
+`receipt-directory` publish latest Idunn deployment and aftercare receipts as
+compact `idunnDeploymentReceiptRows` / `IDUNN-DEPLOYMENT` rows with owner
+`Idunn`, watched or checked ref, result ref, deployment/aftercare ids, a
+follow-up readback command, and `privateStateExposed=false`. Smoke
+`.epiphany-smoke\repo-deployment-config-family-20260620-223203` proved
+`gjallarIdunnDeploymentReceiptCount=2` with latest deployment receipt
+`fixture-idunn-deployment` and latest aftercare receipt
+`fixture-idunn-aftercare` while keeping deployment execution behind explicit
+operator `git push` and Idunn's watcher.
+
 ### Landed Work Run Gate
 
 The sixth front door exists as native Rust:

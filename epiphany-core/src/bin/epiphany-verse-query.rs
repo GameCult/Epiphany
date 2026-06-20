@@ -20,6 +20,8 @@ use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyCultMeshDaemonToolCapabilityEntry;
 use epiphany_core::EpiphanyCultMeshEveSurfaceStateEntry;
+use epiphany_core::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
+use epiphany_core::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
 use epiphany_core::EpiphanyCultMeshImaginationConsensusReceiptEntry;
 use epiphany_core::EpiphanyCultMeshOdinAdvertisementEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
@@ -67,6 +69,8 @@ use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
@@ -119,6 +123,7 @@ const WRAPPER_BIFROST_PUBLICATION_COMMAND: &str =
 const WRAPPER_BIFROST_LEDGER_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode bifrost-ledger";
 const WRAPPER_RECEIPT_DIRECTORY_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode receipt-directory";
+const DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND: &str = "epiphany-work deployment-aftercare-audit --workspace <repo> --local-verse-store <store> --idunn-deployment-receipt-ref latest --aftercare-audit-receipt-ref latest";
 const WRAPPER_SERVICE_TICK_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode service-tick";
 const WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode service-policy-directory";
@@ -762,6 +767,7 @@ fn run_cli() -> Result<()> {
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
                 "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
                 "repoWorkMap": "epiphany-verse-query gjallar",
+                "idunnDeploymentAftercareAudit": DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND,
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
                 "gjallar": "epiphany-verse-query gjallar",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
@@ -4079,12 +4085,16 @@ struct SwarmOverviewReport {
     repo_work_overview_tui_rows: Vec<String>,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
+    idunn_deployment_receipt_rows: Vec<IdunnDeploymentReceiptRow>,
+    idunn_deployment_receipt_tui_rows: Vec<String>,
     latest_repo_work_overview_id: Option<String>,
     latest_repo_work_map_entry: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
     latest_repo_work_public_proof: Option<String>,
+    latest_idunn_deployment_receipt: Option<String>,
+    latest_idunn_aftercare_audit_receipt: Option<String>,
     topology_report: ClusterTopologyReport,
     daemon_report: DaemonLivenessReport,
     surface_report: EveSurfaceReport,
@@ -4195,6 +4205,24 @@ struct RepoWorkPublicProofRow {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct IdunnDeploymentReceiptRow {
+    receipt_family: String,
+    receipt_id: String,
+    status: String,
+    owner: String,
+    authority_gate: String,
+    watched_ref: String,
+    checked_ref: String,
+    source_commit: String,
+    result_ref: String,
+    deployment_receipt_id: String,
+    aftercare_audit_ref: String,
+    follow_up_command: String,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SwarmActionRow {
     priority: u32,
     family: String,
@@ -4292,12 +4320,17 @@ struct SwarmOverviewOutput {
     repo_work_public_proof_count: usize,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
+    idunn_deployment_receipt_count: usize,
+    idunn_deployment_receipt_rows: Vec<IdunnDeploymentReceiptRow>,
+    idunn_deployment_receipt_tui_rows: Vec<String>,
     latest_repo_work_overview: Option<String>,
     latest_repo_work_map_entry: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
     latest_repo_work_public_proof: Option<String>,
+    latest_idunn_deployment_receipt: Option<String>,
+    latest_idunn_aftercare_audit_receipt: Option<String>,
     policy_covered_count: usize,
     policy_enabled_count: usize,
     policy_disabled_count: usize,
@@ -4376,12 +4409,17 @@ impl SwarmOverviewOutput {
             repo_work_public_proof_count: report.repo_work_public_proof_rows.len(),
             repo_work_public_proof_rows: report.repo_work_public_proof_rows,
             repo_work_public_proof_tui_rows: report.repo_work_public_proof_tui_rows,
+            idunn_deployment_receipt_count: report.idunn_deployment_receipt_rows.len(),
+            idunn_deployment_receipt_rows: report.idunn_deployment_receipt_rows,
+            idunn_deployment_receipt_tui_rows: report.idunn_deployment_receipt_tui_rows,
             latest_repo_work_overview: report.latest_repo_work_overview_id,
             latest_repo_work_map_entry: report.latest_repo_work_map_entry,
             latest_repo_work_gate: report.latest_repo_work_gate,
             latest_repo_work_blocker: report.latest_repo_work_blocker,
             latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
             latest_repo_work_public_proof: report.latest_repo_work_public_proof,
+            latest_idunn_deployment_receipt: report.latest_idunn_deployment_receipt,
+            latest_idunn_aftercare_audit_receipt: report.latest_idunn_aftercare_audit_receipt,
             policy_covered_count: report.policy_report.covered_count,
             policy_enabled_count: report.policy_report.enabled_count,
             policy_disabled_count: report.policy_report.disabled_count,
@@ -4452,12 +4490,17 @@ struct SwarmTriageOutput {
     repo_work_public_proof_count: usize,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
+    idunn_deployment_receipt_count: usize,
+    idunn_deployment_receipt_rows: Vec<IdunnDeploymentReceiptRow>,
+    idunn_deployment_receipt_tui_rows: Vec<String>,
     latest_repo_work_overview: Option<String>,
     latest_repo_work_map_entry: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
     latest_repo_work_public_proof: Option<String>,
+    latest_idunn_deployment_receipt: Option<String>,
+    latest_idunn_aftercare_audit_receipt: Option<String>,
     poked_daemon_count: usize,
     pokes: Vec<serde_json::Value>,
     commands: serde_json::Value,
@@ -4531,12 +4574,17 @@ impl SwarmTriageOutput {
             repo_work_public_proof_count: report.repo_work_public_proof_rows.len(),
             repo_work_public_proof_rows: report.repo_work_public_proof_rows,
             repo_work_public_proof_tui_rows: report.repo_work_public_proof_tui_rows,
+            idunn_deployment_receipt_count: report.idunn_deployment_receipt_rows.len(),
+            idunn_deployment_receipt_rows: report.idunn_deployment_receipt_rows,
+            idunn_deployment_receipt_tui_rows: report.idunn_deployment_receipt_tui_rows,
             latest_repo_work_overview: report.latest_repo_work_overview_id,
             latest_repo_work_map_entry: report.latest_repo_work_map_entry,
             latest_repo_work_gate: report.latest_repo_work_gate,
             latest_repo_work_blocker: report.latest_repo_work_blocker,
             latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
             latest_repo_work_public_proof: report.latest_repo_work_public_proof,
+            latest_idunn_deployment_receipt: report.latest_idunn_deployment_receipt,
+            latest_idunn_aftercare_audit_receipt: report.latest_idunn_aftercare_audit_receipt,
             poked_daemon_count,
             pokes,
             commands: json!({
@@ -4552,6 +4600,7 @@ impl SwarmTriageOutput {
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
                 "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
                 "repoWorkMap": "epiphany-verse-query gjallar",
+                "idunnDeploymentAftercareAudit": DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND,
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
                 "bifrostLedger": "epiphany-verse-query bifrost-ledger",
                 "wrapperBifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
@@ -5369,6 +5418,71 @@ fn repo_work_public_proof_tui_row(row: &RepoWorkPublicProofRow) -> String {
     )
 }
 
+fn idunn_deployment_receipt_rows(
+    deployment_receipt: Option<&EpiphanyCultMeshIdunnDeploymentReceiptEntry>,
+    aftercare_receipt: Option<&EpiphanyCultMeshIdunnAftercareAuditReceiptEntry>,
+) -> (Vec<IdunnDeploymentReceiptRow>, Vec<String>) {
+    let mut rows = Vec::new();
+    if let Some(receipt) = deployment_receipt {
+        rows.push(IdunnDeploymentReceiptRow {
+            receipt_family: "deployment".to_string(),
+            receipt_id: receipt.receipt_id.clone(),
+            status: receipt.status.clone(),
+            owner: "Idunn".to_string(),
+            authority_gate: "gamecult.idunn.deployment".to_string(),
+            watched_ref: receipt.watched_ref.clone(),
+            checked_ref: "none".to_string(),
+            source_commit: receipt.source_commit.clone(),
+            result_ref: receipt.result_ref.clone(),
+            deployment_receipt_id: receipt.receipt_id.clone(),
+            aftercare_audit_ref: "none".to_string(),
+            follow_up_command: DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND.to_string(),
+            private_state_exposed: receipt.private_state_exposed,
+        });
+    }
+    if let Some(receipt) = aftercare_receipt {
+        rows.push(IdunnDeploymentReceiptRow {
+            receipt_family: "aftercare-audit".to_string(),
+            receipt_id: receipt.receipt_id.clone(),
+            status: receipt.status.clone(),
+            owner: "Idunn".to_string(),
+            authority_gate: "gamecult.idunn.deployment_aftercare".to_string(),
+            watched_ref: "none".to_string(),
+            checked_ref: receipt.checked_ref.clone(),
+            source_commit: "none".to_string(),
+            result_ref: receipt.audit_ref.clone(),
+            deployment_receipt_id: receipt.deployment_receipt_id.clone(),
+            aftercare_audit_ref: receipt.audit_ref.clone(),
+            follow_up_command: DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND.to_string(),
+            private_state_exposed: receipt.private_state_exposed,
+        });
+    }
+    let tui_rows = rows
+        .iter()
+        .map(idunn_deployment_receipt_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn idunn_deployment_receipt_tui_row(row: &IdunnDeploymentReceiptRow) -> String {
+    format!(
+        "IDUNN-DEPLOYMENT | family={} | receipt={} | status={} | watchedRef={} | checkedRef={} | sourceCommit={} | result={} | deploymentReceipt={} | aftercare={} | owner={} | authority={} | command={} | private={}",
+        row.receipt_family,
+        row.receipt_id,
+        row.status,
+        row.watched_ref,
+        row.checked_ref,
+        short_commit(&row.source_commit),
+        row.result_ref,
+        row.deployment_receipt_id,
+        row.aftercare_audit_ref,
+        row.owner,
+        row.authority_gate,
+        row.follow_up_command,
+        row.private_state_exposed
+    )
+}
+
 fn short_commit(commit_sha: &str) -> String {
     commit_sha.chars().take(12).collect::<String>()
 }
@@ -5912,6 +6026,15 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let (latest_repo_work_map_entry, repo_work_map_entries) = load_repo_work_map_entries(args)?;
     let (latest_repo_work_public_proof, repo_work_public_proofs) =
         load_repo_work_public_proofs(args)?;
+    let latest_idunn_deployment_receipt = load_latest_epiphany_cultmesh_idunn_deployment_receipt(
+        &args.store,
+        args.runtime_id.clone(),
+    )?;
+    let latest_idunn_aftercare_audit_receipt =
+        load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+            &args.store,
+            args.runtime_id.clone(),
+        )?;
     let directory =
         load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
     let surface_report = eve_surface_report(&directory, &repo_work_overviews);
@@ -6133,6 +6256,11 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_branch_lens_rows(&repo_work_map_entries);
     let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
         repo_work_public_proof_rows(&repo_work_public_proofs);
+    let (idunn_deployment_receipt_rows, idunn_deployment_receipt_tui_rows) =
+        idunn_deployment_receipt_rows(
+            latest_idunn_deployment_receipt.as_ref(),
+            latest_idunn_aftercare_audit_receipt.as_ref(),
+        );
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
         &liveness_status,
         &tool_host_attention_rows,
@@ -6167,6 +6295,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         || repo_work_public_proofs
             .iter()
             .any(|proof| proof.private_state_exposed)
+        || idunn_deployment_receipt_rows
+            .iter()
+            .any(|row| row.private_state_exposed)
         || service_execution_private_state_exposed
         || service_lifecycle_rows
             .iter()
@@ -6189,6 +6320,12 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let latest_repo_work_public_proof = latest_repo_work_public_proof
         .as_ref()
         .map(|proof| proof.public_proof_id.clone());
+    let latest_idunn_deployment_receipt = latest_idunn_deployment_receipt
+        .as_ref()
+        .map(|receipt| receipt.receipt_id.clone());
+    let latest_idunn_aftercare_audit_receipt = latest_idunn_aftercare_audit_receipt
+        .as_ref()
+        .map(|receipt| receipt.receipt_id.clone());
     Ok(SwarmOverviewReport {
         status,
         liveness_status,
@@ -6223,12 +6360,16 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_overview_tui_rows,
         repo_work_public_proof_rows,
         repo_work_public_proof_tui_rows,
+        idunn_deployment_receipt_rows,
+        idunn_deployment_receipt_tui_rows,
         latest_repo_work_overview_id,
         latest_repo_work_map_entry,
         latest_repo_work_gate,
         latest_repo_work_blocker,
         latest_repo_work_next_safe_move,
         latest_repo_work_public_proof,
+        latest_idunn_deployment_receipt,
+        latest_idunn_aftercare_audit_receipt,
         topology_report,
         daemon_report,
         surface_report,
@@ -6658,6 +6799,114 @@ fn receipt_directory_report(
             artifact_sha256: "none".to_string(),
             present: context.latest_work_loop_summary.is_some(),
             private_state_exposed: false,
+        },
+    );
+    push_receipt_directory_row(
+        &mut rows,
+        &mut tui_rows,
+        ReceiptDirectoryRow {
+            family: "idunn-deployment".to_string(),
+            owner: "Idunn".to_string(),
+            document_kind: "gamecult.idunn.deployment_receipt.v0".to_string(),
+            latest_id: context
+                .latest_idunn_deployment_receipt
+                .as_ref()
+                .map(|receipt| receipt.receipt_id.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            status: context
+                .latest_idunn_deployment_receipt
+                .as_ref()
+                .map(|receipt| receipt.status.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            route: context
+                .latest_idunn_deployment_receipt
+                .as_ref()
+                .map(|receipt| receipt.watched_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            service_id: "repo-deployment".to_string(),
+            service_route: context
+                .latest_idunn_deployment_receipt
+                .as_ref()
+                .map(|receipt| receipt.result_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            follow_up_command: DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND.to_string(),
+            artifact_ref: context
+                .latest_idunn_deployment_receipt
+                .as_ref()
+                .map(|receipt| receipt.result_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            artifact_status: context
+                .latest_idunn_deployment_receipt
+                .as_ref()
+                .map(|receipt| {
+                    if receipt.result_ref == "none" {
+                        "none".to_string()
+                    } else {
+                        "external-ref".to_string()
+                    }
+                })
+                .unwrap_or_else(|| "none".to_string()),
+            artifact_sha256: "none".to_string(),
+            present: context.latest_idunn_deployment_receipt.is_some(),
+            private_state_exposed: context
+                .latest_idunn_deployment_receipt
+                .as_ref()
+                .map(|receipt| receipt.private_state_exposed)
+                .unwrap_or(false),
+        },
+    );
+    push_receipt_directory_row(
+        &mut rows,
+        &mut tui_rows,
+        ReceiptDirectoryRow {
+            family: "idunn-aftercare".to_string(),
+            owner: "Idunn".to_string(),
+            document_kind: "gamecult.idunn.deployment_aftercare_audit.v0".to_string(),
+            latest_id: context
+                .latest_idunn_aftercare_audit_receipt
+                .as_ref()
+                .map(|receipt| receipt.receipt_id.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            status: context
+                .latest_idunn_aftercare_audit_receipt
+                .as_ref()
+                .map(|receipt| receipt.status.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            route: context
+                .latest_idunn_aftercare_audit_receipt
+                .as_ref()
+                .map(|receipt| receipt.checked_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            service_id: "repo-deployment".to_string(),
+            service_route: context
+                .latest_idunn_aftercare_audit_receipt
+                .as_ref()
+                .map(|receipt| receipt.audit_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            follow_up_command: DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND.to_string(),
+            artifact_ref: context
+                .latest_idunn_aftercare_audit_receipt
+                .as_ref()
+                .map(|receipt| receipt.audit_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            artifact_status: context
+                .latest_idunn_aftercare_audit_receipt
+                .as_ref()
+                .map(|receipt| {
+                    if receipt.audit_ref == "none" {
+                        "none".to_string()
+                    } else {
+                        "external-ref".to_string()
+                    }
+                })
+                .unwrap_or_else(|| "none".to_string()),
+            artifact_sha256: "none".to_string(),
+            present: context.latest_idunn_aftercare_audit_receipt.is_some(),
+            private_state_exposed: context
+                .latest_idunn_aftercare_audit_receipt
+                .as_ref()
+                .map(|receipt| receipt.private_state_exposed)
+                .unwrap_or(false),
         },
     );
     for row in service_lifecycle_receipt_directory_rows(

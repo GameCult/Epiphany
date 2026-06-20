@@ -291,6 +291,18 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         &root,
     )?;
+    let gjallar = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "gjallar",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-deployment-config-family-smoke",
+        ],
+        &root,
+    )?;
 
     require_eq(
         &plan,
@@ -461,6 +473,33 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["idunnAftercareAuditReceipt", "schemaVersion"],
         "gamecult.idunn.deployment_aftercare_audit.v0",
     )?;
+    require_eq(
+        &gjallar,
+        &["latestIdunnDeploymentReceipt"],
+        idunn_deployment_receipt_id,
+    )?;
+    require_eq(
+        &gjallar,
+        &["latestIdunnAftercareAuditReceipt"],
+        idunn_aftercare_receipt_id,
+    )?;
+    require_u64(&gjallar, &["idunnDeploymentReceiptCount"], 2)?;
+    require_bool(&gjallar, &["privateStateExposed"], false)?;
+    require_array_contains(
+        &gjallar,
+        &["idunnDeploymentReceiptTuiRows"],
+        "IDUNN-DEPLOYMENT",
+    )?;
+    require_array_contains(
+        &gjallar,
+        &["idunnDeploymentReceiptTuiRows"],
+        idunn_deployment_receipt_id,
+    )?;
+    require_array_contains(
+        &gjallar,
+        &["idunnDeploymentReceiptTuiRows"],
+        idunn_aftercare_receipt_id,
+    )?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_deployment_config_family_smoke.v0",
@@ -490,6 +529,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "idunnAftercareAuditReceiptSource": aftercare["idunnAftercareAuditReceipt"]["source"],
         "idunnDeploymentReceiptId": aftercare["idunnDeploymentReceipt"]["receiptId"],
         "idunnAftercareAuditReceiptId": aftercare["idunnAftercareAuditReceipt"]["receiptId"],
+        "gjallarIdunnDeploymentReceiptCount": gjallar["idunnDeploymentReceiptCount"],
+        "gjallarLatestIdunnDeploymentReceipt": gjallar["latestIdunnDeploymentReceipt"],
+        "gjallarLatestIdunnAftercareAuditReceipt": gjallar["latestIdunnAftercareAuditReceipt"],
         "deploymentTrigger": "git-push-observed-by-idunn",
         "deploymentOwner": "Idunn",
         "daemonOwnsExecution": true,
@@ -608,6 +650,41 @@ fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
             expected,
             path.join("."),
             actual
+        ))
+    }
+}
+
+fn require_u64(value: &Value, path: &[&str], expected: u64) -> Result<()> {
+    let actual = value_at_path(value, path)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| anyhow!("missing unsigned integer at {}", path.join(".")))?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} at {}, got {}",
+            expected,
+            path.join("."),
+            actual
+        ))
+    }
+}
+
+fn require_array_contains(value: &Value, path: &[&str], needle: &str) -> Result<()> {
+    let array = value_at_path(value, path)
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("missing array at {}", path.join(".")))?;
+    if array
+        .iter()
+        .filter_map(Value::as_str)
+        .any(|item| item.contains(needle))
+    {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected array at {} to contain {:?}",
+            path.join("."),
+            needle
         ))
     }
 }

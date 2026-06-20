@@ -2190,6 +2190,9 @@ pub struct EpiphanyLocalVerseContext {
     pub latest_daemon_scheduler_receipt: Option<EpiphanyCultMeshDaemonSchedulerReceiptEntry>,
     pub latest_daemon_service_lifecycle_receipt:
         Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>,
+    pub latest_idunn_deployment_receipt: Option<EpiphanyCultMeshIdunnDeploymentReceiptEntry>,
+    pub latest_idunn_aftercare_audit_receipt:
+        Option<EpiphanyCultMeshIdunnAftercareAuditReceiptEntry>,
     pub swarm_brake: Option<EpiphanyCultMeshSwarmBrakeEntry>,
     pub latest_persona_speech_audit: Option<EpiphanyCultMeshPersonaSpeechAuditEntry>,
     pub daemon_tool_capabilities: Vec<EpiphanyCultMeshDaemonToolCapabilityEntry>,
@@ -5055,6 +5058,10 @@ pub fn query_epiphany_local_verse_context(
             .get(EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY)?,
         latest_daemon_service_lifecycle_receipt: node
             .get(EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)?,
+        latest_idunn_deployment_receipt: node
+            .get(EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY)?,
+        latest_idunn_aftercare_audit_receipt: node
+            .get(EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_LATEST_KEY)?,
         swarm_brake: node.get(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?,
         latest_persona_speech_audit: node
             .get(EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_LATEST_KEY)?,
