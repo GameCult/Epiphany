@@ -334,6 +334,8 @@ fn service_runbook(args: Args) -> Result<()> {
             "runtimeId": args.runtime_id,
             "serviceId": written.service_id,
             "receiptId": written.receipt_id,
+            "command": written.command,
+            "args": written.args,
             "runbookPath": artifact_ref,
             "privateStateExposed": written.private_state_exposed,
         }))?
@@ -2355,6 +2357,9 @@ fn cluster_daemon_command_path(args: &Args) -> Result<PathBuf> {
 }
 
 fn service_serve_args(args: &Args) -> Vec<String> {
+    if !args.service_args.is_empty() {
+        return args.service_args.clone();
+    }
     let mut service_args = vec![
         "serve".to_string(),
         "--store".to_string(),
@@ -2953,6 +2958,7 @@ struct Args {
     service_description: Option<String>,
     service_start_type: String,
     service_command: Option<PathBuf>,
+    service_args: Vec<String>,
     runbook_path: Option<PathBuf>,
     service_install_script_path: Option<PathBuf>,
     execute_install: bool,
@@ -2992,6 +2998,7 @@ impl Args {
         let mut service_description = None;
         let mut service_start_type = "demand".to_string();
         let mut service_command = None;
+        let mut service_args = Vec::new();
         let mut runbook_path = None;
         let mut service_install_script_path = None;
         let mut execute_install = false;
@@ -3091,6 +3098,9 @@ impl Args {
                     service_command = Some(PathBuf::from(
                         values.next().context("missing --service-command value")?,
                     ));
+                }
+                "--service-arg" | "--service-args" => {
+                    service_args.push(values.next().context("missing --service-arg value")?);
                 }
                 "--runbook-path" => {
                     runbook_path = Some(PathBuf::from(
@@ -3239,6 +3249,7 @@ impl Args {
             service_description,
             service_start_type,
             service_command,
+            service_args,
             runbook_path,
             service_install_script_path,
             execute_install,
