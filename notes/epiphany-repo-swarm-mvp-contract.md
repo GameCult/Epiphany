@@ -319,16 +319,24 @@ Bifrost credit request under `.epiphany/credit-requests/<item>.toml`, naming
 closure, Soul, Mind, public proof, maintainer review, accepted artifact,
 authorship, author, reviewer, proof, changed-path, ledger target, and redaction
 requirements without itself granting credit ledger, publication, PR, merge,
-upstream sync, Hands action, or cross-body authority. Its receipt includes
+upstream sync, Hands action, or cross-body authority; and `--action-family
+repo-artifact-acceptance-request` writes a structured accepted-artifact request
+under `.epiphany/artifact-acceptance-requests/<item>.toml`, naming closure,
+Soul, Mind, public proof, maintainer review, Hands commit, artifact reference,
+commit SHA, changed paths, review verdict, public proof, acceptance rationale,
+and redaction requirements without itself granting artifact acceptance, credit
+ledger, publication, PR, merge, upstream sync, Hands action, or cross-body
+authority. Its receipt includes
 `epiphany.repo_work_plan_derivation.v0`, mode `append-worklog`,
 `planning-note`, `checklist-note`, `section-note`, `repo-status-section`, or
 `task-card`, `repo-manifest`, `repo-tool-capabilities`, or
 `repo-collaboration-topic`, `repo-consensus-brief`, `repo-objective-draft`, or
 `repo-adoption-request`, `repo-scheduling-request`, `repo-work-order`, or
 `repo-verification-request`, `repo-publication-request`, `repo-sync-request`, or
-`repo-maintainer-review-request`, `repo-pr-request`, or `repo-credit-request`,
-a `safeActionFamily`, and an authority seal forbidding publication, merge,
-service lifecycle mutation, cross-repo mutation, and private state exposure.
+`repo-maintainer-review-request`, `repo-pr-request`, `repo-credit-request`, or
+`repo-artifact-acceptance-request`, a `safeActionFamily`, and an authority seal
+forbidding publication, merge, service lifecycle mutation, cross-repo mutation,
+and private state exposure.
 These deterministic families are quarantine scaffolding on the road to
 model-authored Imagination, but they are no longer operator-authored shell
 details.
@@ -626,6 +634,24 @@ maintainer-review, accepted-artifact, and authorship antecedents, credit packet
 requirements for author, reviewer, accepted artifact, proof, changed paths,
 ledger target, and redaction, denied credit ledger, Bifrost publication, GitHub
 PR, merge, publication, upstream sync, Hands action, cross-body authority, and
+`privateStateExposed=false`.
+
+The next accepted-artifact boundary smoke proved artifact acceptance request
+cargo: `.epiphany-smoke\repo-artifact-acceptance-request-family-20260620-161559`
+ran init -> online -> accept -> `derive-plan --action-family
+repo-artifact-acceptance-request --model-ref
+repo-artifact-acceptance-request-family-smoke-imagination-v1 --model-authored`
+-> tick through run/adopt/execute/close on a fresh repo. The plan carried
+`safeActionFamily=repo.artifact_acceptance_request`; Hands committed only
+`.epiphany/artifact-acceptance-requests/repo-artifact-acceptance-request-family.toml`;
+Soul passed with `pathScopeMatched=true` and `familyAssertions.status=passed`;
+the committed request carried
+`schema_version = "epiphany.repo_artifact_acceptance_request.v0"`,
+`status="awaiting-artifact-acceptance-review"`, closure/Soul/Mind/public-proof,
+maintainer-review, and Hands-commit antecedents, artifact packet requirements
+for artifact ref, commit SHA, changed paths, review verdict, proof, acceptance
+rationale, and redaction, denied artifact acceptance, credit ledger, GitHub PR,
+merge, publication, upstream sync, Hands action, cross-body authority, and
 `privateStateExposed=false`.
 
 ### Landed Work Run Gate
@@ -1341,7 +1367,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, and `repo-credit-request` / `repo.credit_request`. `plan` remains manual quarantine scaffolding. | Deepen model-authored planning and further useful repo-owned configuration classes without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, and `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`. `plan` remains manual quarantine scaffolding. | Deepen model-authored planning and further useful repo-owned configuration classes without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, and writes Soul, Modeling, and Mind receipts. | Deepen model-authored closure review beyond the first structured closure-review packet while preserving deterministic local closure for simple mechanical work. |
@@ -1663,6 +1689,11 @@ Required organs before MVP:
   authorship antecedents plus author/reviewer/artifact/proof/path/ledger/redaction
   packet requirements while granting no credit ledger, publication, PR, merge,
   sync, Hands, or cross-body authority.
+  `repo-artifact-acceptance-request` now proves accepted-artifact request cargo
+  that names closure/Soul/Mind/public-proof, maintainer-review, and Hands-commit
+  antecedents plus artifact/commit/path/review/proof/rationale/redaction packet
+  requirements while granting no artifact acceptance, credit ledger,
+  publication, PR, merge, sync, Hands, or cross-body authority.
   Remaining work is later model-authored action classes that can change more
   useful repo-owned configuration without arbitrary shell authority.
 - Closure depth: `close` now writes a structured
