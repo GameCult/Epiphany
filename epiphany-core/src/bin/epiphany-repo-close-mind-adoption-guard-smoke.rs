@@ -503,6 +503,36 @@ fn run_smoke(args: Args) -> Result<Value> {
             "Gjallar TUI rows did not expose compact repo map sight"
         ));
     }
+    require_u64(&gjallar, &["repoWorkMapFamilyLensCount"], 1)?;
+    let family_lens_rows = value_at_path(&gjallar, &["repoWorkMapFamilyLensRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapFamilyLensRows array"))?;
+    let family_lens_row = family_lens_rows
+        .iter()
+        .find(|row| {
+            row.get("safeActionFamily").and_then(Value::as_str)
+                == Some("repo.markdown_planning_note")
+        })
+        .ok_or_else(|| anyhow!("Gjallar output had no repo map family lens row"))?;
+    require_eq_value(family_lens_row, &["latestItem"], item)?;
+    require_eq_value(
+        family_lens_row,
+        &["latestMindStateCommitReceiptId"],
+        &map_entry.mind_state_commit_receipt_id,
+    )?;
+    require_bool_value(family_lens_row, &["privateStateExposed"], false)?;
+    let family_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapFamilyLensTuiRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapFamilyLensTuiRows array"))?;
+    if !family_lens_tui_rows.iter().any(|row| {
+        row.as_str().is_some_and(|row| {
+            row.contains("REPO-WORK-MAP-LENS") && row.contains("repo.markdown_planning_note")
+        })
+    }) {
+        return Err(anyhow!(
+            "Gjallar TUI rows did not expose repo map family lens sight"
+        ));
+    }
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_close_mind_adoption_guard_smoke.v0",
@@ -523,6 +553,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "repoMapDurableStateAdmitted": map_entry.durable_state_admitted,
         "repoMapLocalVerseProjected": true,
         "gjallarLatestRepoWorkMapEntry": gjallar["latestRepoWorkMapEntry"],
+        "gjallarRepoWorkMapFamilyLensCount": gjallar["repoWorkMapFamilyLensCount"],
         "publicationAuthorized": false,
         "privateStateExposed": false
     });
@@ -648,6 +679,22 @@ fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
     let actual = value_at_path(value, path)
         .and_then(Value::as_bool)
         .ok_or_else(|| anyhow!("missing bool at {}", path.join(".")))?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {}, got {}",
+            path.join("."),
+            expected,
+            actual
+        ))
+    }
+}
+
+fn require_u64(value: &Value, path: &[&str], expected: u64) -> Result<()> {
+    let actual = value_at_path(value, path)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| anyhow!("missing unsigned integer at {}", path.join(".")))?;
     if actual == expected {
         Ok(())
     } else {

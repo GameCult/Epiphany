@@ -1175,6 +1175,15 @@ source map store ref, and `privateStateExposed=false`. The cargo-run smoke
 itself completed and wrote `summary.json` after the outer tool timeout, so the
 independent Gjallar readback is the clean terminal proof.
 
+The next smoke tightened that map sight into the first semantic lens:
+`.epiphany-smoke\repo-close-mind-adoption-guard-20260620-205055` proves Gjallar
+now derives `repoWorkMapFamilyLensRows` and `REPO-WORK-MAP-LENS` TUI rows from
+Mind-admitted map entries, grouping by safe action family with item count,
+changed-path count, latest item, latest commit, latest Mind commit receipt,
+Bifrost gate, and `privateStateExposed=false`. This lens is still read-only
+Gjallar sight; it does not own scheduling, publication, merge, deployment, or
+Mind admission.
+
 `epiphany-work overview` is the first compact repo work sight/proof surface:
 
 ```powershell
@@ -1524,7 +1533,7 @@ temptation wearing clean robes.
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
-| Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, map rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop and semantic map readback without moving action authority out of Hands/Self/Bifrost. |
+| Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, map rows, family lens rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop and semantic map readback without moving action authority out of Hands/Self/Bifrost. |
 | Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
 | Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
 | Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |
@@ -2029,7 +2038,7 @@ Required organs before MVP:
   `gamecult.bifrost.public_proof_publication_receipt.v0` with public Verse
   target, public room, ledger, review, credit, proof ref, and SHA-256 readback.
   Remaining work is deeper semantic review and richer map updates/lenses beyond
-  latest work-item consequence; it is not basic safe-family planning cargo,
+  latest work-item consequence and family-level aggregation; it is not basic safe-family planning cargo,
   local public-proof export, local CultMesh readback, Bifrost/GitHub/sync row
   visibility, public-proof publication closure, Mind-adoption closure proof,
   first durable repo-map admission, first durable repo-map local Verse
