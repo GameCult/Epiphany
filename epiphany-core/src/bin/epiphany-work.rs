@@ -1676,6 +1676,7 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
         source,
         accept_receipt: &accept_receipt,
         model_ref: model_ref.as_deref(),
+        model_authored,
     })?;
     let action_verification_asks = if args.verification_asks.is_empty() {
         derived_plan.verification_asks.clone()
@@ -1765,6 +1766,7 @@ struct DeriveSafePlanInput<'a> {
     source: &'a str,
     accept_receipt: &'a Value,
     model_ref: Option<&'a str>,
+    model_authored: bool,
 }
 
 struct DerivedSafePlan {
@@ -1783,8 +1785,9 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
     match action_family.as_str() {
         "append-worklog" => derive_append_worklog_plan(input, &action_family),
         "planning-note" => derive_planning_note_plan(input, &action_family),
+        "checklist-note" => derive_checklist_note_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog and planning-note"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, and checklist-note"
         )),
     }
 }
@@ -1872,6 +1875,66 @@ fn derive_planning_note_plan(
     })
 }
 
+fn derive_checklist_note_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let default_target = format!("notes/epiphany-work/{}-checklist.md", sanitize(input.item));
+    let target_path = validate_plan_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let lines = vec![
+        format!("# Epiphany Work Checklist: {}", compact_line(input.item)),
+        String::new(),
+        format!(
+            "- Created: {}",
+            Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        ),
+        format!("- Source: {}", compact_line(input.source)),
+        format!("- Summary: {}", compact_line(input.summary)),
+        format!("- Candidate action refs: {}", compact_join(&candidate_refs)),
+        format!("- Public discussion refs: {}", compact_join(&public_refs)),
+        String::new(),
+        "## Checklist".to_string(),
+        String::new(),
+        "- [ ] Confirm the accepted pressure is represented without private-state leakage."
+            .to_string(),
+        "- [ ] Identify the branch-local files that a later Hands pass may lawfully change."
+            .to_string(),
+        "- [ ] Name the Soul check that would prove the next implementation pass.".to_string(),
+        "- [ ] Escalate to Bifrost/Mind instead of mutating publication, merge, service, or cross-repo state.".to_string(),
+        String::new(),
+        "## Authority".to_string(),
+        String::new(),
+        "- Safe action family: checklist-note".to_string(),
+        "- Intended consequence: preserve an operator-safe checklist for Self and later Hands work.".to_string(),
+        "- Authority seal: this checklist is branch-local planning cargo, not execution authority.".to_string(),
+        String::new(),
+    ];
+    let command = powershell_append_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.checklist_note".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a contained markdown checklist from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add checklist note for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the checklist note path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies checklist items preserve branch-local scope and do not grant publication, merge, service, or cross-repo authority.".to_string(),
+            "Soul verifies no paths outside the declared checklist note changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated checklist note if the accepted pressure was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.checklist_note"),
+    })
+}
+
 fn plan_derivation_receipt(input: DeriveSafePlanInput<'_>, mode: &str, safe_family: &str) -> Value {
     json!({
         "schemaVersion": "epiphany.repo_work_plan_derivation.v0",
@@ -1886,7 +1949,7 @@ fn plan_derivation_receipt(input: DeriveSafePlanInput<'_>, mode: &str, safe_fami
             "publicDiscussionRefs": input.accept_receipt["feedback"]["publicDiscussionRefs"],
         },
         "operatorAuthoredShellDetails": false,
-        "modelAuthored": false,
+        "modelAuthored": input.model_authored,
         "modelRef": input.model_ref,
         "deterministicQuarantine": true,
         "authoritySeal": {
@@ -5079,7 +5142,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
