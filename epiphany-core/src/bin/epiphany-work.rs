@@ -7383,6 +7383,187 @@ fn push_assertion(assertions: &mut Vec<Value>, id: &str, passed: bool, summary: 
     }));
 }
 
+fn closure_mind_adoption_review(execute_receipt: &Value) -> Result<(Value, bool)> {
+    let Some(adopt_receipt_path) = path_from_json(execute_receipt, &["adoptReceiptPath"]) else {
+        return Ok((
+            json!({
+                "schemaVersion": "epiphany.repo_work_mind_adoption_closure_review.v0",
+                "status": "failed",
+                "reason": "execute receipt has no adoptReceiptPath",
+                "assertions": []
+            }),
+            false,
+        ));
+    };
+    let adopt_receipt = read_json_if_exists(&adopt_receipt_path)?.unwrap_or(Value::Null);
+    if adopt_receipt.is_null() {
+        return Ok((
+            json!({
+                "schemaVersion": "epiphany.repo_work_mind_adoption_closure_review.v0",
+                "status": "failed",
+                "reason": "adopt receipt path is missing",
+                "adoptReceiptPath": adopt_receipt_path,
+                "assertions": []
+            }),
+            false,
+        ));
+    }
+    let Some(mind_decision) = adopt_receipt.get("mindAdoptionDecision") else {
+        return Ok((
+            json!({
+                "schemaVersion": "epiphany.repo_work_mind_adoption_closure_review.v0",
+                "status": "failed",
+                "reason": "adopt receipt has no mindAdoptionDecision",
+                "adoptReceiptPath": adopt_receipt_path,
+                "assertions": []
+            }),
+            false,
+        ));
+    };
+    let plan_derived = execute_receipt.get("planReceiptPath").is_some();
+    let mut assertions = Vec::new();
+    push_assertion(
+        &mut assertions,
+        "decision-schema",
+        string_from_json(mind_decision, &["schemaVersion"]).as_deref()
+            == Some("epiphany.repo_work_mind_adoption_decision.v0"),
+        "Mind adoption decision carries the expected schema.".to_string(),
+    );
+    push_assertion(
+        &mut assertions,
+        "decision-status-adopted",
+        string_from_json(mind_decision, &["status"]).as_deref()
+            == Some("adopted-for-branch-local-hands"),
+        "Mind adoption decision accepted branch-local Hands authority.".to_string(),
+    );
+    push_assertion(
+        &mut assertions,
+        "decision-owner-mind",
+        string_from_json(mind_decision, &["owner"]).as_deref() == Some("Mind"),
+        "Mind is the recorded adoption decision owner.".to_string(),
+    );
+    push_assertion(
+        &mut assertions,
+        "decision-interpreter-mind",
+        string_from_json(mind_decision, &["interpreter"]).as_deref() == Some("Mind"),
+        "Mind is the recorded adoption interpreter.".to_string(),
+    );
+    push_assertion(
+        &mut assertions,
+        "action-item-accepted",
+        bool_from_json(
+            mind_decision,
+            &["interpretation", "classification", "actionItemAccepted"],
+        ) == Some(true),
+        "Mind classified the plan cargo as an accepted action item.".to_string(),
+    );
+    push_assertion(
+        &mut assertions,
+        "safe-family-recognized",
+        bool_from_json(
+            mind_decision,
+            &["interpretation", "classification", "safeFamilyRecognized"],
+        ) == Some(true)
+            && bool_from_json(mind_decision, &["gates", "safeFamilyRequired"]) == Some(true),
+        "Mind recognized the safe family and recorded the safe-family gate.".to_string(),
+    );
+    push_assertion(
+        &mut assertions,
+        "requested-paths-match-plan",
+        !plan_derived
+            || (bool_from_json(
+                mind_decision,
+                &[
+                    "interpretation",
+                    "classification",
+                    "requestedPathsMatchPlan",
+                ],
+            ) == Some(true)
+                && bool_from_json(mind_decision, &["gates", "branchLocalOnly"]) == Some(true)),
+        "Mind confirmed requested paths match the plan before branch-local Hands authority."
+            .to_string(),
+    );
+    push_assertion(
+        &mut assertions,
+        "private-state-sealed",
+        bool_from_json(mind_decision, &["privateStateExposed"]) == Some(false),
+        "Mind adoption decision preserves the private-state seal.".to_string(),
+    );
+
+    let mind_decision_path = path_from_json(mind_decision, &["receiptPath"]);
+    let standalone_review = if let Some(path) = mind_decision_path.as_ref() {
+        match read_json_if_exists(path)? {
+            Some(standalone) => {
+                let matching_decision_id = string_from_json(&standalone, &["decisionId"])
+                    == string_from_json(mind_decision, &["decisionId"]);
+                let matching_status = string_from_json(&standalone, &["status"])
+                    == string_from_json(mind_decision, &["status"]);
+                let matching_schema = string_from_json(&standalone, &["schemaVersion"])
+                    == string_from_json(mind_decision, &["schemaVersion"]);
+                let matching_private_seal = bool_from_json(&standalone, &["privateStateExposed"])
+                    == bool_from_json(mind_decision, &["privateStateExposed"]);
+                push_assertion(
+                    &mut assertions,
+                    "standalone-decision-matches-snapshot",
+                    matching_decision_id
+                        && matching_status
+                        && matching_schema
+                        && matching_private_seal,
+                    "Standalone Mind decision matches the adopt receipt snapshot.".to_string(),
+                );
+                json!({
+                    "status": "present",
+                    "receiptPath": path,
+                    "decisionIdMatched": matching_decision_id,
+                    "statusMatched": matching_status,
+                    "schemaMatched": matching_schema,
+                    "privateStateSealMatched": matching_private_seal
+                })
+            }
+            None => {
+                push_assertion(
+                    &mut assertions,
+                    "standalone-decision-present",
+                    false,
+                    "Standalone Mind decision path exists in snapshot but the file is missing."
+                        .to_string(),
+                );
+                json!({
+                    "status": "missing",
+                    "receiptPath": path
+                })
+            }
+        }
+    } else {
+        push_assertion(
+            &mut assertions,
+            "standalone-decision-path-present",
+            false,
+            "Adopt receipt snapshot names the standalone Mind decision receipt path.".to_string(),
+        );
+        json!({
+            "status": "missing-path"
+        })
+    };
+
+    let passed = assertions
+        .iter()
+        .all(|assertion| assertion.get("passed").and_then(Value::as_bool) == Some(true));
+    Ok((
+        json!({
+            "schemaVersion": "epiphany.repo_work_mind_adoption_closure_review.v0",
+            "status": if passed { "passed" } else { "failed" },
+            "adoptReceiptPath": adopt_receipt_path,
+            "mindDecisionPath": mind_decision_path,
+            "planDerived": plan_derived,
+            "assertions": assertions,
+            "standaloneDecisionReview": standalone_review,
+            "privateStateExposed": false
+        }),
+        passed,
+    ))
+}
+
 fn closure_model_review(
     model_authored: bool,
     model_ref: Option<&str>,
@@ -8520,6 +8701,8 @@ fn run_close(args: CloseArgs) -> Result<Value> {
     let commit_stat = git_output(&workspace, &["show", "--stat", "--oneline", &commit_sha])?;
     let (family_assertions, family_assertions_passed) =
         closure_family_assertions(&workspace, &commit_sha, &execute_receipt, &item)?;
+    let (mind_adoption_review, mind_adoption_passed) =
+        closure_mind_adoption_review(&execute_receipt)?;
     let closure_model_authored = args.model_authored || args.closure_model_ref.is_some();
     let (model_closure_review, model_closure_passed) = closure_model_review(
         closure_model_authored,
@@ -8559,9 +8742,11 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "pathScopeMatched": path_scope_matched,
             "commitStat": compact_multiline(&commit_stat),
             "commitReceiptMatchedExecuteReceipt": true,
+            "mindAdoptionPassed": mind_adoption_passed,
             "familyAssertionsPassed": family_assertions_passed,
             "modelClosurePassed": model_closure_passed
         },
+        "mindAdoptionReview": mind_adoption_review,
         "familyAssertions": family_assertions,
         "modelingReview": {
             "modelAuthored": closure_model_authored,
@@ -8580,11 +8765,12 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "privateStateExposed": false
         },
         "privateStateExposed": false,
-        "nextSafeMove": "Soul may pass closure only when verification succeeds, actual git changed paths match the Hands-declared path scope, safe-family assertions pass for known Imagination families, and any supplied or required model-authored closure verdict passes."
+        "nextSafeMove": "Soul may pass closure only when verification succeeds, actual git changed paths match the Hands-declared path scope, the accepted Mind adoption proof is present, safe-family assertions pass for known Imagination families, and any supplied or required model-authored closure verdict passes."
     });
     write_json(&closure_review_path, &closure_review)?;
     let verification_passed = verification.status.success()
         && path_scope_matched
+        && mind_adoption_passed
         && family_assertions_passed
         && model_closure_passed;
     let soul_verdict_id = format!("repo-work-close-{item_slug}-soul-verdict");
@@ -8594,6 +8780,10 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !path_scope_matched {
             format!(
                 "Soul verification failed for branch-local commit {commit_sha}: actual changed paths did not match declared Hands path scope."
+            )
+        } else if !mind_adoption_passed {
+            format!(
+                "Soul verification failed for branch-local commit {commit_sha}: Mind adoption proof did not pass."
             )
         } else if !family_assertions_passed {
             format!(
@@ -8633,6 +8823,11 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !path_scope_matched {
             vec![
                 "Closure refused because actual git changed paths differ from Hands-declared scope."
+                    .to_string(),
+            ]
+        } else if !mind_adoption_passed {
+            vec![
+                "Closure refused because the Mind adoption decision was missing, tampered, or non-affirmative."
                     .to_string(),
             ]
         } else if !family_assertions_passed {
@@ -11373,6 +11568,14 @@ fn string_from_json(value: &Value, path: &[&str]) -> Option<String> {
         cursor = cursor.get(*segment)?;
     }
     cursor.as_str().map(ToString::to_string)
+}
+
+fn bool_from_json(value: &Value, path: &[&str]) -> Option<bool> {
+    let mut cursor = value;
+    for segment in path {
+        cursor = cursor.get(*segment)?;
+    }
+    cursor.as_bool()
 }
 
 fn string_array_from_json(value: &Value, path: &[&str]) -> Vec<String> {
