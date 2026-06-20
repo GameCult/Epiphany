@@ -1446,12 +1446,20 @@ Build the remaining MVP in this order:
    artery before granting branch-local Hands authority. `adopt` now writes a
    separate Mind interpreter decision receipt, embeds an
    `epiphany.repo_work_mind_interpretation.v0` packet that classifies the action
-   item, requested paths, safe family, allowed Hands transition, and forbidden
-   durable-state/publication/service/private transitions, then cites it from the
-   main adoption receipt. Banter remains banter unless Mind/Interpreter extracts
-   a work candidate. The remaining cut is richer model-authored families and
-   deeper interpreter semantics beyond the first Mind interpretation packet, not
-   basic action-item or adoption receipt shape.
+   item, requested paths, recognized safe family, allowed Hands transition, and
+   forbidden durable-state/publication/service/private transitions, then cites it
+   from the main adoption receipt. The first deeper interpreter guard is now
+   live: if a plan-derived action item presents a safe-family label outside the
+   repo-work allowlist, Mind writes a refused adoption decision and grants no
+   Hands, durable-state, service-lifecycle, publication, cross-body, or
+   private-state authority. Proof
+   `.epiphany-smoke\repo-mind-safe-family-guard-20260620-190811` tampers a
+   planning note into `idunn.service_lifecycle`, receives
+   `refused-unsupported-safe-family`, and writes no adoption receipt. Banter
+   remains banter unless Mind/Interpreter extracts a work candidate. The
+   remaining cut is richer model-authored families and deeper interpreter
+   semantics beyond the first allowlist refusal, not basic action-item or
+   adoption receipt shape.
 3. **Model-authored safe plan families.** Promote `derive-plan` beyond the
    deterministic `append-worklog` and `planning-note` reliquaries by letting
    Imagination author typed plans over allowlisted repo-local families. Shell
@@ -1787,7 +1795,17 @@ Required organs before MVP:
   lifecycle, cross-body, or private-state authority. The main adoption receipt
   cites that Mind decision, then grants only branch-local Hands authority; the
   branch-local item still closes through Soul with family assertions and path
-  scope passing.
+  scope passing. The Mind decision now refuses unsupported plan-derived
+  safe-family labels before Hands review can open: smoke
+  `.epiphany-smoke\repo-mind-safe-family-guard-20260620-190811` tampered a valid
+  planning-note action item into `idunn.service_lifecycle` and proved
+  `actionItemAccepted=false`, `safeFamilyRecognized=false`,
+  `refused-unsupported-safe-family`, no adoption receipt, no branch-local Hands
+  authority, no durable-state admission, no service-lifecycle authority, and no
+  private-state exposure. Positive regression smokes
+  `.epiphany-smoke\repo-planning-facets-20260620-190916` and
+  `.epiphany-smoke\closure-model-gate-20260620-190916` prove recognized
+  planning cargo and closure model gates still pass.
   `repo-eve-surface` now proves branch-local Eve/CultUI surface contract cargo
   under `.epiphany/eve-surfaces/<item>.toml`, with compact agent TUI and GUI
   lowering contracts, local/public Verse routing, Odin discovery, Persona/human
@@ -1814,8 +1832,8 @@ Required organs before MVP:
   `.epiphany-smoke\repo-tool-request-family-20260620-174500` proved the request
   closes through Soul with family assertions and path scope passing.
   Remaining work is later model-authored action classes that can change more
-  useful repo-owned configuration, plus deeper interpreter semantics after Mind
-  adoption, without arbitrary shell authority.
+  useful repo-owned configuration, plus deeper interpreter semantics after the
+  first Mind safe-family allowlist refusal, without arbitrary shell authority.
 - Closure depth: `close` now writes a structured
   `epiphany.repo_work_closure_review.v0` packet for Hands commits, records
   model-review provenance when supplied, refuses actual-vs-declared path-scope

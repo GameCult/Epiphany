@@ -7158,6 +7158,15 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let evidence_ref_count = adoption_evidence_refs.len();
+    let safe_family_recognized = repo_work_safe_family_is_recognized(action_item_safe_family);
+    let unsupported_plan_family = plan_receipt.is_some() && !safe_family_recognized;
+    let refusal_reasons = if unsupported_plan_family {
+        vec![format!(
+            "Unsupported repo-work safe action family {action_item_safe_family}; Mind refused to convert this plan into branch-local Hands authority."
+        )]
+    } else {
+        Vec::new()
+    };
     let mind_interpretation = json!({
         "schemaVersion": "epiphany.repo_work_mind_interpretation.v0",
         "owner": "Mind",
@@ -7176,8 +7185,8 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         },
         "classification": {
             "decisionKind": "branch-local-hands-adoption",
-            "actionItemAccepted": true,
-            "safeFamilyRecognized": action_item_safe_family != "manual-plan",
+            "actionItemAccepted": !unsupported_plan_family,
+            "safeFamilyRecognized": safe_family_recognized,
             "requestedPathsDeclared": requested_path_count > 0,
             "evidenceRefsPresent": evidence_ref_count > 0,
             "durableStateAdmission": "not-admitted",
@@ -7196,10 +7205,60 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             "cross_body_mutation",
             "private_verse_export"
         ],
-        "refusalReasons": [],
+        "refusalReasons": refusal_reasons,
         "privateStateExposed": false
     });
     let mind_adoption_id = format!("repo-work-mind-adoption-{item_slug}");
+    if unsupported_plan_family {
+        let refusal_decision = json!({
+            "schemaVersion": "epiphany.repo_work_mind_adoption_decision.v0",
+            "createdAt": now,
+            "workspace": workspace,
+            "runtimeId": run_receipt["runtimeId"],
+            "runtimeStore": runtime_store,
+            "decisionId": mind_adoption_id,
+            "item": item,
+            "status": "refused-unsupported-safe-family",
+            "owner": "Mind",
+            "interpreter": "Mind",
+            "router": "Self",
+            "sourcePlanReceiptPath": plan_receipt_path,
+            "sourceRunReceiptPath": run_receipt_path,
+            "adoptedActionItemReceiptId": action_item_receipt_id,
+            "adoptedActionItem": adopted_action_item,
+            "adoptionEvidenceRefs": adoption_evidence_refs,
+            "interpretation": mind_interpretation,
+            "rationale": refusal_reasons.join(" "),
+            "gates": {
+                "selfPresentedActionItem": true,
+                "mindReviewedEvidence": true,
+                "mindInterpretedActionItem": true,
+                "safeFamilyRequired": true,
+                "safeFamilyRecognized": false,
+                "branchLocalOnly": false,
+                "bifrostPublicationRequired": true,
+                "soulClosureRequired": true
+            },
+            "authority": {
+                "durableStateAdmitted": false,
+                "handsAuthorityGranted": false,
+                "publicationAuthorized": false,
+                "mergeAuthorized": false,
+                "serviceLifecycleAuthority": false,
+                "crossRepoMutation": false,
+                "privateStateExposed": false,
+                "nextGate": "imagination.replan_with_allowed_safe_family"
+            },
+            "privateStateExposed": false,
+            "nextSafeMove": "Ask Imagination for an allowed repo-work safe family before Hands authority can be granted."
+        });
+        let mind_adoption_path = artifact_dir.join(format!("work-mind-adopt-{item_slug}.json"));
+        write_json(&mind_adoption_path, &refusal_decision)?;
+        return Err(anyhow!(
+            "Mind refused adoption for unsupported repo-work safe family {action_item_safe_family}; refusal decision written to {}",
+            mind_adoption_path.display()
+        ));
+    }
     let mind_adoption_rationale = args.mind_adoption_rationale.unwrap_or_else(|| {
         format!(
             "Mind adopted the selected Imagination action item for branch-local Hands work because Self presented explicit adoption evidence and the safe family remains bounded: {}",
@@ -10652,6 +10711,37 @@ fn adopted_action_item_from_plan(plan: &Value) -> Value {
         "crossRepoMutation": false,
         "privateStateExposed": false
     })
+}
+
+fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
+    matches!(
+        safe_family,
+        "repo.append_worklog"
+            | "repo.markdown_planning_note"
+            | "repo.checklist_note"
+            | "repo.markdown_managed_section"
+            | "repo.status_section"
+            | "repo.task_card"
+            | "repo.body_manifest"
+            | "repo.tool_capabilities"
+            | "repo.tool_request"
+            | "repo.eve_surface"
+            | "repo.collaboration_policy"
+            | "repo.collaboration_topic"
+            | "repo.consensus_brief"
+            | "repo.objective_draft"
+            | "repo.adoption_request"
+            | "repo.scheduling_request"
+            | "repo.work_order"
+            | "repo.verification_request"
+            | "repo.publication_request"
+            | "repo.sync_request"
+            | "repo.maintainer_review_request"
+            | "repo.pr_request"
+            | "repo.credit_request"
+            | "repo.artifact_acceptance_request"
+            | "repo.metrics_request"
+    )
 }
 
 fn compact_text(text: &str, limit: usize) -> String {
