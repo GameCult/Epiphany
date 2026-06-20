@@ -276,6 +276,55 @@ fn run_smoke(args: Args) -> Result<Value> {
             &root,
         )?;
     }
+    let adoption = read_json(
+        &repo
+            .join(".epiphany")
+            .join("work")
+            .join(format!("work-adopt-{item}.json")),
+    )?;
+    require_eq(
+        &adoption,
+        &["schemaVersion"],
+        "epiphany.repo_work_adoption_receipt.v0",
+    )?;
+    require_eq(
+        &adoption,
+        &["status"],
+        "approved-for-branch-local-hands-action",
+    )?;
+    require_eq(
+        &adoption,
+        &["adoptedActionItem", "safeActionFamily"],
+        "repo.markdown_planning_note",
+    )?;
+    require_text_field(
+        &adoption,
+        &["adoptedActionItem", "planningFacets", "decisionPoints", "0"],
+        "Self may adopt",
+    )?;
+    require_bool(
+        &adoption,
+        &["adoptedActionItem", "handsCommandAuthority"],
+        false,
+    )?;
+    require_bool(
+        &adoption,
+        &["adoptedActionItem", "durableStateAuthority"],
+        false,
+    )?;
+    require_bool(
+        &adoption,
+        &["adoptedActionItem", "publicationAuthorized"],
+        false,
+    )?;
+    require_bool(
+        &adoption,
+        &["adoptedActionItem", "privateStateExposed"],
+        false,
+    )?;
+    require_bool(&adoption, &["authority", "handsAuthorityGranted"], true)?;
+    require_bool(&adoption, &["authority", "durableStateAdmitted"], false)?;
+    require_bool(&adoption, &["privateStateExposed"], false)?;
     let close = read_json(
         &repo
             .join(".epiphany")
@@ -310,10 +359,14 @@ fn run_smoke(args: Args) -> Result<Value> {
         "openQuestionsRecorded": true,
         "decisionPointsRecorded": true,
         "evidenceNeedsRecorded": true,
+        "adoptedActionItemRecorded": true,
+        "adoptionFacetsRecorded": true,
         "handsAuthorityGranted": false,
         "durableStateAdmitted": false,
         "handsCommandAuthority": false,
         "durableStateAuthority": false,
+        "adoptionHandsAuthorityGranted": true,
+        "adoptionDurableStateAdmitted": false,
         "closeStatus": "closed",
         "soulVerdict": "passed",
         "familyAssertionsStatus": "passed",

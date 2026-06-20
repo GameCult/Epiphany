@@ -1423,10 +1423,12 @@ Build the remaining MVP in this order:
    typed Imagination action-item receipts with allowed safe families, requested
    paths, verification asks, stop conditions, escalation reasons, planning
    facets, model provenance, and no Hands/publication/durable-state authority
-   before it lowers the chosen safe family into a plan receipt. Banter remains
-   banter unless Mind/Interpreter extracts a work candidate. The remaining cut
-   is richer model-authored families and adoption/interpreter depth, not basic
-   action-item receipt shape.
+   before it lowers the chosen safe family into a plan receipt. `adopt` now
+   records the chosen action item and planning facets in the Mind adoption
+   receipt before granting branch-local Hands authority. Banter remains banter
+   unless Mind/Interpreter extracts a work candidate. The remaining cut is
+   richer model-authored families and interpreter/adoption semantics, not basic
+   action-item or adoption receipt shape.
 3. **Model-authored safe plan families.** Promote `derive-plan` beyond the
    deterministic `append-worklog` and `planning-note` reliquaries by letting
    Imagination author typed plans over allowlisted repo-local families. Shell
@@ -1720,15 +1722,17 @@ Required organs before MVP:
   antecedents plus model-call/token-cost/review-load/artifact/proof/credit-readback/redaction
   packet requirements while granting no metrics ledger, spend, review-load,
   credit ledger, publication, PR, merge, sync, Hands, or cross-body authority.
-  `repo-planning-facets` smoke `.epiphany-smoke\repo-planning-facets-20260620-163800`
+  `repo-planning-facets` smoke `.epiphany-smoke\repo-planning-facets-20260620-164958`
   proves model-authored planning facets on action-item receipts: assumptions,
   constraints, non-goals, open questions, decision points, and evidence needs
-  survive into the Imagination receipt and plan derivation while Hands command
-  authority, durable-state authority, publication, merge, service lifecycle,
-  cross-body mutation, and private-state exposure remain false; the branch-local
-  item still closes through Soul with family assertions and path scope passing.
+  survive into the Imagination receipt, plan derivation, and Mind adoption
+  receipt while the adoption receipt grants only branch-local Hands authority;
+  Hands command authority, durable-state authority, publication, merge, service
+  lifecycle, cross-body mutation, and private-state exposure remain false; the
+  branch-local item still closes through Soul with family assertions and path
+  scope passing.
   Remaining work is later model-authored action classes that can change more
-  useful repo-owned configuration, plus deeper adoption/interpreter behavior,
+  useful repo-owned configuration, plus deeper interpreter/adoption semantics,
   without arbitrary shell authority.
 - Closure depth: `close` now writes a structured
   `epiphany.repo_work_closure_review.v0` packet for Hands commits, records

@@ -6492,6 +6492,10 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             ));
         }
     }
+    let adopted_action_item = plan_receipt
+        .as_ref()
+        .map(adopted_action_item_from_plan)
+        .unwrap_or(Value::Null);
     let mut approved_review = hands_action_review_for_intent(
         review_id.to_string(),
         &intent,
@@ -6536,6 +6540,7 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         "status": "approved-for-branch-local-hands-action",
         "planSummary": plan_summary,
         "adoptionEvidenceRefs": adoption_evidence_refs,
+        "adoptedActionItem": adopted_action_item,
         "handsActionGate": {
             "intentId": intent.intent_id,
             "reviewId": approved_review.review_id,
@@ -6558,6 +6563,7 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             "publicationGate": "Bifrost",
             "requiredReceiptsBeforeCompletion": approved_review.required_receipts
         },
+        "privateStateExposed": false,
         "nextSafeMove": "Execute branch-local work through Hands and record patch/command/commit receipts; Bifrost still gates publish/merge."
     });
     let receipt_path = artifact_dir.join(format!("work-adopt-{item_slug}.json"));
@@ -6570,9 +6576,10 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         "runtimeStore": adoption_receipt["runtimeStore"],
         "receiptPath": receipt_path,
         "item": adoption_receipt["item"],
+        "adoptedActionItem": adoption_receipt["adoptedActionItem"],
         "handsActionGate": adoption_receipt["handsActionGate"],
         "authority": adoption_receipt["authority"],
-        "privateStateExposed": false,
+        "privateStateExposed": adoption_receipt["privateStateExposed"],
         "nextSafeMove": adoption_receipt["nextSafeMove"],
     }))
 }
@@ -9809,6 +9816,64 @@ fn string_array_field(value: &Value, field: &str) -> Vec<String> {
 
 fn default_if_empty(values: Vec<String>, defaults: Vec<String>) -> Vec<String> {
     if values.is_empty() { defaults } else { values }
+}
+
+fn adopted_action_item_from_plan(plan: &Value) -> Value {
+    let action_item = plan
+        .get("derivation")
+        .and_then(|value| value.get("actionItemReceipt"));
+    let plan_action = plan
+        .get("actions")
+        .and_then(Value::as_array)
+        .and_then(|actions| actions.first());
+    json!({
+        "source": "plan.derivation.actionItemReceipt",
+        "planId": plan.get("planId").cloned().unwrap_or(Value::Null),
+        "receiptId": action_item
+            .and_then(|value| value.get("receiptId"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "receiptPath": action_item
+            .and_then(|value| value.get("receiptPath"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "schemaVersion": action_item
+            .and_then(|value| value.get("schemaVersion"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "status": action_item
+            .and_then(|value| value.get("status"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "modelAuthored": action_item
+            .and_then(|value| value.get("modelAuthored"))
+            .cloned()
+            .unwrap_or(json!(false)),
+        "safeActionFamily": action_item
+            .and_then(|value| value.get("safeActionFamily"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "requestedPaths": plan_action
+            .and_then(|value| value.get("changedPaths"))
+            .cloned()
+            .unwrap_or(json!([])),
+        "summary": plan.get("planSummary").cloned().unwrap_or(Value::Null),
+        "planningFacets": action_item
+            .and_then(|value| value.get("planningFacets"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "adoptionEvidenceRefs": plan
+            .get("adoptionEvidenceRefs")
+            .cloned()
+            .unwrap_or(json!([])),
+        "handsCommandAuthority": false,
+        "durableStateAuthority": false,
+        "publicationAuthorized": false,
+        "mergeAuthorized": false,
+        "serviceLifecycleAuthority": false,
+        "crossRepoMutation": false,
+        "privateStateExposed": false
+    })
 }
 
 fn compact_text(text: &str, limit: usize) -> String {
