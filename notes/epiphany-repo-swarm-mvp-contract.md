@@ -267,6 +267,13 @@ capability manifest, defaulting to `.epiphany/repo-tool-capabilities.toml`,
 with local CultMesh/Odin discovery flags, typed daemon tool invocation
 intent/receipt contracts, expected repo-swarm capability ids, host-daemon
 execution ownership, Idunn lifecycle ownership, and authority seals; and
+`--action-family repo-tool-request` writes a structured daemon-hosted tool
+request under `.epiphany/tool-requests/<item>.toml`, naming the local
+CultMesh/Odin tool directory, selected daemon capability, typed invocation
+intent/receipt contracts, host-daemon execution ownership, host liveness/readiness
+requirements, and authority seals that forbid direct execution, shell, Hands,
+state, publication, service lifecycle, cross-body, and private-rummaging
+authority; and
 `--action-family repo-collaboration-policy` writes a structured repo
 collaboration policy, defaulting to `.epiphany/collaboration-policy.toml`,
 with private/local/public Verse boundaries, Odin discovery, Eve connection
@@ -340,7 +347,7 @@ or cross-body authority. Its receipt includes
 `epiphany.repo_work_plan_derivation.v0`, mode `append-worklog`,
 `planning-note`, `checklist-note`, `section-note`, `repo-status-section`, or
 `task-card`, `repo-manifest`, `repo-tool-capabilities`,
-`repo-collaboration-policy`, or `repo-collaboration-topic`,
+`repo-tool-request`, `repo-collaboration-policy`, or `repo-collaboration-topic`,
 `repo-consensus-brief`, `repo-objective-draft`, or
 `repo-adoption-request`, `repo-scheduling-request`, `repo-work-order`, or
 `repo-verification-request`, `repo-publication-request`, `repo-sync-request`, or
@@ -1394,7 +1401,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, and `repo-metrics-request` / `repo.metrics_request`. `adopt` now writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority. `plan` remains manual quarantine scaffolding. | Deepen further interpreter behavior and useful repo-owned configuration/action classes without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, and `repo-metrics-request` / `repo.metrics_request`. `adopt` now writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority. `plan` remains manual quarantine scaffolding. | Deepen further interpreter behavior and useful repo-owned configuration/action classes without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, and writes Soul, Modeling, and Mind receipts. | Deepen model-authored closure review beyond the first structured closure-review packet while preserving deterministic local closure for simple mechanical work. |
@@ -1676,6 +1683,11 @@ Required organs before MVP:
   tool capability cargo with CultMesh/Odin discovery, typed daemon tool
   invocation intent/receipt contracts, expected capability ids, host-daemon
   execution ownership, Idunn lifecycle ownership, and authority seals.
+  `repo-tool-request` now proves daemon-hosted tool request cargo with CultMesh
+  typed invocation intent/receipt contracts, host-daemon execution ownership,
+  host liveness/readiness requirements, Odin provider ownership, and denied
+  direct execution, shell, Hands, state, publication, service lifecycle,
+  cross-body, and private-rummaging authority.
   `repo-collaboration-topic` now proves public collaboration cargo with public
   Persona room, Eve surface, Imagination consensus route, non-authoritative
   candidate actions, Mind/Bifrost gates, and denied action/cross-body authority.
@@ -1761,6 +1773,14 @@ Required organs before MVP:
   rummaging, or private-state exposure authority. Smoke
   `.epiphany-smoke\repo-collaboration-policy-family-20260620-172808` proved the
   policy closes through Soul with family assertions and path scope passing.
+  `repo-tool-request` now proves daemon-hosted request cargo under
+  `.epiphany/tool-requests/<item>.toml`, with CultMesh invocation
+  intent/receipt contracts, host liveness/readiness requirements, Odin provider
+  ownership, and no direct tool execution, shell, Hands, state, publication,
+  service lifecycle, cross-body mutation, private Verse rummaging, or
+  private-state exposure authority. Smoke
+  `.epiphany-smoke\repo-tool-request-family-20260620-174500` proved the request
+  closes through Soul with family assertions and path scope passing.
   Remaining work is later model-authored action classes that can change more
   useful repo-owned configuration, plus deeper interpreter semantics after Mind
   adoption, without arbitrary shell authority.

@@ -1933,6 +1933,10 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-tool-capabilities" | "tool-capabilities" | "capability-manifest" => {
             derive_repo_tool_capabilities_plan(input, &action_family)
         }
+        "repo-tool-request"
+        | "tool-request"
+        | "daemon-tool-request"
+        | "repo-daemon-tool-request" => derive_repo_tool_request_plan(input, &action_family),
         "repo-eve-surface" | "eve-surface" | "cultui-surface" | "tui-surface" => {
             derive_repo_eve_surface_plan(input, &action_family)
         }
@@ -1984,7 +1988,7 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
             derive_repo_metrics_request_plan(input, &action_family)
         }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, and repo-metrics-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, and repo-metrics-request"
         )),
     }
 }
@@ -2597,6 +2601,123 @@ fn derive_repo_tool_capabilities_plan(
             "Remove the generated repo tool capability manifest if the accepted pressure was misinterpreted.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.tool_capabilities"),
+    })
+}
+
+fn derive_repo_tool_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/tool-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-tool-request:{item_slug}");
+    let requester_body = format!("repo:{item_slug}");
+    let intent_contract = "epiphany.cultmesh.daemon_tool_invocation_intent.v0";
+    let receipt_contract = "epiphany.cultmesh.daemon_tool_invocation_receipt.v0";
+    let lines = vec![
+        "# Epiphany repo daemon tool request.".to_string(),
+        "# Branch-local request cargo; CultMesh carries intent and receipts, host daemons own execution.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_tool_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.tool_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        format!("requester_body = {}", toml_basic_string(&requester_body)),
+        "requesting_agent = \"repo Persona/Self\"".to_string(),
+        "target_directory = \"gamecult-local/daemon-tool-directory\"".to_string(),
+        "target_capability = \"daemon-tool-capability:selected-by-review\"".to_string(),
+        "operation = \"submitTypedToolIntent\"".to_string(),
+        String::new(),
+        "[cultmesh]".to_string(),
+        format!(
+            "intent_contract = {}",
+            toml_basic_string(intent_contract)
+        ),
+        format!(
+            "receipt_contract = {}",
+            toml_basic_string(receipt_contract)
+        ),
+        "host_daemon_owns_execution = true".to_string(),
+        "requester_owns_request = false".to_string(),
+        "requires_host_liveness_ready = true".to_string(),
+        "requires_cultmesh_receipts = true".to_string(),
+        String::new(),
+        "[odin]".to_string(),
+        "discoverable = true".to_string(),
+        "preserves_provider_ownership = true".to_string(),
+        "private_verse_passthrough = false".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "direct_tool_execution = false".to_string(),
+        "arbitrary_shell_authority = false".to_string(),
+        "hands_action_authority = false".to_string(),
+        "state_commit_authority = false".to_string(),
+        "publication_authority = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authority = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the tool request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request names CultMesh intent and receipt contracts without executing the tool.\",".to_string(),
+        "  \"Soul verifies host daemon ownership, Odin provider ownership, and private-state seals remain intact.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the repo tool request if the accepted pressure was misderived or targets the wrong daemon capability.\"]".to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.tool_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a daemon-hosted tool request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add repo tool request for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo tool request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request names CultMesh typed invocation contracts while leaving execution with host daemons.".to_string(),
+            "Soul verifies no execution, lifecycle, publication, cross-body, or private-rummaging authority was granted.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated repo tool request if the accepted pressure was misinterpreted or targets the wrong daemon capability.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.tool_request"),
     })
 }
 
@@ -4990,6 +5111,84 @@ fn closure_family_assertions(
                 "tool-capabilities-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed tool capability manifest preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.tool_request" => {
+            push_assertion(
+                &mut assertions,
+                "tool-request-schema-present",
+                content.contains("schema_version = \"epiphany.repo_tool_request.v0\""),
+                "Committed tool request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "tool-request-family-present",
+                content.contains("safe_action_family = \"repo.tool_request\""),
+                "Committed tool request carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "tool-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed tool request contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "tool-request-section-present",
+                content.contains("[request]")
+                    && content.contains("target_directory = \"gamecult-local/daemon-tool-directory\"")
+                    && content.contains(
+                        "target_capability = \"daemon-tool-capability:selected-by-review\"",
+                    )
+                    && content.contains("operation = \"submitTypedToolIntent\""),
+                "Committed tool request names the daemon tool directory and typed intent operation."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "tool-request-cultmesh-contracts",
+                content.contains("[cultmesh]")
+                    && content.contains(
+                        "intent_contract = \"epiphany.cultmesh.daemon_tool_invocation_intent.v0\"",
+                    )
+                    && content.contains(
+                        "receipt_contract = \"epiphany.cultmesh.daemon_tool_invocation_receipt.v0\"",
+                    )
+                    && content.contains("host_daemon_owns_execution = true")
+                    && content.contains("requester_owns_request = false")
+                    && content.contains("requires_host_liveness_ready = true")
+                    && content.contains("requires_cultmesh_receipts = true"),
+                "Committed tool request names typed CultMesh contracts, host liveness, and host execution ownership.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "tool-request-odin-provider-ownership",
+                content.contains("[odin]")
+                    && content.contains("discoverable = true")
+                    && content.contains("preserves_provider_ownership = true")
+                    && content.contains("private_verse_passthrough = false"),
+                "Committed tool request preserves Odin discovery and provider ownership boundaries."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "tool-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("direct_tool_execution = false")
+                    && content.contains("arbitrary_shell_authority = false")
+                    && content.contains("hands_action_authority = false")
+                    && content.contains("state_commit_authority = false")
+                    && content.contains("publication_authority = false")
+                    && content.contains("service_lifecycle_authority = false")
+                    && content.contains("cross_body_mutation_authority = false")
+                    && content.contains("private_verse_rummaging = false"),
+                "Committed tool request denies direct execution, shell, Hands, state, publication, lifecycle, cross-body, and private-rummaging authority.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "tool-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed tool request preserves the private-state seal.".to_string(),
             );
         }
         "repo.eve_surface" => {
@@ -10509,7 +10708,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
