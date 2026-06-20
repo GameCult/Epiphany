@@ -76,6 +76,12 @@ pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.repo_work_overview.v0";
 pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY: &str =
     "gamecult-local/repo-work-overview/latest";
+pub const EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_TYPE: &str =
+    "epiphany.cultmesh.repo_work_public_proof";
+pub const EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.repo_work_public_proof.v0";
+pub const EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_LATEST_KEY: &str =
+    "gamecult-local/repo-work-public-proof/latest";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_TYPE: &str = "epiphany.cultmesh.verse_policy";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION: &str = "epiphany.cultmesh.verse_policy.v0";
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE: &str = "epiphany.cultmesh.global_room_policy";
@@ -737,6 +743,58 @@ pub struct EpiphanyCultMeshRepoWorkOverviewEntry {
     #[cultcache(key = 19)]
     pub private_state_exposed: bool,
     #[cultcache(key = 20)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.repo_work_public_proof",
+    schema = "EpiphanyCultMeshRepoWorkPublicProofEntry"
+)]
+pub struct EpiphanyCultMeshRepoWorkPublicProofEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub public_proof_id: String,
+    #[cultcache(key = 4)]
+    pub generated_at: String,
+    #[cultcache(key = 5)]
+    pub workspace: String,
+    #[cultcache(key = 6)]
+    pub item: String,
+    #[cultcache(key = 7)]
+    pub branch: String,
+    #[cultcache(key = 8)]
+    pub current_gate: String,
+    #[cultcache(key = 9)]
+    pub blocker: String,
+    #[cultcache(key = 10)]
+    pub next_safe_move: String,
+    #[cultcache(key = 11)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 12)]
+    pub commit_sha: String,
+    #[cultcache(key = 13)]
+    pub soul_verdict: String,
+    #[cultcache(key = 14)]
+    pub upstream_main_synced: bool,
+    #[cultcache(key = 15)]
+    pub artifact_row_count: u32,
+    #[cultcache(key = 16)]
+    pub publication_row_count: u32,
+    #[cultcache(key = 17)]
+    pub public_proof_ref: String,
+    #[cultcache(key = 18)]
+    pub public_proof_sha256: String,
+    #[cultcache(key = 19)]
+    pub tui_rows: Vec<String>,
+    #[cultcache(key = 20)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 21)]
     pub notes: Vec<String>,
 }
 
@@ -2034,6 +2092,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshWorkLoopTelemetryEntry => EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION,
     EpiphanyCultMeshAgentStateSoaSummaryEntry => EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkOverviewEntry => EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION,
+    EpiphanyCultMeshRepoWorkPublicProofEntry => EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
@@ -4181,6 +4240,48 @@ pub fn load_epiphany_cultmesh_repo_work_overviews(
     Ok(overviews)
 }
 
+pub fn write_epiphany_cultmesh_repo_work_public_proof(
+    store_path: impl AsRef<Path>,
+    proof: EpiphanyCultMeshRepoWorkPublicProofEntry,
+) -> Result<EpiphanyCultMeshRepoWorkPublicProofEntry> {
+    validate_repo_work_public_proof(&proof)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, proof.runtime_id.clone())?;
+    let written = node.put(proof.public_proof_id.clone(), &proof)?;
+    node.put(
+        EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_repo_work_public_proof(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshRepoWorkPublicProofEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_LATEST_KEY)
+}
+
+pub fn load_epiphany_cultmesh_repo_work_public_proofs(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshRepoWorkPublicProofEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut proofs = node
+        .get_all_with_keys::<EpiphanyCultMeshRepoWorkPublicProofEntry>()?
+        .into_iter()
+        .filter(|(key, _)| key != EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_LATEST_KEY)
+        .map(|(_, proof)| proof)
+        .collect::<Vec<_>>();
+    proofs.sort_by(|a, b| {
+        b.generated_at
+            .cmp(&a.generated_at)
+            .then_with(|| a.public_proof_id.cmp(&b.public_proof_id))
+    });
+    Ok(proofs)
+}
+
 fn validate_repo_work_overview(overview: &EpiphanyCultMeshRepoWorkOverviewEntry) -> Result<()> {
     if overview.private_state_exposed {
         return Err(anyhow!("repo work overview must not expose private state"));
@@ -4210,6 +4311,48 @@ fn validate_repo_work_overview(overview: &EpiphanyCultMeshRepoWorkOverviewEntry)
     {
         return Err(anyhow!(
             "repo work overview rows must not expose raw worker payload names"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_repo_work_public_proof(proof: &EpiphanyCultMeshRepoWorkPublicProofEntry) -> Result<()> {
+    if proof.private_state_exposed {
+        return Err(anyhow!(
+            "repo work public proof must not expose private state"
+        ));
+    }
+    if proof.schema_version != EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "repo work public proof schema_version must be {:?}",
+            EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION
+        ));
+    }
+    if proof.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID {
+        return Err(anyhow!(
+            "repo work public proof belongs in local-area Verse {:?}",
+            EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
+        ));
+    }
+    if proof.public_proof_id.trim().is_empty() || proof.item.trim().is_empty() {
+        return Err(anyhow!(
+            "repo work public proof requires public_proof_id and item"
+        ));
+    }
+    if proof.public_proof_ref.trim().is_empty() || proof.public_proof_sha256.trim().is_empty() {
+        return Err(anyhow!(
+            "repo work public proof requires artifact ref and sha256"
+        ));
+    }
+    if proof.tui_rows.is_empty() {
+        return Err(anyhow!("repo work public proof requires compact TUI rows"));
+    }
+    if proof.tui_rows.iter().any(|row| {
+        let lower = row.to_ascii_lowercase();
+        lower.contains("rawresult") || lower.contains("receipt body") || lower.contains("thought")
+    }) {
+        return Err(anyhow!(
+            "repo work public proof rows must not expose raw worker payload names"
         ));
     }
     Ok(())

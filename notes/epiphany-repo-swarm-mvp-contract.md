@@ -714,6 +714,26 @@ default public proof path, carried eight artifact rows and three publication
 rows, exposed zero artifact path fields, kept `rawReceiptBodies=false`, and
 reported `private=false`.
 
+The first public-proof Verse transport smoke made that export discoverable
+through local CultMesh/Gjallar sight without handing publication authority to
+the exporter. `epiphany-work export-proof --local-verse-store <repo>\.epiphany\local-verse.ccmp`
+now writes `epiphany.cultmesh.repo_work_public_proof.v0` under
+`gamecult-local/repo-work-public-proof/latest`, carrying item, gate, branch,
+commit, artifact/publication row counts, upstream-main sync truth, public proof
+artifact ref, SHA-256, compact `PUBLIC-PROOF` TUI rows, and
+`privateStateExposed=false`. `epiphany-verse-query swarm-overview` reads that
+history and emits `repoWorkPublicProofRows`, `repoWorkPublicProofTuiRows`,
+`latestRepoWorkPublicProof`, plus non-mutating priority 60+
+`repo-work-public-proof` action rows with `authorityGate=repo.work.public_proof_readback`,
+`effectClass=repo-work-public-proof-readback`, `mutatesState=false`, and
+`requiresElevatedAuthority=false`. Smoke artifacts
+`.epiphany-smoke\checklist-note-20260620-031347\14-export-proof-verse.json`
+and `15-swarm-overview-public-proof.json` proved latest
+`repo-work-public-proof-checklist-request`, SHA-256
+`e781e09c2ba340c8818d3ef95e54085ccd0c92c6a3b5f73cc4878fb224e49dff`, one
+public proof row, one public proof action row, no mutation/elevation, and
+`private=false`.
+
 The first Verse projection smoke proved the local CultMesh sight path: overview
 mirrored `repo-work-overview-verse-overview-request` into the repo-local Verse,
 `epiphany-verse-query smoke --store <local-verse> --runtime-id repo-swarm-local`
@@ -1179,8 +1199,11 @@ Required organs before MVP:
   `epiphany-work export-proof` now writes a redacted
   `epiphany.repo_work_public_proof_bundle.v0` artifact under
   `.epiphany/public/proof-bundles/` with local paths and raw receipt bodies
-  removed. Remaining work is Bifrost/public Verse transport and UX polish, not
-  basic local public-proof export or Bifrost/GitHub/sync row visibility.
+  removed, and mirrors an `epiphany.cultmesh.repo_work_public_proof.v0` row
+  into local Verse for Gjallar/Odin sight. Remaining work is Bifrost public
+  publication/credit transport beyond local Verse plus UX polish, not basic
+  local public-proof export, local CultMesh readback, or Bifrost/GitHub/sync
+  row visibility.
 
 Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt

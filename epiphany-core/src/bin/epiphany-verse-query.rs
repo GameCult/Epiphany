@@ -21,6 +21,7 @@ use epiphany_core::EpiphanyCultMeshEveSurfaceStateEntry;
 use epiphany_core::EpiphanyCultMeshImaginationConsensusReceiptEntry;
 use epiphany_core::EpiphanyCultMeshOdinAdvertisementEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
@@ -48,6 +49,7 @@ use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
 use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
+use epiphany_core::load_epiphany_cultmesh_repo_work_public_proofs;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
@@ -61,6 +63,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::open_epiphany_cultmesh_node;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
@@ -3442,6 +3445,7 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[missing_artifact_action],
                 &[],
+                &[],
             );
             if !missing_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -3490,6 +3494,7 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[synthetic_runbook_action],
+                &[],
                 &[],
             );
             if !synthetic_artifact_rows.iter().any(|row| {
@@ -3945,10 +3950,13 @@ struct SwarmOverviewReport {
     service_execution_failed_check_tui_rows: Vec<String>,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
+    repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
+    repo_work_public_proof_tui_rows: Vec<String>,
     latest_repo_work_overview_id: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
+    latest_repo_work_public_proof: Option<String>,
     topology_report: ClusterTopologyReport,
     daemon_report: DaemonLivenessReport,
     surface_report: EveSurfaceReport,
@@ -3973,6 +3981,27 @@ struct RepoWorkOverviewRow {
     publication_status: String,
     sync_status: String,
     proof_bundle_ref: String,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkPublicProofRow {
+    public_proof_id: String,
+    workspace: String,
+    item: String,
+    branch: String,
+    current_gate: String,
+    blocker: String,
+    next_safe_move: String,
+    changed_path_count: usize,
+    commit_sha: String,
+    soul_verdict: String,
+    upstream_main_synced: bool,
+    artifact_row_count: u32,
+    publication_row_count: u32,
+    public_proof_ref: String,
+    public_proof_sha256: String,
     private_state_exposed: bool,
 }
 
@@ -4060,10 +4089,14 @@ struct SwarmOverviewOutput {
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
+    repo_work_public_proof_count: usize,
+    repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
+    repo_work_public_proof_tui_rows: Vec<String>,
     latest_repo_work_overview: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
+    latest_repo_work_public_proof: Option<String>,
     policy_covered_count: usize,
     policy_enabled_count: usize,
     policy_disabled_count: usize,
@@ -4127,10 +4160,14 @@ impl SwarmOverviewOutput {
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
+            repo_work_public_proof_count: report.repo_work_public_proof_rows.len(),
+            repo_work_public_proof_rows: report.repo_work_public_proof_rows,
+            repo_work_public_proof_tui_rows: report.repo_work_public_proof_tui_rows,
             latest_repo_work_overview: report.latest_repo_work_overview_id,
             latest_repo_work_gate: report.latest_repo_work_gate,
             latest_repo_work_blocker: report.latest_repo_work_blocker,
             latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
+            latest_repo_work_public_proof: report.latest_repo_work_public_proof,
             policy_covered_count: report.policy_report.covered_count,
             policy_enabled_count: report.policy_report.enabled_count,
             policy_disabled_count: report.policy_report.disabled_count,
@@ -4186,10 +4223,14 @@ struct SwarmTriageOutput {
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
+    repo_work_public_proof_count: usize,
+    repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
+    repo_work_public_proof_tui_rows: Vec<String>,
     latest_repo_work_overview: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
+    latest_repo_work_public_proof: Option<String>,
     poked_daemon_count: usize,
     pokes: Vec<serde_json::Value>,
     commands: serde_json::Value,
@@ -4248,10 +4289,14 @@ impl SwarmTriageOutput {
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
+            repo_work_public_proof_count: report.repo_work_public_proof_rows.len(),
+            repo_work_public_proof_rows: report.repo_work_public_proof_rows,
+            repo_work_public_proof_tui_rows: report.repo_work_public_proof_tui_rows,
             latest_repo_work_overview: report.latest_repo_work_overview_id,
             latest_repo_work_gate: report.latest_repo_work_gate,
             latest_repo_work_blocker: report.latest_repo_work_blocker,
             latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
+            latest_repo_work_public_proof: report.latest_repo_work_public_proof,
             poked_daemon_count,
             pokes,
             commands: json!({
@@ -4451,6 +4496,7 @@ fn swarm_action_rows(
     service_execution_failed_check_rows: &[EpiphanyServiceExecutionAuditCheck],
     service_execution_runbook_actions: &[ServiceExecutionRunbookAction],
     repo_work_overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
+    repo_work_public_proofs: &[EpiphanyCultMeshRepoWorkPublicProofEntry],
 ) -> (Vec<SwarmActionRow>, Vec<String>) {
     let mut rows = Vec::new();
     let mut service_execution_check_counts = BTreeMap::<String, (usize, usize)>::new();
@@ -4698,6 +4744,12 @@ fn swarm_action_rows(
             private_state_exposed: runbook_action.private_state_exposed,
         });
     }
+    for (index, public_proof) in repo_work_public_proofs.iter().take(5).enumerate() {
+        rows.push(repo_work_public_proof_action_row(
+            public_proof,
+            60 + index as u32,
+        ));
+    }
     if rows.is_empty() {
         rows.push(SwarmActionRow {
             priority: 100,
@@ -4801,6 +4853,59 @@ fn repo_work_peer_tui_rows(rows: &[RepoWorkOverviewRow]) -> Vec<String> {
         .collect()
 }
 
+fn repo_work_public_proof_rows(
+    public_proofs: &[EpiphanyCultMeshRepoWorkPublicProofEntry],
+) -> (Vec<RepoWorkPublicProofRow>, Vec<String>) {
+    let rows = public_proofs
+        .iter()
+        .map(repo_work_public_proof_row)
+        .collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_public_proof_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_public_proof_row(
+    proof: &EpiphanyCultMeshRepoWorkPublicProofEntry,
+) -> RepoWorkPublicProofRow {
+    RepoWorkPublicProofRow {
+        public_proof_id: proof.public_proof_id.clone(),
+        workspace: proof.workspace.clone(),
+        item: proof.item.clone(),
+        branch: proof.branch.clone(),
+        current_gate: proof.current_gate.clone(),
+        blocker: proof.blocker.clone(),
+        next_safe_move: proof.next_safe_move.clone(),
+        changed_path_count: proof.changed_paths.len(),
+        commit_sha: proof.commit_sha.clone(),
+        soul_verdict: proof.soul_verdict.clone(),
+        upstream_main_synced: proof.upstream_main_synced,
+        artifact_row_count: proof.artifact_row_count,
+        publication_row_count: proof.publication_row_count,
+        public_proof_ref: proof.public_proof_ref.clone(),
+        public_proof_sha256: proof.public_proof_sha256.clone(),
+        private_state_exposed: proof.private_state_exposed,
+    }
+}
+
+fn repo_work_public_proof_tui_row(row: &RepoWorkPublicProofRow) -> String {
+    format!(
+        "REPO-WORK-PUBLIC-PROOF | item={} | gate={} | branch={} | commit={} | artifacts={} | publicationRows={} | upstreamMainSynced={} | proof={} | sha256={} | private={}",
+        row.item,
+        row.current_gate,
+        row.branch,
+        row.commit_sha,
+        row.artifact_row_count,
+        row.publication_row_count,
+        row.upstream_main_synced,
+        row.public_proof_ref,
+        row.public_proof_sha256,
+        row.private_state_exposed
+    )
+}
+
 fn repo_work_overview_action_row(
     overview: &EpiphanyCultMeshRepoWorkOverviewEntry,
     priority: u32,
@@ -4846,6 +4951,55 @@ fn repo_work_overview_action_row(
             overview.current_gate, overview.blocker, overview.next_safe_move
         ),
         private_state_exposed: overview.private_state_exposed,
+    }
+}
+
+fn repo_work_public_proof_action_row(
+    proof: &EpiphanyCultMeshRepoWorkPublicProofEntry,
+    priority: u32,
+) -> SwarmActionRow {
+    SwarmActionRow {
+        priority,
+        family: "repo-work-public-proof".to_string(),
+        status: proof.current_gate.clone(),
+        lifecycle_owner: "Gjallar".to_string(),
+        hosted_body: "repo-work".to_string(),
+        action: format!(
+            "Read redacted public proof {} for item {}; Bifrost owns any public publication or credit consequence.",
+            proof.public_proof_id, proof.item
+        ),
+        wrapper_mode: "repo-work-public-proof".to_string(),
+        wrapper_command: format!(
+            "epiphany-work export-proof --workspace \"{}\" --item \"{}\" --local-verse-store <store>",
+            proof.workspace, proof.item
+        ),
+        operator_artifact_ref: proof.public_proof_ref.clone(),
+        operator_artifact_status: if proof.public_proof_ref == "none" {
+            "none".to_string()
+        } else {
+            "external-ref".to_string()
+        },
+        operator_artifact_sha256: proof.public_proof_sha256.clone(),
+        operator_artifact_execution_command: "none".to_string(),
+        operator_aftercare_command: "none".to_string(),
+        completion_audit_wrapper_mode: "bifrost-ledger".to_string(),
+        completion_audit_wrapper_command: WRAPPER_BIFROST_LEDGER_COMMAND.to_string(),
+        authority_gate: "repo.work.public_proof_readback".to_string(),
+        effect_class: "repo-work-public-proof-readback".to_string(),
+        mutates_state: false,
+        requires_elevated_authority: false,
+        service_execution_failed_check_count: 0,
+        service_execution_missing_check_count: 0,
+        service_id: "none".to_string(),
+        service_route: "none".to_string(),
+        reason: format!(
+            "Redacted proof has artifacts={} publicationRows={} upstreamMainSynced={} sha256={}",
+            proof.artifact_row_count,
+            proof.publication_row_count,
+            proof.upstream_main_synced,
+            proof.public_proof_sha256
+        ),
+        private_state_exposed: proof.private_state_exposed,
     }
 }
 
@@ -5230,12 +5384,40 @@ fn load_repo_work_overview_queue(
     Ok((latest_repo_work_overview, repo_work_overviews))
 }
 
+fn load_repo_work_public_proofs(
+    args: &Args,
+) -> Result<(
+    Option<EpiphanyCultMeshRepoWorkPublicProofEntry>,
+    Vec<EpiphanyCultMeshRepoWorkPublicProofEntry>,
+)> {
+    let latest_public_proof =
+        load_latest_epiphany_cultmesh_repo_work_public_proof(&args.store, args.runtime_id.clone())?;
+    let mut public_proofs =
+        load_epiphany_cultmesh_repo_work_public_proofs(&args.store, args.runtime_id.clone())?;
+    if let Some(latest) = latest_public_proof.as_ref() {
+        if !public_proofs
+            .iter()
+            .any(|proof| proof.public_proof_id == latest.public_proof_id)
+        {
+            public_proofs.push(latest.clone());
+            public_proofs.sort_by(|a, b| {
+                b.generated_at
+                    .cmp(&a.generated_at)
+                    .then_with(|| a.public_proof_id.cmp(&b.public_proof_id))
+            });
+        }
+    }
+    Ok((latest_public_proof, public_proofs))
+}
+
 fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
     let topology_report = cluster_topology_report(&topology);
     let liveness = load_epiphany_cultmesh_daemon_liveness(&args.store, args.runtime_id.clone())?;
     let daemon_report = daemon_liveness_report(&liveness);
     let (latest_repo_work_overview, repo_work_overviews) = load_repo_work_overview_queue(args)?;
+    let (latest_repo_work_public_proof, repo_work_public_proofs) =
+        load_repo_work_public_proofs(args)?;
     let directory =
         load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
     let surface_report = eve_surface_report(&directory, &repo_work_overviews);
@@ -5448,6 +5630,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .collect::<Vec<_>>();
     let (repo_work_overview_rows, repo_work_overview_tui_rows) =
         repo_work_overview_rows(&repo_work_overviews);
+    let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
+        repo_work_public_proof_rows(&repo_work_public_proofs);
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
         &liveness_status,
         &tool_host_attention_rows,
@@ -5456,6 +5640,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &service_execution_failed_check_rows,
         &service_execution_runbook_actions,
         &repo_work_overviews,
+        &repo_work_public_proofs,
     );
     let private_state_exposed = daemon_report
         .rows
@@ -5466,6 +5651,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         || repo_work_overviews
             .iter()
             .any(|overview| overview.private_state_exposed)
+        || repo_work_public_proofs
+            .iter()
+            .any(|proof| proof.private_state_exposed)
         || service_execution_private_state_exposed
         || service_lifecycle_rows
             .iter()
@@ -5482,6 +5670,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let latest_repo_work_next_safe_move = latest_repo_work_overview
         .as_ref()
         .map(|overview| overview.next_safe_move.clone());
+    let latest_repo_work_public_proof = latest_repo_work_public_proof
+        .as_ref()
+        .map(|proof| proof.public_proof_id.clone());
     Ok(SwarmOverviewReport {
         status,
         liveness_status,
@@ -5506,10 +5697,13 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         service_execution_failed_check_tui_rows,
         repo_work_overview_rows,
         repo_work_overview_tui_rows,
+        repo_work_public_proof_rows,
+        repo_work_public_proof_tui_rows,
         latest_repo_work_overview_id,
         latest_repo_work_gate,
         latest_repo_work_blocker,
         latest_repo_work_next_safe_move,
+        latest_repo_work_public_proof,
         topology_report,
         daemon_report,
         surface_report,

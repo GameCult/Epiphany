@@ -5,7 +5,9 @@ use chrono::DateTime;
 use chrono::Utc;
 use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
 use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
 use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
@@ -45,6 +47,7 @@ use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
+use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
 use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
@@ -272,6 +275,8 @@ struct ExportProofArgs {
     accept_receipt: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
     output: Option<PathBuf>,
+    local_verse_store: Option<PathBuf>,
+    runtime_id: String,
 }
 
 #[derive(Clone, Debug)]
@@ -978,6 +983,8 @@ fn parse_export_proof_args(args: impl Iterator<Item = String>) -> Result<ExportP
     let mut accept_receipt = None;
     let mut artifact_dir = None;
     let mut output = None;
+    let mut local_verse_store = None;
+    let mut runtime_id = "repo-swarm-local".to_string();
 
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
@@ -987,6 +994,10 @@ fn parse_export_proof_args(args: impl Iterator<Item = String>) -> Result<ExportP
             "--accept-receipt" => accept_receipt = Some(take_path(&mut args, "--accept-receipt")?),
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
             "--output" | "--export-path" => output = Some(take_path(&mut args, "--output")?),
+            "--local-verse-store" | "--store" => {
+                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
+            }
+            "--runtime-id" => runtime_id = take_string(&mut args, "--runtime-id")?,
             other => return Err(anyhow!("unexpected export-proof argument {other:?}")),
         }
     }
@@ -996,6 +1007,8 @@ fn parse_export_proof_args(args: impl Iterator<Item = String>) -> Result<ExportP
         accept_receipt,
         artifact_dir,
         output,
+        local_verse_store,
+        runtime_id,
     })
 }
 
@@ -3557,14 +3570,92 @@ fn run_export_proof(args: ExportProofArgs) -> Result<Value> {
     });
     let public_bundle = repo_work_public_proof_bundle(&overview)?;
     write_json(&output, &public_bundle)?;
+    let public_proof_sha256 = file_sha256(&output)?;
+    let local_verse_store = args
+        .local_verse_store
+        .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"));
+    let artifact_row_count = public_bundle
+        .get("artifactRows")
+        .and_then(Value::as_array)
+        .map(|rows| rows.len())
+        .unwrap_or(0);
+    let publication_row_count = public_bundle
+        .get("publicationRows")
+        .and_then(Value::as_array)
+        .map(|rows| rows.len())
+        .unwrap_or(0);
+    let public_proof_tui_rows = repo_work_public_proof_tui_rows(
+        &public_bundle,
+        &output,
+        &public_proof_sha256,
+        artifact_row_count,
+        publication_row_count,
+    );
+    let entry = EpiphanyCultMeshRepoWorkPublicProofEntry {
+        schema_version: EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION.to_string(),
+        runtime_id: args.runtime_id.clone(),
+        verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+        public_proof_id: format!("repo-work-public-proof-{item_slug}"),
+        generated_at: string_from_json(&public_bundle, &["generatedAt"])
+            .unwrap_or_else(|| Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
+        workspace: workspace.display().to_string(),
+        item: item.clone(),
+        branch: string_from_json(&public_bundle, &["branch"]).unwrap_or_else(|| "unknown".to_string()),
+        current_gate: string_from_json(&public_bundle, &["currentGate"])
+            .unwrap_or_else(|| "unknown".to_string()),
+        blocker: string_from_json(&public_bundle, &["blocker"]).unwrap_or_else(|| "none".to_string()),
+        next_safe_move: string_from_json(&public_bundle, &["nextSafeMove"])
+            .unwrap_or_else(|| "none".to_string()),
+        changed_paths: public_bundle
+            .get("changedPaths")
+            .and_then(Value::as_array)
+            .map(|paths| {
+                paths
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+        commit_sha: string_from_json(&public_bundle, &["commitSha"]).unwrap_or_else(|| "none".to_string()),
+        soul_verdict: string_from_json(&public_bundle, &["soulVerdict"]).unwrap_or_else(|| "none".to_string()),
+        upstream_main_synced: public_bundle
+            .get("upstreamMainSynced")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        artifact_row_count: artifact_row_count as u32,
+        publication_row_count: publication_row_count as u32,
+        public_proof_ref: output.display().to_string(),
+        public_proof_sha256: public_proof_sha256.clone(),
+        tui_rows: public_proof_tui_rows,
+        private_state_exposed: false,
+        notes: vec![
+            "Repo work public proof is a redacted local Verse index for public/Bifrost transport; raw receipt bodies, local receipt paths, worker thought, and private Verse contents remain sealed.".to_string(),
+            "Gjallar/Odin may discover this proof, but Bifrost still owns publication, labor ledger, credit, and public consequence.".to_string(),
+        ],
+    };
+    let written_public_proof =
+        write_epiphany_cultmesh_repo_work_public_proof(&local_verse_store, entry)?;
+    let verse_projection = json!({
+        "localVerseStore": local_verse_store,
+        "documentType": "epiphany.cultmesh.repo_work_public_proof",
+        "publicProofId": written_public_proof.public_proof_id,
+        "latestKey": "gamecult-local/repo-work-public-proof/latest",
+        "publicProofRef": written_public_proof.public_proof_ref,
+        "publicProofSha256": written_public_proof.public_proof_sha256,
+        "tuiRows": written_public_proof.tui_rows,
+        "privateStateExposed": written_public_proof.private_state_exposed
+    });
     Ok(json!({
         "schemaVersion": "epiphany.repo_work_public_proof_export.v0",
         "status": "public-proof-exported",
         "workspace": workspace,
         "item": item,
         "outputPath": output,
+        "outputSha256": public_proof_sha256,
         "sourceOverviewReceiptPath": overview["receiptPath"],
         "publicProofBundle": public_bundle,
+        "verseProjection": verse_projection,
         "privateStateExposed": false,
         "nextSafeMove": "Share the public proof bundle with maintainers or Bifrost; keep raw worker thoughts and local receipt bodies sealed."
     }))
@@ -4748,6 +4839,30 @@ fn repo_work_public_artifact_row(row: &Value) -> Value {
     })
 }
 
+fn repo_work_public_proof_tui_rows(
+    bundle: &Value,
+    output: &Path,
+    sha256: &str,
+    artifact_row_count: usize,
+    publication_row_count: usize,
+) -> Vec<String> {
+    vec![format!(
+        "PUBLIC-PROOF | item={} | gate={} | branch={} | commit={} | artifacts={} | publicationRows={} | upstreamMainSynced={} | proof={} | sha256={} | private=false",
+        string_from_json(bundle, &["item"]).unwrap_or_else(|| "unknown".to_string()),
+        string_from_json(bundle, &["currentGate"]).unwrap_or_else(|| "unknown".to_string()),
+        string_from_json(bundle, &["branch"]).unwrap_or_else(|| "unknown".to_string()),
+        string_from_json(bundle, &["commitSha"]).unwrap_or_else(|| "none".to_string()),
+        artifact_row_count,
+        publication_row_count,
+        bundle
+            .get("upstreamMainSynced")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        output.display(),
+        sha256
+    )]
+}
+
 fn sync_receipt_upstream_main_synced(receipt: &Value) -> Option<bool> {
     receipt
         .get("upstreamMainSynced")
@@ -5358,7 +5473,7 @@ fn print_usage() {
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
-         export-proof --workspace <repo> [--item <id>] [--accept-receipt <path>] [--output <path>]\n\
+         export-proof --workspace <repo> [--item <id>] [--accept-receipt <path>] [--output <path>] [--local-verse-store <path>] [--runtime-id repo-swarm-local]\n\
          tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]\n\
          queue-run --workspace <repo> [--local-verse-store <path>] [--runtime-id repo-swarm-local] [--max-items 1] [--dry-run]"
     );
