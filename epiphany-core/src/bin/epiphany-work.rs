@@ -2156,6 +2156,9 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-consensus-brief" | "consensus-brief" | "imagination-consensus" => {
             derive_repo_consensus_brief_plan(input, &action_family)
         }
+        "repo-planning-brief" | "planning-brief" | "safe-family-plan" => {
+            derive_repo_planning_brief_plan(input, &action_family)
+        }
         "repo-objective-draft" | "objective-draft" | "imagination-objective" => {
             derive_repo_objective_draft_plan(input, &action_family)
         }
@@ -2211,7 +2214,7 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         | "idunn-deployment-request"
         | "repo-deploy-request" => derive_repo_deployment_request_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, repo-secret-policy-request, repo-deployment-config, and repo-deployment-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-planning-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, repo-secret-policy-request, repo-deployment-config, and repo-deployment-request"
         )),
     }
 }
@@ -3413,6 +3416,157 @@ fn derive_repo_consensus_brief_plan(
             "Remove the generated consensus brief if the public feedback was misinterpreted.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.consensus_brief"),
+    })
+}
+
+fn derive_repo_planning_brief_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/planning-briefs/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let brief_id = format!("repo-planning-brief:{item_slug}");
+    let recommended_families = vec![
+        "repo.consensus_brief".to_string(),
+        "repo.objective_draft".to_string(),
+        "repo.task_card".to_string(),
+        "repo.work_order".to_string(),
+        "repo.verification_request".to_string(),
+        "repo.publication_request".to_string(),
+    ];
+    let lines = vec![
+        "# Epiphany repo planning brief.".to_string(),
+        "# Branch-local Imagination decomposition cargo; not objective adoption, scheduling, Hands authority, or publication.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_planning_brief.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.planning_brief")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "deployment_execution_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[planning_brief]".to_string(),
+        format!("id = {}", toml_basic_string(&brief_id)),
+        "status = \"draft\"".to_string(),
+        "owner = \"Imagination\"".to_string(),
+        "purpose = \"decompose rough Persona or operator pressure into bounded safe-family work items\"".to_string(),
+        "candidate_actions_non_authoritative = true".to_string(),
+        "requires_mind_interpretation = true".to_string(),
+        "requires_soul_evidence_needs = true".to_string(),
+        "requires_explicit_human_or_mind_adoption = true".to_string(),
+        format!(
+            "recommended_next_safe_families = {}",
+            toml_array(&recommended_families)
+        ),
+        String::new(),
+        "[decomposition]".to_string(),
+        "sequence = [".to_string(),
+        "  \"repo.consensus_brief\",".to_string(),
+        "  \"repo.objective_draft\",".to_string(),
+        "  \"repo.task_card\",".to_string(),
+        "  \"repo.work_order\",".to_string(),
+        "  \"repo.verification_request\",".to_string(),
+        "  \"repo.publication_request\"".to_string(),
+        "]".to_string(),
+        "max_candidate_work_items = 6".to_string(),
+        "one_safe_family_per_action_item = true".to_string(),
+        "candidate_items_must_name_requested_paths = true".to_string(),
+        "candidate_items_must_name_verification_asks = true".to_string(),
+        "candidate_items_must_name_evidence_needs = true".to_string(),
+        "shell_commands_must_be_deterministic_lowerings = true".to_string(),
+        String::new(),
+        "[gates]".to_string(),
+        "mind_interpreter_required = true".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "self_queue_selection_required = true".to_string(),
+        "substrate_gate_required_before_hands = true".to_string(),
+        "hands_receipts_required_before_soul = true".to_string(),
+        "soul_verdict_required_before_mind_map_admission = true".to_string(),
+        "bifrost_required_before_publication = true".to_string(),
+        "idunn_required_before_deployment_execution = true".to_string(),
+        String::new(),
+        "[inputs]".to_string(),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        "private_worker_transcripts_allowed = false".to_string(),
+        "raw_result_payloads_allowed = false".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "objective_adoption_authorized = false".to_string(),
+        "self_scheduling_authorized = false".to_string(),
+        "substrate_access_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "shell_command_authorized = false".to_string(),
+        "commit_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "deployment_execution_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "soul_verification_required = true".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the planning brief path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the brief names candidate safe families, requested-path/evidence requirements, and gate order without granting action authority.\",".to_string(),
+        "  \"Soul verifies the brief preserves private-state seals and forbids deployment execution authority.\",".to_string(),
+        "  \"Soul verifies no paths outside the declared planning brief changed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the planning brief if the rough pressure was misread or the decomposition is not ready for Mind review.\"]".to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.planning_brief".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo planning brief from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add planning brief for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo planning brief path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the brief names allowed next safe families, path/evidence requirements, and Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gates without authorizing action.".to_string(),
+            "Soul verifies no paths outside the declared planning brief changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated planning brief if Imagination decomposed the pressure incorrectly.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.planning_brief"),
     })
 }
 
@@ -6221,6 +6375,82 @@ fn closure_family_assertions(
                 "consensus-brief-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed consensus brief preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.planning_brief" => {
+            push_assertion(
+                &mut assertions,
+                "planning-brief-schema-present",
+                content.contains("schema_version = \"epiphany.repo_planning_brief.v0\""),
+                "Committed planning brief carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-family-present",
+                content.contains("safe_action_family = \"repo.planning_brief\""),
+                "Committed planning brief carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-summary-present",
+                content.contains(&compact_summary),
+                "Committed planning brief contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-decomposition-contract",
+                content.contains("[decomposition]")
+                    && content.contains("\"repo.consensus_brief\"")
+                    && content.contains("\"repo.objective_draft\"")
+                    && content.contains("\"repo.task_card\"")
+                    && content.contains("\"repo.work_order\"")
+                    && content.contains("\"repo.verification_request\"")
+                    && content.contains("\"repo.publication_request\"")
+                    && content.contains("candidate_items_must_name_requested_paths = true")
+                    && content.contains("candidate_items_must_name_verification_asks = true")
+                    && content.contains("candidate_items_must_name_evidence_needs = true"),
+                "Committed planning brief names the safe-family decomposition contract."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-gates-present",
+                content.contains("[gates]")
+                    && content.contains("mind_interpreter_required = true")
+                    && content.contains("self_queue_selection_required = true")
+                    && content.contains("substrate_gate_required_before_hands = true")
+                    && content.contains("hands_receipts_required_before_soul = true")
+                    && content.contains("soul_verdict_required_before_mind_map_admission = true")
+                    && content.contains("bifrost_required_before_publication = true")
+                    && content.contains("idunn_required_before_deployment_execution = true"),
+                "Committed planning brief names the ordered Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gates."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("objective_adoption_authorized = false")
+                    && content.contains("self_scheduling_authorized = false")
+                    && content.contains("substrate_access_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("shell_command_authorized = false")
+                    && content.contains("commit_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("deployment_execution_authority = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("private_verse_rummaging = false"),
+                "Committed planning brief denies adoption/scheduling/substrate/action/shell/commit/publication/deployment/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-private-seal",
+                content.contains("private_state_exposed = false")
+                    && content.contains("private_worker_transcripts_allowed = false")
+                    && content.contains("raw_result_payloads_allowed = false"),
+                "Committed planning brief preserves private-state and transcript seals."
+                    .to_string(),
             );
         }
         "repo.objective_draft" => {
@@ -13050,6 +13280,7 @@ fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
             | "repo.collaboration_policy"
             | "repo.collaboration_topic"
             | "repo.consensus_brief"
+            | "repo.planning_brief"
             | "repo.objective_draft"
             | "repo.adoption_request"
             | "repo.scheduling_request"
@@ -13197,7 +13428,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|deployment-config-audit|deployment-execution-runbook|deployment-aftercare-audit|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-planning-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
