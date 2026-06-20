@@ -2035,12 +2035,16 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         | "secret-policy-request"
         | "security-policy-request"
         | "repo-security-request" => derive_repo_secret_policy_request_plan(input, &action_family),
+        "repo-deployment-config"
+        | "deployment-config"
+        | "idunn-deployment-config"
+        | "repo-deploy-config" => derive_repo_deployment_config_plan(input, &action_family),
         "repo-deployment-request"
         | "deployment-request"
         | "idunn-deployment-request"
         | "repo-deploy-request" => derive_repo_deployment_request_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, repo-secret-policy-request, and repo-deployment-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, repo-secret-policy-request, repo-deployment-config, and repo-deployment-request"
         )),
     }
 }
@@ -5244,6 +5248,132 @@ fn derive_repo_deployment_request_plan(
     })
 }
 
+fn derive_repo_deployment_config_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let target_path =
+        validate_toml_target_path(input.target_path.unwrap_or(".epiphany/deployment.toml"))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let deployment_id = format!("repo-deployment-config:{}", sanitize(input.item));
+    let lines = vec![
+        "# Epiphany repo deployment config.".to_string(),
+        "# Branch-local configuration cargo; Idunn owns deployment execution.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_deployment_config.v0")
+        ),
+        format!("id = {}", toml_basic_string(&deployment_id)),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.deployment_config")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "hands_authority_granted = false".to_string(),
+        "deployment_authority = false".to_string(),
+        "ssh_authority = false".to_string(),
+        "git_push_authority = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[deployment]".to_string(),
+        "enabled = false".to_string(),
+        "owner = \"Idunn\"".to_string(),
+        "trigger = \"git-push-observed-by-idunn\"".to_string(),
+        "target_environment = \"review-required\"".to_string(),
+        "watched_ref = \"refs/heads/main\"".to_string(),
+        "deployment_script_ref = \"deploy/idunn-deploy.ps1\"".to_string(),
+        "deployment_script_hash_required = true".to_string(),
+        "deployment_script_review_required = true".to_string(),
+        "host_access_policy_ref_required = true".to_string(),
+        "secret_policy_ref = \".epiphany/security/secret-policy.toml\"".to_string(),
+        "secret_values_embedded = false".to_string(),
+        "rollback_plan_ref_required = true".to_string(),
+        "aftercare_checks_required = true".to_string(),
+        "idunn_receipt_required = true".to_string(),
+        "aftercare_audit_required = true".to_string(),
+        String::new(),
+        "[cultmesh]".to_string(),
+        "local_verse = \"gamecult-local\"".to_string(),
+        "capability_family = \"gamecult.idunn.deployment\"".to_string(),
+        "intent_contract = \"gamecult.idunn.deployment_intent.v0\"".to_string(),
+        "receipt_contract = \"gamecult.idunn.deployment_receipt.v0\"".to_string(),
+        "aftercare_contract = \"gamecult.idunn.deployment_aftercare_audit.v0\"".to_string(),
+        "daemon_owns_execution = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
+        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
+        "secret_policy = \"epiphany.repo_secret_policy_request.v0\"".to_string(),
+        "idunn_deployment = \"gamecult.idunn.deployment_receipt.v0\"".to_string(),
+        "aftercare_audit = \"gamecult.idunn.deployment_aftercare_audit.v0\"".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "configuration_only = true".to_string(),
+        "direct_deployment_authority = false".to_string(),
+        "direct_ssh_authority = false".to_string(),
+        "direct_git_push_authority = false".to_string(),
+        "direct_service_lifecycle_authority = false".to_string(),
+        "direct_hands_authority = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "idunn_deployment_authority_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the deployment config path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the config names git-push-observed-by-Idunn trigger, script review/hash, secret policy, rollback, aftercare, and Idunn receipt contracts.\",".to_string(),
+        "  \"Soul verifies this config is disabled until reviewed and grants no direct deployment, SSH, git push, service lifecycle, publication, merge, Hands, cross-body, or private Verse authority.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove or disable the deployment config if the Idunn deployment path is not ready.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.deployment_config".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived an Idunn-facing repo deployment config from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add deployment config for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo deployment config path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the config names git-push-observed-by-Idunn trigger, script review/hash, secret policy, rollback, aftercare, Idunn receipts, and no direct deployment/SSH/push authority.".to_string(),
+            "Soul verifies no paths outside the declared deployment config changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove or disable the generated deployment config if Idunn review is not ready.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.deployment_config"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -7385,6 +7515,112 @@ fn closure_family_assertions(
                 "deployment-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed deployment request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.deployment_config" => {
+            push_assertion(
+                &mut assertions,
+                "deployment-config-schema-present",
+                content.contains("schema_version = \"epiphany.repo_deployment_config.v0\""),
+                "Committed deployment config carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "deployment-config-family-present",
+                content.contains("safe_action_family = \"repo.deployment_config\""),
+                "Committed deployment config carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "deployment-config-summary-present",
+                content.contains(&compact_summary),
+                "Committed deployment config contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "deployment-config-idunn-trigger",
+                content.contains("[deployment]")
+                    && content.contains("enabled = false")
+                    && content.contains("owner = \"Idunn\"")
+                    && content.contains("trigger = \"git-push-observed-by-idunn\"")
+                    && content.contains("watched_ref = \"refs/heads/main\"")
+                    && content.contains("deployment_script_ref = \"deploy/idunn-deploy.ps1\"")
+                    && content.contains("deployment_script_hash_required = true")
+                    && content.contains("deployment_script_review_required = true")
+                    && content.contains("host_access_policy_ref_required = true")
+                    && content.contains("secret_values_embedded = false")
+                    && content.contains("rollback_plan_ref_required = true")
+                    && content.contains("aftercare_checks_required = true")
+                    && content.contains("idunn_receipt_required = true")
+                    && content.contains("aftercare_audit_required = true"),
+                "Committed deployment config names disabled Idunn git-push trigger, reviewed script/hash, policy, rollback, and aftercare requirements."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "deployment-config-cultmesh-contract",
+                content.contains("[cultmesh]")
+                    && content.contains("local_verse = \"gamecult-local\"")
+                    && content.contains("capability_family = \"gamecult.idunn.deployment\"")
+                    && content
+                        .contains("intent_contract = \"gamecult.idunn.deployment_intent.v0\"")
+                    && content
+                        .contains("receipt_contract = \"gamecult.idunn.deployment_receipt.v0\"")
+                    && content.contains(
+                        "aftercare_contract = \"gamecult.idunn.deployment_aftercare_audit.v0\"",
+                    )
+                    && content.contains("daemon_owns_execution = true"),
+                "Committed deployment config routes deployment through Idunn CultMesh contracts."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "deployment-config-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains(
+                        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"",
+                    )
+                    && content.contains(
+                        "soul_review = \"epiphany.repo_work_closure_review.v0\"",
+                    )
+                    && content.contains(
+                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
+                    )
+                    && content.contains(
+                        "secret_policy = \"epiphany.repo_secret_policy_request.v0\"",
+                    )
+                    && content.contains(
+                        "idunn_deployment = \"gamecult.idunn.deployment_receipt.v0\"",
+                    )
+                    && content.contains(
+                        "aftercare_audit = \"gamecult.idunn.deployment_aftercare_audit.v0\"",
+                    ),
+                "Committed deployment config names Mind, Soul, maintainer, secret-policy, Idunn deployment, and aftercare receipts."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "deployment-config-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("configuration_only = true")
+                    && content.contains("direct_deployment_authority = false")
+                    && content.contains("direct_ssh_authority = false")
+                    && content.contains("direct_git_push_authority = false")
+                    && content.contains("direct_service_lifecycle_authority = false")
+                    && content.contains("direct_hands_authority = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("merge_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("private_verse_rummaging = false")
+                    && content.contains("idunn_deployment_authority_required = true"),
+                "Committed deployment config denies deployment/SSH/push/service/action/publication/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "deployment-config-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed deployment config preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -11993,6 +12229,7 @@ fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
             | "repo.metrics_request"
             | "repo.doctrine_update_request"
             | "repo.secret_policy_request"
+            | "repo.deployment_config"
             | "repo.deployment_request"
     )
 }
@@ -12113,7 +12350,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\

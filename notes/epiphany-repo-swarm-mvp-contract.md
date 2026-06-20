@@ -356,7 +356,15 @@ locations without values, credential owner, write-permission scope,
 public/private export boundaries, deployment authority owner, rollback planning,
 Eyes/Soul/Mind/maintainer/Bifrost receipts, and redaction requirements without
 itself granting secret access, write permission, deployment, publication, merge,
-service lifecycle, or cross-body authority. Its receipt includes
+service lifecycle, or cross-body authority; and `--action-family
+repo-deployment-config` writes a structured Idunn deployment config under
+`.epiphany/deployment.toml`, naming a disabled git-push-observed-by-Idunn
+trigger, watched ref, deployment script ref, script hash/review requirement,
+host access policy requirement, secret policy ref, rollback, aftercare checks,
+Idunn intent/receipt/aftercare CultMesh contracts, and daemon-owned execution
+without itself granting deployment, SSH, git push, service lifecycle,
+publication, merge, Hands, cross-body, or private Verse authority. Its receipt
+includes
 `epiphany.repo_work_plan_derivation.v0`, mode `append-worklog`,
 `planning-note`, `checklist-note`, `section-note`, `repo-status-section`, or
 `task-card`, `repo-manifest`, `repo-tool-capabilities`,
@@ -366,8 +374,8 @@ service lifecycle, or cross-body authority. Its receipt includes
 `repo-verification-request`, `repo-publication-request`, `repo-sync-request`, or
 `repo-maintainer-review-request`, `repo-pr-request`, `repo-credit-request`,
 `repo-artifact-acceptance-request`, `repo-metrics-request`,
-`repo-doctrine-update-request`, `repo-secret-policy-request`, or
-`repo-deployment-request`, a
+`repo-doctrine-update-request`, `repo-secret-policy-request`,
+`repo-deployment-config`, or `repo-deployment-request`, a
 `safeActionFamily`, and an authority seal forbidding publication, merge, service
 lifecycle mutation, cross-repo mutation, and private state exposure.
 These deterministic families are quarantine scaffolding on the road to
@@ -750,6 +758,23 @@ request carried `schema_version = "epiphany.repo_deployment_request.v0"`,
 Mind adoption, Soul review, maintainer review, secret-policy review, Bifrost
 review, Idunn deployment receipt, aftercare audit, deployment script/hash/host
 policy/rollback requirements, and denied direct deployment, SSH, git push,
+service lifecycle, Hands, publication, merge, cross-body authority, and
+`privateStateExposed=false`.
+
+The following Idunn configuration smoke made the git-push deployment contract
+repo-owned without granting deployment authority:
+`.epiphany-smoke\repo-deployment-config-family-20260620-211809` ran init ->
+online -> accept -> `derive-plan --action-family repo-deployment-config
+--model-ref repo-deployment-config-family-smoke-imagination-v1
+--model-authored` -> tick through run/adopt/execute/close on a fresh repo. The
+plan carried `safeActionFamily=repo.deployment_config`; Hands committed only
+`.epiphany/deployment.toml`; Soul passed with `pathScopeMatched=true` and
+`familyAssertions.status=passed`; the config carried `schema_version =
+"epiphany.repo_deployment_config.v0"`, `enabled=false`,
+`owner="Idunn"`, `trigger="git-push-observed-by-idunn"`,
+`watched_ref="refs/heads/main"`, deployment script/hash/review, host policy,
+secret policy, rollback, aftercare, Idunn CultMesh intent/receipt/aftercare
+contracts, daemon-owned execution, and denied direct deployment, SSH, git push,
 service lifecycle, Hands, publication, merge, cross-body authority, and
 `privateStateExposed=false`.
 
@@ -1547,7 +1572,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, `repo-metrics-request` / `repo.metrics_request`, `repo-doctrine-update-request` / `repo.doctrine_update_request`, `repo-secret-policy-request` / `repo.secret_policy_request`, and `repo-deployment-request` / `repo.deployment_request`. `adopt` now writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority. `plan` remains manual quarantine scaffolding. | Deepen further interpreter behavior and useful repo-owned configuration/action classes without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, `repo-metrics-request` / `repo.metrics_request`, `repo-doctrine-update-request` / `repo.doctrine_update_request`, `repo-secret-policy-request` / `repo.secret_policy_request`, `repo-deployment-config` / `repo.deployment_config`, and `repo-deployment-request` / `repo.deployment_request`. `adopt` now writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority. `plan` remains manual quarantine scaffolding. | Deepen further interpreter behavior and useful repo-owned configuration/action classes without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
