@@ -704,14 +704,50 @@ receipt-backed, and publication-gated."
 
 That is the machine we are building.
 
+## Unbounded Repo Work Doctrine
+
+"Autonomous unbounded work" means the swarm may keep forming maps, plans,
+action items, branch-local consequences, verification receipts, memory updates,
+and follow-up work while its owned Body still presents lawful pressure. It does
+not mean infinite privilege, cross-Body appetite, public speech without a
+mouth-gate, or service lifecycle authority stolen from Idunn.
+
+For the repo-swarm MVP, unbounded work is bounded by physiology instead of by
+constant human permission:
+
+- Body boundary: the swarm may act only inside the initialized repo Body,
+  repo-local state stores, repo-local private Verse, owned `epiphany/*` branch,
+  and advertised public Persona/Eve surfaces.
+- Organ boundary: Persona receives pressure, Imagination makes plans, Self
+  schedules, Substrate Gate scopes access, Hands mutates, Soul verifies,
+  Modeling updates maps, Mind admits state, Bifrost publishes, Gjallar reports,
+  Odin discovers, Eve renders, and Idunn keeps daemons alive.
+- Step boundary: each scheduler pulse advances at most one receipt-backed safe
+  branch-local step unless a later typed scheduler contract explicitly widens
+  the batch rule.
+- Brake boundary: local Verse brakes, active-turn markers, completion-anchored
+  cooldowns, stale-turn recovery receipts, and stop conditions are physiology,
+  not optional etiquette.
+- Publication boundary: branch-local work may continue autonomously; upstream
+  publication, merge, deployment, privilege escalation, cross-repo mutation,
+  and authority changes require their owning gates.
+- Privacy boundary: raw worker thought, raw result payloads, sealed
+  transcripts, private Verse documents, and private memory text do not become
+  Gjallar, Eve, Bifrost, or operator display cargo.
+
+The swarm should therefore be allowed to work for a long time without asking
+for every local edit. The proof of safety is not obedience. The proof of safety
+is that every consequence has an owner, a typed path, an interrupt surface, and
+a receipt that says what happened without lying about who had authority.
+
 ## Full Migration Plan To Repo Swarm MVP
 
-This plan starts from the current state: thirteen native front doors exist, but
+This plan starts from the current state: fourteen native front doors exist, but
 the work loop is not yet a full physiology. `init`, `online`, `accept`,
 `derive-plan`, `plan`, `run`, `adopt`, `execute`, `close`, `tick`, `publish`,
-`overview`, and `sync` prove the typed path from repo birth to branch-local
-scheduler pulse, Bifrost/GitHub publication receipts, compact proof-bundle
-sight, and upstream-main sync proof.
+`overview`, `queue-run`, and `sync` prove the typed path from repo birth to
+branch-local scheduler pulse, typed queue selection, Bifrost/GitHub publication
+receipts, compact proof-bundle sight, and upstream-main sync proof.
 `tick` now also proves brake refusal, active-turn refusal,
 completion-anchored cooldown refusal, and stale active-turn recovery through
 typed scheduler receipts; `serve` now proves bounded cadence around that same
@@ -719,10 +755,12 @@ tick artery; `close` now proves first deterministic Soul/Modeling/Mind closure
 over Hands commit receipts; `derive-plan` now proves a deterministic
 Persona/Bifrost pressure-to-plan bridge with no operator-authored shell
 details; `overview` now proves compact local proof-bundle sight over the
-receipt chain. The chain does not yet prove fully model-authored Imagination
-planning, deeper model-authored Soul/Modeling closure, or richer Gjallar/Eve
-presentation of repo work overview rows beyond the latest typed local Verse
-document.
+receipt chain; `queue-run` now proves that Self can select tick-actionable rows
+from the typed repo-work overview queue without reading private thought or
+taking publication/service authority. The chain does not yet prove fully
+model-authored Imagination planning, deeper model-authored Soul/Modeling
+closure, optional Idunn-hosted lifecycle for queue pulses, or richer published
+proof bundles.
 
 The MVP target is narrower than the full Perfect Machine and wider than a demo:
 a fresh repository can host an Epiphany swarm that initializes its Body,
@@ -758,6 +796,12 @@ the point where the artery can run as a repo swarm: the human talks to the
 project Persona, the swarm turns the idea into work, the branch changes under
 typed authority, proof is published without private-state leakage, and upstream
 main is proven rather than assumed.
+
+The swarm is allowed to keep going while work remains lawful. It must not keep
+going by forgetting its Body boundary, smearing organ ownership, or treating a
+wrapper loop as a daemon soul. Long-running autonomy belongs to Self's
+scheduler physiology and, when installed as a service, to Idunn-owned lifecycle
+aftercare around that same scheduler pulse.
 
 ### MVP Status Board
 
@@ -922,6 +966,11 @@ physiology while preserving the same authority receipts.
 
 Required organs before MVP:
 
+- Unbounded-work physiology: the repo swarm may keep advancing lawful
+  branch-local work without a human re-approving every edit, but only through
+  receipt-backed scheduler pulses, local brakes, active-turn/cooldown guards,
+  branch containment, and proof rows. This is an authority model, not a timeout
+  setting.
 - Scheduler physiology: the first `epiphany-work tick` pulse now has brake,
   active-turn, cooldown, and stale-turn recovery receipts, and
   `epiphany-work serve` adds bounded/unbounded cadence around that pulse.
