@@ -1039,8 +1039,8 @@ existing typed artery run as a living repo organism:
   branch-local work beyond planning cargo without arbitrary shell authority
 - an Idunn-owned service lifecycle path for the queue-run pulse when the
   operator explicitly grants service mutation or elevated host authority
-- a fresh-repo acceptance run that proves the whole path without supervisor
-  contamination
+- a repeatable fresh-repo acceptance smoke that proves the whole path without
+  supervisor target-repo edits
 
 The MVP is functional when a human can talk to the repo Persona, the swarm can
 turn that pressure into typed work, keep advancing lawful branch-local steps
@@ -1412,6 +1412,42 @@ Persona speech audit
 This is the difference between a demo and a repo swarm: the human talks to the
 project, the project forms a plan, the branch work happens inside its owned
 Body, and the proof bundle tells the truth without leaking the private mind.
+
+### Native Fresh Repo MVP Smoke
+
+The first repeatable Phase 7 proof is now native:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-swarm-mvp-smoke
+```
+
+The smoke creates a disposable bare `origin.git`, clones a fresh repo Body,
+seeds only an initial `README.md`, then runs the public front doors instead of
+writing target-repo artifacts by hand:
+
+```text
+epiphany-repo init --switch-branch
+  -> epiphany-swarm online
+  -> epiphany-work persona-intake
+  -> epiphany-work derive-plan --action-family repo-status-section
+  -> epiphany-work overview
+  -> epiphany-swarm run --max-iterations 4
+  -> epiphany-work publish --closure-receipt
+  -> maintainer merge simulated by pushing the Epiphany branch to disposable origin/main
+  -> epiphany-work sync --upstream-ref origin/main
+  -> epiphany-work overview
+  -> epiphany-work export-proof
+```
+
+Disposable proof `.epiphany-smoke\fresh-repo-mvp-20260620-133452` reported
+`status=ok`, branch `epiphany/fresh-repo-smoke/mvp-proof`, Hands commit
+`76f8d5ebb023951a513864bdf8555a524d89c5dc`, Soul `passed`,
+`familyAssertions.status=passed`, `publishStatus=publication-receipts-recorded`,
+`syncStatus=upstream-main-synced`, `upstreamMainSynced=true`,
+`publicProofStatus=public-proof-exported`, and `privateStateExposed=false`.
+This proves the operator-facing fresh-repo artery from Persona pressure to
+Bifrost publication receipts, upstream-main ancestry proof, and redacted public
+proof export without supervisor edits inside the target repo Body.
 
 ### Phase 0: Authority Freeze
 

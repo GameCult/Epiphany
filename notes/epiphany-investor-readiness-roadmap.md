@@ -25,8 +25,9 @@ The operating todo list is:
    entries.
 3. Add accounting surfaces: model spend, role time, human review load, accepted
    artifact count, rejected-output reasons, and lessons written to memory.
-4. Prove fresh-repo operation on at least one external or semi-external repo
-   without supervisor contamination.
+4. Keep fresh-repo operation repeatable without supervisor contamination, and
+   extend that proof toward an external or semi-external repo when the
+   Bifrost-first bridge is ready.
 5. Keep public proof export clean: no raw worker thoughts, transcripts, private
    notes, repo secrets, or operator context in public/operator-safe artifacts.
 6. Preserve the political invariant: capital expands capacity; it does not
@@ -55,9 +56,13 @@ Every investor-scale Objective Draft should answer:
 
 ## Roadmap Shape
 
-1. Fresh-repo Epiphany proof: demonstrate Persona entry, Bifrost-linked scope,
-   bounded role routing, artifact production, review, receipts, and sealed
-   operator-safe evidence.
+1. Fresh-repo Epiphany proof: the native
+   `epiphany-repo-swarm-mvp-smoke` now demonstrates Persona entry,
+   Bifrost-linked publication receipts, bounded repo-swarm routing, artifact
+   production, review, upstream-main sync proof, and sealed operator-safe
+   evidence on a disposable fresh repo. Keep it repeatable and move the same
+   loop toward an external or semi-external repo after Bifrost owns the work
+   item bridge.
 2. Bifrost-first private alpha: all external swarm work exists as Bifrost
    topics/work items/dispatches/receipts/credit before Discord, VoidBot, Persona,
    or scripts can mirror it.
