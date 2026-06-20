@@ -533,6 +533,32 @@ fn run_smoke(args: Args) -> Result<Value> {
             "Gjallar TUI rows did not expose repo map family lens sight"
         ));
     }
+    require_u64(&gjallar, &["repoWorkMapPathLensCount"], 1)?;
+    let path_lens_rows = value_at_path(&gjallar, &["repoWorkMapPathLensRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapPathLensRows array"))?;
+    let path_lens_row = path_lens_rows
+        .iter()
+        .find(|row| row.get("path").and_then(Value::as_str) == Some(target_path))
+        .ok_or_else(|| anyhow!("Gjallar output had no repo map path lens row"))?;
+    require_eq_value(path_lens_row, &["latestItem"], item)?;
+    require_eq_value(
+        path_lens_row,
+        &["latestMindStateCommitReceiptId"],
+        &map_entry.mind_state_commit_receipt_id,
+    )?;
+    require_bool_value(path_lens_row, &["privateStateExposed"], false)?;
+    let path_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapPathLensTuiRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapPathLensTuiRows array"))?;
+    if !path_lens_tui_rows.iter().any(|row| {
+        row.as_str()
+            .is_some_and(|row| row.contains("REPO-WORK-MAP-PATH") && row.contains(target_path))
+    }) {
+        return Err(anyhow!(
+            "Gjallar TUI rows did not expose repo map path lens sight"
+        ));
+    }
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_close_mind_adoption_guard_smoke.v0",
@@ -554,6 +580,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "repoMapLocalVerseProjected": true,
         "gjallarLatestRepoWorkMapEntry": gjallar["latestRepoWorkMapEntry"],
         "gjallarRepoWorkMapFamilyLensCount": gjallar["repoWorkMapFamilyLensCount"],
+        "gjallarRepoWorkMapPathLensCount": gjallar["repoWorkMapPathLensCount"],
         "publicationAuthorized": false,
         "privateStateExposed": false
     });
