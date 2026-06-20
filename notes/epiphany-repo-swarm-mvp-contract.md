@@ -789,6 +789,21 @@ Idunn git-push contract as `ready-for-idunn-review` while keeping
 `.epiphany-smoke\repo-deployment-config-family-20260620-213042` proved the
 audit receipt beside the family close path.
 
+The matching execution handoff is now a runbook, not a hidden deployment act.
+`epiphany-work deployment-execution-runbook --workspace <repo>` reruns the
+config audit, then writes
+`.epiphany/work/idunn-deployment/idunn-git-push-runbook.ps1` only when the
+config is ready for Idunn review. The receipt
+`epiphany.repo_deployment_execution_runbook.v0` reports
+`ready-for-operator-git-push`, the exact `git push origin
+HEAD:refs/heads/main` handoff, the runbook SHA-256, and the required Idunn
+deployment/aftercare receipt contracts. It also marks
+`requiresExplicitOperatorAuthority=true` and `mutatesRemoteWhenRun=true` while
+keeping repo-agent execution, deployment, SSH, git-push, service lifecycle,
+Hands, publication, merge, and cross-body authority false. Smoke
+`.epiphany-smoke\repo-deployment-config-family-20260620-214109` proved the
+runbook beside config close and audit.
+
 ### Landed Work Run Gate
 
 The sixth front door exists as native Rust:

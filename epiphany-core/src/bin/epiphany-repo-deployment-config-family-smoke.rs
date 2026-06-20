@@ -211,6 +211,16 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["deployment-config-audit", "--workspace", path_str(&repo)?],
         &root,
     )?;
+    let runbook = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "deployment-execution-runbook",
+            "--workspace",
+            path_str(&repo)?,
+        ],
+        &root,
+    )?;
 
     require_eq(
         &plan,
@@ -299,6 +309,40 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_bool(&audit, &["mergeAuthorized"], false)?;
     require_bool(&audit, &["daemonOwnsExecution"], true)?;
     require_bool(&audit, &["privateStateExposed"], false)?;
+    require_eq(
+        &runbook,
+        &["schemaVersion"],
+        "epiphany.repo_deployment_execution_runbook.v0",
+    )?;
+    require_eq(&runbook, &["status"], "ready-for-operator-git-push")?;
+    require_bool(&runbook, &["runbookWritten"], true)?;
+    require_bool(&runbook, &["requiresExplicitOperatorAuthority"], true)?;
+    require_bool(&runbook, &["mutatesRemoteWhenRun"], true)?;
+    require_bool(&runbook, &["executionAuthorized"], false)?;
+    require_bool(&runbook, &["deploymentAuthority"], false)?;
+    require_bool(&runbook, &["sshAuthority"], false)?;
+    require_bool(&runbook, &["gitPushAuthority"], false)?;
+    require_bool(&runbook, &["serviceLifecycleAuthority"], false)?;
+    require_bool(&runbook, &["handsAuthority"], false)?;
+    require_bool(&runbook, &["publicationAuthorized"], false)?;
+    require_bool(&runbook, &["mergeAuthorized"], false)?;
+    require_bool(&runbook, &["daemonOwnsExecution"], true)?;
+    require_bool(&runbook, &["privateStateExposed"], false)?;
+    require_eq(&runbook, &["watchedRef"], "refs/heads/main")?;
+    let runbook_path = value_at_path(&runbook, &["runbookPath"])
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("missing runbook path"))?;
+    let runbook_text = fs::read_to_string(runbook_path)
+        .with_context(|| format!("failed to read runbook {runbook_path}"))?;
+    require_text(
+        &runbook_text,
+        "schema_version = \"epiphany.repo_deployment_execution_runbook.v0\"",
+    )?;
+    require_text(&runbook_text, "git push $Remote HEAD:refs/heads/main")?;
+    require_text(
+        &runbook_text,
+        "gamecult.idunn.deployment_aftercare_audit.v0",
+    )?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_deployment_config_family_smoke.v0",
@@ -317,6 +361,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         "deploymentConfigAuditStatus": audit["status"],
         "deploymentConfigAuditReceiptPath": audit["receiptPath"],
         "readyForIdunnReview": audit["readyForIdunnReview"],
+        "deploymentExecutionRunbookStatus": runbook["status"],
+        "deploymentExecutionRunbookPath": runbook["runbookPath"],
+        "deploymentExecutionRunbookSha256": runbook["runbookSha256"],
+        "requiresExplicitOperatorAuthority": runbook["requiresExplicitOperatorAuthority"],
+        "mutatesRemoteWhenRun": runbook["mutatesRemoteWhenRun"],
         "deploymentTrigger": "git-push-observed-by-idunn",
         "deploymentOwner": "Idunn",
         "daemonOwnsExecution": true,
