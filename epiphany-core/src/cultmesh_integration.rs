@@ -204,6 +204,12 @@ pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_SCHEMA_VERSION: &
     "gamecult.bifrost.github_publication_receipt.v0";
 pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY: &str =
     "gamecult-local/bifrost/github-publication-receipt/latest";
+pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_TYPE: &str =
+    "gamecult.bifrost.public_proof_publication_receipt";
+pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.bifrost.public_proof_publication_receipt.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY: &str =
+    "gamecult-local/bifrost/public-proof-publication-receipt/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE: &str =
     "gamecult.bifrost.collaboration_feedback";
 pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION: &str =
@@ -1928,6 +1934,48 @@ pub struct EpiphanyCultMeshBifrostGithubPublicationReceiptEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
+    type = "gamecult.bifrost.public_proof_publication_receipt",
+    schema = "EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry"
+)]
+pub struct EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub public_proof_id: String,
+    #[cultcache(key = 3)]
+    pub public_proof_ref: String,
+    #[cultcache(key = 4)]
+    pub public_proof_sha256: String,
+    #[cultcache(key = 5)]
+    pub item: String,
+    #[cultcache(key = 6)]
+    pub source_workspace: String,
+    #[cultcache(key = 7)]
+    pub source_branch: String,
+    #[cultcache(key = 8)]
+    pub target_public_verse_id: String,
+    #[cultcache(key = 9)]
+    pub public_room_id: String,
+    #[cultcache(key = 10)]
+    pub status: String,
+    #[cultcache(key = 11)]
+    pub bifrost_ledger_entry_id: String,
+    #[cultcache(key = 12)]
+    pub credit_receipt_ids: Vec<String>,
+    #[cultcache(key = 13)]
+    pub reviewer_ids: Vec<String>,
+    #[cultcache(key = 14)]
+    pub publication_url: String,
+    #[cultcache(key = 15)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 16)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
     type = "gamecult.bifrost.collaboration_feedback",
     schema = "EpiphanyCultMeshBifrostCollaborationFeedbackEntry"
 )]
@@ -2027,6 +2075,8 @@ pub struct EpiphanyLocalVerseContext {
         Option<EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
     pub latest_bifrost_github_publication_receipt:
         Option<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
+    pub latest_bifrost_public_proof_publication_receipt:
+        Option<EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry>,
     pub latest_bifrost_collaboration_feedback:
         Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     pub latest_imagination_consensus_receipt:
@@ -2121,6 +2171,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostGithubPublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostCollaborationFeedbackEntry => EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION,
     EpiphanyCultMeshImaginationConsensusReceiptEntry => EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION,
 });
@@ -3756,6 +3807,70 @@ pub fn load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
     node.get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
+    receipt_id: impl Into<String>,
+    proof: &EpiphanyCultMeshRepoWorkPublicProofEntry,
+    status: impl Into<String>,
+    target_public_verse_id: impl Into<String>,
+    public_room_id: impl Into<String>,
+    bifrost_ledger_entry_id: impl Into<String>,
+    credit_receipt_ids: Vec<String>,
+    reviewer_ids: Vec<String>,
+    publication_url: impl Into<String>,
+) -> EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry {
+    EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry {
+        schema_version:
+            EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: receipt_id.into(),
+        public_proof_id: proof.public_proof_id.clone(),
+        public_proof_ref: proof.public_proof_ref.clone(),
+        public_proof_sha256: proof.public_proof_sha256.clone(),
+        item: proof.item.clone(),
+        source_workspace: proof.workspace.clone(),
+        source_branch: proof.branch.clone(),
+        target_public_verse_id: target_public_verse_id.into(),
+        public_room_id: public_room_id.into(),
+        status: status.into(),
+        bifrost_ledger_entry_id: bifrost_ledger_entry_id.into(),
+        credit_receipt_ids,
+        reviewer_ids,
+        publication_url: publication_url.into(),
+        private_state_exposed: false,
+        notes: vec![
+            "Bifrost public-proof publication receipt binds a redacted repo-work proof bundle to a public Verse room.".to_string(),
+            "The receipt carries only proof refs, hashes, ledger, review, and credit ids; private worker/operator/agent state remains sealed.".to_string(),
+            "Gjallar may read this closure, but Bifrost owns public publication authority.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry,
+) -> Result<EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry> {
+    validate_bifrost_public_proof_publication_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key =
+        epiphany_cultmesh_bifrost_public_proof_publication_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY)
+}
+
 pub fn epiphany_cultmesh_bifrost_collaboration_feedback(
     feedback_id: impl Into<String>,
     source_persona_id: impl Into<String>,
@@ -3974,6 +4089,58 @@ fn validate_bifrost_github_publication_receipt(
     if receipt.changed_paths.is_empty() {
         return Err(anyhow!(
             "Bifrost GitHub publication receipts require changed paths"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_bifrost_public_proof_publication_receipt(
+    receipt: &EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry,
+) -> Result<()> {
+    if receipt.schema_version
+        != EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION
+    {
+        return Err(anyhow!(
+            "Bifrost public proof publication receipts require schema version {}",
+            EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION
+        ));
+    }
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Bifrost public proof publication receipts must not expose private state"
+        ));
+    }
+    if receipt.public_proof_id.trim().is_empty()
+        || receipt.public_proof_ref.trim().is_empty()
+        || receipt.public_proof_sha256.trim().is_empty()
+    {
+        return Err(anyhow!(
+            "Bifrost public proof publication receipts require proof id, ref, and SHA-256"
+        ));
+    }
+    if receipt.target_public_verse_id != EPIPHANY_CULTMESH_GLOBAL_VERSE_ID {
+        return Err(anyhow!(
+            "Bifrost public proof publication receipts must target the global public Verse"
+        ));
+    }
+    if receipt.public_room_id.trim().is_empty() || receipt.publication_url.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost public proof publication receipts require a public room and publication URL"
+        ));
+    }
+    if receipt.bifrost_ledger_entry_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost public proof publication receipts require a ledger entry"
+        ));
+    }
+    if receipt.credit_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost public proof publication receipts require credit receipts"
+        ));
+    }
+    if receipt.reviewer_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost public proof publication receipts require reviewer receipts"
         ));
     }
     Ok(())
@@ -4557,6 +4724,8 @@ pub fn query_epiphany_local_verse_context(
             .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY)?,
         latest_bifrost_github_publication_receipt: node
             .get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY)?,
+        latest_bifrost_public_proof_publication_receipt: node
+            .get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY)?,
         latest_bifrost_collaboration_feedback: node
             .get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY)?,
         latest_imagination_consensus_receipt: node
@@ -4918,6 +5087,10 @@ fn epiphany_cultmesh_bifrost_body_change_publication_receipt_key(receipt_id: &st
 
 fn epiphany_cultmesh_bifrost_github_publication_receipt_key(receipt_id: &str) -> String {
     format!("gamecult-local/bifrost/github-publication-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_bifrost_public_proof_publication_receipt_key(receipt_id: &str) -> String {
+    format!("gamecult-local/bifrost/public-proof-publication-receipt/{receipt_id}")
 }
 
 fn epiphany_cultmesh_bifrost_collaboration_feedback_key(feedback_id: &str) -> String {
@@ -5728,6 +5901,36 @@ pub fn epiphany_cultmesh_bifrost_contracts() -> Vec<EpiphanyCultMeshBifrostContr
                 ),
                 "Persona public collaboration feedback routes to Imagination for consensus discovery before it becomes work.".to_string(),
                 "Public Persona discussion is thought weather until reviewed local adoption and Bifrost/GameCult receipts bind it to implementation.".to_string(),
+            ],
+        },
+        EpiphanyCultMeshBifrostContractEntry {
+            schema_version: EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION.to_string(),
+            contract_id: "gamecult.bifrost.public_proof.publication".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            document_type:
+                EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_TYPE.to_string(),
+            payload_schema_version:
+                EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION
+                    .to_string(),
+            authority: "bifrost".to_string(),
+            operations: vec![
+                "publishRedactedProof".to_string(),
+                "receiptWatch".to_string(),
+                "snapshot".to_string(),
+            ],
+            intent_document_types: vec![
+                EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_TYPE.to_string(),
+            ],
+            receipt_document_types: vec![
+                EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_TYPE.to_string(),
+                "gamecult.bifrost.credit_receipt".to_string(),
+            ],
+            notes: vec![
+                format!(
+                    "CultMesh advertises this Bifrost contract as {EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE}."
+                ),
+                "Repo-work public proof bundles are redacted evidence packets, not body changes; Bifrost publishes them into public Verse rooms after review and credit receipts exist.".to_string(),
+                "Gjallar reads the published proof closure, but Bifrost owns public publication authority and ledger attribution.".to_string(),
             ],
         },
     ]
@@ -7459,6 +7662,144 @@ mod tests {
     }
 
     #[test]
+    fn bifrost_public_proof_publication_receipt_round_trips() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp
+            .path()
+            .join("epiphany-bifrost-public-proof-publication.ccmp");
+        let proof = EpiphanyCultMeshRepoWorkPublicProofEntry {
+            schema_version: EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION.to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            public_proof_id: "repo-work-public-proof-test".to_string(),
+            generated_at: "2026-06-20T12:00:00Z".to_string(),
+            workspace: "E:/Projects/EpiphanyAgent".to_string(),
+            item: "test-item".to_string(),
+            branch: "codex/test-item".to_string(),
+            current_gate: "awaiting-publication".to_string(),
+            blocker: "bifrost-publication-missing".to_string(),
+            next_safe_move: "publish-redacted-proof".to_string(),
+            changed_paths: vec!["notes/test.md".to_string()],
+            commit_sha: "abc123".to_string(),
+            soul_verdict: "passed".to_string(),
+            upstream_main_synced: true,
+            artifact_row_count: 3,
+            publication_row_count: 5,
+            public_proof_ref: "public-proof.json".to_string(),
+            public_proof_sha256: "0123456789abcdef".to_string(),
+            tui_rows: vec!["proof row".to_string()],
+            private_state_exposed: false,
+            notes: vec!["redacted proof".to_string()],
+        };
+        let receipt = epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
+            "bifrost-public-proof-publication-test",
+            &proof,
+            "published-to-public-verse",
+            EPIPHANY_CULTMESH_GLOBAL_VERSE_ID,
+            "epiphany-global/repo-work/public-proofs",
+            "bifrost-ledger-public-proof-test",
+            vec!["credit-receipt-test".to_string()],
+            vec!["maintainer-review-test".to_string()],
+            "cultmesh://epiphany-global/repo-work/public-proofs/repo-work-public-proof-test",
+        );
+
+        write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+            &store,
+            "epiphany-test",
+            receipt.clone(),
+        )?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+                &store,
+                "epiphany-test"
+            )?,
+            Some(receipt.clone())
+        );
+        assert_eq!(receipt.public_proof_id, proof.public_proof_id);
+        assert_eq!(receipt.public_proof_sha256, proof.public_proof_sha256);
+        assert_eq!(
+            receipt.target_public_verse_id,
+            EPIPHANY_CULTMESH_GLOBAL_VERSE_ID
+        );
+        assert_eq!(receipt.credit_receipt_ids, vec!["credit-receipt-test"]);
+        assert_eq!(receipt.reviewer_ids, vec!["maintainer-review-test"]);
+        assert!(!receipt.private_state_exposed);
+        Ok(())
+    }
+
+    #[test]
+    fn bifrost_public_proof_publication_refuses_private_or_wrong_verse() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp
+            .path()
+            .join("epiphany-bifrost-public-proof-publication-refusal.ccmp");
+        let proof = EpiphanyCultMeshRepoWorkPublicProofEntry {
+            schema_version: EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION.to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            public_proof_id: "repo-work-public-proof-test".to_string(),
+            generated_at: "2026-06-20T12:00:00Z".to_string(),
+            workspace: "E:/Projects/EpiphanyAgent".to_string(),
+            item: "test-item".to_string(),
+            branch: "codex/test-item".to_string(),
+            current_gate: "awaiting-publication".to_string(),
+            blocker: "bifrost-publication-missing".to_string(),
+            next_safe_move: "publish-redacted-proof".to_string(),
+            changed_paths: vec!["notes/test.md".to_string()],
+            commit_sha: "abc123".to_string(),
+            soul_verdict: "passed".to_string(),
+            upstream_main_synced: true,
+            artifact_row_count: 3,
+            publication_row_count: 5,
+            public_proof_ref: "public-proof.json".to_string(),
+            public_proof_sha256: "0123456789abcdef".to_string(),
+            tui_rows: vec!["proof row".to_string()],
+            private_state_exposed: false,
+            notes: vec!["redacted proof".to_string()],
+        };
+        let mut receipt = epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
+            "bifrost-public-proof-publication-private-test",
+            &proof,
+            "published-to-public-verse",
+            EPIPHANY_CULTMESH_GLOBAL_VERSE_ID,
+            "epiphany-global/repo-work/public-proofs",
+            "bifrost-ledger-public-proof-test",
+            vec!["credit-receipt-test".to_string()],
+            vec!["maintainer-review-test".to_string()],
+            "cultmesh://epiphany-global/repo-work/public-proofs/repo-work-public-proof-test",
+        );
+        receipt.private_state_exposed = true;
+        let error = write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+            &store,
+            "epiphany-test",
+            receipt,
+        )
+        .expect_err("private proof publication receipts must be refused");
+        assert!(error.to_string().contains("must not expose private state"));
+
+        let wrong_verse = epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
+            "bifrost-public-proof-publication-wrong-verse-test",
+            &proof,
+            "published-to-public-verse",
+            EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID,
+            "gamecult-local/repo-work/public-proofs",
+            "bifrost-ledger-public-proof-test",
+            vec!["credit-receipt-test".to_string()],
+            vec!["maintainer-review-test".to_string()],
+            "cultmesh://gamecult-local/repo-work/public-proofs/repo-work-public-proof-test",
+        );
+        let error = write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+            &store,
+            "epiphany-test",
+            wrong_verse,
+        )
+        .expect_err("non-public Verse proof publication receipts must be refused");
+        assert!(error.to_string().contains("global public Verse"));
+        Ok(())
+    }
+
+    #[test]
     fn collaboration_feedback_routes_to_imagination_consensus() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp
@@ -7796,7 +8137,7 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-bifrost-contracts.ccmp");
         let written = write_epiphany_cultmesh_bifrost_contracts(&store, "epiphany-test")?;
-        assert_eq!(written.len(), 2);
+        assert_eq!(written.len(), 3);
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let publication = node.get_required::<EpiphanyCultMeshBifrostContractEntry>(
@@ -7804,6 +8145,9 @@ mod tests {
         )?;
         let feedback = node.get_required::<EpiphanyCultMeshBifrostContractEntry>(
             "gamecult.bifrost.collaboration.feedback",
+        )?;
+        let public_proof = node.get_required::<EpiphanyCultMeshBifrostContractEntry>(
+            "gamecult.bifrost.public_proof.publication",
         )?;
 
         assert_eq!(publication.verse_id, EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID);
@@ -7832,6 +8176,24 @@ mod tests {
                 .notes
                 .iter()
                 .any(|note| note.contains("thought weather"))
+        );
+        assert_eq!(public_proof.authority, "bifrost");
+        assert_eq!(
+            public_proof.document_type,
+            EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_TYPE
+        );
+        assert!(
+            public_proof
+                .intent_document_types
+                .iter()
+                .any(|intent| intent == EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_TYPE)
+        );
+        assert!(
+            public_proof
+                .receipt_document_types
+                .iter()
+                .any(|receipt| receipt
+                    == EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_TYPE)
         );
         Ok(())
     }

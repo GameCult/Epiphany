@@ -3,6 +3,7 @@ use anyhow::Result;
 use chrono::Utc;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_GLOBAL_VERSE_ID;
 use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
 use epiphany_core::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
 use epiphany_core::EpiphanyAgentStateSoaEntry;
@@ -11,6 +12,7 @@ use epiphany_core::EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry;
 use epiphany_core::EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry;
 use epiphany_core::EpiphanyCultMeshBifrostCollaborationFeedbackEntry;
 use epiphany_core::EpiphanyCultMeshBifrostGithubPublicationReceiptEntry;
+use epiphany_core::EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry;
 use epiphany_core::EpiphanyCultMeshClusterTopologyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonPokeReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
@@ -33,6 +35,7 @@ use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_intent;
 use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
+use epiphany_core::epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
@@ -56,6 +59,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt;
@@ -72,6 +76,7 @@ use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_inten
 use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
 use epiphany_core::write_epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::write_epiphany_cultmesh_bifrost_github_publication_receipt;
+use epiphany_core::write_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
@@ -1071,6 +1076,114 @@ fn run_cli() -> Result<()> {
                 }))?
             );
         }
+        "bifrost-public-proof" | "publish-public-proof" | "public-proof-publication" => {
+            seed_epiphany_local_verse_context(
+                &args.store,
+                args.runtime_id.clone(),
+                Utc::now().to_rfc3339(),
+            )?;
+            let (latest_public_proof, public_proofs) = load_repo_work_public_proofs(&args)?;
+            let selected_public_proof = if let Some(public_proof_id) = args.public_proof_id.as_ref()
+            {
+                public_proofs
+                    .iter()
+                    .find(|proof| proof.public_proof_id == *public_proof_id)
+                    .cloned()
+                    .with_context(|| {
+                        format!("bifrost-public-proof could not find --public-proof-id {public_proof_id}")
+                    })?
+            } else {
+                latest_public_proof
+                    .context("bifrost-public-proof requires a repo work public proof in local Verse or --public-proof-id")?
+            };
+            let ledger_entry_id = args
+                .ledger_entry_id
+                .clone()
+                .context("bifrost-public-proof requires --ledger-entry-id")?;
+            let review_receipts = required_list(
+                &args.review_receipts,
+                "bifrost-public-proof requires --review-receipt",
+            )?;
+            let credit_receipts = required_list(
+                &args.credit_receipt_ids,
+                "bifrost-public-proof requires --credit-receipt",
+            )?;
+            let public_room_id = args
+                .public_room_id
+                .clone()
+                .unwrap_or_else(|| "epiphany-global/repo-work/public-proofs".to_string());
+            let publication_url = args.publication_url.clone().unwrap_or_else(|| {
+                format!(
+                    "cultmesh://{public_room_id}/{}",
+                    selected_public_proof.public_proof_id
+                )
+            });
+            let receipt_id = args.receipt_id.clone().unwrap_or_else(|| {
+                format!(
+                    "bifrost-public-proof-publication-{}",
+                    selected_public_proof.public_proof_id
+                )
+            });
+            let receipt_status = args
+                .receipt_status
+                .clone()
+                .unwrap_or_else(|| "published-to-public-verse".to_string());
+            let receipt = epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
+                receipt_id,
+                &selected_public_proof,
+                receipt_status,
+                EPIPHANY_CULTMESH_GLOBAL_VERSE_ID,
+                public_room_id,
+                ledger_entry_id,
+                credit_receipts,
+                review_receipts,
+                publication_url,
+            );
+            let written = write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+                &args.store,
+                args.runtime_id.clone(),
+                receipt,
+            )?;
+            let latest = load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+                &args.store,
+                args.runtime_id.clone(),
+            )?;
+            if latest.as_ref().map(|receipt| receipt.receipt_id.as_str())
+                != Some(written.receipt_id.as_str())
+            {
+                anyhow::bail!(
+                    "local Verse query lost Bifrost public proof publication receipt after write"
+                );
+            }
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.local_verse_bifrost_public_proof_publication.v0",
+                    "status": "ok",
+                    "store": args.store,
+                    "runtimeId": args.runtime_id,
+                    "receiptId": written.receipt_id,
+                    "publicProofId": written.public_proof_id,
+                    "publicProofRef": written.public_proof_ref,
+                    "publicProofSha256": written.public_proof_sha256,
+                    "item": written.item,
+                    "sourceWorkspace": written.source_workspace,
+                    "sourceBranch": written.source_branch,
+                    "targetPublicVerseId": written.target_public_verse_id,
+                    "publicRoomId": written.public_room_id,
+                    "publicationUrl": written.publication_url,
+                    "ledgerEntryId": written.bifrost_ledger_entry_id,
+                    "creditReceiptIds": written.credit_receipt_ids,
+                    "reviewReceiptIds": written.reviewer_ids,
+                    "commands": {
+                        "swarmOverview": WRAPPER_OVERVIEW_COMMAND,
+                        "bifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
+                        "bifrostPublicProof": "epiphany-verse-query bifrost-public-proof --public-proof-id <id> --ledger-entry-id <id> --review-receipt <id> --credit-receipt <id>"
+                    },
+                    "privateStateExposed": written.private_state_exposed,
+                }))?
+            );
+        }
         "bifrost-ledger" | "publication-ledger" => {
             seed_epiphany_local_verse_context(
                 &args.store,
@@ -1087,10 +1200,12 @@ fn run_cli() -> Result<()> {
                     "runtimeId": args.runtime_id,
                     "rowCount": report.rows.len(),
                     "publicationChainCount": report.publication_chain_count,
+                    "publicProofPublicationCount": report.public_proof_publication_count,
                     "collaborationChainCount": report.collaboration_chain_count,
                     "latestBifrostPublicationIntent": report.latest_publication_intent_id,
                     "latestBifrostPublicationReceipt": report.latest_publication_receipt_id,
                     "latestBifrostGithubReceipt": report.latest_github_receipt_id,
+                    "latestBifrostPublicProofPublicationReceipt": report.latest_public_proof_publication_receipt_id,
                     "latestBifrostCollaborationFeedback": report.latest_feedback_id,
                     "latestImaginationConsensusReceipt": report.latest_consensus_receipt_id,
                     "tuiRows": report.tui_rows,
@@ -3555,7 +3670,7 @@ fn run_cli() -> Result<()> {
             );
         }
         other => anyhow::bail!(
-            "unknown command {other:?}; use seed, query, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, cluster-topology, eve-surfaces, daemon-status, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
+            "unknown command {other:?}; use seed, query, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, cluster-topology, eve-surfaces, daemon-status, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
         ),
     }
     Ok(())
@@ -4330,10 +4445,12 @@ struct BifrostLedgerReport {
     rows: Vec<BifrostLedgerRow>,
     tui_rows: Vec<String>,
     publication_chain_count: usize,
+    public_proof_publication_count: usize,
     collaboration_chain_count: usize,
     latest_publication_intent_id: Option<String>,
     latest_publication_receipt_id: Option<String>,
     latest_github_receipt_id: Option<String>,
+    latest_public_proof_publication_receipt_id: Option<String>,
     latest_feedback_id: Option<String>,
     latest_consensus_receipt_id: Option<String>,
     private_state_exposed: bool,
@@ -5905,6 +6022,62 @@ fn receipt_directory_report(
         &mut rows,
         &mut tui_rows,
         ReceiptDirectoryRow {
+            family: "bifrost-public-proof-publication".to_string(),
+            owner: "Bifrost".to_string(),
+            document_kind: "gamecult.bifrost.public_proof_publication_receipt.v0".to_string(),
+            latest_id: context
+                .latest_bifrost_public_proof_publication_receipt
+                .as_ref()
+                .map(|receipt| receipt.receipt_id.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            status: context
+                .latest_bifrost_public_proof_publication_receipt
+                .as_ref()
+                .map(|receipt| receipt.status.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            route: context
+                .latest_bifrost_public_proof_publication_receipt
+                .as_ref()
+                .map(|receipt| receipt.publication_url.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
+            follow_up_command: WRAPPER_BIFROST_LEDGER_COMMAND.to_string(),
+            artifact_ref: context
+                .latest_bifrost_public_proof_publication_receipt
+                .as_ref()
+                .map(|receipt| receipt.public_proof_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            artifact_status: context
+                .latest_bifrost_public_proof_publication_receipt
+                .as_ref()
+                .map(|receipt| {
+                    if receipt.public_proof_ref == "none" {
+                        "none".to_string()
+                    } else {
+                        "external-ref".to_string()
+                    }
+                })
+                .unwrap_or_else(|| "none".to_string()),
+            artifact_sha256: context
+                .latest_bifrost_public_proof_publication_receipt
+                .as_ref()
+                .map(|receipt| receipt.public_proof_sha256.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            present: context
+                .latest_bifrost_public_proof_publication_receipt
+                .is_some(),
+            private_state_exposed: context
+                .latest_bifrost_public_proof_publication_receipt
+                .as_ref()
+                .map(|receipt| receipt.private_state_exposed)
+                .unwrap_or(false),
+        },
+    );
+    push_receipt_directory_row(
+        &mut rows,
+        &mut tui_rows,
+        ReceiptDirectoryRow {
             family: "imagination-consensus".to_string(),
             owner: "Imagination".to_string(),
             document_kind: "epiphany.cultmesh.imagination_consensus_receipt.v0".to_string(),
@@ -6600,6 +6773,11 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
         &args.store,
         args.runtime_id.clone(),
     )?;
+    let latest_public_proof_publication =
+        load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+            &args.store,
+            args.runtime_id.clone(),
+        )?;
     let latest_feedback = load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
         &args.store,
         args.runtime_id.clone(),
@@ -6612,6 +6790,7 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
         latest_intent.as_ref(),
         latest_publication.as_ref(),
         latest_github.as_ref(),
+        latest_public_proof_publication.as_ref(),
         latest_feedback.as_ref(),
         latest_consensus.as_ref(),
     ))
@@ -6621,6 +6800,9 @@ fn bifrost_ledger_report(
     latest_intent: Option<&EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
     latest_publication: Option<&EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
     latest_github: Option<&EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
+    latest_public_proof_publication: Option<
+        &EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry,
+    >,
     latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
 ) -> BifrostLedgerReport {
@@ -6683,6 +6865,23 @@ fn bifrost_ledger_report(
             },
         );
     }
+    if let Some(receipt) = latest_public_proof_publication {
+        push_bifrost_ledger_row(
+            &mut rows,
+            &mut tui_rows,
+            BifrostLedgerRow {
+                document_kind: "public-proof-publication-receipt".to_string(),
+                owner: "Bifrost".to_string(),
+                id: receipt.receipt_id.clone(),
+                status: receipt.status.clone(),
+                route: receipt.bifrost_ledger_entry_id.clone(),
+                summary: receipt.public_proof_sha256.clone(),
+                public_ref: receipt.publication_url.clone(),
+                private_state_included: false,
+                private_state_exposed: receipt.private_state_exposed,
+            },
+        );
+    }
     if let Some(feedback) = latest_feedback {
         push_bifrost_ledger_row(
             &mut rows,
@@ -6721,6 +6920,7 @@ fn bifrost_ledger_report(
     let publication_chain_count = usize::from(latest_intent.is_some())
         + usize::from(latest_publication.is_some())
         + usize::from(latest_github.is_some());
+    let public_proof_publication_count = usize::from(latest_public_proof_publication.is_some());
     let collaboration_chain_count =
         usize::from(latest_feedback.is_some()) + usize::from(latest_consensus.is_some());
     let private_state_exposed = rows.iter().any(|row| row.private_state_exposed);
@@ -6738,10 +6938,13 @@ fn bifrost_ledger_report(
         rows,
         tui_rows,
         publication_chain_count,
+        public_proof_publication_count,
         collaboration_chain_count,
         latest_publication_intent_id: latest_intent.map(|intent| intent.intent_id.clone()),
         latest_publication_receipt_id: latest_publication.map(|receipt| receipt.receipt_id.clone()),
         latest_github_receipt_id: latest_github.map(|receipt| receipt.receipt_id.clone()),
+        latest_public_proof_publication_receipt_id: latest_public_proof_publication
+            .map(|receipt| receipt.receipt_id.clone()),
         latest_feedback_id: latest_feedback.map(|feedback| feedback.feedback_id.clone()),
         latest_consensus_receipt_id: latest_consensus.map(|receipt| receipt.receipt_id.clone()),
         private_state_exposed,
@@ -7881,6 +8084,7 @@ struct Args {
     ledger_entry_id: Option<String>,
     hands_pr_receipt_id: Option<String>,
     publication_url: Option<String>,
+    public_proof_id: Option<String>,
     pull_request_number: Option<String>,
     commit_sha: Option<String>,
     source_cluster_id: Option<String>,
@@ -7944,6 +8148,7 @@ impl Args {
         let mut ledger_entry_id = None;
         let mut hands_pr_receipt_id = None;
         let mut publication_url = None;
+        let mut public_proof_id = None;
         let mut pull_request_number = None;
         let mut commit_sha = None;
         let mut source_cluster_id = None;
@@ -8123,6 +8328,10 @@ impl Args {
                     publication_url =
                         Some(values.next().context("missing --publication-url value")?);
                 }
+                "--public-proof-id" => {
+                    public_proof_id =
+                        Some(values.next().context("missing --public-proof-id value")?);
+                }
                 "--pull-request-number" => {
                     pull_request_number = Some(
                         values
@@ -8269,6 +8478,7 @@ impl Args {
             ledger_entry_id,
             hands_pr_receipt_id,
             publication_url,
+            public_proof_id,
             pull_request_number,
             commit_sha,
             source_cluster_id,

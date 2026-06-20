@@ -750,6 +750,24 @@ and `15-swarm-overview-public-proof.json` proved latest
 public proof row, one public proof action row, no mutation/elevation, and
 `private=false`.
 
+Bifrost public-proof publication transport is now the closure after local
+proof sight. `epiphany-verse-query bifrost-public-proof --public-proof-id <id>
+--ledger-entry-id <id> --review-receipt <id> --credit-receipt <id>` selects an
+existing redacted `epiphany.cultmesh.repo_work_public_proof.v0` row, writes
+`gamecult.bifrost.public_proof_publication_receipt.v0`, requires the global
+public Verse target, public room, ledger, review, credit, public proof ref, and
+SHA-256, and refuses private-state exposure. `bifrost-ledger` now reports
+`publicProofPublicationCount` plus compact `public-proof-publication-receipt`
+rows, while `receipt-directory` exposes the same Bifrost-owned row with proof
+artifact ref/SHA. Disposable proof
+`.epiphany-smoke\checklist-note-20260620-031347\21-bifrost-public-proof-publication.json`
+published `repo-work-public-proof-checklist-request` to
+`cultmesh://epiphany-global/repo-work/public-proofs/repo-work-public-proof-checklist-request`;
+`22-bifrost-ledger-after-public-proof-publication.json` reported
+`publicProofPublicationCount=1`, latest receipt
+`bifrost-public-proof-publication-checklist-request`, `status=ok`, and
+`privateStateExposed=false`.
+
 The first Verse projection smoke proved the local CultMesh sight path: overview
 mirrored `repo-work-overview-verse-overview-request` into the repo-local Verse,
 `epiphany-verse-query smoke --store <local-verse> --runtime-id repo-swarm-local`
@@ -1255,10 +1273,13 @@ Required organs before MVP:
   `epiphany.repo_work_public_proof_bundle.v0` artifact under
   `.epiphany/public/proof-bundles/` with local paths and raw receipt bodies
   removed, and mirrors an `epiphany.cultmesh.repo_work_public_proof.v0` row
-  into local Verse for Gjallar/Odin sight. Remaining work is Bifrost public
-  publication/credit transport beyond local Verse plus UX polish, not basic
-  local public-proof export, local CultMesh readback, or Bifrost/GitHub/sync
-  row visibility.
+  into local Verse for Gjallar/Odin sight. Bifrost can now publish that
+  redacted proof row through
+  `gamecult.bifrost.public_proof_publication_receipt.v0` with public Verse
+  target, public room, ledger, review, credit, proof ref, and SHA-256 readback.
+  Remaining work is UX polish around this mouth plus richer safe-family and
+  closure depth, not basic local public-proof export, local CultMesh readback,
+  Bifrost/GitHub/sync row visibility, or public-proof publication closure.
 
 Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt
