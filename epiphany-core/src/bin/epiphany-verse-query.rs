@@ -20,6 +20,7 @@ use epiphany_core::EpiphanyCultMeshDaemonToolCapabilityEntry;
 use epiphany_core::EpiphanyCultMeshEveSurfaceStateEntry;
 use epiphany_core::EpiphanyCultMeshImaginationConsensusReceiptEntry;
 use epiphany_core::EpiphanyCultMeshOdinAdvertisementEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
@@ -58,6 +59,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::open_epiphany_cultmesh_node;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
@@ -3482,6 +3484,11 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke treated a synthetic service runbook artifact as elevated authority"
                 );
             }
+            let latest_repo_work_overview: Option<EpiphanyCultMeshRepoWorkOverviewEntry> =
+                load_latest_epiphany_cultmesh_repo_work_overview(
+                    &args.store,
+                    args.runtime_id.clone(),
+                )?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
@@ -3509,6 +3516,9 @@ fn run_cli() -> Result<()> {
                     "latestImaginationConsensusReceipt": context.latest_imagination_consensus_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "latestWorkLoopTelemetry": context.latest_work_loop_summary.as_ref().map(|summary| summary.telemetry_id.clone()),
                     "latestAgentStateSoaSummary": context.latest_agent_state_soa_summary.as_ref().map(|summary| summary.summary_id.clone()),
+                    "latestRepoWorkOverview": latest_repo_work_overview.as_ref().map(|overview| overview.overview_id.clone()),
+                    "latestRepoWorkGate": latest_repo_work_overview.as_ref().map(|overview| overview.current_gate.clone()),
+                    "latestRepoWorkBlocker": latest_repo_work_overview.as_ref().map(|overview| overview.blocker.clone()),
                     "contracts": context.contract_summaries.len(),
                 }))?
             );

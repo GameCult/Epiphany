@@ -618,7 +618,11 @@ blocker, and next safe action, and writes
 agent-friendly rows plus an operator-safe proof bundle: receipt paths, changed
 paths, branch, commit SHA, Soul verdict, Mind state-commit id, Bifrost/GitHub
 publication ids when present, upstream-main sync status, and
-`privateStateExposed=false`.
+`privateStateExposed=false`. When the accept receipt names a local Verse store,
+overview also mirrors those compact rows as
+`epiphany.cultmesh.repo_work_overview.v0` under
+`gamecult-local/repo-work-overview/latest`, so Eve/Gjallar/Odin sight can read
+the same typed surface without opening the `.epiphany/work` artifact body.
 
 This is sight, not scheduling. The authority owner is `Eyes/Gjallar`, with
 `sightOnly=true`; it does not publish, merge, mutate services, cross repo
@@ -633,6 +637,14 @@ after accept, overview reported `currentGate=awaiting-plan`,
 changed path `EPIPHANY_WORKLOG.md`, Soul verdict `passed`, compact rows for
 item/branch/gate/blocker/closure/publication/sync/private, an overview receipt
 artifact, and `privateStateExposed=false`.
+
+The first Verse projection smoke proved the local CultMesh sight path: overview
+mirrored `repo-work-overview-verse-overview-request` into the repo-local Verse,
+`epiphany-verse-query smoke --store <local-verse> --runtime-id repo-swarm-local`
+read `latestRepoWorkOverview=repo-work-overview-verse-overview-request`,
+`latestRepoWorkGate=awaiting-publication`,
+`latestRepoWorkBlocker=bifrost-publication-missing`, saw seven Eve surfaces,
+and reported `privateStateExposed=false`.
 
 ## Migration Implication
 
@@ -660,8 +672,9 @@ over Hands commit receipts; `derive-plan` now proves a deterministic
 Persona/Bifrost pressure-to-plan bridge with no operator-authored shell
 details; `overview` now proves compact local proof-bundle sight over the
 receipt chain. The chain does not yet prove fully model-authored Imagination
-planning, deeper model-authored Soul/Modeling closure, or Eve/Gjallar/Odin
-projection of repo work overview rows.
+planning, deeper model-authored Soul/Modeling closure, or richer Gjallar/Eve
+presentation of repo work overview rows beyond the latest typed local Verse
+document.
 
 The MVP target is narrower than the full Perfect Machine and wider than a demo:
 a fresh repository can host an Epiphany swarm that initializes its Body,
@@ -760,9 +773,10 @@ Required organs before MVP:
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.
-- Repo work projection: local `epiphany-work overview` proof bundles exist;
-  remaining work is to mirror compact rows through CultMesh/Eve and Gjallar so
-  Personas and peer bodies can inspect them through Verse sight surfaces.
+- Repo work projection: local `epiphany-work overview` proof bundles and typed
+  `epiphany.cultmesh.repo_work_overview.v0` latest-key projection exist;
+  remaining work is richer Gjallar/Eve presentation of queues and multiple
+  work items for Personas and peer bodies.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, commit refs, verification verdicts, map
   admission, Bifrost/GitHub refs, credit refs, and sync state; remaining work is

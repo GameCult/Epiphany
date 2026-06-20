@@ -3,6 +3,9 @@ use anyhow::Result;
 use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
 use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
 use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
@@ -39,6 +42,7 @@ use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
+use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -2571,6 +2575,10 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
     let accept_receipt_path =
         resolve_accept_receipt(&workspace, args.item.as_deref(), args.accept_receipt)?;
     let accept_receipt = read_json(&accept_receipt_path)?;
+    let runtime_id = string_from_json(&accept_receipt, &["runtimeId"])
+        .unwrap_or_else(|| "repo-swarm-local".to_string());
+    let local_verse_store = path_from_json(&accept_receipt, &["localVerseStore"])
+        .or_else(|| path_from_json(&accept_receipt, &["localVerseStorePath"]));
     let item = accept_receipt
         .get("item")
         .and_then(Value::as_str)
@@ -2638,6 +2646,28 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         publish_receipt.as_ref(),
         sync_receipt.as_ref(),
     );
+    let tui_rows = vec![
+        format!("item {item}"),
+        format!("branch {branch}"),
+        format!("gate {gate}"),
+        format!("blocker {blocker}"),
+        format!("next {next_safe_move}"),
+        format!("closure {closure_status} soul {soul_verdict}"),
+        format!("publication {publication_status} sync {sync_status}"),
+        "private false".to_string(),
+    ];
+    let receipt_refs = repo_work_existing_receipt_refs(&[
+        ("accept", &accept_receipt_path),
+        ("plan", &plan_receipt_path),
+        ("run", &run_receipt_path),
+        ("adopt", &adopt_receipt_path),
+        ("execute", &execute_receipt_path),
+        ("close", &close_receipt_path),
+        ("publish", &publish_receipt_path),
+        ("sync", &sync_receipt_path),
+    ]);
+    let changed_paths_for_entry = changed_paths.clone();
+    let commit_sha_for_entry = commit_sha.clone().unwrap_or_default();
 
     let receipt_chain = repo_work_receipt_state(
         &accept_receipt_path,
@@ -2678,6 +2708,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         {"key": "private", "value": "false", "status": "sealed"}
     ]);
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let now_for_entry = now.clone();
     let receipt = json!({
         "schemaVersion": "epiphany.repo_work_overview_receipt.v0",
         "createdAt": now,
@@ -2705,6 +2736,46 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
     if args.write_receipt {
         write_json(&overview_receipt_path, &receipt)?;
     }
+    let mut verse_projection = Value::Null;
+    if args.write_receipt {
+        if let Some(store) = local_verse_store.as_ref() {
+            let entry = EpiphanyCultMeshRepoWorkOverviewEntry {
+                schema_version: EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION.to_string(),
+                runtime_id: runtime_id.clone(),
+                verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+                overview_id: format!("repo-work-overview-{item_slug}"),
+                generated_at: now_for_entry,
+                workspace: workspace.display().to_string(),
+                item: item.clone(),
+                branch: branch.clone(),
+                current_gate: gate.to_string(),
+                blocker: blocker.to_string(),
+                next_safe_move: next_safe_move.to_string(),
+                changed_paths: changed_paths_for_entry.clone(),
+                commit_sha: commit_sha_for_entry.clone(),
+                soul_verdict: soul_verdict.to_string(),
+                publication_status: publication_status.to_string(),
+                sync_status: sync_status.to_string(),
+                receipt_refs: receipt_refs.clone(),
+                tui_rows: tui_rows.clone(),
+                proof_bundle_ref: overview_receipt_path.display().to_string(),
+                private_state_exposed: false,
+                notes: vec![
+                    "Repo work overview is compact local Verse sight; raw worker thoughts and receipt payload bodies remain sealed.".to_string(),
+                    "Gjallar/Eve may project these rows, but they do not own scheduling, publication, merge, service lifecycle, or cross-repo mutation.".to_string(),
+                ],
+            };
+            let written = write_epiphany_cultmesh_repo_work_overview(store, entry)?;
+            verse_projection = json!({
+                "localVerseStore": store,
+                "documentType": "epiphany.cultmesh.repo_work_overview",
+                "overviewId": written.overview_id,
+                "latestKey": "gamecult-local/repo-work-overview/latest",
+                "tuiRows": written.tui_rows,
+                "privateStateExposed": written.private_state_exposed
+            });
+        }
+    }
     Ok(json!({
         "schemaVersion": "epiphany.repo_work_overview.v0",
         "status": "overview-ready",
@@ -2717,6 +2788,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "receiptPath": if args.write_receipt { Value::String(overview_receipt_path.display().to_string()) } else { Value::Null },
         "proofBundle": receipt["proofBundle"],
         "rows": receipt["rows"],
+        "verseProjection": verse_projection,
         "authority": receipt["authority"],
         "privateStateExposed": false
     }))
@@ -3564,6 +3636,19 @@ fn read_json_if_exists(path: &Path) -> Result<Option<Value>> {
     } else {
         Ok(None)
     }
+}
+
+fn repo_work_existing_receipt_refs(receipts: &[(&str, &Path)]) -> Vec<String> {
+    receipts
+        .iter()
+        .filter_map(|(kind, path)| {
+            if path.exists() {
+                Some(format!("{kind}:{}", path.display()))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 fn repo_work_overview_gate(

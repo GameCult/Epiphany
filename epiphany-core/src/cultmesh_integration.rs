@@ -71,6 +71,11 @@ pub const EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.agent_state_soa_summary.v0";
 pub const EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY: &str =
     "epiphany-local/agent-state-soa-summary/latest";
+pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_TYPE: &str = "epiphany.cultmesh.repo_work_overview";
+pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.repo_work_overview.v0";
+pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY: &str =
+    "gamecult-local/repo-work-overview/latest";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_TYPE: &str = "epiphany.cultmesh.verse_policy";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION: &str = "epiphany.cultmesh.verse_policy.v0";
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE: &str = "epiphany.cultmesh.global_room_policy";
@@ -683,6 +688,56 @@ impl SoaDocument for EpiphanyCultMeshAgentStateSoaSummaryEntry {
         );
         columns
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.repo_work_overview",
+    schema = "EpiphanyCultMeshRepoWorkOverviewEntry"
+)]
+pub struct EpiphanyCultMeshRepoWorkOverviewEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub overview_id: String,
+    #[cultcache(key = 4)]
+    pub generated_at: String,
+    #[cultcache(key = 5)]
+    pub workspace: String,
+    #[cultcache(key = 6)]
+    pub item: String,
+    #[cultcache(key = 7)]
+    pub branch: String,
+    #[cultcache(key = 8)]
+    pub current_gate: String,
+    #[cultcache(key = 9)]
+    pub blocker: String,
+    #[cultcache(key = 10)]
+    pub next_safe_move: String,
+    #[cultcache(key = 11)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 12)]
+    pub commit_sha: String,
+    #[cultcache(key = 13)]
+    pub soul_verdict: String,
+    #[cultcache(key = 14)]
+    pub publication_status: String,
+    #[cultcache(key = 15)]
+    pub sync_status: String,
+    #[cultcache(key = 16)]
+    pub receipt_refs: Vec<String>,
+    #[cultcache(key = 17)]
+    pub tui_rows: Vec<String>,
+    #[cultcache(key = 18)]
+    pub proof_bundle_ref: String,
+    #[cultcache(key = 19)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 20)]
+    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -1927,6 +1982,7 @@ pub struct EpiphanyLocalVerseContext {
     pub latest_role_review_event: Option<EpiphanyCultMeshRoleReviewEventEntry>,
     pub latest_work_loop_summary: Option<EpiphanyLocalVerseWorkLoopSummary>,
     pub latest_agent_state_soa_summary: Option<EpiphanyCultMeshAgentStateSoaSummaryEntry>,
+    pub latest_repo_work_overview: Option<EpiphanyCultMeshRepoWorkOverviewEntry>,
     pub latest_eve_connection_intent: Option<EpiphanyCultMeshEveConnectionIntentEntry>,
     pub latest_eve_connection_receipt: Option<EpiphanyCultMeshEveConnectionReceiptEntry>,
     pub contract_summaries: Vec<EpiphanyLocalVerseContractSummary>,
@@ -1977,6 +2033,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshRoleReviewEventEntry => EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_SCHEMA_VERSION,
     EpiphanyCultMeshWorkLoopTelemetryEntry => EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION,
     EpiphanyCultMeshAgentStateSoaSummaryEntry => EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION,
+    EpiphanyCultMeshRepoWorkOverviewEntry => EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
@@ -4085,6 +4142,60 @@ fn validate_agent_state_soa_summary(
     Ok(())
 }
 
+pub fn write_epiphany_cultmesh_repo_work_overview(
+    store_path: impl AsRef<Path>,
+    overview: EpiphanyCultMeshRepoWorkOverviewEntry,
+) -> Result<EpiphanyCultMeshRepoWorkOverviewEntry> {
+    validate_repo_work_overview(&overview)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, overview.runtime_id.clone())?;
+    let written = node.put(overview.overview_id.clone(), &overview)?;
+    node.put(EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_repo_work_overview(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshRepoWorkOverviewEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY)
+}
+
+fn validate_repo_work_overview(overview: &EpiphanyCultMeshRepoWorkOverviewEntry) -> Result<()> {
+    if overview.private_state_exposed {
+        return Err(anyhow!("repo work overview must not expose private state"));
+    }
+    if overview.schema_version != EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "repo work overview schema_version must be {:?}",
+            EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION
+        ));
+    }
+    if overview.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID {
+        return Err(anyhow!(
+            "repo work overview belongs in local-area Verse {:?}",
+            EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
+        ));
+    }
+    if overview.overview_id.trim().is_empty() || overview.item.trim().is_empty() {
+        return Err(anyhow!("repo work overview requires overview_id and item"));
+    }
+    if overview.tui_rows.is_empty() {
+        return Err(anyhow!("repo work overview requires compact TUI rows"));
+    }
+    if overview
+        .tui_rows
+        .iter()
+        .any(|row| row.to_ascii_lowercase().contains("rawresult"))
+    {
+        return Err(anyhow!(
+            "repo work overview rows must not expose raw worker payload names"
+        ));
+    }
+    Ok(())
+}
+
 pub fn seed_epiphany_local_verse_context(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -4304,6 +4415,7 @@ pub fn query_epiphany_local_verse_context(
             .map(epiphany_local_verse_work_loop_summary),
         latest_agent_state_soa_summary: node
             .get(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY)?,
+        latest_repo_work_overview: node.get(EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY)?,
         latest_eve_connection_intent: node
             .get(EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY)?,
         latest_eve_connection_receipt: node
@@ -4921,6 +5033,7 @@ pub fn epiphany_cultmesh_eve_surface_states() -> Vec<EpiphanyCultMeshEveSurfaceS
                 EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE.to_string(),
                 EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_TYPE.to_string(),
                 EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_TYPE.to_string(),
+                EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_TYPE.to_string(),
             ];
             if cluster.public_persona_discussion_allowed {
                 exposed_document_types
