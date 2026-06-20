@@ -4162,6 +4162,25 @@ pub fn load_latest_epiphany_cultmesh_repo_work_overview(
     node.get(EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY)
 }
 
+pub fn load_epiphany_cultmesh_repo_work_overviews(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshRepoWorkOverviewEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut overviews = node
+        .get_all_with_keys::<EpiphanyCultMeshRepoWorkOverviewEntry>()?
+        .into_iter()
+        .filter(|(key, _)| key != EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY)
+        .map(|(_, overview)| overview)
+        .collect::<Vec<_>>();
+    overviews.sort_by(|a, b| {
+        b.generated_at
+            .cmp(&a.generated_at)
+            .then_with(|| a.overview_id.cmp(&b.overview_id))
+    });
+    Ok(overviews)
+}
+
 fn validate_repo_work_overview(overview: &EpiphanyCultMeshRepoWorkOverviewEntry) -> Result<()> {
     if overview.private_state_exposed {
         return Err(anyhow!("repo work overview must not expose private state"));

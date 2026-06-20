@@ -314,6 +314,7 @@ pub use cultmesh_integration::load_epiphany_cultmesh_daemon_tool_directory;
 pub use cultmesh_integration::load_epiphany_cultmesh_eve_surface_directory;
 pub use cultmesh_integration::load_epiphany_cultmesh_operator_snapshot;
 pub use cultmesh_integration::load_epiphany_cultmesh_operator_status;
+pub use cultmesh_integration::load_epiphany_cultmesh_repo_work_overviews;
 pub use cultmesh_integration::load_epiphany_cultmesh_status;
 pub use cultmesh_integration::load_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_agent_state_soa_summary;

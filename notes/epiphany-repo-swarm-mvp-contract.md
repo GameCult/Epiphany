@@ -657,6 +657,18 @@ TUI row, and a priority 35 `repo-work-overview` action row with
 `.epiphany-smoke\gjallar-repo-work-overview-20260620-011119`. This is still
 latest-key sight, not multi-item queue enumeration.
 
+The next Gjallar projection smoke proved the typed repo-work history/queue:
+`epiphany-verse-query gjallar --store <repo>\.epiphany\local-verse.ccmp
+--runtime-id repo-swarm-local` now loads all
+`epiphany.cultmesh.repo_work_overview.v0` event documents, excludes the
+`latest` mirror, preserves latest scalar fields for compatibility, and emits
+multiple `repoWorkOverviewRows`, compact `REPO-WORK` TUI rows, and bounded
+priority 35-39 non-mutating `repo-work-overview` action rows. Proof artifact:
+`.epiphany-smoke\gjallar-repo-work-queue-20260620-012027`, which saw items
+`second,first`, `repoWorkOverviewCount=2`, two action rows,
+`latestRepoWorkOverview=repo-work-overview-second`, and
+`privateStateExposed=false`.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
@@ -736,7 +748,7 @@ temptation wearing clean robes.
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery. | Wire the same pulse into a usable repo-swarm run surface and optional Idunn-hosted lifecycle without taking Idunn's authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
-| Repo work sight | `overview` emits compact proof rows and mirrors latest `epiphany.cultmesh.repo_work_overview.v0`. | Project queue and multiple-work-item rows through Gjallar/Eve so Persona and peers can see current gate, blocker, and next safe action. |
+| Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; Gjallar now enumerates the history as queue rows and non-mutating action rows. | Lower the queue into Eve/Persona surfaces so Persona and peers can see current gate, blocker, and next safe action. |
 | Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
 | Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
 | Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |
@@ -894,10 +906,10 @@ Required organs before MVP:
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.
 - Repo work projection: local `epiphany-work overview` proof bundles, typed
-  `epiphany.cultmesh.repo_work_overview.v0` latest-key projection, and Gjallar
-  latest-key `repo-work-overview` action/readback rows exist. Remaining work is
-  typed history/queue enumeration plus richer Eve presentation of multiple work
-  items for Personas and peer bodies.
+  `epiphany.cultmesh.repo_work_overview.v0` event history plus latest-key
+  projection, and Gjallar multi-item `repo-work-overview` action/readback rows
+  exist. Remaining work is richer Eve presentation of multiple work items for
+  Personas and peer bodies.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, commit refs, verification verdicts, map
   admission, Bifrost/GitHub refs, credit refs, and sync state; remaining work is

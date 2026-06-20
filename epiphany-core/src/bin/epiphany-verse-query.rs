@@ -47,6 +47,7 @@ use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
 use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
+use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
@@ -3418,7 +3419,7 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[missing_artifact_action],
-                None,
+                &[],
             );
             if !missing_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -3467,7 +3468,7 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[synthetic_runbook_action],
-                None,
+                &[],
             );
             if !synthetic_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -4396,7 +4397,7 @@ fn swarm_action_rows(
     service_lifecycle_attention_rows: &[ReceiptDirectoryRow],
     service_execution_failed_check_rows: &[EpiphanyServiceExecutionAuditCheck],
     service_execution_runbook_actions: &[ServiceExecutionRunbookAction],
-    latest_repo_work_overview: Option<&EpiphanyCultMeshRepoWorkOverviewEntry>,
+    repo_work_overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
 ) -> (Vec<SwarmActionRow>, Vec<String>) {
     let mut rows = Vec::new();
     let mut service_execution_check_counts = BTreeMap::<String, (usize, usize)>::new();
@@ -4513,8 +4514,8 @@ fn swarm_action_rows(
             private_state_exposed: policy_report.private_state_exposed,
         });
     }
-    if let Some(overview) = latest_repo_work_overview {
-        rows.push(repo_work_overview_action_row(overview));
+    for (index, overview) in repo_work_overviews.iter().take(5).enumerate() {
+        rows.push(repo_work_overview_action_row(overview, 35 + index as u32));
     }
     for (index, row) in service_lifecycle_attention_rows.iter().enumerate() {
         let (failed_check_count, missing_check_count) = service_execution_check_counts
@@ -4681,11 +4682,11 @@ fn swarm_action_rows(
 }
 
 fn repo_work_overview_rows(
-    latest_repo_work_overview: Option<&EpiphanyCultMeshRepoWorkOverviewEntry>,
+    repo_work_overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
 ) -> (Vec<RepoWorkOverviewRow>, Vec<String>) {
-    let rows = latest_repo_work_overview
+    let rows = repo_work_overviews
+        .iter()
         .map(repo_work_overview_row)
-        .into_iter()
         .collect::<Vec<_>>();
     let tui_rows = rows
         .iter()
@@ -4731,6 +4732,7 @@ fn repo_work_overview_tui_row(row: &RepoWorkOverviewRow) -> String {
 
 fn repo_work_overview_action_row(
     overview: &EpiphanyCultMeshRepoWorkOverviewEntry,
+    priority: u32,
 ) -> SwarmActionRow {
     let status = overview.current_gate.clone();
     let command = format!(
@@ -4738,7 +4740,7 @@ fn repo_work_overview_action_row(
         overview.workspace, overview.item
     );
     SwarmActionRow {
-        priority: 35,
+        priority,
         family: "repo-work-overview".to_string(),
         status,
         lifecycle_owner: "Gjallar".to_string(),
@@ -5348,8 +5350,23 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .collect::<Vec<_>>();
     let latest_repo_work_overview =
         load_latest_epiphany_cultmesh_repo_work_overview(&args.store, args.runtime_id.clone())?;
+    let mut repo_work_overviews =
+        load_epiphany_cultmesh_repo_work_overviews(&args.store, args.runtime_id.clone())?;
+    if let Some(latest) = latest_repo_work_overview.as_ref() {
+        if !repo_work_overviews
+            .iter()
+            .any(|overview| overview.overview_id == latest.overview_id)
+        {
+            repo_work_overviews.push(latest.clone());
+            repo_work_overviews.sort_by(|a, b| {
+                b.generated_at
+                    .cmp(&a.generated_at)
+                    .then_with(|| a.overview_id.cmp(&b.overview_id))
+            });
+        }
+    }
     let (repo_work_overview_rows, repo_work_overview_tui_rows) =
-        repo_work_overview_rows(latest_repo_work_overview.as_ref());
+        repo_work_overview_rows(&repo_work_overviews);
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
         &liveness_status,
         &tool_host_attention_rows,
@@ -5357,7 +5374,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &service_lifecycle_attention_rows,
         &service_execution_failed_check_rows,
         &service_execution_runbook_actions,
-        latest_repo_work_overview.as_ref(),
+        &repo_work_overviews,
     );
     let private_state_exposed = daemon_report
         .rows
@@ -5365,9 +5382,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .any(|row| row.private_state_exposed)
         || tool_report.rows.iter().any(|row| row.private_state_exposed)
         || policy_report.private_state_exposed
-        || latest_repo_work_overview
-            .as_ref()
-            .is_some_and(|overview| overview.private_state_exposed)
+        || repo_work_overviews
+            .iter()
+            .any(|overview| overview.private_state_exposed)
         || service_execution_private_state_exposed
         || service_lifecycle_rows
             .iter()
