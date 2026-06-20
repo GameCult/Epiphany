@@ -1991,8 +1991,12 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         | "doctrine-update-request"
         | "agents-update-request"
         | "repo-agents-request" => derive_repo_doctrine_update_request_plan(input, &action_family),
+        "repo-secret-policy-request"
+        | "secret-policy-request"
+        | "security-policy-request"
+        | "repo-security-request" => derive_repo_secret_policy_request_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, and repo-doctrine-update-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, and repo-secret-policy-request"
         )),
     }
 }
@@ -4935,6 +4939,132 @@ fn derive_repo_doctrine_update_request_plan(
     })
 }
 
+fn derive_repo_secret_policy_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/security/secret-policy-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-secret-policy-request:{item_slug}");
+    let lines = vec![
+        "# Epiphany repo secret policy request.".to_string(),
+        "# Branch-local security request cargo; not secret access, write-permission, or publication authority.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_secret_policy_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.secret_policy_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "secret_access_authorized = false".to_string(),
+        "write_permission_authorized = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        "status = \"awaiting-security-review\"".to_string(),
+        "requested_owner = \"Maintainer/Soul/Bifrost\"".to_string(),
+        "requested_effect = \"review-repo-secret-and-write-permission-policy\"".to_string(),
+        "security_scope = \"secrets, credentials, write permissions, public/private export, and deployment authority\"".to_string(),
+        "requires_secret_inventory_without_values = true".to_string(),
+        "requires_write_permission_scope = true".to_string(),
+        "requires_public_private_export_boundary = true".to_string(),
+        String::new(),
+        "[antecedents]".to_string(),
+        "source_grounding_required = true".to_string(),
+        "soul_review_required = true".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "maintainer_review_required = true".to_string(),
+        "bifrost_publication_review_required = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "source_grounding = \"epiphany.eyes.evidence_packet\"".to_string(),
+        "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
+        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
+        "bifrost_publication_review = \"gamecult.bifrost.publication_review_receipt.v0\""
+            .to_string(),
+        String::new(),
+        "[security_packet]".to_string(),
+        "requires_secret_locations_without_values = true".to_string(),
+        "requires_credential_owner = true".to_string(),
+        "requires_write_scope_matrix = true".to_string(),
+        "requires_public_export_redaction_rules = true".to_string(),
+        "requires_deployment_authority_owner = true".to_string(),
+        "requires_incident_rollback_plan = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "direct_secret_access_authority = false".to_string(),
+        "secret_value_materialization = false".to_string(),
+        "write_permission_authority = false".to_string(),
+        "deployment_authority = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "maintainer_or_soul_security_authority_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the secret policy request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request names secret locations without values, credential ownership, write-permission scope, public/private export boundaries, deployment authority ownership, and rollback planning.\",".to_string(),
+        "  \"Soul verifies no secret access, write permission, deployment, publication, merge, service lifecycle, cross-body, or private Verse authority is granted.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the secret policy request if the security review is not ready for maintainer/Soul/Bifrost review.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.secret_policy_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo secret policy request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add secret policy request for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo secret policy request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request names secret-location-without-values, credential ownership, write scope, public/private export boundaries, deployment authority ownership, rollback planning, and no direct secret or write authority.".to_string(),
+            "Soul verifies no paths outside the declared secret policy request changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated secret policy request if the security review is not ready.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.secret_policy_request"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -6857,6 +6987,111 @@ fn closure_family_assertions(
                 "doctrine-update-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed doctrine update request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.secret_policy_request" => {
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-schema-present",
+                content.contains("schema_version = \"epiphany.repo_secret_policy_request.v0\""),
+                "Committed secret policy request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-family-present",
+                content.contains("safe_action_family = \"repo.secret_policy_request\""),
+                "Committed secret policy request carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed secret policy request contains the accepted pressure summary."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-awaits-review",
+                content.contains("[request]")
+                    && content.contains("status = \"awaiting-security-review\"")
+                    && content.contains("requested_owner = \"Maintainer/Soul/Bifrost\"")
+                    && content.contains(
+                        "requested_effect = \"review-repo-secret-and-write-permission-policy\"",
+                    )
+                    && content.contains("requires_secret_inventory_without_values = true")
+                    && content.contains("requires_write_permission_scope = true")
+                    && content.contains("requires_public_private_export_boundary = true"),
+                "Committed secret policy request waits for security review before consequence."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-antecedents-present",
+                content.contains("[antecedents]")
+                    && content.contains("source_grounding_required = true")
+                    && content.contains("soul_review_required = true")
+                    && content.contains("mind_adoption_required = true")
+                    && content.contains("maintainer_review_required = true")
+                    && content.contains("bifrost_publication_review_required = true"),
+                "Committed secret policy request requires source grounding, Soul, Mind, maintainer, and Bifrost review antecedents."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains("source_grounding = \"epiphany.eyes.evidence_packet\"")
+                    && content.contains(
+                        "soul_review = \"epiphany.repo_work_closure_review.v0\"",
+                    )
+                    && content.contains(
+                        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"",
+                    )
+                    && content.contains(
+                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
+                    )
+                    && content.contains(
+                        "bifrost_publication_review = \"gamecult.bifrost.publication_review_receipt.v0\"",
+                    ),
+                "Committed secret policy request names Eyes, Soul, Mind, maintainer, and Bifrost review receipts."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-packet-contract",
+                content.contains("[security_packet]")
+                    && content.contains("requires_secret_locations_without_values = true")
+                    && content.contains("requires_credential_owner = true")
+                    && content.contains("requires_write_scope_matrix = true")
+                    && content.contains("requires_public_export_redaction_rules = true")
+                    && content.contains("requires_deployment_authority_owner = true")
+                    && content.contains("requires_incident_rollback_plan = true"),
+                "Committed secret policy request names secret-location, credential-owner, write-scope, export, deployment, and rollback requirements."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("direct_secret_access_authority = false")
+                    && content.contains("secret_value_materialization = false")
+                    && content.contains("write_permission_authority = false")
+                    && content.contains("deployment_authority = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("merge_authorized = false")
+                    && content.contains("service_lifecycle_authority = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("private_verse_rummaging = false")
+                    && content
+                        .contains("maintainer_or_soul_security_authority_required = true"),
+                "Committed secret policy request denies secret/write/deployment/publication/service/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed secret policy request preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -10975,6 +11210,7 @@ fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
             | "repo.artifact_acceptance_request"
             | "repo.metrics_request"
             | "repo.doctrine_update_request"
+            | "repo.secret_policy_request"
     )
 }
 
@@ -11094,7 +11330,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
