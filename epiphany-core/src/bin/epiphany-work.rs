@@ -7141,6 +7141,64 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         .get("summary")
         .and_then(Value::as_str)
         .unwrap_or(&plan_summary);
+    let action_item_safe_family = adopted_action_item
+        .get("safeActionFamily")
+        .and_then(Value::as_str)
+        .unwrap_or("manual-plan");
+    let requested_path_count = adopted_action_item
+        .get("requestedPaths")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or(0);
+    let planning_facets_present = adopted_action_item
+        .get("planningFacets")
+        .is_some_and(|value| !value.is_null());
+    let action_item_model_authored = adopted_action_item
+        .get("modelAuthored")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let evidence_ref_count = adoption_evidence_refs.len();
+    let mind_interpretation = json!({
+        "schemaVersion": "epiphany.repo_work_mind_interpretation.v0",
+        "owner": "Mind",
+        "interpreter": "Mind",
+        "router": "Self",
+        "source": if plan_receipt.is_some() { "plan-receipt" } else { "manual-adoption-evidence" },
+        "inputSummary": {
+            "planReceiptPresent": plan_receipt.is_some(),
+            "runReceiptPresent": true,
+            "actionItemReceiptId": action_item_receipt_id,
+            "safeActionFamily": action_item_safe_family,
+            "requestedPathCount": requested_path_count,
+            "modelAuthored": action_item_model_authored,
+            "planningFacetsPresent": planning_facets_present,
+            "adoptionEvidenceRefCount": evidence_ref_count
+        },
+        "classification": {
+            "decisionKind": "branch-local-hands-adoption",
+            "actionItemAccepted": true,
+            "safeFamilyRecognized": action_item_safe_family != "manual-plan",
+            "requestedPathsDeclared": requested_path_count > 0,
+            "evidenceRefsPresent": evidence_ref_count > 0,
+            "durableStateAdmission": "not-admitted",
+            "publicationGate": "Bifrost",
+            "closureGate": "Soul",
+            "privateStateSeal": true
+        },
+        "allowedTransitions": [
+            "hands.branch_local_action"
+        ],
+        "forbiddenTransitions": [
+            "mind.durable_state_commit",
+            "bifrost.publication",
+            "git.merge",
+            "idunn.service_lifecycle",
+            "cross_body_mutation",
+            "private_verse_export"
+        ],
+        "refusalReasons": [],
+        "privateStateExposed": false
+    });
     let mind_adoption_id = format!("repo-work-mind-adoption-{item_slug}");
     let mind_adoption_rationale = args.mind_adoption_rationale.unwrap_or_else(|| {
         format!(
@@ -7165,10 +7223,12 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         "adoptedActionItemReceiptId": action_item_receipt_id,
         "adoptedActionItem": adopted_action_item,
         "adoptionEvidenceRefs": adoption_evidence_refs,
+        "interpretation": mind_interpretation,
         "rationale": mind_adoption_rationale,
         "gates": {
             "selfPresentedActionItem": true,
             "mindReviewedEvidence": true,
+            "mindInterpretedActionItem": true,
             "safeFamilyRequired": true,
             "branchLocalOnly": true,
             "bifrostPublicationRequired": true,
@@ -7247,6 +7307,7 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             "status": mind_adoption_decision["status"],
             "owner": mind_adoption_decision["owner"],
             "interpreter": mind_adoption_decision["interpreter"],
+            "interpretation": mind_adoption_decision["interpretation"],
             "rationale": mind_adoption_decision["rationale"],
             "gates": mind_adoption_decision["gates"],
             "authority": mind_adoption_decision["authority"],

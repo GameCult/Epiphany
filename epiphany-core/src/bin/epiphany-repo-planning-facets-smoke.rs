@@ -315,6 +315,11 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_bool(
         &adoption,
+        &["mindAdoptionDecision", "gates", "mindInterpretedActionItem"],
+        true,
+    )?;
+    require_bool(
+        &adoption,
         &["mindAdoptionDecision", "gates", "branchLocalOnly"],
         true,
     )?;
@@ -355,6 +360,56 @@ fn run_smoke(args: Args) -> Result<Value> {
         &mind_adoption,
         &["schemaVersion"],
         "epiphany.repo_work_mind_adoption_decision.v0",
+    )?;
+    require_eq(
+        &mind_adoption,
+        &["interpretation", "schemaVersion"],
+        "epiphany.repo_work_mind_interpretation.v0",
+    )?;
+    require_eq(
+        &mind_adoption,
+        &["interpretation", "classification", "decisionKind"],
+        "branch-local-hands-adoption",
+    )?;
+    require_eq(
+        &mind_adoption,
+        &["interpretation", "inputSummary", "safeActionFamily"],
+        "repo.markdown_planning_note",
+    )?;
+    require_bool(
+        &mind_adoption,
+        &["interpretation", "classification", "actionItemAccepted"],
+        true,
+    )?;
+    require_bool(
+        &mind_adoption,
+        &["interpretation", "classification", "safeFamilyRecognized"],
+        true,
+    )?;
+    require_bool(
+        &mind_adoption,
+        &["interpretation", "classification", "requestedPathsDeclared"],
+        true,
+    )?;
+    require_eq(
+        &mind_adoption,
+        &["interpretation", "classification", "durableStateAdmission"],
+        "not-admitted",
+    )?;
+    require_eq(
+        &mind_adoption,
+        &["interpretation", "allowedTransitions", "0"],
+        "hands.branch_local_action",
+    )?;
+    require_eq(
+        &mind_adoption,
+        &["interpretation", "forbiddenTransitions", "0"],
+        "mind.durable_state_commit",
+    )?;
+    require_bool(
+        &mind_adoption,
+        &["interpretation", "privateStateExposed"],
+        false,
     )?;
     require_eq(
         &mind_adoption,
@@ -432,6 +487,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "evidenceNeedsRecorded": true,
         "adoptedActionItemRecorded": true,
         "mindAdoptionDecisionRecorded": true,
+        "mindInterpretationRecorded": true,
         "mindDecisionHandsAuthorityGranted": false,
         "mindDecisionDurableStateAdmitted": false,
         "adoptionFacetsRecorded": true,

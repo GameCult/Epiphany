@@ -1439,10 +1439,13 @@ Build the remaining MVP in this order:
    before it lowers the chosen safe family into a plan receipt. `adopt` now
    records the chosen action item and planning facets in the Mind adoption
    artery before granting branch-local Hands authority. `adopt` now writes a
-   separate Mind interpreter decision receipt and cites it from the main
-   adoption receipt. Banter remains banter unless Mind/Interpreter extracts a
-   work candidate. The remaining cut is richer model-authored families and
-   deeper interpreter semantics beyond the first Mind decision packet, not
+   separate Mind interpreter decision receipt, embeds an
+   `epiphany.repo_work_mind_interpretation.v0` packet that classifies the action
+   item, requested paths, safe family, allowed Hands transition, and forbidden
+   durable-state/publication/service/private transitions, then cites it from the
+   main adoption receipt. Banter remains banter unless Mind/Interpreter extracts
+   a work candidate. The remaining cut is richer model-authored families and
+   deeper interpreter semantics beyond the first Mind interpretation packet, not
    basic action-item or adoption receipt shape.
 3. **Model-authored safe plan families.** Promote `derive-plan` beyond the
    deterministic `append-worklog` and `planning-note` reliquaries by letting
@@ -1742,13 +1745,16 @@ Required organs before MVP:
   antecedents plus model-call/token-cost/review-load/artifact/proof/credit-readback/redaction
   packet requirements while granting no metrics ledger, spend, review-load,
   credit ledger, publication, PR, merge, sync, Hands, or cross-body authority.
-  `repo-planning-facets` smoke `.epiphany-smoke\repo-planning-facets-20260620-171324`
+  `repo-planning-facets` smoke `.epiphany-smoke\repo-planning-facets-20260620-175503`
   proves model-authored planning facets on action-item receipts: assumptions,
   constraints, non-goals, open questions, decision points, and evidence needs
   survive into the Imagination receipt, plan derivation, and the adoption
   artery. Adoption now writes a distinct
   `epiphany.repo_work_mind_adoption_decision.v0` receipt before the main
-  adoption receipt opens branch-local Hands authority; the Mind decision records
+  adoption receipt opens branch-local Hands authority; the Mind decision embeds
+  `epiphany.repo_work_mind_interpretation.v0` with input summary, safe-family
+  recognition, requested-path classification, branch-local Hands allowed
+  transition, forbidden durable-state/publication/service/private transitions,
   Self presentation, Mind evidence review, safe-family requirement,
   branch-local scope, Bifrost publication gate, and Soul closure requirement
   while still granting no Hands, durable-state, publication, merge, service
