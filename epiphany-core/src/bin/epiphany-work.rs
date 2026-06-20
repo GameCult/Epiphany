@@ -1898,8 +1898,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-verification-request" | "verification-request" | "soul-verification-request" => {
             derive_repo_verification_request_plan(input, &action_family)
         }
+        "repo-publication-request" | "publication-request" | "bifrost-publication-request" => {
+            derive_repo_publication_request_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, and repo-verification-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, and repo-publication-request"
         )),
     }
 }
@@ -3361,6 +3364,137 @@ fn derive_repo_verification_request_plan(
     })
 }
 
+fn derive_repo_publication_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/publication-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-publication-request:{item_slug}");
+    let verification_request_ref = format!(".epiphany/verification-requests/{item_slug}.toml");
+    let lines = vec![
+        "# Epiphany repo publication request.".to_string(),
+        "# Branch-local Bifrost request cargo; not publication, merge, or sync authority.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_publication_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.publication_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "upstream_sync_authorized = false".to_string(),
+        "credit_authorized = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        "status = \"awaiting-bifrost-review\"".to_string(),
+        "requested_owner = \"Bifrost\"".to_string(),
+        "requested_effect = \"publish-redacted-proof-and-route-maintainer-review\"".to_string(),
+        format!(
+            "verification_request_ref = {}",
+            toml_basic_string(&verification_request_ref)
+        ),
+        "publication_scope = \"redacted public proof, maintainer review, credit ledger, and upstream-main sync proof\"".to_string(),
+        String::new(),
+        "[antecedents]".to_string(),
+        "closure_review_required = true".to_string(),
+        "soul_verdict_required = true".to_string(),
+        "mind_commit_required = true".to_string(),
+        "public_proof_export_required = true".to_string(),
+        "private_state_redaction_required = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "closure_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
+        "soul_verdict = \"epiphany.soul.verification_verdict\"".to_string(),
+        "mind_commit = \"epiphany.mind.state_commit_receipt\"".to_string(),
+        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"".to_string(),
+        "bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\""
+            .to_string(),
+        "github_publication = \"gamecult.github.publication_receipt.v0\"".to_string(),
+        "credit_ledger = \"gamecult.bifrost.credit_receipt.v0\"".to_string(),
+        "upstream_sync = \"epiphany.repo_work_upstream_main_sync.v0\"".to_string(),
+        String::new(),
+        "[public_export]".to_string(),
+        "redacted_only = true".to_string(),
+        "raw_receipts_allowed = false".to_string(),
+        "private_paths_allowed = false".to_string(),
+        "worker_thought_allowed = false".to_string(),
+        "operator_context_allowed = false".to_string(),
+        "credit_required = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "bifrost_publication_authorized = false".to_string(),
+        "github_publication_authorized = false".to_string(),
+        "credit_ledger_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "upstream_sync_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "maintainer_review_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the publication request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request names public proof and Bifrost receipt requirements without authorizing publication.\",".to_string(),
+        "  \"Soul verifies raw receipts, private paths, worker thought, and operator context remain excluded from public export.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the publication request if the work is not ready for Bifrost review.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.publication_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a Bifrost publication request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add publication request for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo publication request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request requires redacted public proof and Bifrost/GitHub/credit/upstream receipts without authorizing publication, merge, sync, service lifecycle, or cross-body mutation.".to_string(),
+            "Soul verifies no paths outside the declared publication request changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated publication request if the work is not ready for Bifrost review.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.publication_request"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -4188,6 +4322,108 @@ fn closure_family_assertions(
                 "verification-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed verification request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.publication_request" => {
+            push_assertion(
+                &mut assertions,
+                "publication-request-schema-present",
+                content.contains("schema_version = \"epiphany.repo_publication_request.v0\""),
+                "Committed publication request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "publication-request-family-present",
+                content.contains("safe_action_family = \"repo.publication_request\""),
+                "Committed publication request carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "publication-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed publication request contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "publication-request-awaits-bifrost-review",
+                content.contains("[request]")
+                    && content.contains("status = \"awaiting-bifrost-review\"")
+                    && content.contains("requested_owner = \"Bifrost\"")
+                    && content.contains(
+                        "requested_effect = \"publish-redacted-proof-and-route-maintainer-review\"",
+                    )
+                    && content.contains("verification_request_ref = "),
+                "Committed publication request waits for Bifrost review before public consequence."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "publication-request-antecedents-present",
+                content.contains("[antecedents]")
+                    && content.contains("closure_review_required = true")
+                    && content.contains("soul_verdict_required = true")
+                    && content.contains("mind_commit_required = true")
+                    && content.contains("public_proof_export_required = true")
+                    && content.contains("private_state_redaction_required = true"),
+                "Committed publication request requires closure, Soul, Mind, and redacted proof antecedents."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "publication-request-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains(
+                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
+                    )
+                    && content.contains(
+                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
+                    )
+                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
+                    && content.contains(
+                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
+                    )
+                    && content.contains("bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\"")
+                    && content.contains("github_publication = \"gamecult.github.publication_receipt.v0\"")
+                    && content.contains("credit_ledger = \"gamecult.bifrost.credit_receipt.v0\"")
+                    && content.contains(
+                        "upstream_sync = \"epiphany.repo_work_upstream_main_sync.v0\"",
+                    ),
+                "Committed publication request names the Bifrost/GitHub/credit/upstream receipt chain."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "publication-request-redaction-contract",
+                content.contains("[public_export]")
+                    && content.contains("redacted_only = true")
+                    && content.contains("raw_receipts_allowed = false")
+                    && content.contains("private_paths_allowed = false")
+                    && content.contains("worker_thought_allowed = false")
+                    && content.contains("operator_context_allowed = false")
+                    && content.contains("credit_required = true"),
+                "Committed publication request preserves the public export redaction contract."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "publication-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("bifrost_publication_authorized = false")
+                    && content.contains("github_publication_authorized = false")
+                    && content.contains("credit_ledger_authorized = false")
+                    && content.contains("merge_authorized = false")
+                    && content.contains("upstream_sync_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("maintainer_review_required = true"),
+                "Committed publication request denies publication/credit/merge/sync/action/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "publication-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed publication request preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -8038,7 +8274,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
