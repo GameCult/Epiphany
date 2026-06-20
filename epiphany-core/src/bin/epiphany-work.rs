@@ -283,6 +283,7 @@ struct CloseArgs {
     closure_model_verdict: Option<String>,
     closure_model_finding: Option<String>,
     require_closure_model_verdict: bool,
+    require_source_grounding: bool,
     model_authored: bool,
     state_revision: u64,
 }
@@ -860,6 +861,7 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
     let mut closure_model_verdict = None;
     let mut closure_model_finding = None;
     let mut require_closure_model_verdict = false;
+    let mut require_source_grounding = false;
     let mut model_authored = false;
     let mut state_revision = 0_u64;
 
@@ -894,6 +896,7 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
             "--require-closure-model-verdict" | "--require-model-verdict" => {
                 require_closure_model_verdict = true;
             }
+            "--require-source-grounding" => require_source_grounding = true,
             "--model-authored" => model_authored = true,
             "--state-revision" => state_revision = take_u64(&mut args, "--state-revision")?,
             other => return Err(anyhow!("unexpected close argument {other:?}")),
@@ -912,6 +915,7 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
         closure_model_verdict,
         closure_model_finding,
         require_closure_model_verdict,
+        require_source_grounding,
         model_authored,
         state_revision,
     })
@@ -8263,6 +8267,69 @@ fn closure_model_review(
     ))
 }
 
+fn closure_verification_source_grounding_review(
+    declared_changed_paths: &[String],
+    verification_stdout: &[u8],
+    verification_stderr: &[u8],
+    commit_stat: &str,
+    required: bool,
+) -> (Value, bool) {
+    let stdout_text = String::from_utf8_lossy(verification_stdout);
+    let stderr_text = String::from_utf8_lossy(verification_stderr);
+    let verification_output = format!("{stdout_text}\n{stderr_text}");
+    let output_lower = verification_output.to_ascii_lowercase();
+    let commit_stat_lower = commit_stat.to_ascii_lowercase();
+    let mut path_rows = Vec::new();
+    for path in declared_changed_paths {
+        let path_lower = path.to_ascii_lowercase();
+        let slash_variant = path_lower.replace('\\', "/");
+        let backslash_variant = path_lower.replace('/', "\\");
+        let mentioned_in_verification_output = output_lower.contains(&slash_variant)
+            || output_lower.contains(&backslash_variant)
+            || output_lower.contains(&path_lower);
+        let present_in_commit_stat = commit_stat_lower.contains(&slash_variant)
+            || commit_stat_lower.contains(&backslash_variant)
+            || commit_stat_lower.contains(&path_lower);
+        path_rows.push(json!({
+            "path": path,
+            "mentionedInVerificationOutput": mentioned_in_verification_output,
+            "presentInCommitStat": present_in_commit_stat,
+            "passed": mentioned_in_verification_output && present_in_commit_stat
+        }));
+    }
+    let all_paths_mentioned = !declared_changed_paths.is_empty()
+        && path_rows
+            .iter()
+            .all(|row| row.get("passed").and_then(Value::as_bool) == Some(true));
+    let passed = !required || all_paths_mentioned;
+    let status = if all_paths_mentioned {
+        "passed"
+    } else if required {
+        "failed"
+    } else {
+        "informational"
+    };
+    (
+        json!({
+            "schemaVersion": "epiphany.repo_work_verification_source_grounding_review.v0",
+            "status": status,
+            "passed": passed,
+            "required": required,
+            "declaredPathCount": declared_changed_paths.len(),
+            "allDeclaredPathsMentionedByVerificationOutput": all_paths_mentioned,
+            "pathRows": path_rows,
+            "reason": if all_paths_mentioned {
+                "verification output and commit stat cite every declared changed path"
+            } else if required {
+                "source-grounded closure required verification output to cite every declared changed path"
+            } else {
+                "verification output did not cite every declared changed path; recorded as advisory source-grounding signal"
+            }
+        }),
+        passed,
+    )
+}
+
 fn read_committed_file(
     workspace: &Path,
     commit_sha: &str,
@@ -9355,6 +9422,19 @@ fn run_close(args: CloseArgs) -> Result<Value> {
     );
     let path_scope_matched = declared_changed_paths == actual_changed_paths;
     let commit_stat = git_output(&workspace, &["show", "--stat", "--oneline", &commit_sha])?;
+    let (verification_source_grounding, verification_source_grounded) =
+        closure_verification_source_grounding_review(
+            &declared_changed_paths,
+            &verification.stdout,
+            &verification.stderr,
+            &commit_stat,
+            args.require_source_grounding,
+        );
+    let verification_output_mentions_changed_paths = bool_from_json(
+        &verification_source_grounding,
+        &["allDeclaredPathsMentionedByVerificationOutput"],
+    )
+    .unwrap_or(false);
     let (family_assertions, family_assertions_passed) =
         closure_family_assertions(&workspace, &commit_sha, &execute_receipt, &item)?;
     let (mind_adoption_review, mind_adoption_passed) =
@@ -9398,10 +9478,13 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "pathScopeMatched": path_scope_matched,
             "commitStat": compact_multiline(&commit_stat),
             "commitReceiptMatchedExecuteReceipt": true,
+            "verificationOutputMentionsChangedPaths": verification_output_mentions_changed_paths,
+            "sourceGroundingRequired": args.require_source_grounding,
             "mindAdoptionPassed": mind_adoption_passed,
             "familyAssertionsPassed": family_assertions_passed,
             "modelClosurePassed": model_closure_passed
         },
+        "verificationSourceGrounding": verification_source_grounding,
         "mindAdoptionReview": mind_adoption_review,
         "familyAssertions": family_assertions,
         "modelingReview": {
@@ -9426,6 +9509,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
     write_json(&closure_review_path, &closure_review)?;
     let verification_passed = verification.status.success()
         && path_scope_matched
+        && verification_source_grounded
         && mind_adoption_passed
         && family_assertions_passed
         && model_closure_passed;
@@ -9436,6 +9520,10 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !path_scope_matched {
             format!(
                 "Soul verification failed for branch-local commit {commit_sha}: actual changed paths did not match declared Hands path scope."
+            )
+        } else if !verification_source_grounded {
+            format!(
+                "Soul verification failed for branch-local commit {commit_sha}: verification output did not cite every declared changed path."
             )
         } else if !mind_adoption_passed {
             format!(
@@ -9479,6 +9567,11 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !path_scope_matched {
             vec![
                 "Closure refused because actual git changed paths differ from Hands-declared scope."
+                    .to_string(),
+            ]
+        } else if !verification_source_grounded {
+            vec![
+                "Closure refused because the verification output did not cite every declared changed path while source grounding was required."
                     .to_string(),
             ]
         } else if !mind_adoption_passed {
@@ -11726,6 +11819,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 closure_model_verdict: None,
                 closure_model_finding: None,
                 require_closure_model_verdict: false,
+                require_source_grounding: false,
                 model_authored: false,
                 state_revision: 0,
             })?;
@@ -13108,7 +13202,7 @@ fn print_usage() {
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
-         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] [--closure-model-ref <ref>] [--model-authored] [--closure-model-verdict passed|failed|needs-work|blocked] [--closure-model-finding <text>] [--require-closure-model-verdict]\n\
+         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] [--closure-model-ref <ref>] [--model-authored] [--closure-model-verdict passed|failed|needs-work|blocked] [--closure-model-finding <text>] [--require-closure-model-verdict] [--require-source-grounding]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
