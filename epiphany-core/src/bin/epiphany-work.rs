@@ -1904,8 +1904,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-sync-request" | "sync-request" | "upstream-sync-request" => {
             derive_repo_sync_request_plan(input, &action_family)
         }
+        "repo-maintainer-review-request" | "maintainer-review-request" | "review-request" => {
+            derive_repo_maintainer_review_request_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, and repo-sync-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, and repo-maintainer-review-request"
         )),
     }
 }
@@ -3626,6 +3629,147 @@ fn derive_repo_sync_request_plan(
     })
 }
 
+fn derive_repo_maintainer_review_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/review-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-maintainer-review-request:{item_slug}");
+    let verification_request_ref = format!(".epiphany/verification-requests/{item_slug}.toml");
+    let publication_request_ref = format!(".epiphany/publication-requests/{item_slug}.toml");
+    let lines = vec![
+        "# Epiphany repo maintainer review request.".to_string(),
+        "# Branch-local human review cargo; not approval, merge, or publication authority."
+            .to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_maintainer_review_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.maintainer_review_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "maintainer_approval_granted = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "upstream_sync_authorized = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        "status = \"awaiting-maintainer-review\"".to_string(),
+        "requested_owner = \"Maintainer\"".to_string(),
+        "requested_effect = \"review-redacted-proof-and-branch-diff\"".to_string(),
+        format!(
+            "verification_request_ref = {}",
+            toml_basic_string(&verification_request_ref)
+        ),
+        format!(
+            "publication_request_ref = {}",
+            toml_basic_string(&publication_request_ref)
+        ),
+        "review_scope = \"changed paths, closure proof, public proof bundle, and Bifrost credit context\""
+            .to_string(),
+        String::new(),
+        "[antecedents]".to_string(),
+        "closure_review_required = true".to_string(),
+        "soul_verdict_required = true".to_string(),
+        "mind_commit_required = true".to_string(),
+        "public_proof_required = true".to_string(),
+        "bifrost_publication_request_required = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "closure_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
+        "soul_verdict = \"epiphany.soul.verification_verdict\"".to_string(),
+        "mind_commit = \"epiphany.mind.state_commit_receipt\"".to_string(),
+        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"".to_string(),
+        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
+        "bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\""
+            .to_string(),
+        String::new(),
+        "[review_packet]".to_string(),
+        "requires_reviewer_identity = true".to_string(),
+        "requires_review_verdict = true".to_string(),
+        "allowed_verdicts = [\"approved\", \"changes-requested\", \"rejected\", \"needs-human-context\"]"
+            .to_string(),
+        "requires_changed_path_list = true".to_string(),
+        "requires_public_proof_ref = true".to_string(),
+        "requires_private_state_redaction_check = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "maintainer_approval_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "push_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "upstream_sync_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "human_or_maintainer_response_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the maintainer review request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request names reviewer identity, verdict, changed paths, and redacted proof requirements without approving or merging.\",".to_string(),
+        "  \"Soul verifies the request grants no publication, sync, Hands, service lifecycle, or cross-body authority.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the maintainer review request if the work is not ready for human review.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.maintainer_review_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a maintainer review request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add maintainer review request for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo maintainer review request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request requires reviewer identity, verdict, changed paths, redacted proof, and private-state redaction without authorizing approval, merge, publication, sync, service lifecycle, or cross-body mutation.".to_string(),
+            "Soul verifies no paths outside the declared maintainer review request changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated maintainer review request if the work is not ready for human review.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(
+            input,
+            action_family,
+            "repo.maintainer_review_request",
+        ),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -4650,6 +4794,107 @@ fn closure_family_assertions(
                 "sync-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed sync request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.maintainer_review_request" => {
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-schema-present",
+                content.contains("schema_version = \"epiphany.repo_maintainer_review_request.v0\""),
+                "Committed maintainer review request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-family-present",
+                content.contains("safe_action_family = \"repo.maintainer_review_request\""),
+                "Committed maintainer review request carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed maintainer review request contains the accepted pressure summary."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-awaits-review",
+                content.contains("[request]")
+                    && content.contains("status = \"awaiting-maintainer-review\"")
+                    && content.contains("requested_owner = \"Maintainer\"")
+                    && content
+                        .contains("requested_effect = \"review-redacted-proof-and-branch-diff\"")
+                    && content.contains("verification_request_ref = ")
+                    && content.contains("publication_request_ref = "),
+                "Committed maintainer review request waits for human review before consequence."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-antecedents-present",
+                content.contains("[antecedents]")
+                    && content.contains("closure_review_required = true")
+                    && content.contains("soul_verdict_required = true")
+                    && content.contains("mind_commit_required = true")
+                    && content.contains("public_proof_required = true")
+                    && content.contains("bifrost_publication_request_required = true"),
+                "Committed maintainer review request requires closure, Soul, Mind, proof, and Bifrost request antecedents."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains(
+                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
+                    )
+                    && content.contains(
+                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
+                    )
+                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
+                    && content.contains(
+                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
+                    )
+                    && content.contains(
+                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
+                    )
+                    && content.contains("bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\""),
+                "Committed maintainer review request names closure, proof, maintainer, and Bifrost receipts."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-review-packet",
+                content.contains("[review_packet]")
+                    && content.contains("requires_reviewer_identity = true")
+                    && content.contains("requires_review_verdict = true")
+                    && content.contains("allowed_verdicts = [\"approved\", \"changes-requested\", \"rejected\", \"needs-human-context\"]")
+                    && content.contains("requires_changed_path_list = true")
+                    && content.contains("requires_public_proof_ref = true")
+                    && content.contains("requires_private_state_redaction_check = true"),
+                "Committed maintainer review request names reviewer identity, verdict, changed path, proof, and redaction requirements."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("maintainer_approval_authorized = false")
+                    && content.contains("merge_authorized = false")
+                    && content.contains("push_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("upstream_sync_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("human_or_maintainer_response_required = true"),
+                "Committed maintainer review request denies approval/merge/push/publication/sync/action/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "maintainer-review-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed maintainer review request preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -8500,7 +8745,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
