@@ -1349,6 +1349,18 @@ the accepted planning-note work reports `gate=Bifrost`, `owner=Bifrost`,
 is next-gate sight only. Bifrost still owns publication/credit/upstream gates,
 and Gjallar does not schedule, publish, merge, deploy, or admit state.
 
+The next per-entry semantic row gives agents one compact accepted-work readback:
+`.epiphany-smoke\repo-close-mind-adoption-guard-20260620-234131` proves Gjallar
+now derives `repoWorkMapSemanticRows` and `REPO-WORK-MAP-SEMANTIC` TUI rows from
+Mind-admitted map entries. The proof row mirrors the durable modeling summary,
+safe family, stage `imagination-planning`, `stageOwner=Imagination`,
+`gate=Bifrost`, `gateOwner=Bifrost`, latest commit/Mind commit receipt,
+`sightOnly=true`, and `privateStateExposed=false`; the smoke summary reports
+`gjallarRepoWorkMapSemanticCount=1` while closure still refuses counterfeit Mind
+adoption and keeps `publicationAuthorized=false`. This is compact meaning
+readback only, not a scheduler, publisher, merge gate, deployment actor, daemon
+keeper, or Mind admission path.
+
 `epiphany-work overview` is the first compact repo work sight/proof surface:
 
 ```powershell

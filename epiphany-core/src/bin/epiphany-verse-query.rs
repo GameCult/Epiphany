@@ -4075,6 +4075,8 @@ struct SwarmOverviewReport {
     service_execution_failed_check_tui_rows: Vec<String>,
     repo_work_map_rows: Vec<RepoWorkMapRow>,
     repo_work_map_tui_rows: Vec<String>,
+    repo_work_map_semantic_rows: Vec<RepoWorkMapSemanticRow>,
+    repo_work_map_semantic_tui_rows: Vec<String>,
     repo_work_map_family_lens_rows: Vec<RepoWorkMapFamilyLensRow>,
     repo_work_map_family_lens_tui_rows: Vec<String>,
     repo_work_map_path_lens_rows: Vec<RepoWorkMapPathLensRow>,
@@ -4143,6 +4145,24 @@ struct RepoWorkMapRow {
     publication_gate: String,
     durable_state_admitted: bool,
     source_store_path: String,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkMapSemanticRow {
+    item: String,
+    branch: String,
+    stage: String,
+    stage_owner: String,
+    publication_gate: String,
+    gate_owner: String,
+    safe_action_family: String,
+    changed_path_count: usize,
+    latest_commit_sha: String,
+    latest_mind_state_commit_receipt_id: String,
+    modeling_summary: String,
+    sight_only: bool,
     private_state_exposed: bool,
 }
 
@@ -4340,6 +4360,9 @@ struct SwarmOverviewOutput {
     repo_work_map_count: usize,
     repo_work_map_rows: Vec<RepoWorkMapRow>,
     repo_work_map_tui_rows: Vec<String>,
+    repo_work_map_semantic_count: usize,
+    repo_work_map_semantic_rows: Vec<RepoWorkMapSemanticRow>,
+    repo_work_map_semantic_tui_rows: Vec<String>,
     repo_work_map_family_lens_count: usize,
     repo_work_map_family_lens_rows: Vec<RepoWorkMapFamilyLensRow>,
     repo_work_map_family_lens_tui_rows: Vec<String>,
@@ -4435,6 +4458,9 @@ impl SwarmOverviewOutput {
             repo_work_map_count: report.repo_work_map_rows.len(),
             repo_work_map_rows: report.repo_work_map_rows,
             repo_work_map_tui_rows: report.repo_work_map_tui_rows,
+            repo_work_map_semantic_count: report.repo_work_map_semantic_rows.len(),
+            repo_work_map_semantic_rows: report.repo_work_map_semantic_rows,
+            repo_work_map_semantic_tui_rows: report.repo_work_map_semantic_tui_rows,
             repo_work_map_family_lens_count: report.repo_work_map_family_lens_rows.len(),
             repo_work_map_family_lens_rows: report.repo_work_map_family_lens_rows,
             repo_work_map_family_lens_tui_rows: report.repo_work_map_family_lens_tui_rows,
@@ -4522,6 +4548,9 @@ struct SwarmTriageOutput {
     repo_work_map_count: usize,
     repo_work_map_rows: Vec<RepoWorkMapRow>,
     repo_work_map_tui_rows: Vec<String>,
+    repo_work_map_semantic_count: usize,
+    repo_work_map_semantic_rows: Vec<RepoWorkMapSemanticRow>,
+    repo_work_map_semantic_tui_rows: Vec<String>,
     repo_work_map_family_lens_count: usize,
     repo_work_map_family_lens_rows: Vec<RepoWorkMapFamilyLensRow>,
     repo_work_map_family_lens_tui_rows: Vec<String>,
@@ -4612,6 +4641,9 @@ impl SwarmTriageOutput {
             repo_work_map_count: report.repo_work_map_rows.len(),
             repo_work_map_rows: report.repo_work_map_rows,
             repo_work_map_tui_rows: report.repo_work_map_tui_rows,
+            repo_work_map_semantic_count: report.repo_work_map_semantic_rows.len(),
+            repo_work_map_semantic_rows: report.repo_work_map_semantic_rows,
+            repo_work_map_semantic_tui_rows: report.repo_work_map_semantic_tui_rows,
             repo_work_map_family_lens_count: report.repo_work_map_family_lens_rows.len(),
             repo_work_map_family_lens_rows: report.repo_work_map_family_lens_rows,
             repo_work_map_family_lens_tui_rows: report.repo_work_map_family_lens_tui_rows,
@@ -5230,6 +5262,59 @@ fn repo_work_map_tui_row(row: &RepoWorkMapRow) -> String {
         row.publication_gate,
         row.durable_state_admitted,
         row.source_store_path,
+        row.private_state_exposed
+    )
+}
+
+fn repo_work_map_semantic_rows(
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+) -> (Vec<RepoWorkMapSemanticRow>, Vec<String>) {
+    let rows = repo_work_map_entries
+        .iter()
+        .map(repo_work_map_semantic_row)
+        .collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_map_semantic_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_map_semantic_row(
+    entry: &EpiphanyCultMeshRepoWorkMapEntry,
+) -> RepoWorkMapSemanticRow {
+    let (stage, stage_owner) = repo_work_stage_for_family(&entry.safe_action_family);
+    RepoWorkMapSemanticRow {
+        item: entry.item.clone(),
+        branch: entry.branch.clone(),
+        stage,
+        stage_owner,
+        publication_gate: entry.publication_gate.clone(),
+        gate_owner: repo_work_gate_owner(&entry.publication_gate),
+        safe_action_family: entry.safe_action_family.clone(),
+        changed_path_count: entry.changed_paths.len(),
+        latest_commit_sha: entry.commit_sha.clone(),
+        latest_mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
+        modeling_summary: entry.modeling_summary.clone(),
+        sight_only: true,
+        private_state_exposed: entry.private_state_exposed,
+    }
+}
+
+fn repo_work_map_semantic_tui_row(row: &RepoWorkMapSemanticRow) -> String {
+    format!(
+        "REPO-WORK-MAP-SEMANTIC | item={} | stage={} | stageOwner={} | gate={} | gateOwner={} | family={} | paths={} | latestCommit={} | latestMind={} | summary={} | sightOnly={} | private={}",
+        row.item,
+        row.stage,
+        row.stage_owner,
+        row.publication_gate,
+        row.gate_owner,
+        row.safe_action_family,
+        row.changed_path_count,
+        short_commit(&row.latest_commit_sha),
+        row.latest_mind_state_commit_receipt_id,
+        compact_tui_text(&row.modeling_summary, 160),
+        row.sight_only,
         row.private_state_exposed
     )
 }
@@ -6499,6 +6584,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let (repo_work_overview_rows, repo_work_overview_tui_rows) =
         repo_work_overview_rows(&repo_work_overviews);
     let (repo_work_map_rows, repo_work_map_tui_rows) = repo_work_map_rows(&repo_work_map_entries);
+    let (repo_work_map_semantic_rows, repo_work_map_semantic_tui_rows) =
+        repo_work_map_semantic_rows(&repo_work_map_entries);
     let (repo_work_map_family_lens_rows, repo_work_map_family_lens_tui_rows) =
         repo_work_map_family_lens_rows(&repo_work_map_entries);
     let (repo_work_map_path_lens_rows, repo_work_map_path_lens_tui_rows) =
@@ -6538,6 +6625,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         || repo_work_map_entries
             .iter()
             .any(|entry| entry.private_state_exposed)
+        || repo_work_map_semantic_rows
+            .iter()
+            .any(|row| row.private_state_exposed)
         || repo_work_map_family_lens_rows
             .iter()
             .any(|row| row.private_state_exposed)
@@ -6611,6 +6701,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         service_execution_failed_check_tui_rows,
         repo_work_map_rows,
         repo_work_map_tui_rows,
+        repo_work_map_semantic_rows,
+        repo_work_map_semantic_tui_rows,
         repo_work_map_family_lens_rows,
         repo_work_map_family_lens_tui_rows,
         repo_work_map_path_lens_rows,
@@ -7936,6 +8028,22 @@ fn compact_tui_list(values: &[String]) -> String {
     } else {
         values.join(",")
     }
+}
+
+fn compact_tui_text(value: &str, max_chars: usize) -> String {
+    let collapsed = value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace('|', "/");
+    if collapsed.chars().count() <= max_chars {
+        return collapsed;
+    }
+    collapsed
+        .chars()
+        .take(max_chars.saturating_sub(3))
+        .collect::<String>()
+        + "..."
 }
 
 fn write_daemon_poke_receipts(

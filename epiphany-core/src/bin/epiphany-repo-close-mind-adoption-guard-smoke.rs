@@ -27,6 +27,7 @@ struct RepoWorkMapEntry {
     changed_paths: Vec<String>,
     commit_sha: String,
     safe_action_family: String,
+    modeling_summary: String,
     soul_verdict_receipt_id: String,
     mind_gateway_review_id: String,
     mind_state_commit_receipt_id: String,
@@ -503,6 +504,41 @@ fn run_smoke(args: Args) -> Result<Value> {
             "Gjallar TUI rows did not expose compact repo map sight"
         ));
     }
+    require_u64(&gjallar, &["repoWorkMapSemanticCount"], 1)?;
+    let semantic_rows = value_at_path(&gjallar, &["repoWorkMapSemanticRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapSemanticRows array"))?;
+    let semantic_row = semantic_rows
+        .iter()
+        .find(|row| row.get("item").and_then(Value::as_str) == Some(item))
+        .ok_or_else(|| anyhow!("Gjallar output had no repo map semantic row for {item}"))?;
+    require_eq_value(semantic_row, &["stage"], "imagination-planning")?;
+    require_eq_value(semantic_row, &["stageOwner"], "Imagination")?;
+    require_eq_value(semantic_row, &["publicationGate"], "Bifrost")?;
+    require_eq_value(semantic_row, &["gateOwner"], "Bifrost")?;
+    require_eq_value(
+        semantic_row,
+        &["modelingSummary"],
+        &map_entry.modeling_summary,
+    )?;
+    require_bool_value(semantic_row, &["sightOnly"], true)?;
+    require_bool_value(semantic_row, &["privateStateExposed"], false)?;
+    let semantic_tui_rows = value_at_path(&gjallar, &["repoWorkMapSemanticTuiRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapSemanticTuiRows array"))?;
+    if !semantic_tui_rows.iter().any(|row| {
+        row.as_str().is_some_and(|row| {
+            row.contains("REPO-WORK-MAP-SEMANTIC")
+                && row.contains("stage=imagination-planning")
+                && row.contains("stageOwner=Imagination")
+                && row.contains("gateOwner=Bifrost")
+                && row.contains("sightOnly=true")
+        })
+    }) {
+        return Err(anyhow!(
+            "Gjallar TUI rows did not expose repo map semantic sight"
+        ));
+    }
     require_u64(&gjallar, &["repoWorkMapFamilyLensCount"], 1)?;
     let family_lens_rows = value_at_path(&gjallar, &["repoWorkMapFamilyLensRows"])
         .and_then(Value::as_array)
@@ -674,6 +710,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "repoMapDurableStateAdmitted": map_entry.durable_state_admitted,
         "repoMapLocalVerseProjected": true,
         "gjallarLatestRepoWorkMapEntry": gjallar["latestRepoWorkMapEntry"],
+        "gjallarRepoWorkMapSemanticCount": gjallar["repoWorkMapSemanticCount"],
         "gjallarRepoWorkMapFamilyLensCount": gjallar["repoWorkMapFamilyLensCount"],
         "gjallarRepoWorkMapPathLensCount": gjallar["repoWorkMapPathLensCount"],
         "gjallarRepoWorkMapBranchLensCount": gjallar["repoWorkMapBranchLensCount"],
