@@ -220,6 +220,9 @@ struct CloseArgs {
     verification_summary: Option<String>,
     modeling_summary: Option<String>,
     closure_model_ref: Option<String>,
+    closure_model_verdict: Option<String>,
+    closure_model_finding: Option<String>,
+    require_closure_model_verdict: bool,
     model_authored: bool,
     state_revision: u64,
 }
@@ -729,6 +732,9 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
     let mut verification_summary = None;
     let mut modeling_summary = None;
     let mut closure_model_ref = None;
+    let mut closure_model_verdict = None;
+    let mut closure_model_finding = None;
+    let mut require_closure_model_verdict = false;
     let mut model_authored = false;
     let mut state_revision = 0_u64;
 
@@ -754,6 +760,15 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
             "--closure-model-ref" | "--model-ref" => {
                 closure_model_ref = Some(take_string(&mut args, "--closure-model-ref")?);
             }
+            "--closure-model-verdict" | "--model-verdict" => {
+                closure_model_verdict = Some(take_string(&mut args, "--closure-model-verdict")?);
+            }
+            "--closure-model-finding" | "--model-finding" => {
+                closure_model_finding = Some(take_string(&mut args, "--closure-model-finding")?);
+            }
+            "--require-closure-model-verdict" | "--require-model-verdict" => {
+                require_closure_model_verdict = true;
+            }
             "--model-authored" => model_authored = true,
             "--state-revision" => state_revision = take_u64(&mut args, "--state-revision")?,
             other => return Err(anyhow!("unexpected close argument {other:?}")),
@@ -769,6 +784,9 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
         verification_summary,
         modeling_summary,
         closure_model_ref,
+        closure_model_verdict,
+        closure_model_finding,
+        require_closure_model_verdict,
         model_authored,
         state_revision,
     })
@@ -2459,6 +2477,78 @@ fn push_assertion(assertions: &mut Vec<Value>, id: &str, passed: bool, summary: 
     }));
 }
 
+fn closure_model_review(
+    model_authored: bool,
+    model_ref: Option<&str>,
+    verdict: Option<&str>,
+    finding: Option<&str>,
+    required: bool,
+) -> Result<(Value, bool)> {
+    let normalized_verdict = verdict
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    if let Some(verdict) = normalized_verdict.as_deref() {
+        match verdict {
+            "passed" | "failed" | "needs-work" | "blocked" => {}
+            other => {
+                return Err(anyhow!(
+                    "unsupported closure model verdict {other:?}; expected passed, failed, needs-work, or blocked"
+                ));
+            }
+        }
+    }
+
+    let gate_enforced = required || normalized_verdict.is_some();
+    let passed = match normalized_verdict.as_deref() {
+        Some("passed") => true,
+        Some("failed" | "needs-work" | "blocked") => false,
+        Some(_) => unreachable!(),
+        None => !required,
+    };
+    let status = match normalized_verdict.as_deref() {
+        Some("passed") => "passed",
+        Some("failed" | "needs-work" | "blocked") => "failed",
+        Some(_) => unreachable!(),
+        None if required => "missing-required-verdict",
+        None if model_authored || model_ref.is_some() => "provenance-only",
+        None => "deterministic-fallback",
+    };
+    let reason = match status {
+        "passed" => "model-authored closure verdict passed",
+        "failed" => "model-authored closure verdict refused closure",
+        "missing-required-verdict" => {
+            "closure required a model-authored verdict but none was supplied"
+        }
+        "provenance-only" => "model provenance was recorded without making it a hard closure gate",
+        _ => "deterministic closure checks are the active gate",
+    };
+
+    Ok((
+        json!({
+            "schemaVersion": "epiphany.repo_work_model_closure_review.v0",
+            "status": status,
+            "passed": passed,
+            "required": required,
+            "gateEnforced": gate_enforced,
+            "modelAuthored": model_authored || model_ref.is_some(),
+            "modelRef": model_ref,
+            "verdict": normalized_verdict,
+            "finding": finding.map(compact_line),
+            "reason": reason,
+            "reviewedInputs": [
+                "Hands commit receipt matched execute receipt",
+                "Verification command result",
+                "Declared versus actual git changed paths",
+                "Safe-family committed-content assertions",
+                "Authority seal and private-state exposure flag"
+            ],
+            "operatorAuthoredShellDetails": false,
+            "privateStateExposed": false
+        }),
+        passed,
+    ))
+}
+
 fn read_committed_file(
     workspace: &Path,
     commit_sha: &str,
@@ -3191,6 +3281,13 @@ fn run_close(args: CloseArgs) -> Result<Value> {
     let (family_assertions, family_assertions_passed) =
         closure_family_assertions(&workspace, &commit_sha, &execute_receipt, &item)?;
     let closure_model_authored = args.model_authored || args.closure_model_ref.is_some();
+    let (model_closure_review, model_closure_passed) = closure_model_review(
+        closure_model_authored,
+        args.closure_model_ref.as_deref(),
+        args.closure_model_verdict.as_deref(),
+        args.closure_model_finding.as_deref(),
+        args.require_closure_model_verdict,
+    )?;
     let closure_review_id = format!("repo-work-close-{item_slug}-closure-review");
     let closure_review_path = artifact_dir.join(format!("work-close-{item_slug}-review.json"));
     let closure_review = json!({
@@ -3222,15 +3319,17 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "pathScopeMatched": path_scope_matched,
             "commitStat": compact_multiline(&commit_stat),
             "commitReceiptMatchedExecuteReceipt": true,
-            "familyAssertionsPassed": family_assertions_passed
+            "familyAssertionsPassed": family_assertions_passed,
+            "modelClosurePassed": model_closure_passed
         },
         "familyAssertions": family_assertions,
         "modelingReview": {
             "modelAuthored": closure_model_authored,
-            "modelRef": args.closure_model_ref,
+            "modelRef": args.closure_model_ref.clone(),
             "deterministicFallback": !closure_model_authored,
             "operatorAuthoredShellDetails": false,
-            "summary": args.modeling_summary.clone()
+            "summary": args.modeling_summary.clone(),
+            "closureReview": model_closure_review
         },
         "authoritySeal": {
             "branchLocalOnly": true,
@@ -3241,11 +3340,13 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "privateStateExposed": false
         },
         "privateStateExposed": false,
-        "nextSafeMove": "Soul may pass closure only when verification succeeds, actual git changed paths match the Hands-declared path scope, and safe-family assertions pass for known Imagination families."
+        "nextSafeMove": "Soul may pass closure only when verification succeeds, actual git changed paths match the Hands-declared path scope, safe-family assertions pass for known Imagination families, and any supplied or required model-authored closure verdict passes."
     });
     write_json(&closure_review_path, &closure_review)?;
-    let verification_passed =
-        verification.status.success() && path_scope_matched && family_assertions_passed;
+    let verification_passed = verification.status.success()
+        && path_scope_matched
+        && family_assertions_passed
+        && model_closure_passed;
     let soul_verdict_id = format!("repo-work-close-{item_slug}-soul-verdict");
     let soul_summary = args.verification_summary.unwrap_or_else(|| {
         if verification_passed {
@@ -3257,6 +3358,10 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !family_assertions_passed {
             format!(
                 "Soul verification failed for branch-local commit {commit_sha}: safe-family assertions did not pass."
+            )
+        } else if !model_closure_passed {
+            format!(
+                "Soul verification failed for branch-local commit {commit_sha}: model-authored closure review did not pass."
             )
         } else {
             format!("Soul verification failed for branch-local commit {commit_sha}.")
@@ -3293,6 +3398,11 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !family_assertions_passed {
             vec![
                 "Closure refused because the committed content did not satisfy known safe-family assertions."
+                    .to_string(),
+            ]
+        } else if !model_closure_passed {
+            vec![
+                "Closure refused because the model-authored closure review was missing or non-passing."
                     .to_string(),
             ]
         } else {
@@ -4925,6 +5035,9 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                     "Modeling records scheduler-closed repo work item {item}; publication remains gated by Bifrost."
                 )),
                 closure_model_ref: None,
+                closure_model_verdict: None,
+                closure_model_finding: None,
+                require_closure_model_verdict: false,
                 model_authored: false,
                 state_revision: 0,
             })?;
@@ -6181,7 +6294,7 @@ fn print_usage() {
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
-         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] [--closure-model-ref <ref>] [--model-authored]\n\
+         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] [--closure-model-ref <ref>] [--model-authored] [--closure-model-verdict passed|failed|needs-work|blocked] [--closure-model-finding <text>] [--require-closure-model-verdict]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\

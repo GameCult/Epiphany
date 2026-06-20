@@ -659,10 +659,15 @@ sealed under `.epiphany/work/`. Closure also writes a structured
 `.epiphany/work/work-close-<item>-review.json`, recording the verification
 command/exit code, declared Hands paths, actual git commit paths, commit stat,
 optional model-review provenance from `--closure-model-ref` / `--model-authored`,
-safe-family assertions for known Imagination families, and authority seals. Soul
-passes only when the verification command succeeds, actual git changed paths
-match the Hands-declared path scope, and the committed target content satisfies
-the deterministic safe-family assertions when the plan family is known. Soul
+optional hard model closure verdicts from `--closure-model-verdict`, safe-family
+assertions for known Imagination families, and authority seals. Soul passes only
+when the verification command succeeds, actual git changed paths match the
+Hands-declared path scope, the committed target content satisfies the
+deterministic safe-family assertions when the plan family is known, and any
+supplied or required model-authored closure verdict passes.
+`--require-closure-model-verdict` turns missing model verdicts into a closure
+refusal; without that flag, older provenance-only model refs remain
+compatibility evidence instead of a hard gate. Soul
 then writes `epiphany.soul.verdict_receipt`, Modeling records the
 execution/commit/closure-review summary, and Mind writes gateway review plus
 state-commit receipts into runtime-spine. The final
@@ -712,6 +717,18 @@ Soul `failed`, `familyAssertions.status=failed`, and failed assertions
 `status-section-start-marker`, `status-section-end-marker`,
 `status-section-summary-present`, and `status-section-private-seal`, with
 `privateStateExposed=false`.
+
+A model-closure gate smoke proved the new source-grounded review tooth:
+`.epiphany-smoke\closure-model-gate-20260620-135103` created a disposable repo,
+ran `epiphany-repo init`, `epiphany-swarm online`, two `repo-status-section`
+items through accept -> derive-plan -> tick run/adopt/execute, then closed one
+item with `--require-closure-model-verdict --closure-model-verdict passed` and
+one with `--closure-model-verdict needs-work`. The pass item returned
+`closed` with `modelingReview.closureReview.status=passed` and
+`gateEnforced=true`. The blocked item returned `verification-failed`, Soul
+`failed`, `modelingReview.closureReview.status=failed`, while
+`familyAssertions.status=passed` and `pathScopeMatched=true`; private state
+remained sealed.
 
 `epiphany-work overview` is the first compact repo work sight/proof surface:
 
@@ -967,15 +984,16 @@ sync proof.
 `tick` now also proves brake refusal, active-turn refusal,
 completion-anchored cooldown refusal, and stale active-turn recovery through
 typed scheduler receipts; `serve` now proves bounded cadence around that same
-tick artery; `close` now proves first deterministic Soul/Modeling/Mind closure
-over Hands commit receipts; `derive-plan` now proves a deterministic
+tick artery; `close` now proves deterministic Soul/Modeling/Mind closure over
+Hands commit receipts plus an optional/required model-authored closure verdict
+gate; `derive-plan` now proves a deterministic
 Persona/Bifrost pressure-to-plan bridge with no operator-authored shell
 details; `overview` now proves compact local proof-bundle sight over the
 receipt chain; `queue-run` now proves that Self can select tick-actionable rows
 from the typed repo-work overview queue without reading private thought or
 taking publication/service authority. The chain does not yet prove fully
-model-authored Imagination planning, deeper model-authored Soul/Modeling
-closure, optional Idunn-hosted lifecycle for queue pulses, or richer published
+model-authored Imagination planning beyond allowlisted safe-family lowering,
+optional Idunn-hosted lifecycle for queue pulses, or richer published
 proof bundles.
 
 The MVP target is narrower than the full Perfect Machine and wider than a demo:
@@ -1033,14 +1051,12 @@ No: the machine is not yet Epiphany Online in the full MVP sense. The remaining
 gap is not "more permission prompts." The remaining gap is to make the
 existing typed artery run as a living repo organism:
 
-- deeper model-authored closure review beyond the first typed
-  `epiphany.repo_work_closure_review.v0` packet
 - further non-planning action classes where Imagination can propose useful
   branch-local work beyond planning cargo without arbitrary shell authority
 - an Idunn-owned service lifecycle path for the queue-run pulse when the
   operator explicitly grants service mutation or elevated host authority
-- a repeatable fresh-repo acceptance smoke that proves the whole path without
-  supervisor target-repo edits
+- richer model-authored planning depth beyond deterministic safe-family command
+  lowering
 
 The MVP is functional when a human can talk to the repo Persona, the swarm can
 turn that pressure into typed work, keep advancing lawful branch-local steps
@@ -1332,17 +1348,19 @@ Required organs before MVP:
   `section-note`, and `task-card` now prove richer model-authored planning cargo
   without operator shell details. `repo-status-section` now proves the first
   repo-visible non-planning safe family by updating a marker-bounded README
-  status section with the same authority seals. Remaining work is richer closure
-  depth and any later model-authored action classes that move beyond
-  documentation/status cargo while preserving the same authority seals.
+  status section with the same authority seals. Remaining work is later
+  model-authored action classes that move beyond documentation/status cargo
+  while preserving the same authority seals.
 - Closure depth: `close` now writes a structured
   `epiphany.repo_work_closure_review.v0` packet for Hands commits, records
   model-review provenance when supplied, refuses actual-vs-declared path-scope
   mismatch before Soul passes, runs committed-content assertions for known safe
-  families, refuses assertion failures even when the path scope matches, and
-  exposes the closure-review artifact through overview/export proof rows.
-  Deeper model-authored Soul/Modeling review remains a later upgrade on top of
-  this typed packet.
+  families, refuses assertion failures even when the path scope matches, can
+  require a model-authored closure verdict before Soul passes, and exposes the
+  closure-review artifact through overview/export proof rows. The verdict packet
+  records reviewed inputs, finding text, enforced/skipped gate state, and
+  private-state seals; focused smoke proves a model `needs-work` verdict blocks
+  closure even when path scope and safe-family assertions pass.
 - Repo work projection/run surface: local `epiphany-work overview` proof bundles, typed
   `epiphany.cultmesh.repo_work_overview.v0` event history plus latest-key
   projection, and Gjallar multi-item `repo-work-overview` action/readback rows
