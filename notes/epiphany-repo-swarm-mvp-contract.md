@@ -252,11 +252,13 @@ which appends to `EPIPHANY_WORKLOG.md`; `--action-family planning-note` creates
 or appends a contained markdown planning note, defaulting to
 `notes/epiphany-work/<item>.md`; `--action-family checklist-note` creates or
 appends a contained markdown checklist, defaulting to
-`notes/epiphany-work/<item>-checklist.md`. Its receipt includes
+`notes/epiphany-work/<item>-checklist.md`; and `--action-family section-note`
+creates or replaces one Epiphany-managed markdown section between explicit
+markers, defaulting to `notes/epiphany-work/<item>-section.md`. Its receipt includes
 `epiphany.repo_work_plan_derivation.v0`, mode `append-worklog` or
-`planning-note` or `checklist-note`, a `safeActionFamily`, and an authority
-seal forbidding publication, merge, service lifecycle mutation, cross-repo
-mutation, and private state exposure. These deterministic families are
+`planning-note` or `checklist-note` or `section-note`, a `safeActionFamily`,
+and an authority seal forbidding publication, merge, service lifecycle
+mutation, cross-repo mutation, and private state exposure. These deterministic families are
 quarantine scaffolding on the road to model-authored Imagination, but they are
 no longer operator-authored shell details.
 
@@ -314,6 +316,20 @@ carried mode `checklist-note`, safe family `repo.checklist_note`,
 `privateStateExposed=false`; Hands created a branch-local commit containing
 `notes/epiphany-work/<item>-checklist.md` with the accepted pressure summary,
 candidate/public refs, branch-local checklist items, and authority seal.
+
+The next safe-family smoke proved bounded managed-section cargo:
+`.epiphany-smoke\section-note-20260620-124416` ran accept ->
+`derive-plan --action-family section-note --target-path
+notes/epiphany-work/section-note-managed.md --model-ref smoke-imagination-v0
+--model-authored` -> tick pulses through run, adopt, execute, and close. The
+plan receipt carried mode `section-note`, safe family
+`repo.markdown_managed_section`, `modelAuthored=true`,
+`operatorAuthoredShellDetails=false`, and `privateStateExposed=false`; Hands
+created a branch-local commit containing a single markdown section bounded by
+`<!-- epiphany-section:section-note-request:start -->` and
+`<!-- epiphany-section:section-note-request:end -->`; final overview reported
+`awaiting-publication`, blocker `bifrost-publication-missing`, Soul verdict
+`passed`, and commit `cce53ae6bd86da51fc8651780743fa861e6ca225`.
 
 ### Landed Work Run Gate
 
@@ -948,7 +964,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, and `checklist-note`. `plan` remains manual quarantine scaffolding. | Broaden model-authored action items to richer safe families without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, and `section-note` / `repo.markdown_managed_section`. `plan` remains manual quarantine scaffolding. | Broaden model-authored action items to richer safe families without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Add richer safe-family depth next; keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
@@ -1113,7 +1129,7 @@ The chain is typed and sealed enough to be useful:
 - `epiphany-work derive-plan` records the first deterministic
   Persona/Bifrost-to-plan bridge: accepted pressure becomes a safe allowlisted
   action plan with `operatorAuthoredShellDetails=false`. Current families are
-  `append-worklog`, `planning-note`, and `checklist-note`.
+  `append-worklog`, `planning-note`, `checklist-note`, and `section-note`.
 - `epiphany-work plan` records a manual typed Imagination/Self action plan:
   objective, command, changed paths, commit message, verification asks, stop
   conditions, and rollback hints. It remains a compatibility reliquary until

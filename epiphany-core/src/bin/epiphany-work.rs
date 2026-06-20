@@ -1836,8 +1836,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "append-worklog" => derive_append_worklog_plan(input, &action_family),
         "planning-note" => derive_planning_note_plan(input, &action_family),
         "checklist-note" => derive_checklist_note_plan(input, &action_family),
+        "section-note" | "markdown-section" | "section-update" => {
+            derive_section_note_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, and checklist-note"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, and section-note"
         )),
     }
 }
@@ -1982,6 +1985,81 @@ fn derive_checklist_note_plan(
             "Remove the generated checklist note if the accepted pressure was misinterpreted.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.checklist_note"),
+    })
+}
+
+fn derive_section_note_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!("notes/epiphany-work/{item_slug}-section.md");
+    let target_path = validate_markdown_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let section_name = format!("epiphany:{item_slug}");
+    let start_marker = format!("<!-- epiphany-section:{item_slug}:start -->");
+    let end_marker = format!("<!-- epiphany-section:{item_slug}:end -->");
+    let lines = vec![
+        start_marker.clone(),
+        format!("## Epiphany Managed Section: {}", compact_line(input.item)),
+        String::new(),
+        format!(
+            "- Updated: {}",
+            Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        ),
+        format!("- Source: {}", compact_line(input.source)),
+        format!("- Summary: {}", compact_line(input.summary)),
+        format!("- Candidate action refs: {}", compact_join(&candidate_refs)),
+        format!("- Public discussion refs: {}", compact_join(&public_refs)),
+        String::new(),
+        "### Proposed Branch-Local Consequence".to_string(),
+        String::new(),
+        "- Convert the accepted pressure into a bounded repo-local documentation section."
+            .to_string(),
+        "- Preserve the section markers so later Imagination passes update this same surface instead of appending duplicate state.".to_string(),
+        "- Escalate if the work requires code mutation, publication, merge, service lifecycle, elevation, or cross-repo authority.".to_string(),
+        String::new(),
+        "### Verification".to_string(),
+        String::new(),
+        "- Soul verifies only the declared markdown path changed.".to_string(),
+        "- Soul verifies the managed section contains the accepted pressure summary and both Epiphany section markers.".to_string(),
+        String::new(),
+        "### Authority".to_string(),
+        String::new(),
+        "- Safe action family: section-note".to_string(),
+        "- Section id: ".to_string() + &section_name,
+        "- Authority seal: this is branch-local documentation cargo, not durable Mind admission or publication.".to_string(),
+        end_marker.clone(),
+        String::new(),
+    ];
+    let command = powershell_replace_managed_section_command(
+        &target_path,
+        &start_marker,
+        &end_marker,
+        &lines,
+    );
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.markdown_managed_section".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a bounded managed markdown section from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Update managed section for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the managed markdown section path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies both Epiphany section markers are present so later runs update the same bounded section.".to_string(),
+            "Soul verifies no paths outside the declared markdown section target changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the managed section between its Epiphany markers if the accepted pressure was misinterpreted.".to_string(),
+            "Restore the prior marked section from git if a later section update regressed the note.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.markdown_managed_section"),
     })
 }
 
@@ -5130,6 +5208,21 @@ fn validate_plan_target_path(path: &str) -> Result<String> {
     Ok(normalized)
 }
 
+fn validate_markdown_target_path(path: &str) -> Result<String> {
+    let normalized = validate_plan_target_path(path)?;
+    if !normalized
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .ends_with(".md")
+    {
+        return Err(anyhow!(
+            "managed section target path {normalized:?} must be a markdown file"
+        ));
+    }
+    Ok(normalized)
+}
+
 fn normalize_action_family(value: &str) -> Result<String> {
     let normalized = value.trim().to_ascii_lowercase().replace('_', "-");
     if normalized.is_empty() {
@@ -5183,6 +5276,29 @@ fn powershell_append_lines_command(target_path: &str, lines: &[String]) -> Strin
         )
     }));
     commands.join("; ")
+}
+
+fn powershell_replace_managed_section_command(
+    target_path: &str,
+    start_marker: &str,
+    end_marker: &str,
+    lines: &[String],
+) -> String {
+    let section = lines.join("\n");
+    [
+        format!("$p = {}", powershell_single_quoted(target_path)),
+        "$d = Split-Path -Parent $p".to_string(),
+        "if ($d) { New-Item -ItemType Directory -Force -Path $d | Out-Null }".to_string(),
+        format!("$start = {}", powershell_single_quoted(start_marker)),
+        format!("$end = {}", powershell_single_quoted(end_marker)),
+        format!("$section = {}", powershell_single_quoted(&section)),
+        "if (Test-Path -LiteralPath $p) { $content = Get-Content -LiteralPath $p -Raw } else { $content = '' }".to_string(),
+        "$pattern = '(?s)' + [regex]::Escape($start) + '.*?' + [regex]::Escape($end)"
+            .to_string(),
+        "if ($content -match $pattern) { $content = [regex]::Replace($content, $pattern, $section.Replace('$', '$$')) } elseif ($content.Trim().Length -gt 0) { $content = $content.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine + $section } else { $content = $section }".to_string(),
+        "Set-Content -LiteralPath $p -Value $content".to_string(),
+    ]
+    .join("; ")
 }
 
 fn normalize_path_for_receipt(path: &Path) -> String {
@@ -5464,7 +5580,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
