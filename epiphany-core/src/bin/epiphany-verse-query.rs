@@ -4083,6 +4083,8 @@ struct SwarmOverviewReport {
     repo_work_map_branch_lens_tui_rows: Vec<String>,
     repo_work_map_stage_lens_rows: Vec<RepoWorkMapStageLensRow>,
     repo_work_map_stage_lens_tui_rows: Vec<String>,
+    repo_work_map_gate_lens_rows: Vec<RepoWorkMapGateLensRow>,
+    repo_work_map_gate_lens_tui_rows: Vec<String>,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
@@ -4196,6 +4198,22 @@ struct RepoWorkMapStageLensRow {
     latest_commit_sha: String,
     latest_mind_state_commit_receipt_id: String,
     publication_gate: String,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkMapGateLensRow {
+    publication_gate: String,
+    owner: String,
+    item_count: usize,
+    changed_path_count: usize,
+    stages: Vec<String>,
+    safe_action_families: Vec<String>,
+    latest_item: String,
+    latest_commit_sha: String,
+    latest_mind_state_commit_receipt_id: String,
+    sight_only: bool,
     private_state_exposed: bool,
 }
 
@@ -4334,6 +4352,9 @@ struct SwarmOverviewOutput {
     repo_work_map_stage_lens_count: usize,
     repo_work_map_stage_lens_rows: Vec<RepoWorkMapStageLensRow>,
     repo_work_map_stage_lens_tui_rows: Vec<String>,
+    repo_work_map_gate_lens_count: usize,
+    repo_work_map_gate_lens_rows: Vec<RepoWorkMapGateLensRow>,
+    repo_work_map_gate_lens_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4426,6 +4447,9 @@ impl SwarmOverviewOutput {
             repo_work_map_stage_lens_count: report.repo_work_map_stage_lens_rows.len(),
             repo_work_map_stage_lens_rows: report.repo_work_map_stage_lens_rows,
             repo_work_map_stage_lens_tui_rows: report.repo_work_map_stage_lens_tui_rows,
+            repo_work_map_gate_lens_count: report.repo_work_map_gate_lens_rows.len(),
+            repo_work_map_gate_lens_rows: report.repo_work_map_gate_lens_rows,
+            repo_work_map_gate_lens_tui_rows: report.repo_work_map_gate_lens_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -4510,6 +4534,9 @@ struct SwarmTriageOutput {
     repo_work_map_stage_lens_count: usize,
     repo_work_map_stage_lens_rows: Vec<RepoWorkMapStageLensRow>,
     repo_work_map_stage_lens_tui_rows: Vec<String>,
+    repo_work_map_gate_lens_count: usize,
+    repo_work_map_gate_lens_rows: Vec<RepoWorkMapGateLensRow>,
+    repo_work_map_gate_lens_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4597,6 +4624,9 @@ impl SwarmTriageOutput {
             repo_work_map_stage_lens_count: report.repo_work_map_stage_lens_rows.len(),
             repo_work_map_stage_lens_rows: report.repo_work_map_stage_lens_rows,
             repo_work_map_stage_lens_tui_rows: report.repo_work_map_stage_lens_tui_rows,
+            repo_work_map_gate_lens_count: report.repo_work_map_gate_lens_rows.len(),
+            repo_work_map_gate_lens_rows: report.repo_work_map_gate_lens_rows,
+            repo_work_map_gate_lens_tui_rows: report.repo_work_map_gate_lens_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -5483,6 +5513,87 @@ fn repo_work_map_stage_lens_tui_row(row: &RepoWorkMapStageLensRow) -> String {
         short_commit(&row.latest_commit_sha),
         row.latest_mind_state_commit_receipt_id,
         row.publication_gate,
+        row.private_state_exposed
+    )
+}
+
+fn repo_work_map_gate_lens_rows(
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+) -> (Vec<RepoWorkMapGateLensRow>, Vec<String>) {
+    let mut by_gate = BTreeMap::<String, RepoWorkMapGateLensRow>::new();
+    for entry in repo_work_map_entries {
+        let gate = entry.publication_gate.clone();
+        let row = by_gate
+            .entry(gate.clone())
+            .or_insert_with(|| RepoWorkMapGateLensRow {
+                publication_gate: gate.clone(),
+                owner: repo_work_gate_owner(&gate),
+                item_count: 0,
+                changed_path_count: 0,
+                stages: Vec::new(),
+                safe_action_families: Vec::new(),
+                latest_item: String::new(),
+                latest_commit_sha: String::new(),
+                latest_mind_state_commit_receipt_id: String::new(),
+                sight_only: true,
+                private_state_exposed: false,
+            });
+        let (stage, _) = repo_work_stage_for_family(&entry.safe_action_family);
+        row.item_count += 1;
+        row.changed_path_count += entry.changed_paths.len();
+        if !row.stages.iter().any(|candidate| candidate == &stage) {
+            row.stages.push(stage);
+            row.stages.sort();
+        }
+        if !row
+            .safe_action_families
+            .iter()
+            .any(|family| family == &entry.safe_action_family)
+        {
+            row.safe_action_families
+                .push(entry.safe_action_family.clone());
+            row.safe_action_families.sort();
+        }
+        row.private_state_exposed |= entry.private_state_exposed;
+        if row.latest_item.is_empty() {
+            row.latest_item = entry.item.clone();
+            row.latest_commit_sha = entry.commit_sha.clone();
+            row.latest_mind_state_commit_receipt_id = entry.mind_state_commit_receipt_id.clone();
+        }
+    }
+    let rows = by_gate.into_values().collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_map_gate_lens_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_gate_owner(publication_gate: &str) -> String {
+    match publication_gate {
+        "Bifrost" => "Bifrost",
+        "Maintainer" => "Maintainer",
+        "Idunn" => "Idunn",
+        "Mind" => "Mind",
+        "Soul" => "Soul",
+        _ => "Unknown",
+    }
+    .to_string()
+}
+
+fn repo_work_map_gate_lens_tui_row(row: &RepoWorkMapGateLensRow) -> String {
+    format!(
+        "REPO-WORK-MAP-GATE | gate={} | owner={} | items={} | paths={} | stages={} | families={} | latestItem={} | latestCommit={} | latestMind={} | sightOnly={} | private={}",
+        row.publication_gate,
+        row.owner,
+        row.item_count,
+        row.changed_path_count,
+        row.stages.join(","),
+        row.safe_action_families.join(","),
+        row.latest_item,
+        short_commit(&row.latest_commit_sha),
+        row.latest_mind_state_commit_receipt_id,
+        row.sight_only,
         row.private_state_exposed
     )
 }
@@ -6396,6 +6507,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_branch_lens_rows(&repo_work_map_entries);
     let (repo_work_map_stage_lens_rows, repo_work_map_stage_lens_tui_rows) =
         repo_work_map_stage_lens_rows(&repo_work_map_entries);
+    let (repo_work_map_gate_lens_rows, repo_work_map_gate_lens_tui_rows) =
+        repo_work_map_gate_lens_rows(&repo_work_map_entries);
     let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
         repo_work_public_proof_rows(&repo_work_public_proofs);
     let (idunn_deployment_receipt_rows, idunn_deployment_receipt_tui_rows) =
@@ -6435,6 +6548,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_map_stage_lens_rows
+            .iter()
+            .any(|row| row.private_state_exposed)
+        || repo_work_map_gate_lens_rows
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_public_proofs
@@ -6503,6 +6619,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_branch_lens_tui_rows,
         repo_work_map_stage_lens_rows,
         repo_work_map_stage_lens_tui_rows,
+        repo_work_map_gate_lens_rows,
+        repo_work_map_gate_lens_tui_rows,
         repo_work_overview_rows,
         repo_work_overview_tui_rows,
         repo_work_public_proof_rows,

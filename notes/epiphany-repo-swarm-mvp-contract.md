@@ -1338,6 +1338,17 @@ the same Mind-admitted map entries, grouping safe families into stages such as
 `privateStateExposed=false`. This is semantic sight only; it does not schedule,
 publish, merge, deploy, keep daemons alive, or admit Mind state.
 
+The next gate lens names who owns the publication gate without turning Gjallar
+into that owner: `.epiphany-smoke\repo-close-mind-adoption-guard-20260620-233353`
+proves Gjallar now derives `repoWorkMapGateLensRows` and
+`REPO-WORK-MAP-GATE` TUI rows from Mind-admitted map entries. The proof row for
+the accepted planning-note work reports `gate=Bifrost`, `owner=Bifrost`,
+`sightOnly=true`, latest item/commit/Mind commit receipt, and
+`privateStateExposed=false`; the smoke summary reports
+`gjallarRepoWorkMapGateLensCount=1` while `publicationAuthorized=false`. This
+is next-gate sight only. Bifrost still owns publication/credit/upstream gates,
+and Gjallar does not schedule, publish, merge, deploy, or admit state.
+
 `epiphany-work overview` is the first compact repo work sight/proof surface:
 
 ```powershell
