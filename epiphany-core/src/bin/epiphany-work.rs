@@ -1883,8 +1883,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-consensus-brief" | "consensus-brief" | "imagination-consensus" => {
             derive_repo_consensus_brief_plan(input, &action_family)
         }
+        "repo-objective-draft" | "objective-draft" | "imagination-objective" => {
+            derive_repo_objective_draft_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, and repo-consensus-brief"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, and repo-objective-draft"
         )),
     }
 }
@@ -2724,6 +2727,125 @@ fn derive_repo_consensus_brief_plan(
     })
 }
 
+fn derive_repo_objective_draft_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/objective-drafts/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let draft_id = format!("repo-objective:{item_slug}");
+    let lines = vec![
+        "# Epiphany repo Objective Draft.".to_string(),
+        "# Branch-local Imagination cargo; not an adopted objective or Hands command."
+            .to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_objective_draft.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.objective_draft")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[draft]".to_string(),
+        format!("id = {}", toml_basic_string(&draft_id)),
+        "status = \"review-required\"".to_string(),
+        "owner = \"Imagination\"".to_string(),
+        "adoption_gate = \"Mind\"".to_string(),
+        "scheduler_gate = \"Self\"".to_string(),
+        "publication_gate = \"Bifrost\"".to_string(),
+        "objective_adopted = false".to_string(),
+        String::new(),
+        "[objective]".to_string(),
+        format!("title = {}", toml_basic_string(&compact_line(input.item))),
+        format!("statement = {}", toml_basic_string(&compact_line(input.summary))),
+        "scope = \"repo-local branch work proposal\"".to_string(),
+        "preferred_next_safe_family = \"repo.task_card\"".to_string(),
+        String::new(),
+        "[acceptance]".to_string(),
+        "criteria = [".to_string(),
+        "  \"Mind explicitly accepts or rejects this Objective Draft before Self schedules it.\",".to_string(),
+        "  \"Self schedules only after Mind adoption and a safe-family action plan exist.\",".to_string(),
+        "  \"Hands acts only through a later receipt-backed plan and declared path scope.\",".to_string(),
+        "  \"Bifrost gates publication, credit, and upstream-main sync.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[inputs]".to_string(),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        "consensus_brief_required = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "objective_adoption_authorized = false".to_string(),
+        "self_scheduling_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the Objective Draft path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the draft is review-required and not adopted.\",".to_string(),
+        "  \"Soul verifies no paths outside the declared Objective Draft changed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the Objective Draft if the consensus was misderived.\"]".to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.objective_draft".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo Objective Draft from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add Objective Draft for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo Objective Draft path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the draft remains review-required, unadopted, and gated by Mind/Self/Bifrost before consequence.".to_string(),
+            "Soul verifies no paths outside the declared Objective Draft changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated Objective Draft if the consensus was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.objective_draft"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -3155,6 +3277,77 @@ fn closure_family_assertions(
                 "consensus-brief-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed consensus brief preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.objective_draft" => {
+            push_assertion(
+                &mut assertions,
+                "objective-draft-schema-present",
+                content.contains("schema_version = \"epiphany.repo_objective_draft.v0\""),
+                "Committed Objective Draft carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "objective-draft-family-present",
+                content.contains("safe_action_family = \"repo.objective_draft\""),
+                "Committed Objective Draft carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "objective-draft-summary-present",
+                content.contains(&compact_summary),
+                "Committed Objective Draft contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "objective-draft-review-state",
+                content.contains("[draft]")
+                    && content.contains("status = \"review-required\"")
+                    && content.contains("adoption_gate = \"Mind\"")
+                    && content.contains("scheduler_gate = \"Self\"")
+                    && content.contains("publication_gate = \"Bifrost\"")
+                    && content.contains("objective_adopted = false"),
+                "Committed Objective Draft remains review-required and unadopted.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "objective-draft-acceptance-criteria",
+                content.contains("[acceptance]")
+                    && content.contains("Mind explicitly accepts or rejects")
+                    && content.contains("Self schedules only after Mind adoption")
+                    && content.contains("Hands acts only through a later receipt-backed plan")
+                    && content.contains("Bifrost gates publication"),
+                "Committed Objective Draft names acceptance criteria and downstream gates."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "objective-draft-inputs-present",
+                content.contains("[inputs]")
+                    && content.contains("public_discussion_refs = [")
+                    && content.contains("candidate_action_refs = [")
+                    && content.contains("consensus_brief_required = true"),
+                "Committed Objective Draft preserves discussion/action refs and requires consensus."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "objective-draft-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("objective_adoption_authorized = false")
+                    && content.contains("self_scheduling_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("mind_adoption_required = true")
+                    && content.contains("bifrost_publication_required = true"),
+                "Committed Objective Draft denies adoption/scheduling/action/publication/cross-body authority and requires Mind/Bifrost gates.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "objective-draft-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed Objective Draft preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -7005,7 +7198,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
