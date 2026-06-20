@@ -1889,8 +1889,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-adoption-request" | "adoption-request" | "mind-adoption-request" => {
             derive_repo_adoption_request_plan(input, &action_family)
         }
+        "repo-scheduling-request" | "scheduling-request" | "self-scheduling-request" => {
+            derive_repo_scheduling_request_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, and repo-adoption-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, and repo-scheduling-request"
         )),
     }
 }
@@ -2965,6 +2968,127 @@ fn derive_repo_adoption_request_plan(
     })
 }
 
+fn derive_repo_scheduling_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/scheduling-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-scheduling-request:{item_slug}");
+    let objective_draft_ref = format!(".epiphany/objective-drafts/{item_slug}.toml");
+    let adoption_request_ref = format!(".epiphany/adoption-requests/{item_slug}.toml");
+    let lines = vec![
+        "# Epiphany repo scheduling request.".to_string(),
+        "# Branch-local Self queue cargo; inert until Mind adoption receipts exist.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_scheduling_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.scheduling_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        "status = \"awaiting-mind-adoption\"".to_string(),
+        "requested_scheduler = \"Self\"".to_string(),
+        format!(
+            "objective_draft_ref = {}",
+            toml_basic_string(&objective_draft_ref)
+        ),
+        format!(
+            "adoption_request_ref = {}",
+            toml_basic_string(&adoption_request_ref)
+        ),
+        "mind_adoption_receipt_required = true".to_string(),
+        "self_may_schedule_after_mind_only = true".to_string(),
+        "queue_run_allowed_after_adoption = true".to_string(),
+        String::new(),
+        "[queue]".to_string(),
+        "target_gate = \"repo-work-queue\"".to_string(),
+        "preferred_next_safe_family = \"repo.task_card\"".to_string(),
+        "max_items_per_pulse = 1".to_string(),
+        "requires_epiphany_branch = true".to_string(),
+        "publish_blocker = \"bifrost-publication-missing\"".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "mind_review = \"epiphany.mind.gateway_review\"".to_string(),
+        "mind_commit = \"epiphany.mind.state_commit_receipt\"".to_string(),
+        "expected_self_receipt = \"epiphany.repo_work_queue_selection.v0\"".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "self_scheduling_authorized = false".to_string(),
+        "queue_mutation_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the scheduling request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request awaits Mind adoption before Self may schedule.\",".to_string(),
+        "  \"Soul verifies the request grants no queue mutation, Hands action, publication, or cross-body authority.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the scheduling request if Mind has not adopted the Objective Draft.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.scheduling_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a Self scheduling request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add scheduling request for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo scheduling request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request awaits Mind adoption and does not authorize queue mutation, Hands action, publication, or cross-body mutation.".to_string(),
+            "Soul verifies no paths outside the declared scheduling request changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated scheduling request if the Objective Draft is not adopted by Mind.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.scheduling_request"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -3539,6 +3663,78 @@ fn closure_family_assertions(
                 "adoption-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed adoption request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.scheduling_request" => {
+            push_assertion(
+                &mut assertions,
+                "scheduling-request-schema-present",
+                content.contains("schema_version = \"epiphany.repo_scheduling_request.v0\""),
+                "Committed scheduling request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "scheduling-request-family-present",
+                content.contains("safe_action_family = \"repo.scheduling_request\""),
+                "Committed scheduling request carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "scheduling-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed scheduling request contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "scheduling-request-awaits-mind-adoption",
+                content.contains("[request]")
+                    && content.contains("status = \"awaiting-mind-adoption\"")
+                    && content.contains("requested_scheduler = \"Self\"")
+                    && content.contains("mind_adoption_receipt_required = true")
+                    && content.contains("self_may_schedule_after_mind_only = true")
+                    && content.contains("queue_run_allowed_after_adoption = true"),
+                "Committed scheduling request waits for Mind adoption before Self queue consequence.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "scheduling-request-queue-contract",
+                content.contains("[queue]")
+                    && content.contains("target_gate = \"repo-work-queue\"")
+                    && content.contains("preferred_next_safe_family = \"repo.task_card\"")
+                    && content.contains("max_items_per_pulse = 1")
+                    && content.contains("requires_epiphany_branch = true")
+                    && content.contains("publish_blocker = \"bifrost-publication-missing\""),
+                "Committed scheduling request names a bounded queue pulse contract.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "scheduling-request-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains("mind_review = \"epiphany.mind.gateway_review\"")
+                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
+                    && content.contains(
+                        "expected_self_receipt = \"epiphany.repo_work_queue_selection.v0\"",
+                    ),
+                "Committed scheduling request requires Mind receipts and names the later Self receipt.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "scheduling-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("self_scheduling_authorized = false")
+                    && content.contains("queue_mutation_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("mind_adoption_required = true")
+                    && content.contains("bifrost_publication_required = true"),
+                "Committed scheduling request denies scheduling/queue/action/publication/cross-body authority and requires Mind/Bifrost gates.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "scheduling-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed scheduling request preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -7389,7 +7585,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
