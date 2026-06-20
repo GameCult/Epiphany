@@ -827,7 +827,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` deterministically creates allowlisted `append-worklog` and `planning-note` plans; `plan` remains manual quarantine scaffolding. | Replace deterministic templates with model-authored, typed Imagination action items for richer safe command families. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog` and `planning-note`. `plan` remains manual quarantine scaffolding. | Broaden model-authored action items to richer safe families without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `repo-work-service-plan` and `repo-work-service-runbook` now write Idunn lifecycle receipts/artifacts for that same queue-run command without launching it. | Add model-authored action-item depth next; keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
@@ -858,10 +858,14 @@ Build the remaining MVP in this order:
    is landed: `epiphany-work persona-intake` routes work-shaped speech through
    the Persona bubble speech-audit path, records public discussion refs and
    candidate action refs, then delegates to `accept`; wrapper mode
-   `repo-persona-intake` exposes the operator surface. The remaining cut is for
-   Imagination to emit typed action-item receipts with allowed safe families,
-   requested paths, verification asks, stop conditions, and escalation reasons.
-   Banter remains banter unless Mind/Interpreter extracts a work candidate.
+   `repo-persona-intake` exposes the operator surface. `derive-plan` now emits
+   typed Imagination action-item receipts with allowed safe families, requested
+   paths, verification asks, stop conditions, escalation reasons, model
+   provenance, and no Hands/publication/durable-state authority before it
+   lowers the chosen safe family into a plan receipt. Banter remains banter
+   unless Mind/Interpreter extracts a work candidate. The remaining cut is
+   richer model-authored families and adoption depth, not basic action-item
+   receipt shape.
 3. **Model-authored safe plan families.** Promote `derive-plan` beyond the
    deterministic `append-worklog` and `planning-note` reliquaries by letting
    Imagination author typed plans over allowlisted repo-local families. Shell
@@ -1041,6 +1045,15 @@ The chain is typed and sealed enough to be useful:
   `privateStateExposed=false`. Wrapper:
   `tools/epiphany_local_run.ps1 -Mode repo-persona-intake -RepoWorkItem <id>
   -PersonaInput '<request>'`.
+- `epiphany-work derive-plan` now writes
+  `work-action-items-<item>.json` before `work-plan-<item>.json`. The action
+  items receipt is owned by Imagination, routed by Self, gated by Mind, and
+  carries model provenance, safe action family, requested paths, verification
+  asks, stop conditions, escalation reasons, rollback hints, public/candidate
+  refs, and `operatorAuthoredShellDetails=false`. The plan receipt cites that
+  action-item receipt in its derivation. Hands command text remains lowered
+  through allowlisted safe families; the action item is not publication, merge,
+  durable Mind admission, service lifecycle, elevation, or cross-repo authority.
 
 The scar is equally important: this is still an operator-started cadence loop,
 not installed service lifecycle. The operator can prove the scheduler breathes,
@@ -1068,10 +1081,12 @@ Required organs before MVP:
   the close gate and any later Idunn service launch/install under explicit
   operator authority.
 - Persona-to-plan depth: deterministic `append-worklog` and `planning-note`
-  derivations exist for accepted Persona/Bifrost pressure, and
-  `persona-intake` now gives the project Persona a speech-audited mouth into
-  that pressure stream. Remaining work is model-authored Imagination planning
-  for richer action classes without operator shell details.
+  derivations exist for accepted Persona/Bifrost pressure,
+  `persona-intake` gives the project Persona a speech-audited mouth into that
+  pressure stream, and `derive-plan` now writes typed Imagination action-item
+  receipts before safe-family command lowering. Remaining work is richer
+  model-authored action classes and adoption depth without operator shell
+  details.
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.

@@ -154,6 +154,11 @@ struct DerivePlanArgs {
     target_path: Option<String>,
     action_family: String,
     model_ref: Option<String>,
+    model_authored: bool,
+    action_summary: Option<String>,
+    verification_asks: Vec<String>,
+    stop_conditions: Vec<String>,
+    escalation_reasons: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -535,6 +540,11 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
     let mut target_path = None;
     let mut action_family = "append-worklog".to_string();
     let mut model_ref = None;
+    let mut model_authored = false;
+    let mut action_summary = None;
+    let mut verification_asks = Vec::new();
+    let mut stop_conditions = Vec::new();
+    let mut escalation_reasons = Vec::new();
 
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
@@ -552,6 +562,19 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
             "--model-ref" | "--imagination-ref" => {
                 model_ref = Some(take_string(&mut args, "--model-ref")?);
             }
+            "--model-authored" => model_authored = true,
+            "--action-summary" | "--action-item-summary" => {
+                action_summary = Some(take_string(&mut args, "--action-summary")?);
+            }
+            "--verification-ask" => {
+                verification_asks.push(take_string(&mut args, "--verification-ask")?);
+            }
+            "--stop-condition" => {
+                stop_conditions.push(take_string(&mut args, "--stop-condition")?);
+            }
+            "--escalation-reason" => {
+                escalation_reasons.push(take_string(&mut args, "--escalation-reason")?);
+            }
             other => return Err(anyhow!("unexpected derive-plan argument {other:?}")),
         }
     }
@@ -563,6 +586,11 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
         target_path,
         action_family,
         model_ref,
+        model_authored,
+        action_summary,
+        verification_asks,
+        stop_conditions,
+        escalation_reasons,
     })
 }
 
@@ -1629,6 +1657,7 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
         evidence_refs.push(format!("imagination-consensus:{consensus_id}"));
     }
     let model_ref = args.model_ref;
+    let model_authored = args.model_authored || model_ref.is_some();
     if let Some(model_ref) = model_ref.as_ref() {
         evidence_refs.push(format!("imagination-model:{model_ref}"));
     } else {
@@ -1637,7 +1666,7 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
             normalize_action_family(&args.action_family)?
         ));
     }
-    let derived_plan = derive_safe_plan_family(DeriveSafePlanInput {
+    let mut derived_plan = derive_safe_plan_family(DeriveSafePlanInput {
         action_family: &args.action_family,
         target_path: args.target_path.as_deref(),
         item: &item,
@@ -1646,6 +1675,65 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
         accept_receipt: &accept_receipt,
         model_ref: model_ref.as_deref(),
     })?;
+    let action_verification_asks = if args.verification_asks.is_empty() {
+        derived_plan.verification_asks.clone()
+    } else {
+        args.verification_asks
+    };
+    let action_stop_conditions = if args.stop_conditions.is_empty() {
+        vec![
+            "Stop if the command exits nonzero or changes paths outside the derived plan."
+                .to_string(),
+        ]
+    } else {
+        args.stop_conditions
+    };
+    let action_escalation_reasons = if args.escalation_reasons.is_empty() {
+        vec![
+            "Escalate if the accepted pressure requires paths outside the requested safe family."
+                .to_string(),
+            "Escalate if the work needs publication, merge, service lifecycle, elevation, or cross-repo authority.".to_string(),
+        ]
+    } else {
+        args.escalation_reasons
+    };
+    let action_item_summary = args
+        .action_summary
+        .unwrap_or_else(|| derived_plan.plan_summary.clone());
+    let action_items = write_imagination_action_items_receipt(
+        &artifact_dir,
+        &workspace,
+        &accept_receipt_path,
+        &accept_receipt,
+        ImaginationActionItemReceiptInputs {
+            item: &item,
+            source,
+            summary,
+            derive_plan_mode: &normalize_action_family(&args.action_family)?,
+            safe_action_family: &derived_plan.safe_action_family,
+            requested_paths: vec![derived_plan.target_path.clone()],
+            action_summary: &action_item_summary,
+            verification_asks: action_verification_asks.clone(),
+            stop_conditions: action_stop_conditions.clone(),
+            escalation_reasons: action_escalation_reasons,
+            rollback_hints: derived_plan.rollback_hints.clone(),
+            model_ref: model_ref.as_deref(),
+            model_authored,
+        },
+    )?;
+    let action_items_receipt_id = string_from_json(&action_items, &["receiptId"])
+        .unwrap_or_else(|| format!("repo-work-action-items-{}", sanitize(&item)));
+    evidence_refs.push(format!(
+        "imagination-action-items:{action_items_receipt_id}"
+    ));
+    derived_plan.derivation["actionItemReceipt"] = json!({
+        "receiptId": action_items_receipt_id,
+        "receiptPath": action_items["receiptPath"],
+        "schemaVersion": action_items["schemaVersion"],
+        "status": action_items["status"],
+        "modelAuthored": model_authored,
+        "safeActionFamily": derived_plan.safe_action_family,
+    });
 
     write_plan_receipt(
         workspace,
@@ -1659,11 +1747,8 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
             changed_paths: vec![derived_plan.target_path.clone()],
             commit_message: derived_plan.commit_message,
             adoption_evidence_refs: evidence_refs,
-            verification_asks: derived_plan.verification_asks,
-            stop_conditions: vec![
-                "Stop if the command exits nonzero or changes paths outside the derived plan."
-                    .to_string(),
-            ],
+            verification_asks: action_verification_asks,
+            stop_conditions: action_stop_conditions,
             rollback_hints: derived_plan.rollback_hints,
             derivation: Some(derived_plan.derivation),
         },
@@ -1681,6 +1766,7 @@ struct DeriveSafePlanInput<'a> {
 }
 
 struct DerivedSafePlan {
+    safe_action_family: String,
     target_path: String,
     plan_summary: String,
     command: String,
@@ -1719,6 +1805,7 @@ fn derive_append_worklog_plan(
         powershell_single_quoted(&worklog_line)
     );
     Ok(DerivedSafePlan {
+        safe_action_family: "repo.append_worklog".to_string(),
         target_path,
         plan_summary: format!(
             "Imagination derived a safe append-only worklog update from accepted {} pressure.",
@@ -1764,6 +1851,7 @@ fn derive_planning_note_plan(
     ];
     let command = powershell_append_lines_command(&target_path, &lines);
     Ok(DerivedSafePlan {
+        safe_action_family: "repo.markdown_planning_note".to_string(),
         target_path,
         plan_summary: format!(
             "Imagination derived a contained markdown planning note from accepted {} pressure.",
@@ -1807,8 +1895,110 @@ fn plan_derivation_receipt(input: DeriveSafePlanInput<'_>, mode: &str, safe_fami
             "crossRepoMutation": false,
             "privateStateExposed": false
         },
-        "nextUpgrade": "replace deterministic safe families with model-authored Imagination planning over the same receipt contract"
+        "nextUpgrade": "deepen model-authored Imagination action items while keeping Hands command lowering inside allowlisted safe families"
     })
+}
+
+struct ImaginationActionItemReceiptInputs<'a> {
+    item: &'a str,
+    source: &'a str,
+    summary: &'a str,
+    derive_plan_mode: &'a str,
+    safe_action_family: &'a str,
+    requested_paths: Vec<String>,
+    action_summary: &'a str,
+    verification_asks: Vec<String>,
+    stop_conditions: Vec<String>,
+    escalation_reasons: Vec<String>,
+    rollback_hints: Vec<String>,
+    model_ref: Option<&'a str>,
+    model_authored: bool,
+}
+
+fn write_imagination_action_items_receipt(
+    artifact_dir: &Path,
+    workspace: &Path,
+    accept_receipt_path: &Path,
+    accept_receipt: &Value,
+    inputs: ImaginationActionItemReceiptInputs<'_>,
+) -> Result<Value> {
+    if inputs.requested_paths.is_empty() {
+        return Err(anyhow!(
+            "Imagination action-item receipts require at least one requested path"
+        ));
+    }
+    let normalized_paths = normalize_paths(inputs.requested_paths.clone());
+    let item_slug = sanitize(inputs.item);
+    let receipt_id = format!("repo-work-action-items-{item_slug}");
+    let action_item_id = format!("{receipt_id}-action-1");
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_work_imagination_action_items_receipt.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "acceptReceiptPath": accept_receipt_path,
+        "receiptId": receipt_id,
+        "item": inputs.item,
+        "status": "proposed-for-self-mind-review",
+        "owner": "Imagination",
+        "router": "Self",
+        "stateGate": "Mind",
+        "inputPressure": {
+            "source": inputs.source,
+            "summary": inputs.summary,
+            "feedbackId": accept_receipt["feedback"]["feedbackId"],
+            "consensusReceiptId": accept_receipt["feedback"]["consensusReceiptId"],
+            "candidateActionRefs": accept_receipt["feedback"]["candidateActionRefs"],
+            "publicDiscussionRefs": accept_receipt["feedback"]["publicDiscussionRefs"]
+        },
+        "model": {
+            "modelAuthored": inputs.model_authored,
+            "modelRef": inputs.model_ref,
+            "deterministicFallback": !inputs.model_authored,
+            "operatorAuthoredShellDetails": false
+        },
+        "actionItems": [{
+            "actionItemId": action_item_id,
+            "status": "candidate",
+            "derivePlanMode": inputs.derive_plan_mode,
+            "safeActionFamily": inputs.safe_action_family,
+            "requestedPaths": normalized_paths,
+            "summary": inputs.action_summary,
+            "intendedConsequence": inputs.action_summary,
+            "verificationAsks": inputs.verification_asks,
+            "stopConditions": inputs.stop_conditions,
+            "escalationReasons": inputs.escalation_reasons,
+            "rollbackHints": inputs.rollback_hints,
+            "handsCommandDerived": false
+        }],
+        "authority": {
+            "handsAuthorityGranted": false,
+            "durableStateAdmitted": false,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthority": false,
+            "crossRepoMutation": false,
+            "privateStateExposed": false,
+            "nextGate": "self.mind.adoption_then_plan_derivation"
+        },
+        "privateStateExposed": false,
+        "nextSafeMove": "Self/Mind may adopt one Imagination action item, then derive a Hands plan through an allowlisted safe family."
+    });
+    let receipt_path = artifact_dir.join(format!("work-action-items-{item_slug}.json"));
+    write_json(&receipt_path, &receipt)?;
+    Ok(json!({
+        "schemaVersion": receipt["schemaVersion"],
+        "status": receipt["status"],
+        "workspace": receipt["workspace"],
+        "receiptPath": receipt_path,
+        "receiptId": receipt["receiptId"],
+        "item": receipt["item"],
+        "actionItems": receipt["actionItems"],
+        "model": receipt["model"],
+        "authority": receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": receipt["nextSafeMove"],
+    }))
 }
 
 fn write_plan_receipt(
@@ -4758,7 +4948,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note] [--target-path <path>] [--model-ref <ref>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
