@@ -837,6 +837,57 @@ temptation wearing clean robes.
 | Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |
 | Global tools | The daemon tool directory exposes globally invokable typed capabilities with host-owned execution receipts. | Ensure any agent can discover and request any authorized daemon-hosted tool through CultMesh without moving execution ownership into the caller. |
 
+### Epiphany Online Cut Order
+
+"Epiphany online" for the repo-swarm MVP means more than `init` plus a healthy
+status display. It means a repo Body can keep lawful work moving through its
+own organs after the operator gives it a project-shaped idea, while the local
+brakes, branch containment, organ ownership, private-state seals, and
+publication gates still bite.
+
+Build the remaining MVP in this order:
+
+1. **Idunn-hosted queue-run lifecycle.** Keep `epiphany-work queue-run` as the
+   Self-owned branch-local pulse, but let Idunn publish the service plan,
+   runbook, audit, and optional elevated installation/start path for that same
+   pulse. The first cut should be non-mutating plan/runbook receipts. Only the
+   operator may grant service mutation. Self must not become the daemon keeper.
+2. **Persona-to-Imagination action items.** Add the repo Persona intake mouth
+   and route work-shaped speech into reviewed candidate actions. Imagination
+   should emit typed action-item receipts with allowed safe families, requested
+   paths, verification asks, stop conditions, and escalation reasons. Banter
+   remains banter unless Mind/Interpreter extracts a work candidate.
+3. **Model-authored safe plan families.** Promote `derive-plan` beyond the
+   deterministic `append-worklog` and `planning-note` reliquaries by letting
+   Imagination author typed plans over allowlisted repo-local families. Shell
+   text should be a derived Hands packet inside a known family, not arbitrary
+   model string cargo wearing a purity seal.
+4. **Repo swarm run front door.** Add `epiphany-swarm run --workspace <repo>
+   --until blocked-or-published` as the operator mouth over the existing
+   queue-run/tick/serve physiology. It should advance one safe receipt-backed
+   step at a time, sleep or ruminate when no lane is lawful, and stop at
+   publication, merge, service, cross-repo, privilege, or ambiguous authority
+   gates.
+5. **Execute-to-close handoff.** Let the scheduler route from branch-local
+   Hands execution into Soul/Modeling/Mind closure when the required execute
+   receipts exist. The closure may be deterministic for mechanical work and
+   model-authored for source-grounded review, but the Mind admission receipt is
+   still the durable-state gate.
+6. **Operator-safe proof bundles.** Package each work item as compact
+   maintainer evidence: item, branch, changed paths, Hands receipts, Soul
+   verdict, Modeling map update, Mind admission, Bifrost/GitHub refs, credit
+   refs, upstream-main sync status, and `privateStateExposed=false`.
+7. **Fresh-repo acceptance proof.** Run the whole chain on a repository that was
+   not hand-prepared by the supervising Codex session. The acceptable final
+   state is an Epiphany branch with real commits, a proof bundle, a publication
+   path, and explicit upstream-main sync proof after maintainer/Bifrost merge
+   authority.
+
+This cut order deliberately does not make Gjallar the whole Verse owner or
+Idunn the work planner. Gjallar reports what can be advertised. Odin discovers
+where surfaces live. Idunn keeps daemon physiology alive. Epiphany becomes
+online when the repo swarm can use those organs without stealing their thrones.
+
 ### Authority Matrix
 
 The MVP succeeds only if each organ keeps its throne small enough to deserve it.
