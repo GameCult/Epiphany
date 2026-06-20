@@ -684,6 +684,115 @@ work through Self, executes through Hands, verifies through Soul, admits state
 through Mind, and publishes reviewed outcomes through Bifrost while private
 state stays sealed.
 
+### Migration Thesis
+
+The migration is not from "agent with scripts" to "agent with more scripts."
+It is from Codex-operated proof rites to an Epiphany-owned repo organism:
+
+```text
+typed Body birth
+  -> local Verse online
+  -> Persona-facing idea intake
+  -> Imagination-authored concrete plan
+  -> Self-owned scheduler physiology
+  -> Substrate Gate scoped access
+  -> Hands branch-local consequence
+  -> Soul verification
+  -> Modeling map update
+  -> Mind state admission
+  -> Gjallar/Eve operator-safe sight
+  -> Bifrost publication and credit
+  -> upstream-main sync proof
+```
+
+The current front doors prove most of that artery in isolated rites. The MVP is
+the point where the artery can run as a repo swarm: the human talks to the
+project Persona, the swarm turns the idea into work, the branch changes under
+typed authority, proof is published without private-state leakage, and upstream
+main is proven rather than assumed.
+
+### MVP Status Board
+
+Use this board to decide whether a new slice belongs in the MVP or is a later
+temptation wearing clean robes.
+
+| Surface | Current status | MVP migration requirement |
+| --- | --- | --- |
+| Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
+| Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
+| Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. | Add a repo Persona intake mouth so humans can talk to the project instead of hand-authoring CLI work items. |
+| Imagination planning | `derive-plan` deterministically creates append-only worklog plans; `plan` remains manual quarantine scaffolding. | Replace operator-authored shell details with model-authored, typed Imagination action items for richer safe command families. |
+| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery. | Wire the same pulse into a usable repo-swarm run surface and optional Idunn-hosted lifecycle without taking Idunn's authority. |
+| Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
+| Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
+| Repo work sight | `overview` emits compact proof rows and mirrors latest `epiphany.cultmesh.repo_work_overview.v0`. | Project queue and multiple-work-item rows through Gjallar/Eve so Persona and peers can see current gate, blocker, and next safe action. |
+| Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
+| Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
+| Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |
+| Global tools | The daemon tool directory exposes globally invokable typed capabilities with host-owned execution receipts. | Ensure any agent can discover and request any authorized daemon-hosted tool through CultMesh without moving execution ownership into the caller. |
+
+### Authority Matrix
+
+The MVP succeeds only if each organ keeps its throne small enough to deserve it.
+
+| Organ or surface | Owns | Does not own |
+| --- | --- | --- |
+| Persona | Public conversation, project-facing speech, social pressure intake. | Durable state, direct repo mutation, publication, daemon lifecycle. |
+| Imagination | Future-shape, concrete action plans, candidate work decomposition. | Shell execution, verification verdicts, state admission. |
+| Self | Scheduling, routing, one-step branch-local advancement, active-turn/cooldown physiology. | Publication, merge, daemon service control, cross-repo mutation. |
+| Substrate Gate | Scoped repo access grants and refusals. | Durable belief, verification truth, public speech. |
+| Hands | Patches, commands, commits, PR receipts within granted branch/path scope. | Claiming correctness, map admission, upstream merge. |
+| Soul | Verification verdicts, regression checks, refusal receipts. | Editing the Body, admitting durable state. |
+| Modeling | Source-grounded map/checkpoint updates after verified consequence. | Acting on the Body, publishing, accepting itself into memory. |
+| Mind | Durable state admission, rejection, and state-commit receipts. | Substrate access, public speech, service survival. |
+| Gjallar | Whole-Verse/operator-safe sight rows over advertised state. | Discovery ownership, service lifecycle, mutation, private-state inspection. |
+| Odin | Discovery, rendezvous, schema and surface awareness. | Provider ownership, daemon survival, repo mutation. |
+| Idunn | Daemon/service lifecycle physiology, runbooks, scheduler service aftercare. | Repo work planning, branch commits, publication. |
+| Bifrost | Publication, credit, ledger, merge/sync authority receipts. | Local branch implementation, private thought, daemon survival. |
+| Eve/CultUI | Interface projection of typed state. | Source of truth or hidden action authority. |
+
+### Tool Availability Doctrine
+
+Every daemon-hosted tool in the local CultMesh network should be available to
+any authorized agent at any time through typed capability discovery, invocation
+intent, and receipt. This is global ergonomics, not global ownership.
+
+The hosting daemon owns execution. The caller owns the request. CultMesh carries
+the capability surface and the receipt trail. If Hands asks Soul to verify, Soul
+still owns the verification receipt. If Persona asks Hands for repo action,
+Hands still owns the action gate. If Self asks Idunn for service health, Idunn
+still owns the service lifecycle proof. This is how the swarm gets wide tool
+reach without turning into one huge permission blob.
+
+For the repo-swarm MVP, global tool sight is complete enough when:
+
+- Gjallar/Odin can list daemon-hosted capabilities with host, operation,
+  authority gate, input contract, receipt contract, Eve surface, and readiness.
+- Any standing agent can submit a typed invocation intent for an authorized
+  capability.
+- The host daemon refuses unavailable, unauthorized, or sick-host requests with
+  typed receipts.
+- Invocation results include compact readbacks for common status tools without
+  opening raw local Verse state or private worker thought.
+- No wrapper, caller, or dashboard becomes the executor merely because it can
+  see the tool.
+
+### Sync To Upstream Main Doctrine
+
+Published work is not complete merely because a branch exists, a PR exists, or
+a publication receipt exists. A repo swarm's public work item reaches the
+upstream-complete state only when:
+
+- Bifrost or maintainer authority records publication/merge permission.
+- The Hands commit being published is known.
+- The configured upstream ref, normally `origin/main`, resolves.
+- Git ancestry proves the Hands commit is contained by upstream main.
+- `epiphany-work sync` writes a receipt with `upstreamMainSynced=true`.
+
+Until that proof exists, the compact gate should say publication or sync is
+still blocking. Do not let cheerful PR-shaped artifacts impersonate mainline
+truth. The Omnissiah can smell stale branches.
+
 ### Current State: The Blessed Chain
 
 The repo swarm can already prove the following chain on a fresh repo Body:

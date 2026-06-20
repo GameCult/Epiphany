@@ -14,6 +14,9 @@ contract docs.
 - `codex-auth-spine-inventory.md`: retained Codex auth/model transport keeper list.
 - `epiphany-fork-implementation-plan.md`: current campaign plan.
 - `epiphany-safety-architecture.md`: capability, autonomy, and governance boundaries.
+- `epiphany-repo-swarm-mvp-contract.md`: repo-swarm autonomy contract and
+  migration plan from current front doors to an MVP that can run Epiphany swarms
+  for repositories.
 
 ## Contract Maps
 
