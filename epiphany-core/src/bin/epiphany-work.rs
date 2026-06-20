@@ -1880,8 +1880,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-collaboration-topic" | "collaboration-topic" | "eve-collaboration" => {
             derive_repo_collaboration_topic_plan(input, &action_family)
         }
+        "repo-consensus-brief" | "consensus-brief" | "imagination-consensus" => {
+            derive_repo_consensus_brief_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, and repo-collaboration-topic"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, and repo-consensus-brief"
         )),
     }
 }
@@ -2601,6 +2604,126 @@ fn derive_repo_collaboration_topic_plan(
     })
 }
 
+fn derive_repo_consensus_brief_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/consensus-briefs/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let brief_id = format!("repo-consensus:{item_slug}");
+    let topic_ref = public_refs
+        .first()
+        .cloned()
+        .unwrap_or_else(|| format!("epiphany-global/persona-collaboration/{item_slug}"));
+    let recommended_family = "repo.task_card";
+    let lines = vec![
+        "# Epiphany repo consensus brief.".to_string(),
+        "# Branch-local Imagination cargo; not objective adoption, Hands authority, or publication."
+            .to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_consensus_brief.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.consensus_brief")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[consensus]".to_string(),
+        format!("id = {}", toml_basic_string(&brief_id)),
+        format!("topic_ref = {}", toml_basic_string(&topic_ref)),
+        "status = \"draft\"".to_string(),
+        "converged = false".to_string(),
+        "conflicts_remaining = true".to_string(),
+        "requires_human_or_persona_review = true".to_string(),
+        format!(
+            "recommended_next_safe_family = {}",
+            toml_basic_string(recommended_family)
+        ),
+        String::new(),
+        "[imagination]".to_string(),
+        "role = \"consensus-discovery\"".to_string(),
+        "candidate_actions_non_authoritative = true".to_string(),
+        "may_emit_action_items_receipt = true".to_string(),
+        "must_preserve_public_refs = true".to_string(),
+        "must_not_read_private_verses = true".to_string(),
+        String::new(),
+        "[inputs]".to_string(),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        "feedback_source = \"Persona public discussion\"".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "objective_adoption_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the consensus brief path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies candidate actions remain non-authoritative and require Mind/Bifrost gates before consequence.\",".to_string(),
+        "  \"Soul verifies no paths outside the declared consensus brief changed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the consensus brief if the public feedback was misderived.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.consensus_brief".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo consensus brief from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add consensus brief for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo consensus brief path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the brief keeps candidate actions non-authoritative and requires Mind/Bifrost gates before consequence.".to_string(),
+            "Soul verifies no paths outside the declared consensus brief changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated consensus brief if the public feedback was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.consensus_brief"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -2964,6 +3087,74 @@ fn closure_family_assertions(
                 "collaboration-topic-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed collaboration topic preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.consensus_brief" => {
+            push_assertion(
+                &mut assertions,
+                "consensus-brief-schema-present",
+                content.contains("schema_version = \"epiphany.repo_consensus_brief.v0\""),
+                "Committed consensus brief carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "consensus-brief-family-present",
+                content.contains("safe_action_family = \"repo.consensus_brief\""),
+                "Committed consensus brief carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "consensus-brief-summary-present",
+                content.contains(&compact_summary),
+                "Committed consensus brief contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "consensus-brief-draft-state",
+                content.contains("[consensus]")
+                    && content.contains("status = \"draft\"")
+                    && content.contains("converged = false")
+                    && content.contains("conflicts_remaining = true")
+                    && content.contains("requires_human_or_persona_review = true"),
+                "Committed consensus brief remains a draft requiring review.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "consensus-brief-imagination-route",
+                content.contains("[imagination]")
+                    && content.contains("role = \"consensus-discovery\"")
+                    && content.contains("candidate_actions_non_authoritative = true")
+                    && content.contains("may_emit_action_items_receipt = true")
+                    && content.contains("must_not_read_private_verses = true"),
+                "Committed consensus brief routes through Imagination without private Verse rummaging.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "consensus-brief-inputs-present",
+                content.contains("[inputs]")
+                    && content.contains("public_discussion_refs = [")
+                    && content.contains("candidate_action_refs = [")
+                    && content.contains("feedback_source = \"Persona public discussion\""),
+                "Committed consensus brief preserves public feedback and candidate-action inputs."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "consensus-brief-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("objective_adoption_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("mind_adoption_required = true")
+                    && content.contains("bifrost_publication_required = true"),
+                "Committed consensus brief denies adoption/action/publication/cross-body authority and requires Mind/Bifrost gates.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "consensus-brief-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed consensus brief preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -6814,7 +7005,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\

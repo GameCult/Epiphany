@@ -270,12 +270,16 @@ execution ownership, Idunn lifecycle ownership, and authority seals; and
 `--action-family repo-collaboration-topic` writes a structured public
 collaboration topic manifest under `.epiphany/collaboration-topics/<item>.toml`
 with public room, Eve surface, Imagination consensus route, non-authoritative
-candidate-action semantics, Mind/Bifrost gates, and authority seals. Its receipt
-includes
+candidate-action semantics, Mind/Bifrost gates, and authority seals; and
+`--action-family repo-consensus-brief` writes a structured Imagination consensus
+brief under `.epiphany/consensus-briefs/<item>.toml`, preserving public
+discussion and candidate-action inputs as draft, non-authoritative consensus
+cargo that requires review plus Mind/Bifrost gates before consequence. Its
+receipt includes
 `epiphany.repo_work_plan_derivation.v0`, mode `append-worklog`,
 `planning-note`, `checklist-note`, `section-note`, `repo-status-section`, or
 `task-card`, `repo-manifest`, `repo-tool-capabilities`, or
-`repo-collaboration-topic`, a
+`repo-collaboration-topic`, or `repo-consensus-brief`, a
 `safeActionFamily`, and an authority seal forbidding
 publication, merge, service lifecycle mutation, cross-repo mutation, and private
 state exposure.
@@ -417,6 +421,20 @@ committed manifest carried `schema_version =
 an Eve surface, an Imagination consensus route, non-authoritative candidate
 action semantics, Mind/Bifrost gates, denied action/publication/cross-body
 authority, and `privateStateExposed=false`.
+
+The next Imagination depth smoke proved consensus brief cargo:
+`.epiphany-smoke\repo-consensus-brief-family-20260620-144212` ran init ->
+online -> accept -> `derive-plan --action-family repo-consensus-brief
+--model-ref repo-consensus-brief-family-smoke-imagination-v1 --model-authored`
+-> tick through run/adopt/execute/close on a fresh repo. The plan carried
+`safeActionFamily=repo.consensus_brief`; Hands committed only
+`.epiphany/consensus-briefs/repo-consensus-brief-family.toml`; Soul passed with
+`pathScopeMatched=true` and `familyAssertions.status=passed`; the committed
+brief carried `schema_version = "epiphany.repo_consensus_brief.v0"`, draft
+consensus state, public discussion refs, candidate action refs,
+`candidate_actions_non_authoritative=true`, Mind/Bifrost gates, denied
+adoption/action/publication/cross-body authority, and
+`privateStateExposed=false`.
 
 ### Landed Work Run Gate
 
@@ -1131,7 +1149,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, and `repo-collaboration-topic` / `repo.collaboration_topic`. `plan` remains manual quarantine scaffolding. | Deepen model-authored planning and further useful repo-owned configuration classes without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-collaboration-topic` / `repo.collaboration_topic`, and `repo-consensus-brief` / `repo.consensus_brief`. `plan` remains manual quarantine scaffolding. | Deepen model-authored planning and further useful repo-owned configuration classes without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, and writes Soul, Modeling, and Mind receipts. | Deepen model-authored closure review beyond the first structured closure-review packet while preserving deterministic local closure for simple mechanical work. |
@@ -1412,6 +1430,9 @@ Required organs before MVP:
   `repo-collaboration-topic` now proves public collaboration cargo with public
   Persona room, Eve surface, Imagination consensus route, non-authoritative
   candidate actions, Mind/Bifrost gates, and denied action/cross-body authority.
+  `repo-consensus-brief` now proves draft Imagination consensus cargo from
+  public discussion and candidate-action refs, still review-gated and
+  non-authoritative before Mind/Bifrost gates.
   Remaining work is later model-authored action classes that can change more
   useful repo-owned configuration without arbitrary shell authority.
 - Closure depth: `close` now writes a structured
