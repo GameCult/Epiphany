@@ -559,6 +559,37 @@ fn run_smoke(args: Args) -> Result<Value> {
             "Gjallar TUI rows did not expose repo map path lens sight"
         ));
     }
+    require_u64(&gjallar, &["repoWorkMapBranchLensCount"], 1)?;
+    let branch_lens_rows = value_at_path(&gjallar, &["repoWorkMapBranchLensRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapBranchLensRows array"))?;
+    let branch_lens_row = branch_lens_rows
+        .iter()
+        .find(|row| {
+            row.get("branch").and_then(Value::as_str)
+                == Some("epiphany/repo-close-mind-adoption-guard")
+        })
+        .ok_or_else(|| anyhow!("Gjallar output had no repo map branch lens row"))?;
+    require_eq_value(branch_lens_row, &["latestItem"], item)?;
+    require_eq_value(
+        branch_lens_row,
+        &["latestMindStateCommitReceiptId"],
+        &map_entry.mind_state_commit_receipt_id,
+    )?;
+    require_bool_value(branch_lens_row, &["privateStateExposed"], false)?;
+    let branch_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapBranchLensTuiRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapBranchLensTuiRows array"))?;
+    if !branch_lens_tui_rows.iter().any(|row| {
+        row.as_str().is_some_and(|row| {
+            row.contains("REPO-WORK-MAP-BRANCH")
+                && row.contains("epiphany/repo-close-mind-adoption-guard")
+        })
+    }) {
+        return Err(anyhow!(
+            "Gjallar TUI rows did not expose repo map branch lens sight"
+        ));
+    }
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_close_mind_adoption_guard_smoke.v0",
@@ -581,6 +612,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "gjallarLatestRepoWorkMapEntry": gjallar["latestRepoWorkMapEntry"],
         "gjallarRepoWorkMapFamilyLensCount": gjallar["repoWorkMapFamilyLensCount"],
         "gjallarRepoWorkMapPathLensCount": gjallar["repoWorkMapPathLensCount"],
+        "gjallarRepoWorkMapBranchLensCount": gjallar["repoWorkMapBranchLensCount"],
         "publicationAuthorized": false,
         "privateStateExposed": false
     });

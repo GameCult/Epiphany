@@ -4073,6 +4073,8 @@ struct SwarmOverviewReport {
     repo_work_map_family_lens_tui_rows: Vec<String>,
     repo_work_map_path_lens_rows: Vec<RepoWorkMapPathLensRow>,
     repo_work_map_path_lens_tui_rows: Vec<String>,
+    repo_work_map_branch_lens_rows: Vec<RepoWorkMapBranchLensRow>,
+    repo_work_map_branch_lens_tui_rows: Vec<String>,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
@@ -4148,6 +4150,20 @@ struct RepoWorkMapFamilyLensRow {
 struct RepoWorkMapPathLensRow {
     path: String,
     item_count: usize,
+    safe_action_families: Vec<String>,
+    latest_item: String,
+    latest_commit_sha: String,
+    latest_mind_state_commit_receipt_id: String,
+    publication_gate: String,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkMapBranchLensRow {
+    branch: String,
+    item_count: usize,
+    changed_path_count: usize,
     safe_action_families: Vec<String>,
     latest_item: String,
     latest_commit_sha: String,
@@ -4267,6 +4283,9 @@ struct SwarmOverviewOutput {
     repo_work_map_path_lens_count: usize,
     repo_work_map_path_lens_rows: Vec<RepoWorkMapPathLensRow>,
     repo_work_map_path_lens_tui_rows: Vec<String>,
+    repo_work_map_branch_lens_count: usize,
+    repo_work_map_branch_lens_rows: Vec<RepoWorkMapBranchLensRow>,
+    repo_work_map_branch_lens_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4348,6 +4367,9 @@ impl SwarmOverviewOutput {
             repo_work_map_path_lens_count: report.repo_work_map_path_lens_rows.len(),
             repo_work_map_path_lens_rows: report.repo_work_map_path_lens_rows,
             repo_work_map_path_lens_tui_rows: report.repo_work_map_path_lens_tui_rows,
+            repo_work_map_branch_lens_count: report.repo_work_map_branch_lens_rows.len(),
+            repo_work_map_branch_lens_rows: report.repo_work_map_branch_lens_rows,
+            repo_work_map_branch_lens_tui_rows: report.repo_work_map_branch_lens_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -4421,6 +4443,9 @@ struct SwarmTriageOutput {
     repo_work_map_path_lens_count: usize,
     repo_work_map_path_lens_rows: Vec<RepoWorkMapPathLensRow>,
     repo_work_map_path_lens_tui_rows: Vec<String>,
+    repo_work_map_branch_lens_count: usize,
+    repo_work_map_branch_lens_rows: Vec<RepoWorkMapBranchLensRow>,
+    repo_work_map_branch_lens_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4497,6 +4522,9 @@ impl SwarmTriageOutput {
             repo_work_map_path_lens_count: report.repo_work_map_path_lens_rows.len(),
             repo_work_map_path_lens_rows: report.repo_work_map_path_lens_rows,
             repo_work_map_path_lens_tui_rows: report.repo_work_map_path_lens_tui_rows,
+            repo_work_map_branch_lens_count: report.repo_work_map_branch_lens_rows.len(),
+            repo_work_map_branch_lens_rows: report.repo_work_map_branch_lens_rows,
+            repo_work_map_branch_lens_tui_rows: report.repo_work_map_branch_lens_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -5200,6 +5228,67 @@ fn repo_work_map_path_lens_tui_row(row: &RepoWorkMapPathLensRow) -> String {
         "REPO-WORK-MAP-PATH | path={} | items={} | families={} | latestItem={} | latestCommit={} | latestMind={} | gate={} | private={}",
         row.path,
         row.item_count,
+        row.safe_action_families.join(","),
+        row.latest_item,
+        short_commit(&row.latest_commit_sha),
+        row.latest_mind_state_commit_receipt_id,
+        row.publication_gate,
+        row.private_state_exposed
+    )
+}
+
+fn repo_work_map_branch_lens_rows(
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+) -> (Vec<RepoWorkMapBranchLensRow>, Vec<String>) {
+    let mut by_branch = BTreeMap::<String, RepoWorkMapBranchLensRow>::new();
+    for entry in repo_work_map_entries {
+        let branch = entry.branch.clone();
+        let row = by_branch
+            .entry(branch.clone())
+            .or_insert_with(|| RepoWorkMapBranchLensRow {
+                branch,
+                item_count: 0,
+                changed_path_count: 0,
+                safe_action_families: Vec::new(),
+                latest_item: String::new(),
+                latest_commit_sha: String::new(),
+                latest_mind_state_commit_receipt_id: String::new(),
+                publication_gate: entry.publication_gate.clone(),
+                private_state_exposed: false,
+            });
+        row.item_count += 1;
+        row.changed_path_count += entry.changed_paths.len();
+        if !row
+            .safe_action_families
+            .iter()
+            .any(|family| family == &entry.safe_action_family)
+        {
+            row.safe_action_families
+                .push(entry.safe_action_family.clone());
+            row.safe_action_families.sort();
+        }
+        row.private_state_exposed |= entry.private_state_exposed;
+        if row.latest_item.is_empty() {
+            row.latest_item = entry.item.clone();
+            row.latest_commit_sha = entry.commit_sha.clone();
+            row.latest_mind_state_commit_receipt_id = entry.mind_state_commit_receipt_id.clone();
+            row.publication_gate = entry.publication_gate.clone();
+        }
+    }
+    let rows = by_branch.into_values().collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_map_branch_lens_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_map_branch_lens_tui_row(row: &RepoWorkMapBranchLensRow) -> String {
+    format!(
+        "REPO-WORK-MAP-BRANCH | branch={} | items={} | paths={} | families={} | latestItem={} | latestCommit={} | latestMind={} | gate={} | private={}",
+        row.branch,
+        row.item_count,
+        row.changed_path_count,
         row.safe_action_families.join(","),
         row.latest_item,
         short_commit(&row.latest_commit_sha),
@@ -6040,6 +6129,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_family_lens_rows(&repo_work_map_entries);
     let (repo_work_map_path_lens_rows, repo_work_map_path_lens_tui_rows) =
         repo_work_map_path_lens_rows(&repo_work_map_entries);
+    let (repo_work_map_branch_lens_rows, repo_work_map_branch_lens_tui_rows) =
+        repo_work_map_branch_lens_rows(&repo_work_map_entries);
     let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
         repo_work_public_proof_rows(&repo_work_public_proofs);
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
@@ -6068,6 +6159,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_map_path_lens_rows
+            .iter()
+            .any(|row| row.private_state_exposed)
+        || repo_work_map_branch_lens_rows
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_public_proofs
@@ -6123,6 +6217,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_family_lens_tui_rows,
         repo_work_map_path_lens_rows,
         repo_work_map_path_lens_tui_rows,
+        repo_work_map_branch_lens_rows,
+        repo_work_map_branch_lens_tui_rows,
         repo_work_overview_rows,
         repo_work_overview_tui_rows,
         repo_work_public_proof_rows,
