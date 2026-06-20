@@ -198,6 +198,7 @@ struct AdoptArgs {
     artifact_dir: Option<PathBuf>,
     plan_summary: Option<String>,
     adoption_evidence_refs: Vec<String>,
+    mind_adoption_rationale: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -662,6 +663,7 @@ fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
     let mut artifact_dir = None;
     let mut plan_summary = None;
     let mut adoption_evidence_refs = Vec::new();
+    let mut mind_adoption_rationale = None;
 
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
@@ -678,6 +680,10 @@ fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
             "--plan-summary" => plan_summary = Some(take_string(&mut args, "--plan-summary")?),
             "--adoption-evidence-ref" | "--evidence-ref" => {
                 adoption_evidence_refs.push(take_string(&mut args, "--adoption-evidence-ref")?);
+            }
+            "--mind-adoption-rationale" | "--adoption-rationale" => {
+                mind_adoption_rationale =
+                    Some(take_string(&mut args, "--mind-adoption-rationale")?);
             }
             other => return Err(anyhow!("unexpected adopt argument {other:?}")),
         }
@@ -698,6 +704,7 @@ fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
         artifact_dir,
         plan_summary,
         adoption_evidence_refs,
+        mind_adoption_rationale,
     })
 }
 
@@ -6678,6 +6685,12 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             queued_review.decision
         ));
     }
+    let item = run_receipt
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let plan_summary = if let Some(summary) = args.plan_summary {
         summary
@@ -6703,6 +6716,75 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         .as_ref()
         .map(adopted_action_item_from_plan)
         .unwrap_or(Value::Null);
+    let action_item_receipt_id = adopted_action_item
+        .get("receiptId")
+        .and_then(Value::as_str)
+        .unwrap_or("manual-plan");
+    let action_item_summary = adopted_action_item
+        .get("summary")
+        .and_then(Value::as_str)
+        .unwrap_or(&plan_summary);
+    let mind_adoption_id = format!("repo-work-mind-adoption-{item_slug}");
+    let mind_adoption_rationale = args.mind_adoption_rationale.unwrap_or_else(|| {
+        format!(
+            "Mind adopted the selected Imagination action item for branch-local Hands work because Self presented explicit adoption evidence and the safe family remains bounded: {}",
+            compact_line(action_item_summary)
+        )
+    });
+    let mind_adoption_decision = json!({
+        "schemaVersion": "epiphany.repo_work_mind_adoption_decision.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "runtimeId": run_receipt["runtimeId"],
+        "runtimeStore": runtime_store,
+        "decisionId": mind_adoption_id,
+        "item": item,
+        "status": "adopted-for-branch-local-hands",
+        "owner": "Mind",
+        "interpreter": "Mind",
+        "router": "Self",
+        "sourcePlanReceiptPath": plan_receipt_path,
+        "sourceRunReceiptPath": run_receipt_path,
+        "adoptedActionItemReceiptId": action_item_receipt_id,
+        "adoptedActionItem": adopted_action_item,
+        "adoptionEvidenceRefs": adoption_evidence_refs,
+        "rationale": mind_adoption_rationale,
+        "gates": {
+            "selfPresentedActionItem": true,
+            "mindReviewedEvidence": true,
+            "safeFamilyRequired": true,
+            "branchLocalOnly": true,
+            "bifrostPublicationRequired": true,
+            "soulClosureRequired": true
+        },
+        "authority": {
+            "durableStateAdmitted": false,
+            "handsAuthorityGranted": false,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthority": false,
+            "crossRepoMutation": false,
+            "privateStateExposed": false,
+            "nextGate": "hands.branch_local_action"
+        },
+        "privateStateExposed": false,
+        "nextSafeMove": "The adoption decision may be cited by the Hands review; it does not itself execute, publish, merge, or mutate durable project state."
+    });
+    let mind_adoption_path = artifact_dir.join(format!("work-mind-adopt-{item_slug}.json"));
+    write_json(&mind_adoption_path, &mind_adoption_decision)?;
+    let reread_mind_adoption = read_json(&mind_adoption_path)?;
+    if reread_mind_adoption["schemaVersion"] != "epiphany.repo_work_mind_adoption_decision.v0" {
+        return Err(anyhow!(
+            "Mind adoption decision {} failed reread schema verification",
+            mind_adoption_path.display()
+        ));
+    }
+    if reread_mind_adoption["privateStateExposed"] != json!(false) {
+        return Err(anyhow!(
+            "Mind adoption decision {} exposed private state",
+            mind_adoption_path.display()
+        ));
+    }
     let mut approved_review = hands_action_review_for_intent(
         review_id.to_string(),
         &intent,
@@ -6729,12 +6811,6 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
     ];
     put_hands_action_review(&runtime_store, &approved_review)?;
 
-    let item = run_receipt
-        .get("item")
-        .and_then(Value::as_str)
-        .unwrap_or("work-item")
-        .to_string();
-    let item_slug = sanitize(&item);
     let adoption_receipt = json!({
         "schemaVersion": "epiphany.repo_work_adoption_receipt.v0",
         "createdAt": now,
@@ -6747,6 +6823,18 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         "status": "approved-for-branch-local-hands-action",
         "planSummary": plan_summary,
         "adoptionEvidenceRefs": adoption_evidence_refs,
+        "mindAdoptionDecision": {
+            "decisionId": mind_adoption_decision["decisionId"],
+            "receiptPath": mind_adoption_path,
+            "schemaVersion": mind_adoption_decision["schemaVersion"],
+            "status": mind_adoption_decision["status"],
+            "owner": mind_adoption_decision["owner"],
+            "interpreter": mind_adoption_decision["interpreter"],
+            "rationale": mind_adoption_decision["rationale"],
+            "gates": mind_adoption_decision["gates"],
+            "authority": mind_adoption_decision["authority"],
+            "privateStateExposed": false
+        },
         "adoptedActionItem": adopted_action_item,
         "handsActionGate": {
             "intentId": intent.intent_id,
@@ -6783,6 +6871,7 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         "runtimeStore": adoption_receipt["runtimeStore"],
         "receiptPath": receipt_path,
         "item": adoption_receipt["item"],
+        "mindAdoptionDecision": adoption_receipt["mindAdoptionDecision"],
         "adoptedActionItem": adoption_receipt["adoptedActionItem"],
         "handsActionGate": adoption_receipt["handsActionGate"],
         "authority": adoption_receipt["authority"],
@@ -8955,6 +9044,9 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 artifact_dir: Some(artifact_dir.clone()),
                 plan_summary: None,
                 adoption_evidence_refs: vec![format!("self.scheduler:repo-work-tick-{item_slug}")],
+                mind_adoption_rationale: Some(format!(
+                    "Mind adopted the scheduler-presented plan for item {item} after Self found a queued run packet and matching Imagination plan receipt."
+                )),
             })?;
             status = "advanced".to_string();
             reason = "adopted queued Hands run packet from typed action plan".to_string();
@@ -10202,7 +10294,7 @@ fn print_usage() {
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-eve-surface|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
-         adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
+         adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
          close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] [--closure-model-ref <ref>] [--model-authored] [--closure-model-verdict passed|failed|needs-work|blocked] [--closure-model-finding <text>] [--require-closure-model-verdict]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\

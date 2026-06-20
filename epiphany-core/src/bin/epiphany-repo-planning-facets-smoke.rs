@@ -294,6 +294,77 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_eq(
         &adoption,
+        &["mindAdoptionDecision", "schemaVersion"],
+        "epiphany.repo_work_mind_adoption_decision.v0",
+    )?;
+    require_eq(
+        &adoption,
+        &["mindAdoptionDecision", "status"],
+        "adopted-for-branch-local-hands",
+    )?;
+    require_eq(&adoption, &["mindAdoptionDecision", "owner"], "Mind")?;
+    require_bool(
+        &adoption,
+        &["mindAdoptionDecision", "gates", "selfPresentedActionItem"],
+        true,
+    )?;
+    require_bool(
+        &adoption,
+        &["mindAdoptionDecision", "gates", "mindReviewedEvidence"],
+        true,
+    )?;
+    require_bool(
+        &adoption,
+        &["mindAdoptionDecision", "gates", "branchLocalOnly"],
+        true,
+    )?;
+    require_bool(
+        &adoption,
+        &["mindAdoptionDecision", "authority", "handsAuthorityGranted"],
+        false,
+    )?;
+    require_bool(
+        &adoption,
+        &["mindAdoptionDecision", "authority", "durableStateAdmitted"],
+        false,
+    )?;
+    require_bool(
+        &adoption,
+        &["mindAdoptionDecision", "authority", "publicationAuthorized"],
+        false,
+    )?;
+    require_bool(
+        &adoption,
+        &[
+            "mindAdoptionDecision",
+            "authority",
+            "serviceLifecycleAuthority",
+        ],
+        false,
+    )?;
+    require_bool(
+        &adoption,
+        &["mindAdoptionDecision", "authority", "privateStateExposed"],
+        false,
+    )?;
+    let mind_adoption_path = value_at_path(&adoption, &["mindAdoptionDecision", "receiptPath"])
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("missing Mind adoption decision receipt path"))?;
+    let mind_adoption = read_json(Path::new(mind_adoption_path))?;
+    require_eq(
+        &mind_adoption,
+        &["schemaVersion"],
+        "epiphany.repo_work_mind_adoption_decision.v0",
+    )?;
+    require_eq(
+        &mind_adoption,
+        &["adoptedActionItem", "safeActionFamily"],
+        "repo.markdown_planning_note",
+    )?;
+    require_text_field(&mind_adoption, &["rationale"], "Mind adopted")?;
+    require_bool(&mind_adoption, &["privateStateExposed"], false)?;
+    require_eq(
+        &adoption,
         &["adoptedActionItem", "safeActionFamily"],
         "repo.markdown_planning_note",
     )?;
@@ -360,6 +431,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "decisionPointsRecorded": true,
         "evidenceNeedsRecorded": true,
         "adoptedActionItemRecorded": true,
+        "mindAdoptionDecisionRecorded": true,
+        "mindDecisionHandsAuthorityGranted": false,
+        "mindDecisionDurableStateAdmitted": false,
         "adoptionFacetsRecorded": true,
         "handsAuthorityGranted": false,
         "durableStateAdmitted": false,
