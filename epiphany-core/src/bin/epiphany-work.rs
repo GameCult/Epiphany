@@ -165,6 +165,12 @@ struct DerivePlanArgs {
     verification_asks: Vec<String>,
     stop_conditions: Vec<String>,
     escalation_reasons: Vec<String>,
+    assumptions: Vec<String>,
+    constraints: Vec<String>,
+    non_goals: Vec<String>,
+    open_questions: Vec<String>,
+    decision_points: Vec<String>,
+    evidence_needs: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -567,6 +573,12 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
     let mut verification_asks = Vec::new();
     let mut stop_conditions = Vec::new();
     let mut escalation_reasons = Vec::new();
+    let mut assumptions = Vec::new();
+    let mut constraints = Vec::new();
+    let mut non_goals = Vec::new();
+    let mut open_questions = Vec::new();
+    let mut decision_points = Vec::new();
+    let mut evidence_needs = Vec::new();
 
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
@@ -597,6 +609,24 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
             "--escalation-reason" => {
                 escalation_reasons.push(take_string(&mut args, "--escalation-reason")?);
             }
+            "--assumption" | "--planning-assumption" => {
+                assumptions.push(take_string(&mut args, "--assumption")?);
+            }
+            "--constraint" | "--planning-constraint" => {
+                constraints.push(take_string(&mut args, "--constraint")?);
+            }
+            "--non-goal" | "--nongoal" => {
+                non_goals.push(take_string(&mut args, "--non-goal")?);
+            }
+            "--open-question" => {
+                open_questions.push(take_string(&mut args, "--open-question")?);
+            }
+            "--decision-point" => {
+                decision_points.push(take_string(&mut args, "--decision-point")?);
+            }
+            "--evidence-need" | "--evidence-needed" => {
+                evidence_needs.push(take_string(&mut args, "--evidence-need")?);
+            }
             other => return Err(anyhow!("unexpected derive-plan argument {other:?}")),
         }
     }
@@ -613,6 +643,12 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
         verification_asks,
         stop_conditions,
         escalation_reasons,
+        assumptions,
+        constraints,
+        non_goals,
+        open_questions,
+        decision_points,
+        evidence_needs,
     })
 }
 
@@ -1778,6 +1814,17 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
     } else {
         args.escalation_reasons
     };
+    let planning_facets = PlanningFacets::for_derive_plan(
+        source,
+        &derived_plan.safe_action_family,
+        &derived_plan.target_path,
+        args.assumptions,
+        args.constraints,
+        args.non_goals,
+        args.open_questions,
+        args.decision_points,
+        args.evidence_needs,
+    );
     let action_item_summary = args
         .action_summary
         .unwrap_or_else(|| derived_plan.plan_summary.clone());
@@ -1798,6 +1845,7 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
             stop_conditions: action_stop_conditions.clone(),
             escalation_reasons: action_escalation_reasons,
             rollback_hints: derived_plan.rollback_hints.clone(),
+            planning_facets: planning_facets.clone(),
             model_ref: model_ref.as_deref(),
             model_authored,
         },
@@ -1814,6 +1862,7 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
         "status": action_items["status"],
         "modelAuthored": model_authored,
         "safeActionFamily": derived_plan.safe_action_family,
+        "planningFacets": planning_facets.to_json(),
     });
 
     write_plan_receipt(
@@ -6114,8 +6163,86 @@ struct ImaginationActionItemReceiptInputs<'a> {
     stop_conditions: Vec<String>,
     escalation_reasons: Vec<String>,
     rollback_hints: Vec<String>,
+    planning_facets: PlanningFacets,
     model_ref: Option<&'a str>,
     model_authored: bool,
+}
+
+#[derive(Clone, Debug)]
+struct PlanningFacets {
+    assumptions: Vec<String>,
+    constraints: Vec<String>,
+    non_goals: Vec<String>,
+    open_questions: Vec<String>,
+    decision_points: Vec<String>,
+    evidence_needs: Vec<String>,
+}
+
+impl PlanningFacets {
+    fn for_derive_plan(
+        source: &str,
+        safe_action_family: &str,
+        target_path: &str,
+        assumptions: Vec<String>,
+        constraints: Vec<String>,
+        non_goals: Vec<String>,
+        open_questions: Vec<String>,
+        decision_points: Vec<String>,
+        evidence_needs: Vec<String>,
+    ) -> Self {
+        Self {
+            assumptions: default_if_empty(
+                assumptions,
+                vec![format!(
+                    "Accepted {source} pressure can be represented by safe family {safe_action_family}."
+                )],
+            ),
+            constraints: default_if_empty(
+                constraints,
+                vec![
+                    format!("Hands may only change the requested path {target_path}."),
+                    "Publication, merge, service lifecycle, elevation, cross-repo mutation, and private-state exposure remain outside this plan.".to_string(),
+                ],
+            ),
+            non_goals: default_if_empty(
+                non_goals,
+                vec![
+                    "Do not convert model-authored planning text into arbitrary shell authority.".to_string(),
+                    "Do not admit durable Mind state without the later Mind gate.".to_string(),
+                ],
+            ),
+            open_questions: default_if_empty(
+                open_questions,
+                vec!["Does Self/Mind accept this candidate as the next branch-local move?".to_string()],
+            ),
+            decision_points: default_if_empty(
+                decision_points,
+                vec![
+                    "Self/Mind may adopt this action item, ask Imagination for a narrower plan, or route it to Bifrost/Maintainer review.".to_string(),
+                ],
+            ),
+            evidence_needs: default_if_empty(
+                evidence_needs,
+                vec![
+                    "Soul needs the derived plan receipt, changed-path proof, safe-family closure assertions, and private-state seal before closure.".to_string(),
+                ],
+            ),
+        }
+    }
+
+    fn to_json(&self) -> Value {
+        json!({
+            "assumptions": self.assumptions,
+            "constraints": self.constraints,
+            "nonGoals": self.non_goals,
+            "openQuestions": self.open_questions,
+            "decisionPoints": self.decision_points,
+            "evidenceNeeds": self.evidence_needs,
+            "handsCommandAuthority": false,
+            "durableStateAuthority": false,
+            "privateStateExposed": false
+        })
+    }
 }
 
 fn write_imagination_action_items_receipt(
@@ -6135,6 +6262,7 @@ fn write_imagination_action_items_receipt(
     let receipt_id = format!("repo-work-action-items-{item_slug}");
     let action_item_id = format!("{receipt_id}-action-1");
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let planning_facets = inputs.planning_facets.to_json();
     let receipt = json!({
         "schemaVersion": "epiphany.repo_work_imagination_action_items_receipt.v0",
         "createdAt": now,
@@ -6172,6 +6300,7 @@ fn write_imagination_action_items_receipt(
             "stopConditions": inputs.stop_conditions,
             "escalationReasons": inputs.escalation_reasons,
             "rollbackHints": inputs.rollback_hints,
+            "planningFacets": planning_facets,
             "handsCommandDerived": false
         }],
         "authority": {
@@ -9678,6 +9807,10 @@ fn string_array_field(value: &Value, field: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn default_if_empty(values: Vec<String>, defaults: Vec<String>) -> Vec<String> {
+    if values.is_empty() { defaults } else { values }
+}
+
 fn compact_text(text: &str, limit: usize) -> String {
     let compact = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if compact.chars().count() <= limit {
@@ -9794,7 +9927,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
