@@ -4081,6 +4081,8 @@ struct SwarmOverviewReport {
     repo_work_map_path_lens_tui_rows: Vec<String>,
     repo_work_map_branch_lens_rows: Vec<RepoWorkMapBranchLensRow>,
     repo_work_map_branch_lens_tui_rows: Vec<String>,
+    repo_work_map_stage_lens_rows: Vec<RepoWorkMapStageLensRow>,
+    repo_work_map_stage_lens_tui_rows: Vec<String>,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
@@ -4172,6 +4174,21 @@ struct RepoWorkMapPathLensRow {
 #[serde(rename_all = "camelCase")]
 struct RepoWorkMapBranchLensRow {
     branch: String,
+    item_count: usize,
+    changed_path_count: usize,
+    safe_action_families: Vec<String>,
+    latest_item: String,
+    latest_commit_sha: String,
+    latest_mind_state_commit_receipt_id: String,
+    publication_gate: String,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkMapStageLensRow {
+    stage: String,
+    owner: String,
     item_count: usize,
     changed_path_count: usize,
     safe_action_families: Vec<String>,
@@ -4314,6 +4331,9 @@ struct SwarmOverviewOutput {
     repo_work_map_branch_lens_count: usize,
     repo_work_map_branch_lens_rows: Vec<RepoWorkMapBranchLensRow>,
     repo_work_map_branch_lens_tui_rows: Vec<String>,
+    repo_work_map_stage_lens_count: usize,
+    repo_work_map_stage_lens_rows: Vec<RepoWorkMapStageLensRow>,
+    repo_work_map_stage_lens_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4403,6 +4423,9 @@ impl SwarmOverviewOutput {
             repo_work_map_branch_lens_count: report.repo_work_map_branch_lens_rows.len(),
             repo_work_map_branch_lens_rows: report.repo_work_map_branch_lens_rows,
             repo_work_map_branch_lens_tui_rows: report.repo_work_map_branch_lens_tui_rows,
+            repo_work_map_stage_lens_count: report.repo_work_map_stage_lens_rows.len(),
+            repo_work_map_stage_lens_rows: report.repo_work_map_stage_lens_rows,
+            repo_work_map_stage_lens_tui_rows: report.repo_work_map_stage_lens_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -4484,6 +4507,9 @@ struct SwarmTriageOutput {
     repo_work_map_branch_lens_count: usize,
     repo_work_map_branch_lens_rows: Vec<RepoWorkMapBranchLensRow>,
     repo_work_map_branch_lens_tui_rows: Vec<String>,
+    repo_work_map_stage_lens_count: usize,
+    repo_work_map_stage_lens_rows: Vec<RepoWorkMapStageLensRow>,
+    repo_work_map_stage_lens_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4568,6 +4594,9 @@ impl SwarmTriageOutput {
             repo_work_map_branch_lens_count: report.repo_work_map_branch_lens_rows.len(),
             repo_work_map_branch_lens_rows: report.repo_work_map_branch_lens_rows,
             repo_work_map_branch_lens_tui_rows: report.repo_work_map_branch_lens_tui_rows,
+            repo_work_map_stage_lens_count: report.repo_work_map_stage_lens_rows.len(),
+            repo_work_map_stage_lens_rows: report.repo_work_map_stage_lens_rows,
+            repo_work_map_stage_lens_tui_rows: report.repo_work_map_stage_lens_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -5336,6 +5365,117 @@ fn repo_work_map_branch_lens_tui_row(row: &RepoWorkMapBranchLensRow) -> String {
     format!(
         "REPO-WORK-MAP-BRANCH | branch={} | items={} | paths={} | families={} | latestItem={} | latestCommit={} | latestMind={} | gate={} | private={}",
         row.branch,
+        row.item_count,
+        row.changed_path_count,
+        row.safe_action_families.join(","),
+        row.latest_item,
+        short_commit(&row.latest_commit_sha),
+        row.latest_mind_state_commit_receipt_id,
+        row.publication_gate,
+        row.private_state_exposed
+    )
+}
+
+fn repo_work_map_stage_lens_rows(
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+) -> (Vec<RepoWorkMapStageLensRow>, Vec<String>) {
+    let mut by_stage = BTreeMap::<String, RepoWorkMapStageLensRow>::new();
+    for entry in repo_work_map_entries {
+        let (stage, owner) = repo_work_stage_for_family(&entry.safe_action_family);
+        let row =
+            by_stage
+                .entry(stage.clone())
+                .or_insert_with(|| RepoWorkMapStageLensRow {
+                    stage,
+                    owner,
+                    item_count: 0,
+                    changed_path_count: 0,
+                    safe_action_families: Vec::new(),
+                    latest_item: String::new(),
+                    latest_commit_sha: String::new(),
+                    latest_mind_state_commit_receipt_id: String::new(),
+                    publication_gate: entry.publication_gate.clone(),
+                    private_state_exposed: false,
+                });
+        row.item_count += 1;
+        row.changed_path_count += entry.changed_paths.len();
+        if !row
+            .safe_action_families
+            .iter()
+            .any(|family| family == &entry.safe_action_family)
+        {
+            row.safe_action_families
+                .push(entry.safe_action_family.clone());
+            row.safe_action_families.sort();
+        }
+        row.private_state_exposed |= entry.private_state_exposed;
+        if row.latest_item.is_empty() {
+            row.latest_item = entry.item.clone();
+            row.latest_commit_sha = entry.commit_sha.clone();
+            row.latest_mind_state_commit_receipt_id = entry.mind_state_commit_receipt_id.clone();
+            row.publication_gate = entry.publication_gate.clone();
+        }
+    }
+    let rows = by_stage.into_values().collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_map_stage_lens_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_stage_for_family(safe_action_family: &str) -> (String, String) {
+    let stage = match safe_action_family {
+        "repo.append_worklog"
+        | "repo.markdown_planning_note"
+        | "repo.checklist_note"
+        | "repo.markdown_managed_section"
+        | "repo.status_section"
+        | "repo.task_card"
+        | "repo.consensus_brief"
+        | "repo.planning_brief"
+        | "repo.objective_draft" => "imagination-planning",
+        "repo.body_manifest"
+        | "repo.tool_capabilities"
+        | "repo.tool_request"
+        | "repo.eve_surface"
+        | "repo.collaboration_policy"
+        | "repo.collaboration_topic" => "repo-body-collaboration",
+        "repo.adoption_request" => "mind-adoption-request",
+        "repo.scheduling_request" => "self-scheduling-request",
+        "repo.work_order" => "hands-execution-request",
+        "repo.verification_request" => "soul-verification-request",
+        "repo.publication_request"
+        | "repo.sync_request"
+        | "repo.maintainer_review_request"
+        | "repo.pr_request"
+        | "repo.credit_request"
+        | "repo.artifact_acceptance_request"
+        | "repo.metrics_request" => "bifrost-publication-accounting",
+        "repo.doctrine_update_request" | "repo.secret_policy_request" => "repo-governance",
+        "repo.deployment_config" | "repo.deployment_request" => "idunn-deployment",
+        _ => "unknown-safe-family",
+    };
+    let owner = match stage {
+        "imagination-planning" => "Imagination",
+        "repo-body-collaboration" => "Persona/Odin/Eve",
+        "mind-adoption-request" => "Mind",
+        "self-scheduling-request" => "Self",
+        "hands-execution-request" => "Hands",
+        "soul-verification-request" => "Soul",
+        "bifrost-publication-accounting" => "Bifrost",
+        "repo-governance" => "Mind/Soul/Maintainer",
+        "idunn-deployment" => "Idunn",
+        _ => "Unknown",
+    };
+    (stage.to_string(), owner.to_string())
+}
+
+fn repo_work_map_stage_lens_tui_row(row: &RepoWorkMapStageLensRow) -> String {
+    format!(
+        "REPO-WORK-MAP-STAGE | stage={} | owner={} | items={} | paths={} | families={} | latestItem={} | latestCommit={} | latestMind={} | gate={} | private={}",
+        row.stage,
+        row.owner,
         row.item_count,
         row.changed_path_count,
         row.safe_action_families.join(","),
@@ -6254,6 +6394,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_path_lens_rows(&repo_work_map_entries);
     let (repo_work_map_branch_lens_rows, repo_work_map_branch_lens_tui_rows) =
         repo_work_map_branch_lens_rows(&repo_work_map_entries);
+    let (repo_work_map_stage_lens_rows, repo_work_map_stage_lens_tui_rows) =
+        repo_work_map_stage_lens_rows(&repo_work_map_entries);
     let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
         repo_work_public_proof_rows(&repo_work_public_proofs);
     let (idunn_deployment_receipt_rows, idunn_deployment_receipt_tui_rows) =
@@ -6290,6 +6432,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_map_branch_lens_rows
+            .iter()
+            .any(|row| row.private_state_exposed)
+        || repo_work_map_stage_lens_rows
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_public_proofs
@@ -6356,6 +6501,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_path_lens_tui_rows,
         repo_work_map_branch_lens_rows,
         repo_work_map_branch_lens_tui_rows,
+        repo_work_map_stage_lens_rows,
+        repo_work_map_stage_lens_tui_rows,
         repo_work_overview_rows,
         repo_work_overview_tui_rows,
         repo_work_public_proof_rows,

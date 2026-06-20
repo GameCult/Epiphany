@@ -590,6 +590,38 @@ fn run_smoke(args: Args) -> Result<Value> {
             "Gjallar TUI rows did not expose repo map branch lens sight"
         ));
     }
+    require_u64(&gjallar, &["repoWorkMapStageLensCount"], 1)?;
+    let stage_lens_rows = value_at_path(&gjallar, &["repoWorkMapStageLensRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapStageLensRows array"))?;
+    let stage_lens_row = stage_lens_rows
+        .iter()
+        .find(|row| {
+            row.get("stage").and_then(Value::as_str) == Some("imagination-planning")
+        })
+        .ok_or_else(|| anyhow!("Gjallar output had no repo map stage lens row"))?;
+    require_eq_value(stage_lens_row, &["owner"], "Imagination")?;
+    require_eq_value(stage_lens_row, &["latestItem"], item)?;
+    require_eq_value(
+        stage_lens_row,
+        &["latestMindStateCommitReceiptId"],
+        &map_entry.mind_state_commit_receipt_id,
+    )?;
+    require_bool_value(stage_lens_row, &["privateStateExposed"], false)?;
+    let stage_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapStageLensTuiRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapStageLensTuiRows array"))?;
+    if !stage_lens_tui_rows.iter().any(|row| {
+        row.as_str().is_some_and(|row| {
+            row.contains("REPO-WORK-MAP-STAGE")
+                && row.contains("stage=imagination-planning")
+                && row.contains("owner=Imagination")
+        })
+    }) {
+        return Err(anyhow!(
+            "Gjallar TUI rows did not expose repo map stage lens sight"
+        ));
+    }
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_close_mind_adoption_guard_smoke.v0",
@@ -613,6 +645,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "gjallarRepoWorkMapFamilyLensCount": gjallar["repoWorkMapFamilyLensCount"],
         "gjallarRepoWorkMapPathLensCount": gjallar["repoWorkMapPathLensCount"],
         "gjallarRepoWorkMapBranchLensCount": gjallar["repoWorkMapBranchLensCount"],
+        "gjallarRepoWorkMapStageLensCount": gjallar["repoWorkMapStageLensCount"],
         "publicationAuthorized": false,
         "privateStateExposed": false
     });

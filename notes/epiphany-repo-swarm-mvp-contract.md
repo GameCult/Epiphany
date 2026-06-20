@@ -1325,6 +1325,19 @@ commit receipt, Bifrost gate, and `privateStateExposed=false`. This lets agents
 see which branch owns accepted consequences without making Gjallar a scheduler,
 publisher, deployer, daemon keeper, or Mind admission organ.
 
+The next semantic lens names the work stage and owning organ:
+`.epiphany-smoke\repo-close-mind-adoption-guard-20260620-232414` proves Gjallar
+now derives `repoWorkMapStageLensRows` and `REPO-WORK-MAP-STAGE` TUI rows from
+the same Mind-admitted map entries, grouping safe families into stages such as
+`imagination-planning`, `repo-body-collaboration`, `mind-adoption-request`,
+`self-scheduling-request`, `hands-execution-request`,
+`soul-verification-request`, `bifrost-publication-accounting`,
+`repo-governance`, and `idunn-deployment`. The proof row for
+`repo.markdown_planning_note` reports `stage=imagination-planning`,
+`owner=Imagination`, latest item/commit/Mind commit receipt, Bifrost gate, and
+`privateStateExposed=false`. This is semantic sight only; it does not schedule,
+publish, merge, deploy, keep daemons alive, or admit Mind state.
+
 `epiphany-work overview` is the first compact repo work sight/proof surface:
 
 ```powershell
