@@ -828,7 +828,7 @@ temptation wearing clean robes.
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
 | Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog` and `planning-note`. `plan` remains manual quarantine scaffolding. | Broaden model-authored action items to richer safe families without turning model text into arbitrary shell authority. |
-| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `repo-work-service-plan` and `repo-work-service-runbook` now write Idunn lifecycle receipts/artifacts for that same queue-run command without launching it. | Add model-authored action-item depth next; keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
+| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Add execute-to-close handoff and richer safe-family depth next; keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
 | Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; Gjallar enumerates the history as queue rows and non-mutating action rows; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop without moving action authority out of Hands/Self/Bifrost. |
@@ -871,12 +871,14 @@ Build the remaining MVP in this order:
    Imagination author typed plans over allowlisted repo-local families. Shell
    text should be a derived Hands packet inside a known family, not arbitrary
    model string cargo wearing a purity seal.
-4. **Repo swarm run front door.** Add `epiphany-swarm run --workspace <repo>
-   --until blocked-or-published` as the operator mouth over the existing
-   queue-run/tick/serve physiology. It should advance one safe receipt-backed
-   step at a time, sleep or ruminate when no lane is lawful, and stop at
-   publication, merge, service, cross-repo, privilege, or ambiguous authority
-   gates.
+4. **Repo swarm run front door.** `epiphany-swarm run --workspace <repo>
+   --until blocked-or-published` is now the bounded operator mouth over the
+   existing queue-run/tick physiology. It advances one safe receipt-backed step
+   per queue-run pulse, writes `epiphany.repo_swarm_run_receipt.v0`, and stops
+   at dry-run preview, blocked/noop queue state, or the configured iteration
+   limit without publishing, merging, installing services, crossing repo
+   boundaries, elevating authority, or exposing private state. Remaining work
+   is richer stop classification and execute-to-close handoff.
 5. **Execute-to-close handoff.** Let the scheduler route from branch-local
    Hands execution into Soul/Modeling/Mind closure when the required execute
    receipts exist. The closure may be deterministic for mechanical work and
@@ -1023,6 +1025,12 @@ The chain is typed and sealed enough to be useful:
   current repo Body, delegates to `tick`, refreshes overview after advancement,
   and writes a queue-run receipt. Wrapper:
   `tools/epiphany_local_run.ps1 -Mode repo-work-queue-run`.
+- `epiphany-swarm run` is the repo-swarm operator mouth over that same artery.
+  It delegates queue selection to `epiphany-work queue-run`, delegates item
+  actuation to `epiphany-work tick`, records bounded pulse rows in
+  `repo-swarm-run-receipt.json`, and keeps publication, merge, service
+  lifecycle, elevation, cross-repo mutation, and private-state exposure sealed.
+  Wrapper: `tools/epiphany_local_run.ps1 -Mode repo-swarm-run`.
 - `epiphany-work serve` is the first Self-owned cadence loop around that pulse:
   bounded proof mode records finite iteration outputs, unbounded service mode
   relies on per-pulse tick receipts, and zero-interval unbounded polling is
@@ -1076,10 +1084,11 @@ Required organs before MVP:
 - Scheduler physiology: the first `epiphany-work tick` pulse now has brake,
   active-turn, cooldown, and stale-turn recovery receipts,
   `epiphany-work serve` adds bounded/unbounded cadence around that pulse, and
-  the wrapper exposes Idunn-owned non-mutating queue-run service plan/runbook
-  receipts. Remaining work is optional handoff from branch-local execution into
-  the close gate and any later Idunn service launch/install under explicit
-  operator authority.
+  `epiphany-swarm run` plus wrapper expose the bounded repo-swarm run mouth
+  over the typed queue. Idunn-owned non-mutating queue-run service plan/runbook
+  receipts also exist. Remaining work is optional handoff from branch-local
+  execution into the close gate and any later Idunn service launch/install
+  under explicit operator authority.
 - Persona-to-plan depth: deterministic `append-worklog` and `planning-note`
   derivations exist for accepted Persona/Bifrost pressure,
   `persona-intake` gives the project Persona a speech-audited mouth into that
@@ -1095,9 +1104,9 @@ Required organs before MVP:
   projection, and Gjallar multi-item `repo-work-overview` action/readback rows
   exist. Persona's Eve surface, direct Eve connection, and globally invokable
   Persona Eve tool readback now expose peer-readable queue rows, and
-  `epiphany-work queue-run` plus wrapper `repo-work-queue-run` consume that
-  queue for safe branch-local pulses. Remaining work is richer
-  Persona-to-plan depth.
+  `epiphany-work queue-run`, wrapper `repo-work-queue-run`, and
+  `epiphany-swarm run` consume that queue for safe branch-local pulses.
+  Remaining work is richer safe-family depth and execute-to-close handoff.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, commit refs, verification verdicts, map
   admission, Bifrost/GitHub refs, credit refs, and sync state; remaining work is

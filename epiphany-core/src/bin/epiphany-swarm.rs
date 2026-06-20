@@ -18,6 +18,7 @@ fn main() -> Result<()> {
     };
     let result = match command.as_str() {
         "online" => run_online(parse_online_args(args)?),
+        "run" | "run-queue" | "pulse" => run_swarm(parse_run_args(args)?),
         other => Err(anyhow!("unknown epiphany-swarm command {other:?}")),
     }?;
     println!("{}", serde_json::to_string_pretty(&result)?);
@@ -34,6 +35,23 @@ struct OnlineArgs {
     runtime_id: Option<String>,
     init_receipt: Option<PathBuf>,
     agent_template_store: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug)]
+struct RunArgs {
+    workspace: PathBuf,
+    epiphany_root: PathBuf,
+    local_verse_store: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    runtime_id: Option<String>,
+    online_receipt: Option<PathBuf>,
+    until: String,
+    max_iterations: u64,
+    max_items: u64,
+    loop_interval_seconds: u64,
+    cooldown_seconds: u64,
+    active_timeout_seconds: u64,
+    dry_run: bool,
 }
 
 fn parse_online_args(args: impl Iterator<Item = String>) -> Result<OnlineArgs> {
@@ -74,6 +92,66 @@ fn parse_online_args(args: impl Iterator<Item = String>) -> Result<OnlineArgs> {
         runtime_id,
         init_receipt,
         agent_template_store,
+    })
+}
+
+fn parse_run_args(args: impl Iterator<Item = String>) -> Result<RunArgs> {
+    let mut workspace = None;
+    let mut epiphany_root = None;
+    let mut local_verse_store = None;
+    let mut artifact_dir = None;
+    let mut runtime_id = None;
+    let mut online_receipt = None;
+    let mut until = "blocked-or-published".to_string();
+    let mut max_iterations = 8_u64;
+    let mut max_items = 1_u64;
+    let mut loop_interval_seconds = 0_u64;
+    let mut cooldown_seconds = 0_u64;
+    let mut active_timeout_seconds = 900_u64;
+    let mut dry_run = false;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
+            "--local-verse-store" | "--store" => {
+                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
+            }
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--runtime-id" => runtime_id = Some(take_string(&mut args, "--runtime-id")?),
+            "--online-receipt" => online_receipt = Some(take_path(&mut args, "--online-receipt")?),
+            "--until" => until = take_string(&mut args, "--until")?,
+            "--max-iterations" | "--max-pulses" => {
+                max_iterations = take_u64(&mut args, "--max-iterations")?;
+            }
+            "--max-items" => max_items = take_u64(&mut args, "--max-items")?,
+            "--loop-interval-seconds" | "--interval-seconds" => {
+                loop_interval_seconds = take_u64(&mut args, "--loop-interval-seconds")?;
+            }
+            "--cooldown-seconds" => cooldown_seconds = take_u64(&mut args, "--cooldown-seconds")?,
+            "--active-timeout-seconds" => {
+                active_timeout_seconds = take_u64(&mut args, "--active-timeout-seconds")?;
+            }
+            "--dry-run" | "--no-execute" => dry_run = true,
+            other => return Err(anyhow!("unexpected run argument {other:?}")),
+        }
+    }
+    Ok(RunArgs {
+        workspace: workspace.context("missing --workspace")?,
+        epiphany_root: epiphany_root
+            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
+        local_verse_store,
+        artifact_dir,
+        runtime_id,
+        online_receipt,
+        until,
+        max_iterations,
+        max_items,
+        loop_interval_seconds,
+        cooldown_seconds,
+        active_timeout_seconds,
+        dry_run,
     })
 }
 
@@ -248,6 +326,216 @@ fn run_online(args: OnlineArgs) -> Result<Value> {
     }))
 }
 
+fn run_swarm(args: RunArgs) -> Result<Value> {
+    if args.max_iterations == 0 {
+        return Err(anyhow!(
+            "epiphany-swarm run requires --max-iterations greater than 0"
+        ));
+    }
+    if args.max_items == 0 {
+        return Err(anyhow!(
+            "epiphany-swarm run requires --max-items greater than 0"
+        ));
+    }
+    if args.until != "blocked-or-published" && args.until != "blocked-or-noop" {
+        return Err(anyhow!(
+            "unsupported --until {:?}; supported values are blocked-or-published and blocked-or-noop",
+            args.until
+        ));
+    }
+
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let epiphany_root = args
+        .epiphany_root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
+    let manifest_path = epiphany_root.join("epiphany-core").join("Cargo.toml");
+    if !manifest_path.exists() {
+        return Err(anyhow!(
+            "could not find epiphany-core manifest at {}",
+            manifest_path.display()
+        ));
+    }
+    let online_receipt_path = args.online_receipt.clone().unwrap_or_else(|| {
+        workspace
+            .join(".epiphany")
+            .join("swarm-online")
+            .join("repo-swarm-online-receipt.json")
+    });
+    let online_receipt = read_json(&online_receipt_path).with_context(
+        || "repo swarm online receipt is required; run epiphany-swarm online first",
+    )?;
+    let local_verse_store = args.local_verse_store.clone().unwrap_or_else(|| {
+        path_from_json(&online_receipt, &["localVerseStore"])
+            .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
+    });
+    let runtime_id = args.runtime_id.clone().unwrap_or_else(|| {
+        string_from_json(&online_receipt, &["runtimeId"])
+            .unwrap_or_else(|| "repo-swarm-local".to_string())
+    });
+    let artifact_dir = args
+        .artifact_dir
+        .clone()
+        .unwrap_or_else(|| workspace.join(".epiphany").join("swarm-run"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let started_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let mut iterations = Vec::new();
+    let mut stop_reason = "max-iterations-reached".to_string();
+    for pulse_index in 1..=args.max_iterations {
+        let queue_run = cargo_json(
+            &manifest_path,
+            "epiphany-work",
+            &queue_run_args(
+                &args,
+                &workspace,
+                &epiphany_root,
+                &local_verse_store,
+                &runtime_id,
+            ),
+        )
+        .with_context(|| format!("epiphany-work queue-run pulse {pulse_index} failed"))?;
+        let queue_status = queue_run
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        let actionable_count = queue_run
+            .get("actionableCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        let iteration = json!({
+            "pulse": pulse_index,
+            "queueRunStatus": queue_status,
+            "actionableCount": actionable_count,
+            "queueCount": queue_run["queueCount"],
+            "selectedRows": queue_run["selectedRows"],
+            "outputs": queue_run["outputs"],
+            "receiptPath": queue_run["receiptPath"],
+            "privateStateExposed": queue_run["privateStateExposed"]
+        });
+        iterations.push(iteration);
+        if queue_status == "blocked-or-noop" || actionable_count == 0 {
+            stop_reason = "blocked-or-noop".to_string();
+            break;
+        }
+        if queue_status == "would-advance" && args.dry_run {
+            stop_reason = "dry-run-preview-complete".to_string();
+            break;
+        }
+        if pulse_index < args.max_iterations && args.loop_interval_seconds > 0 {
+            std::thread::sleep(std::time::Duration::from_secs(args.loop_interval_seconds));
+        }
+    }
+    let completed_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let status = if stop_reason == "max-iterations-reached" {
+        "paused-at-iteration-limit"
+    } else if stop_reason == "dry-run-preview-complete" {
+        "dry-run-preview"
+    } else {
+        "blocked-or-noop"
+    };
+    let next_safe_move = match stop_reason.as_str() {
+        "blocked-or-noop" => {
+            "Inspect repo-work overview blockers, then route planning, closure, publication, or sync through the owning organ."
+        }
+        "dry-run-preview-complete" => {
+            "Rerun epiphany-swarm run without --dry-run to advance the selected branch-local queue row."
+        }
+        _ => {
+            "Rerun epiphany-swarm run only while repo-work queue rows remain tick-actionable and authority gates stay branch-local."
+        }
+    };
+    let receipt_path = artifact_dir.join("repo-swarm-run-receipt.json");
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_swarm_run_receipt.v0",
+        "createdAt": completed_at,
+        "startedAt": started_at,
+        "completedAt": completed_at,
+        "status": status,
+        "stopReason": stop_reason,
+        "workspace": workspace,
+        "runtimeId": runtime_id,
+        "localVerseStore": local_verse_store,
+        "onlineReceiptPath": online_receipt_path,
+        "until": args.until,
+        "scheduler": {
+            "owner": "Self",
+            "mouth": "epiphany-swarm run",
+            "delegatesQueueSelectionTo": "epiphany-work queue-run",
+            "delegatesActuationTo": "epiphany-work tick",
+            "maxIterations": args.max_iterations,
+            "maxItems": args.max_items,
+            "loopIntervalSeconds": args.loop_interval_seconds,
+            "cooldownSeconds": args.cooldown_seconds,
+            "activeTimeoutSeconds": args.active_timeout_seconds,
+            "dryRun": args.dry_run
+        },
+        "iterations": iterations,
+        "iterationCount": iterations.len(),
+        "authority": {
+            "branchLocalOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "privateStateExposed": false
+        },
+        "nextSafeMove": next_safe_move,
+        "privateStateExposed": false
+    });
+    write_json(&receipt_path, &receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_swarm_run.v0",
+        "status": receipt["status"],
+        "stopReason": receipt["stopReason"],
+        "workspace": receipt["workspace"],
+        "runtimeId": receipt["runtimeId"],
+        "localVerseStore": receipt["localVerseStore"],
+        "receiptPath": receipt_path,
+        "iterationCount": receipt["iterationCount"],
+        "iterations": receipt["iterations"],
+        "authority": receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": receipt["nextSafeMove"],
+    }))
+}
+
+fn queue_run_args(
+    args: &RunArgs,
+    workspace: &Path,
+    epiphany_root: &Path,
+    local_verse_store: &Path,
+    runtime_id: &str,
+) -> Vec<String> {
+    let mut queue_args = vec![
+        "queue-run".to_string(),
+        "--workspace".to_string(),
+        workspace.display().to_string(),
+        "--epiphany-root".to_string(),
+        epiphany_root.display().to_string(),
+        "--local-verse-store".to_string(),
+        local_verse_store.display().to_string(),
+        "--runtime-id".to_string(),
+        runtime_id.to_string(),
+        "--max-items".to_string(),
+        args.max_items.to_string(),
+        "--cooldown-seconds".to_string(),
+        args.cooldown_seconds.to_string(),
+        "--active-timeout-seconds".to_string(),
+        args.active_timeout_seconds.to_string(),
+    ];
+    if args.dry_run {
+        queue_args.push("--dry-run".to_string());
+    }
+    queue_args
+}
+
 fn ensure_agent_store(agent_store: &Path, template_store: PathBuf) -> Result<Value> {
     if agent_store.exists() {
         return Ok(json!({
@@ -369,6 +657,14 @@ fn path_from_json(value: &Value, path: &[&str]) -> Option<PathBuf> {
     cursor.as_str().map(PathBuf::from)
 }
 
+fn string_from_json(value: &Value, path: &[&str]) -> Option<String> {
+    let mut cursor = value;
+    for segment in path {
+        cursor = cursor.get(*segment)?;
+    }
+    cursor.as_str().map(ToString::to_string)
+}
+
 fn read_json(path: &Path) -> Result<Value> {
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
@@ -407,6 +703,12 @@ fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<St
         .ok_or_else(|| anyhow!("missing value for {name}"))
 }
 
+fn take_u64(args: &mut impl Iterator<Item = String>, name: &str) -> Result<u64> {
+    let raw = take_string(args, name)?;
+    raw.parse::<u64>()
+        .with_context(|| format!("invalid integer for {name}: {raw:?}"))
+}
+
 fn sanitize(value: &str) -> String {
     let sanitized = value
         .chars()
@@ -431,6 +733,8 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-swarm online --workspace <repo> [--epiphany-root <path>] [--store <local-verse.ccmp>] [--state-dir <path>] [--artifact-dir <path>] [--runtime-id <id>] [--init-receipt <path>] [--agent-template-store <agents.msgpack>]"
+        "usage: epiphany-swarm <online|run> ...\n\
+         online --workspace <repo> [--epiphany-root <path>] [--store <local-verse.ccmp>] [--state-dir <path>] [--artifact-dir <path>] [--runtime-id <id>] [--init-receipt <path>] [--agent-template-store <agents.msgpack>]\n\
+         run --workspace <repo> [--epiphany-root <path>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--until blocked-or-published] [--max-iterations <n>] [--max-items <n>] [--dry-run]"
     );
 }
