@@ -1849,9 +1849,12 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "section-note" | "markdown-section" | "section-update" => {
             derive_section_note_plan(input, &action_family)
         }
+        "repo-status-section" | "status-section" | "readme-status" => {
+            derive_repo_status_section_plan(input, &action_family)
+        }
         "task-card" | "action-card" | "plan-card" => derive_task_card_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, and task-card"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, and task-card"
         )),
     }
 }
@@ -2071,6 +2074,86 @@ fn derive_section_note_plan(
             "Restore the prior marked section from git if a later section update regressed the note.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.markdown_managed_section"),
+    })
+}
+
+fn derive_repo_status_section_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let target_path = validate_markdown_target_path(input.target_path.unwrap_or("README.md"))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let section_name = format!("epiphany-status:{item_slug}");
+    let start_marker = format!("<!-- epiphany-status:{item_slug}:start -->");
+    let end_marker = format!("<!-- epiphany-status:{item_slug}:end -->");
+    let lines = vec![
+        start_marker.clone(),
+        format!("## Epiphany Status: {}", compact_line(input.item)),
+        String::new(),
+        format!(
+            "- Updated: {}",
+            Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        ),
+        format!("- Source: {}", compact_line(input.source)),
+        format!("- Summary: {}", compact_line(input.summary)),
+        format!("- Candidate action refs: {}", compact_join(&candidate_refs)),
+        format!("- Public discussion refs: {}", compact_join(&public_refs)),
+        String::new(),
+        "### Repo-Visible Consequence".to_string(),
+        String::new(),
+        "- Publish an operator-safe status section inside the owned repo Body.".to_string(),
+        "- Keep the section bounded by Epiphany status markers so later passes update the same surface instead of duplicating it.".to_string(),
+        "- Escalate if the accepted pressure requires code mutation, publication, merge, deployment, service lifecycle, elevation, or cross-repo authority.".to_string(),
+        String::new(),
+        "### Verification".to_string(),
+        String::new(),
+        "- Soul verifies only the declared README/status markdown path changed.".to_string(),
+        "- Soul verifies the status section contains the accepted pressure summary and both Epiphany status markers.".to_string(),
+        "- Soul verifies the section preserves private-state and publication seals.".to_string(),
+        String::new(),
+        "### Authority".to_string(),
+        String::new(),
+        "- Safe action family: repo-status-section".to_string(),
+        "- Section id: ".to_string() + &section_name,
+        "- Branch local only: true".to_string(),
+        "- Publication authorized: false".to_string(),
+        "- Merge authorized: false".to_string(),
+        "- Service lifecycle authority: false".to_string(),
+        "- Cross-repo mutation: false".to_string(),
+        "- Private state exposed: false".to_string(),
+        end_marker.clone(),
+        String::new(),
+    ];
+    let command = powershell_replace_managed_section_command(
+        &target_path,
+        &start_marker,
+        &end_marker,
+        &lines,
+    );
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.status_section".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo-visible status section from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Update repo status section for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo status section path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies both Epiphany status markers are present so later runs update the same bounded section.".to_string(),
+            "Soul verifies no paths outside the declared status section target changed.".to_string(),
+            "Soul verifies the section does not grant publication, merge, service lifecycle, elevation, cross-repo mutation, or private-state exposure.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the managed status section between its Epiphany markers if the accepted pressure was misinterpreted.".to_string(),
+            "Restore the prior marked status section from git if a later status update regressed the repo-facing surface.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.status_section"),
     })
 }
 
@@ -5846,7 +5929,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|task-card] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
