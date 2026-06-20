@@ -1361,6 +1361,18 @@ adoption and keeps `publicationAuthorized=false`. This is compact meaning
 readback only, not a scheduler, publisher, merge gate, deployment actor, daemon
 keeper, or Mind admission path.
 
+The wrapper mouth now forwards those Rust-owned repo-work map rows instead of
+making agents parse JSON artifacts: live wrapper proofs
+`local-20260621-004816-315-24fe14d4` (`gjallar`) and
+`local-20260621-004815-947-b647d7a9` (`swarm-triage`) print
+`repoWorkMapRows`, `repoWorkSemanticRows`, `repoWorkFamilyLensRows`,
+`repoWorkPathLensRows`, `repoWorkBranchLensRows`, `repoWorkStageLensRows`,
+`repoWorkGateLensRows`, `repoWorkOverviewRows`, and
+`repoWorkPublicProofRows` in the one-line operator summary. The live store had
+no repo-work rows, so each field rendered `none`, but the agent-friendly mouth
+now exposes the row families whenever local Verse has accepted work. PowerShell
+does not reinterpret the rows; it only lowers existing Rust TUI arrays.
+
 `epiphany-work overview` is the first compact repo work sight/proof surface:
 
 ```powershell

@@ -2457,6 +2457,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $daemonRows = Format-TuiRows $result.daemonTuiRows
             $toolRows = Format-TuiRows $result.toolTuiRows
             $policyRows = Format-TuiRows $result.policyTuiRows
+            $repoWorkMapRows = Format-TuiRows $result.repoWorkMapTuiRows
+            $repoWorkSemanticRows = Format-TuiRows $result.repoWorkMapSemanticTuiRows
+            $repoWorkFamilyLensRows = Format-TuiRows $result.repoWorkMapFamilyLensTuiRows
+            $repoWorkPathLensRows = Format-TuiRows $result.repoWorkMapPathLensTuiRows
+            $repoWorkBranchLensRows = Format-TuiRows $result.repoWorkMapBranchLensTuiRows
+            $repoWorkStageLensRows = Format-TuiRows $result.repoWorkMapStageLensTuiRows
+            $repoWorkGateLensRows = Format-TuiRows $result.repoWorkMapGateLensTuiRows
+            $repoWorkOverviewRows = Format-TuiRows $result.repoWorkOverviewTuiRows
+            $repoWorkPublicProofRows = Format-TuiRows $result.repoWorkPublicProofTuiRows
             $swarmOnlineTool = "none"
             if ($null -ne $result.commands -and $null -ne $result.commands.wrapperInvokeSwarmOnlineRunbookTool) {
                 $swarmOnlineTool = $result.commands.wrapperInvokeSwarmOnlineRunbookTool
@@ -2465,7 +2474,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($Mode -eq "gjallar") {
                 $overviewLabel = "Gjallar"
             }
-            Write-Host "${overviewLabel}: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), swarmOnlineTool=$swarmOnlineTool, actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolRows=$toolRows, policyRows=$policyRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "${overviewLabel}: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), swarmOnlineTool=$swarmOnlineTool, actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolRows=$toolRows, policyRows=$policyRows, repoWorkMapRows=$repoWorkMapRows, repoWorkSemanticRows=$repoWorkSemanticRows, repoWorkFamilyLensRows=$repoWorkFamilyLensRows, repoWorkPathLensRows=$repoWorkPathLensRows, repoWorkBranchLensRows=$repoWorkBranchLensRows, repoWorkStageLensRows=$repoWorkStageLensRows, repoWorkGateLensRows=$repoWorkGateLensRows, repoWorkOverviewRows=$repoWorkOverviewRows, repoWorkPublicProofRows=$repoWorkPublicProofRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "repo-persona-intake") {
             $feedbackId = "none"
             $consensusReceiptId = "none"
@@ -2629,7 +2638,16 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $serviceAttentionRows = Format-TuiRows $result.serviceLifecycleAttentionTuiRows
             $serviceFailedCheckRows = Format-TuiRows $result.serviceExecutionFailedCheckTuiRows
             $daemonRows = Format-TuiRows $result.daemonTuiRows
-            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
+            $repoWorkMapRows = Format-TuiRows $result.repoWorkMapTuiRows
+            $repoWorkSemanticRows = Format-TuiRows $result.repoWorkMapSemanticTuiRows
+            $repoWorkFamilyLensRows = Format-TuiRows $result.repoWorkMapFamilyLensTuiRows
+            $repoWorkPathLensRows = Format-TuiRows $result.repoWorkMapPathLensTuiRows
+            $repoWorkBranchLensRows = Format-TuiRows $result.repoWorkMapBranchLensTuiRows
+            $repoWorkStageLensRows = Format-TuiRows $result.repoWorkMapStageLensTuiRows
+            $repoWorkGateLensRows = Format-TuiRows $result.repoWorkMapGateLensTuiRows
+            $repoWorkOverviewRows = Format-TuiRows $result.repoWorkOverviewTuiRows
+            $repoWorkPublicProofRows = Format-TuiRows $result.repoWorkPublicProofTuiRows
+            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, repoWorkMapRows=$repoWorkMapRows, repoWorkSemanticRows=$repoWorkSemanticRows, repoWorkFamilyLensRows=$repoWorkFamilyLensRows, repoWorkPathLensRows=$repoWorkPathLensRows, repoWorkBranchLensRows=$repoWorkBranchLensRows, repoWorkStageLensRows=$repoWorkStageLensRows, repoWorkGateLensRows=$repoWorkGateLensRows, repoWorkOverviewRows=$repoWorkOverviewRows, repoWorkPublicProofRows=$repoWorkPublicProofRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-runbook") {
             $artifactSha256 = Get-LocalArtifactSha256 $result.runbookPath
             Write-Host "Service runbook: service=$($result.serviceId), receipt=$($result.receiptId), artifactSha256=$artifactSha256, followUp=tools/epiphany_local_run.ps1 -Mode service-launch, aftercare=tools/epiphany_local_run.ps1 -Mode service-status, path=$($result.runbookPath)"
