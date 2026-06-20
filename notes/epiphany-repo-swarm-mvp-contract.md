@@ -838,12 +838,18 @@ a receipt that says what happened without lying about who had authority.
 
 ## Full Migration Plan To Repo Swarm MVP
 
-This plan starts from the current state: fourteen native front doors exist, but
-the work loop is not yet a full physiology. `init`, `online`, `accept`,
-`derive-plan`, `plan`, `run`, `adopt`, `execute`, `close`, `tick`, `publish`,
-`overview`, `queue-run`, and `sync` prove the typed path from repo birth to
-branch-local scheduler pulse, typed queue selection, Bifrost/GitHub publication
-receipts, compact proof-bundle sight, and upstream-main sync proof.
+This plan starts from the current state: seventeen native front doors exist,
+but the work loop is not yet a full physiology. `epiphany-repo init`,
+`epiphany-swarm online`, `epiphany-swarm run`, `epiphany-work accept`,
+`epiphany-work persona-intake`, `epiphany-work derive-plan`,
+`epiphany-work plan`, `epiphany-work run`, `epiphany-work adopt`,
+`epiphany-work execute`, `epiphany-work close`, `epiphany-work overview`,
+`epiphany-work export-proof`, `epiphany-work tick`,
+`epiphany-work queue-run`, `epiphany-work publish`, and
+`epiphany-work sync` prove the typed path from repo birth to branch-local
+scheduler pulse, typed queue selection, Bifrost/GitHub publication receipts,
+redacted public proof export, compact proof-bundle sight, and upstream-main
+sync proof.
 `tick` now also proves brake refusal, active-turn refusal,
 completion-anchored cooldown refusal, and stale active-turn recovery through
 typed scheduler receipts; `serve` now proves bounded cadence around that same
@@ -898,6 +904,39 @@ going by forgetting its Body boundary, smearing organ ownership, or treating a
 wrapper loop as a daemon soul. Long-running autonomy belongs to Self's
 scheduler physiology and, when installed as a service, to Idunn-owned lifecycle
 aftercare around that same scheduler pulse.
+
+### Functional Swarm Answer
+
+Yes: the machine is headed toward a functional repo swarm, and the current
+front doors are no longer decorative. They already prove repo birth, online
+local Verse projection, Persona/Bifrost intake, Imagination action-item
+receipts, branch-local Hands execution, deterministic Soul/Modeling/Mind
+closure, Gjallar-visible proof rows, Bifrost/GitHub publication receipts,
+redacted public-proof export, and upstream-main ancestry proof after explicit
+merge authority.
+
+No: the machine is not yet Epiphany Online in the full MVP sense. The remaining
+gap is not "more permission prompts." The remaining gap is to make the
+existing typed artery run as a living repo organism:
+
+- richer model-authored safe-family breadth so Imagination can propose more
+  useful branch-local work without arbitrary shell authority
+- richer model-authored closure where Soul and Modeling inspect source and
+  consequences beyond the deterministic mechanical path
+- Bifrost public-proof publication transport beyond local Verse, so redacted
+  proof bundles can become public Verse / credit / case-study evidence without
+  Gjallar or Self stealing publication authority
+- an Idunn-owned service lifecycle path for the queue-run pulse when the
+  operator explicitly grants service mutation or elevated host authority
+- a fresh-repo acceptance run that proves the whole path without supervisor
+  contamination
+
+The MVP is functional when a human can talk to the repo Persona, the swarm can
+turn that pressure into typed work, keep advancing lawful branch-local steps
+under Self/Hands/Soul/Mind receipts, stop at Bifrost publication gates, export
+operator-safe proof, and finally prove sync to upstream main after maintainer
+or Bifrost merge authority. That is autonomy with organs, not autonomy as a
+single hungry prompt.
 
 ### MVP Status Board
 
