@@ -61,6 +61,9 @@ fn main() -> Result<()> {
     };
     let result = match command.as_str() {
         "accept" => run_accept(parse_accept_args(args)?),
+        "persona-intake" | "intake" | "repo-persona-intake" => {
+            run_persona_intake(parse_persona_intake_args(args)?)
+        }
         "derive-plan" | "imagine" | "plan-from-pressure" => {
             run_derive_plan(parse_derive_plan_args(args)?)
         }
@@ -98,6 +101,20 @@ struct AcceptArgs {
     eve_connection_receipt_id: Option<String>,
     public_discussion_refs: Vec<String>,
     candidate_action_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct PersonaIntakeArgs {
+    workspace: PathBuf,
+    epiphany_root: PathBuf,
+    item: String,
+    message: String,
+    topic: Option<String>,
+    local_verse_store: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    runtime_id: Option<String>,
+    online_receipt: Option<PathBuf>,
+    mood: String,
 }
 
 #[derive(Clone, Debug)]
@@ -342,6 +359,53 @@ fn parse_accept_args(args: impl Iterator<Item = String>) -> Result<AcceptArgs> {
         eve_connection_receipt_id,
         public_discussion_refs,
         candidate_action_refs,
+    })
+}
+
+fn parse_persona_intake_args(args: impl Iterator<Item = String>) -> Result<PersonaIntakeArgs> {
+    let mut workspace = None;
+    let mut epiphany_root = None;
+    let mut item = None;
+    let mut message = None;
+    let mut topic = None;
+    let mut local_verse_store = None;
+    let mut artifact_dir = None;
+    let mut runtime_id = None;
+    let mut online_receipt = None;
+    let mut mood = "attentive".to_string();
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--message" | "--content" | "--persona-input" => {
+                message = Some(take_string(&mut args, "--message")?);
+            }
+            "--topic" => topic = Some(take_string(&mut args, "--topic")?),
+            "--local-verse-store" | "--store" => {
+                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
+            }
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--runtime-id" => runtime_id = Some(take_string(&mut args, "--runtime-id")?),
+            "--online-receipt" => online_receipt = Some(take_path(&mut args, "--online-receipt")?),
+            "--mood" => mood = take_string(&mut args, "--mood")?,
+            other => return Err(anyhow!("unexpected persona-intake argument {other:?}")),
+        }
+    }
+    Ok(PersonaIntakeArgs {
+        workspace: workspace.context("missing --workspace")?,
+        epiphany_root: epiphany_root
+            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
+        item: item.context("missing --item")?,
+        message: message.context("missing --message")?,
+        topic,
+        local_verse_store,
+        artifact_dir,
+        runtime_id,
+        online_receipt,
+        mood,
     })
 }
 
@@ -1181,6 +1245,152 @@ fn run_accept(args: AcceptArgs) -> Result<Value> {
         "source": receipt["source"],
         "item": receipt["item"],
         "feedback": receipt["feedback"],
+        "authority": receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": receipt["nextSafeMove"],
+    }))
+}
+
+fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let epiphany_root = args
+        .epiphany_root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
+    let manifest_path = epiphany_root.join("epiphany-core").join("Cargo.toml");
+    if !manifest_path.exists() {
+        return Err(anyhow!(
+            "could not find epiphany-core manifest at {}",
+            manifest_path.display()
+        ));
+    }
+    let online_receipt_path = args.online_receipt.clone().unwrap_or_else(|| {
+        workspace
+            .join(".epiphany")
+            .join("swarm-online")
+            .join("repo-swarm-online-receipt.json")
+    });
+    let online_receipt = read_json(&online_receipt_path).with_context(
+        || "repo swarm online receipt is required; run epiphany-swarm online first",
+    )?;
+    let local_verse_store = args.local_verse_store.clone().unwrap_or_else(|| {
+        path_from_json(&online_receipt, &["localVerseStore"])
+            .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
+    });
+    let runtime_id = args.runtime_id.clone().unwrap_or_else(|| {
+        string_from_json(&online_receipt, &["runtimeId"])
+            .unwrap_or_else(|| "repo-swarm-local".to_string())
+    });
+    let artifact_dir = args
+        .artifact_dir
+        .clone()
+        .unwrap_or_else(|| workspace.join(".epiphany").join("persona-intake"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let item_slug = sanitize(&args.item);
+    let persona = cargo_json(
+        &manifest_path,
+        "epiphany-persona-discord",
+        &[
+            "bubble".to_string(),
+            "--artifact-dir".to_string(),
+            artifact_dir.display().to_string(),
+            "--cultmesh-store".to_string(),
+            local_verse_store.display().to_string(),
+            "--runtime-id".to_string(),
+            runtime_id.clone(),
+            "--content".to_string(),
+            args.message.clone(),
+            "--source".to_string(),
+            "epiphany/Persona/repo-intake".to_string(),
+            "--status".to_string(),
+            "accepted-for-imagination-consensus".to_string(),
+            "--mood".to_string(),
+            args.mood.clone(),
+        ],
+    )?;
+    let speech_audit = persona
+        .get("speechAudit")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let audit_id = string_from_json(&speech_audit, &["auditId"])
+        .unwrap_or_else(|| format!("persona-speech-audit-{item_slug}"));
+    let bubble_path = string_from_json(&persona, &["bubblePath"]).unwrap_or_default();
+    let content_fingerprint =
+        string_from_json(&speech_audit, &["contentFingerprint"]).unwrap_or_default();
+    let topic = args
+        .topic
+        .clone()
+        .unwrap_or_else(|| format!("repo-persona-intake-{item_slug}"));
+    let summary = compact_text(&args.message, 480);
+    let public_ref = format!("eve://epiphany/persona#repo-intake/{item_slug}/{audit_id}");
+    let candidate_ref = format!("candidate-action://{runtime_id}/{item_slug}/{audit_id}");
+    let accept = run_accept(AcceptArgs {
+        workspace: workspace.clone(),
+        epiphany_root: epiphany_root.clone(),
+        source: "persona".to_string(),
+        item: args.item.clone(),
+        summary: Some(summary.clone()),
+        topic: Some(topic.clone()),
+        local_verse_store: Some(local_verse_store.clone()),
+        artifact_dir: Some(workspace.join(".epiphany").join("work")),
+        runtime_id: Some(runtime_id.clone()),
+        online_receipt: Some(online_receipt_path.clone()),
+        eve_connection_receipt_id: Some(format!("repo-persona-intake-eve-{item_slug}")),
+        public_discussion_refs: vec![public_ref.clone()],
+        candidate_action_refs: vec![candidate_ref.clone()],
+    })?;
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_persona_intake_receipt.v0",
+        "createdAt": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "workspace": workspace,
+        "runtimeId": runtime_id,
+        "localVerseStore": local_verse_store,
+        "onlineReceiptPath": online_receipt_path,
+        "source": "persona",
+        "item": args.item,
+        "topic": topic,
+        "messageSummary": summary,
+        "persona": {
+            "bubblePath": bubble_path,
+            "speechAudit": speech_audit,
+            "contentFingerprint": content_fingerprint,
+            "publicDiscussionRef": public_ref,
+            "candidateActionRef": candidate_ref
+        },
+        "accept": accept,
+        "authority": {
+            "status": "accepted-for-imagination-consensus",
+            "personaSpeechAudited": true,
+            "handsAuthorityGranted": false,
+            "durableStateAdmitted": false,
+            "publicationAuthorized": false,
+            "privateStateExposed": false
+        },
+        "nextSafeMove": "Run epiphany-work derive-plan --workspace <repo> --item <id> after Imagination forms a concrete safe-family plan."
+    });
+    let receipt_path = workspace
+        .join(".epiphany")
+        .join("work")
+        .join(format!("work-persona-intake-{item_slug}.json"));
+    write_json(&receipt_path, &receipt)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_persona_intake.v0",
+        "status": "accepted-for-imagination-consensus",
+        "workspace": receipt["workspace"],
+        "runtimeId": receipt["runtimeId"],
+        "localVerseStore": receipt["localVerseStore"],
+        "receiptPath": receipt_path,
+        "item": receipt["item"],
+        "speechAuditId": audit_id,
+        "bubblePath": receipt["persona"]["bubblePath"],
+        "acceptReceiptPath": accept["receiptPath"],
+        "feedback": accept["feedback"],
         "authority": receipt["authority"],
         "privateStateExposed": false,
         "nextSafeMove": receipt["nextSafeMove"],
@@ -4438,6 +4648,19 @@ fn string_array_field(value: &Value, field: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn compact_text(text: &str, limit: usize) -> String {
+    let compact = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if compact.chars().count() <= limit {
+        return compact;
+    }
+    let mut truncated = compact
+        .chars()
+        .take(limit.saturating_sub(3))
+        .collect::<String>();
+    truncated.push_str("...");
+    truncated
+}
+
 fn read_json(path: &Path) -> Result<Value> {
     let raw =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
@@ -4532,7 +4755,8 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|queue-run|serve> ...\n\
+        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|queue-run|serve> ...\n\
+         persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note] [--target-path <path>] [--model-ref <ref>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\

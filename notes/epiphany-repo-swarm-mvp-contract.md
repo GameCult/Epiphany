@@ -826,9 +826,9 @@ temptation wearing clean robes.
 | --- | --- | --- |
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
-| Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. | Add a repo Persona intake mouth so humans can talk to the project instead of hand-authoring CLI work items. |
+| Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
 | Imagination planning | `derive-plan` deterministically creates allowlisted `append-worklog` and `planning-note` plans; `plan` remains manual quarantine scaffolding. | Replace deterministic templates with model-authored, typed Imagination action items for richer safe command families. |
-| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `repo-work-service-plan` and `repo-work-service-runbook` now write Idunn lifecycle receipts/artifacts for that same queue-run command without launching it. | Add the repo Persona/action-item artery next; keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
+| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `repo-work-service-plan` and `repo-work-service-runbook` now write Idunn lifecycle receipts/artifacts for that same queue-run command without launching it. | Add model-authored action-item depth next; keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
 | Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; Gjallar enumerates the history as queue rows and non-mutating action rows; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop without moving action authority out of Hands/Self/Bifrost. |
@@ -854,11 +854,14 @@ Build the remaining MVP in this order:
    operator may grant service mutation. Self must not become the daemon keeper.
    This first cut is landed through `tools/epiphany_local_run.ps1 -Mode
    repo-work-service-plan` and `-Mode repo-work-service-runbook`.
-2. **Persona-to-Imagination action items.** Add the repo Persona intake mouth
-   and route work-shaped speech into reviewed candidate actions. Imagination
-   should emit typed action-item receipts with allowed safe families, requested
-   paths, verification asks, stop conditions, and escalation reasons. Banter
-   remains banter unless Mind/Interpreter extracts a work candidate.
+2. **Persona-to-Imagination action items.** The first repo Persona intake mouth
+   is landed: `epiphany-work persona-intake` routes work-shaped speech through
+   the Persona bubble speech-audit path, records public discussion refs and
+   candidate action refs, then delegates to `accept`; wrapper mode
+   `repo-persona-intake` exposes the operator surface. The remaining cut is for
+   Imagination to emit typed action-item receipts with allowed safe families,
+   requested paths, verification asks, stop conditions, and escalation reasons.
+   Banter remains banter unless Mind/Interpreter extracts a work candidate.
 3. **Model-authored safe plan families.** Promote `derive-plan` beyond the
    deterministic `append-worklog` and `planning-note` reliquaries by letting
    Imagination author typed plans over allowlisted repo-local families. Shell
@@ -1029,6 +1032,15 @@ The chain is typed and sealed enough to be useful:
   --runtime-id <id> --max-items <n>`. The receipts and runbook describe the
   real queue-run command, but do not launch, install, publish, merge, cross repo
   boundaries, or expose private state.
+- `epiphany-work persona-intake` is the first repo Persona mouth over accepted
+  work pressure. It requires an online repo swarm receipt, writes a Persona
+  bubble plus speech-audit witness into the repo-local Verse, records public
+  discussion and candidate-action refs, delegates to `accept`, and seals
+  `work-persona-intake-<item>.json` with `handsAuthorityGranted=false`,
+  `durableStateAdmitted=false`, `publicationAuthorized=false`, and
+  `privateStateExposed=false`. Wrapper:
+  `tools/epiphany_local_run.ps1 -Mode repo-persona-intake -RepoWorkItem <id>
+  -PersonaInput '<request>'`.
 
 The scar is equally important: this is still an operator-started cadence loop,
 not installed service lifecycle. The operator can prove the scheduler breathes,
@@ -1056,9 +1068,10 @@ Required organs before MVP:
   the close gate and any later Idunn service launch/install under explicit
   operator authority.
 - Persona-to-plan depth: deterministic `append-worklog` and `planning-note`
-  derivations exist for accepted Persona/Bifrost pressure; remaining work is
-  model-authored Imagination planning for richer action classes without
-  operator shell details.
+  derivations exist for accepted Persona/Bifrost pressure, and
+  `persona-intake` now gives the project Persona a speech-audited mouth into
+  that pressure stream. Remaining work is model-authored Imagination planning
+  for richer action classes without operator shell details.
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.
