@@ -4,8 +4,11 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Utc;
 use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
@@ -46,6 +49,7 @@ use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
+use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
 use serde::Deserialize;
@@ -7689,6 +7693,105 @@ fn record_repo_work_map_admission(
     Ok((map_store_path, entry))
 }
 
+fn resolve_local_verse_store_from_execute_receipt(
+    workspace: &Path,
+    execute_receipt: &Value,
+) -> Result<Option<PathBuf>> {
+    if let Some(store) = path_from_json(execute_receipt, &["localVerseStore"])
+        .or_else(|| path_from_json(execute_receipt, &["localVerseStorePath"]))
+    {
+        return Ok(Some(store));
+    }
+    let Some(adopt_receipt_path) = path_from_json(execute_receipt, &["adoptReceiptPath"]) else {
+        return Ok(None);
+    };
+    let adopt_receipt = read_json(&adopt_receipt_path)?;
+    if let Some(store) = path_from_json(&adopt_receipt, &["localVerseStore"])
+        .or_else(|| path_from_json(&adopt_receipt, &["localVerseStorePath"]))
+    {
+        return Ok(Some(store));
+    }
+    let Some(run_receipt_path) = path_from_json(&adopt_receipt, &["runReceiptPath"]) else {
+        return Ok(None);
+    };
+    let run_receipt = read_json(&run_receipt_path)?;
+    if let Some(store) = path_from_json(&run_receipt, &["localVerseStore"])
+        .or_else(|| path_from_json(&run_receipt, &["localVerseStorePath"]))
+    {
+        return Ok(Some(store));
+    }
+    let Some(online_receipt_path) = path_from_json(&run_receipt, &["onlineReceiptPath"]) else {
+        return Ok(None);
+    };
+    let online_receipt = read_json(&online_receipt_path)?;
+    Ok(path_from_json(&online_receipt, &["localVerseStore"])
+        .or_else(|| path_from_json(&online_receipt, &["localVerseStorePath"]))
+        .or_else(|| Some(workspace.join(".epiphany").join("local-verse.ccmp"))))
+}
+
+fn project_repo_work_map_entry_to_local_verse(
+    local_verse_store: &Path,
+    runtime_id: &str,
+    workspace: &Path,
+    source_store_path: &Path,
+    entry: &RepoWorkMapEntry,
+) -> Result<EpiphanyCultMeshRepoWorkMapEntry> {
+    let item_slug = sanitize(&entry.item);
+    let commit_short = short_commit(&entry.commit_sha);
+    let tui_rows = vec![
+        format!("item {}", entry.item),
+        format!("branch {}", entry.branch),
+        format!("commit {}", entry.commit_sha),
+        format!("family {}", entry.safe_action_family),
+        format!("mind {}", entry.mind_state_commit_receipt_id),
+        format!("publicationGate {}", entry.publication_gate),
+        "private false".to_string(),
+    ];
+    let map_entry = EpiphanyCultMeshRepoWorkMapEntry {
+        schema_version: EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION.to_string(),
+        runtime_id: runtime_id.to_string(),
+        verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+        map_entry_id: format!("repo-work-map-{item_slug}"),
+        admitted_at: entry.admitted_at.clone(),
+        mirrored_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        workspace: workspace.display().to_string(),
+        item: entry.item.clone(),
+        branch: entry.branch.clone(),
+        changed_paths: entry.changed_paths.clone(),
+        commit_sha: entry.commit_sha.clone(),
+        safe_action_family: entry.safe_action_family.clone(),
+        modeling_summary: entry.modeling_summary.clone(),
+        soul_verdict_receipt_id: entry.soul_verdict_receipt_id.clone(),
+        mind_gateway_review_id: entry.mind_gateway_review_id.clone(),
+        mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
+        publication_gate: entry.publication_gate.clone(),
+        durable_state_admitted: entry.durable_state_admitted,
+        source_store_path: normalize_path_for_receipt(source_store_path),
+        tui_rows: vec![format!(
+            "REPO-WORK-MAP | item={} | branch={} | commit={} | family={} | mind={} | gate={} | private=false",
+            entry.item,
+            entry.branch,
+            commit_short,
+            entry.safe_action_family,
+            entry.mind_state_commit_receipt_id,
+            entry.publication_gate
+        )]
+        .into_iter()
+        .chain(tui_rows)
+        .collect(),
+        private_state_exposed: false,
+        notes: vec![
+            "Repo work map entry is compact local Verse sight over Mind-admitted durable state; raw worker thoughts and receipt payload bodies remain sealed.".to_string(),
+            "Gjallar may project this row, but it does not own scheduling, publication, merge, service lifecycle, deployment, or cross-repo mutation.".to_string(),
+        ],
+    };
+    write_epiphany_cultmesh_repo_work_map_entry(local_verse_store, map_entry)
+}
+
+fn short_commit(commit_sha: &str) -> String {
+    commit_sha.chars().take(12).collect::<String>()
+}
+
 fn closure_model_review(
     model_authored: bool,
     model_ref: Option<&str>,
@@ -9074,6 +9177,37 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         &closure_review_path,
         &closure_receipt_path,
     )?;
+    let runtime_id = string_from_json(&execute_receipt, &["runtimeId"])
+        .unwrap_or_else(|| "repo-swarm-local".to_string());
+    let local_verse_store =
+        resolve_local_verse_store_from_execute_receipt(&workspace, &execute_receipt)?;
+    let repo_map_local_verse_projection = if let Some(local_verse_store) =
+        local_verse_store.as_ref()
+    {
+        let written = project_repo_work_map_entry_to_local_verse(
+            local_verse_store,
+            &runtime_id,
+            &workspace,
+            &repo_map_store_path,
+            &repo_map_entry,
+        )?;
+        json!({
+            "projected": true,
+            "localVerseStore": normalize_path_for_receipt(local_verse_store),
+            "documentType": "epiphany.cultmesh.repo_work_map_entry",
+            "schemaVersion": written.schema_version,
+            "mapEntryId": written.map_entry_id,
+            "latestKey": EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY,
+            "tuiRows": written.tui_rows,
+            "privateStateExposed": written.private_state_exposed
+        })
+    } else {
+        json!({
+            "projected": false,
+            "reason": "local Verse store could not be resolved from execute/adopt/run/online receipts",
+            "privateStateExposed": false
+        })
+    };
 
     let closure_receipt = json!({
         "schemaVersion": "epiphany.repo_work_closure_receipt.v0",
@@ -9112,7 +9246,8 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "stateRevision": mind_commit.state_revision,
             "changedFields": mind_commit.changed_fields,
             "repoMapStorePath": normalize_path_for_receipt(&repo_map_store_path),
-            "repoMapEntry": repo_map_entry
+            "repoMapEntry": repo_map_entry,
+            "repoMapLocalVerseProjection": repo_map_local_verse_projection
         },
         "authority": {
             "branchLocalOnly": true,

@@ -1082,7 +1082,11 @@ admits a compact latest-per-item repo map entry into
 `epiphany.repo_work_map_store.v0` / `epiphany.repo_work_map_entry.v0`, carrying
 the item, branch, changed paths, commit SHA, safe family, Modeling summary,
 Soul verdict id, Mind review/commit ids, closure refs, Bifrost publication gate,
-and private-state seal. The final
+and private-state seal. Closure then mirrors that accepted map fact into the
+repo local Verse as `epiphany.cultmesh.repo_work_map_entry.v0` under
+`gamecult-local/repo-work-map/latest`, with compact `REPO-WORK-MAP` TUI rows
+for Gjallar/Odin sight and no scheduling, publication, merge, deployment,
+service lifecycle, or private-state authority. The final
 `.epiphany/work/work-close-<item>.json` receipt is
 `epiphany.repo_work_closure_receipt.v0` with
 `durableStateAdmitted=true`, `publicationGateSatisfied=true`, and
@@ -1160,6 +1164,16 @@ successful close wrote `epiphany.repo_work_map_store.v0` with an
 `epiphany.repo_work_map_entry.v0` for the item, `durableStateAdmitted=true`,
 the expected commit SHA, changed path, safe family, Soul verdict id, Mind
 gateway id, Mind state-commit id, and `privateStateExposed=false`.
+
+The same smoke now proves the first local Verse projection of that durable map:
+`.epiphany-smoke\repo-close-mind-adoption-guard-20260620-203717` shows successful
+close projecting `epiphany.cultmesh.repo_work_map_entry.v0` with latest key
+`gamecult-local/repo-work-map/latest`; direct Gjallar readback returned
+`repoWorkMapCount=1`, latest `repo-work-map-repo-close-mind-adoption-guard`, a
+compact `REPO-WORK-MAP` row with the safe family, Soul/Mind ids, Bifrost gate,
+source map store ref, and `privateStateExposed=false`. The cargo-run smoke
+itself completed and wrote `summary.json` after the outer tool timeout, so the
+independent Gjallar readback is the clean terminal proof.
 
 `epiphany-work overview` is the first compact repo work sight/proof surface:
 
@@ -1509,8 +1523,8 @@ temptation wearing clean robes.
 | Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, `repo-metrics-request` / `repo.metrics_request`, `repo-doctrine-update-request` / `repo.doctrine_update_request`, `repo-secret-policy-request` / `repo.secret_policy_request`, and `repo-deployment-request` / `repo.deployment_request`. `adopt` now writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority. `plan` remains manual quarantine scaffolding. | Deepen further interpreter behavior and useful repo-owned configuration/action classes without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
-| Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, writes Soul/Modeling/Mind receipts, and admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`. | Keep extending closure toward source-grounded semantic review and richer local Verse map projection, while preserving deterministic local closure for simple mechanical work. |
-| Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; Gjallar enumerates the history as queue rows and non-mutating action rows; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop without moving action authority out of Hands/Self/Bifrost. |
+| Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
+| Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, map rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop and semantic map readback without moving action authority out of Hands/Self/Bifrost. |
 | Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
 | Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
 | Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |
@@ -2014,12 +2028,12 @@ Required organs before MVP:
   redacted proof row through
   `gamecult.bifrost.public_proof_publication_receipt.v0` with public Verse
   target, public room, ledger, review, credit, proof ref, and SHA-256 readback.
-  Remaining work is deeper semantic review, local Verse projection of the
-  durable repo map, and richer map updates beyond latest work-item consequence;
-  it is not basic safe-family planning cargo, local public-proof export, local
-  CultMesh readback, Bifrost/GitHub/sync row visibility, public-proof
-  publication closure, Mind-adoption closure proof, first durable repo-map
-  admission, or the standard wrapper mouth for those closures.
+  Remaining work is deeper semantic review and richer map updates/lenses beyond
+  latest work-item consequence; it is not basic safe-family planning cargo,
+  local public-proof export, local CultMesh readback, Bifrost/GitHub/sync row
+  visibility, public-proof publication closure, Mind-adoption closure proof,
+  first durable repo-map admission, first durable repo-map local Verse
+  projection, or the standard wrapper mouth for those closures.
 
 Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt
@@ -2263,8 +2277,9 @@ Modeling -> Mind part for branch-local repo-work consequences. It writes
 `.epiphany/state/repo-work-map.msgpack` as a typed MessagePack
 `epiphany.repo_work_map_store.v0` with latest `epiphany.repo_work_map_entry.v0`
 rows keyed by item. This is a narrow repo-work map store, not yet the full
-semantic architecture map; local Verse projection and richer map lenses remain
-Phase 5 work.
+semantic architecture map. The first local Verse projection of those accepted
+rows is live as `epiphany.cultmesh.repo_work_map_entry.v0`; richer semantic map
+lenses remain Phase 5 work.
 
 MVP exit proof:
 

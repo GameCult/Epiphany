@@ -369,6 +369,26 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["mind", "repoMapEntry", "privateStateExposed"],
         false,
     )?;
+    require_bool(
+        &close,
+        &["mind", "repoMapLocalVerseProjection", "projected"],
+        true,
+    )?;
+    require_eq(
+        &close,
+        &["mind", "repoMapLocalVerseProjection", "documentType"],
+        "epiphany.cultmesh.repo_work_map_entry",
+    )?;
+    require_eq(
+        &close,
+        &["mind", "repoMapLocalVerseProjection", "latestKey"],
+        "gamecult-local/repo-work-map/latest",
+    )?;
+    require_bool(
+        &close,
+        &["mind", "repoMapLocalVerseProjection", "privateStateExposed"],
+        false,
+    )?;
     let map_store = read_repo_work_map_store(&repo_map_path)?;
     if map_store.schema_version != "epiphany.repo_work_map_store.v0" {
         return Err(anyhow!(
@@ -436,6 +456,53 @@ fn run_smoke(args: Args) -> Result<Value> {
             map_entry.private_state_exposed
         ));
     }
+    let gjallar = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "gjallar",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-close-mind-adoption-guard-smoke",
+        ],
+        &root,
+    )?;
+    require_eq(
+        &gjallar,
+        &["latestRepoWorkMapEntry"],
+        "repo-work-map-repo-close-mind-adoption-guard",
+    )?;
+    require_bool(&gjallar, &["privateStateExposed"], false)?;
+    let map_rows = value_at_path(&gjallar, &["repoWorkMapRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapRows array"))?;
+    let gjallar_map_row = map_rows
+        .iter()
+        .find(|row| row.get("item").and_then(Value::as_str) == Some(item))
+        .ok_or_else(|| anyhow!("Gjallar output had no repo work map row for {item}"))?;
+    require_eq_value(
+        gjallar_map_row,
+        &["safeActionFamily"],
+        "repo.markdown_planning_note",
+    )?;
+    require_eq_value(
+        gjallar_map_row,
+        &["mindStateCommitReceiptId"],
+        &map_entry.mind_state_commit_receipt_id,
+    )?;
+    require_bool_value(gjallar_map_row, &["privateStateExposed"], false)?;
+    let map_tui_rows = value_at_path(&gjallar, &["repoWorkMapTuiRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapTuiRows array"))?;
+    if !map_tui_rows.iter().any(|row| {
+        row.as_str()
+            .is_some_and(|row| row.contains("REPO-WORK-MAP") && row.contains(item))
+    }) {
+        return Err(anyhow!(
+            "Gjallar TUI rows did not expose compact repo map sight"
+        ));
+    }
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_close_mind_adoption_guard_smoke.v0",
@@ -454,6 +521,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "repoMapStorePath": repo_map_path,
         "repoMapEntrySchema": map_entry.schema_version,
         "repoMapDurableStateAdmitted": map_entry.durable_state_admitted,
+        "repoMapLocalVerseProjected": true,
+        "gjallarLatestRepoWorkMapEntry": gjallar["latestRepoWorkMapEntry"],
         "publicationAuthorized": false,
         "privateStateExposed": false
     });
@@ -576,6 +645,38 @@ fn require_eq(value: &Value, path: &[&str], expected: &str) -> Result<()> {
 }
 
 fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
+    let actual = value_at_path(value, path)
+        .and_then(Value::as_bool)
+        .ok_or_else(|| anyhow!("missing bool at {}", path.join(".")))?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {}, got {}",
+            path.join("."),
+            expected,
+            actual
+        ))
+    }
+}
+
+fn require_eq_value(value: &Value, path: &[&str], expected: &str) -> Result<()> {
+    let actual = value_at_path(value, path)
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("missing string at {}", path.join(".")))?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {:?}, got {:?}",
+            path.join("."),
+            expected,
+            actual
+        ))
+    }
+}
+
+fn require_bool_value(value: &Value, path: &[&str], expected: bool) -> Result<()> {
     let actual = value_at_path(value, path)
         .and_then(Value::as_bool)
         .ok_or_else(|| anyhow!("missing bool at {}", path.join(".")))?;

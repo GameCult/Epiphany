@@ -22,6 +22,7 @@ use epiphany_core::EpiphanyCultMeshDaemonToolCapabilityEntry;
 use epiphany_core::EpiphanyCultMeshEveSurfaceStateEntry;
 use epiphany_core::EpiphanyCultMeshImaginationConsensusReceiptEntry;
 use epiphany_core::EpiphanyCultMeshOdinAdvertisementEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
@@ -51,6 +52,7 @@ use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
 use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
+use epiphany_core::load_epiphany_cultmesh_repo_work_map_entries;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_repo_work_public_proofs;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
@@ -66,6 +68,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::open_epiphany_cultmesh_node;
@@ -758,6 +761,7 @@ fn run_cli() -> Result<()> {
                 "receipts": "epiphany-verse-query receipt-directory",
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
                 "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
+                "repoWorkMap": "epiphany-verse-query gjallar",
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
                 "gjallar": "epiphany-verse-query gjallar",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
@@ -4063,11 +4067,14 @@ struct SwarmOverviewReport {
     service_execution_missing_check_count: usize,
     service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
     service_execution_failed_check_tui_rows: Vec<String>,
+    repo_work_map_rows: Vec<RepoWorkMapRow>,
+    repo_work_map_tui_rows: Vec<String>,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
     latest_repo_work_overview_id: Option<String>,
+    latest_repo_work_map_entry: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
@@ -4096,6 +4103,26 @@ struct RepoWorkOverviewRow {
     publication_status: String,
     sync_status: String,
     proof_bundle_ref: String,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkMapRow {
+    map_entry_id: String,
+    workspace: String,
+    item: String,
+    branch: String,
+    changed_path_count: usize,
+    commit_sha: String,
+    safe_action_family: String,
+    modeling_summary: String,
+    soul_verdict_receipt_id: String,
+    mind_gateway_review_id: String,
+    mind_state_commit_receipt_id: String,
+    publication_gate: String,
+    durable_state_admitted: bool,
+    source_store_path: String,
     private_state_exposed: bool,
 }
 
@@ -4201,6 +4228,9 @@ struct SwarmOverviewOutput {
     service_execution_missing_check_count: usize,
     service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
     service_execution_failed_check_tui_rows: Vec<String>,
+    repo_work_map_count: usize,
+    repo_work_map_rows: Vec<RepoWorkMapRow>,
+    repo_work_map_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4208,6 +4238,7 @@ struct SwarmOverviewOutput {
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
     latest_repo_work_overview: Option<String>,
+    latest_repo_work_map_entry: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
@@ -4272,6 +4303,9 @@ impl SwarmOverviewOutput {
             service_execution_missing_check_count: report.service_execution_missing_check_count,
             service_execution_failed_check_rows: report.service_execution_failed_check_rows,
             service_execution_failed_check_tui_rows: report.service_execution_failed_check_tui_rows,
+            repo_work_map_count: report.repo_work_map_rows.len(),
+            repo_work_map_rows: report.repo_work_map_rows,
+            repo_work_map_tui_rows: report.repo_work_map_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -4279,6 +4313,7 @@ impl SwarmOverviewOutput {
             repo_work_public_proof_rows: report.repo_work_public_proof_rows,
             repo_work_public_proof_tui_rows: report.repo_work_public_proof_tui_rows,
             latest_repo_work_overview: report.latest_repo_work_overview_id,
+            latest_repo_work_map_entry: report.latest_repo_work_map_entry,
             latest_repo_work_gate: report.latest_repo_work_gate,
             latest_repo_work_blocker: report.latest_repo_work_blocker,
             latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
@@ -4335,6 +4370,9 @@ struct SwarmTriageOutput {
     service_execution_missing_check_count: usize,
     service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
     service_execution_failed_check_tui_rows: Vec<String>,
+    repo_work_map_count: usize,
+    repo_work_map_rows: Vec<RepoWorkMapRow>,
+    repo_work_map_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4342,6 +4380,7 @@ struct SwarmTriageOutput {
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
     latest_repo_work_overview: Option<String>,
+    latest_repo_work_map_entry: Option<String>,
     latest_repo_work_gate: Option<String>,
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
@@ -4401,6 +4440,9 @@ impl SwarmTriageOutput {
             service_execution_missing_check_count: report.service_execution_missing_check_count,
             service_execution_failed_check_rows: report.service_execution_failed_check_rows,
             service_execution_failed_check_tui_rows: report.service_execution_failed_check_tui_rows,
+            repo_work_map_count: report.repo_work_map_rows.len(),
+            repo_work_map_rows: report.repo_work_map_rows,
+            repo_work_map_tui_rows: report.repo_work_map_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -4408,6 +4450,7 @@ impl SwarmTriageOutput {
             repo_work_public_proof_rows: report.repo_work_public_proof_rows,
             repo_work_public_proof_tui_rows: report.repo_work_public_proof_tui_rows,
             latest_repo_work_overview: report.latest_repo_work_overview_id,
+            latest_repo_work_map_entry: report.latest_repo_work_map_entry,
             latest_repo_work_gate: report.latest_repo_work_gate,
             latest_repo_work_blocker: report.latest_repo_work_blocker,
             latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
@@ -4426,6 +4469,7 @@ impl SwarmTriageOutput {
                 "wrapperReceipts": WRAPPER_RECEIPT_DIRECTORY_COMMAND,
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
                 "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
+                "repoWorkMap": "epiphany-verse-query gjallar",
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
                 "bifrostLedger": "epiphany-verse-query bifrost-ledger",
                 "wrapperBifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
@@ -4952,6 +4996,54 @@ fn repo_work_overview_tui_row(row: &RepoWorkOverviewRow) -> String {
     )
 }
 
+fn repo_work_map_rows(
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+) -> (Vec<RepoWorkMapRow>, Vec<String>) {
+    let rows = repo_work_map_entries
+        .iter()
+        .map(repo_work_map_row)
+        .collect::<Vec<_>>();
+    let tui_rows = rows.iter().map(repo_work_map_tui_row).collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_map_row(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> RepoWorkMapRow {
+    RepoWorkMapRow {
+        map_entry_id: entry.map_entry_id.clone(),
+        workspace: entry.workspace.clone(),
+        item: entry.item.clone(),
+        branch: entry.branch.clone(),
+        changed_path_count: entry.changed_paths.len(),
+        commit_sha: entry.commit_sha.clone(),
+        safe_action_family: entry.safe_action_family.clone(),
+        modeling_summary: entry.modeling_summary.clone(),
+        soul_verdict_receipt_id: entry.soul_verdict_receipt_id.clone(),
+        mind_gateway_review_id: entry.mind_gateway_review_id.clone(),
+        mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
+        publication_gate: entry.publication_gate.clone(),
+        durable_state_admitted: entry.durable_state_admitted,
+        source_store_path: entry.source_store_path.clone(),
+        private_state_exposed: entry.private_state_exposed,
+    }
+}
+
+fn repo_work_map_tui_row(row: &RepoWorkMapRow) -> String {
+    format!(
+        "REPO-WORK-MAP | item={} | branch={} | commit={} | family={} | paths={} | soul={} | mind={} | gate={} | admitted={} | source={} | private={}",
+        row.item,
+        row.branch,
+        short_commit(&row.commit_sha),
+        row.safe_action_family,
+        row.changed_path_count,
+        row.soul_verdict_receipt_id,
+        row.mind_state_commit_receipt_id,
+        row.publication_gate,
+        row.durable_state_admitted,
+        row.source_store_path,
+        row.private_state_exposed
+    )
+}
+
 fn repo_work_peer_tui_rows(rows: &[RepoWorkOverviewRow]) -> Vec<String> {
     rows.iter()
         .map(|row| {
@@ -5021,6 +5113,10 @@ fn repo_work_public_proof_tui_row(row: &RepoWorkPublicProofRow) -> String {
         row.public_proof_sha256,
         row.private_state_exposed
     )
+}
+
+fn short_commit(commit_sha: &str) -> String {
+    commit_sha.chars().take(12).collect::<String>()
 }
 
 fn repo_work_overview_action_row(
@@ -5501,6 +5597,32 @@ fn load_repo_work_overview_queue(
     Ok((latest_repo_work_overview, repo_work_overviews))
 }
 
+fn load_repo_work_map_entries(
+    args: &Args,
+) -> Result<(
+    Option<EpiphanyCultMeshRepoWorkMapEntry>,
+    Vec<EpiphanyCultMeshRepoWorkMapEntry>,
+)> {
+    let latest_repo_work_map_entry =
+        load_latest_epiphany_cultmesh_repo_work_map_entry(&args.store, args.runtime_id.clone())?;
+    let mut repo_work_map_entries =
+        load_epiphany_cultmesh_repo_work_map_entries(&args.store, args.runtime_id.clone())?;
+    if let Some(latest) = latest_repo_work_map_entry.as_ref() {
+        if !repo_work_map_entries
+            .iter()
+            .any(|entry| entry.map_entry_id == latest.map_entry_id)
+        {
+            repo_work_map_entries.push(latest.clone());
+            repo_work_map_entries.sort_by(|a, b| {
+                b.admitted_at
+                    .cmp(&a.admitted_at)
+                    .then_with(|| a.map_entry_id.cmp(&b.map_entry_id))
+            });
+        }
+    }
+    Ok((latest_repo_work_map_entry, repo_work_map_entries))
+}
+
 fn load_repo_work_public_proofs(
     args: &Args,
 ) -> Result<(
@@ -5533,6 +5655,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let liveness = load_epiphany_cultmesh_daemon_liveness(&args.store, args.runtime_id.clone())?;
     let daemon_report = daemon_liveness_report(&liveness);
     let (latest_repo_work_overview, repo_work_overviews) = load_repo_work_overview_queue(args)?;
+    let (latest_repo_work_map_entry, repo_work_map_entries) = load_repo_work_map_entries(args)?;
     let (latest_repo_work_public_proof, repo_work_public_proofs) =
         load_repo_work_public_proofs(args)?;
     let directory =
@@ -5747,6 +5870,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .collect::<Vec<_>>();
     let (repo_work_overview_rows, repo_work_overview_tui_rows) =
         repo_work_overview_rows(&repo_work_overviews);
+    let (repo_work_map_rows, repo_work_map_tui_rows) = repo_work_map_rows(&repo_work_map_entries);
     let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
         repo_work_public_proof_rows(&repo_work_public_proofs);
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
@@ -5768,6 +5892,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         || repo_work_overviews
             .iter()
             .any(|overview| overview.private_state_exposed)
+        || repo_work_map_entries
+            .iter()
+            .any(|entry| entry.private_state_exposed)
         || repo_work_public_proofs
             .iter()
             .any(|proof| proof.private_state_exposed)
@@ -5778,6 +5905,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let latest_repo_work_overview_id = latest_repo_work_overview
         .as_ref()
         .map(|overview| overview.overview_id.clone());
+    let latest_repo_work_map_entry = latest_repo_work_map_entry
+        .as_ref()
+        .map(|entry| entry.map_entry_id.clone());
     let latest_repo_work_gate = latest_repo_work_overview
         .as_ref()
         .map(|overview| overview.current_gate.clone());
@@ -5812,11 +5942,14 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         service_execution_missing_check_count,
         service_execution_failed_check_rows,
         service_execution_failed_check_tui_rows,
+        repo_work_map_rows,
+        repo_work_map_tui_rows,
         repo_work_overview_rows,
         repo_work_overview_tui_rows,
         repo_work_public_proof_rows,
         repo_work_public_proof_tui_rows,
         latest_repo_work_overview_id,
+        latest_repo_work_map_entry,
         latest_repo_work_gate,
         latest_repo_work_blocker,
         latest_repo_work_next_safe_move,

@@ -76,6 +76,12 @@ pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.repo_work_overview.v0";
 pub const EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY: &str =
     "gamecult-local/repo-work-overview/latest";
+pub const EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_TYPE: &str =
+    "epiphany.cultmesh.repo_work_map_entry";
+pub const EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.repo_work_map_entry.v0";
+pub const EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY: &str =
+    "gamecult-local/repo-work-map/latest";
 pub const EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_TYPE: &str =
     "epiphany.cultmesh.repo_work_public_proof";
 pub const EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION: &str =
@@ -749,6 +755,58 @@ pub struct EpiphanyCultMeshRepoWorkOverviewEntry {
     #[cultcache(key = 19)]
     pub private_state_exposed: bool,
     #[cultcache(key = 20)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.repo_work_map_entry",
+    schema = "EpiphanyCultMeshRepoWorkMapEntry"
+)]
+pub struct EpiphanyCultMeshRepoWorkMapEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub map_entry_id: String,
+    #[cultcache(key = 4)]
+    pub admitted_at: String,
+    #[cultcache(key = 5)]
+    pub mirrored_at: String,
+    #[cultcache(key = 6)]
+    pub workspace: String,
+    #[cultcache(key = 7)]
+    pub item: String,
+    #[cultcache(key = 8)]
+    pub branch: String,
+    #[cultcache(key = 9)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 10)]
+    pub commit_sha: String,
+    #[cultcache(key = 11)]
+    pub safe_action_family: String,
+    #[cultcache(key = 12)]
+    pub modeling_summary: String,
+    #[cultcache(key = 13)]
+    pub soul_verdict_receipt_id: String,
+    #[cultcache(key = 14)]
+    pub mind_gateway_review_id: String,
+    #[cultcache(key = 15)]
+    pub mind_state_commit_receipt_id: String,
+    #[cultcache(key = 16)]
+    pub publication_gate: String,
+    #[cultcache(key = 17)]
+    pub durable_state_admitted: bool,
+    #[cultcache(key = 18)]
+    pub source_store_path: String,
+    #[cultcache(key = 19)]
+    pub tui_rows: Vec<String>,
+    #[cultcache(key = 20)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 21)]
     pub notes: Vec<String>,
 }
 
@@ -2091,6 +2149,7 @@ pub struct EpiphanyLocalVerseContext {
     pub latest_work_loop_summary: Option<EpiphanyLocalVerseWorkLoopSummary>,
     pub latest_agent_state_soa_summary: Option<EpiphanyCultMeshAgentStateSoaSummaryEntry>,
     pub latest_repo_work_overview: Option<EpiphanyCultMeshRepoWorkOverviewEntry>,
+    pub latest_repo_work_map_entry: Option<EpiphanyCultMeshRepoWorkMapEntry>,
     pub latest_eve_connection_intent: Option<EpiphanyCultMeshEveConnectionIntentEntry>,
     pub latest_eve_connection_receipt: Option<EpiphanyCultMeshEveConnectionReceiptEntry>,
     pub contract_summaries: Vec<EpiphanyLocalVerseContractSummary>,
@@ -2142,6 +2201,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshWorkLoopTelemetryEntry => EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION,
     EpiphanyCultMeshAgentStateSoaSummaryEntry => EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkOverviewEntry => EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION,
+    EpiphanyCultMeshRepoWorkMapEntry => EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkPublicProofEntry => EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
@@ -4407,6 +4467,45 @@ pub fn load_epiphany_cultmesh_repo_work_overviews(
     Ok(overviews)
 }
 
+pub fn write_epiphany_cultmesh_repo_work_map_entry(
+    store_path: impl AsRef<Path>,
+    map_entry: EpiphanyCultMeshRepoWorkMapEntry,
+) -> Result<EpiphanyCultMeshRepoWorkMapEntry> {
+    validate_repo_work_map_entry(&map_entry)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, map_entry.runtime_id.clone())?;
+    let written = node.put(map_entry.map_entry_id.clone(), &map_entry)?;
+    node.put(EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_repo_work_map_entry(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshRepoWorkMapEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY)
+}
+
+pub fn load_epiphany_cultmesh_repo_work_map_entries(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshRepoWorkMapEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut entries = node
+        .get_all_with_keys::<EpiphanyCultMeshRepoWorkMapEntry>()?
+        .into_iter()
+        .filter(|(key, _)| key != EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY)
+        .map(|(_, entry)| entry)
+        .collect::<Vec<_>>();
+    entries.sort_by(|a, b| {
+        b.admitted_at
+            .cmp(&a.admitted_at)
+            .then_with(|| a.map_entry_id.cmp(&b.map_entry_id))
+    });
+    Ok(entries)
+}
+
 pub fn write_epiphany_cultmesh_repo_work_public_proof(
     store_path: impl AsRef<Path>,
     proof: EpiphanyCultMeshRepoWorkPublicProofEntry,
@@ -4478,6 +4577,47 @@ fn validate_repo_work_overview(overview: &EpiphanyCultMeshRepoWorkOverviewEntry)
     {
         return Err(anyhow!(
             "repo work overview rows must not expose raw worker payload names"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_repo_work_map_entry(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> Result<()> {
+    if entry.private_state_exposed {
+        return Err(anyhow!("repo work map entry must not expose private state"));
+    }
+    if entry.schema_version != EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "repo work map entry schema_version must be {:?}",
+            EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION
+        ));
+    }
+    if entry.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID {
+        return Err(anyhow!(
+            "repo work map entry belongs in local-area Verse {:?}",
+            EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
+        ));
+    }
+    if entry.map_entry_id.trim().is_empty() || entry.item.trim().is_empty() {
+        return Err(anyhow!(
+            "repo work map entry requires map_entry_id and item"
+        ));
+    }
+    if !entry.durable_state_admitted {
+        return Err(anyhow!(
+            "repo work map entry projection requires admitted durable state"
+        ));
+    }
+    if entry.tui_rows.is_empty() {
+        return Err(anyhow!("repo work map entry requires compact TUI rows"));
+    }
+    if entry
+        .tui_rows
+        .iter()
+        .any(|row| row.to_ascii_lowercase().contains("rawresult"))
+    {
+        return Err(anyhow!(
+            "repo work map entry rows must not expose raw worker payload names"
         ));
     }
     Ok(())
@@ -4747,6 +4887,7 @@ pub fn query_epiphany_local_verse_context(
         latest_agent_state_soa_summary: node
             .get(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY)?,
         latest_repo_work_overview: node.get(EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY)?,
+        latest_repo_work_map_entry: node.get(EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY)?,
         latest_eve_connection_intent: node
             .get(EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY)?,
         latest_eve_connection_receipt: node
