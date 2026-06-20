@@ -806,17 +806,21 @@ runbook beside config close and audit.
 
 The post-push receipt mouth is now explicit as well.
 `epiphany-work deployment-aftercare-audit --workspace <repo>
---idunn-deployment-receipt <path> --aftercare-audit-receipt <path>` reads the
-operator runbook receipt plus supplied Idunn deployment and aftercare receipts,
-checks `gamecult.idunn.deployment_receipt.v0` and
+--local-verse-store <path> --idunn-deployment-receipt-ref <ref>
+--aftercare-audit-receipt-ref <ref>` reads the operator runbook receipt plus
+sealed Idunn deployment and aftercare receipt projections from the repo-local
+CultMesh store, checks `gamecult.idunn.deployment_receipt.v0` and
 `gamecult.idunn.deployment_aftercare_audit.v0`, and emits
 `epiphany.repo_deployment_aftercare_audit.v0`. It reports `complete` only when
 the runbook is ready and both Idunn receipts carry successful statuses and
 private-state seals; otherwise it reports the missing gate without mutating
-remote refs or granting deployment authority. Smoke
-`.epiphany-smoke\repo-deployment-config-family-20260620-215037` proved the
-complete ingestion path from explicit fixture receipts with
-`deploymentComplete=true` and `privateStateExposed=false`.
+remote refs or granting deployment authority. The older explicit receipt-file
+flags remain as compatibility reliquaries. Smoke
+`.epiphany-smoke\repo-deployment-config-family-20260620-221205` proved the
+CultMesh receipt-ref ingestion path with
+`idunnDeploymentReceiptSource=cultmesh`,
+`idunnAftercareAuditReceiptSource=cultmesh`, `deploymentComplete=true`, and
+`privateStateExposed=false`.
 
 ### Landed Work Run Gate
 

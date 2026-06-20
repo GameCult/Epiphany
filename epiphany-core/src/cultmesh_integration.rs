@@ -144,6 +144,14 @@ pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION: &st
     "epiphany.cultmesh.daemon_service_lifecycle_receipt.v0";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY: &str =
     "epiphany-local/daemon-service-lifecycle-receipt/latest";
+pub const EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.idunn.deployment_receipt.v0";
+pub const EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY: &str =
+    "gamecult-local/idunn/deployment-receipt/latest";
+pub const EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.idunn.deployment_aftercare_audit.v0";
+pub const EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_LATEST_KEY: &str =
+    "gamecult-local/idunn/deployment-aftercare-audit/latest";
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_TYPE: &str = "epiphany.cultmesh.swarm_brake";
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION: &str = "epiphany.cultmesh.swarm_brake.v0";
 pub const EPIPHANY_CULTMESH_SWARM_BRAKE_KEY: &str = "epiphany-local/swarm-brake";
@@ -1294,6 +1302,68 @@ pub struct EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
     pub notes: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.idunn.deployment_receipt",
+    schema = "EpiphanyCultMeshIdunnDeploymentReceiptEntry"
+)]
+pub struct EpiphanyCultMeshIdunnDeploymentReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub runtime_id: String,
+    #[cultcache(key = 3)]
+    pub verse_id: String,
+    #[cultcache(key = 4)]
+    pub status: String,
+    #[cultcache(key = 5)]
+    pub trigger: String,
+    #[cultcache(key = 6)]
+    pub watched_ref: String,
+    #[cultcache(key = 7)]
+    pub source_commit: String,
+    #[cultcache(key = 8)]
+    pub result_ref: String,
+    #[cultcache(key = 9)]
+    pub result_summary: String,
+    #[cultcache(key = 10)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 11)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.idunn.deployment_aftercare_audit",
+    schema = "EpiphanyCultMeshIdunnAftercareAuditReceiptEntry"
+)]
+pub struct EpiphanyCultMeshIdunnAftercareAuditReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub runtime_id: String,
+    #[cultcache(key = 3)]
+    pub verse_id: String,
+    #[cultcache(key = 4)]
+    pub status: String,
+    #[cultcache(key = 5)]
+    pub checked_ref: String,
+    #[cultcache(key = 6)]
+    pub deployment_receipt_id: String,
+    #[cultcache(key = 7)]
+    pub audit_ref: String,
+    #[cultcache(key = 8)]
+    pub result_summary: String,
+    #[cultcache(key = 9)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 10)]
+    pub notes: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyServiceExecutionAuditCheck {
@@ -2216,6 +2286,8 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshDaemonRestartPolicyEntry => EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonSchedulerReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshIdunnDeploymentReceiptEntry => EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshIdunnAftercareAuditReceiptEntry => EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshSwarmBrakeEntry => EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,
     EpiphanyCultMeshPersonaSpeechAuditEntry => EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonToolCapabilityEntry => EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_SCHEMA_VERSION,
@@ -3225,6 +3297,76 @@ pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
         .collect())
 }
 
+pub fn write_epiphany_cultmesh_idunn_deployment_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshIdunnDeploymentReceiptEntry,
+) -> Result<EpiphanyCultMeshIdunnDeploymentReceiptEntry> {
+    validate_idunn_deployment_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_idunn_deployment_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_epiphany_cultmesh_idunn_deployment_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt_ref: impl AsRef<str>,
+) -> Result<Option<EpiphanyCultMeshIdunnDeploymentReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let key = epiphany_cultmesh_idunn_deployment_receipt_ref_key(receipt_ref.as_ref());
+    node.get(key.as_str())
+}
+
+pub fn load_latest_epiphany_cultmesh_idunn_deployment_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshIdunnDeploymentReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY)
+}
+
+pub fn write_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshIdunnAftercareAuditReceiptEntry,
+) -> Result<EpiphanyCultMeshIdunnAftercareAuditReceiptEntry> {
+    validate_idunn_aftercare_audit_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_idunn_aftercare_audit_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt_ref: impl AsRef<str>,
+) -> Result<Option<EpiphanyCultMeshIdunnAftercareAuditReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let key = epiphany_cultmesh_idunn_aftercare_audit_receipt_ref_key(receipt_ref.as_ref());
+    node.get(key.as_str())
+}
+
+pub fn load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshIdunnAftercareAuditReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_LATEST_KEY)
+}
+
 pub fn default_epiphany_cultmesh_swarm_brake(
     generated_at_utc: impl Into<String>,
 ) -> EpiphanyCultMeshSwarmBrakeEntry {
@@ -3492,6 +3634,69 @@ fn validate_daemon_service_lifecycle_receipt(
     ] {
         if value.trim().is_empty() {
             return Err(anyhow!("daemon service lifecycle receipt missing {label}"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_idunn_deployment_receipt(
+    receipt: &EpiphanyCultMeshIdunnDeploymentReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Idunn deployment receipts must not expose private state"
+        ));
+    }
+    if receipt.schema_version != EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "Idunn deployment receipt schema_version must be {:?}",
+            EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION
+        ));
+    }
+    for (label, value) in [
+        ("receipt id", receipt.receipt_id.as_str()),
+        ("runtime id", receipt.runtime_id.as_str()),
+        ("verse id", receipt.verse_id.as_str()),
+        ("status", receipt.status.as_str()),
+        ("trigger", receipt.trigger.as_str()),
+        ("watched ref", receipt.watched_ref.as_str()),
+        ("result ref", receipt.result_ref.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("Idunn deployment receipt missing {label}"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_idunn_aftercare_audit_receipt(
+    receipt: &EpiphanyCultMeshIdunnAftercareAuditReceiptEntry,
+) -> Result<()> {
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Idunn aftercare audit receipts must not expose private state"
+        ));
+    }
+    if receipt.schema_version != EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "Idunn aftercare audit receipt schema_version must be {:?}",
+            EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION
+        ));
+    }
+    for (label, value) in [
+        ("receipt id", receipt.receipt_id.as_str()),
+        ("runtime id", receipt.runtime_id.as_str()),
+        ("verse id", receipt.verse_id.as_str()),
+        ("status", receipt.status.as_str()),
+        ("checked ref", receipt.checked_ref.as_str()),
+        (
+            "deployment receipt id",
+            receipt.deployment_receipt_id.as_str(),
+        ),
+        ("audit ref", receipt.audit_ref.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("Idunn aftercare audit receipt missing {label}"));
         }
     }
     Ok(())
@@ -5212,6 +5417,36 @@ fn epiphany_cultmesh_daemon_scheduler_receipt_key(receipt_id: &str) -> String {
 
 fn epiphany_cultmesh_daemon_service_lifecycle_receipt_key(receipt_id: &str) -> String {
     format!("epiphany-local/daemon-service-lifecycle-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_idunn_deployment_receipt_key(receipt_id: &str) -> String {
+    format!("gamecult-local/idunn/deployment-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_idunn_deployment_receipt_ref_key(receipt_ref: &str) -> String {
+    let trimmed = receipt_ref.trim();
+    if trimmed.is_empty() || trimmed == "latest" {
+        EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY.to_string()
+    } else if trimmed.starts_with("gamecult-local/") {
+        trimmed.to_string()
+    } else {
+        epiphany_cultmesh_idunn_deployment_receipt_key(trimmed)
+    }
+}
+
+fn epiphany_cultmesh_idunn_aftercare_audit_receipt_key(receipt_id: &str) -> String {
+    format!("gamecult-local/idunn/deployment-aftercare-audit/{receipt_id}")
+}
+
+fn epiphany_cultmesh_idunn_aftercare_audit_receipt_ref_key(receipt_ref: &str) -> String {
+    let trimmed = receipt_ref.trim();
+    if trimmed.is_empty() || trimmed == "latest" {
+        EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_LATEST_KEY.to_string()
+    } else if trimmed.starts_with("gamecult-local/") {
+        trimmed.to_string()
+    } else {
+        epiphany_cultmesh_idunn_aftercare_audit_receipt_key(trimmed)
+    }
 }
 
 fn epiphany_cultmesh_daemon_tool_invocation_receipt_key(receipt_id: &str) -> String {

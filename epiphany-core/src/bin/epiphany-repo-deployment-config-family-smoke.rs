@@ -2,6 +2,10 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::Utc;
+use epiphany_core::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
+use epiphany_core::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
+use epiphany_core::write_epiphany_cultmesh_idunn_aftercare_audit_receipt;
+use epiphany_core::write_epiphany_cultmesh_idunn_deployment_receipt;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -221,29 +225,53 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         &root,
     )?;
-    let idunn_receipt_dir = repo.join(".epiphany").join("work").join("idunn-deployment");
-    fs::create_dir_all(&idunn_receipt_dir)
-        .with_context(|| format!("failed to create {}", idunn_receipt_dir.display()))?;
-    let idunn_deployment_receipt_path = idunn_receipt_dir.join("fixture-idunn-deployment.json");
-    let idunn_aftercare_receipt_path = idunn_receipt_dir.join("fixture-idunn-aftercare.json");
-    write_json(
-        &idunn_deployment_receipt_path,
-        &json!({
-            "schemaVersion": "gamecult.idunn.deployment_receipt.v0",
-            "status": "deployed",
-            "trigger": "git-push-observed-by-idunn",
-            "watchedRef": "refs/heads/main",
-            "privateStateExposed": false
-        }),
+    let current_commit = git_output(["rev-parse", "HEAD"], &repo)?;
+    let idunn_deployment_receipt_id = "fixture-idunn-deployment";
+    let idunn_aftercare_receipt_id = "fixture-idunn-aftercare";
+    write_epiphany_cultmesh_idunn_deployment_receipt(
+        &local_verse,
+        "repo-deployment-config-family-smoke",
+        EpiphanyCultMeshIdunnDeploymentReceiptEntry {
+            schema_version: "gamecult.idunn.deployment_receipt.v0".to_string(),
+            receipt_id: idunn_deployment_receipt_id.to_string(),
+            runtime_id: "repo-deployment-config-family-smoke".to_string(),
+            verse_id: "gamecult-local".to_string(),
+            status: "deployed".to_string(),
+            trigger: "git-push-observed-by-idunn".to_string(),
+            watched_ref: "refs/heads/main".to_string(),
+            source_commit: current_commit,
+            result_ref: "idunn://deployment/fixture-idunn-deployment".to_string(),
+            result_summary:
+                "Fixture Idunn deployment receipt proves the repo audit can ingest sealed CultMesh receipt refs."
+                    .to_string(),
+            private_state_exposed: false,
+            notes: vec![
+                "Idunn owns deployment execution; this local Verse row is an operator-safe receipt projection."
+                    .to_string(),
+            ],
+        },
     )?;
-    write_json(
-        &idunn_aftercare_receipt_path,
-        &json!({
-            "schemaVersion": "gamecult.idunn.deployment_aftercare_audit.v0",
-            "status": "complete",
-            "checkedRef": "refs/heads/main",
-            "privateStateExposed": false
-        }),
+    write_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+        &local_verse,
+        "repo-deployment-config-family-smoke",
+        EpiphanyCultMeshIdunnAftercareAuditReceiptEntry {
+            schema_version: "gamecult.idunn.deployment_aftercare_audit.v0".to_string(),
+            receipt_id: idunn_aftercare_receipt_id.to_string(),
+            runtime_id: "repo-deployment-config-family-smoke".to_string(),
+            verse_id: "gamecult-local".to_string(),
+            status: "complete".to_string(),
+            checked_ref: "refs/heads/main".to_string(),
+            deployment_receipt_id: idunn_deployment_receipt_id.to_string(),
+            audit_ref: "idunn://deployment-aftercare/fixture-idunn-aftercare".to_string(),
+            result_summary:
+                "Fixture Idunn aftercare audit receipt proves the repo audit can close from sealed CultMesh receipt refs."
+                    .to_string(),
+            private_state_exposed: false,
+            notes: vec![
+                "Idunn owns aftercare; this local Verse row exposes status without private deployment state."
+                    .to_string(),
+            ],
+        },
     )?;
     let aftercare = cargo_json(
         &manifest,
@@ -252,10 +280,14 @@ fn run_smoke(args: Args) -> Result<Value> {
             "deployment-aftercare-audit",
             "--workspace",
             path_str(&repo)?,
-            "--idunn-deployment-receipt",
-            path_str(&idunn_deployment_receipt_path)?,
-            "--aftercare-audit-receipt",
-            path_str(&idunn_aftercare_receipt_path)?,
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-deployment-config-family-smoke",
+            "--idunn-deployment-receipt-ref",
+            "latest",
+            "--aftercare-audit-receipt-ref",
+            "latest",
         ],
         &root,
     )?;
@@ -401,6 +433,26 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_bool(&aftercare, &["privateStateExposed"], false)?;
     require_eq(
         &aftercare,
+        &["idunnDeploymentReceipt", "source"],
+        "cultmesh",
+    )?;
+    require_eq(
+        &aftercare,
+        &["idunnDeploymentReceipt", "receiptId"],
+        idunn_deployment_receipt_id,
+    )?;
+    require_eq(
+        &aftercare,
+        &["idunnAftercareAuditReceipt", "source"],
+        "cultmesh",
+    )?;
+    require_eq(
+        &aftercare,
+        &["idunnAftercareAuditReceipt", "receiptId"],
+        idunn_aftercare_receipt_id,
+    )?;
+    require_eq(
+        &aftercare,
         &["idunnDeploymentReceipt", "schemaVersion"],
         "gamecult.idunn.deployment_receipt.v0",
     )?;
@@ -434,6 +486,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         "mutatesRemoteWhenRun": runbook["mutatesRemoteWhenRun"],
         "deploymentAftercareAuditStatus": aftercare["status"],
         "deploymentComplete": aftercare["deploymentComplete"],
+        "idunnDeploymentReceiptSource": aftercare["idunnDeploymentReceipt"]["source"],
+        "idunnAftercareAuditReceiptSource": aftercare["idunnAftercareAuditReceipt"]["source"],
+        "idunnDeploymentReceiptId": aftercare["idunnDeploymentReceipt"]["receiptId"],
+        "idunnAftercareAuditReceiptId": aftercare["idunnAftercareAuditReceipt"]["receiptId"],
         "deploymentTrigger": "git-push-observed-by-idunn",
         "deploymentOwner": "Idunn",
         "daemonOwnsExecution": true,

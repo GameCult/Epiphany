@@ -31,8 +31,12 @@ use epiphany_core::hands_commit_receipt_for_review;
 use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::hands_pr_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::load_epiphany_cultmesh_idunn_aftercare_audit_receipt;
+use epiphany_core::load_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::put_hands_action_intent;
@@ -348,9 +352,13 @@ struct DeploymentExecutionRunbookArgs {
 struct DeploymentAftercareAuditArgs {
     workspace: PathBuf,
     artifact_dir: Option<PathBuf>,
+    local_verse_store: Option<PathBuf>,
+    runtime_id: String,
     runbook_receipt: Option<PathBuf>,
     idunn_deployment_receipt: Option<PathBuf>,
+    idunn_deployment_receipt_ref: Option<String>,
     aftercare_audit_receipt: Option<PathBuf>,
+    aftercare_audit_receipt_ref: Option<String>,
     write_receipt: bool,
 }
 
@@ -1184,9 +1192,13 @@ fn parse_deployment_aftercare_audit_args(
 ) -> Result<DeploymentAftercareAuditArgs> {
     let mut workspace = None;
     let mut artifact_dir = None;
+    let mut local_verse_store = None;
+    let mut runtime_id = "repo-swarm-local".to_string();
     let mut runbook_receipt = None;
     let mut idunn_deployment_receipt = None;
+    let mut idunn_deployment_receipt_ref = None;
     let mut aftercare_audit_receipt = None;
+    let mut aftercare_audit_receipt_ref = None;
     let mut write_receipt = true;
 
     let mut args = args.peekable();
@@ -1194,14 +1206,26 @@ fn parse_deployment_aftercare_audit_args(
         match arg.as_str() {
             "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--local-verse-store" | "--store" => {
+                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
+            }
+            "--runtime-id" => runtime_id = take_string(&mut args, "--runtime-id")?,
             "--runbook-receipt" => {
                 runbook_receipt = Some(take_path(&mut args, "--runbook-receipt")?)
             }
             "--idunn-deployment-receipt" | "--deployment-receipt" => {
                 idunn_deployment_receipt = Some(take_path(&mut args, "--idunn-deployment-receipt")?)
             }
+            "--idunn-deployment-receipt-ref" | "--deployment-receipt-ref" => {
+                idunn_deployment_receipt_ref =
+                    Some(take_string(&mut args, "--idunn-deployment-receipt-ref")?)
+            }
             "--aftercare-audit-receipt" | "--aftercare-receipt" => {
                 aftercare_audit_receipt = Some(take_path(&mut args, "--aftercare-audit-receipt")?)
+            }
+            "--aftercare-audit-receipt-ref" | "--aftercare-receipt-ref" => {
+                aftercare_audit_receipt_ref =
+                    Some(take_string(&mut args, "--aftercare-audit-receipt-ref")?)
             }
             "--no-write" | "--read-only" => write_receipt = false,
             other => {
@@ -1214,9 +1238,13 @@ fn parse_deployment_aftercare_audit_args(
     Ok(DeploymentAftercareAuditArgs {
         workspace: workspace.context("missing --workspace")?,
         artifact_dir,
+        local_verse_store,
+        runtime_id,
         runbook_receipt,
         idunn_deployment_receipt,
+        idunn_deployment_receipt_ref,
         aftercare_audit_receipt,
+        aftercare_audit_receipt_ref,
         write_receipt,
     })
 }
@@ -10639,8 +10667,15 @@ fn run_deployment_aftercare_audit(args: DeploymentAftercareAuditArgs) -> Result<
     let runbook_receipt_path = args
         .runbook_receipt
         .unwrap_or_else(|| artifact_dir.join("deployment-execution-runbook.json"));
+    let local_verse_store = args
+        .local_verse_store
+        .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"));
     let idunn_deployment_receipt_path = args.idunn_deployment_receipt;
+    let idunn_deployment_receipt_ref = args.idunn_deployment_receipt_ref;
     let aftercare_audit_receipt_path = args.aftercare_audit_receipt;
+    let aftercare_audit_receipt_ref = args.aftercare_audit_receipt_ref;
+    let runtime_id = args.runtime_id;
+    let local_verse_store_display = local_verse_store.display().to_string();
     let generated_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let mut assertions = Vec::new();
 
@@ -10662,7 +10697,59 @@ fn run_deployment_aftercare_audit(args: DeploymentAftercareAuditArgs) -> Result<
             .to_string(),
     );
 
-    let idunn_deployment_summary = if let Some(path) = idunn_deployment_receipt_path.as_ref() {
+    let idunn_deployment_summary = if let Some(receipt_ref) = idunn_deployment_receipt_ref.as_ref()
+    {
+        let receipt = if receipt_ref.trim().is_empty() || receipt_ref.trim() == "latest" {
+            load_latest_epiphany_cultmesh_idunn_deployment_receipt(
+                &local_verse_store,
+                runtime_id.clone(),
+            )?
+        } else {
+            load_epiphany_cultmesh_idunn_deployment_receipt(
+                &local_verse_store,
+                runtime_id.clone(),
+                receipt_ref,
+            )?
+        };
+        if let Some(receipt) = receipt {
+            let schema_ok = receipt.schema_version == "gamecult.idunn.deployment_receipt.v0";
+            let status_ok = matches!(
+                receipt.status.as_str(),
+                "ok" | "complete" | "deployed" | "passed"
+            );
+            let private_ok = !receipt.private_state_exposed;
+            push_assertion(
+                &mut assertions,
+                "idunn-deployment-receipt-valid",
+                schema_ok && status_ok && private_ok,
+                "Idunn deployment receipt carries the expected CultMesh contract, successful status, and private-state seal."
+                    .to_string(),
+            );
+            json!({
+                "source": "cultmesh",
+                "store": local_verse_store_display.clone(),
+                "runtimeId": runtime_id.clone(),
+                "receiptRef": receipt_ref,
+                "receiptId": receipt.receipt_id,
+                "schemaVersion": receipt.schema_version,
+                "status": receipt.status,
+                "trigger": receipt.trigger,
+                "watchedRef": receipt.watched_ref,
+                "resultRef": receipt.result_ref,
+                "privateStateExposed": receipt.private_state_exposed
+            })
+        } else {
+            push_assertion(
+                &mut assertions,
+                "idunn-deployment-receipt-present",
+                false,
+                format!(
+                    "Idunn deployment receipt ref {receipt_ref:?} was not found in the local Verse store."
+                ),
+            );
+            Value::Null
+        }
+    } else if let Some(path) = idunn_deployment_receipt_path.as_ref() {
         let receipt = read_json(path)?;
         let schema_ok = string_from_json(&receipt, &["schemaVersion"]).as_deref()
             == Some("gamecult.idunn.deployment_receipt.v0");
@@ -10679,6 +10766,7 @@ fn run_deployment_aftercare_audit(args: DeploymentAftercareAuditArgs) -> Result<
                 .to_string(),
         );
         json!({
+            "source": "file",
             "path": path,
             "schemaVersion": string_from_json(&receipt, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
             "status": status,
@@ -10694,7 +10782,56 @@ fn run_deployment_aftercare_audit(args: DeploymentAftercareAuditArgs) -> Result<
         Value::Null
     };
 
-    let aftercare_summary = if let Some(path) = aftercare_audit_receipt_path.as_ref() {
+    let aftercare_summary = if let Some(receipt_ref) = aftercare_audit_receipt_ref.as_ref() {
+        let receipt = if receipt_ref.trim().is_empty() || receipt_ref.trim() == "latest" {
+            load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+                &local_verse_store,
+                runtime_id.clone(),
+            )?
+        } else {
+            load_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+                &local_verse_store,
+                runtime_id.clone(),
+                receipt_ref,
+            )?
+        };
+        if let Some(receipt) = receipt {
+            let schema_ok =
+                receipt.schema_version == "gamecult.idunn.deployment_aftercare_audit.v0";
+            let status_ok = matches!(receipt.status.as_str(), "ok" | "complete" | "passed");
+            let private_ok = !receipt.private_state_exposed;
+            push_assertion(
+                &mut assertions,
+                "idunn-aftercare-audit-receipt-valid",
+                schema_ok && status_ok && private_ok,
+                "Idunn aftercare audit receipt carries the expected CultMesh contract, successful status, and private-state seal."
+                    .to_string(),
+            );
+            json!({
+                "source": "cultmesh",
+                "store": local_verse_store_display.clone(),
+                "runtimeId": runtime_id.clone(),
+                "receiptRef": receipt_ref,
+                "receiptId": receipt.receipt_id,
+                "schemaVersion": receipt.schema_version,
+                "status": receipt.status,
+                "checkedRef": receipt.checked_ref,
+                "deploymentReceiptId": receipt.deployment_receipt_id,
+                "auditRef": receipt.audit_ref,
+                "privateStateExposed": receipt.private_state_exposed
+            })
+        } else {
+            push_assertion(
+                &mut assertions,
+                "idunn-aftercare-audit-receipt-present",
+                false,
+                format!(
+                    "Idunn aftercare audit receipt ref {receipt_ref:?} was not found in the local Verse store."
+                ),
+            );
+            Value::Null
+        }
+    } else if let Some(path) = aftercare_audit_receipt_path.as_ref() {
         let receipt = read_json(path)?;
         let schema_ok = string_from_json(&receipt, &["schemaVersion"]).as_deref()
             == Some("gamecult.idunn.deployment_aftercare_audit.v0");
@@ -10711,6 +10848,7 @@ fn run_deployment_aftercare_audit(args: DeploymentAftercareAuditArgs) -> Result<
                 .to_string(),
         );
         json!({
+            "source": "file",
             "path": path,
             "schemaVersion": string_from_json(&receipt, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
             "status": status,
@@ -10744,6 +10882,8 @@ fn run_deployment_aftercare_audit(args: DeploymentAftercareAuditArgs) -> Result<
         "workspace": workspace,
         "receiptPath": receipt_path,
         "runbookReceiptPath": runbook_receipt_path,
+        "localVerseStore": local_verse_store_display,
+        "runtimeId": runtime_id,
         "idunnDeploymentReceipt": idunn_deployment_summary,
         "idunnAftercareAuditReceipt": aftercare_summary,
         "deploymentComplete": status == "complete",
@@ -12938,7 +13078,7 @@ fn print_usage() {
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
          deployment-config-audit --workspace <repo> [--artifact-dir <path>] [--no-write]\n\
          deployment-execution-runbook --workspace <repo> [--artifact-dir <path>] [--remote origin] [--no-write]\n\
-         deployment-aftercare-audit --workspace <repo> [--artifact-dir <path>] [--runbook-receipt <path>] [--idunn-deployment-receipt <path>] [--aftercare-audit-receipt <path>] [--no-write]\n\
+         deployment-aftercare-audit --workspace <repo> [--artifact-dir <path>] [--local-verse-store <path>] [--runtime-id <id>] [--runbook-receipt <path>] [--idunn-deployment-receipt-ref <ref>|--idunn-deployment-receipt <path>] [--aftercare-audit-receipt-ref <ref>|--aftercare-audit-receipt <path>] [--no-write]\n\
          export-proof --workspace <repo> [--item <id>] [--accept-receipt <path>] [--output <path>] [--local-verse-store <path>] [--runtime-id repo-swarm-local]\n\
          tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]\n\
          queue-run --workspace <repo> [--local-verse-store <path>] [--runtime-id repo-swarm-local] [--max-items 1] [--dry-run]"
