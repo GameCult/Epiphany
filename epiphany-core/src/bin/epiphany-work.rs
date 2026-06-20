@@ -1907,8 +1907,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-maintainer-review-request" | "maintainer-review-request" | "review-request" => {
             derive_repo_maintainer_review_request_plan(input, &action_family)
         }
+        "repo-pr-request" | "pr-request" | "pull-request-request" | "github-pr-request" => {
+            derive_repo_pr_request_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, and repo-maintainer-review-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, and repo-pr-request"
         )),
     }
 }
@@ -3770,6 +3773,154 @@ fn derive_repo_maintainer_review_request_plan(
     })
 }
 
+fn derive_repo_pr_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/pr-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-pr-request:{item_slug}");
+    let maintainer_review_request_ref = format!(".epiphany/review-requests/{item_slug}.toml");
+    let publication_request_ref = format!(".epiphany/publication-requests/{item_slug}.toml");
+    let sync_request_ref = format!(".epiphany/sync-requests/{item_slug}.toml");
+    let lines = vec![
+        "# Epiphany repo pull request request.".to_string(),
+        "# Branch-local GitHub/Bifrost request cargo; not push, PR, merge, or sync authority."
+            .to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_pr_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.pr_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "github_pr_authorized = false".to_string(),
+        "branch_push_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "upstream_sync_authorized = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        "status = \"awaiting-pr-publication-review\"".to_string(),
+        "requested_owner = \"Bifrost/GitHub\"".to_string(),
+        "requested_effect = \"open-or-update-review-pr-from-redacted-proof-and-maintainer-context\""
+            .to_string(),
+        format!(
+            "maintainer_review_request_ref = {}",
+            toml_basic_string(&maintainer_review_request_ref)
+        ),
+        format!(
+            "publication_request_ref = {}",
+            toml_basic_string(&publication_request_ref)
+        ),
+        format!("sync_request_ref = {}", toml_basic_string(&sync_request_ref)),
+        "pr_scope = \"branch diff, redacted public proof, maintainer review, Bifrost credit context, and upstream-main follow-up\""
+            .to_string(),
+        String::new(),
+        "[antecedents]".to_string(),
+        "closure_review_required = true".to_string(),
+        "soul_verdict_required = true".to_string(),
+        "mind_commit_required = true".to_string(),
+        "public_proof_required = true".to_string(),
+        "maintainer_review_required = true".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        "credit_ledger_required = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "closure_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
+        "soul_verdict = \"epiphany.soul.verification_verdict\"".to_string(),
+        "mind_commit = \"epiphany.mind.state_commit_receipt\"".to_string(),
+        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"".to_string(),
+        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
+        "bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\""
+            .to_string(),
+        "credit_ledger = \"gamecult.bifrost.credit_receipt.v0\"".to_string(),
+        "pr_publication = \"gamecult.github.pull_request_publication_receipt.v0\""
+            .to_string(),
+        String::new(),
+        "[pr_packet]".to_string(),
+        "base_ref = \"origin/main\"".to_string(),
+        "requires_branch_name = true".to_string(),
+        "requires_title = true".to_string(),
+        "requires_body = true".to_string(),
+        "requires_changed_path_list = true".to_string(),
+        "requires_public_proof_ref = true".to_string(),
+        "requires_maintainer_review_ref = true".to_string(),
+        "requires_credit_ref = true".to_string(),
+        "requires_private_state_redaction_check = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "github_pr_authorized = false".to_string(),
+        "branch_push_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "upstream_sync_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "bifrost_or_maintainer_authority_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the PR request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request names PR packet requirements without authorizing branch push, PR publication, merge, or sync.\",".to_string(),
+        "  \"Soul verifies maintainer review, public proof, Bifrost publication, and credit receipts are required before any GitHub PR action.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the PR request if the work is not ready for GitHub/Bifrost publication review.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.pr_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a GitHub PR request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add PR request for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo PR request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request requires maintainer review, redacted public proof, Bifrost publication, credit, and PR packet fields without authorizing push, PR publication, merge, sync, service lifecycle, or cross-body mutation.".to_string(),
+            "Soul verifies no paths outside the declared PR request changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated PR request if the work is not ready for GitHub/Bifrost publication review.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.pr_request"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -4895,6 +5046,115 @@ fn closure_family_assertions(
                 "maintainer-review-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed maintainer review request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.pr_request" => {
+            push_assertion(
+                &mut assertions,
+                "pr-request-schema-present",
+                content.contains("schema_version = \"epiphany.repo_pr_request.v0\""),
+                "Committed PR request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "pr-request-family-present",
+                content.contains("safe_action_family = \"repo.pr_request\""),
+                "Committed PR request carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "pr-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed PR request contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "pr-request-awaits-publication-review",
+                content.contains("[request]")
+                    && content.contains("status = \"awaiting-pr-publication-review\"")
+                    && content.contains("requested_owner = \"Bifrost/GitHub\"")
+                    && content.contains(
+                        "requested_effect = \"open-or-update-review-pr-from-redacted-proof-and-maintainer-context\"",
+                    )
+                    && content.contains("maintainer_review_request_ref = ")
+                    && content.contains("publication_request_ref = ")
+                    && content.contains("sync_request_ref = "),
+                "Committed PR request waits for Bifrost/GitHub review before consequence."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "pr-request-antecedents-present",
+                content.contains("[antecedents]")
+                    && content.contains("closure_review_required = true")
+                    && content.contains("soul_verdict_required = true")
+                    && content.contains("mind_commit_required = true")
+                    && content.contains("public_proof_required = true")
+                    && content.contains("maintainer_review_required = true")
+                    && content.contains("bifrost_publication_required = true")
+                    && content.contains("credit_ledger_required = true"),
+                "Committed PR request requires closure, Soul, Mind, proof, review, Bifrost, and credit antecedents."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "pr-request-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains(
+                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
+                    )
+                    && content.contains(
+                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
+                    )
+                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
+                    && content.contains(
+                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
+                    )
+                    && content.contains(
+                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
+                    )
+                    && content.contains("bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\"")
+                    && content.contains("credit_ledger = \"gamecult.bifrost.credit_receipt.v0\"")
+                    && content.contains("pr_publication = \"gamecult.github.pull_request_publication_receipt.v0\""),
+                "Committed PR request names closure, proof, review, Bifrost, credit, and PR publication receipts."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "pr-request-packet-contract",
+                content.contains("[pr_packet]")
+                    && content.contains("base_ref = \"origin/main\"")
+                    && content.contains("requires_branch_name = true")
+                    && content.contains("requires_title = true")
+                    && content.contains("requires_body = true")
+                    && content.contains("requires_changed_path_list = true")
+                    && content.contains("requires_public_proof_ref = true")
+                    && content.contains("requires_maintainer_review_ref = true")
+                    && content.contains("requires_credit_ref = true")
+                    && content.contains("requires_private_state_redaction_check = true"),
+                "Committed PR request names branch, title/body, path, proof, review, credit, and redaction requirements."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "pr-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("github_pr_authorized = false")
+                    && content.contains("branch_push_authorized = false")
+                    && content.contains("merge_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("upstream_sync_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("bifrost_or_maintainer_authority_required = true"),
+                "Committed PR request denies PR/push/merge/publication/sync/action/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "pr-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed PR request preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -8745,7 +9005,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
