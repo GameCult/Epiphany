@@ -743,6 +743,7 @@ fn run_cli() -> Result<()> {
                 "tools": "epiphany-verse-query tool-directory",
                 "receipts": "epiphany-verse-query receipt-directory",
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
+                "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
                 "gjallar": "epiphany-verse-query gjallar",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
@@ -3417,6 +3418,7 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[missing_artifact_action],
+                None,
             );
             if !missing_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -3465,6 +3467,7 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[synthetic_runbook_action],
+                None,
             );
             if !synthetic_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -3886,11 +3889,36 @@ struct SwarmOverviewReport {
     service_execution_missing_check_count: usize,
     service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
     service_execution_failed_check_tui_rows: Vec<String>,
+    repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
+    repo_work_overview_tui_rows: Vec<String>,
+    latest_repo_work_overview_id: Option<String>,
+    latest_repo_work_gate: Option<String>,
+    latest_repo_work_blocker: Option<String>,
+    latest_repo_work_next_safe_move: Option<String>,
     topology_report: ClusterTopologyReport,
     daemon_report: DaemonLivenessReport,
     surface_report: EveSurfaceReport,
     tool_report: DaemonToolDirectoryReport,
     policy_report: DaemonRestartPolicyDirectoryReport,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkOverviewRow {
+    overview_id: String,
+    workspace: String,
+    item: String,
+    branch: String,
+    current_gate: String,
+    blocker: String,
+    next_safe_move: String,
+    changed_path_count: usize,
+    commit_sha: String,
+    soul_verdict: String,
+    publication_status: String,
+    sync_status: String,
+    proof_bundle_ref: String,
     private_state_exposed: bool,
 }
 
@@ -3975,6 +4003,13 @@ struct SwarmOverviewOutput {
     service_execution_missing_check_count: usize,
     service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
     service_execution_failed_check_tui_rows: Vec<String>,
+    repo_work_overview_count: usize,
+    repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
+    repo_work_overview_tui_rows: Vec<String>,
+    latest_repo_work_overview: Option<String>,
+    latest_repo_work_gate: Option<String>,
+    latest_repo_work_blocker: Option<String>,
+    latest_repo_work_next_safe_move: Option<String>,
     policy_covered_count: usize,
     policy_enabled_count: usize,
     policy_disabled_count: usize,
@@ -4035,6 +4070,13 @@ impl SwarmOverviewOutput {
             service_execution_missing_check_count: report.service_execution_missing_check_count,
             service_execution_failed_check_rows: report.service_execution_failed_check_rows,
             service_execution_failed_check_tui_rows: report.service_execution_failed_check_tui_rows,
+            repo_work_overview_count: report.repo_work_overview_rows.len(),
+            repo_work_overview_rows: report.repo_work_overview_rows,
+            repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
+            latest_repo_work_overview: report.latest_repo_work_overview_id,
+            latest_repo_work_gate: report.latest_repo_work_gate,
+            latest_repo_work_blocker: report.latest_repo_work_blocker,
+            latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
             policy_covered_count: report.policy_report.covered_count,
             policy_enabled_count: report.policy_report.enabled_count,
             policy_disabled_count: report.policy_report.disabled_count,
@@ -4087,6 +4129,13 @@ struct SwarmTriageOutput {
     service_execution_missing_check_count: usize,
     service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
     service_execution_failed_check_tui_rows: Vec<String>,
+    repo_work_overview_count: usize,
+    repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
+    repo_work_overview_tui_rows: Vec<String>,
+    latest_repo_work_overview: Option<String>,
+    latest_repo_work_gate: Option<String>,
+    latest_repo_work_blocker: Option<String>,
+    latest_repo_work_next_safe_move: Option<String>,
     poked_daemon_count: usize,
     pokes: Vec<serde_json::Value>,
     commands: serde_json::Value,
@@ -4142,6 +4191,13 @@ impl SwarmTriageOutput {
             service_execution_missing_check_count: report.service_execution_missing_check_count,
             service_execution_failed_check_rows: report.service_execution_failed_check_rows,
             service_execution_failed_check_tui_rows: report.service_execution_failed_check_tui_rows,
+            repo_work_overview_count: report.repo_work_overview_rows.len(),
+            repo_work_overview_rows: report.repo_work_overview_rows,
+            repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
+            latest_repo_work_overview: report.latest_repo_work_overview_id,
+            latest_repo_work_gate: report.latest_repo_work_gate,
+            latest_repo_work_blocker: report.latest_repo_work_blocker,
+            latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
             poked_daemon_count,
             pokes,
             commands: json!({
@@ -4155,6 +4211,7 @@ impl SwarmTriageOutput {
                 "receipts": "epiphany-verse-query receipt-directory",
                 "wrapperReceipts": WRAPPER_RECEIPT_DIRECTORY_COMMAND,
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
+                "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
                 "bifrostLedger": "epiphany-verse-query bifrost-ledger",
                 "wrapperBifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
@@ -4339,6 +4396,7 @@ fn swarm_action_rows(
     service_lifecycle_attention_rows: &[ReceiptDirectoryRow],
     service_execution_failed_check_rows: &[EpiphanyServiceExecutionAuditCheck],
     service_execution_runbook_actions: &[ServiceExecutionRunbookAction],
+    latest_repo_work_overview: Option<&EpiphanyCultMeshRepoWorkOverviewEntry>,
 ) -> (Vec<SwarmActionRow>, Vec<String>) {
     let mut rows = Vec::new();
     let mut service_execution_check_counts = BTreeMap::<String, (usize, usize)>::new();
@@ -4454,6 +4512,9 @@ fn swarm_action_rows(
             ),
             private_state_exposed: policy_report.private_state_exposed,
         });
+    }
+    if let Some(overview) = latest_repo_work_overview {
+        rows.push(repo_work_overview_action_row(overview));
     }
     for (index, row) in service_lifecycle_attention_rows.iter().enumerate() {
         let (failed_check_count, missing_check_count) = service_execution_check_counts
@@ -4617,6 +4678,102 @@ fn swarm_action_rows(
         .map(|row| swarm_action_tui_row(row))
         .collect::<Vec<_>>();
     (rows, tui_rows)
+}
+
+fn repo_work_overview_rows(
+    latest_repo_work_overview: Option<&EpiphanyCultMeshRepoWorkOverviewEntry>,
+) -> (Vec<RepoWorkOverviewRow>, Vec<String>) {
+    let rows = latest_repo_work_overview
+        .map(repo_work_overview_row)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_overview_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_overview_row(overview: &EpiphanyCultMeshRepoWorkOverviewEntry) -> RepoWorkOverviewRow {
+    RepoWorkOverviewRow {
+        overview_id: overview.overview_id.clone(),
+        workspace: overview.workspace.clone(),
+        item: overview.item.clone(),
+        branch: overview.branch.clone(),
+        current_gate: overview.current_gate.clone(),
+        blocker: overview.blocker.clone(),
+        next_safe_move: overview.next_safe_move.clone(),
+        changed_path_count: overview.changed_paths.len(),
+        commit_sha: overview.commit_sha.clone(),
+        soul_verdict: overview.soul_verdict.clone(),
+        publication_status: overview.publication_status.clone(),
+        sync_status: overview.sync_status.clone(),
+        proof_bundle_ref: overview.proof_bundle_ref.clone(),
+        private_state_exposed: overview.private_state_exposed,
+    }
+}
+
+fn repo_work_overview_tui_row(row: &RepoWorkOverviewRow) -> String {
+    format!(
+        "REPO-WORK | item={} | gate={} | blocker={} | branch={} | commit={} | paths={} | publication={} | sync={} | proof={} | private={}",
+        row.item,
+        row.current_gate,
+        row.blocker,
+        row.branch,
+        row.commit_sha,
+        row.changed_path_count,
+        row.publication_status,
+        row.sync_status,
+        row.proof_bundle_ref,
+        row.private_state_exposed
+    )
+}
+
+fn repo_work_overview_action_row(
+    overview: &EpiphanyCultMeshRepoWorkOverviewEntry,
+) -> SwarmActionRow {
+    let status = overview.current_gate.clone();
+    let command = format!(
+        "epiphany-work overview --workspace \"{}\" --item \"{}\"",
+        overview.workspace, overview.item
+    );
+    SwarmActionRow {
+        priority: 35,
+        family: "repo-work-overview".to_string(),
+        status,
+        lifecycle_owner: "Gjallar".to_string(),
+        hosted_body: "repo-work".to_string(),
+        action: format!(
+            "Read latest repo work overview {} for item {}.",
+            overview.overview_id, overview.item
+        ),
+        wrapper_mode: "repo-work-overview".to_string(),
+        wrapper_command: command,
+        operator_artifact_ref: overview.proof_bundle_ref.clone(),
+        operator_artifact_status: if overview.proof_bundle_ref == "none" {
+            "none".to_string()
+        } else {
+            "external-ref".to_string()
+        },
+        operator_artifact_sha256: "none".to_string(),
+        operator_artifact_execution_command: "none".to_string(),
+        operator_aftercare_command: "none".to_string(),
+        completion_audit_wrapper_mode: "none".to_string(),
+        completion_audit_wrapper_command: "none".to_string(),
+        authority_gate: "repo.work.overview".to_string(),
+        effect_class: "repo-work-readback".to_string(),
+        mutates_state: false,
+        requires_elevated_authority: false,
+        service_execution_failed_check_count: 0,
+        service_execution_missing_check_count: 0,
+        service_id: "none".to_string(),
+        service_route: "none".to_string(),
+        reason: format!(
+            "Latest repo work item gate={} blocker={} next={}",
+            overview.current_gate, overview.blocker, overview.next_safe_move
+        ),
+        private_state_exposed: overview.private_state_exposed,
+    }
 }
 
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
@@ -5189,6 +5346,10 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .iter()
         .map(daemon_tool_directory_tui_row)
         .collect::<Vec<_>>();
+    let latest_repo_work_overview =
+        load_latest_epiphany_cultmesh_repo_work_overview(&args.store, args.runtime_id.clone())?;
+    let (repo_work_overview_rows, repo_work_overview_tui_rows) =
+        repo_work_overview_rows(latest_repo_work_overview.as_ref());
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
         &liveness_status,
         &tool_host_attention_rows,
@@ -5196,6 +5357,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &service_lifecycle_attention_rows,
         &service_execution_failed_check_rows,
         &service_execution_runbook_actions,
+        latest_repo_work_overview.as_ref(),
     );
     let private_state_exposed = daemon_report
         .rows
@@ -5203,10 +5365,25 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .any(|row| row.private_state_exposed)
         || tool_report.rows.iter().any(|row| row.private_state_exposed)
         || policy_report.private_state_exposed
+        || latest_repo_work_overview
+            .as_ref()
+            .is_some_and(|overview| overview.private_state_exposed)
         || service_execution_private_state_exposed
         || service_lifecycle_rows
             .iter()
             .any(|row| row.private_state_exposed);
+    let latest_repo_work_overview_id = latest_repo_work_overview
+        .as_ref()
+        .map(|overview| overview.overview_id.clone());
+    let latest_repo_work_gate = latest_repo_work_overview
+        .as_ref()
+        .map(|overview| overview.current_gate.clone());
+    let latest_repo_work_blocker = latest_repo_work_overview
+        .as_ref()
+        .map(|overview| overview.blocker.clone());
+    let latest_repo_work_next_safe_move = latest_repo_work_overview
+        .as_ref()
+        .map(|overview| overview.next_safe_move.clone());
     Ok(SwarmOverviewReport {
         status,
         liveness_status,
@@ -5229,6 +5406,12 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         service_execution_missing_check_count,
         service_execution_failed_check_rows,
         service_execution_failed_check_tui_rows,
+        repo_work_overview_rows,
+        repo_work_overview_tui_rows,
+        latest_repo_work_overview_id,
+        latest_repo_work_gate,
+        latest_repo_work_blocker,
+        latest_repo_work_next_safe_move,
         topology_report,
         daemon_report,
         surface_report,

@@ -646,6 +646,17 @@ read `latestRepoWorkOverview=repo-work-overview-verse-overview-request`,
 `latestRepoWorkBlocker=bifrost-publication-missing`, saw seven Eve surfaces,
 and reported `privateStateExposed=false`.
 
+The first Gjallar projection smoke proved the latest-key global sight path:
+`epiphany-verse-query gjallar --store <repo>\.epiphany\local-verse.ccmp
+--runtime-id repo-swarm-local` read the same typed overview and emitted
+`repoWorkOverviewCount=1`, latest gate/blocker fields, a compact `REPO-WORK`
+TUI row, and a priority 35 `repo-work-overview` action row with
+`owner=Gjallar`, `hostedBody=repo-work`, `authorityGate=repo.work.overview`,
+`mutatesState=false`, `requiresElevatedAuthority=false`, and
+`privateStateExposed=false`. Proof artifact:
+`.epiphany-smoke\gjallar-repo-work-overview-20260620-011119`. This is still
+latest-key sight, not multi-item queue enumeration.
+
 ## Migration Implication
 
 The next migration plan must treat autonomous branch-local work as a required
@@ -882,10 +893,11 @@ Required organs before MVP:
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.
-- Repo work projection: local `epiphany-work overview` proof bundles and typed
-  `epiphany.cultmesh.repo_work_overview.v0` latest-key projection exist;
-  remaining work is richer Gjallar/Eve presentation of queues and multiple
-  work items for Personas and peer bodies.
+- Repo work projection: local `epiphany-work overview` proof bundles, typed
+  `epiphany.cultmesh.repo_work_overview.v0` latest-key projection, and Gjallar
+  latest-key `repo-work-overview` action/readback rows exist. Remaining work is
+  typed history/queue enumeration plus richer Eve presentation of multiple work
+  items for Personas and peer bodies.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, commit refs, verification verdicts, map
   admission, Bifrost/GitHub refs, credit refs, and sync state; remaining work is
