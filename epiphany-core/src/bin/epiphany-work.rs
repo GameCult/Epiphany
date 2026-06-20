@@ -1987,8 +1987,12 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-metrics-request" | "metrics-request" | "accounting-request" => {
             derive_repo_metrics_request_plan(input, &action_family)
         }
+        "repo-doctrine-update-request"
+        | "doctrine-update-request"
+        | "agents-update-request"
+        | "repo-agents-request" => derive_repo_doctrine_update_request_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, and repo-metrics-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, and repo-doctrine-update-request"
         )),
     }
 }
@@ -4806,6 +4810,131 @@ fn derive_repo_metrics_request_plan(
     })
 }
 
+fn derive_repo_doctrine_update_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/doctrine-update-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-doctrine-update-request:{item_slug}");
+    let doctrine_target = "AGENTS.md";
+    let lines = vec![
+        "# Epiphany repo doctrine update request.".to_string(),
+        "# Branch-local governance request cargo; not direct doctrine mutation authority.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_doctrine_update_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.doctrine_update_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "doctrine_mutation_authorized = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        "status = \"awaiting-doctrine-review\"".to_string(),
+        "requested_owner = \"Maintainer/Mind\"".to_string(),
+        "requested_effect = \"review-repo-agent-doctrine-update\"".to_string(),
+        format!("doctrine_target = {}", toml_basic_string(doctrine_target)),
+        "change_surface = \"repo-local agent instructions and operating doctrine\"".to_string(),
+        "requires_source_grounding = true".to_string(),
+        "requires_human_or_maintainer_review = true".to_string(),
+        String::new(),
+        "[antecedents]".to_string(),
+        "persona_or_human_feedback_required = true".to_string(),
+        "imagination_plan_required = true".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "soul_review_required = true".to_string(),
+        "maintainer_review_required = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "imagination_plan = \"epiphany.repo_work_imagination_action_items_receipt.v0\""
+            .to_string(),
+        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
+        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
+        "hands_commit = \"epiphany.hands.commit_receipt\"".to_string(),
+        String::new(),
+        "[doctrine_packet]".to_string(),
+        "requires_current_doctrine_ref = true".to_string(),
+        "requires_proposed_change_summary = true".to_string(),
+        "requires_invariant_impact = true".to_string(),
+        "requires_rehydration_impact = true".to_string(),
+        "requires_rollback_plan = true".to_string(),
+        "requires_private_state_redaction_check = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "direct_doctrine_mutation_authority = false".to_string(),
+        "direct_hands_authority = false".to_string(),
+        "direct_mind_state_commit = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "maintainer_or_mind_doctrine_authority_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the doctrine update request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request names AGENTS.md as review target and requires source grounding, Mind adoption, Soul review, maintainer review, and rollback planning before doctrine mutation.\",".to_string(),
+        "  \"Soul verifies no direct doctrine, Hands, publication, merge, service lifecycle, cross-body, or private Verse authority is granted.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the doctrine update request if the proposed doctrine change is not ready for review.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.doctrine_update_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo doctrine update request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add doctrine update request for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo doctrine update request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request names AGENTS.md review scope, source grounding, Mind adoption, Soul review, maintainer review, rollback planning, and no direct doctrine mutation authority.".to_string(),
+            "Soul verifies no paths outside the declared doctrine update request changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated doctrine update request if the proposed doctrine change is not ready for review.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.doctrine_update_request"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -6624,6 +6753,110 @@ fn closure_family_assertions(
                 "metrics-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed metrics request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.doctrine_update_request" => {
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-schema-present",
+                content.contains("schema_version = \"epiphany.repo_doctrine_update_request.v0\""),
+                "Committed doctrine update request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-family-present",
+                content.contains("safe_action_family = \"repo.doctrine_update_request\""),
+                "Committed doctrine update request carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed doctrine update request contains the accepted pressure summary."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-awaits-review",
+                content.contains("[request]")
+                    && content.contains("status = \"awaiting-doctrine-review\"")
+                    && content.contains("requested_owner = \"Maintainer/Mind\"")
+                    && content.contains(
+                        "requested_effect = \"review-repo-agent-doctrine-update\"",
+                    )
+                    && content.contains("doctrine_target = \"AGENTS.md\"")
+                    && content.contains("requires_source_grounding = true")
+                    && content.contains("requires_human_or_maintainer_review = true"),
+                "Committed doctrine update request waits for Mind/maintainer review before doctrine consequence."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-antecedents-present",
+                content.contains("[antecedents]")
+                    && content.contains("persona_or_human_feedback_required = true")
+                    && content.contains("imagination_plan_required = true")
+                    && content.contains("mind_adoption_required = true")
+                    && content.contains("soul_review_required = true")
+                    && content.contains("maintainer_review_required = true"),
+                "Committed doctrine update request requires feedback, Imagination, Mind, Soul, and maintainer antecedents."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains(
+                        "imagination_plan = \"epiphany.repo_work_imagination_action_items_receipt.v0\"",
+                    )
+                    && content.contains(
+                        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"",
+                    )
+                    && content.contains(
+                        "soul_review = \"epiphany.repo_work_closure_review.v0\"",
+                    )
+                    && content.contains(
+                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
+                    )
+                    && content.contains("hands_commit = \"epiphany.hands.commit_receipt\""),
+                "Committed doctrine update request names Imagination, Mind, Soul, maintainer, and Hands receipts."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-packet-contract",
+                content.contains("[doctrine_packet]")
+                    && content.contains("requires_current_doctrine_ref = true")
+                    && content.contains("requires_proposed_change_summary = true")
+                    && content.contains("requires_invariant_impact = true")
+                    && content.contains("requires_rehydration_impact = true")
+                    && content.contains("requires_rollback_plan = true")
+                    && content.contains("requires_private_state_redaction_check = true"),
+                "Committed doctrine update request names doctrine diff, invariant, rehydration, rollback, and redaction requirements."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("direct_doctrine_mutation_authority = false")
+                    && content.contains("direct_hands_authority = false")
+                    && content.contains("direct_mind_state_commit = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("merge_authorized = false")
+                    && content.contains("service_lifecycle_authority = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("private_verse_rummaging = false")
+                    && content
+                        .contains("maintainer_or_mind_doctrine_authority_required = true"),
+                "Committed doctrine update request denies doctrine/action/state/publication/service/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "doctrine-update-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed doctrine update request preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -10741,6 +10974,7 @@ fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
             | "repo.credit_request"
             | "repo.artifact_acceptance_request"
             | "repo.metrics_request"
+            | "repo.doctrine_update_request"
     )
 }
 
@@ -10860,7 +11094,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
