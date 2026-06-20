@@ -1892,8 +1892,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-scheduling-request" | "scheduling-request" | "self-scheduling-request" => {
             derive_repo_scheduling_request_plan(input, &action_family)
         }
+        "repo-work-order" | "work-order" | "hands-work-order" => {
+            derive_repo_work_order_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, and repo-scheduling-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, and repo-work-order"
         )),
     }
 }
@@ -3089,6 +3092,141 @@ fn derive_repo_scheduling_request_plan(
     })
 }
 
+fn derive_repo_work_order_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/work-orders/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let work_order_id = format!("repo-work-order:{item_slug}");
+    let objective_draft_ref = format!(".epiphany/objective-drafts/{item_slug}.toml");
+    let adoption_request_ref = format!(".epiphany/adoption-requests/{item_slug}.toml");
+    let scheduling_request_ref = format!(".epiphany/scheduling-requests/{item_slug}.toml");
+    let lines = vec![
+        "# Epiphany repo work order request.".to_string(),
+        "# Branch-local Hands intent cargo; not a command, patch, or commit.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_work_order.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.work_order")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[work_order]".to_string(),
+        format!("id = {}", toml_basic_string(&work_order_id)),
+        "status = \"awaiting-hands-review\"".to_string(),
+        "requested_owner = \"Hands\"".to_string(),
+        "requested_effect = \"branch-local-implementation\"".to_string(),
+        "implementation_intent = \"prepare a reviewable branch-local change from the adopted objective\"".to_string(),
+        "subgoal = \"derive the smallest coherent implementation slice that satisfies the accepted pressure\"".to_string(),
+        String::new(),
+        "[antecedents]".to_string(),
+        format!(
+            "objective_draft_ref = {}",
+            toml_basic_string(&objective_draft_ref)
+        ),
+        format!(
+            "adoption_request_ref = {}",
+            toml_basic_string(&adoption_request_ref)
+        ),
+        format!(
+            "scheduling_request_ref = {}",
+            toml_basic_string(&scheduling_request_ref)
+        ),
+        "mind_adoption_required = true".to_string(),
+        "self_queue_selection_required = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "substrate_gate = \"epiphany.substrate_gate.grant\"".to_string(),
+        "hands_intent = \"epiphany.hands.action_intent\"".to_string(),
+        "hands_review = \"epiphany.hands.action_review\"".to_string(),
+        "hands_patch = \"epiphany.hands.patch_receipt\"".to_string(),
+        "hands_command = \"epiphany.hands.command_receipt\"".to_string(),
+        "hands_commit = \"epiphany.hands.commit_receipt\"".to_string(),
+        "soul_verdict = \"epiphany.soul.verification_verdict\"".to_string(),
+        "mind_commit = \"epiphany.mind.state_commit_receipt\"".to_string(),
+        String::new(),
+        "[scope]".to_string(),
+        "branch_required = true".to_string(),
+        "allowed_branch_prefix = \"epiphany/\"".to_string(),
+        "requested_paths = [\"README.md\", \"notes/epiphany-work/\"]".to_string(),
+        "max_changed_paths = 3".to_string(),
+        "requires_reviewable_diff = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "substrate_access_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "shell_command_authorized = false".to_string(),
+        "commit_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the work order path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the work order awaits Hands review and grants no substrate, shell, commit, or publication authority.\",".to_string(),
+        "  \"Soul verifies the requested scope is branch-local, bounded, and receipt-backed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the work order if the adopted objective is not ready for Hands review.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.work_order".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a Hands work-order request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add work order for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo work order path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the work order awaits Hands review and does not authorize substrate access, shell commands, commits, publication, or cross-body mutation.".to_string(),
+            "Soul verifies no paths outside the declared work order changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated work order if the accepted pressure is not ready for Hands review.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.work_order"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -3735,6 +3873,93 @@ fn closure_family_assertions(
                 "scheduling-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed scheduling request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.work_order" => {
+            push_assertion(
+                &mut assertions,
+                "work-order-schema-present",
+                content.contains("schema_version = \"epiphany.repo_work_order.v0\""),
+                "Committed work order carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "work-order-family-present",
+                content.contains("safe_action_family = \"repo.work_order\""),
+                "Committed work order carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "work-order-summary-present",
+                content.contains(&compact_summary),
+                "Committed work order contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "work-order-awaits-hands-review",
+                content.contains("[work_order]")
+                    && content.contains("status = \"awaiting-hands-review\"")
+                    && content.contains("requested_owner = \"Hands\"")
+                    && content.contains("requested_effect = \"branch-local-implementation\""),
+                "Committed work order waits for Hands review before implementation consequence."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "work-order-antecedents-present",
+                content.contains("[antecedents]")
+                    && content.contains("objective_draft_ref = ")
+                    && content.contains("adoption_request_ref = ")
+                    && content.contains("scheduling_request_ref = ")
+                    && content.contains("mind_adoption_required = true")
+                    && content.contains("self_queue_selection_required = true"),
+                "Committed work order preserves adoption and scheduling antecedents.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "work-order-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains("substrate_gate = \"epiphany.substrate_gate.grant\"")
+                    && content.contains("hands_intent = \"epiphany.hands.action_intent\"")
+                    && content.contains("hands_review = \"epiphany.hands.action_review\"")
+                    && content.contains("hands_patch = \"epiphany.hands.patch_receipt\"")
+                    && content.contains("hands_command = \"epiphany.hands.command_receipt\"")
+                    && content.contains("hands_commit = \"epiphany.hands.commit_receipt\"")
+                    && content.contains("soul_verdict = \"epiphany.soul.verification_verdict\"")
+                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\""),
+                "Committed work order names the Substrate/Hands/Soul/Mind receipt chain."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "work-order-scope-bounded",
+                content.contains("[scope]")
+                    && content.contains("branch_required = true")
+                    && content.contains("allowed_branch_prefix = \"epiphany/\"")
+                    && content.contains("max_changed_paths = 3")
+                    && content.contains("requires_reviewable_diff = true"),
+                "Committed work order scopes later action to bounded branch-local reviewable work."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "work-order-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("substrate_access_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("shell_command_authorized = false")
+                    && content.contains("commit_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("bifrost_publication_required = true"),
+                "Committed work order denies substrate/shell/commit/action/publication/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "work-order-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed work order preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -7585,7 +7810,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
