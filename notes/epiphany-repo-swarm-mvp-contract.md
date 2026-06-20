@@ -888,12 +888,20 @@ action item's requested path scope as an interpreter gate. The safe family must
 be recognized and the sorted requested paths must exactly match the plan
 action's sorted changed paths before branch-local Hands authority can open.
 Unsupported safe-family labels write `status=refused-unsupported-safe-family`;
-path-scope mismatches write `status=refused-requested-path-mismatch`. Both
-refusals produce `epiphany.repo_work_mind_adoption_decision.v0`, grant no
+path-scope mismatches write `status=refused-requested-path-mismatch`; and
+missing verification asks or planning evidence needs write
+`status=refused-missing-evidence-needs`, pointing the next gate at
+`imagination.replan_with_explicit_soul_evidence_needs`. These refusals produce
+`epiphany.repo_work_mind_adoption_decision.v0`, grant no
 Hands/durable/service/publication/cross-body/private authority, and write no
 normal adoption receipt. Proofs:
 `.epiphany-smoke\repo-mind-safe-family-guard-20260620-194425` and
-`.epiphany-smoke\repo-mind-path-guard-20260620-194239`.
+`.epiphany-smoke\repo-mind-path-guard-20260620-194239`; the evidence-readiness
+guard proof `.epiphany-smoke\repo-mind-evidence-guard-20260620-224426` tampers
+verification asks and evidence needs empty, receives
+`refused-missing-evidence-needs`, and writes no adoption receipt. Positive
+regression `.epiphany-smoke\repo-planning-facets-20260620-224428` proves normal
+planning facets still close through Soul/Modeling/Mind.
 
 The first smoke proved the five-command sequence:
 
@@ -1628,7 +1636,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, `repo-metrics-request` / `repo.metrics_request`, `repo-doctrine-update-request` / `repo.doctrine_update_request`, `repo-secret-policy-request` / `repo.secret_policy_request`, `repo-deployment-config` / `repo.deployment_config`, and `repo-deployment-request` / `repo.deployment_request`. `adopt` now writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority. `plan` remains manual quarantine scaffolding. | Deepen further interpreter behavior and useful repo-owned configuration/action classes without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, `repo-metrics-request` / `repo.metrics_request`, `repo-doctrine-update-request` / `repo.doctrine_update_request`, `repo-secret-policy-request` / `repo.secret_policy_request`, `repo-deployment-config` / `repo.deployment_config`, and `repo-deployment-request` / `repo.deployment_request`. `adopt` now writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority, and refuses plan-derived items that lack explicit verification asks or planning evidence needs. `plan` remains manual quarantine scaffolding. | Deepen further interpreter behavior and useful repo-owned configuration/action classes without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
@@ -1683,10 +1691,18 @@ Build the remaining MVP in this order:
    `.epiphany-smoke\repo-mind-safe-family-guard-20260620-190811` tampers a
    planning note into `idunn.service_lifecycle`, receives
    `refused-unsupported-safe-family`, and writes no adoption receipt. Banter
-   remains banter unless Mind/Interpreter extracts a work candidate. The
-   remaining cut is richer model-authored families and deeper interpreter
-   semantics beyond the first allowlist refusal, not basic action-item or
-   adoption receipt shape.
+   remains banter unless Mind/Interpreter extracts a work candidate. Mind also
+   refuses plan-derived work that lacks explicit verification asks or planning
+   evidence needs before Hands authority opens: tamper proof
+   `.epiphany-smoke\repo-mind-evidence-guard-20260620-224426` receives
+   `refused-missing-evidence-needs`, points the next gate at
+   `imagination.replan_with_explicit_soul_evidence_needs`, grants no
+   Hands/durable/service/publication/private authority, and writes no adoption
+   receipt. Regression proof
+   `.epiphany-smoke\repo-planning-facets-20260620-224428` still closes normal
+   planning facets through Soul/Modeling/Mind. The remaining cut is richer
+   model-authored families and deeper interpreter semantics beyond the current
+   refusal gates, not basic action-item or adoption receipt shape.
 3. **Model-authored safe plan families.** Promote `derive-plan` beyond the
    deterministic `append-worklog` and `planning-note` reliquaries by letting
    Imagination author typed plans over allowlisted repo-local families. Shell

@@ -2070,6 +2070,8 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
         "status": action_items["status"],
         "modelAuthored": model_authored,
         "safeActionFamily": derived_plan.safe_action_family,
+        "requestedPaths": [derived_plan.target_path.clone()],
+        "verificationAsks": action_verification_asks.clone(),
         "planningFacets": planning_facets.to_json(),
     });
 
@@ -8691,6 +8693,13 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
     let planning_facets_present = adopted_action_item
         .get("planningFacets")
         .is_some_and(|value| !value.is_null());
+    let verification_asks = string_array_from_json(&adopted_action_item, &["verificationAsks"]);
+    let verification_asks_present = !verification_asks.is_empty();
+    let verification_ask_count = verification_asks.len();
+    let evidence_needs =
+        string_array_from_json(&adopted_action_item, &["planningFacets", "evidenceNeeds"]);
+    let evidence_needs_present = !evidence_needs.is_empty();
+    let evidence_need_count = evidence_needs.len();
     let action_item_model_authored = adopted_action_item
         .get("modelAuthored")
         .and_then(Value::as_bool)
@@ -8699,6 +8708,8 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
     let safe_family_recognized = repo_work_safe_family_is_recognized(action_item_safe_family);
     let unsupported_plan_family = plan_receipt.is_some() && !safe_family_recognized;
     let path_scope_mismatch = plan_receipt.is_some() && !requested_paths_match_plan;
+    let evidence_readiness_missing =
+        plan_receipt.is_some() && (!verification_asks_present || !evidence_needs_present);
     let mut refusal_reasons = Vec::new();
     if unsupported_plan_family {
         refusal_reasons.push(format!(
@@ -8711,7 +8722,13 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             requested_paths, plan_changed_paths
         ));
     }
-    let mind_refused_adoption = unsupported_plan_family || path_scope_mismatch;
+    if evidence_readiness_missing {
+        refusal_reasons.push(format!(
+            "Action item lacks verification or evidence needs; Mind refused to convert this plan into branch-local Hands authority until Soul proof targets are explicit. verificationAsksPresent={verification_asks_present}, evidenceNeedsPresent={evidence_needs_present}."
+        ));
+    }
+    let mind_refused_adoption =
+        unsupported_plan_family || path_scope_mismatch || evidence_readiness_missing;
     let mind_interpretation = json!({
         "schemaVersion": "epiphany.repo_work_mind_interpretation.v0",
         "owner": "Mind",
@@ -8728,6 +8745,10 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             "planChangedPaths": plan_changed_paths,
             "modelAuthored": action_item_model_authored,
             "planningFacetsPresent": planning_facets_present,
+            "verificationAsks": verification_asks,
+            "verificationAskCount": verification_ask_count,
+            "evidenceNeeds": evidence_needs,
+            "evidenceNeedCount": evidence_need_count,
             "adoptionEvidenceRefCount": evidence_ref_count
         },
         "classification": {
@@ -8736,6 +8757,8 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             "safeFamilyRecognized": safe_family_recognized,
             "requestedPathsDeclared": requested_path_count > 0,
             "requestedPathsMatchPlan": requested_paths_match_plan,
+            "verificationAsksPresent": verification_asks_present,
+            "evidenceNeedsPresent": evidence_needs_present,
             "evidenceRefsPresent": evidence_ref_count > 0,
             "durableStateAdmission": "not-admitted",
             "publicationGate": "Bifrost",
@@ -8760,16 +8783,22 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
     if mind_refused_adoption {
         let status = if unsupported_plan_family {
             "refused-unsupported-safe-family"
+        } else if evidence_readiness_missing {
+            "refused-missing-evidence-needs"
         } else {
             "refused-requested-path-mismatch"
         };
         let next_gate = if unsupported_plan_family {
             "imagination.replan_with_allowed_safe_family"
+        } else if evidence_readiness_missing {
+            "imagination.replan_with_explicit_soul_evidence_needs"
         } else {
             "imagination.replan_with_matching_requested_paths"
         };
         let next_safe_move = if unsupported_plan_family {
             "Ask Imagination for an allowed repo-work safe family before Hands authority can be granted."
+        } else if evidence_readiness_missing {
+            "Ask Imagination to add explicit verification asks and evidence needs before Hands authority can be granted."
         } else {
             "Ask Imagination for an action item whose requested paths exactly match the plan changed paths before Hands authority can be granted."
         };
@@ -8799,6 +8828,8 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
                 "safeFamilyRequired": true,
                 "safeFamilyRecognized": safe_family_recognized,
                 "requestedPathsMatchPlan": requested_paths_match_plan,
+                "verificationAsksPresent": verification_asks_present,
+                "evidenceNeedsPresent": evidence_needs_present,
                 "branchLocalOnly": false,
                 "bifrostPublicationRequired": true,
                 "soulClosureRequired": true
@@ -12883,6 +12914,11 @@ fn adopted_action_item_from_plan(plan: &Value) -> Value {
         "requestedPaths": action_item
             .and_then(|value| value.get("requestedPaths"))
             .or_else(|| plan_action.and_then(|value| value.get("changedPaths")))
+            .cloned()
+            .unwrap_or(json!([])),
+        "verificationAsks": action_item
+            .and_then(|value| value.get("verificationAsks"))
+            .or_else(|| plan_action.and_then(|value| value.get("verificationAsks")))
             .cloned()
             .unwrap_or(json!([])),
         "summary": plan.get("planSummary").cloned().unwrap_or(Value::Null),
