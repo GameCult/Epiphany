@@ -1895,8 +1895,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-work-order" | "work-order" | "hands-work-order" => {
             derive_repo_work_order_plan(input, &action_family)
         }
+        "repo-verification-request" | "verification-request" | "soul-verification-request" => {
+            derive_repo_verification_request_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, and repo-work-order"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, and repo-verification-request"
         )),
     }
 }
@@ -3227,6 +3230,137 @@ fn derive_repo_work_order_plan(
     })
 }
 
+fn derive_repo_verification_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/verification-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-verification-request:{item_slug}");
+    let work_order_ref = format!(".epiphany/work-orders/{item_slug}.toml");
+    let lines = vec![
+        "# Epiphany repo verification request.".to_string(),
+        "# Branch-local Soul request cargo; not a verdict or Mind admission.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_verification_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.verification_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "soul_verdict_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        "status = \"awaiting-soul-review\"".to_string(),
+        "requested_owner = \"Soul\"".to_string(),
+        "requested_effect = \"verify-branch-local-hands-work\"".to_string(),
+        format!("work_order_ref = {}", toml_basic_string(&work_order_ref)),
+        "verification_scope = \"declared changed paths, Hands receipts, and visible repo diff\""
+            .to_string(),
+        String::new(),
+        "[antecedents]".to_string(),
+        "substrate_gate_required = true".to_string(),
+        "hands_intent_required = true".to_string(),
+        "hands_review_required = true".to_string(),
+        "hands_patch_required = true".to_string(),
+        "hands_command_required = true".to_string(),
+        "hands_commit_required = true".to_string(),
+        "work_order_required = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "hands_patch = \"epiphany.hands.patch_receipt\"".to_string(),
+        "hands_command = \"epiphany.hands.command_receipt\"".to_string(),
+        "hands_commit = \"epiphany.hands.commit_receipt\"".to_string(),
+        "soul_verdict = \"epiphany.soul.verification_verdict\"".to_string(),
+        "closure_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
+        "mind_review = \"epiphany.mind.gateway_review\"".to_string(),
+        "mind_commit = \"epiphany.mind.state_commit_receipt\"".to_string(),
+        String::new(),
+        "[checks]".to_string(),
+        "required = [".to_string(),
+        "  \"declared-paths-match-commit\",".to_string(),
+        "  \"hands-receipts-present\",".to_string(),
+        "  \"visible-diff-supports-summary\",".to_string(),
+        "  \"no-private-state-exposure\",".to_string(),
+        "  \"publication-remains-gated\"".to_string(),
+        "]".to_string(),
+        "model_verdict_allowed = true".to_string(),
+        "failure_blocks_mind_admission = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "soul_verdict_authorized = false".to_string(),
+        "state_commit_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "rerun_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the verification request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request names required Hands evidence but does not itself grant a verdict.\",".to_string(),
+        "  \"Soul verifies the request grants no rerun, state commit, publication, or cross-body authority.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the verification request if no Hands consequence is ready for Soul review.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.verification_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a Soul verification request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add verification request for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo verification request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request names required Hands evidence and closure checks without authorizing a verdict, rerun, state commit, publication, or cross-body mutation.".to_string(),
+            "Soul verifies no paths outside the declared verification request changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated verification request if there is no Hands consequence ready for Soul review.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.verification_request"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -3960,6 +4094,100 @@ fn closure_family_assertions(
                 "work-order-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed work order preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.verification_request" => {
+            push_assertion(
+                &mut assertions,
+                "verification-request-schema-present",
+                content.contains("schema_version = \"epiphany.repo_verification_request.v0\""),
+                "Committed verification request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "verification-request-family-present",
+                content.contains("safe_action_family = \"repo.verification_request\""),
+                "Committed verification request carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "verification-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed verification request contains the accepted pressure summary."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "verification-request-awaits-soul-review",
+                content.contains("[request]")
+                    && content.contains("status = \"awaiting-soul-review\"")
+                    && content.contains("requested_owner = \"Soul\"")
+                    && content.contains("requested_effect = \"verify-branch-local-hands-work\"")
+                    && content.contains("work_order_ref = "),
+                "Committed verification request waits for Soul review before proof consequence."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "verification-request-antecedents-present",
+                content.contains("[antecedents]")
+                    && content.contains("substrate_gate_required = true")
+                    && content.contains("hands_intent_required = true")
+                    && content.contains("hands_review_required = true")
+                    && content.contains("hands_patch_required = true")
+                    && content.contains("hands_command_required = true")
+                    && content.contains("hands_commit_required = true")
+                    && content.contains("work_order_required = true"),
+                "Committed verification request requires Substrate and Hands antecedents."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "verification-request-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains("hands_patch = \"epiphany.hands.patch_receipt\"")
+                    && content.contains("hands_command = \"epiphany.hands.command_receipt\"")
+                    && content.contains("hands_commit = \"epiphany.hands.commit_receipt\"")
+                    && content.contains("soul_verdict = \"epiphany.soul.verification_verdict\"")
+                    && content
+                        .contains("closure_review = \"epiphany.repo_work_closure_review.v0\"")
+                    && content.contains("mind_review = \"epiphany.mind.gateway_review\"")
+                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\""),
+                "Committed verification request names Hands/Soul/closure/Mind receipt chain."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "verification-request-checks-present",
+                content.contains("[checks]")
+                    && content.contains("\"declared-paths-match-commit\"")
+                    && content.contains("\"hands-receipts-present\"")
+                    && content.contains("\"visible-diff-supports-summary\"")
+                    && content.contains("\"no-private-state-exposure\"")
+                    && content.contains("\"publication-remains-gated\"")
+                    && content.contains("failure_blocks_mind_admission = true"),
+                "Committed verification request names the closure checks that Soul should run."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "verification-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("soul_verdict_authorized = false")
+                    && content.contains("state_commit_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("rerun_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("bifrost_publication_required = true"),
+                "Committed verification request denies verdict/state/action/rerun/publication/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "verification-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed verification request preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -7810,7 +8038,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\

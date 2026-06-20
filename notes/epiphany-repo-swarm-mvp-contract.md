@@ -289,16 +289,21 @@ without itself mutating the queue or scheduling work; and `--action-family
 repo-work-order` writes a structured Hands work-order request under
 `.epiphany/work-orders/<item>.toml`, naming the bounded branch-local
 implementation intent and required Substrate/Hands/Soul/Mind receipt chain
-without itself granting substrate access, shell, commit, or Hands authority. Its
+without itself granting substrate access, shell, commit, or Hands authority; and
+`--action-family repo-verification-request` writes a structured Soul verification
+request under `.epiphany/verification-requests/<item>.toml`, naming required
+Hands evidence, closure checks, and Mind admission gates without itself granting
+a Soul verdict, rerun, state commit, publication, or Hands authority. Its
 receipt
 includes
 `epiphany.repo_work_plan_derivation.v0`, mode `append-worklog`,
 `planning-note`, `checklist-note`, `section-note`, `repo-status-section`, or
 `task-card`, `repo-manifest`, `repo-tool-capabilities`, or
 `repo-collaboration-topic`, `repo-consensus-brief`, `repo-objective-draft`, or
-`repo-adoption-request`, `repo-scheduling-request`, or `repo-work-order`, a
-`safeActionFamily`, and an authority seal forbidding publication, merge, service
-lifecycle mutation, cross-repo mutation, and private state exposure.
+`repo-adoption-request`, `repo-scheduling-request`, `repo-work-order`, or
+`repo-verification-request`, a `safeActionFamily`, and an authority seal
+forbidding publication, merge, service lifecycle mutation, cross-repo mutation,
+and private state exposure.
 These deterministic families are quarantine scaffolding on the road to
 model-authored Imagination, but they are no longer operator-authored shell
 details.
@@ -506,6 +511,20 @@ order carried `schema_version = "epiphany.repo_work_order.v0"`,
 antecedents, Substrate/Hands/Soul/Mind required receipts, bounded branch-local
 scope, denied substrate access, shell command, commit, Hands action,
 publication, cross-body authority, and `privateStateExposed=false`.
+
+The next Soul boundary smoke proved verification request cargo:
+`.epiphany-smoke\repo-verification-request-family-20260620-152400` ran init ->
+online -> accept -> `derive-plan --action-family repo-verification-request
+--model-ref repo-verification-request-family-smoke-imagination-v1
+--model-authored` -> tick through run/adopt/execute/close on a fresh repo. The
+plan carried `safeActionFamily=repo.verification_request`; Hands committed only
+`.epiphany/verification-requests/repo-verification-request-family.toml`; Soul
+passed with `pathScopeMatched=true` and `familyAssertions.status=passed`; the
+committed request carried
+`schema_version = "epiphany.repo_verification_request.v0"`,
+`status="awaiting-soul-review"`, Hands evidence antecedents, closure checks,
+Soul/Mind required receipts, denied Soul verdict, state commit, rerun, Hands
+action, publication, cross-body authority, and `privateStateExposed=false`.
 
 ### Landed Work Run Gate
 
@@ -1220,7 +1239,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, and `repo-work-order` / `repo.work_order`. `plan` remains manual quarantine scaffolding. | Deepen model-authored planning and further useful repo-owned configuration classes without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, and `repo-verification-request` / `repo.verification_request`. `plan` remains manual quarantine scaffolding. | Deepen model-authored planning and further useful repo-owned configuration classes without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, and writes Soul, Modeling, and Mind receipts. | Deepen model-authored closure review beyond the first structured closure-review packet while preserving deterministic local closure for simple mechanical work. |
@@ -1516,6 +1535,9 @@ Required organs before MVP:
   `repo-work-order` now proves Hands-facing work-order request cargo that names
   the required Substrate/Hands/Soul/Mind receipt chain while granting no
   substrate, shell, commit, Hands, publication, or cross-body authority.
+  `repo-verification-request` now proves Soul-facing verification request cargo
+  that names Hands evidence and closure checks while granting no verdict, rerun,
+  state commit, Hands, publication, or cross-body authority.
   Remaining work is later model-authored action classes that can change more
   useful repo-owned configuration without arbitrary shell authority.
 - Closure depth: `close` now writes a structured
