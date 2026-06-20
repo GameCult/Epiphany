@@ -2245,6 +2245,239 @@ fn derive_task_card_plan(
     })
 }
 
+fn closure_family_assertions(
+    workspace: &Path,
+    commit_sha: &str,
+    execute_receipt: &Value,
+    item: &str,
+) -> Result<(Value, bool)> {
+    let Some(plan_receipt_path) = path_from_json(execute_receipt, &["planReceiptPath"]) else {
+        return Ok((
+            json!({
+                "status": "skipped",
+                "reason": "execute receipt has no planReceiptPath",
+                "assertions": []
+            }),
+            true,
+        ));
+    };
+    let plan_receipt = read_json_if_exists(&plan_receipt_path)?.unwrap_or(Value::Null);
+    if plan_receipt.is_null() {
+        return Ok((
+            json!({
+                "status": "skipped",
+                "reason": "plan receipt path is missing",
+                "planReceiptPath": plan_receipt_path,
+                "assertions": []
+            }),
+            true,
+        ));
+    }
+    let safe_family = string_from_json(&plan_receipt, &["derivation", "safeActionFamily"])
+        .unwrap_or_else(|| "manual-or-unknown".to_string());
+    let target_paths = first_plan_action(&plan_receipt)
+        .map(|action| string_array_field(action, "changedPaths"))
+        .unwrap_or_else(|| string_array_from_json(execute_receipt, &["changedPaths"]));
+    let target_path = target_paths.first().cloned().unwrap_or_default();
+    if target_path.is_empty() {
+        return Ok((
+            json!({
+                "status": "failed",
+                "safeActionFamily": safe_family,
+                "reason": "plan and execute receipts have no target changed path",
+                "assertions": []
+            }),
+            false,
+        ));
+    }
+    let summary = string_from_json(&plan_receipt, &["derivation", "inputPressure", "summary"])
+        .or_else(|| string_from_json(&plan_receipt, &["objective"]))
+        .unwrap_or_else(|| item.to_string());
+    let compact_summary = compact_line(&summary);
+    let item_slug = sanitize(item);
+    let committed_content = read_committed_file(workspace, commit_sha, &target_path)?;
+    let mut assertions = Vec::new();
+    push_assertion(
+        &mut assertions,
+        "target-blob-present",
+        committed_content.is_some(),
+        format!("Committed target {target_path} exists at {commit_sha}."),
+    );
+    let content = committed_content.unwrap_or_default();
+    match safe_family.as_str() {
+        "repo.append_worklog" => {
+            push_assertion(
+                &mut assertions,
+                "worklog-summary-present",
+                content.contains(&compact_summary),
+                "Committed worklog contains the accepted pressure summary.".to_string(),
+            );
+        }
+        "repo.markdown_planning_note" => {
+            push_assertion(
+                &mut assertions,
+                "planning-summary-present",
+                content.contains(&compact_summary),
+                "Committed planning note contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-authority-seal-present",
+                content.contains("Authority seal"),
+                "Committed planning note carries an authority seal.".to_string(),
+            );
+        }
+        "repo.checklist_note" => {
+            push_assertion(
+                &mut assertions,
+                "checklist-summary-present",
+                content.contains(&compact_summary),
+                "Committed checklist contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "checklist-items-present",
+                content.contains("- [ ]"),
+                "Committed checklist carries branch-local checklist items.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "checklist-authority-present",
+                content.contains("Authority"),
+                "Committed checklist carries an authority section.".to_string(),
+            );
+        }
+        "repo.markdown_managed_section" => {
+            let start_marker = format!("<!-- epiphany-section:{item_slug}:start -->");
+            let end_marker = format!("<!-- epiphany-section:{item_slug}:end -->");
+            push_assertion(
+                &mut assertions,
+                "managed-section-start-marker",
+                content.contains(&start_marker),
+                "Committed managed section contains its start marker.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "managed-section-end-marker",
+                content.contains(&end_marker),
+                "Committed managed section contains its end marker.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "managed-section-summary-present",
+                content.contains(&compact_summary),
+                "Committed managed section contains the accepted pressure summary.".to_string(),
+            );
+        }
+        "repo.status_section" => {
+            let start_marker = format!("<!-- epiphany-status:{item_slug}:start -->");
+            let end_marker = format!("<!-- epiphany-status:{item_slug}:end -->");
+            push_assertion(
+                &mut assertions,
+                "status-section-start-marker",
+                content.contains(&start_marker),
+                "Committed repo status section contains its start marker.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "status-section-end-marker",
+                content.contains(&end_marker),
+                "Committed repo status section contains its end marker.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "status-section-summary-present",
+                content.contains(&compact_summary),
+                "Committed repo status section contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "status-section-private-seal",
+                content.contains("Private state exposed: false"),
+                "Committed repo status section preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.task_card" => {
+            push_assertion(
+                &mut assertions,
+                "task-card-schema-present",
+                content.contains("schema_version = \"epiphany.repo_work_task_card.v0\""),
+                "Committed task card carries the task-card schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "task-card-family-present",
+                content.contains("safe_action_family = \"repo.task_card\""),
+                "Committed task card carries the task-card safe family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "task-card-summary-present",
+                content.contains(&compact_summary),
+                "Committed task card contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "task-card-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed task card preserves the private-state seal.".to_string(),
+            );
+        }
+        _ => {
+            return Ok((
+                json!({
+                    "status": "skipped",
+                    "safeActionFamily": safe_family,
+                    "targetPath": target_path,
+                    "reason": "safe family is manual or has no deterministic closure assertions",
+                    "assertions": assertions
+                }),
+                true,
+            ));
+        }
+    }
+    let passed = assertions
+        .iter()
+        .all(|assertion| assertion.get("passed").and_then(Value::as_bool) == Some(true));
+    Ok((
+        json!({
+            "status": if passed { "passed" } else { "failed" },
+            "safeActionFamily": safe_family,
+            "targetPath": target_path,
+            "planReceiptPath": plan_receipt_path,
+            "assertions": assertions
+        }),
+        passed,
+    ))
+}
+
+fn push_assertion(assertions: &mut Vec<Value>, id: &str, passed: bool, summary: String) {
+    assertions.push(json!({
+        "assertionId": id,
+        "passed": passed,
+        "summary": summary,
+    }));
+}
+
+fn read_committed_file(
+    workspace: &Path,
+    commit_sha: &str,
+    repo_path: &str,
+) -> Result<Option<String>> {
+    let spec = format!("{commit_sha}:{repo_path}");
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(workspace)
+        .args(["show", &spec])
+        .output()
+        .with_context(|| format!("failed to run git show {spec}"))?;
+    if output.status.success() {
+        Ok(Some(String::from_utf8_lossy(&output.stdout).to_string()))
+    } else {
+        Ok(None)
+    }
+}
+
 fn plan_derivation_receipt(input: DeriveSafePlanInput<'_>, mode: &str, safe_family: &str) -> Value {
     json!({
         "schemaVersion": "epiphany.repo_work_plan_derivation.v0",
@@ -2955,6 +3188,8 @@ fn run_close(args: CloseArgs) -> Result<Value> {
     );
     let path_scope_matched = declared_changed_paths == actual_changed_paths;
     let commit_stat = git_output(&workspace, &["show", "--stat", "--oneline", &commit_sha])?;
+    let (family_assertions, family_assertions_passed) =
+        closure_family_assertions(&workspace, &commit_sha, &execute_receipt, &item)?;
     let closure_model_authored = args.model_authored || args.closure_model_ref.is_some();
     let closure_review_id = format!("repo-work-close-{item_slug}-closure-review");
     let closure_review_path = artifact_dir.join(format!("work-close-{item_slug}-review.json"));
@@ -2986,8 +3221,10 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "actualChangedPaths": actual_changed_paths,
             "pathScopeMatched": path_scope_matched,
             "commitStat": compact_multiline(&commit_stat),
-            "commitReceiptMatchedExecuteReceipt": true
+            "commitReceiptMatchedExecuteReceipt": true,
+            "familyAssertionsPassed": family_assertions_passed
         },
+        "familyAssertions": family_assertions,
         "modelingReview": {
             "modelAuthored": closure_model_authored,
             "modelRef": args.closure_model_ref,
@@ -3004,10 +3241,11 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "privateStateExposed": false
         },
         "privateStateExposed": false,
-        "nextSafeMove": "Soul may pass closure only when verification succeeds and actual git changed paths match the Hands-declared path scope."
+        "nextSafeMove": "Soul may pass closure only when verification succeeds, actual git changed paths match the Hands-declared path scope, and safe-family assertions pass for known Imagination families."
     });
     write_json(&closure_review_path, &closure_review)?;
-    let verification_passed = verification.status.success() && path_scope_matched;
+    let verification_passed =
+        verification.status.success() && path_scope_matched && family_assertions_passed;
     let soul_verdict_id = format!("repo-work-close-{item_slug}-soul-verdict");
     let soul_summary = args.verification_summary.unwrap_or_else(|| {
         if verification_passed {
@@ -3015,6 +3253,10 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !path_scope_matched {
             format!(
                 "Soul verification failed for branch-local commit {commit_sha}: actual changed paths did not match declared Hands path scope."
+            )
+        } else if !family_assertions_passed {
+            format!(
+                "Soul verification failed for branch-local commit {commit_sha}: safe-family assertions did not pass."
             )
         } else {
             format!("Soul verification failed for branch-local commit {commit_sha}.")
@@ -3046,6 +3288,11 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !path_scope_matched {
             vec![
                 "Closure refused because actual git changed paths differ from Hands-declared scope."
+                    .to_string(),
+            ]
+        } else if !family_assertions_passed {
+            vec![
+                "Closure refused because the committed content did not satisfy known safe-family assertions."
                     .to_string(),
             ]
         } else {

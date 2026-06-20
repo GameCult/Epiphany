@@ -659,9 +659,11 @@ sealed under `.epiphany/work/`. Closure also writes a structured
 `.epiphany/work/work-close-<item>-review.json`, recording the verification
 command/exit code, declared Hands paths, actual git commit paths, commit stat,
 optional model-review provenance from `--closure-model-ref` / `--model-authored`,
-and authority seals. Soul passes only when the verification command succeeds
-and actual git changed paths match the Hands-declared path scope. Soul then
-writes `epiphany.soul.verdict_receipt`, Modeling records the
+safe-family assertions for known Imagination families, and authority seals. Soul
+passes only when the verification command succeeds, actual git changed paths
+match the Hands-declared path scope, and the committed target content satisfies
+the deterministic safe-family assertions when the plan family is known. Soul
+then writes `epiphany.soul.verdict_receipt`, Modeling records the
 execution/commit/closure-review summary, and Mind writes gateway review plus
 state-commit receipts into runtime-spine. The final
 `.epiphany/work/work-close-<item>.json` receipt is
@@ -696,6 +698,19 @@ included that row with SHA-256 and no local path fields. A tampered execute
 receipt declaring `README.md` while the commit actually changed
 `notes/epiphany-work/closure-review-request-task-card.toml` produced
 `verification-failed`, Soul `failed`, `pathScopeMatched=false`, and
+`privateStateExposed=false`.
+
+A deeper closure-assertion smoke proved Soul now inspects committed content for
+known safe families, not just the file list:
+`.epiphany-smoke\closure-assertions-20260620-141401` ran one
+`repo-status-section` item through normal close and one path-scoped but
+semantically broken README override. The good item closed with Soul `passed`,
+`pathScopeMatched=true`, `familyAssertions.status=passed`, and
+`familyAssertionsPassed=true`. The bad item also had `pathScopeMatched=true`
+because it changed only `README.md`, but close returned `verification-failed`,
+Soul `failed`, `familyAssertions.status=failed`, and failed assertions
+`status-section-start-marker`, `status-section-end-marker`,
+`status-section-summary-present`, and `status-section-private-seal`, with
 `privateStateExposed=false`.
 
 `epiphany-work overview` is the first compact repo work sight/proof surface:
@@ -1323,9 +1338,11 @@ Required organs before MVP:
 - Closure depth: `close` now writes a structured
   `epiphany.repo_work_closure_review.v0` packet for Hands commits, records
   model-review provenance when supplied, refuses actual-vs-declared path-scope
-  mismatch before Soul passes, and exposes the closure-review artifact through
-  overview/export proof rows. Deeper model-authored Soul/Modeling review remains
-  a later upgrade on top of this typed packet.
+  mismatch before Soul passes, runs committed-content assertions for known safe
+  families, refuses assertion failures even when the path scope matches, and
+  exposes the closure-review artifact through overview/export proof rows.
+  Deeper model-authored Soul/Modeling review remains a later upgrade on top of
+  this typed packet.
 - Repo work projection/run surface: local `epiphany-work overview` proof bundles, typed
   `epiphany.cultmesh.repo_work_overview.v0` event history plus latest-key
   projection, and Gjallar multi-item `repo-work-overview` action/readback rows
