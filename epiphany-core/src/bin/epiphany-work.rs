@@ -126,6 +126,9 @@ fn main() -> Result<()> {
         "deployment-execution-runbook" | "idunn-deployment-runbook" | "deployment-push-runbook" => {
             run_deployment_execution_runbook(parse_deployment_execution_runbook_args(args)?)
         }
+        "deployment-aftercare-audit" | "idunn-aftercare-audit" | "deployment-receipt-audit" => {
+            run_deployment_aftercare_audit(parse_deployment_aftercare_audit_args(args)?)
+        }
         "export-proof" | "public-proof" => run_export_proof(parse_export_proof_args(args)?),
         "tick" | "pulse" | "schedule" => run_tick(parse_tick_args(args)?),
         "queue-run" | "run-queue" | "queue-tick" | "scheduler-run" => {
@@ -338,6 +341,16 @@ struct DeploymentExecutionRunbookArgs {
     workspace: PathBuf,
     artifact_dir: Option<PathBuf>,
     remote: String,
+    write_receipt: bool,
+}
+
+#[derive(Clone, Debug)]
+struct DeploymentAftercareAuditArgs {
+    workspace: PathBuf,
+    artifact_dir: Option<PathBuf>,
+    runbook_receipt: Option<PathBuf>,
+    idunn_deployment_receipt: Option<PathBuf>,
+    aftercare_audit_receipt: Option<PathBuf>,
     write_receipt: bool,
 }
 
@@ -1162,6 +1175,48 @@ fn parse_deployment_execution_runbook_args(
         workspace: workspace.context("missing --workspace")?,
         artifact_dir,
         remote,
+        write_receipt,
+    })
+}
+
+fn parse_deployment_aftercare_audit_args(
+    args: impl Iterator<Item = String>,
+) -> Result<DeploymentAftercareAuditArgs> {
+    let mut workspace = None;
+    let mut artifact_dir = None;
+    let mut runbook_receipt = None;
+    let mut idunn_deployment_receipt = None;
+    let mut aftercare_audit_receipt = None;
+    let mut write_receipt = true;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--runbook-receipt" => {
+                runbook_receipt = Some(take_path(&mut args, "--runbook-receipt")?)
+            }
+            "--idunn-deployment-receipt" | "--deployment-receipt" => {
+                idunn_deployment_receipt = Some(take_path(&mut args, "--idunn-deployment-receipt")?)
+            }
+            "--aftercare-audit-receipt" | "--aftercare-receipt" => {
+                aftercare_audit_receipt = Some(take_path(&mut args, "--aftercare-audit-receipt")?)
+            }
+            "--no-write" | "--read-only" => write_receipt = false,
+            other => {
+                return Err(anyhow!(
+                    "unexpected deployment-aftercare-audit argument {other:?}"
+                ));
+            }
+        }
+    }
+    Ok(DeploymentAftercareAuditArgs {
+        workspace: workspace.context("missing --workspace")?,
+        artifact_dir,
+        runbook_receipt,
+        idunn_deployment_receipt,
+        aftercare_audit_receipt,
         write_receipt,
     })
 }
@@ -10568,6 +10623,151 @@ fn run_deployment_execution_runbook(args: DeploymentExecutionRunbookArgs) -> Res
     Ok(receipt)
 }
 
+fn run_deployment_aftercare_audit(args: DeploymentAftercareAuditArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let receipt_path = artifact_dir.join("deployment-aftercare-audit.json");
+    let runbook_receipt_path = args
+        .runbook_receipt
+        .unwrap_or_else(|| artifact_dir.join("deployment-execution-runbook.json"));
+    let idunn_deployment_receipt_path = args.idunn_deployment_receipt;
+    let aftercare_audit_receipt_path = args.aftercare_audit_receipt;
+    let generated_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let mut assertions = Vec::new();
+
+    let runbook_receipt = read_json_if_exists(&runbook_receipt_path)?;
+    let runbook_ready = runbook_receipt.as_ref().is_some_and(|receipt| {
+        string_from_json(receipt, &["schemaVersion"]).as_deref()
+            == Some("epiphany.repo_deployment_execution_runbook.v0")
+            && string_from_json(receipt, &["status"]).as_deref()
+                == Some("ready-for-operator-git-push")
+            && bool_from_json(receipt, &["requiresExplicitOperatorAuthority"]) == Some(true)
+            && bool_from_json(receipt, &["mutatesRemoteWhenRun"]) == Some(true)
+            && bool_from_json(receipt, &["privateStateExposed"]) == Some(false)
+    });
+    push_assertion(
+        &mut assertions,
+        "deployment-runbook-receipt-ready",
+        runbook_ready,
+        "Deployment execution runbook receipt is present, operator-owned, and ready for explicit git-push handoff."
+            .to_string(),
+    );
+
+    let idunn_deployment_summary = if let Some(path) = idunn_deployment_receipt_path.as_ref() {
+        let receipt = read_json(path)?;
+        let schema_ok = string_from_json(&receipt, &["schemaVersion"]).as_deref()
+            == Some("gamecult.idunn.deployment_receipt.v0");
+        let status =
+            string_from_json(&receipt, &["status"]).unwrap_or_else(|| "missing".to_string());
+        let status_ok = matches!(status.as_str(), "ok" | "complete" | "deployed" | "passed");
+        let private_ok =
+            bool_from_json(&receipt, &["privateStateExposed"]).unwrap_or(false) == false;
+        push_assertion(
+            &mut assertions,
+            "idunn-deployment-receipt-valid",
+            schema_ok && status_ok && private_ok,
+            "Idunn deployment receipt carries the expected contract, successful status, and private-state seal."
+                .to_string(),
+        );
+        json!({
+            "path": path,
+            "schemaVersion": string_from_json(&receipt, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
+            "status": status,
+            "privateStateExposed": bool_from_json(&receipt, &["privateStateExposed"]).unwrap_or(false)
+        })
+    } else {
+        push_assertion(
+            &mut assertions,
+            "idunn-deployment-receipt-present",
+            false,
+            "Idunn deployment receipt was not supplied.".to_string(),
+        );
+        Value::Null
+    };
+
+    let aftercare_summary = if let Some(path) = aftercare_audit_receipt_path.as_ref() {
+        let receipt = read_json(path)?;
+        let schema_ok = string_from_json(&receipt, &["schemaVersion"]).as_deref()
+            == Some("gamecult.idunn.deployment_aftercare_audit.v0");
+        let status =
+            string_from_json(&receipt, &["status"]).unwrap_or_else(|| "missing".to_string());
+        let status_ok = matches!(status.as_str(), "ok" | "complete" | "passed");
+        let private_ok =
+            bool_from_json(&receipt, &["privateStateExposed"]).unwrap_or(false) == false;
+        push_assertion(
+            &mut assertions,
+            "idunn-aftercare-audit-receipt-valid",
+            schema_ok && status_ok && private_ok,
+            "Idunn aftercare audit receipt carries the expected contract, successful status, and private-state seal."
+                .to_string(),
+        );
+        json!({
+            "path": path,
+            "schemaVersion": string_from_json(&receipt, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
+            "status": status,
+            "privateStateExposed": bool_from_json(&receipt, &["privateStateExposed"]).unwrap_or(false)
+        })
+    } else {
+        push_assertion(
+            &mut assertions,
+            "idunn-aftercare-audit-receipt-present",
+            false,
+            "Idunn aftercare audit receipt was not supplied.".to_string(),
+        );
+        Value::Null
+    };
+
+    let all_passed = assertions
+        .iter()
+        .all(|assertion| assertion.get("passed").and_then(Value::as_bool) == Some(true));
+    let status = if all_passed {
+        "complete"
+    } else if runbook_ready {
+        "awaiting-idunn-receipts"
+    } else {
+        "runbook-not-ready"
+    };
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_deployment_aftercare_audit.v0",
+        "auditId": "repo-deployment-aftercare-audit",
+        "generatedAt": generated_at,
+        "status": status,
+        "workspace": workspace,
+        "receiptPath": receipt_path,
+        "runbookReceiptPath": runbook_receipt_path,
+        "idunnDeploymentReceipt": idunn_deployment_summary,
+        "idunnAftercareAuditReceipt": aftercare_summary,
+        "deploymentComplete": status == "complete",
+        "requiresExplicitOperatorAuthority": false,
+        "mutatesRemoteWhenRun": false,
+        "executionAuthorized": false,
+        "deploymentAuthority": false,
+        "sshAuthority": false,
+        "gitPushAuthority": false,
+        "serviceLifecycleAuthority": false,
+        "handsAuthority": false,
+        "publicationAuthorized": false,
+        "mergeAuthorized": false,
+        "crossBodyMutationAuthorized": false,
+        "daemonOwnsExecution": true,
+        "assertions": assertions,
+        "privateStateExposed": false
+    });
+    if args.write_receipt {
+        write_json(&receipt_path, &receipt)?;
+    }
+    Ok(receipt)
+}
+
 fn run_export_proof(args: ExportProofArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -12724,7 +12924,7 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|deployment-config-audit|deployment-execution-runbook|export-proof|tick|queue-run|serve> ...\n\
+        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|deployment-config-audit|deployment-execution-runbook|deployment-aftercare-audit|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
@@ -12738,6 +12938,7 @@ fn print_usage() {
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
          deployment-config-audit --workspace <repo> [--artifact-dir <path>] [--no-write]\n\
          deployment-execution-runbook --workspace <repo> [--artifact-dir <path>] [--remote origin] [--no-write]\n\
+         deployment-aftercare-audit --workspace <repo> [--artifact-dir <path>] [--runbook-receipt <path>] [--idunn-deployment-receipt <path>] [--aftercare-audit-receipt <path>] [--no-write]\n\
          export-proof --workspace <repo> [--item <id>] [--accept-receipt <path>] [--output <path>] [--local-verse-store <path>] [--runtime-id repo-swarm-local]\n\
          tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]\n\
          queue-run --workspace <repo> [--local-verse-store <path>] [--runtime-id repo-swarm-local] [--max-items 1] [--dry-run]"

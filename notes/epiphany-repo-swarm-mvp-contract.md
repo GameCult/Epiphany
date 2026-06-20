@@ -804,6 +804,20 @@ Hands, publication, merge, and cross-body authority false. Smoke
 `.epiphany-smoke\repo-deployment-config-family-20260620-214109` proved the
 runbook beside config close and audit.
 
+The post-push receipt mouth is now explicit as well.
+`epiphany-work deployment-aftercare-audit --workspace <repo>
+--idunn-deployment-receipt <path> --aftercare-audit-receipt <path>` reads the
+operator runbook receipt plus supplied Idunn deployment and aftercare receipts,
+checks `gamecult.idunn.deployment_receipt.v0` and
+`gamecult.idunn.deployment_aftercare_audit.v0`, and emits
+`epiphany.repo_deployment_aftercare_audit.v0`. It reports `complete` only when
+the runbook is ready and both Idunn receipts carry successful statuses and
+private-state seals; otherwise it reports the missing gate without mutating
+remote refs or granting deployment authority. Smoke
+`.epiphany-smoke\repo-deployment-config-family-20260620-215037` proved the
+complete ingestion path from explicit fixture receipts with
+`deploymentComplete=true` and `privateStateExposed=false`.
+
 ### Landed Work Run Gate
 
 The sixth front door exists as native Rust:

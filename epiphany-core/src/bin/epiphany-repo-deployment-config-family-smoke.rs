@@ -221,6 +221,44 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         &root,
     )?;
+    let idunn_receipt_dir = repo.join(".epiphany").join("work").join("idunn-deployment");
+    fs::create_dir_all(&idunn_receipt_dir)
+        .with_context(|| format!("failed to create {}", idunn_receipt_dir.display()))?;
+    let idunn_deployment_receipt_path = idunn_receipt_dir.join("fixture-idunn-deployment.json");
+    let idunn_aftercare_receipt_path = idunn_receipt_dir.join("fixture-idunn-aftercare.json");
+    write_json(
+        &idunn_deployment_receipt_path,
+        &json!({
+            "schemaVersion": "gamecult.idunn.deployment_receipt.v0",
+            "status": "deployed",
+            "trigger": "git-push-observed-by-idunn",
+            "watchedRef": "refs/heads/main",
+            "privateStateExposed": false
+        }),
+    )?;
+    write_json(
+        &idunn_aftercare_receipt_path,
+        &json!({
+            "schemaVersion": "gamecult.idunn.deployment_aftercare_audit.v0",
+            "status": "complete",
+            "checkedRef": "refs/heads/main",
+            "privateStateExposed": false
+        }),
+    )?;
+    let aftercare = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "deployment-aftercare-audit",
+            "--workspace",
+            path_str(&repo)?,
+            "--idunn-deployment-receipt",
+            path_str(&idunn_deployment_receipt_path)?,
+            "--aftercare-audit-receipt",
+            path_str(&idunn_aftercare_receipt_path)?,
+        ],
+        &root,
+    )?;
 
     require_eq(
         &plan,
@@ -343,6 +381,34 @@ fn run_smoke(args: Args) -> Result<Value> {
         &runbook_text,
         "gamecult.idunn.deployment_aftercare_audit.v0",
     )?;
+    require_eq(
+        &aftercare,
+        &["schemaVersion"],
+        "epiphany.repo_deployment_aftercare_audit.v0",
+    )?;
+    require_eq(&aftercare, &["status"], "complete")?;
+    require_bool(&aftercare, &["deploymentComplete"], true)?;
+    require_bool(&aftercare, &["mutatesRemoteWhenRun"], false)?;
+    require_bool(&aftercare, &["executionAuthorized"], false)?;
+    require_bool(&aftercare, &["deploymentAuthority"], false)?;
+    require_bool(&aftercare, &["sshAuthority"], false)?;
+    require_bool(&aftercare, &["gitPushAuthority"], false)?;
+    require_bool(&aftercare, &["serviceLifecycleAuthority"], false)?;
+    require_bool(&aftercare, &["handsAuthority"], false)?;
+    require_bool(&aftercare, &["publicationAuthorized"], false)?;
+    require_bool(&aftercare, &["mergeAuthorized"], false)?;
+    require_bool(&aftercare, &["daemonOwnsExecution"], true)?;
+    require_bool(&aftercare, &["privateStateExposed"], false)?;
+    require_eq(
+        &aftercare,
+        &["idunnDeploymentReceipt", "schemaVersion"],
+        "gamecult.idunn.deployment_receipt.v0",
+    )?;
+    require_eq(
+        &aftercare,
+        &["idunnAftercareAuditReceipt", "schemaVersion"],
+        "gamecult.idunn.deployment_aftercare_audit.v0",
+    )?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_deployment_config_family_smoke.v0",
@@ -366,6 +432,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "deploymentExecutionRunbookSha256": runbook["runbookSha256"],
         "requiresExplicitOperatorAuthority": runbook["requiresExplicitOperatorAuthority"],
         "mutatesRemoteWhenRun": runbook["mutatesRemoteWhenRun"],
+        "deploymentAftercareAuditStatus": aftercare["status"],
+        "deploymentComplete": aftercare["deploymentComplete"],
         "deploymentTrigger": "git-push-observed-by-idunn",
         "deploymentOwner": "Idunn",
         "daemonOwnsExecution": true,
