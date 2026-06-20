@@ -778,6 +778,17 @@ contracts, daemon-owned execution, and denied direct deployment, SSH, git push,
 service lifecycle, Hands, publication, merge, cross-body authority, and
 `privateStateExposed=false`.
 
+The deployment config audit readback is now live as the non-mutating Idunn
+handoff check. `epiphany-work deployment-config-audit --workspace <repo>` reads
+`.epiphany/deployment.toml`, emits
+`epiphany.repo_deployment_config_audit.v0`, and classifies a complete disabled
+Idunn git-push contract as `ready-for-idunn-review` while keeping
+`executionAuthorized=false`, `deploymentAuthority=false`,
+`sshAuthority=false`, `gitPushAuthority=false`,
+`serviceLifecycleAuthority=false`, and `privateStateExposed=false`. Smoke
+`.epiphany-smoke\repo-deployment-config-family-20260620-213042` proved the
+audit receipt beside the family close path.
+
 ### Landed Work Run Gate
 
 The sixth front door exists as native Rust:

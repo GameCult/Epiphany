@@ -205,6 +205,12 @@ fn run_smoke(args: Args) -> Result<Value> {
                 repo.join("deploy").join("idunn-deploy.ps1").display()
             )
         })?;
+    let audit = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &["deployment-config-audit", "--workspace", path_str(&repo)?],
+        &root,
+    )?;
 
     require_eq(
         &plan,
@@ -276,6 +282,23 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&config_text, "private_verse_rummaging = false")?;
     require_text(&config_text, "private_state_exposed = false")?;
     require_text(&deploy_script_text, "deployment script placeholder")?;
+    require_eq(
+        &audit,
+        &["schemaVersion"],
+        "epiphany.repo_deployment_config_audit.v0",
+    )?;
+    require_eq(&audit, &["status"], "ready-for-idunn-review")?;
+    require_bool(&audit, &["readyForIdunnReview"], true)?;
+    require_bool(&audit, &["executionAuthorized"], false)?;
+    require_bool(&audit, &["deploymentAuthority"], false)?;
+    require_bool(&audit, &["sshAuthority"], false)?;
+    require_bool(&audit, &["gitPushAuthority"], false)?;
+    require_bool(&audit, &["serviceLifecycleAuthority"], false)?;
+    require_bool(&audit, &["handsAuthority"], false)?;
+    require_bool(&audit, &["publicationAuthorized"], false)?;
+    require_bool(&audit, &["mergeAuthorized"], false)?;
+    require_bool(&audit, &["daemonOwnsExecution"], true)?;
+    require_bool(&audit, &["privateStateExposed"], false)?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_deployment_config_family_smoke.v0",
@@ -291,6 +314,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "familyAssertionsStatus": close["closureReview"]["familyAssertions"]["status"],
         "pathScopeMatched": close["closureReview"]["sourceGrounding"]["pathScopeMatched"],
         "deploymentConfigEnabled": false,
+        "deploymentConfigAuditStatus": audit["status"],
+        "deploymentConfigAuditReceiptPath": audit["receiptPath"],
+        "readyForIdunnReview": audit["readyForIdunnReview"],
         "deploymentTrigger": "git-push-observed-by-idunn",
         "deploymentOwner": "Idunn",
         "daemonOwnsExecution": true,

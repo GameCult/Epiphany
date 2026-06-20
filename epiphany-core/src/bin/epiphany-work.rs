@@ -120,6 +120,9 @@ fn main() -> Result<()> {
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
         "overview" | "proof-bundle" | "status" => run_overview(parse_overview_args(args)?),
+        "deployment-config-audit" | "audit-deployment-config" | "idunn-deployment-audit" => {
+            run_deployment_config_audit(parse_deployment_config_audit_args(args)?)
+        }
         "export-proof" | "public-proof" => run_export_proof(parse_export_proof_args(args)?),
         "tick" | "pulse" | "schedule" => run_tick(parse_tick_args(args)?),
         "queue-run" | "run-queue" | "queue-tick" | "scheduler-run" => {
@@ -316,6 +319,13 @@ struct OverviewArgs {
     workspace: PathBuf,
     item: Option<String>,
     accept_receipt: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    write_receipt: bool,
+}
+
+#[derive(Clone, Debug)]
+struct DeploymentConfigAuditArgs {
+    workspace: PathBuf,
     artifact_dir: Option<PathBuf>,
     write_receipt: bool,
 }
@@ -1083,6 +1093,33 @@ fn parse_overview_args(args: impl Iterator<Item = String>) -> Result<OverviewArg
         workspace: workspace.context("missing --workspace")?,
         item,
         accept_receipt,
+        artifact_dir,
+        write_receipt,
+    })
+}
+
+fn parse_deployment_config_audit_args(
+    args: impl Iterator<Item = String>,
+) -> Result<DeploymentConfigAuditArgs> {
+    let mut workspace = None;
+    let mut artifact_dir = None;
+    let mut write_receipt = true;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--no-write" | "--read-only" => write_receipt = false,
+            other => {
+                return Err(anyhow!(
+                    "unexpected deployment-config-audit argument {other:?}"
+                ));
+            }
+        }
+    }
+    Ok(DeploymentConfigAuditArgs {
+        workspace: workspace.context("missing --workspace")?,
         artifact_dir,
         write_receipt,
     })
@@ -10203,6 +10240,171 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
     }))
 }
 
+fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let artifact_dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let config_path = workspace.join(".epiphany").join("deployment.toml");
+    let receipt_path = artifact_dir.join("deployment-config-audit.json");
+    let generated_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let mut assertions = Vec::new();
+    let mut config_text = String::new();
+
+    if config_path.exists() {
+        config_text = fs::read_to_string(&config_path)
+            .with_context(|| format!("failed to read {}", config_path.display()))?;
+        push_assertion(
+            &mut assertions,
+            "deployment-config-schema-present",
+            config_text.contains("schema_version = \"epiphany.repo_deployment_config.v0\""),
+            "Deployment config carries the schema version.".to_string(),
+        );
+        push_assertion(
+            &mut assertions,
+            "deployment-config-family-present",
+            config_text.contains("safe_action_family = \"repo.deployment_config\""),
+            "Deployment config carries the safe action family.".to_string(),
+        );
+        push_assertion(
+            &mut assertions,
+            "deployment-config-idunn-trigger",
+            config_text.contains("[deployment]")
+                && config_text.contains("enabled = false")
+                && config_text.contains("owner = \"Idunn\"")
+                && config_text.contains("trigger = \"git-push-observed-by-idunn\"")
+                && config_text.contains("watched_ref = \"refs/heads/main\"")
+                && config_text.contains("deployment_script_ref = \"deploy/idunn-deploy.ps1\"")
+                && config_text.contains("deployment_script_hash_required = true")
+                && config_text.contains("deployment_script_review_required = true")
+                && config_text.contains("host_access_policy_ref_required = true")
+                && config_text.contains("secret_values_embedded = false")
+                && config_text.contains("rollback_plan_ref_required = true")
+                && config_text.contains("aftercare_checks_required = true")
+                && config_text.contains("idunn_receipt_required = true")
+                && config_text.contains("aftercare_audit_required = true"),
+            "Deployment config names disabled Idunn git-push trigger, reviewed script/hash, policy, rollback, and aftercare requirements."
+                .to_string(),
+        );
+        push_assertion(
+            &mut assertions,
+            "deployment-config-cultmesh-contract",
+            config_text.contains("[cultmesh]")
+                && config_text.contains("local_verse = \"gamecult-local\"")
+                && config_text.contains("capability_family = \"gamecult.idunn.deployment\"")
+                && config_text
+                    .contains("intent_contract = \"gamecult.idunn.deployment_intent.v0\"")
+                && config_text
+                    .contains("receipt_contract = \"gamecult.idunn.deployment_receipt.v0\"")
+                && config_text.contains(
+                    "aftercare_contract = \"gamecult.idunn.deployment_aftercare_audit.v0\"",
+                )
+                && config_text.contains("daemon_owns_execution = true"),
+            "Deployment config routes execution through Idunn CultMesh contracts.".to_string(),
+        );
+        push_assertion(
+            &mut assertions,
+            "deployment-config-receipt-contract",
+            config_text.contains("[required_receipts]")
+                && config_text
+                    .contains("mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"")
+                && config_text.contains("soul_review = \"epiphany.repo_work_closure_review.v0\"")
+                && config_text
+                    .contains("maintainer_review = \"gamecult.maintainer.review_receipt.v0\"")
+                && config_text
+                    .contains("secret_policy = \"epiphany.repo_secret_policy_request.v0\"")
+                && config_text
+                    .contains("idunn_deployment = \"gamecult.idunn.deployment_receipt.v0\"")
+                && config_text.contains(
+                    "aftercare_audit = \"gamecult.idunn.deployment_aftercare_audit.v0\"",
+                ),
+            "Deployment config names Mind, Soul, maintainer, secret-policy, Idunn deployment, and aftercare receipts."
+                .to_string(),
+        );
+        push_assertion(
+            &mut assertions,
+            "deployment-config-authority-seals",
+            config_text.contains("[authority]")
+                && config_text.contains("configuration_only = true")
+                && config_text.contains("direct_deployment_authority = false")
+                && config_text.contains("direct_ssh_authority = false")
+                && config_text.contains("direct_git_push_authority = false")
+                && config_text.contains("direct_service_lifecycle_authority = false")
+                && config_text.contains("direct_hands_authority = false")
+                && config_text.contains("publication_authorized = false")
+                && config_text.contains("merge_authorized = false")
+                && config_text.contains("cross_body_mutation_authorized = false")
+                && config_text.contains("private_verse_rummaging = false")
+                && config_text.contains("idunn_deployment_authority_required = true"),
+            "Deployment config denies deployment, SSH, git-push, service lifecycle, Hands, publication, merge, and cross-body authority."
+                .to_string(),
+        );
+        push_assertion(
+            &mut assertions,
+            "deployment-config-private-seal",
+            config_text.contains("private_state_exposed = false"),
+            "Deployment config preserves the private-state seal.".to_string(),
+        );
+    } else {
+        push_assertion(
+            &mut assertions,
+            "deployment-config-present",
+            false,
+            format!("Deployment config missing at {}", config_path.display()),
+        );
+    }
+
+    let all_passed = assertions
+        .iter()
+        .all(|assertion| assertion.get("passed").and_then(Value::as_bool) == Some(true));
+    let status = if all_passed {
+        "ready-for-idunn-review"
+    } else if config_path.exists() {
+        "invalid"
+    } else {
+        "missing"
+    };
+    let daemon_owns_execution = all_passed && config_text.contains("daemon_owns_execution = true");
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_deployment_config_audit.v0",
+        "auditId": "repo-deployment-config-audit",
+        "generatedAt": generated_at,
+        "status": status,
+        "workspace": workspace,
+        "configPath": config_path,
+        "receiptPath": receipt_path,
+        "readyForIdunnReview": status == "ready-for-idunn-review",
+        "executionAuthorized": false,
+        "deploymentAuthority": false,
+        "sshAuthority": false,
+        "gitPushAuthority": false,
+        "serviceLifecycleAuthority": false,
+        "handsAuthority": false,
+        "publicationAuthorized": false,
+        "mergeAuthorized": false,
+        "crossBodyMutationAuthorized": false,
+        "daemonOwnsExecution": daemon_owns_execution,
+        "nextGate": if status == "ready-for-idunn-review" {
+            "idunn.review_deployment_config"
+        } else {
+            "repo.fix_deployment_config"
+        },
+        "assertions": assertions,
+        "privateStateExposed": false
+    });
+    if args.write_receipt {
+        write_json(&receipt_path, &receipt)?;
+    }
+    Ok(receipt)
+}
+
 fn run_export_proof(args: ExportProofArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -12347,7 +12549,7 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
+        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|deployment-config-audit|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
@@ -12359,6 +12561,7 @@ fn print_usage() {
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
+         deployment-config-audit --workspace <repo> [--artifact-dir <path>] [--no-write]\n\
          export-proof --workspace <repo> [--item <id>] [--accept-receipt <path>] [--output <path>] [--local-verse-store <path>] [--runtime-id repo-swarm-local]\n\
          tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]\n\
          queue-run --workspace <repo> [--local-verse-store <path>] [--runtime-id repo-swarm-local] [--max-items 1] [--dry-run]"
