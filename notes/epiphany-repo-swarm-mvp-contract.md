@@ -649,8 +649,11 @@ when present, upstream-main sync status, compact TUI rows, and
 `privateStateExposed=false`. Its `artifactRows` enumerate the expected accept,
 plan, run, adopt, execute, close, publish, and sync receipts with expected path,
 present/missing status, document schema, document status, SHA-256 hash when
-present, and private-state seal. When the accept receipt names a local Verse
-store, overview also mirrors the compact overview rows as
+present, and private-state seal. Its `publicationRows` lift publication-stage
+proof into compact rows: Bifrost intent/publication/GitHub/ledger/credit/PR
+fields, Hands commit/PR fields, and upstream-main ancestry fields when publish
+or sync receipts exist. When the accept receipt names a local Verse store,
+overview also mirrors the compact overview rows as
 `epiphany.cultmesh.repo_work_overview.v0` under
 `gamecult-local/repo-work-overview/latest`, so Eve/Gjallar/Odin sight can read
 the same typed surface without opening the `.epiphany/work` artifact body.
@@ -675,6 +678,14 @@ It reported `schemaVersion=epiphany.repo_work_proof_bundle.v0`, TUI rows for
 `awaiting-publication` / `bifrost-publication-missing`, six present artifacts
 from accept through close with SHA-256 hashes, missing publish/sync artifacts,
 and `privateStateExposed=false` on every row.
+
+The first published proof-bundle smoke extended the checklist safe-family proof:
+`.epiphany-smoke\checklist-note-20260620-031347\12-overview-published-proof.json`.
+After close, publish, and sync receipts, overview reported
+`currentGate=complete-or-awaiting-new-work`, `upstreamMainSynced=true`, and
+three `publicationRows`: Bifrost publication/ledger/credit row, GitHub Hands PR
+row, and upstream-main ancestry row. The sync truth is read from
+`authority.upstreamMainSynced`, and every row keeps `privateStateExposed=false`.
 
 The first Verse projection smoke proved the local CultMesh sight path: overview
 mirrored `repo-work-overview-verse-overview-request` into the repo-local Verse,
@@ -1137,8 +1148,9 @@ Required organs before MVP:
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, artifact schema/status rows, SHA-256 receipt
   hashes, compact TUI rows, commit refs, verification verdicts, map admission,
-  Bifrost/GitHub refs, credit refs, and sync state; remaining work is richer
-  packaging for published/credited labor.
+  Bifrost/GitHub refs, credit refs, sync state, and compact publication rows.
+  Remaining work is richer public/export packaging outside the local bundle,
+  not basic Bifrost/GitHub/sync row visibility.
 
 Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt

@@ -3348,6 +3348,8 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         ("publish", &publish_receipt_path),
         ("sync", &sync_receipt_path),
     ])?;
+    let proof_publication_rows =
+        repo_work_proof_publication_rows(publish_receipt.as_ref(), sync_receipt.as_ref());
     let proof_bundle_tui_rows = repo_work_proof_bundle_tui_rows(
         &item,
         &branch,
@@ -3387,8 +3389,9 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "mindStateCommitReceiptId": close_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["mind", "stateCommitReceiptId"])),
         "bifrostPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["bifrost", "publicationReceiptId"])),
         "githubPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["github", "publicationReceiptId"])),
-        "upstreamMainSynced": sync_receipt.as_ref().and_then(|receipt| receipt.get("upstreamMainSynced").and_then(Value::as_bool)).unwrap_or(false),
+        "upstreamMainSynced": sync_receipt.as_ref().and_then(sync_receipt_upstream_main_synced).unwrap_or(false),
         "artifactRows": proof_artifacts,
+        "publicationRows": proof_publication_rows,
         "tuiRows": proof_bundle_tui_rows,
         "privateStateExposed": false
     });
@@ -4551,6 +4554,62 @@ fn repo_work_proof_artifact_rows(receipts: &[(&str, &Path)]) -> Result<Vec<Value
             }))
         })
         .collect()
+}
+
+fn repo_work_proof_publication_rows(publish: Option<&Value>, sync: Option<&Value>) -> Vec<Value> {
+    let mut rows = Vec::new();
+    if let Some(receipt) = publish {
+        rows.push(json!({
+            "kind": "bifrost",
+            "status": receipt.get("status").and_then(Value::as_str).unwrap_or("unknown"),
+            "intentId": string_from_json(receipt, &["bifrost", "intentId"]),
+            "publicationReceiptId": string_from_json(receipt, &["bifrost", "publicationReceiptId"]),
+            "githubPublicationReceiptId": string_from_json(receipt, &["bifrost", "githubPublicationReceiptId"]),
+            "ledgerEntryId": string_from_json(receipt, &["bifrost", "ledgerEntryId"]),
+            "creditReceiptIds": receipt.get("bifrost").and_then(|bifrost| bifrost.get("creditReceiptIds")).cloned().unwrap_or(Value::Array(Vec::new())),
+            "pullRequestUrl": string_from_json(receipt, &["bifrost", "pullRequestUrl"]),
+            "privateStateExposed": false
+        }));
+        rows.push(json!({
+            "kind": "github",
+            "status": receipt.get("status").and_then(Value::as_str).unwrap_or("unknown"),
+            "commitReceiptId": string_from_json(receipt, &["handsReceipts", "commitReceiptId"]),
+            "commitSha": string_from_json(receipt, &["handsReceipts", "commitSha"]),
+            "prReceiptId": string_from_json(receipt, &["handsReceipts", "prReceiptId"]),
+            "pullRequestUrl": string_from_json(receipt, &["handsReceipts", "pullRequestUrl"]),
+            "pullRequestNumber": receipt
+                .get("handsReceipts")
+                .and_then(|hands| hands.get("pullRequestNumber"))
+                .cloned()
+                .unwrap_or(Value::Null),
+            "pullRequestTitle": string_from_json(receipt, &["handsReceipts", "pullRequestTitle"]),
+            "privateStateExposed": false
+        }));
+    }
+    if let Some(receipt) = sync {
+        rows.push(json!({
+            "kind": "upstream-main",
+            "status": receipt.get("status").and_then(Value::as_str).unwrap_or("unknown"),
+            "upstreamRef": string_from_json(receipt, &["upstreamRef"]),
+            "publishedCommitSha": string_from_json(receipt, &["publishedCommitSha"]),
+            "upstreamCommitSha": string_from_json(receipt, &["upstreamCommitSha"]),
+            "upstreamMainSynced": sync_receipt_upstream_main_synced(receipt).unwrap_or(false),
+            "privateStateExposed": false
+        }));
+    }
+    rows
+}
+
+fn sync_receipt_upstream_main_synced(receipt: &Value) -> Option<bool> {
+    receipt
+        .get("upstreamMainSynced")
+        .and_then(Value::as_bool)
+        .or_else(|| {
+            receipt
+                .get("authority")
+                .and_then(|authority| authority.get("upstreamMainSynced"))
+                .and_then(Value::as_bool)
+        })
 }
 
 fn repo_work_proof_bundle_tui_rows(
