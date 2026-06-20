@@ -246,11 +246,17 @@ commit message, verification asks, stop conditions, and rollback hints.
 objective, summary, shell command, paths, and commit message. `epiphany-work
 derive-plan` is the first Persona/Bifrost-to-plan automation: it consumes the
 accepted pressure summary, candidate action refs, and consensus receipt, then
-derives a safe append-only `EPIPHANY_WORKLOG.md` plan with
-`operatorAuthoredShellDetails=false`. Its receipt includes
-`epiphany.repo_work_plan_derivation.v0`, mode `append-worklog`, and explicitly
-marks the path as deterministic quarantine rather than final model-authored
-Imagination.
+derives safe allowlisted branch-local command plans with
+`operatorAuthoredShellDetails=false`. The default family is `append-worklog`,
+which appends to `EPIPHANY_WORKLOG.md`; `--action-family planning-note` creates
+or appends a contained markdown planning note, defaulting to
+`notes/epiphany-work/<item>.md`. Its receipt includes
+`epiphany.repo_work_plan_derivation.v0`, mode `append-worklog` or
+`planning-note`, a `safeActionFamily`, and an authority seal forbidding
+publication, merge, service lifecycle mutation, cross-repo mutation, and private
+state exposure. These deterministic families are quarantine scaffolding on the
+road to model-authored Imagination, but they are no longer operator-authored
+shell details.
 
 This is still not Hands authority. It is the first non-operator-shell bridge
 between Imagination/Self planning and Hands execution: `adopt --from-plan
@@ -288,6 +294,14 @@ The derived plan used mode `append-worklog`,
 executed into `branch-local-commit-recorded`, closed as `closed:passed`, and
 reported `privateStateExposed=false` across accept, plan, run, adopt, execute,
 and close.
+
+The next derived-plan smoke proved the richer safe family:
+`.epiphany-smoke\planning-note-20260620-015921` ran accept ->
+`derive-plan --action-family planning-note` -> run -> adopt -> execute on a
+fresh repo. The plan receipt carried mode `planning-note`, safe family
+`repo.markdown_planning_note`, `operatorAuthoredShellDetails=false`, and
+`privateStateExposed=false`; Hands created a branch-local commit containing
+`notes/epiphany-work/planning-note.md` with the accepted pressure summary.
 
 ### Landed Work Run Gate
 
@@ -813,7 +827,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. | Add a repo Persona intake mouth so humans can talk to the project instead of hand-authoring CLI work items. |
-| Imagination planning | `derive-plan` deterministically creates append-only worklog plans; `plan` remains manual quarantine scaffolding. | Replace operator-authored shell details with model-authored, typed Imagination action items for richer safe command families. |
+| Imagination planning | `derive-plan` deterministically creates allowlisted `append-worklog` and `planning-note` plans; `plan` remains manual quarantine scaffolding. | Replace deterministic templates with model-authored, typed Imagination action items for richer safe command families. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`. | Add optional Idunn-hosted lifecycle for the same queue-run surface without taking Idunn's authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
@@ -912,8 +926,9 @@ The chain is typed and sealed enough to be useful:
 - `epiphany-work accept` records Persona/Bifrost pressure without granting
   Hands, durable-state, publication, or merge authority.
 - `epiphany-work derive-plan` records the first deterministic
-  Persona/Bifrost-to-plan bridge: accepted pressure becomes a safe append-only
-  action plan with `operatorAuthoredShellDetails=false`.
+  Persona/Bifrost-to-plan bridge: accepted pressure becomes a safe allowlisted
+  action plan with `operatorAuthoredShellDetails=false`. Current families are
+  `append-worklog` and `planning-note`.
 - `epiphany-work plan` records a manual typed Imagination/Self action plan:
   objective, command, changed paths, commit message, verification asks, stop
   conditions, and rollback hints. It remains a compatibility reliquary until
@@ -977,10 +992,10 @@ Required organs before MVP:
   Remaining work is optional handoff from branch-local execution into the close
   gate and any later Idunn service lifecycle integration under explicit
   operator authority.
-- Persona-to-plan depth: deterministic append-worklog derivation exists for
-  accepted Persona/Bifrost pressure; remaining work is model-authored
-  Imagination planning for richer action classes without operator shell
-  details.
+- Persona-to-plan depth: deterministic `append-worklog` and `planning-note`
+  derivations exist for accepted Persona/Bifrost pressure; remaining work is
+  model-authored Imagination planning for richer action classes without
+  operator shell details.
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.

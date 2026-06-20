@@ -134,7 +134,8 @@ struct DerivePlanArgs {
     item: Option<String>,
     accept_receipt: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
-    target_path: String,
+    target_path: Option<String>,
+    action_family: String,
     model_ref: Option<String>,
 }
 
@@ -467,7 +468,8 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
     let mut item = None;
     let mut accept_receipt = None;
     let mut artifact_dir = None;
-    let mut target_path = "EPIPHANY_WORKLOG.md".to_string();
+    let mut target_path = None;
+    let mut action_family = "append-worklog".to_string();
     let mut model_ref = None;
 
     let mut args = args.peekable();
@@ -478,7 +480,10 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
             "--accept-receipt" => accept_receipt = Some(take_path(&mut args, "--accept-receipt")?),
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
             "--target-path" | "--changed-path" | "--path" => {
-                target_path = take_string(&mut args, "--target-path")?;
+                target_path = Some(take_string(&mut args, "--target-path")?);
+            }
+            "--action-family" | "--family" | "--mode" => {
+                action_family = take_string(&mut args, "--action-family")?;
             }
             "--model-ref" | "--imagination-ref" => {
                 model_ref = Some(take_string(&mut args, "--model-ref")?);
@@ -492,6 +497,7 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
         accept_receipt,
         artifact_dir,
         target_path,
+        action_family,
         model_ref,
     })
 }
@@ -1402,25 +1408,9 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
         .get("source")
         .and_then(Value::as_str)
         .unwrap_or("persona");
-    let target_path = validate_plan_target_path(&args.target_path)?;
     let objective = format!(
         "Respond to {source} work item {item}: {}",
         compact_line(summary)
-    );
-    let plan_summary = format!(
-        "Imagination derived a safe append-only worklog update from accepted {} pressure.",
-        source
-    );
-    let worklog_line = format!(
-        "- {} [{}]: {}",
-        Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        item,
-        compact_line(summary)
-    );
-    let command = format!(
-        "Add-Content -LiteralPath {} -Value {}",
-        powershell_single_quoted(&target_path),
-        powershell_single_quoted(&worklog_line)
     );
     let mut evidence_refs = vec![format!("accept-receipt:{}", accept_receipt_path.display())];
     if let Some(consensus_id) =
@@ -1428,11 +1418,24 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
     {
         evidence_refs.push(format!("imagination-consensus:{consensus_id}"));
     }
-    if let Some(model_ref) = args.model_ref {
+    let model_ref = args.model_ref;
+    if let Some(model_ref) = model_ref.as_ref() {
         evidence_refs.push(format!("imagination-model:{model_ref}"));
     } else {
-        evidence_refs.push("imagination-derivation:deterministic-append-worklog.v0".to_string());
+        evidence_refs.push(format!(
+            "imagination-derivation:deterministic-{}.v0",
+            normalize_action_family(&args.action_family)?
+        ));
     }
+    let derived_plan = derive_safe_plan_family(DeriveSafePlanInput {
+        action_family: &args.action_family,
+        target_path: args.target_path.as_deref(),
+        item: &item,
+        summary,
+        source,
+        accept_receipt: &accept_receipt,
+        model_ref: model_ref.as_deref(),
+    })?;
 
     write_plan_receipt(
         workspace,
@@ -1441,38 +1444,161 @@ fn run_derive_plan(args: DerivePlanArgs) -> Result<Value> {
         artifact_dir,
         PlanReceiptInputs {
             objective,
-            plan_summary,
-            command,
-            changed_paths: vec![target_path],
-            commit_message: format!("Record repo work item {}", item),
+            plan_summary: derived_plan.plan_summary,
+            command: derived_plan.command,
+            changed_paths: vec![derived_plan.target_path.clone()],
+            commit_message: derived_plan.commit_message,
             adoption_evidence_refs: evidence_refs,
-            verification_asks: vec![
-                "Soul verifies the worklog path changed and the appended line matches the accepted pressure.".to_string(),
-            ],
+            verification_asks: derived_plan.verification_asks,
             stop_conditions: vec![
-                "Stop if the command exits nonzero or changes paths outside the derived plan.".to_string(),
+                "Stop if the command exits nonzero or changes paths outside the derived plan."
+                    .to_string(),
             ],
-            rollback_hints: vec![
-                "Remove the appended worklog line if the pressure was misinterpreted.".to_string(),
-            ],
-            derivation: Some(json!({
-                "schemaVersion": "epiphany.repo_work_plan_derivation.v0",
-                "mode": "append-worklog",
-                "owner": "Imagination",
-                "router": "Self",
-                "inputPressure": {
-                    "source": source,
-                    "summary": summary,
-                    "candidateActionRefs": accept_receipt["feedback"]["candidateActionRefs"],
-                    "publicDiscussionRefs": accept_receipt["feedback"]["publicDiscussionRefs"],
-                },
-                "operatorAuthoredShellDetails": false,
-                "modelAuthored": false,
-                "deterministicQuarantine": true,
-                "nextUpgrade": "replace this deterministic derivation with model-authored Imagination planning over the same receipt contract"
-            })),
+            rollback_hints: derived_plan.rollback_hints,
+            derivation: Some(derived_plan.derivation),
         },
     )
+}
+
+struct DeriveSafePlanInput<'a> {
+    action_family: &'a str,
+    target_path: Option<&'a str>,
+    item: &'a str,
+    summary: &'a str,
+    source: &'a str,
+    accept_receipt: &'a Value,
+    model_ref: Option<&'a str>,
+}
+
+struct DerivedSafePlan {
+    target_path: String,
+    plan_summary: String,
+    command: String,
+    commit_message: String,
+    verification_asks: Vec<String>,
+    rollback_hints: Vec<String>,
+    derivation: Value,
+}
+
+fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafePlan> {
+    let action_family = normalize_action_family(input.action_family)?;
+    match action_family.as_str() {
+        "append-worklog" => derive_append_worklog_plan(input, &action_family),
+        "planning-note" => derive_planning_note_plan(input, &action_family),
+        other => Err(anyhow!(
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog and planning-note"
+        )),
+    }
+}
+
+fn derive_append_worklog_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let target_path =
+        validate_plan_target_path(input.target_path.unwrap_or("EPIPHANY_WORKLOG.md"))?;
+    let worklog_line = format!(
+        "- {} [{}]: {}",
+        Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        input.item,
+        compact_line(input.summary)
+    );
+    let command = format!(
+        "Add-Content -LiteralPath {} -Value {}",
+        powershell_single_quoted(&target_path),
+        powershell_single_quoted(&worklog_line)
+    );
+    Ok(DerivedSafePlan {
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a safe append-only worklog update from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Record repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the worklog path changed and the appended line matches the accepted pressure.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the appended worklog line if the pressure was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.append_worklog"),
+    })
+}
+
+fn derive_planning_note_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let default_target = format!("notes/epiphany-work/{}.md", sanitize(input.item));
+    let target_path = validate_plan_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let lines = vec![
+        format!("# Epiphany Work Note: {}", compact_line(input.item)),
+        String::new(),
+        format!("- Created: {}", Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
+        format!("- Source: {}", compact_line(input.source)),
+        format!("- Summary: {}", compact_line(input.summary)),
+        format!("- Candidate action refs: {}", compact_join(&candidate_refs)),
+        format!("- Public discussion refs: {}", compact_join(&public_refs)),
+        String::new(),
+        "## Imagination Plan".to_string(),
+        String::new(),
+        "- Safe action family: planning-note".to_string(),
+        "- Intended consequence: preserve a concrete planning note for Self adoption and later Hands work.".to_string(),
+        "- Authority seal: this note is branch-local planning cargo, not publication, merge, or durable Mind admission.".to_string(),
+        String::new(),
+    ];
+    let command = powershell_append_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a contained markdown planning note from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add planning note for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the planning note path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies no paths outside the declared planning note changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated planning note if the accepted pressure was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.markdown_planning_note"),
+    })
+}
+
+fn plan_derivation_receipt(input: DeriveSafePlanInput<'_>, mode: &str, safe_family: &str) -> Value {
+    json!({
+        "schemaVersion": "epiphany.repo_work_plan_derivation.v0",
+        "mode": mode,
+        "safeActionFamily": safe_family,
+        "owner": "Imagination",
+        "router": "Self",
+        "inputPressure": {
+            "source": input.source,
+            "summary": input.summary,
+            "candidateActionRefs": input.accept_receipt["feedback"]["candidateActionRefs"],
+            "publicDiscussionRefs": input.accept_receipt["feedback"]["publicDiscussionRefs"],
+        },
+        "operatorAuthoredShellDetails": false,
+        "modelAuthored": false,
+        "modelRef": input.model_ref,
+        "deterministicQuarantine": true,
+        "authoritySeal": {
+            "branchLocalOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthority": false,
+            "crossRepoMutation": false,
+            "privateStateExposed": false
+        },
+        "nextUpgrade": "replace deterministic safe families with model-authored Imagination planning over the same receipt contract"
+    })
 }
 
 fn write_plan_receipt(
@@ -4094,6 +4220,14 @@ fn validate_plan_target_path(path: &str) -> Result<String> {
     Ok(normalized)
 }
 
+fn normalize_action_family(value: &str) -> Result<String> {
+    let normalized = value.trim().to_ascii_lowercase().replace('_', "-");
+    if normalized.is_empty() {
+        return Err(anyhow!("derive-plan action family cannot be empty"));
+    }
+    Ok(normalized)
+}
+
 fn compact_line(text: &str) -> String {
     let compact = text
         .split_whitespace()
@@ -4110,8 +4244,35 @@ fn compact_line(text: &str) -> String {
     }
 }
 
+fn compact_join(values: &[String]) -> String {
+    if values.is_empty() {
+        "none".to_string()
+    } else {
+        values
+            .iter()
+            .map(|value| compact_line(value))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
 fn powershell_single_quoted(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
+}
+
+fn powershell_append_lines_command(target_path: &str, lines: &[String]) -> String {
+    let mut commands = vec![
+        format!("$p = {}", powershell_single_quoted(target_path)),
+        "$d = Split-Path -Parent $p".to_string(),
+        "if ($d) { New-Item -ItemType Directory -Force -Path $d | Out-Null }".to_string(),
+    ];
+    commands.extend(lines.iter().map(|line| {
+        format!(
+            "Add-Content -LiteralPath $p -Value {}",
+            powershell_single_quoted(line)
+        )
+    }));
+    commands.join("; ")
 }
 
 fn normalize_path_for_receipt(path: &Path) -> String {
@@ -4373,7 +4534,7 @@ fn print_usage() {
     eprintln!(
         "usage: epiphany-work <accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|queue-run|serve> ...\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--target-path EPIPHANY_WORKLOG.md] [--model-ref <ref>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note] [--target-path <path>] [--model-ref <ref>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
