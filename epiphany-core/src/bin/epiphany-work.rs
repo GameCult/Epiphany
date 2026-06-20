@@ -1877,8 +1877,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-tool-capabilities" | "tool-capabilities" | "capability-manifest" => {
             derive_repo_tool_capabilities_plan(input, &action_family)
         }
+        "repo-collaboration-topic" | "collaboration-topic" | "eve-collaboration" => {
+            derive_repo_collaboration_topic_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, and repo-tool-capabilities"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, and repo-collaboration-topic"
         )),
     }
 }
@@ -2494,6 +2497,110 @@ fn derive_repo_tool_capabilities_plan(
     })
 }
 
+fn derive_repo_collaboration_topic_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/collaboration-topics/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let topic_id = format!("repo-collaboration:{item_slug}");
+    let public_room = format!("epiphany-global/persona-collaboration/{item_slug}");
+    let eve_surface = format!("eve://epiphany/repo/{item_slug}/collaboration");
+    let consensus_route = format!("imagination://repo/{item_slug}/consensus-discovery");
+    let lines = vec![
+        "# Epiphany repo collaboration topic.".to_string(),
+        "# Branch-local discussion cargo; not adoption, action, publication, or private-state authority.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_collaboration_topic.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.collaboration_topic")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[topic]".to_string(),
+        format!("id = {}", toml_basic_string(&topic_id)),
+        format!("public_room = {}", toml_basic_string(&public_room)),
+        format!("eve_surface = {}", toml_basic_string(&eve_surface)),
+        "persona_discussion_allowed = true".to_string(),
+        "human_discussion_allowed = true".to_string(),
+        "agent_friendly_tui = true".to_string(),
+        String::new(),
+        "[imagination]".to_string(),
+        format!("consensus_route = {}", toml_basic_string(&consensus_route)),
+        "consensus_required_before_action = true".to_string(),
+        "candidate_actions_are_non_authoritative = true".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "adoption_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the collaboration topic path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the topic names a public room, Eve surface, and Imagination consensus route without granting action authority.\",".to_string(),
+        "  \"Soul verifies no paths outside the declared collaboration topic changed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the collaboration topic manifest if the accepted pressure was misderived.\"]".to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.collaboration_topic".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo collaboration topic from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add collaboration topic for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo collaboration topic path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the topic routes public Persona/human discussion to Imagination consensus without granting Hands, Mind, publication, merge, service, or cross-body authority.".to_string(),
+            "Soul verifies no paths outside the declared collaboration topic changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated collaboration topic manifest if the accepted pressure was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.collaboration_topic"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -2799,6 +2906,64 @@ fn closure_family_assertions(
                 "tool-capabilities-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed tool capability manifest preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.collaboration_topic" => {
+            push_assertion(
+                &mut assertions,
+                "collaboration-topic-schema-present",
+                content.contains("schema_version = \"epiphany.repo_collaboration_topic.v0\""),
+                "Committed collaboration topic carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-topic-family-present",
+                content.contains("safe_action_family = \"repo.collaboration_topic\""),
+                "Committed collaboration topic carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-topic-summary-present",
+                content.contains(&compact_summary),
+                "Committed collaboration topic contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-topic-public-surface",
+                content.contains("[topic]")
+                    && content.contains("public_room = \"epiphany-global/persona-collaboration/")
+                    && content.contains("eve_surface = \"eve://epiphany/repo/")
+                    && content.contains("persona_discussion_allowed = true")
+                    && content.contains("human_discussion_allowed = true"),
+                "Committed collaboration topic names public discussion and Eve surfaces."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-topic-imagination-route",
+                content.contains("[imagination]")
+                    && content.contains("consensus_route = \"imagination://repo/")
+                    && content.contains("consensus_required_before_action = true")
+                    && content.contains("candidate_actions_are_non_authoritative = true")
+                    && content.contains("mind_adoption_required = true"),
+                "Committed collaboration topic routes feedback to Imagination consensus before adoption.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-topic-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("adoption_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("private_verse_rummaging = false"),
+                "Committed collaboration topic denies action, publication, cross-body, and private-rummaging authority.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-topic-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed collaboration topic preserves the private-state seal.".to_string(),
             );
         }
         _ => {
@@ -6649,7 +6814,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-collaboration-topic] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
