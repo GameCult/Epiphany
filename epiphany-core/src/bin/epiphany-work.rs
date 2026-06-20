@@ -77,6 +77,7 @@ fn main() -> Result<()> {
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
         "overview" | "proof-bundle" | "status" => run_overview(parse_overview_args(args)?),
+        "export-proof" | "public-proof" => run_export_proof(parse_export_proof_args(args)?),
         "tick" | "pulse" | "schedule" => run_tick(parse_tick_args(args)?),
         "queue-run" | "run-queue" | "queue-tick" | "scheduler-run" => {
             run_queue(parse_queue_args(args)?)
@@ -262,6 +263,15 @@ struct OverviewArgs {
     accept_receipt: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
     write_receipt: bool,
+}
+
+#[derive(Clone, Debug)]
+struct ExportProofArgs {
+    workspace: PathBuf,
+    item: Option<String>,
+    accept_receipt: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    output: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -959,6 +969,33 @@ fn parse_overview_args(args: impl Iterator<Item = String>) -> Result<OverviewArg
         accept_receipt,
         artifact_dir,
         write_receipt,
+    })
+}
+
+fn parse_export_proof_args(args: impl Iterator<Item = String>) -> Result<ExportProofArgs> {
+    let mut workspace = None;
+    let mut item = None;
+    let mut accept_receipt = None;
+    let mut artifact_dir = None;
+    let mut output = None;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--accept-receipt" => accept_receipt = Some(take_path(&mut args, "--accept-receipt")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--output" | "--export-path" => output = Some(take_path(&mut args, "--output")?),
+            other => return Err(anyhow!("unexpected export-proof argument {other:?}")),
+        }
+    }
+    Ok(ExportProofArgs {
+        workspace: workspace.context("missing --workspace")?,
+        item,
+        accept_receipt,
+        artifact_dir,
+        output,
     })
 }
 
@@ -3490,6 +3527,49 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
     }))
 }
 
+fn run_export_proof(args: ExportProofArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    let overview = run_overview(OverviewArgs {
+        workspace: workspace.clone(),
+        item: args.item,
+        accept_receipt: args.accept_receipt,
+        artifact_dir: args.artifact_dir.clone(),
+        write_receipt: true,
+    })?;
+    let proof_bundle = overview
+        .get("proofBundle")
+        .ok_or_else(|| anyhow!("overview did not return a proofBundle"))?;
+    let item = proof_bundle
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+    let output = args.output.unwrap_or_else(|| {
+        workspace
+            .join(".epiphany")
+            .join("public")
+            .join("proof-bundles")
+            .join(format!("repo-work-public-proof-{item_slug}.json"))
+    });
+    let public_bundle = repo_work_public_proof_bundle(&overview)?;
+    write_json(&output, &public_bundle)?;
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_public_proof_export.v0",
+        "status": "public-proof-exported",
+        "workspace": workspace,
+        "item": item,
+        "outputPath": output,
+        "sourceOverviewReceiptPath": overview["receiptPath"],
+        "publicProofBundle": public_bundle,
+        "privateStateExposed": false,
+        "nextSafeMove": "Share the public proof bundle with maintainers or Bifrost; keep raw worker thoughts and local receipt bodies sealed."
+    }))
+}
+
 fn run_serve(args: ServeArgs) -> Result<Value> {
     if args.max_iterations == 0 && args.loop_interval_seconds == 0 {
         return Err(anyhow!(
@@ -4600,6 +4680,74 @@ fn repo_work_proof_publication_rows(publish: Option<&Value>, sync: Option<&Value
     rows
 }
 
+fn repo_work_public_proof_bundle(overview: &Value) -> Result<Value> {
+    let proof = overview
+        .get("proofBundle")
+        .ok_or_else(|| anyhow!("overview did not include proofBundle"))?;
+    let artifact_rows = proof
+        .get("artifactRows")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .map(repo_work_public_artifact_row)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let publication_rows = proof
+        .get("publicationRows")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_public_proof_bundle.v0",
+        "bundleId": proof["bundleId"],
+        "generatedAt": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "sourceProofGeneratedAt": proof["generatedAt"],
+        "item": proof["item"],
+        "branch": proof["branch"],
+        "currentGate": proof["currentGate"],
+        "blocker": proof["blocker"],
+        "nextSafeMove": proof["nextSafeMove"],
+        "changedPaths": proof["changedPaths"],
+        "commitSha": proof["commitSha"],
+        "soulVerdict": proof["soulVerdict"],
+        "mindStateCommitReceiptId": proof["mindStateCommitReceiptId"],
+        "bifrostPublicationReceiptId": proof["bifrostPublicationReceiptId"],
+        "githubPublicationReceiptId": proof["githubPublicationReceiptId"],
+        "upstreamMainSynced": proof["upstreamMainSynced"],
+        "artifactRows": artifact_rows,
+        "publicationRows": publication_rows,
+        "tuiRows": proof["tuiRows"],
+        "redaction": {
+            "rawReceiptBodiesIncluded": false,
+            "localReceiptPathsIncluded": false,
+            "rawWorkerThoughtIncluded": false,
+            "privateStateExposed": false
+        },
+        "authority": {
+            "owner": "Eyes/Gjallar",
+            "sightOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthorized": false,
+            "crossRepoMutationAuthorized": false,
+            "privateStateExposed": false
+        },
+        "privateStateExposed": false
+    }))
+}
+
+fn repo_work_public_artifact_row(row: &Value) -> Value {
+    json!({
+        "kind": row.get("kind").cloned().unwrap_or(Value::Null),
+        "artifactStatus": row.get("artifactStatus").cloned().unwrap_or(Value::Null),
+        "artifactSha256": row.get("artifactSha256").cloned().unwrap_or(Value::Null),
+        "schemaVersion": row.get("schemaVersion").cloned().unwrap_or(Value::Null),
+        "documentStatus": row.get("documentStatus").cloned().unwrap_or(Value::Null),
+        "privateStateExposed": false
+    })
+}
+
 fn sync_receipt_upstream_main_synced(receipt: &Value) -> Option<bool> {
     receipt
         .get("upstreamMainSynced")
@@ -5198,7 +5346,7 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|tick|queue-run|serve> ...\n\
+        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
@@ -5210,6 +5358,7 @@ fn print_usage() {
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
+         export-proof --workspace <repo> [--item <id>] [--accept-receipt <path>] [--output <path>]\n\
          tick --workspace <repo> [--item <id>] [--local-verse-store <path>] [--runtime-store <path>] [--dry-run]\n\
          queue-run --workspace <repo> [--local-verse-store <path>] [--runtime-id repo-swarm-local] [--max-items 1] [--dry-run]"
     );

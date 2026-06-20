@@ -687,6 +687,33 @@ three `publicationRows`: Bifrost publication/ledger/credit row, GitHub Hands PR
 row, and upstream-main ancestry row. The sync truth is read from
 `authority.upstreamMainSynced`, and every row keeps `privateStateExposed=false`.
 
+`epiphany-work export-proof` is the first public/export packaging surface over
+that same proof bundle:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- export-proof --workspace <repo> --item <id>
+```
+
+It calls overview with receipt writing enabled, distills the local
+`epiphany.repo_work_proof_bundle.v0` into
+`epiphany.repo_work_public_proof_bundle.v0`, and writes the public artifact to
+`.epiphany/public/proof-bundles/repo-work-public-proof-<item>.json` unless an
+explicit `--output` is supplied. The public proof keeps ids, gate/blocker/next
+safe move, branch, changed paths, commit SHA, Soul verdict, Mind/Bifrost/GitHub
+publication ids, upstream-main sync truth, compact publication rows, compact
+TUI rows, artifact schema/status/hash rows, and `privateStateExposed=false`.
+It deliberately drops local receipt paths and expected paths, raw receipt
+bodies, worker thought, private Verse contents, and any publication authority
+claim. This is still Eyes/Gjallar export sight; Bifrost owns actual public
+publication, labor ledger, and credit consequence.
+
+The first public/export proof smoke extended the same checklist proof:
+`.epiphany-smoke\checklist-note-20260620-031347\13-export-proof.json`. It
+reported `schemaVersion=epiphany.repo_work_public_proof_bundle.v0`, wrote the
+default public proof path, carried eight artifact rows and three publication
+rows, exposed zero artifact path fields, kept `rawReceiptBodies=false`, and
+reported `private=false`.
+
 The first Verse projection smoke proved the local CultMesh sight path: overview
 mirrored `repo-work-overview-verse-overview-request` into the repo-local Verse,
 `epiphany-verse-query smoke --store <local-verse> --runtime-id repo-swarm-local`
@@ -1149,8 +1176,11 @@ Required organs before MVP:
   operator-safe receipt chains, artifact schema/status rows, SHA-256 receipt
   hashes, compact TUI rows, commit refs, verification verdicts, map admission,
   Bifrost/GitHub refs, credit refs, sync state, and compact publication rows.
-  Remaining work is richer public/export packaging outside the local bundle,
-  not basic Bifrost/GitHub/sync row visibility.
+  `epiphany-work export-proof` now writes a redacted
+  `epiphany.repo_work_public_proof_bundle.v0` artifact under
+  `.epiphany/public/proof-bundles/` with local paths and raw receipt bodies
+  removed. Remaining work is Bifrost/public Verse transport and UX polish, not
+  basic local public-proof export or Bifrost/GitHub/sync row visibility.
 
 Scheduler authority is intentionally narrow. It may advance
 `accept -> plan -> run -> adopt -> execute` only when each upstream receipt
@@ -1376,6 +1406,9 @@ Required cuts:
   changed paths, branch, commit, verification result, map admission result,
   Bifrost publication refs, GitHub/PR refs, sync status, compact TUI rows, and
   credit refs.
+- Emit a redacted public/export proof artifact per work item that keeps the
+  operator-safe proof rows and hashes while removing local receipt paths, raw
+  receipt bodies, worker thought, and private Verse contents.
 - Add compact Eve/CultUI rows for repo work queue, active branch work, blocked
   work, publication status, and upstream sync.
 - Make Gjallar announce the repo swarm's operator-safe status through Odin's
