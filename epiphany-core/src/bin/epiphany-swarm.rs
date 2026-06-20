@@ -543,34 +543,54 @@ fn classify_run_stop(
         .and_then(|iteration| iteration.get("selectedRows"))
         .and_then(Value::as_array)
         .and_then(|rows| rows.first());
-    let selected_gate = selected_row
-        .and_then(|row| row.get("gate"))
-        .and_then(Value::as_str)
-        .unwrap_or("none");
-    let selected_blocker = selected_row
-        .and_then(|row| row.get("blocker"))
-        .and_then(Value::as_str)
-        .unwrap_or("none");
-    let selected_next_safe_move = selected_row
-        .and_then(|row| row.get("nextSafeMove"))
-        .and_then(Value::as_str)
-        .unwrap_or(next_safe_move);
-    let selected_item = selected_row
-        .and_then(|row| row.get("item"))
-        .and_then(Value::as_str)
-        .unwrap_or("none");
-    let selected_branch = selected_row
-        .and_then(|row| row.get("branch"))
-        .and_then(Value::as_str)
-        .unwrap_or("none");
+    let selected_output = final_iteration
+        .and_then(|iteration| iteration.get("outputs"))
+        .and_then(Value::as_array)
+        .and_then(|outputs| outputs.first());
+    let refreshed_overview = selected_output.and_then(|output| output.get("refreshedOverview"));
+    let selected_gate = selected_output
+        .and_then(|output| non_empty_string(output.get("gateBefore")))
+        .or_else(|| {
+            refreshed_overview.and_then(|overview| non_empty_string(overview.get("currentGate")))
+        })
+        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("gate"))))
+        .or_else(|| compact_row_field(selected_row, "gate"))
+        .unwrap_or_else(|| "none".to_string());
+    let selected_blocker = selected_output
+        .and_then(|output| non_empty_string(output.get("blockerBefore")))
+        .or_else(|| {
+            refreshed_overview.and_then(|overview| non_empty_string(overview.get("blocker")))
+        })
+        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("blocker"))))
+        .or_else(|| compact_row_field(selected_row, "blocker"))
+        .unwrap_or_else(|| "none".to_string());
+    let selected_next_safe_move = selected_output
+        .and_then(|output| output.get("tick"))
+        .and_then(|tick| non_empty_string(tick.get("nextSafeMove")))
+        .or_else(|| {
+            refreshed_overview.and_then(|overview| non_empty_string(overview.get("nextSafeMove")))
+        })
+        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("nextSafeMove"))))
+        .or_else(|| compact_row_field(selected_row, "next"))
+        .unwrap_or_else(|| next_safe_move.to_string());
+    let selected_item = selected_output
+        .and_then(|output| non_empty_string(output.get("item")))
+        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("item"))))
+        .or_else(|| compact_row_field(selected_row, "item"))
+        .unwrap_or_else(|| "none".to_string());
+    let selected_branch = refreshed_overview
+        .and_then(|overview| non_empty_string(overview.get("branch")))
+        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("branch"))))
+        .or_else(|| compact_row_field(selected_row, "branch"))
+        .unwrap_or_else(|| "none".to_string());
 
     let (category, owner, gate, blocker, recommended_command, mutates_state, requires_elevation) =
         match stop_reason {
             "dry-run-preview-complete" => (
                 "dry-run-preview",
                 "Self",
-                selected_gate,
-                selected_blocker,
+                selected_gate.as_str(),
+                selected_blocker.as_str(),
                 "epiphany-swarm run --workspace <repo> --until blocked-or-published",
                 false,
                 false,
@@ -594,14 +614,14 @@ fn classify_run_stop(
                 false,
             ),
             "blocked-or-noop" if actionable_count == 0 => {
-                let owner = match selected_gate {
+                let owner = match selected_gate.as_str() {
                     "awaiting-publication" => "Bifrost",
                     "awaiting-sync" => "Bifrost/GitHub",
                     "awaiting-closure" => "Soul",
                     "ready-to-run" | "ready-to-adopt" | "ready-to-execute" => "Self",
                     _ => "Self",
                 };
-                let recommended = match selected_gate {
+                let recommended = match selected_gate.as_str() {
                     "awaiting-publication" => {
                         "epiphany-work publish --workspace <repo> --closure-receipt <receipt>"
                     }
@@ -616,8 +636,8 @@ fn classify_run_stop(
                 (
                     "authority-gated",
                     owner,
-                    selected_gate,
-                    selected_blocker,
+                    selected_gate.as_str(),
+                    selected_blocker.as_str(),
                     recommended,
                     false,
                     false,
@@ -626,8 +646,8 @@ fn classify_run_stop(
             _ => (
                 "unknown",
                 "Self",
-                selected_gate,
-                selected_blocker,
+                selected_gate.as_str(),
+                selected_blocker.as_str(),
                 "epiphany-work overview --workspace <repo>",
                 false,
                 false,
@@ -661,6 +681,27 @@ fn classify_run_stop(
         "crossRepoMutationAuthorized": false,
         "privateStateExposed": false
     })
+}
+
+fn non_empty_string(value: Option<&Value>) -> Option<String> {
+    value
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn compact_row_field(row: Option<&Value>, field: &str) -> Option<String> {
+    let prefix = format!("{field}=");
+    row.and_then(Value::as_str)
+        .and_then(|row| {
+            row.split('|')
+                .map(str::trim)
+                .find_map(|part| part.strip_prefix(&prefix))
+        })
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
 }
 
 fn queue_run_args(

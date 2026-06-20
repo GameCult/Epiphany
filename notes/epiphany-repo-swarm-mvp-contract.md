@@ -1464,8 +1464,9 @@ Build the remaining MVP in this order:
    `epiphany.repo_swarm_run_stop_classification.v0` into the run receipt so
    agents can see stop category, owner, authority gate, blocker, recommended
    command, mutability/elevation flags, queue status, and private-state seal
-   without parsing prose. Remaining work is broader stop-case proof coverage and
-   safe-family depth.
+   without parsing prose. Fresh proof now covers empty-queue and dry-run
+   planning-preview stops; remaining stop-depth work belongs to gated
+   publication/sync/service cases and safe-family depth.
 5. **Execute-to-close handoff.** Let the scheduler route from branch-local
    Hands execution into Soul/Modeling/Mind closure when the required execute
    receipts exist. The closure may be deterministic for mechanical work and
@@ -1816,9 +1817,13 @@ Required organs before MVP:
   `.epiphany-smoke\fresh-repo-mvp-20260620-180024` shows the bounded run stops
   with category `iteration-limit`, owner `Self`, gate
   `self.scheduler-iteration-limit`, non-mutating/non-elevated flags, and
-  `privateStateExposed=false`. Remaining work is broader stop-case proof
-  coverage and richer closure depth rather than basic safe-family planning
-  cargo.
+  `privateStateExposed=false`. Focused stop proof
+  `.epiphany-smoke\swarm-stop-classification-20260620-181606` now also proves
+  `queue-empty` / Gjallar / `repo.work.overview` for an empty repo queue and
+  `dry-run-preview` / Self / `ready-to-run` for a planning item preview, both
+  non-mutating, non-elevated, and private-state sealed. Remaining work is
+  gated publication/sync/service stop depth and richer closure depth rather
+  than basic safe-family planning cargo.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, artifact schema/status rows, SHA-256 receipt
   hashes, compact TUI rows, commit refs, verification verdicts, map admission,
