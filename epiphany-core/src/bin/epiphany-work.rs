@@ -1936,6 +1936,9 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-eve-surface" | "eve-surface" | "cultui-surface" | "tui-surface" => {
             derive_repo_eve_surface_plan(input, &action_family)
         }
+        "repo-collaboration-policy" | "collaboration-policy" | "repo-collab-policy" => {
+            derive_repo_collaboration_policy_plan(input, &action_family)
+        }
         "repo-collaboration-topic" | "collaboration-topic" | "eve-collaboration" => {
             derive_repo_collaboration_topic_plan(input, &action_family)
         }
@@ -1981,7 +1984,7 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
             derive_repo_metrics_request_plan(input, &action_family)
         }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-eve-surface, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, and repo-metrics-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, and repo-metrics-request"
         )),
     }
 }
@@ -2719,6 +2722,129 @@ fn derive_repo_eve_surface_plan(
             "Remove the generated repo Eve surface contract if the accepted pressure was misinterpreted.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.eve_surface"),
+    })
+}
+
+fn derive_repo_collaboration_policy_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = ".epiphany/collaboration-policy.toml".to_string();
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let surface_id = format!("eve://epiphany/repo/{item_slug}/collaboration-policy");
+    let feedback_route = format!("imagination://repo/{item_slug}/consensus-discovery");
+    let lines = vec![
+        "# Epiphany repo collaboration policy.".to_string(),
+        "# Branch-local policy cargo; it describes collaboration law without granting action authority.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_collaboration_policy.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.collaboration_policy")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[body]".to_string(),
+        format!("domain = {}", toml_basic_string(&format!("repo:{item_slug}"))),
+        "provider_owns_truth = true".to_string(),
+        "renderer_owns_truth = false".to_string(),
+        String::new(),
+        "[verses]".to_string(),
+        "private = \"epiphany-internal\"".to_string(),
+        "local = \"gamecult-local\"".to_string(),
+        "public = \"epiphany-global\"".to_string(),
+        "private_state_may_leave_repo = false".to_string(),
+        "public_projection_allowed = true".to_string(),
+        "local_projection_allowed = true".to_string(),
+        "odin_discoverable = true".to_string(),
+        String::new(),
+        "[eve]".to_string(),
+        format!("surface = {}", toml_basic_string(&surface_id)),
+        "compact_tui_required = true".to_string(),
+        "connection_receipt_required = true".to_string(),
+        "supported_actions = [\"read-queue\", \"discuss\", \"submit-feedback\"]".to_string(),
+        String::new(),
+        "[persona]".to_string(),
+        "public_discussion_allowed = true".to_string(),
+        "human_discussion_allowed = true".to_string(),
+        "peer_persona_discussion_allowed = true".to_string(),
+        "speech_audit_required = true".to_string(),
+        "feedback_must_route_to_imagination = true".to_string(),
+        String::new(),
+        "[imagination]".to_string(),
+        format!("feedback_route = {}", toml_basic_string(&feedback_route)),
+        "consensus_required_before_adoption = true".to_string(),
+        "candidate_actions_non_authoritative = true".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "bifrost_publication_required = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "direct_hands_authority = false".to_string(),
+        "direct_mind_state_commit = false".to_string(),
+        "direct_publication_authority = false".to_string(),
+        "direct_merge_authority = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authority = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "requires_cultmesh_receipts = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the collaboration policy path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the policy names private/local/public Verse boundaries, Odin discovery, Eve connection receipts, Persona discussion, and Imagination feedback routing without granting action authority.\",".to_string(),
+        "  \"Soul verifies no paths outside the declared collaboration policy changed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the collaboration policy if the accepted pressure was misderived.\"]".to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.collaboration_policy".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo collaboration policy from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add repo collaboration policy for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo collaboration policy path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the policy names Verse boundaries, Odin/Eve discovery, Persona discussion, and Imagination consensus routing while denying Hands, Mind, publication, merge, service, and cross-body authority.".to_string(),
+            "Soul verifies no paths outside the declared collaboration policy changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated repo collaboration policy if the accepted pressure was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.collaboration_policy"),
     })
 }
 
@@ -4943,6 +5069,98 @@ fn closure_family_assertions(
                 "eve-surface-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed Eve surface contract preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.collaboration_policy" => {
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-schema-present",
+                content.contains("schema_version = \"epiphany.repo_collaboration_policy.v0\""),
+                "Committed collaboration policy carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-family-present",
+                content.contains("safe_action_family = \"repo.collaboration_policy\""),
+                "Committed collaboration policy carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-summary-present",
+                content.contains(&compact_summary),
+                "Committed collaboration policy contains the accepted pressure summary."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-body-truth",
+                content.contains("[body]")
+                    && content.contains("provider_owns_truth = true")
+                    && content.contains("renderer_owns_truth = false"),
+                "Committed collaboration policy preserves provider ownership.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-verse-boundaries",
+                content.contains("[verses]")
+                    && content.contains("private = \"epiphany-internal\"")
+                    && content.contains("local = \"gamecult-local\"")
+                    && content.contains("public = \"epiphany-global\"")
+                    && content.contains("private_state_may_leave_repo = false")
+                    && content.contains("odin_discoverable = true"),
+                "Committed collaboration policy names private/local/public Verse boundaries and Odin discovery.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-eve-connection",
+                content.contains("[eve]")
+                    && content.contains("surface = \"eve://epiphany/repo/")
+                    && content.contains("compact_tui_required = true")
+                    && content.contains("connection_receipt_required = true")
+                    && content.contains("\"submit-feedback\""),
+                "Committed collaboration policy names the Eve connection contract.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-persona-feedback",
+                content.contains("[persona]")
+                    && content.contains("public_discussion_allowed = true")
+                    && content.contains("human_discussion_allowed = true")
+                    && content.contains("peer_persona_discussion_allowed = true")
+                    && content.contains("speech_audit_required = true")
+                    && content.contains("feedback_must_route_to_imagination = true"),
+                "Committed collaboration policy routes Persona/human/peer feedback through audited public discussion.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-imagination-route",
+                content.contains("[imagination]")
+                    && content.contains("feedback_route = \"imagination://repo/")
+                    && content.contains("consensus_required_before_adoption = true")
+                    && content.contains("candidate_actions_non_authoritative = true")
+                    && content.contains("mind_adoption_required = true")
+                    && content.contains("bifrost_publication_required = true"),
+                "Committed collaboration policy routes feedback to Imagination before Mind/Bifrost gates.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("direct_hands_authority = false")
+                    && content.contains("direct_mind_state_commit = false")
+                    && content.contains("direct_publication_authority = false")
+                    && content.contains("direct_merge_authority = false")
+                    && content.contains("service_lifecycle_authority = false")
+                    && content.contains("cross_body_mutation_authority = false")
+                    && content.contains("private_verse_rummaging = false")
+                    && content.contains("requires_cultmesh_receipts = true"),
+                "Committed collaboration policy denies direct action/state/publication/service/cross-body authority.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "collaboration-policy-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed collaboration policy preserves the private-state seal.".to_string(),
             );
         }
         "repo.collaboration_topic" => {
@@ -10291,7 +10509,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-eve-surface|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
