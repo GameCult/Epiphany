@@ -1871,8 +1871,11 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
             derive_repo_status_section_plan(input, &action_family)
         }
         "task-card" | "action-card" | "plan-card" => derive_task_card_plan(input, &action_family),
+        "repo-manifest" | "body-manifest" | "epiphany-manifest" => {
+            derive_repo_manifest_plan(input, &action_family)
+        }
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, and task-card"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, and repo-manifest"
         )),
     }
 }
@@ -2263,6 +2266,111 @@ fn derive_task_card_plan(
     })
 }
 
+fn derive_repo_manifest_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or("epiphany.toml"))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let body_domain = format!("repo:{item_slug}");
+    let private_verse_id = format!("epiphany.repo.{item_slug}.private");
+    let local_verse_id = "gamecult-local".to_string();
+    let public_verse_id = "epiphany-global".to_string();
+    let eve_surface_id = format!("eve://epiphany/repo/{item_slug}");
+    let lines = vec![
+        "# Epiphany repo Body manifest.".to_string(),
+        "# Branch-local public routing cargo; not private state, publication, merge, service, or cross-repo authority.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_body_manifest.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.body_manifest")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[body]".to_string(),
+        format!("domain = {}", toml_basic_string(&body_domain)),
+        "authority_owner = \"Epiphany Self\"".to_string(),
+        "hosted_by_daemon = false".to_string(),
+        "branch_local_only = true".to_string(),
+        String::new(),
+        "[verses]".to_string(),
+        format!("private = {}", toml_basic_string(&private_verse_id)),
+        format!("local = {}", toml_basic_string(&local_verse_id)),
+        format!("public = {}", toml_basic_string(&public_verse_id)),
+        "private_state_may_leave_repo = false".to_string(),
+        String::new(),
+        "[eve]".to_string(),
+        format!("surface = {}", toml_basic_string(&eve_surface_id)),
+        "agent_friendly_tui = true".to_string(),
+        "public_discussion_allowed = true".to_string(),
+        String::new(),
+        "[capabilities]".to_string(),
+        "advertised = [\"repo-work-overview\", \"repo-work-public-proof\"]".to_string(),
+        "requires_receipts = true".to_string(),
+        "arbitrary_shell_authority = false".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the repo manifest path changed and contains the accepted pressure summary.\","
+            .to_string(),
+        "  \"Soul verifies the manifest names body, Verse, and Eve routing ids without private-state exposure.\","
+            .to_string(),
+        "  \"Soul verifies no paths outside the declared manifest changed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove epiphany.toml if the repo Body manifest was misderived.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.body_manifest".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo Body manifest from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add Epiphany repo manifest for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo Body manifest path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the manifest publishes body, Verse, and Eve routing ids while sealing private state.".to_string(),
+            "Soul verifies no paths outside the declared manifest changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated repo Body manifest if the accepted pressure was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.body_manifest"),
+    })
+}
+
 fn closure_family_assertions(
     workspace: &Path,
     commit_sha: &str,
@@ -2439,6 +2547,62 @@ fn closure_family_assertions(
                 "task-card-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed task card preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.body_manifest" => {
+            push_assertion(
+                &mut assertions,
+                "repo-manifest-schema-present",
+                content.contains("schema_version = \"epiphany.repo_body_manifest.v0\""),
+                "Committed repo manifest carries the Body manifest schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "repo-manifest-family-present",
+                content.contains("safe_action_family = \"repo.body_manifest\""),
+                "Committed repo manifest carries the Body manifest safe family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "repo-manifest-summary-present",
+                content.contains(&compact_summary),
+                "Committed repo manifest contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "repo-manifest-body-domain",
+                content.contains("[body]") && content.contains("domain = \"repo:"),
+                "Committed repo manifest names the repo Body domain.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "repo-manifest-verses-present",
+                content.contains("[verses]")
+                    && content.contains("private = \"epiphany.repo.")
+                    && content.contains("local = \"gamecult-local\"")
+                    && content.contains("public = \"epiphany-global\""),
+                "Committed repo manifest names private, local, and public Verse ids.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "repo-manifest-eve-surface",
+                content.contains("[eve]") && content.contains("surface = \"eve://epiphany/repo/"),
+                "Committed repo manifest names the Eve surface.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "repo-manifest-private-seal",
+                content.contains("private_state_exposed = false")
+                    && content.contains("private_state_may_leave_repo = false"),
+                "Committed repo manifest preserves private-state seals.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "repo-manifest-no-arbitrary-shell",
+                content.contains("arbitrary_shell_authority = false")
+                    && content.contains("requires_receipts = true"),
+                "Committed repo manifest keeps arbitrary shell authority sealed behind receipts."
+                    .to_string(),
             );
         }
         _ => {
@@ -6289,7 +6453,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
