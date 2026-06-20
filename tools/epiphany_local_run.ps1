@@ -2054,9 +2054,17 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     $publicSurfaces = ($publicSurfaceRows -join ",")
                 }
             }
-            Write-Host "Eve surfaces: status=$($result.status), surfaces=$($result.surfaceCount), publicDiscussion=$($result.publicDiscussionSurfaceCount), surfaceRows=$surfaceRows, publicSurfaces=$publicSurfaces, connectCommand=$($result.connectionCommand), privateStateExposed=$($result.privateStateExposed)"
+            $repoWorkQueueRows = "none"
+            if ($null -ne $result.repoWorkQueueTuiRows -and $result.repoWorkQueueTuiRows.Count -gt 0) {
+                $repoWorkQueueRows = ($result.repoWorkQueueTuiRows -join "; ")
+            }
+            Write-Host "Eve surfaces: status=$($result.status), surfaces=$($result.surfaceCount), publicDiscussion=$($result.publicDiscussionSurfaceCount), repoWorkQueue=$($result.repoWorkQueueCount), repoWorkRows=$repoWorkQueueRows, surfaceRows=$surfaceRows, publicSurfaces=$publicSurfaces, connectCommand=$($result.connectionCommand), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "eve-connect") {
-            Write-Host "Eve connect: status=$($result.status), target=$($result.targetClusterId), surface=$($result.targetEveSurfaceId), receipt=$($result.receiptId), privateStateExposed=$($result.privateStateExposed)"
+            $repoWorkQueueRows = "none"
+            if ($null -ne $result.repoWorkQueueTuiRows -and $result.repoWorkQueueTuiRows.Count -gt 0) {
+                $repoWorkQueueRows = ($result.repoWorkQueueTuiRows -join "; ")
+            }
+            Write-Host "Eve connect: status=$($result.status), target=$($result.targetClusterId), surface=$($result.targetEveSurfaceId), receipt=$($result.receiptId), repoWorkQueue=$($result.repoWorkQueueCount), repoWorkRows=$repoWorkQueueRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "collaboration-feedback") {
             $feedbackRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
@@ -2142,7 +2150,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             }
             $eveConnection = "none"
             if ($null -ne $result.eveConnectionReadback -and $null -ne $result.eveConnectionReadback.targetClusterId) {
-                $eveConnection = "target=$($result.eveConnectionReadback.targetClusterId):surface=$($result.eveConnectionReadback.targetEveSurfaceId):publicDiscussion=$($result.eveConnectionReadback.publicPersonaDiscussionAllowed):actions=$(@($result.eveConnectionReadback.supportedActions).Count):private=$($result.eveConnectionReadback.privateStateExposed)"
+                $repoWorkQueueRows = "none"
+                if ($null -ne $result.eveConnectionReadback.repoWorkQueueTuiRows -and $result.eveConnectionReadback.repoWorkQueueTuiRows.Count -gt 0) {
+                    $repoWorkQueueRows = ($result.eveConnectionReadback.repoWorkQueueTuiRows -join "; ")
+                }
+                $eveConnection = "target=$($result.eveConnectionReadback.targetClusterId):surface=$($result.eveConnectionReadback.targetEveSurfaceId):publicDiscussion=$($result.eveConnectionReadback.publicPersonaDiscussionAllowed):actions=$(@($result.eveConnectionReadback.supportedActions).Count):repoWorkQueue=$($result.eveConnectionReadback.repoWorkQueueCount):repoWorkRows=$repoWorkQueueRows:private=$($result.eveConnectionReadback.privateStateExposed)"
             }
             $authorityTool = "none"
             if ($null -ne $result.authorityToolReadback -and $null -ne $result.authorityToolReadback.authorityGate) {

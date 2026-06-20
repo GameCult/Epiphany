@@ -713,7 +713,9 @@ fn run_cli() -> Result<()> {
             )?;
             let directory =
                 load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-            let report = eve_surface_report(&directory);
+            let (_latest_repo_work_overview, repo_work_overviews) =
+                load_repo_work_overview_queue(&args)?;
+            let report = eve_surface_report(&directory, &repo_work_overviews);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
@@ -723,6 +725,9 @@ fn run_cli() -> Result<()> {
                     "runtimeId": args.runtime_id,
                     "surfaceCount": report.rows.len(),
                     "publicDiscussionSurfaceCount": report.public_discussion_count,
+                    "repoWorkQueueCount": report.repo_work_queue_count,
+                    "repoWorkQueueRows": report.repo_work_queue_rows,
+                    "repoWorkQueueTuiRows": report.repo_work_queue_tui_rows,
                     "connectionCommand": "epiphany-verse-query connect-eve --target-cluster-id <cluster>",
                     "privateStateExposed": false,
                     "rows": report.rows,
@@ -1235,7 +1240,7 @@ fn run_cli() -> Result<()> {
             )?;
             let directory =
                 load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-            let (_target_cluster, target, _target_surface) = if let Some(advertisement_id) =
+            let (target_cluster, target, _target_surface) = if let Some(advertisement_id) =
                 args.advertisement_id.as_deref()
             {
                 directory
@@ -1329,6 +1334,14 @@ fn run_cli() -> Result<()> {
             {
                 anyhow::bail!("local Verse query lost Eve connection intent/receipt after write");
             }
+            let (_latest_repo_work_overview, repo_work_overviews) =
+                load_repo_work_overview_queue(&args)?;
+            let (repo_work_queue_rows, _) = repo_work_overview_rows(&repo_work_overviews);
+            let repo_work_queue_tui_rows = if target_cluster.public_persona_discussion_allowed {
+                repo_work_peer_tui_rows(&repo_work_queue_rows)
+            } else {
+                Vec::new()
+            };
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
@@ -1342,6 +1355,9 @@ fn run_cli() -> Result<()> {
                     "targetEveSurfaceId": written_intent.target_eve_surface_id,
                     "requestedAction": written_intent.requested_action,
                     "feedbackRoute": written_intent.feedback_route,
+                    "repoWorkQueueCount": repo_work_queue_tui_rows.len(),
+                    "repoWorkQueueRows": if target_cluster.public_persona_discussion_allowed { repo_work_queue_rows } else { Vec::new() },
+                    "repoWorkQueueTuiRows": repo_work_queue_tui_rows,
                     "privateStateRequested": written_intent.private_state_requested,
                     "privateStateExposed": written_receipt.private_state_exposed,
                 }))?
@@ -1387,7 +1403,9 @@ fn run_cli() -> Result<()> {
             }
             let eve_directory =
                 load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-            let eve_report = eve_surface_report(&eve_directory);
+            let (_latest_repo_work_overview, repo_work_overviews) =
+                load_repo_work_overview_queue(&args)?;
+            let eve_report = eve_surface_report(&eve_directory, &repo_work_overviews);
             if eve_report.rows.len() != 7 || eve_report.public_discussion_count != 1 {
                 anyhow::bail!(
                     "local Verse query smoke expected seven Eve surfaces and one public discussion surface"
@@ -1588,7 +1606,10 @@ fn run_cli() -> Result<()> {
             let overview_daemon_report = daemon_liveness_report(&overview_liveness);
             let overview_directory =
                 load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-            let overview_surface_report = eve_surface_report(&overview_directory);
+            let (_latest_repo_work_overview, repo_work_overviews) =
+                load_repo_work_overview_queue(&args)?;
+            let overview_surface_report =
+                eve_surface_report(&overview_directory, &repo_work_overviews);
             let overview_tool_directory =
                 load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
             let overview_tool_report = daemon_tool_directory_report(&overview_tool_directory);
@@ -2121,6 +2142,7 @@ fn run_cli() -> Result<()> {
                     persona_advertisement,
                     persona_surface,
                     persona_eve_connect,
+                    &[],
                 );
             let supported_actions = eve_connection_readback["supportedActions"]
                 .as_array()
@@ -3747,6 +3769,9 @@ struct EveSurfaceReport {
     rows: Vec<EveSurfaceRow>,
     tui_rows: Vec<String>,
     public_discussion_count: usize,
+    repo_work_queue_count: usize,
+    repo_work_queue_rows: Vec<RepoWorkOverviewRow>,
+    repo_work_queue_tui_rows: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -3763,6 +3788,8 @@ struct EveSurfaceRow {
     public_persona_discussion_allowed: bool,
     supported_actions: Vec<String>,
     exposed_document_types: Vec<String>,
+    repo_work_queue_count: usize,
+    repo_work_queue_tui_rows: Vec<String>,
     private_state_exposed: bool,
 }
 
@@ -3772,7 +3799,11 @@ fn eve_surface_report(
         EpiphanyCultMeshOdinAdvertisementEntry,
         EpiphanyCultMeshEveSurfaceStateEntry,
     )],
+    repo_work_overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
 ) -> EveSurfaceReport {
+    let (repo_work_queue_rows, repo_work_queue_tui_rows) =
+        repo_work_overview_rows(repo_work_overviews);
+    let repo_work_queue_count = repo_work_queue_rows.len();
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
     let mut public_discussion_count = 0_usize;
@@ -3789,8 +3820,23 @@ fn eve_surface_report(
         let private_state_exposed =
             advertisement.private_state_exposed || surface.private_state_exposed;
         let supported_actions = compact_tui_list(&surface.supported_actions);
+        let surface_repo_work_queue_tui_rows = if public_persona_discussion_allowed {
+            repo_work_peer_tui_rows(&repo_work_queue_rows)
+        } else {
+            Vec::new()
+        };
+        let surface_repo_work_queue_count = surface_repo_work_queue_tui_rows.len();
+        let repo_work_gates = if surface_repo_work_queue_tui_rows.is_empty() {
+            "none".to_string()
+        } else {
+            repo_work_queue_rows
+                .iter()
+                .map(|row| format!("{}:{}", row.item, row.current_gate))
+                .collect::<Vec<_>>()
+                .join(",")
+        };
         tui_rows.push(format!(
-            "{visibility} | {} | cluster={} | surface={} | daemon={} | body={} | privateVerse={} | publicDiscussion={} | actions={} | docs={} | advertisement={} | private={private_state_exposed}",
+            "{visibility} | {} | cluster={} | surface={} | daemon={} | body={} | privateVerse={} | publicDiscussion={} | actions={} | docs={} | repoWorkQueue={} | repoWorkGates={} | advertisement={} | private={private_state_exposed}",
             cluster.display_name,
             cluster.cluster_id,
             surface.surface_id,
@@ -3800,6 +3846,8 @@ fn eve_surface_report(
             public_persona_discussion_allowed,
             supported_actions,
             compact_tui_list(&surface.exposed_document_types),
+            surface_repo_work_queue_count,
+            repo_work_gates,
             advertisement.advertisement_id
         ));
         rows.push(EveSurfaceRow {
@@ -3814,6 +3862,8 @@ fn eve_surface_report(
             public_persona_discussion_allowed,
             supported_actions: surface.supported_actions.clone(),
             exposed_document_types: surface.exposed_document_types.clone(),
+            repo_work_queue_count: surface_repo_work_queue_count,
+            repo_work_queue_tui_rows: surface_repo_work_queue_tui_rows,
             private_state_exposed,
         });
     }
@@ -3821,6 +3871,9 @@ fn eve_surface_report(
         rows,
         tui_rows,
         public_discussion_count,
+        repo_work_queue_count,
+        repo_work_queue_rows,
+        repo_work_queue_tui_rows,
     }
 }
 
@@ -4730,6 +4783,24 @@ fn repo_work_overview_tui_row(row: &RepoWorkOverviewRow) -> String {
     )
 }
 
+fn repo_work_peer_tui_rows(rows: &[RepoWorkOverviewRow]) -> Vec<String> {
+    rows.iter()
+        .map(|row| {
+            format!(
+                "REPO-WORK-PEER | item={} | gate={} | blocker={} | next={} | branch={} | publication={} | sync={} | private={}",
+                row.item,
+                row.current_gate,
+                row.blocker,
+                row.next_safe_move,
+                row.branch,
+                row.publication_status,
+                row.sync_status,
+                row.private_state_exposed
+            )
+        })
+        .collect()
+}
+
 fn repo_work_overview_action_row(
     overview: &EpiphanyCultMeshRepoWorkOverviewEntry,
     priority: u32,
@@ -5133,14 +5204,41 @@ fn daemon_restart_policy_directory_report_from_rows(
     }
 }
 
+fn load_repo_work_overview_queue(
+    args: &Args,
+) -> Result<(
+    Option<EpiphanyCultMeshRepoWorkOverviewEntry>,
+    Vec<EpiphanyCultMeshRepoWorkOverviewEntry>,
+)> {
+    let latest_repo_work_overview =
+        load_latest_epiphany_cultmesh_repo_work_overview(&args.store, args.runtime_id.clone())?;
+    let mut repo_work_overviews =
+        load_epiphany_cultmesh_repo_work_overviews(&args.store, args.runtime_id.clone())?;
+    if let Some(latest) = latest_repo_work_overview.as_ref() {
+        if !repo_work_overviews
+            .iter()
+            .any(|overview| overview.overview_id == latest.overview_id)
+        {
+            repo_work_overviews.push(latest.clone());
+            repo_work_overviews.sort_by(|a, b| {
+                b.generated_at
+                    .cmp(&a.generated_at)
+                    .then_with(|| a.overview_id.cmp(&b.overview_id))
+            });
+        }
+    }
+    Ok((latest_repo_work_overview, repo_work_overviews))
+}
+
 fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
     let topology_report = cluster_topology_report(&topology);
     let liveness = load_epiphany_cultmesh_daemon_liveness(&args.store, args.runtime_id.clone())?;
     let daemon_report = daemon_liveness_report(&liveness);
+    let (latest_repo_work_overview, repo_work_overviews) = load_repo_work_overview_queue(args)?;
     let directory =
         load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-    let surface_report = eve_surface_report(&directory);
+    let surface_report = eve_surface_report(&directory, &repo_work_overviews);
     let tool_directory =
         load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
     let tool_report = daemon_tool_directory_report(&tool_directory);
@@ -5348,23 +5446,6 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .iter()
         .map(daemon_tool_directory_tui_row)
         .collect::<Vec<_>>();
-    let latest_repo_work_overview =
-        load_latest_epiphany_cultmesh_repo_work_overview(&args.store, args.runtime_id.clone())?;
-    let mut repo_work_overviews =
-        load_epiphany_cultmesh_repo_work_overviews(&args.store, args.runtime_id.clone())?;
-    if let Some(latest) = latest_repo_work_overview.as_ref() {
-        if !repo_work_overviews
-            .iter()
-            .any(|overview| overview.overview_id == latest.overview_id)
-        {
-            repo_work_overviews.push(latest.clone());
-            repo_work_overviews.sort_by(|a, b| {
-                b.generated_at
-                    .cmp(&a.generated_at)
-                    .then_with(|| a.overview_id.cmp(&b.overview_id))
-            });
-        }
-    }
     let (repo_work_overview_rows, repo_work_overview_tui_rows) =
         repo_work_overview_rows(&repo_work_overviews);
     let (swarm_action_rows, swarm_action_tui_rows) = swarm_action_rows(
@@ -6795,11 +6876,14 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
                     cluster.cluster_id == capability.host_cluster_id
                 })
                 .context("local Verse lost Eve surface for eve-connect capability host")?;
+            let (_latest_repo_work_overview, repo_work_overviews) =
+                load_repo_work_overview_queue(args)?;
             eve_connection_readback_from_host(
                 target_cluster,
                 target_advertisement,
                 target_surface,
                 capability,
+                &repo_work_overviews,
             )
         } else {
             (serde_json::Value::Null, false)
@@ -6981,10 +7065,22 @@ fn eve_connection_readback_from_host(
     target_advertisement: &EpiphanyCultMeshOdinAdvertisementEntry,
     target_surface: &EpiphanyCultMeshEveSurfaceStateEntry,
     capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
+    repo_work_overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
 ) -> (serde_json::Value, bool) {
     let private_state_exposed = target_advertisement.private_state_exposed
         || target_surface.private_state_exposed
         || capability.private_state_exposed;
+    let (repo_work_queue_rows, _) = repo_work_overview_rows(repo_work_overviews);
+    let repo_work_queue_tui_rows = if target_cluster.public_persona_discussion_allowed {
+        repo_work_peer_tui_rows(&repo_work_queue_rows)
+    } else {
+        Vec::new()
+    };
+    let repo_work_queue_rows = if target_cluster.public_persona_discussion_allowed {
+        repo_work_queue_rows
+    } else {
+        Vec::new()
+    };
     (
         json!({
             "targetAdvertisementId": target_advertisement.advertisement_id,
@@ -6998,6 +7094,9 @@ fn eve_connection_readback_from_host(
             "publicPersonaDiscussionAllowed": target_cluster.public_persona_discussion_allowed,
             "supportedActions": target_surface.supported_actions,
             "exposedDocumentTypes": target_surface.exposed_document_types,
+            "repoWorkQueueCount": repo_work_queue_tui_rows.len(),
+            "repoWorkQueueRows": repo_work_queue_rows,
+            "repoWorkQueueTuiRows": repo_work_queue_tui_rows,
             "connectionCommand": format!(
                 "epiphany-verse-query connect-eve --target-cluster-id {}",
                 target_cluster.cluster_id
