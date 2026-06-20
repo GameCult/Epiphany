@@ -254,13 +254,16 @@ or appends a contained markdown planning note, defaulting to
 appends a contained markdown checklist, defaulting to
 `notes/epiphany-work/<item>-checklist.md`; and `--action-family section-note`
 creates or replaces one Epiphany-managed markdown section between explicit
-markers, defaulting to `notes/epiphany-work/<item>-section.md`. Its receipt includes
-`epiphany.repo_work_plan_derivation.v0`, mode `append-worklog` or
-`planning-note` or `checklist-note` or `section-note`, a `safeActionFamily`,
-and an authority seal forbidding publication, merge, service lifecycle
-mutation, cross-repo mutation, and private state exposure. These deterministic families are
-quarantine scaffolding on the road to model-authored Imagination, but they are
-no longer operator-authored shell details.
+markers, defaulting to `notes/epiphany-work/<item>-section.md`; and
+`--action-family task-card` writes a structured TOML task card, defaulting to
+`notes/epiphany-work/<item>-task-card.toml`. Its receipt includes
+`epiphany.repo_work_plan_derivation.v0`, mode `append-worklog`,
+`planning-note`, `checklist-note`, `section-note`, or `task-card`, a
+`safeActionFamily`, and an authority seal forbidding publication, merge,
+service lifecycle mutation, cross-repo mutation, and private state exposure.
+These deterministic families are quarantine scaffolding on the road to
+model-authored Imagination, but they are no longer operator-authored shell
+details.
 
 This is still not Hands authority. It is the first non-operator-shell bridge
 between Imagination/Self planning and Hands execution: `adopt --from-plan
@@ -330,6 +333,19 @@ created a branch-local commit containing a single markdown section bounded by
 `<!-- epiphany-section:section-note-request:end -->`; final overview reported
 `awaiting-publication`, blocker `bifrost-publication-missing`, Soul verdict
 `passed`, and commit `cce53ae6bd86da51fc8651780743fa861e6ca225`.
+
+The next structured safe-family smoke proved task-card cargo:
+`.epiphany-smoke\task-card-20260620-133704` ran init -> online -> accept ->
+`derive-plan --action-family task-card --model-ref smoke-imagination-v0
+--model-authored` -> run -> adopt -> execute -> close -> overview on a fresh
+repo. The plan receipt carried mode `task-card`, safe family `repo.task_card`,
+`modelAuthored=true`, `operatorAuthoredShellDetails=false`, and
+`privateStateExposed=false`; Hands created a branch-local commit containing
+`notes/epiphany-work/task-card-request-task-card.toml` with the accepted
+pressure summary, candidate/public refs, verification asks, and explicit
+authority seals for no publication, merge, service lifecycle, cross-repo
+mutation, durable state admission, or private-state exposure. Final overview
+reported `awaiting-publication` with `privateStateExposed=false`.
 
 ### Landed Work Run Gate
 
@@ -966,13 +982,10 @@ No: the machine is not yet Epiphany Online in the full MVP sense. The remaining
 gap is not "more permission prompts." The remaining gap is to make the
 existing typed artery run as a living repo organism:
 
-- richer model-authored safe-family breadth so Imagination can propose more
-  useful branch-local work without arbitrary shell authority
 - richer model-authored closure where Soul and Modeling inspect source and
   consequences beyond the deterministic mechanical path
-- Bifrost public-proof publication transport beyond local Verse, so redacted
-  proof bundles can become public Verse / credit / case-study evidence without
-  Gjallar or Self stealing publication authority
+- later non-planning action classes where Imagination can propose useful
+  branch-local work beyond planning cargo without arbitrary shell authority
 - an Idunn-owned service lifecycle path for the queue-run pulse when the
   operator explicitly grants service mutation or elevated host authority
 - a fresh-repo acceptance run that proves the whole path without supervisor
@@ -995,7 +1008,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, and `section-note` / `repo.markdown_managed_section`. `plan` remains manual quarantine scaffolding. | Broaden model-authored action items to richer safe families without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, and `task-card` / `repo.task_card`. `plan` remains manual quarantine scaffolding. | Deepen model-authored closure and any later non-planning action classes without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Add richer safe-family depth next; keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
@@ -1264,9 +1277,11 @@ Required organs before MVP:
   derivations exist for accepted Persona/Bifrost pressure,
   `persona-intake` gives the project Persona a speech-audited mouth into that
   pressure stream, and `derive-plan` now writes typed Imagination action-item
-  receipts before safe-family command lowering. Remaining work is richer
-  model-authored action classes and adoption depth without operator shell
-  details.
+  receipts before safe-family command lowering. `checklist-note`,
+  `section-note`, and `task-card` now prove richer model-authored planning cargo
+  without operator shell details. Remaining work is richer closure depth and any
+  later model-authored action classes that move beyond planning cargo while
+  preserving the same authority seals.
 - Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
   commits; richer model-authored Soul/Modeling review remains to replace the
   current local verification rite where appropriate.
@@ -1277,7 +1292,8 @@ Required organs before MVP:
   Persona Eve tool readback now expose peer-readable queue rows, and
   `epiphany-work queue-run`, wrapper `repo-work-queue-run`, and
   `epiphany-swarm run` consume that queue for safe branch-local pulses through
-  closure. Remaining work is richer safe-family depth.
+  closure. Remaining work is richer closure depth rather than basic safe-family
+  planning cargo.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, artifact schema/status rows, SHA-256 receipt
   hashes, compact TUI rows, commit refs, verification verdicts, map admission,
@@ -1290,8 +1306,8 @@ Required organs before MVP:
   redacted proof row through
   `gamecult.bifrost.public_proof_publication_receipt.v0` with public Verse
   target, public room, ledger, review, credit, proof ref, and SHA-256 readback.
-  Remaining work is richer safe-family and closure depth, not basic local
-  public-proof export, local CultMesh readback, Bifrost/GitHub/sync row
+  Remaining work is richer closure depth, not basic safe-family planning cargo,
+  local public-proof export, local CultMesh readback, Bifrost/GitHub/sync row
   visibility, public-proof publication closure, or the standard wrapper mouth
   for that closure.
 

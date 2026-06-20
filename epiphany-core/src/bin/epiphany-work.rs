@@ -1839,8 +1839,9 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "section-note" | "markdown-section" | "section-update" => {
             derive_section_note_plan(input, &action_family)
         }
+        "task-card" | "action-card" | "plan-card" => derive_task_card_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, and section-note"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, and task-card"
         )),
     }
 }
@@ -2060,6 +2061,94 @@ fn derive_section_note_plan(
             "Restore the prior marked section from git if a later section update regressed the note.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.markdown_managed_section"),
+    })
+}
+
+fn derive_task_card_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!("notes/epiphany-work/{item_slug}-task-card.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let lines = vec![
+        "# Epiphany repo work task card.".to_string(),
+        "# Branch-local planning cargo; not publication, merge, service, or cross-repo authority."
+            .to_string(),
+        format!("schema_version = {}", toml_basic_string("epiphany.repo_work_task_card.v0")),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.task_card")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[scope]".to_string(),
+        format!("target_path = {}", toml_basic_string(&target_path)),
+        "branch_local_only = true".to_string(),
+        "requires_epiphany_branch = true".to_string(),
+        String::new(),
+        "[next_action]".to_string(),
+        "owner = \"Self\"".to_string(),
+        "gate = \"Mind\"".to_string(),
+        "summary = \"Adopt one bounded task card before Hands lowers an executable command.\""
+            .to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the task card path changed and contains the accepted pressure summary.\","
+            .to_string(),
+        "  \"Soul verifies the task card preserves branch-local authority seals and does not grant publication, merge, service lifecycle, elevation, or cross-repo authority.\","
+            .to_string(),
+        "  \"Soul verifies no paths outside the declared task card changed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the task card if the accepted pressure was misinterpreted.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.task_card".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a structured task card from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add task card for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the task card path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the structured task card preserves branch-local scope and all authority seals.".to_string(),
+            "Soul verifies no paths outside the declared task card changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated task card if the accepted pressure was misinterpreted.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.task_card"),
     })
 }
 
@@ -5223,6 +5312,21 @@ fn validate_markdown_target_path(path: &str) -> Result<String> {
     Ok(normalized)
 }
 
+fn validate_toml_target_path(path: &str) -> Result<String> {
+    let normalized = validate_plan_target_path(path)?;
+    if !normalized
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .ends_with(".toml")
+    {
+        return Err(anyhow!(
+            "task card target path {normalized:?} must be a TOML file"
+        ));
+    }
+    Ok(normalized)
+}
+
 fn normalize_action_family(value: &str) -> Result<String> {
     let normalized = value.trim().to_ascii_lowercase().replace('_', "-");
     if normalized.is_empty() {
@@ -5276,6 +5380,43 @@ fn powershell_append_lines_command(target_path: &str, lines: &[String]) -> Strin
         )
     }));
     commands.join("; ")
+}
+
+fn powershell_set_lines_command(target_path: &str, lines: &[String]) -> String {
+    let mut commands = vec![
+        format!("$p = {}", powershell_single_quoted(target_path)),
+        "$d = Split-Path -Parent $p".to_string(),
+        "if ($d) { New-Item -ItemType Directory -Force -Path $d | Out-Null }".to_string(),
+        "$lines = @()".to_string(),
+    ];
+    commands.extend(
+        lines
+            .iter()
+            .map(|line| format!("$lines += {}", powershell_single_quoted(line))),
+    );
+    commands.push("Set-Content -LiteralPath $p -Value $lines".to_string());
+    commands.join("; ")
+}
+
+fn toml_basic_string(value: &str) -> String {
+    format!(
+        "\"{}\"",
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
+    )
+}
+
+fn toml_array(values: &[String]) -> String {
+    let entries = values
+        .iter()
+        .map(|value| toml_basic_string(&compact_line(value)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("[{entries}]")
 }
 
 fn powershell_replace_managed_section_command(
@@ -5580,7 +5721,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|task-card] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
