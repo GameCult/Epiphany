@@ -2,6 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::Utc;
+use serde::Deserialize;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -9,6 +10,29 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkMapStore {
+    schema_version: String,
+    entries: Vec<RepoWorkMapEntry>,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoWorkMapEntry {
+    schema_version: String,
+    item: String,
+    changed_paths: Vec<String>,
+    commit_sha: String,
+    safe_action_family: String,
+    soul_verdict_receipt_id: String,
+    mind_gateway_review_id: String,
+    mind_state_commit_receipt_id: String,
+    durable_state_admitted: bool,
+    private_state_exposed: bool,
+}
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
@@ -285,6 +309,16 @@ fn run_smoke(args: Args) -> Result<Value> {
         "action-item-accepted",
         false,
     )?;
+    let repo_map_path = repo
+        .join(".epiphany")
+        .join("state")
+        .join("repo-work-map.msgpack");
+    if repo_map_path.exists() {
+        return Err(anyhow!(
+            "failed closure wrote repo map store before Mind/Soul passed: {}",
+            repo_map_path.display()
+        ));
+    }
 
     let close = cargo_json(
         &manifest,
@@ -315,6 +349,93 @@ fn run_smoke(args: Args) -> Result<Value> {
         true,
     )?;
     require_bool(&close, &["privateStateExposed"], false)?;
+    require_eq(
+        &close,
+        &["mind", "repoMapEntry", "schemaVersion"],
+        "epiphany.repo_work_map_entry.v0",
+    )?;
+    require_eq(
+        &close,
+        &["mind", "repoMapEntry", "safeActionFamily"],
+        "repo.markdown_planning_note",
+    )?;
+    require_bool(
+        &close,
+        &["mind", "repoMapEntry", "durableStateAdmitted"],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &["mind", "repoMapEntry", "privateStateExposed"],
+        false,
+    )?;
+    let map_store = read_repo_work_map_store(&repo_map_path)?;
+    if map_store.schema_version != "epiphany.repo_work_map_store.v0" {
+        return Err(anyhow!(
+            "unexpected repo map schema {}",
+            map_store.schema_version
+        ));
+    }
+    if map_store.private_state_exposed {
+        return Err(anyhow!("repo map store exposed private state"));
+    }
+    let map_entry = map_store
+        .entries
+        .iter()
+        .find(|entry| entry.item == item)
+        .ok_or_else(|| anyhow!("repo map store has no entry for {item}"))?;
+    if map_entry.schema_version != "epiphany.repo_work_map_entry.v0" {
+        return Err(anyhow!(
+            "unexpected repo map entry schema {}",
+            map_entry.schema_version
+        ));
+    }
+    if map_entry.changed_paths != vec![target_path.to_string()] {
+        return Err(anyhow!(
+            "unexpected repo map changed paths {:?}",
+            map_entry.changed_paths
+        ));
+    }
+    require_struct_eq(
+        &map_entry.commit_sha,
+        value_at_path(&close, &["handsReceipts", "commitSha"])
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("close output had no handsReceipts.commitSha"))?,
+        "repo map commit sha",
+    )?;
+    require_struct_eq(
+        &map_entry.soul_verdict_receipt_id,
+        value_at_path(&close, &["soul", "verdictReceiptId"])
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("close output had no soul.verdictReceiptId"))?,
+        "repo map Soul verdict id",
+    )?;
+    require_struct_eq(
+        &map_entry.mind_gateway_review_id,
+        value_at_path(&close, &["mind", "gatewayReviewId"])
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("close output had no mind.gatewayReviewId"))?,
+        "repo map Mind gateway id",
+    )?;
+    require_struct_eq(
+        &map_entry.mind_state_commit_receipt_id,
+        value_at_path(&close, &["mind", "stateCommitReceiptId"])
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("close output had no mind.stateCommitReceiptId"))?,
+        "repo map Mind commit id",
+    )?;
+    require_struct_eq(
+        &map_entry.safe_action_family,
+        "repo.markdown_planning_note",
+        "repo map safe family",
+    )?;
+    if !map_entry.durable_state_admitted || map_entry.private_state_exposed {
+        return Err(anyhow!(
+            "repo map authority flags were wrong: durable={}, private={}",
+            map_entry.durable_state_admitted,
+            map_entry.private_state_exposed
+        ));
+    }
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_close_mind_adoption_guard_smoke.v0",
@@ -330,6 +451,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "closeStatus": close["status"],
         "soulVerdict": close["soul"]["verdict"],
         "mindAdoptionReviewStatus": close["closureReview"]["mindAdoptionReview"]["status"],
+        "repoMapStorePath": repo_map_path,
+        "repoMapEntrySchema": map_entry.schema_version,
+        "repoMapDurableStateAdmitted": map_entry.durable_state_admitted,
         "publicationAuthorized": false,
         "privateStateExposed": false
     });
@@ -416,6 +540,23 @@ fn write_json(path: &Path, value: &Value) -> Result<()> {
     }
     fs::write(path, serde_json::to_vec_pretty(value)?)
         .with_context(|| format!("failed to write {}", path.display()))
+}
+
+fn read_repo_work_map_store(path: &Path) -> Result<RepoWorkMapStore> {
+    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    rmp_serde::from_slice(&bytes).with_context(|| format!("failed to decode {}", path.display()))
+}
+
+fn require_struct_eq(actual: &str, expected: &str, label: &str) -> Result<()> {
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {label} to be {:?}, got {:?}",
+            expected,
+            actual
+        ))
+    }
 }
 
 fn require_eq(value: &Value, path: &[&str], expected: &str) -> Result<()> {
