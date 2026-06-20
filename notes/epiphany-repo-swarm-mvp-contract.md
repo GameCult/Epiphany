@@ -784,6 +784,18 @@ This is local Hands authority, not publication authority:
 `handsAuthorityGranted=true`, `durableStateAdmitted=false`,
 `publicationAuthorized=false`, and `publicationGate=Bifrost`.
 
+When adoption reads a plan-derived Imagination action item, Mind now treats the
+action item's requested path scope as an interpreter gate. The safe family must
+be recognized and the sorted requested paths must exactly match the plan
+action's sorted changed paths before branch-local Hands authority can open.
+Unsupported safe-family labels write `status=refused-unsupported-safe-family`;
+path-scope mismatches write `status=refused-requested-path-mismatch`. Both
+refusals produce `epiphany.repo_work_mind_adoption_decision.v0`, grant no
+Hands/durable/service/publication/cross-body/private authority, and write no
+normal adoption receipt. Proofs:
+`.epiphany-smoke\repo-mind-safe-family-guard-20260620-194425` and
+`.epiphany-smoke\repo-mind-path-guard-20260620-194239`.
+
 The first smoke proved the five-command sequence:
 
 ```powershell

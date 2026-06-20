@@ -7618,6 +7618,17 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         .and_then(Value::as_array)
         .map(Vec::len)
         .unwrap_or(0);
+    let requested_paths = sorted_normalized_paths(string_array_from_json(
+        &adopted_action_item,
+        &["requestedPaths"],
+    ));
+    let plan_changed_paths = plan_receipt
+        .as_ref()
+        .and_then(|plan| first_plan_action(plan))
+        .map(|action| sorted_normalized_paths(string_array_field(action, "changedPaths")))
+        .unwrap_or_default();
+    let requested_paths_match_plan = plan_receipt.is_none()
+        || (!requested_paths.is_empty() && requested_paths == plan_changed_paths);
     let planning_facets_present = adopted_action_item
         .get("planningFacets")
         .is_some_and(|value| !value.is_null());
@@ -7628,13 +7639,20 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
     let evidence_ref_count = adoption_evidence_refs.len();
     let safe_family_recognized = repo_work_safe_family_is_recognized(action_item_safe_family);
     let unsupported_plan_family = plan_receipt.is_some() && !safe_family_recognized;
-    let refusal_reasons = if unsupported_plan_family {
-        vec![format!(
+    let path_scope_mismatch = plan_receipt.is_some() && !requested_paths_match_plan;
+    let mut refusal_reasons = Vec::new();
+    if unsupported_plan_family {
+        refusal_reasons.push(format!(
             "Unsupported repo-work safe action family {action_item_safe_family}; Mind refused to convert this plan into branch-local Hands authority."
-        )]
-    } else {
-        Vec::new()
-    };
+        ));
+    }
+    if path_scope_mismatch {
+        refusal_reasons.push(format!(
+            "Requested paths {:?} do not match plan changed paths {:?}; Mind refused to convert this plan into branch-local Hands authority.",
+            requested_paths, plan_changed_paths
+        ));
+    }
+    let mind_refused_adoption = unsupported_plan_family || path_scope_mismatch;
     let mind_interpretation = json!({
         "schemaVersion": "epiphany.repo_work_mind_interpretation.v0",
         "owner": "Mind",
@@ -7647,15 +7665,18 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             "actionItemReceiptId": action_item_receipt_id,
             "safeActionFamily": action_item_safe_family,
             "requestedPathCount": requested_path_count,
+            "requestedPaths": requested_paths,
+            "planChangedPaths": plan_changed_paths,
             "modelAuthored": action_item_model_authored,
             "planningFacetsPresent": planning_facets_present,
             "adoptionEvidenceRefCount": evidence_ref_count
         },
         "classification": {
             "decisionKind": "branch-local-hands-adoption",
-            "actionItemAccepted": !unsupported_plan_family,
+            "actionItemAccepted": !mind_refused_adoption,
             "safeFamilyRecognized": safe_family_recognized,
             "requestedPathsDeclared": requested_path_count > 0,
+            "requestedPathsMatchPlan": requested_paths_match_plan,
             "evidenceRefsPresent": evidence_ref_count > 0,
             "durableStateAdmission": "not-admitted",
             "publicationGate": "Bifrost",
@@ -7677,7 +7698,22 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
         "privateStateExposed": false
     });
     let mind_adoption_id = format!("repo-work-mind-adoption-{item_slug}");
-    if unsupported_plan_family {
+    if mind_refused_adoption {
+        let status = if unsupported_plan_family {
+            "refused-unsupported-safe-family"
+        } else {
+            "refused-requested-path-mismatch"
+        };
+        let next_gate = if unsupported_plan_family {
+            "imagination.replan_with_allowed_safe_family"
+        } else {
+            "imagination.replan_with_matching_requested_paths"
+        };
+        let next_safe_move = if unsupported_plan_family {
+            "Ask Imagination for an allowed repo-work safe family before Hands authority can be granted."
+        } else {
+            "Ask Imagination for an action item whose requested paths exactly match the plan changed paths before Hands authority can be granted."
+        };
         let refusal_decision = json!({
             "schemaVersion": "epiphany.repo_work_mind_adoption_decision.v0",
             "createdAt": now,
@@ -7686,7 +7722,7 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
             "runtimeStore": runtime_store,
             "decisionId": mind_adoption_id,
             "item": item,
-            "status": "refused-unsupported-safe-family",
+            "status": status,
             "owner": "Mind",
             "interpreter": "Mind",
             "router": "Self",
@@ -7702,7 +7738,8 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
                 "mindReviewedEvidence": true,
                 "mindInterpretedActionItem": true,
                 "safeFamilyRequired": true,
-                "safeFamilyRecognized": false,
+                "safeFamilyRecognized": safe_family_recognized,
+                "requestedPathsMatchPlan": requested_paths_match_plan,
                 "branchLocalOnly": false,
                 "bifrostPublicationRequired": true,
                 "soulClosureRequired": true
@@ -7715,15 +7752,23 @@ fn run_adopt(args: AdoptArgs) -> Result<Value> {
                 "serviceLifecycleAuthority": false,
                 "crossRepoMutation": false,
                 "privateStateExposed": false,
-                "nextGate": "imagination.replan_with_allowed_safe_family"
+                "nextGate": next_gate
             },
             "privateStateExposed": false,
-            "nextSafeMove": "Ask Imagination for an allowed repo-work safe family before Hands authority can be granted."
+            "nextSafeMove": next_safe_move
         });
         let mind_adoption_path = artifact_dir.join(format!("work-mind-adopt-{item_slug}.json"));
         write_json(&mind_adoption_path, &refusal_decision)?;
+        if unsupported_plan_family {
+            return Err(anyhow!(
+                "Mind refused adoption for unsupported repo-work safe family {action_item_safe_family}: {}; refusal decision written to {}",
+                refusal_reasons.join(" "),
+                mind_adoption_path.display()
+            ));
+        }
         return Err(anyhow!(
-            "Mind refused adoption for unsupported repo-work safe family {action_item_safe_family}; refusal decision written to {}",
+            "Mind refused adoption: {}; refusal decision written to {}",
+            refusal_reasons.join(" "),
             mind_adoption_path.display()
         ));
     }
@@ -11158,8 +11203,9 @@ fn adopted_action_item_from_plan(plan: &Value) -> Value {
             .and_then(|value| value.get("safeActionFamily"))
             .cloned()
             .unwrap_or(Value::Null),
-        "requestedPaths": plan_action
-            .and_then(|value| value.get("changedPaths"))
+        "requestedPaths": action_item
+            .and_then(|value| value.get("requestedPaths"))
+            .or_else(|| plan_action.and_then(|value| value.get("changedPaths")))
             .cloned()
             .unwrap_or(json!([])),
         "summary": plan.get("planSummary").cloned().unwrap_or(Value::Null),
