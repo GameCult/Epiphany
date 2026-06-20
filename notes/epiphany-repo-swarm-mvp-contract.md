@@ -639,10 +639,17 @@ It reads `work-execute-<item>.json`, requires
 matches the recorded git SHA, then runs a verification command in the repo Body
 (`git show --stat --oneline <commit>` by default, or
 `--verification-command <command>` when supplied). The command stdout/stderr are
-sealed under `.epiphany/work/`, Soul writes
-`epiphany.soul.verdict_receipt`, Modeling records the execution/commit summary,
-and Mind writes gateway review plus state-commit receipts into runtime-spine.
-The final `.epiphany/work/work-close-<item>.json` receipt is
+sealed under `.epiphany/work/`. Closure also writes a structured
+`epiphany.repo_work_closure_review.v0` packet at
+`.epiphany/work/work-close-<item>-review.json`, recording the verification
+command/exit code, declared Hands paths, actual git commit paths, commit stat,
+optional model-review provenance from `--closure-model-ref` / `--model-authored`,
+and authority seals. Soul passes only when the verification command succeeds
+and actual git changed paths match the Hands-declared path scope. Soul then
+writes `epiphany.soul.verdict_receipt`, Modeling records the
+execution/commit/closure-review summary, and Mind writes gateway review plus
+state-commit receipts into runtime-spine. The final
+`.epiphany/work/work-close-<item>.json` receipt is
 `epiphany.repo_work_closure_receipt.v0` with
 `durableStateAdmitted=true`, `publicationGateSatisfied=true`, and
 `privateStateExposed=false`. It still does not grant publication, merge,
@@ -660,6 +667,20 @@ A fifth smoke proved the closure chain on a disposable fresh repo Body:
 `repo-work-close-close-request-mind-commit`,
 `publish --closure-receipt` consumed the Soul verdict and Mind commit ids,
 the next tick returned `noop:none`, and every receipt summary reported
+`privateStateExposed=false`.
+
+A richer closure-review smoke proved the typed Soul/Modeling bridge:
+`.epiphany-smoke\closure-review-20260620-135009` ran init -> online -> accept
+-> `derive-plan --action-family task-card --model-authored` -> run -> adopt ->
+execute -> `close --closure-model-ref smoke-closure-review-v0 --model-authored`
+-> overview -> export-proof. The close output carried
+`epiphany.repo_work_closure_review.v0`, `pathScopeMatched=true`,
+`modelAuthored=true`, Soul `passed`, and `privateStateExposed=false`; overview
+included a present `close-review` proof artifact row; redacted public proof
+included that row with SHA-256 and no local path fields. A tampered execute
+receipt declaring `README.md` while the commit actually changed
+`notes/epiphany-work/closure-review-request-task-card.toml` produced
+`verification-failed`, Soul `failed`, `pathScopeMatched=false`, and
 `privateStateExposed=false`.
 
 `epiphany-work overview` is the first compact repo work sight/proof surface:
@@ -982,8 +1003,8 @@ No: the machine is not yet Epiphany Online in the full MVP sense. The remaining
 gap is not "more permission prompts." The remaining gap is to make the
 existing typed artery run as a living repo organism:
 
-- richer model-authored closure where Soul and Modeling inspect source and
-  consequences beyond the deterministic mechanical path
+- deeper model-authored closure review beyond the first typed
+  `epiphany.repo_work_closure_review.v0` packet
 - later non-planning action classes where Imagination can propose useful
   branch-local work beyond planning cargo without arbitrary shell authority
 - an Idunn-owned service lifecycle path for the queue-run pulse when the
@@ -1009,9 +1030,9 @@ temptation wearing clean robes.
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
 | Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, and `task-card` / `repo.task_card`. `plan` remains manual quarantine scaffolding. | Deepen model-authored closure and any later non-planning action classes without turning model text into arbitrary shell authority. |
-| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Add richer safe-family depth next; keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
+| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
-| Soul/Modeling/Mind closure | `close` verifies the Hands commit and writes deterministic Soul, Modeling, and Mind receipts. | Add richer model-authored closure where useful, while preserving deterministic local closure for simple mechanical work. |
+| Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, and writes Soul, Modeling, and Mind receipts. | Deepen model-authored closure review beyond the first structured closure-review packet while preserving deterministic local closure for simple mechanical work. |
 | Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; Gjallar enumerates the history as queue rows and non-mutating action rows; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop without moving action authority out of Hands/Self/Bifrost. |
 | Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
 | Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
@@ -1282,9 +1303,12 @@ Required organs before MVP:
   without operator shell details. Remaining work is richer closure depth and any
   later model-authored action classes that move beyond planning cargo while
   preserving the same authority seals.
-- Closure depth: deterministic Soul/Modeling/Mind closure exists for Hands
-  commits; richer model-authored Soul/Modeling review remains to replace the
-  current local verification rite where appropriate.
+- Closure depth: `close` now writes a structured
+  `epiphany.repo_work_closure_review.v0` packet for Hands commits, records
+  model-review provenance when supplied, refuses actual-vs-declared path-scope
+  mismatch before Soul passes, and exposes the closure-review artifact through
+  overview/export proof rows. Deeper model-authored Soul/Modeling review remains
+  a later upgrade on top of this typed packet.
 - Repo work projection/run surface: local `epiphany-work overview` proof bundles, typed
   `epiphany.cultmesh.repo_work_overview.v0` event history plus latest-key
   projection, and Gjallar multi-item `repo-work-overview` action/readback rows

@@ -219,6 +219,8 @@ struct CloseArgs {
     verification_command: Option<String>,
     verification_summary: Option<String>,
     modeling_summary: Option<String>,
+    closure_model_ref: Option<String>,
+    model_authored: bool,
     state_revision: u64,
 }
 
@@ -726,6 +728,8 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
     let mut verification_command = None;
     let mut verification_summary = None;
     let mut modeling_summary = None;
+    let mut closure_model_ref = None;
+    let mut model_authored = false;
     let mut state_revision = 0_u64;
 
     let mut args = args.peekable();
@@ -747,6 +751,10 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
             "--modeling-summary" => {
                 modeling_summary = Some(take_string(&mut args, "--modeling-summary")?);
             }
+            "--closure-model-ref" | "--model-ref" => {
+                closure_model_ref = Some(take_string(&mut args, "--closure-model-ref")?);
+            }
+            "--model-authored" => model_authored = true,
             "--state-revision" => state_revision = take_u64(&mut args, "--state-revision")?,
             other => return Err(anyhow!("unexpected close argument {other:?}")),
         }
@@ -760,6 +768,8 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
         verification_command,
         verification_summary,
         modeling_summary,
+        closure_model_ref,
+        model_authored,
         state_revision,
     })
 }
@@ -2843,11 +2853,86 @@ fn run_close(args: CloseArgs) -> Result<Value> {
     fs::write(&stderr_artifact, &verification.stderr)
         .with_context(|| format!("failed to write {}", stderr_artifact.display()))?;
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let verification_passed = verification.status.success();
+    let declared_changed_paths =
+        sorted_normalized_paths(string_array_from_json(&execute_receipt, &["changedPaths"]));
+    let actual_changed_paths = sorted_normalized_paths(
+        git_output(
+            &workspace,
+            &[
+                "diff-tree",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                &commit_sha,
+            ],
+        )?
+        .lines()
+        .map(ToString::to_string)
+        .collect(),
+    );
+    let path_scope_matched = declared_changed_paths == actual_changed_paths;
+    let commit_stat = git_output(&workspace, &["show", "--stat", "--oneline", &commit_sha])?;
+    let closure_model_authored = args.model_authored || args.closure_model_ref.is_some();
+    let closure_review_id = format!("repo-work-close-{item_slug}-closure-review");
+    let closure_review_path = artifact_dir.join(format!("work-close-{item_slug}-review.json"));
+    let closure_review = json!({
+        "schemaVersion": "epiphany.repo_work_closure_review.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "receiptId": closure_review_id,
+        "item": item,
+        "owner": "Soul+Modeling",
+        "stateGate": "Mind",
+        "executeReceiptPath": execute_receipt_path,
+        "runtimeStore": runtime_store,
+        "handsReceipts": {
+            "patchReceiptId": patch_receipt_id,
+            "commandReceiptId": command_receipt_id,
+            "commitReceiptId": commit_receipt_id,
+            "commitSha": commit_sha
+        },
+        "verification": {
+            "command": verification_command,
+            "exitCode": verification.status.code(),
+            "stdoutArtifact": normalize_path_for_receipt(&stdout_artifact),
+            "stderrArtifact": normalize_path_for_receipt(&stderr_artifact),
+            "passed": verification.status.success()
+        },
+        "sourceGrounding": {
+            "declaredChangedPaths": declared_changed_paths,
+            "actualChangedPaths": actual_changed_paths,
+            "pathScopeMatched": path_scope_matched,
+            "commitStat": compact_multiline(&commit_stat),
+            "commitReceiptMatchedExecuteReceipt": true
+        },
+        "modelingReview": {
+            "modelAuthored": closure_model_authored,
+            "modelRef": args.closure_model_ref,
+            "deterministicFallback": !closure_model_authored,
+            "operatorAuthoredShellDetails": false,
+            "summary": args.modeling_summary.clone()
+        },
+        "authoritySeal": {
+            "branchLocalOnly": true,
+            "publicationAuthorized": false,
+            "mergeAuthorized": false,
+            "serviceLifecycleAuthority": false,
+            "crossRepoMutation": false,
+            "privateStateExposed": false
+        },
+        "privateStateExposed": false,
+        "nextSafeMove": "Soul may pass closure only when verification succeeds and actual git changed paths match the Hands-declared path scope."
+    });
+    write_json(&closure_review_path, &closure_review)?;
+    let verification_passed = verification.status.success() && path_scope_matched;
     let soul_verdict_id = format!("repo-work-close-{item_slug}-soul-verdict");
     let soul_summary = args.verification_summary.unwrap_or_else(|| {
         if verification_passed {
             format!("Soul verified branch-local commit {commit_sha} for repo work item {item}.")
+        } else if !path_scope_matched {
+            format!(
+                "Soul verification failed for branch-local commit {commit_sha}: actual changed paths did not match declared Hands path scope."
+            )
         } else {
             format!("Soul verification failed for branch-local commit {commit_sha}.")
         }
@@ -2858,8 +2943,9 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         commit_receipt_id.clone(),
         normalize_path_for_receipt(&stdout_artifact),
         normalize_path_for_receipt(&stderr_artifact),
+        normalize_path_for_receipt(&closure_review_path),
     ];
-    evidence_ids.extend(string_array_from_json(&execute_receipt, &["changedPaths"]));
+    evidence_ids.extend(declared_changed_paths.clone());
     let soul_verdict = SoulVerdictReceipt {
         schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id: soul_verdict_id.clone(),
@@ -2874,6 +2960,11 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         evidence_ids: evidence_ids.clone(),
         risks: if verification_passed {
             Vec::new()
+        } else if !path_scope_matched {
+            vec![
+                "Closure refused because actual git changed paths differ from Hands-declared scope."
+                    .to_string(),
+            ]
         } else {
             vec!["Closure verification command failed; publication remains blocked.".to_string()]
         },
@@ -2897,8 +2988,11 @@ fn run_close(args: CloseArgs) -> Result<Value> {
                 "verdict": soul_verdict.verdict,
                 "summary": soul_verdict.summary,
                 "stdoutArtifact": normalize_path_for_receipt(&stdout_artifact),
-                "stderrArtifact": normalize_path_for_receipt(&stderr_artifact)
+                "stderrArtifact": normalize_path_for_receipt(&stderr_artifact),
+                "closureReviewReceiptId": closure_review_id,
+                "closureReviewPath": normalize_path_for_receipt(&closure_review_path)
             },
+            "closureReview": closure_review,
             "authority": {
                 "branchLocalOnly": true,
                 "publicationGateSatisfied": false,
@@ -2916,6 +3010,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "receiptPath": closure_receipt_path,
             "item": failed_receipt["item"],
             "soul": failed_receipt["soul"],
+            "closureReview": failed_receipt["closureReview"],
             "authority": failed_receipt["authority"],
             "privateStateExposed": false,
             "nextSafeMove": failed_receipt["nextSafeMove"],
@@ -2925,7 +3020,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
     let modeling_summary = args.modeling_summary.unwrap_or_else(|| {
         format!(
             "Modeling records repo work item {item} changed [{}] at commit {commit_sha}; scheduler should stop implementation until publication review.",
-            string_array_from_json(&execute_receipt, &["changedPaths"]).join(", ")
+            declared_changed_paths.join(", ")
         )
     });
     let gateway_id = format!("repo-work-close-{item_slug}-mind-review");
@@ -2943,7 +3038,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         refused_effects: Vec::new(),
         reasons: vec![
             "Soul passed the branch-local Hands consequence.".to_string(),
-            "Modeling summary is source-grounded in execute receipt and commit proof.".to_string(),
+            "Modeling summary is source-grounded in execute receipt, closure review, and commit proof.".to_string(),
             "Mind admits closure metadata only; Bifrost still gates publication and merge.".to_string(),
         ],
         contract: "Mind review for repo-work closure; admits the verified Modeling summary and publication gate without granting merge or service authority.".to_string(),
@@ -2981,13 +3076,17 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "verdict": soul_verdict.verdict,
             "summary": soul_verdict.summary,
             "stdoutArtifact": normalize_path_for_receipt(&stdout_artifact),
-            "stderrArtifact": normalize_path_for_receipt(&stderr_artifact)
+            "stderrArtifact": normalize_path_for_receipt(&stderr_artifact),
+            "closureReviewReceiptId": closure_review_id,
+            "closureReviewPath": normalize_path_for_receipt(&closure_review_path)
         },
+        "closureReview": closure_review,
         "modeling": {
             "summary": modeling_summary,
             "changedPaths": execute_receipt["changedPaths"],
             "commitSha": execute_receipt["handsReceipts"]["commitSha"],
-            "source": "epiphany.repo_work_execute_receipt.v0"
+            "source": "epiphany.repo_work_closure_review.v0",
+            "modelAuthored": closure_model_authored
         },
         "mind": {
             "gatewayReviewId": mind_review.gateway_id,
@@ -3018,6 +3117,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         "item": closure_receipt["item"],
         "handsReceipts": closure_receipt["handsReceipts"],
         "soul": closure_receipt["soul"],
+        "closureReview": closure_receipt["closureReview"],
         "modeling": closure_receipt["modeling"],
         "mind": closure_receipt["mind"],
         "authority": closure_receipt["authority"],
@@ -3467,6 +3567,8 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
     let adopt_receipt_path = work_receipt_path(&workspace, "adopt", &item);
     let execute_receipt_path = work_receipt_path(&workspace, "execute", &item);
     let close_receipt_path = work_receipt_path(&workspace, "close", &item);
+    let close_review_receipt_path =
+        artifact_dir.join(format!("work-close-{item_slug}-review.json"));
     let publish_receipt_path = work_receipt_path(&workspace, "publish", &item);
     let sync_receipt_path = work_receipt_path(&workspace, "sync", &item);
     let overview_receipt_path = artifact_dir.join(format!("work-overview-{item_slug}.json"));
@@ -3538,6 +3640,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         ("run", &run_receipt_path),
         ("adopt", &adopt_receipt_path),
         ("execute", &execute_receipt_path),
+        ("close-review", &close_review_receipt_path),
         ("close", &close_receipt_path),
         ("publish", &publish_receipt_path),
         ("sync", &sync_receipt_path),
@@ -3561,6 +3664,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         ("run", &run_receipt_path),
         ("adopt", &adopt_receipt_path),
         ("execute", &execute_receipt_path),
+        ("close-review", &close_review_receipt_path),
         ("close", &close_receipt_path),
         ("publish", &publish_receipt_path),
         ("sync", &sync_receipt_path),
@@ -3597,6 +3701,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "runReceiptPath": existing_path_value(&run_receipt_path),
         "adoptReceiptPath": existing_path_value(&adopt_receipt_path),
         "executeReceiptPath": existing_path_value(&execute_receipt_path),
+        "closeReviewReceiptPath": existing_path_value(&close_review_receipt_path),
         "closeReceiptPath": existing_path_value(&close_receipt_path),
         "publishReceiptPath": existing_path_value(&publish_receipt_path),
         "syncReceiptPath": existing_path_value(&sync_receipt_path),
@@ -4489,6 +4594,8 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 modeling_summary: Some(format!(
                     "Modeling records scheduler-closed repo work item {item}; publication remains gated by Bifrost."
                 )),
+                closure_model_ref: None,
+                model_authored: false,
                 state_revision: 0,
             })?;
             status = "advanced".to_string();
@@ -5351,6 +5458,14 @@ fn compact_line(text: &str) -> String {
     }
 }
 
+fn compact_multiline(text: &str) -> Vec<String> {
+    text.lines()
+        .map(compact_line)
+        .filter(|line| !line.is_empty())
+        .take(40)
+        .collect()
+}
+
 fn compact_join(values: &[String]) -> String {
     if values.is_empty() {
         "none".to_string()
@@ -5361,6 +5476,16 @@ fn compact_join(values: &[String]) -> String {
             .collect::<Vec<_>>()
             .join(", ")
     }
+}
+
+fn sorted_normalized_paths(paths: Vec<String>) -> Vec<String> {
+    let mut normalized = normalize_paths(paths)
+        .into_iter()
+        .filter(|path| path != ".")
+        .collect::<Vec<_>>();
+    normalized.sort();
+    normalized.dedup();
+    normalized
 }
 
 fn powershell_single_quoted(value: &str) -> String {
@@ -5726,7 +5851,7 @@ fn print_usage() {
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>]\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
-         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>]\n\
+         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] [--closure-model-ref <ref>] [--model-authored]\n\
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
