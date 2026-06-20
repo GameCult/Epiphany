@@ -1460,7 +1460,11 @@ Build the remaining MVP in this order:
    limit without publishing, merging, installing services, crossing repo
    boundaries, elevating authority, or exposing private state. It now also
    reaches Soul/Modeling/Mind closure through the same tick artery when a queue
-   row is `awaiting-closure`. Remaining work is richer stop classification and
+   row is `awaiting-closure`. It now writes
+   `epiphany.repo_swarm_run_stop_classification.v0` into the run receipt so
+   agents can see stop category, owner, authority gate, blocker, recommended
+   command, mutability/elevation flags, queue status, and private-state seal
+   without parsing prose. Remaining work is broader stop-case proof coverage and
    safe-family depth.
 5. **Execute-to-close handoff.** Let the scheduler route from branch-local
    Hands execution into Soul/Modeling/Mind closure when the required execute
@@ -1807,8 +1811,14 @@ Required organs before MVP:
   Persona Eve tool readback now expose peer-readable queue rows, and
   `epiphany-work queue-run`, wrapper `repo-work-queue-run`, and
   `epiphany-swarm run` consume that queue for safe branch-local pulses through
-  closure. Remaining work is richer closure depth rather than basic safe-family
-  planning cargo.
+  closure. `epiphany-swarm run` now emits
+  `epiphany.repo_swarm_run_stop_classification.v0`; fresh-repo proof
+  `.epiphany-smoke\fresh-repo-mvp-20260620-180024` shows the bounded run stops
+  with category `iteration-limit`, owner `Self`, gate
+  `self.scheduler-iteration-limit`, non-mutating/non-elevated flags, and
+  `privateStateExposed=false`. Remaining work is broader stop-case proof
+  coverage and richer closure depth rather than basic safe-family planning
+  cargo.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, artifact schema/status rows, SHA-256 receipt
   hashes, compact TUI rows, commit refs, verification verdicts, map admission,

@@ -279,6 +279,33 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["closureReview", "familyAssertions", "status"],
         "passed",
     )?;
+    require_eq(
+        &swarm_run,
+        &["stopClassification", "schemaVersion"],
+        "epiphany.repo_swarm_run_stop_classification.v0",
+    )?;
+    require_eq(
+        &swarm_run,
+        &["stopClassification", "category"],
+        "iteration-limit",
+    )?;
+    require_eq(&swarm_run, &["stopClassification", "owner"], "Self")?;
+    require_eq(
+        &swarm_run,
+        &["stopClassification", "authorityGate"],
+        "self.scheduler-iteration-limit",
+    )?;
+    require_bool(&swarm_run, &["stopClassification", "mutatesState"], false)?;
+    require_bool(
+        &swarm_run,
+        &["stopClassification", "requiresElevatedAuthority"],
+        false,
+    )?;
+    require_bool(
+        &swarm_run,
+        &["stopClassification", "privateStateExposed"],
+        false,
+    )?;
     require_eq(&publish, &["status"], "publication-receipts-recorded")?;
     require_eq(&sync, &["status"], "upstream-main-synced")?;
     require_eq(&export, &["status"], "public-proof-exported")?;
@@ -312,6 +339,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "preRunOverviewGate": pre_run_overview["gate"],
         "preRunOverviewBlocker": pre_run_overview["blocker"],
         "swarmRunStatus": swarm_run["status"],
+        "swarmRunStopCategory": swarm_run["stopClassification"]["category"],
+        "swarmRunStopOwner": swarm_run["stopClassification"]["owner"],
+        "swarmRunStopGate": swarm_run["stopClassification"]["authorityGate"],
         "closeStatus": close["status"],
         "soulVerdict": close["soul"]["verdict"],
         "familyAssertionsStatus": close["closureReview"]["familyAssertions"]["status"],

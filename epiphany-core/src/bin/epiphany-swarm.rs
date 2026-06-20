@@ -451,6 +451,15 @@ fn run_swarm(args: RunArgs) -> Result<Value> {
             "Rerun epiphany-swarm run only while repo-work queue rows remain tick-actionable and authority gates stay branch-local."
         }
     };
+    let stop_classification = classify_run_stop(
+        &stop_reason,
+        status,
+        args.until.as_str(),
+        args.dry_run,
+        args.max_iterations,
+        &iterations,
+        next_safe_move,
+    );
     let receipt_path = artifact_dir.join("repo-swarm-run-receipt.json");
     let receipt = json!({
         "schemaVersion": "epiphany.repo_swarm_run_receipt.v0",
@@ -459,6 +468,7 @@ fn run_swarm(args: RunArgs) -> Result<Value> {
         "completedAt": completed_at,
         "status": status,
         "stopReason": stop_reason,
+        "stopClassification": stop_classification,
         "workspace": workspace,
         "runtimeId": runtime_id,
         "localVerseStore": local_verse_store,
@@ -494,6 +504,7 @@ fn run_swarm(args: RunArgs) -> Result<Value> {
         "schemaVersion": "epiphany.repo_swarm_run.v0",
         "status": receipt["status"],
         "stopReason": receipt["stopReason"],
+        "stopClassification": receipt["stopClassification"],
         "workspace": receipt["workspace"],
         "runtimeId": receipt["runtimeId"],
         "localVerseStore": receipt["localVerseStore"],
@@ -504,6 +515,152 @@ fn run_swarm(args: RunArgs) -> Result<Value> {
         "privateStateExposed": false,
         "nextSafeMove": receipt["nextSafeMove"],
     }))
+}
+
+fn classify_run_stop(
+    stop_reason: &str,
+    status: &str,
+    until: &str,
+    dry_run: bool,
+    max_iterations: u64,
+    iterations: &[Value],
+    next_safe_move: &str,
+) -> Value {
+    let final_iteration = iterations.last();
+    let queue_status = final_iteration
+        .and_then(|iteration| iteration.get("queueRunStatus"))
+        .and_then(Value::as_str)
+        .unwrap_or("not-run");
+    let actionable_count = final_iteration
+        .and_then(|iteration| iteration.get("actionableCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let queue_count = final_iteration
+        .and_then(|iteration| iteration.get("queueCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let selected_row = final_iteration
+        .and_then(|iteration| iteration.get("selectedRows"))
+        .and_then(Value::as_array)
+        .and_then(|rows| rows.first());
+    let selected_gate = selected_row
+        .and_then(|row| row.get("gate"))
+        .and_then(Value::as_str)
+        .unwrap_or("none");
+    let selected_blocker = selected_row
+        .and_then(|row| row.get("blocker"))
+        .and_then(Value::as_str)
+        .unwrap_or("none");
+    let selected_next_safe_move = selected_row
+        .and_then(|row| row.get("nextSafeMove"))
+        .and_then(Value::as_str)
+        .unwrap_or(next_safe_move);
+    let selected_item = selected_row
+        .and_then(|row| row.get("item"))
+        .and_then(Value::as_str)
+        .unwrap_or("none");
+    let selected_branch = selected_row
+        .and_then(|row| row.get("branch"))
+        .and_then(Value::as_str)
+        .unwrap_or("none");
+
+    let (category, owner, gate, blocker, recommended_command, mutates_state, requires_elevation) =
+        match stop_reason {
+            "dry-run-preview-complete" => (
+                "dry-run-preview",
+                "Self",
+                selected_gate,
+                selected_blocker,
+                "epiphany-swarm run --workspace <repo> --until blocked-or-published",
+                false,
+                false,
+            ),
+            "max-iterations-reached" => (
+                "iteration-limit",
+                "Self",
+                "self.scheduler-iteration-limit",
+                "max-iterations-reached",
+                "epiphany-swarm run --workspace <repo> --until blocked-or-published",
+                false,
+                false,
+            ),
+            "blocked-or-noop" if queue_count == 0 => (
+                "queue-empty",
+                "Gjallar",
+                "repo.work.overview",
+                "no-repo-work-rows",
+                "epiphany-work persona-intake --workspace <repo> --item <id> --message <text>",
+                false,
+                false,
+            ),
+            "blocked-or-noop" if actionable_count == 0 => {
+                let owner = match selected_gate {
+                    "awaiting-publication" => "Bifrost",
+                    "awaiting-sync" => "Bifrost/GitHub",
+                    "awaiting-closure" => "Soul",
+                    "ready-to-run" | "ready-to-adopt" | "ready-to-execute" => "Self",
+                    _ => "Self",
+                };
+                let recommended = match selected_gate {
+                    "awaiting-publication" => {
+                        "epiphany-work publish --workspace <repo> --closure-receipt <receipt>"
+                    }
+                    "awaiting-sync" => {
+                        "epiphany-work sync --workspace <repo> --publish-receipt <receipt>"
+                    }
+                    "awaiting-closure" => {
+                        "epiphany-work close --workspace <repo> --execute-receipt <receipt>"
+                    }
+                    _ => "epiphany-work overview --workspace <repo>",
+                };
+                (
+                    "authority-gated",
+                    owner,
+                    selected_gate,
+                    selected_blocker,
+                    recommended,
+                    false,
+                    false,
+                )
+            }
+            _ => (
+                "unknown",
+                "Self",
+                selected_gate,
+                selected_blocker,
+                "epiphany-work overview --workspace <repo>",
+                false,
+                false,
+            ),
+        };
+
+    json!({
+        "schemaVersion": "epiphany.repo_swarm_run_stop_classification.v0",
+        "status": status,
+        "stopReason": stop_reason,
+        "category": category,
+        "owner": owner,
+        "authorityGate": gate,
+        "blocker": blocker,
+        "until": until,
+        "dryRun": dry_run,
+        "maxIterations": max_iterations,
+        "iterationCount": iterations.len(),
+        "queueRunStatus": queue_status,
+        "queueCount": queue_count,
+        "actionableCount": actionable_count,
+        "selectedItem": selected_item,
+        "selectedBranch": selected_branch,
+        "selectedNextSafeMove": selected_next_safe_move,
+        "recommendedCommand": recommended_command,
+        "mutatesState": mutates_state,
+        "requiresElevatedAuthority": requires_elevation,
+        "publicationAuthorized": false,
+        "mergeAuthorized": false,
+        "serviceLifecycleAuthorized": false,
+        "crossRepoMutationAuthorized": false,
+        "privateStateExposed": false
+    })
 }
 
 fn queue_run_args(
