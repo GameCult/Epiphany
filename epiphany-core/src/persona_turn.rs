@@ -101,6 +101,8 @@ pub struct PersonaInterpreterInput {
     #[serde(default)]
     pub semantic_memory_recall: String,
     #[serde(default)]
+    pub dynamic_semantic_memory_recall: String,
+    #[serde(default)]
     pub pending_mentions: Vec<HeartbeatPendingMention>,
     #[serde(default)]
     pub allowed_channel_ids: Vec<String>,
@@ -246,8 +248,11 @@ Allowed channel ids:
 Pending addressed pressure:
 {mentions}
 
-Dynamic semantic memory recall:
+Initial semantic memory recall from the Persona turn:
 {semantic_recall}
+
+Dynamic self-memory recall from the Persona output:
+{dynamic_semantic_recall}
 
 Original Persona prompt:
 ```
@@ -266,6 +271,14 @@ Return concise structured effect blocks. No prose outside the blocks.
         channels = render_allowed_channels(&input.allowed_channel_ids),
         mentions = render_pending_mentions(&input.pending_mentions),
         semantic_recall = render_semantic_memory_recall_text(&input.semantic_memory_recall),
+        dynamic_semantic_recall = render_semantic_memory_recall_text(
+            input
+                .dynamic_semantic_memory_recall
+                .trim()
+                .is_empty()
+                .then_some(input.semantic_memory_recall.as_str())
+                .unwrap_or(input.dynamic_semantic_memory_recall.as_str())
+        ),
         persona_prompt = input.persona_prompt.trim(),
         persona_output = input.persona_output.trim(),
     )
@@ -583,6 +596,7 @@ mod tests {
             persona_prompt: persona,
             persona_output: "I want to answer, but only if I can name the cut plainly.".to_string(),
             semantic_memory_recall: String::new(),
+            dynamic_semantic_memory_recall: String::new(),
             pending_mentions: vec![pending],
             allowed_channel_ids: vec!["aquarium".to_string()],
         });
@@ -642,10 +656,13 @@ mod tests {
             persona_prompt: persona,
             persona_output: "I can answer, but the answer should stay review-gated.".to_string(),
             semantic_memory_recall: recall,
+            dynamic_semantic_memory_recall: "Output-triggered recall says review gates matter."
+                .to_string(),
             pending_mentions: Vec::new(),
             allowed_channel_ids: vec!["aquarium".to_string()],
         });
-        assert!(interpreter.contains("Dynamic semantic memory recall"));
+        assert!(interpreter.contains("Dynamic self-memory recall"));
+        assert!(interpreter.contains("Output-triggered recall"));
         assert!(interpreter.contains("STATE NOTE"));
         assert!(interpreter.contains("SAY"));
     }

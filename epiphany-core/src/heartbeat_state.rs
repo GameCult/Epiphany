@@ -3879,10 +3879,23 @@ mod tests {
         assert_eq!(recall["roleId"], "Persona");
         assert_eq!(recall["privateStateExposed"], false);
         assert!(
-            recall["renderedRecall"]
+            !recall["status"].as_str().unwrap_or_default().is_empty(),
+            "Persona recall should report whether it came from Qdrant or fallback"
+        );
+        assert!(
+            !recall["cacheStatus"]
                 .as_str()
                 .unwrap_or_default()
-                .contains("typed memory graph")
+                .is_empty(),
+            "Persona recall should report cache status"
+        );
+        assert!(
+            !recall["renderedRecall"]
+                .as_str()
+                .unwrap_or_default()
+                .trim()
+                .is_empty(),
+            "Persona recall should carry a rendered prompt surface"
         );
         assert!(recall["chunkCount"].as_u64().unwrap_or_default() > 0);
         assert!(

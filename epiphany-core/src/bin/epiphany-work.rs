@@ -1931,6 +1931,9 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
         "memoryRecallStatus": receipt["persona"]["memoryRecall"]["status"],
         "memoryRecallCacheStatus": receipt["persona"]["memoryRecall"]["cacheStatus"],
         "memoryRecallHitCount": receipt["persona"]["memoryRecall"]["hitCount"],
+        "interpreterDynamicRecallStatus": receipt["persona"]["memoryRecall"]["interpreterDynamicRecall"]["status"],
+        "interpreterDynamicRecallCacheStatus": receipt["persona"]["memoryRecall"]["interpreterDynamicRecall"]["cacheStatus"],
+        "interpreterDynamicRecallHitCount": receipt["persona"]["memoryRecall"]["interpreterDynamicRecall"]["hitCount"],
         "weksaLoweringReceiptId": receipt["persona"]["weksa"]["receiptId"],
         "bubblePath": receipt["persona"]["bubblePath"],
         "acceptReceiptPath": accept["receiptPath"],
@@ -2006,6 +2009,20 @@ fn record_repo_persona_intake_memory_recall(
         Some(&fallback),
         &config,
     );
+    let synthetic_persona_prompt = format!(
+        "Repo Persona intake message:\n{}\n\nInitial semantic memory recall:\n{}",
+        message, recall.rendered_recall
+    );
+    let dynamic_recall = epiphany_core::render_dynamic_persona_memory_recall_for_output(
+        &entry,
+        format!("{}#Persona", agent_store.display()),
+        &synthetic_persona_prompt,
+        message,
+        &recall.rendered_recall,
+        8,
+        Some(&fallback),
+        &config,
+    );
 
     json!({
         "schemaVersion": recall.schema_version,
@@ -2016,6 +2033,26 @@ fn record_repo_persona_intake_memory_recall(
         "chunkCount": recall.chunk_count,
         "hitCount": recall.hit_count,
         "renderedRecall": recall.rendered_recall,
+        "interpreterDynamicRecall": {
+            "schemaVersion": dynamic_recall.schema_version,
+            "status": dynamic_recall.status,
+            "cacheStatus": dynamic_recall.cache_status,
+            "identityId": dynamic_recall.identity_id,
+            "roleId": dynamic_recall.role_id,
+            "chunkCount": dynamic_recall.chunk_count,
+            "hitCount": dynamic_recall.hit_count,
+            "renderedRecall": dynamic_recall.rendered_recall,
+            "warnings": dynamic_recall.warnings,
+            "queryBasis": "candidate-say-meaning",
+            "authority": {
+                "scaffoldedFromOperatorMessage": true,
+                "fullAutonomousPersonaTurn": false,
+                "durableStateAdmitted": false,
+                "publicationAuthorized": false,
+                "privateStateExposed": false
+            },
+            "privateStateExposed": dynamic_recall.private_state_exposed
+        },
         "warnings": recall.warnings,
         "privateStateExposed": recall.private_state_exposed,
     })

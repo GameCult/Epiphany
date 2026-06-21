@@ -311,6 +311,8 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_eq(&export, &["status"], "public-proof-exported")?;
     require_non_empty(&intake, &["memoryRecallStatus"])?;
     require_non_empty(&intake, &["memoryRecallCacheStatus"])?;
+    require_non_empty(&intake, &["interpreterDynamicRecallStatus"])?;
+    require_non_empty(&intake, &["interpreterDynamicRecallCacheStatus"])?;
     require_non_empty(&intake, &["weksaLoweringReceiptId"])?;
     require_bool(&intake, &["privateStateExposed"], false)?;
     require_bool(&overview, &["privateStateExposed"], false)?;
@@ -342,6 +344,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "personaMemoryRecallStatus": intake["memoryRecallStatus"],
         "personaMemoryRecallCacheStatus": intake["memoryRecallCacheStatus"],
         "personaMemoryRecallHitCount": intake["memoryRecallHitCount"],
+        "personaInterpreterDynamicRecallStatus": intake["interpreterDynamicRecallStatus"],
+        "personaInterpreterDynamicRecallCacheStatus": intake["interpreterDynamicRecallCacheStatus"],
+        "personaInterpreterDynamicRecallHitCount": intake["interpreterDynamicRecallHitCount"],
         "weksaLoweringReceiptId": intake["weksaLoweringReceiptId"],
         "planStatus": plan["status"],
         "preRunOverviewGate": pre_run_overview["gate"],

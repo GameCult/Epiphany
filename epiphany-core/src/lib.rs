@@ -621,6 +621,7 @@ pub use persona_memory_cache::PersonaMemoryRecallRender;
 pub use persona_memory_cache::PersonaMemorySearchHit;
 pub use persona_memory_cache::build_persona_memory_chunks;
 pub use persona_memory_cache::index_persona_memory_chunks;
+pub use persona_memory_cache::render_dynamic_persona_memory_recall_for_output;
 pub use persona_memory_cache::render_persona_memory_recall_with_cache;
 pub use persona_memory_cache::search_persona_memory_cache;
 pub use persona_turn::PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION;

@@ -24,6 +24,7 @@ use epiphany_core::build_persona_turn_prompt;
 use epiphany_core::build_weksa_interlingua_packet;
 use epiphany_core::build_weksa_target_lowering_request;
 use epiphany_core::record_weksa_target_lowering_receipt;
+use epiphany_core::render_dynamic_persona_memory_recall_for_output;
 use epiphany_core::render_persona_memory_recall_with_cache;
 use epiphany_core::render_persona_semantic_memory_recall;
 use epiphany_core::semantic_memory_recall_from_heartbeat_action;
@@ -172,7 +173,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         green(
             "persona-memory-recall",
             "Persona/Mind",
-            "Qdrant-backed Persona memory cache and typed graph fallback feed Projector, Persona, and Interpreter prompts without exposing private state",
+            "Qdrant-backed Persona memory cache and typed graph fallback feed Projector, Persona, and output-triggered Interpreter prompts without exposing private state",
         ),
         green(
             "imagination-plan",
@@ -313,6 +314,10 @@ fn verify_fresh_repo(value: &Value) -> Result<()> {
     require_eq(value, &["familyAssertionsStatus"], "passed")?;
     require_eq(value, &["publishStatus"], "publication-receipts-recorded")?;
     require_eq(value, &["syncStatus"], "upstream-main-synced")?;
+    require_non_empty(value, &["personaMemoryRecallStatus"])?;
+    require_non_empty(value, &["personaMemoryRecallCacheStatus"])?;
+    require_non_empty(value, &["personaInterpreterDynamicRecallStatus"])?;
+    require_non_empty(value, &["personaInterpreterDynamicRecallCacheStatus"])?;
     require_bool(value, &["upstreamMainSynced"], true)?;
     require_eq(value, &["publicProofStatus"], "public-proof-exported")?;
     require_bool(value, &["privateStateExposed"], false)
@@ -646,17 +651,70 @@ fn verify_persona_memory_recall() -> Result<Value> {
         "Persona prompt",
     )?;
 
+    let persona_output = "I can speak, but the effect needs a receipt.";
+    let dynamic = render_dynamic_persona_memory_recall_for_output(
+        &memory_entry,
+        "state/agents.msgpack#Persona",
+        &persona_prompt,
+        persona_output,
+        &recall,
+        4,
+        Some(&EpiphanyMemoryContextPacket {
+            id: "memctx-repo-swarm-mvp-gate-dynamic-fallback".to_string(),
+            query_id: "repo-swarm-mvp-gate-persona-dynamic-output".to_string(),
+            summaries: vec![EpiphanyMemorySummary {
+                id: "summary-repo-swarm-mvp-gate-dynamic-fallback".to_string(),
+                target: "role:Persona".to_string(),
+                claim: "Dynamic self-memory recall should inspect the Persona output before Mind interprets side effects."
+                    .to_string(),
+                action_implication:
+                    "Interpreter should see output-triggered recall, not only the pre-turn prompt recall."
+                        .to_string(),
+                freshness: EpiphanyMemoryFreshnessStatus::Ready,
+                confidence: 82,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        &PersonaMemoryCacheConfig {
+            qdrant_url: "http://127.0.0.1:1".to_string(),
+            qdrant_api_key: None,
+            qdrant_timeout_ms: 1,
+            ollama_base_url: "http://127.0.0.1:1".to_string(),
+            ollama_model: "qwen3-embedding:0.6b".to_string(),
+            ollama_timeout_ms: 1,
+            collection_name: "epiphany_persona_memory_mvp_gate_dynamic".to_string(),
+            query_instruction: "repo-swarm-mvp-gate-dynamic".to_string(),
+        },
+    );
+    require_contains(
+        &dynamic.rendered_recall,
+        "Dynamic self-memory recall should inspect the Persona output",
+        "dynamic Persona memory recall",
+    )?;
+    if dynamic.private_state_exposed || dynamic.rendered_recall.contains("sealed private note") {
+        return Err(anyhow!(
+            "dynamic Persona memory recall exposed private state"
+        ));
+    }
+
     let interpreter_prompt = build_persona_interpreter_prompt(&PersonaInterpreterInput {
         identity,
         persona_prompt,
-        persona_output: "I can speak, but the effect needs a receipt.".to_string(),
+        persona_output: persona_output.to_string(),
         semantic_memory_recall: recall,
+        dynamic_semantic_memory_recall: dynamic.rendered_recall,
         pending_mentions: Vec::new(),
         allowed_channel_ids: vec!["aquarium".to_string()],
     });
     require_contains(
         &interpreter_prompt,
-        "Dynamic semantic memory recall",
+        "Dynamic self-memory recall",
+        "Persona Interpreter prompt",
+    )?;
+    require_contains(
+        &interpreter_prompt,
+        "output-triggered recall",
         "Persona Interpreter prompt",
     )?;
     require_contains(
@@ -670,10 +728,13 @@ fn verify_persona_memory_recall() -> Result<Value> {
         "schemaVersion": "epiphany.repo_swarm_mvp_persona_memory_recall_gate.v0",
         "status": bridge.status,
         "cacheStatus": bridge.cache_status,
+        "dynamicCacheStatus": dynamic.cache_status,
         "chunkCount": bridge.chunk_count,
         "hitCount": bridge.hit_count,
+        "dynamicHitCount": dynamic.hit_count,
         "fallbackContainsTypedGraph": true,
         "heartbeatRecallWired": true,
+        "dynamicRecallWired": true,
         "personaLayers": ["projector", "persona", "interpreter"],
         "liveQdrantRequiredForSmoke": false,
         "privateStateExposed": false,
@@ -822,6 +883,19 @@ fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
             path.join("."),
             actual
         ))
+    }
+}
+
+fn require_non_empty(value: &Value, path: &[&str]) -> Result<()> {
+    let actual = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if actual.trim().is_empty() {
+        Err(anyhow!("expected {} to be non-empty", path.join(".")))
+    } else {
+        Ok(())
     }
 }
 

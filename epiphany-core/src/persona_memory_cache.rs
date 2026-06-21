@@ -363,6 +363,53 @@ pub fn render_persona_memory_recall_with_cache(
     }
 }
 
+pub fn render_dynamic_persona_memory_recall_for_output(
+    entry: &EpiphanyAgentMemoryEntry,
+    source_state_ref: impl Into<String>,
+    persona_prompt: &str,
+    persona_output: &str,
+    initial_recall_seed: &str,
+    limit: usize,
+    fallback_context: Option<&EpiphanyMemoryContextPacket>,
+    config: &PersonaMemoryCacheConfig,
+) -> PersonaMemoryRecallRender {
+    let query = build_dynamic_persona_memory_recall_query(
+        &entry.agent.agent_id,
+        persona_prompt,
+        persona_output,
+        initial_recall_seed,
+    );
+    render_persona_memory_recall_with_cache(
+        entry,
+        source_state_ref,
+        &query,
+        limit,
+        fallback_context,
+        config,
+    )
+}
+
+pub fn build_dynamic_persona_memory_recall_query(
+    identity_id: &str,
+    persona_prompt: &str,
+    persona_output: &str,
+    initial_recall_seed: &str,
+) -> String {
+    [
+        format!("Current train of thought from {identity_id}:"),
+        collapse_whitespace(persona_output, 6_000),
+        "Original Persona turn pressure:".to_string(),
+        extract_prompt_seed(persona_prompt),
+        "Initial semantic memory recall seed:".to_string(),
+        collapse_whitespace(initial_recall_seed, 2_000),
+    ]
+    .into_iter()
+    .map(|part| part.trim().to_string())
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
 fn render_persona_memory_cache_hits(hits: &[PersonaMemorySearchHit]) -> String {
     let mut lines = vec![
         "These are derived Qdrant Persona-memory cache hits from typed Persona state. They are hints, not durable authority; typed memory remains the owner.".to_string(),
@@ -378,6 +425,40 @@ fn render_persona_memory_cache_hits(hits: &[PersonaMemorySearchHit]) -> String {
         ));
     }
     lines.join("\n")
+}
+
+fn extract_prompt_seed(prompt: &str) -> String {
+    let markers = [
+        "Semantic memory recall:",
+        "Projected inner state from Imagination:",
+        "Recent home-repo activity",
+        "Pending addressed pressure:",
+        "Raw room transcript",
+    ];
+    let mut sections = Vec::new();
+
+    for marker in markers {
+        let Some(start) = prompt.find(marker) else {
+            continue;
+        };
+        let end = markers
+            .iter()
+            .filter(|candidate| **candidate != marker)
+            .filter_map(|candidate| {
+                prompt[start + marker.len()..]
+                    .find(candidate)
+                    .map(|offset| start + marker.len() + offset)
+            })
+            .min()
+            .unwrap_or_else(|| prompt.len().min(start + 2_400));
+        sections.push(prompt[start..end.min(start + 2_400)].trim().to_string());
+    }
+
+    if sections.is_empty() {
+        collapse_whitespace(prompt, 2_400)
+    } else {
+        sections.join("\n\n")
+    }
 }
 
 fn fallback_persona_memory_recall(

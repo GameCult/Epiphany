@@ -15,6 +15,7 @@ use epiphany_core::build_persona_interpreter_prompt;
 use epiphany_core::build_persona_memory_chunks;
 use epiphany_core::build_persona_projector_prompt;
 use epiphany_core::build_persona_turn_prompt;
+use epiphany_core::render_dynamic_persona_memory_recall_for_output;
 use epiphany_core::render_persona_memory_recall_with_cache;
 use epiphany_core::render_persona_semantic_memory_recall;
 use epiphany_core::semantic_memory_recall_from_heartbeat_action;
@@ -147,20 +148,64 @@ fn main() {
     assert_contains(&persona_prompt, "Semantic memory recall");
     assert_contains(&persona_prompt, "Fallback typed memory graph context");
 
+    let persona_output = "I can speak, but the effect needs a receipt.";
+    let dynamic = render_dynamic_persona_memory_recall_for_output(
+        &persona_memory_entry(),
+        "state/agents.msgpack#Persona",
+        &persona_prompt,
+        persona_output,
+        &recall,
+        4,
+        Some(&EpiphanyMemoryContextPacket {
+            id: "memctx-smoke-dynamic-fallback".to_string(),
+            query_id: "persona-smoke-dynamic-output".to_string(),
+            summaries: vec![EpiphanyMemorySummary {
+                id: "summary-smoke-dynamic-fallback".to_string(),
+                target: "role:Persona".to_string(),
+                claim: "Dynamic self-memory recall should inspect the Persona output before Mind interprets side effects."
+                    .to_string(),
+                action_implication:
+                    "Interpreter should see output-triggered recall, not only the pre-turn prompt recall."
+                        .to_string(),
+                freshness: EpiphanyMemoryFreshnessStatus::Ready,
+                confidence: 82,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        &PersonaMemoryCacheConfig {
+            qdrant_url: "http://127.0.0.1:1".to_string(),
+            qdrant_api_key: None,
+            qdrant_timeout_ms: 1,
+            ollama_base_url: "http://127.0.0.1:1".to_string(),
+            ollama_model: "qwen3-embedding:0.6b".to_string(),
+            ollama_timeout_ms: 1,
+            collection_name: "epiphany_persona_memory_dynamic_smoke".to_string(),
+            query_instruction: "dynamic-smoke".to_string(),
+        },
+    );
+    assert_eq!(dynamic.status, "fallback");
+    assert_contains(
+        &dynamic.rendered_recall,
+        "Dynamic self-memory recall should inspect the Persona output",
+    );
+
     let interpreter_prompt = build_persona_interpreter_prompt(&PersonaInterpreterInput {
         identity,
         persona_prompt,
-        persona_output: "I can speak, but the effect needs a receipt.".to_string(),
+        persona_output: persona_output.to_string(),
         semantic_memory_recall: recall,
+        dynamic_semantic_memory_recall: dynamic.rendered_recall,
         pending_mentions: Vec::new(),
         allowed_channel_ids: vec!["aquarium".to_string()],
     });
-    assert_contains(&interpreter_prompt, "Dynamic semantic memory recall");
+    assert_contains(&interpreter_prompt, "Dynamic self-memory recall");
+    assert_contains(&interpreter_prompt, "output-triggered recall");
     assert_contains(&interpreter_prompt, "STATE NOTE");
     assert_contains(&interpreter_prompt, "SAY");
 
     println!(
-        "status=ok recallSource=typed-memory-graph qdrantCache=persona-memory-bridge-wired heartbeatRecall=prompt-wired liveQdrant=not-required personaLayers=projector,persona,interpreter privateStateExposed=false"
+        "status=ok recallSource=typed-memory-graph qdrantCache=persona-memory-bridge-wired heartbeatRecall=prompt-wired dynamicRecall=interpreter-output-wired liveQdrant=not-required personaLayers=projector,persona,interpreter privateStateExposed=false"
     );
 }
 
