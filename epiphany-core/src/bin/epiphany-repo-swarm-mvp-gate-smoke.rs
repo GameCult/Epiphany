@@ -2,6 +2,11 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::Utc;
+use epiphany_core::WeksaInterlinguaInput;
+use epiphany_core::WeksaSpeakerContext;
+use epiphany_core::build_weksa_interlingua_packet;
+use epiphany_core::build_weksa_target_lowering_request;
+use epiphany_core::record_weksa_target_lowering_receipt;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -124,6 +129,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     verify_bifrost_accounting(&bifrost)?;
     verify_deployment_handoff(&deployment_handoff)?;
     verify_daemon_survival(&daemon_survival)?;
+    let weksa_interlingua = verify_weksa_interlingua()?;
 
     let gate_rows = vec![
         green(
@@ -133,6 +139,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         ),
         green("swarm-online", "Self", "epiphany-swarm online"),
         green("persona-intake", "Persona", "persona-intake work item"),
+        green(
+            "weksa-interlingua",
+            "Weksa",
+            "Persona SAY meaning lowers through Weksa interlingua packet/request/receipt without transport authority",
+        ),
         green(
             "imagination-plan",
             "Imagination",
@@ -228,6 +239,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "bifrostAccountingSmokeDir": bifrost["smokeDir"],
         "deploymentHandoffSmokeDir": deployment_handoff["smokeDir"],
         "daemonSurvivalSmokeDir": daemon_survival["smokeDir"],
+        "weksaInterlingua": weksa_interlingua,
         "mvpReady": false,
         "demoReady": true,
         "greenGateCount": green_gate_count,
@@ -378,6 +390,68 @@ fn verify_deployment_handoff(value: &Value) -> Result<()> {
     require_eq(value, &["deploymentOwner"], "Idunn")?;
     require_bool(value, &["deploymentAuthority"], false)?;
     require_bool(value, &["privateStateExposed"], false)
+}
+
+fn verify_weksa_interlingua() -> Result<Value> {
+    let packet = build_weksa_interlingua_packet(WeksaInterlinguaInput {
+        packet_id: "repo-swarm-mvp-gate-weksa-packet".to_string(),
+        source_interpreter_ref: "persona-interpreter:repo-swarm-mvp-gate".to_string(),
+        source_speech_audit_ref: "persona-speech-audit:repo-swarm-mvp-gate".to_string(),
+        speaker: WeksaSpeakerContext {
+            persona_id: "epiphany.Persona".to_string(),
+            display_name: "Epiphany".to_string(),
+            source_surface: "eve://epiphany/persona".to_string(),
+            source_language: "en".to_string(),
+            utterance_state_ref: "state/agents.msgpack#Persona:utterance-state".to_string(),
+        },
+        meaning:
+            "Tell a public repo room that Epiphany can keep branch-local work moving, while publication and merge remain Bifrost-gated."
+                .to_string(),
+        speech_act: "status-reply".to_string(),
+        delivery_register: "warm-technical".to_string(),
+        target_audience: "repo-public-room".to_string(),
+        safety_notes: vec![
+            "Do not claim publication, merge, deployment, or service lifecycle authority.".to_string(),
+            "Do not expose private worker thought or private Verse payloads.".to_string(),
+        ],
+    })?;
+    if packet.private_state_exposed {
+        return Err(anyhow!("Weksa packet exposed private state"));
+    }
+    let request = build_weksa_target_lowering_request(
+        "repo-swarm-mvp-gate-weksa-lowering-request",
+        packet,
+        "es",
+        "warm-technical",
+        "eve-public-room",
+    )?;
+    if request.private_state_exposed || !request.model_required {
+        return Err(anyhow!(
+            "Weksa lowering request lost model-required or private-state seal"
+        ));
+    }
+    let receipt = record_weksa_target_lowering_receipt(
+        &request,
+        "repo-swarm-mvp-gate-weksa-lowering-receipt",
+        "Epiphany puede mantener el trabajo local de rama en movimiento, mientras la publicacion y la fusion siguen bajo la puerta de Bifrost.",
+        "deterministic-mvp-gate-smoke",
+    )?;
+    if receipt.private_state_exposed || !receipt.transport_authority.contains("must publish") {
+        return Err(anyhow!(
+            "Weksa lowering receipt lost private-state seal or transport boundary"
+        ));
+    }
+    Ok(json!({
+        "packetSchema": request.packet.schema_version,
+        "requestSchema": request.schema_version,
+        "receiptSchema": receipt.schema_version,
+        "targetLanguage": receipt.target_language,
+        "deliverySurface": receipt.delivery_surface,
+        "modelRequired": request.model_required,
+        "transportAuthority": "none",
+        "publicationAuthority": false,
+        "privateStateExposed": false,
+    }))
 }
 
 fn green(gate: &str, owner: &str, evidence: &str) -> Value {
