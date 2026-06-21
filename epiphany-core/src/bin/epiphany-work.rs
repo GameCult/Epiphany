@@ -12076,10 +12076,6 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             .is_some();
     let publish_receipt = read_json_if_exists(&publish_receipt_path)?;
     let sync_receipt = read_json_if_exists(&sync_receipt_path)?;
-    let upstream_synced = sync_receipt
-        .as_ref()
-        .and_then(sync_receipt_upstream_main_synced)
-        .unwrap_or(false);
 
     let mut rows = vec![
         readiness_path_row(
@@ -12156,13 +12152,11 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             "Redacted public proof bundle exists.",
         )?,
         bifrost_publication_readiness_row(&publish_receipt_path, publish_receipt.as_ref())?,
-        readiness_path_row(
-            "upstream-main-sync",
-            "Bifrost/GitHub",
-            "epiphany.repo_work_sync.v0",
+        upstream_main_sync_readiness_row(
+            &workspace,
             &sync_receipt_path,
-            upstream_synced,
-            "Published commit is contained by upstream main.",
+            sync_receipt.as_ref(),
+            publish_receipt.as_ref(),
         )?,
     ];
     let default_idunn_lifecycle_receipt = artifact_dir.join("repo-work-service-audit.json");
@@ -14308,6 +14302,151 @@ fn bifrost_publication_readiness_row(path: &Path, receipt: Option<&Value>) -> Re
         "satisfied": satisfied,
         "status": if satisfied { "satisfied" } else { "missing" },
         "note": "Bifrost and GitHub publication receipts are present in repo-local CultMesh and match the repo publish artifact without claiming upstream-main sync.",
+        "readinessApprovalAuthorized": false,
+        "serviceLifecycleAuthority": false,
+        "handsActionAuthorized": false
+    }))
+}
+
+fn upstream_main_sync_readiness_row(
+    workspace: &Path,
+    path: &Path,
+    receipt: Option<&Value>,
+    publish_receipt: Option<&Value>,
+) -> Result<Value> {
+    let Some(receipt) = receipt else {
+        return Ok(readiness_missing_row(
+            "upstream-main-sync",
+            "Bifrost/GitHub",
+            "epiphany.repo_work_sync_receipt.v0 + git merge-base ancestry proof",
+            "Run epiphany-work sync after maintainer/Bifrost merge authority so upstream main containment is proved.",
+        ));
+    };
+
+    let schema_ok = string_from_json(receipt, &["schemaVersion"]).as_deref()
+        == Some("epiphany.repo_work_sync_receipt.v0");
+    let status_synced =
+        string_from_json(receipt, &["status"]).as_deref() == Some("upstream-main-synced");
+    let upstream_main_synced =
+        bool_from_json(receipt, &["authority", "upstreamMainSynced"]) == Some(true)
+            || bool_from_json(receipt, &["upstreamMainSynced"]) == Some(true);
+    let publication_authorized =
+        bool_from_json(receipt, &["authority", "publicationAuthorized"]) == Some(true);
+    let merge_authorized = bool_from_json(receipt, &["authority", "mergeAuthorized"]) == Some(true);
+    let private_sealed = bool_from_json(receipt, &["authority", "privateStateExposed"])
+        == Some(false)
+        && bool_from_json(receipt, &["privateStateExposed"]).unwrap_or(false) == false;
+    let upstream_ref = string_from_json(receipt, &["upstreamRef"]);
+    let upstream_commit_sha = string_from_json(receipt, &["upstreamCommitSha"]);
+    let published_commit_sha = string_from_json(receipt, &["publishedCommitSha"]);
+    let merge_receipt_count = receipt
+        .get("mergeReceipts")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or(0);
+    let commit_receipt_id = string_from_json(receipt, &["handsReceipts", "commitReceiptId"]);
+    let pr_receipt_id = string_from_json(receipt, &["handsReceipts", "prReceiptId"]);
+    let bifrost_publication_receipt_id =
+        string_from_json(receipt, &["bifrost", "publicationReceiptId"]);
+    let github_publication_receipt_id =
+        string_from_json(receipt, &["bifrost", "githubPublicationReceiptId"]);
+    let ledger_entry_id = string_from_json(receipt, &["bifrost", "ledgerEntryId"]);
+
+    let mut upstream_ref_resolved = false;
+    let mut upstream_ref_matches_receipt = false;
+    let mut published_commit_resolved = false;
+    let mut ancestry_proved = false;
+    if let (Some(upstream_ref), Some(upstream_commit_sha), Some(published_commit_sha)) = (
+        upstream_ref.as_ref(),
+        upstream_commit_sha.as_ref(),
+        published_commit_sha.as_ref(),
+    ) {
+        let resolved_upstream = git_output(workspace, &["rev-parse", "--verify", upstream_ref]);
+        if let Ok(resolved) = resolved_upstream {
+            upstream_ref_resolved = true;
+            upstream_ref_matches_receipt = resolved == *upstream_commit_sha;
+        }
+        published_commit_resolved =
+            git_status_success(workspace, &["cat-file", "-e", published_commit_sha])?;
+        ancestry_proved = git_status_success(
+            workspace,
+            &[
+                "merge-base",
+                "--is-ancestor",
+                published_commit_sha,
+                upstream_ref,
+            ],
+        )?;
+    }
+
+    let publish_receipt_matches = publish_receipt.is_some_and(|publish| {
+        string_from_json(publish, &["handsReceipts", "commitSha"]) == published_commit_sha
+            && string_from_json(publish, &["handsReceipts", "commitReceiptId"]) == commit_receipt_id
+            && string_from_json(publish, &["handsReceipts", "prReceiptId"]) == pr_receipt_id
+            && string_from_json(publish, &["bifrost", "publicationReceiptId"])
+                == bifrost_publication_receipt_id
+            && string_from_json(publish, &["bifrost", "githubPublicationReceiptId"])
+                == github_publication_receipt_id
+            && string_from_json(publish, &["bifrost", "ledgerEntryId"]) == ledger_entry_id
+    });
+
+    let satisfied = schema_ok
+        && status_synced
+        && upstream_main_synced
+        && publication_authorized
+        && merge_authorized
+        && private_sealed
+        && merge_receipt_count > 0
+        && upstream_ref_resolved
+        && upstream_ref_matches_receipt
+        && published_commit_resolved
+        && ancestry_proved
+        && publish_receipt_matches
+        && commit_receipt_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty())
+        && pr_receipt_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty())
+        && bifrost_publication_receipt_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty())
+        && github_publication_receipt_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty())
+        && ledger_entry_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty());
+
+    Ok(json!({
+        "kind": "upstream-main-sync",
+        "owner": "Bifrost/GitHub",
+        "requiredSchema": "epiphany.repo_work_sync_receipt.v0 + git merge-base ancestry proof",
+        "evidenceRef": existing_path_value(path),
+        "artifactStatus": if path.exists() { "present" } else { "missing" },
+        "schemaVersion": string_from_json(receipt, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
+        "documentStatus": string_from_json(receipt, &["status"]).unwrap_or_else(|| "missing".to_string()),
+        "upstreamRef": upstream_ref.unwrap_or_else(|| "missing".to_string()),
+        "upstreamCommitSha": upstream_commit_sha.unwrap_or_else(|| "missing".to_string()),
+        "publishedCommitSha": published_commit_sha.unwrap_or_else(|| "missing".to_string()),
+        "mergeReceiptCount": merge_receipt_count,
+        "commitReceiptId": commit_receipt_id.unwrap_or_else(|| "missing".to_string()),
+        "prReceiptId": pr_receipt_id.unwrap_or_else(|| "missing".to_string()),
+        "bifrostPublicationReceiptId": bifrost_publication_receipt_id.unwrap_or_else(|| "missing".to_string()),
+        "githubPublicationReceiptId": github_publication_receipt_id.unwrap_or_else(|| "missing".to_string()),
+        "ledgerEntryId": ledger_entry_id.unwrap_or_else(|| "missing".to_string()),
+        "upstreamMainSynced": upstream_main_synced,
+        "publicationAuthorized": publication_authorized,
+        "mergeAuthorized": merge_authorized,
+        "upstreamRefResolved": upstream_ref_resolved,
+        "upstreamRefMatchesReceipt": upstream_ref_matches_receipt,
+        "publishedCommitResolved": published_commit_resolved,
+        "ancestryProved": ancestry_proved,
+        "publishReceiptMatches": publish_receipt_matches,
+        "privateStateExposed": !private_sealed,
+        "satisfied": satisfied,
+        "status": if satisfied { "satisfied" } else { "missing" },
+        "note": "Sync receipt proves the published commit is contained by the named upstream ref after maintainer/Bifrost merge authority.",
         "readinessApprovalAuthorized": false,
         "serviceLifecycleAuthority": false,
         "handsActionAuthorized": false

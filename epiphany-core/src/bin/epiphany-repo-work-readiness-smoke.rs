@@ -84,6 +84,7 @@ fn run_smoke(args: Args) -> Result<Value> {
 
     let item = "repo-work-readiness";
     let local_verse = repo.join(".epiphany").join("local-verse.ccmp");
+    let work_dir = repo.join(".epiphany").join("work");
     cargo_json(
         &manifest,
         "epiphany-repo",
@@ -212,7 +213,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         .join(".epiphany")
         .join("work")
         .join(format!("work-close-{item}.json"));
-    cargo_json(
+    let publish = cargo_json(
         &manifest,
         "epiphany-work",
         &[
@@ -223,6 +224,8 @@ fn run_smoke(args: Args) -> Result<Value> {
             path_str(&root)?,
             "--item",
             item,
+            "--artifact-dir",
+            path_str(&work_dir)?,
             "--closure-receipt",
             path_str(&close_receipt)?,
             "--local-verse-store",
@@ -247,6 +250,30 @@ fn run_smoke(args: Args) -> Result<Value> {
             "1",
             "--pull-request-title",
             "Repo work readiness smoke proof",
+        ],
+        &root,
+    )?;
+    git(["branch", "-f", "main", "HEAD"], &repo)?;
+    let sync = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "sync",
+            "--workspace",
+            path_str(&repo)?,
+            "--item",
+            item,
+            "--publish-receipt",
+            publish
+                .get("receiptPath")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow!("publish result missing receiptPath"))?,
+            "--artifact-dir",
+            path_str(&work_dir)?,
+            "--upstream-ref",
+            "main",
+            "--merge-receipt",
+            "maintainer-merge:repo-work-readiness-smoke",
         ],
         &root,
     )?;
@@ -326,8 +353,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["schemaVersion"],
         "epiphany.repo_work_readiness.v0",
     )?;
-    require_eq(&readiness, &["status"], "not-ready")?;
-    require_u64(&readiness, &["missingRequiredCount"], 1)?;
+    require_eq(&readiness, &["status"], "ready")?;
+    require_u64(&readiness, &["missingRequiredCount"], 0)?;
     require_bool(&readiness, &["authority", "sightOnly"], true)?;
     require_bool(
         &readiness,
@@ -377,7 +404,15 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_row(&readiness, "bifrost-publication", true)?;
     require_row_field_u64(&readiness, "bifrost-publication", "creditReceiptCount", 1)?;
     require_row_field_u64(&readiness, "bifrost-publication", "changedPathCount", 1)?;
-    require_row(&readiness, "upstream-main-sync", false)?;
+    require_row(&readiness, "upstream-main-sync", true)?;
+    require_row_field_u64(&readiness, "upstream-main-sync", "mergeReceiptCount", 1)?;
+    require_row_field_bool(&readiness, "upstream-main-sync", "ancestryProved", true)?;
+    require_row_field_bool(
+        &readiness,
+        "upstream-main-sync",
+        "publishReceiptMatches",
+        true,
+    )?;
     require_row(&readiness, "idunn-lifecycle", true)?;
     require_row(&readiness, "deployment-aftercare", true)?;
     require_row(&readiness, "tool-directory", true)?;
@@ -417,6 +452,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "branch": git_output(["branch", "--show-current"], &repo)?,
         "item": item,
         "publicProofOutput": public_proof["outputPath"],
+        "publishStatus": publish["status"],
+        "syncStatus": sync["status"],
+        "upstreamMainSynced": sync["authority"]["upstreamMainSynced"],
         "readinessStatus": readiness["status"],
         "missingRequiredCount": readiness["missingRequiredCount"],
         "readinessVerseProjection": readiness["verseProjection"],
@@ -590,6 +628,25 @@ fn require_row_field_u64(value: &Value, kind: &str, field: &str, expected: u64) 
         .find(|row| row.get("kind").and_then(Value::as_str) == Some(kind))
         .ok_or_else(|| anyhow!("missing readiness row {kind:?}"))?;
     let actual = row.get(field).and_then(Value::as_u64).unwrap_or(u64::MAX);
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected readiness row {kind:?} field {field:?} to be {expected}, got {actual}"
+        ))
+    }
+}
+
+fn require_row_field_bool(value: &Value, kind: &str, field: &str, expected: bool) -> Result<()> {
+    let rows = value
+        .get("rows")
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("readiness output did not include rows"))?;
+    let row = rows
+        .iter()
+        .find(|row| row.get("kind").and_then(Value::as_str) == Some(kind))
+        .ok_or_else(|| anyhow!("missing readiness row {kind:?}"))?;
+    let actual = row.get(field).and_then(Value::as_bool).unwrap_or(!expected);
     if actual == expected {
         Ok(())
     } else {
