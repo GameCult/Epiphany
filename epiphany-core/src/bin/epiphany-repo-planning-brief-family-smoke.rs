@@ -1,9 +1,9 @@
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::Utc;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -282,7 +282,37 @@ fn run_smoke(args: Args) -> Result<Value> {
             "safeFamilyPlanning",
             "candidateNextSafeFamilyCount",
         ],
-        6,
+        20,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "allMatrixGroupsComplete",
+        ],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "matrixControlsPresent",
+        ],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "allClosureProofsPresent",
+        ],
+        true,
     )?;
     require_bool(&close, &["privateStateExposed"], false)?;
     require_text(
@@ -298,11 +328,25 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&brief_text, "requires_soul_evidence_needs = true")?;
     require_text(&brief_text, "[decomposition]")?;
     require_text(&brief_text, "\"repo.consensus_brief\"")?;
+    require_text(&brief_text, "\"repo.interpreter_brief\"")?;
     require_text(&brief_text, "\"repo.objective_draft\"")?;
+    require_text(&brief_text, "\"repo.adoption_request\"")?;
+    require_text(&brief_text, "\"repo.scheduling_request\"")?;
     require_text(&brief_text, "\"repo.task_card\"")?;
     require_text(&brief_text, "\"repo.work_order\"")?;
     require_text(&brief_text, "\"repo.verification_request\"")?;
+    require_text(&brief_text, "\"repo.maintainer_review_request\"")?;
+    require_text(&brief_text, "\"repo.artifact_acceptance_request\"")?;
     require_text(&brief_text, "\"repo.publication_request\"")?;
+    require_text(&brief_text, "\"repo.sync_request\"")?;
+    require_text(&brief_text, "\"repo.pr_request\"")?;
+    require_text(&brief_text, "\"repo.credit_request\"")?;
+    require_text(&brief_text, "\"repo.metrics_request\"")?;
+    require_text(&brief_text, "\"repo.doctrine_update_request\"")?;
+    require_text(&brief_text, "\"repo.secret_policy_request\"")?;
+    require_text(&brief_text, "\"repo.dependency_policy_request\"")?;
+    require_text(&brief_text, "\"repo.deployment_config\"")?;
+    require_text(&brief_text, "\"repo.deployment_request\"")?;
     require_text(
         &brief_text,
         "candidate_items_must_name_requested_paths = true",
@@ -315,6 +359,44 @@ fn run_smoke(args: Args) -> Result<Value> {
         &brief_text,
         "candidate_items_must_name_evidence_needs = true",
     )?;
+    require_text(&brief_text, "candidate_items_must_name_owner = true")?;
+    require_text(
+        &brief_text,
+        "candidate_items_must_name_authority_denials = true",
+    )?;
+    require_text(
+        &brief_text,
+        "candidate_items_must_name_closure_proofs = true",
+    )?;
+    require_text(&brief_text, "[safe_family_matrix]")?;
+    require_text(&brief_text, "preparation = [")?;
+    require_text(&brief_text, "adoption_and_queue = [")?;
+    require_text(&brief_text, "execution_and_review = [")?;
+    require_text(&brief_text, "publication_and_accounting = [")?;
+    require_text(&brief_text, "policy_and_deployment = [")?;
+    require_text(&brief_text, "matrix_is_planning_only = true")?;
+    require_text(&brief_text, "families_may_not_inherit_authority = true")?;
+    require_text(
+        &brief_text,
+        "family_choice_requires_mind_or_self_review = true",
+    )?;
+    require_text(&brief_text, "[closure_proofs]")?;
+    require_text(&brief_text, "soul_family_assertions_required = true")?;
+    require_text(
+        &brief_text,
+        "modeling_map_update_required_after_verified_consequence = true",
+    )?;
+    require_text(&brief_text, "mind_gateway_review_required = true")?;
+    require_text(&brief_text, "mind_state_commit_required = true")?;
+    require_text(
+        &brief_text,
+        "bifrost_publication_gate_required_for_upstream = true",
+    )?;
+    require_text(
+        &brief_text,
+        "upstream_main_sync_required_after_publication = true",
+    )?;
+    require_text(&brief_text, "private_state_redaction_required = true")?;
     require_text(&brief_text, "[gates]")?;
     require_text(&brief_text, "mind_interpreter_required = true")?;
     require_text(&brief_text, "self_queue_selection_required = true")?;
@@ -358,6 +440,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "safeFamilyPlanningSchema": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["schemaVersion"],
         "candidateNextSafeFamilyCount": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["candidateNextSafeFamilyCount"],
         "allExpectedCandidateFamiliesPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allExpectedCandidateFamiliesPresent"],
+        "allMatrixGroupsComplete": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allMatrixGroupsComplete"],
+        "matrixControlsPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["matrixControlsPresent"],
+        "allClosureProofsPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allClosureProofsPresent"],
         "allRequiredGatesPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allRequiredGatesPresent"],
         "authorityDenied": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["authorityDenied"],
         "briefIsDraft": true,

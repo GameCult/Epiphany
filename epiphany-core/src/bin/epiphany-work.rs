@@ -1,8 +1,30 @@
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
+use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
+use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
+use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
+use epiphany_core::HANDS_PR_RECEIPT_TYPE;
+use epiphany_core::HandsActionIntent;
+use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
+use epiphany_core::MindGatewayDecision;
+use epiphany_core::MindGatewayReview;
+use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SoulVerdictReceipt;
+use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
@@ -34,32 +56,10 @@ use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
-use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
-use epiphany_core::HandsActionIntent;
-use epiphany_core::MindGatewayDecision;
-use epiphany_core::MindGatewayReview;
-use epiphany_core::RuntimeSpineInitOptions;
-use epiphany_core::SoulVerdictReceipt;
-use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
-use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
-use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
-use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
-use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
-use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
-use epiphany_core::HANDS_PR_RECEIPT_TYPE;
-use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
-use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use sha2::Digest;
 use sha2::Sha256;
 use std::env;
@@ -1467,9 +1467,9 @@ fn run_accept(args: AcceptArgs) -> Result<Value> {
             .join("swarm-online")
             .join("repo-swarm-online-receipt.json")
     });
-    let online_receipt = read_json(&online_receipt_path).with_context(|| {
-        "repo swarm online receipt is required; run epiphany-swarm online first"
-    })?;
+    let online_receipt = read_json(&online_receipt_path).with_context(
+        || "repo swarm online receipt is required; run epiphany-swarm online first",
+    )?;
     let local_verse_store = args.local_verse_store.unwrap_or_else(|| {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
@@ -1630,9 +1630,9 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
             .join("swarm-online")
             .join("repo-swarm-online-receipt.json")
     });
-    let online_receipt = read_json(&online_receipt_path).with_context(|| {
-        "repo swarm online receipt is required; run epiphany-swarm online first"
-    })?;
+    let online_receipt = read_json(&online_receipt_path).with_context(
+        || "repo swarm online receipt is required; run epiphany-swarm online first",
+    )?;
     let local_verse_store = args.local_verse_store.clone().unwrap_or_else(|| {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
@@ -3444,11 +3444,25 @@ fn derive_repo_planning_brief_plan(
     let brief_id = format!("repo-planning-brief:{item_slug}");
     let recommended_families = vec![
         "repo.consensus_brief".to_string(),
+        "repo.interpreter_brief".to_string(),
         "repo.objective_draft".to_string(),
+        "repo.adoption_request".to_string(),
+        "repo.scheduling_request".to_string(),
         "repo.task_card".to_string(),
         "repo.work_order".to_string(),
         "repo.verification_request".to_string(),
+        "repo.maintainer_review_request".to_string(),
+        "repo.artifact_acceptance_request".to_string(),
         "repo.publication_request".to_string(),
+        "repo.sync_request".to_string(),
+        "repo.pr_request".to_string(),
+        "repo.credit_request".to_string(),
+        "repo.metrics_request".to_string(),
+        "repo.doctrine_update_request".to_string(),
+        "repo.secret_policy_request".to_string(),
+        "repo.dependency_policy_request".to_string(),
+        "repo.deployment_config".to_string(),
+        "repo.deployment_request".to_string(),
     ];
     let lines = vec![
         "# Epiphany repo planning brief.".to_string(),
@@ -3499,10 +3513,15 @@ fn derive_repo_planning_brief_plan(
         "[decomposition]".to_string(),
         "sequence = [".to_string(),
         "  \"repo.consensus_brief\",".to_string(),
+        "  \"repo.interpreter_brief\",".to_string(),
         "  \"repo.objective_draft\",".to_string(),
+        "  \"repo.adoption_request\",".to_string(),
+        "  \"repo.scheduling_request\",".to_string(),
         "  \"repo.task_card\",".to_string(),
         "  \"repo.work_order\",".to_string(),
         "  \"repo.verification_request\",".to_string(),
+        "  \"repo.maintainer_review_request\",".to_string(),
+        "  \"repo.artifact_acceptance_request\",".to_string(),
         "  \"repo.publication_request\"".to_string(),
         "]".to_string(),
         "max_candidate_work_items = 6".to_string(),
@@ -3510,7 +3529,29 @@ fn derive_repo_planning_brief_plan(
         "candidate_items_must_name_requested_paths = true".to_string(),
         "candidate_items_must_name_verification_asks = true".to_string(),
         "candidate_items_must_name_evidence_needs = true".to_string(),
+        "candidate_items_must_name_owner = true".to_string(),
+        "candidate_items_must_name_authority_denials = true".to_string(),
+        "candidate_items_must_name_closure_proofs = true".to_string(),
         "shell_commands_must_be_deterministic_lowerings = true".to_string(),
+        String::new(),
+        "[safe_family_matrix]".to_string(),
+        "preparation = [\"repo.consensus_brief\", \"repo.interpreter_brief\", \"repo.objective_draft\", \"repo.task_card\"]".to_string(),
+        "adoption_and_queue = [\"repo.adoption_request\", \"repo.scheduling_request\"]".to_string(),
+        "execution_and_review = [\"repo.work_order\", \"repo.verification_request\", \"repo.maintainer_review_request\", \"repo.artifact_acceptance_request\"]".to_string(),
+        "publication_and_accounting = [\"repo.publication_request\", \"repo.sync_request\", \"repo.pr_request\", \"repo.credit_request\", \"repo.metrics_request\"]".to_string(),
+        "policy_and_deployment = [\"repo.doctrine_update_request\", \"repo.secret_policy_request\", \"repo.dependency_policy_request\", \"repo.deployment_config\", \"repo.deployment_request\"]".to_string(),
+        "matrix_is_planning_only = true".to_string(),
+        "families_may_not_inherit_authority = true".to_string(),
+        "family_choice_requires_mind_or_self_review = true".to_string(),
+        String::new(),
+        "[closure_proofs]".to_string(),
+        "soul_family_assertions_required = true".to_string(),
+        "modeling_map_update_required_after_verified_consequence = true".to_string(),
+        "mind_gateway_review_required = true".to_string(),
+        "mind_state_commit_required = true".to_string(),
+        "bifrost_publication_gate_required_for_upstream = true".to_string(),
+        "upstream_main_sync_required_after_publication = true".to_string(),
+        "private_state_redaction_required = true".to_string(),
         String::new(),
         "[gates]".to_string(),
         "mind_interpreter_required = true".to_string(),
@@ -3549,7 +3590,7 @@ fn derive_repo_planning_brief_plan(
         "[verification]".to_string(),
         "asks = [".to_string(),
         "  \"Soul verifies the planning brief path changed and contains the accepted pressure summary.\",".to_string(),
-        "  \"Soul verifies the brief names candidate safe families, requested-path/evidence requirements, and gate order without granting action authority.\",".to_string(),
+        "  \"Soul verifies the brief names the safe-family matrix, requested-path/evidence/closure requirements, and gate order without granting action authority.\",".to_string(),
         "  \"Soul verifies the brief preserves private-state seals and forbids deployment execution authority.\",".to_string(),
         "  \"Soul verifies no paths outside the declared planning brief changed.\"".to_string(),
         "]".to_string(),
@@ -3570,7 +3611,7 @@ fn derive_repo_planning_brief_plan(
         commit_message: format!("Add planning brief for work item {}", input.item),
         verification_asks: vec![
             "Soul verifies the repo planning brief path changed and contains the accepted pressure summary.".to_string(),
-            "Soul verifies the brief names allowed next safe families, path/evidence requirements, and Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gates without authorizing action.".to_string(),
+            "Soul verifies the brief names allowed next safe-family groups, path/evidence/closure requirements, and Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gates without authorizing action.".to_string(),
             "Soul verifies no paths outside the declared planning brief changed.".to_string(),
         ],
         rollback_hints: vec![
@@ -6709,15 +6750,61 @@ fn closure_family_assertions(
                 "planning-brief-decomposition-contract",
                 content.contains("[decomposition]")
                     && content.contains("\"repo.consensus_brief\"")
+                    && content.contains("\"repo.interpreter_brief\"")
                     && content.contains("\"repo.objective_draft\"")
+                    && content.contains("\"repo.adoption_request\"")
+                    && content.contains("\"repo.scheduling_request\"")
                     && content.contains("\"repo.task_card\"")
                     && content.contains("\"repo.work_order\"")
                     && content.contains("\"repo.verification_request\"")
+                    && content.contains("\"repo.maintainer_review_request\"")
+                    && content.contains("\"repo.artifact_acceptance_request\"")
                     && content.contains("\"repo.publication_request\"")
                     && content.contains("candidate_items_must_name_requested_paths = true")
                     && content.contains("candidate_items_must_name_verification_asks = true")
-                    && content.contains("candidate_items_must_name_evidence_needs = true"),
+                    && content.contains("candidate_items_must_name_evidence_needs = true")
+                    && content.contains("candidate_items_must_name_owner = true")
+                    && content.contains("candidate_items_must_name_authority_denials = true")
+                    && content.contains("candidate_items_must_name_closure_proofs = true"),
                 "Committed planning brief names the safe-family decomposition contract."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-family-matrix",
+                content.contains("[safe_family_matrix]")
+                    && content.contains("preparation = [")
+                    && content.contains("adoption_and_queue = [")
+                    && content.contains("execution_and_review = [")
+                    && content.contains("publication_and_accounting = [")
+                    && content.contains("policy_and_deployment = [")
+                    && content.contains("\"repo.sync_request\"")
+                    && content.contains("\"repo.pr_request\"")
+                    && content.contains("\"repo.credit_request\"")
+                    && content.contains("\"repo.metrics_request\"")
+                    && content.contains("\"repo.doctrine_update_request\"")
+                    && content.contains("\"repo.secret_policy_request\"")
+                    && content.contains("\"repo.dependency_policy_request\"")
+                    && content.contains("\"repo.deployment_config\"")
+                    && content.contains("\"repo.deployment_request\"")
+                    && content.contains("matrix_is_planning_only = true")
+                    && content.contains("families_may_not_inherit_authority = true")
+                    && content.contains("family_choice_requires_mind_or_self_review = true"),
+                "Committed planning brief carries the safe-family matrix without authority inheritance."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-closure-proof-contract",
+                content.contains("[closure_proofs]")
+                    && content.contains("soul_family_assertions_required = true")
+                    && content.contains("modeling_map_update_required_after_verified_consequence = true")
+                    && content.contains("mind_gateway_review_required = true")
+                    && content.contains("mind_state_commit_required = true")
+                    && content.contains("bifrost_publication_gate_required_for_upstream = true")
+                    && content.contains("upstream_main_sync_required_after_publication = true")
+                    && content.contains("private_state_redaction_required = true"),
+                "Committed planning brief names Soul, Modeling, Mind, Bifrost, upstream-main, and redaction closure proofs."
                     .to_string(),
             );
             push_assertion(
@@ -8226,17 +8313,14 @@ fn closure_family_assertions(
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-schema-present",
-                content.contains(
-                    "schema_version = \"epiphany.repo_dependency_policy_request.v0\"",
-                ),
+                content.contains("schema_version = \"epiphany.repo_dependency_policy_request.v0\""),
                 "Committed dependency policy request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-family-present",
                 content.contains("safe_action_family = \"repo.dependency_policy_request\""),
-                "Committed dependency policy request carries the safe action family."
-                    .to_string(),
+                "Committed dependency policy request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
@@ -8340,8 +8424,7 @@ fn closure_family_assertions(
                 &mut assertions,
                 "dependency-policy-request-private-seal",
                 content.contains("private_state_exposed = false"),
-                "Committed dependency policy request preserves the private-state seal."
-                    .to_string(),
+                "Committed dependency policy request preserves the private-state seal.".to_string(),
             );
         }
         "repo.deployment_request" => {
@@ -8596,11 +8679,69 @@ fn closure_family_assertions(
 fn planning_brief_safe_family_readback(content: &str) -> Value {
     let candidate_families = [
         "repo.consensus_brief",
+        "repo.interpreter_brief",
         "repo.objective_draft",
+        "repo.adoption_request",
+        "repo.scheduling_request",
         "repo.task_card",
         "repo.work_order",
         "repo.verification_request",
+        "repo.maintainer_review_request",
+        "repo.artifact_acceptance_request",
         "repo.publication_request",
+        "repo.sync_request",
+        "repo.pr_request",
+        "repo.credit_request",
+        "repo.metrics_request",
+        "repo.doctrine_update_request",
+        "repo.secret_policy_request",
+        "repo.dependency_policy_request",
+        "repo.deployment_config",
+        "repo.deployment_request",
+    ];
+    let matrix_groups: Vec<(&str, Vec<&str>)> = vec![
+        (
+            "preparation",
+            vec![
+                "repo.consensus_brief",
+                "repo.interpreter_brief",
+                "repo.objective_draft",
+                "repo.task_card",
+            ],
+        ),
+        (
+            "adoption_and_queue",
+            vec!["repo.adoption_request", "repo.scheduling_request"],
+        ),
+        (
+            "execution_and_review",
+            vec![
+                "repo.work_order",
+                "repo.verification_request",
+                "repo.maintainer_review_request",
+                "repo.artifact_acceptance_request",
+            ],
+        ),
+        (
+            "publication_and_accounting",
+            vec![
+                "repo.publication_request",
+                "repo.sync_request",
+                "repo.pr_request",
+                "repo.credit_request",
+                "repo.metrics_request",
+            ],
+        ),
+        (
+            "policy_and_deployment",
+            vec![
+                "repo.doctrine_update_request",
+                "repo.secret_policy_request",
+                "repo.dependency_policy_request",
+                "repo.deployment_config",
+                "repo.deployment_request",
+            ],
+        ),
     ];
     let candidate_rows: Vec<Value> = candidate_families
         .iter()
@@ -8608,6 +8749,25 @@ fn planning_brief_safe_family_readback(content: &str) -> Value {
             json!({
                 "safeActionFamily": family,
                 "present": content.contains(&format!("\"{family}\"")),
+            })
+        })
+        .collect();
+    let matrix_rows: Vec<Value> = matrix_groups
+        .iter()
+        .map(|(group, families)| {
+            let families_present = families
+                .iter()
+                .filter(|family| content.contains(&format!("\"{family}\"")))
+                .count();
+            json!({
+                "group": group,
+                "familyCount": families.len(),
+                "presentCount": families_present,
+                "complete": families_present == families.len(),
+                "families": families.iter().map(|family| json!({
+                    "safeActionFamily": family,
+                    "present": content.contains(&format!("\"{family}\"")),
+                })).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -8626,7 +8786,24 @@ fn planning_brief_safe_family_readback(content: &str) -> Value {
         "requestedPathsRequired": content.contains("candidate_items_must_name_requested_paths = true"),
         "verificationAsksRequired": content.contains("candidate_items_must_name_verification_asks = true"),
         "evidenceNeedsRequired": content.contains("candidate_items_must_name_evidence_needs = true"),
+        "ownerRequired": content.contains("candidate_items_must_name_owner = true"),
+        "authorityDenialsRequired": content.contains("candidate_items_must_name_authority_denials = true"),
+        "closureProofsRequired": content.contains("candidate_items_must_name_closure_proofs = true"),
         "deterministicLoweringRequired": content.contains("shell_commands_must_be_deterministic_lowerings = true"),
+    });
+    let matrix_controls = json!({
+        "matrixIsPlanningOnly": content.contains("matrix_is_planning_only = true"),
+        "familiesMayNotInheritAuthority": content.contains("families_may_not_inherit_authority = true"),
+        "familyChoiceRequiresMindOrSelfReview": content.contains("family_choice_requires_mind_or_self_review = true"),
+    });
+    let closure_proofs = json!({
+        "soulFamilyAssertionsRequired": content.contains("soul_family_assertions_required = true"),
+        "modelingMapUpdateRequiredAfterVerifiedConsequence": content.contains("modeling_map_update_required_after_verified_consequence = true"),
+        "mindGatewayReviewRequired": content.contains("mind_gateway_review_required = true"),
+        "mindStateCommitRequired": content.contains("mind_state_commit_required = true"),
+        "bifrostPublicationGateRequiredForUpstream": content.contains("bifrost_publication_gate_required_for_upstream = true"),
+        "upstreamMainSyncRequiredAfterPublication": content.contains("upstream_main_sync_required_after_publication = true"),
+        "privateStateRedactionRequired": content.contains("private_state_redaction_required = true"),
     });
     let authority_denials = json!({
         "objectiveAdoptionAuthorized": content.contains("objective_adoption_authorized = true"),
@@ -8655,6 +8832,17 @@ fn planning_brief_safe_family_readback(content: &str) -> Value {
         .as_object()
         .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
         .unwrap_or(false);
+    let all_matrix_groups_complete = matrix_rows
+        .iter()
+        .all(|row| row.get("complete").and_then(Value::as_bool) == Some(true));
+    let matrix_controls_present = matrix_controls
+        .as_object()
+        .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
+        .unwrap_or(false);
+    let all_closure_proofs_present = closure_proofs
+        .as_object()
+        .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
+        .unwrap_or(false);
     let authority_denied = authority_denials
         .as_object()
         .map(|fields| fields.values().all(|value| value.as_bool() == Some(false)))
@@ -8666,9 +8854,15 @@ fn planning_brief_safe_family_readback(content: &str) -> Value {
         "candidateNextSafeFamilies": candidate_rows,
         "candidateNextSafeFamilyCount": present_count,
         "allExpectedCandidateFamiliesPresent": present_count == candidate_families.len(),
+        "safeFamilyMatrix": matrix_rows,
+        "allMatrixGroupsComplete": all_matrix_groups_complete,
         "requirements": requirements,
         "gates": gates,
         "allRequiredGatesPresent": all_required_gates_present,
+        "matrixControls": matrix_controls,
+        "matrixControlsPresent": matrix_controls_present,
+        "closureProofs": closure_proofs,
+        "allClosureProofsPresent": all_closure_proofs_present,
         "authorityDenials": authority_denials,
         "authorityDenied": authority_denied,
         "allPlanningRequirementsPresent": all_requirements_present,
@@ -11223,13 +11417,27 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         format!("next {next_safe_move}"),
         format!(
             "CONSENSUS | feedback={} | receipt={} | route={} | publicRefs={} | candidates={} | planFamily={} | modelAuthored={} | private=false",
-            intake_consensus_readback["feedbackId"].as_str().unwrap_or("missing"),
-            intake_consensus_readback["consensusReceiptId"].as_str().unwrap_or("missing"),
-            intake_consensus_readback["requestedConsensusRoute"].as_str().unwrap_or("missing"),
-            intake_consensus_readback["publicDiscussionRefCount"].as_u64().unwrap_or(0),
-            intake_consensus_readback["candidateActionRefCount"].as_u64().unwrap_or(0),
-            intake_consensus_readback["planSafeActionFamily"].as_str().unwrap_or("missing"),
-            intake_consensus_readback["planModelAuthored"].as_bool().unwrap_or(false),
+            intake_consensus_readback["feedbackId"]
+                .as_str()
+                .unwrap_or("missing"),
+            intake_consensus_readback["consensusReceiptId"]
+                .as_str()
+                .unwrap_or("missing"),
+            intake_consensus_readback["requestedConsensusRoute"]
+                .as_str()
+                .unwrap_or("missing"),
+            intake_consensus_readback["publicDiscussionRefCount"]
+                .as_u64()
+                .unwrap_or(0),
+            intake_consensus_readback["candidateActionRefCount"]
+                .as_u64()
+                .unwrap_or(0),
+            intake_consensus_readback["planSafeActionFamily"]
+                .as_str()
+                .unwrap_or("missing"),
+            intake_consensus_readback["planModelAuthored"]
+                .as_bool()
+                .unwrap_or(false),
         ),
         format!("closure {closure_status} soul {soul_verdict}"),
         format!("publication {publication_status} sync {sync_status}"),
@@ -13897,11 +14105,7 @@ fn string_array_field(value: &Value, field: &str) -> Vec<String> {
 }
 
 fn default_if_empty(values: Vec<String>, defaults: Vec<String>) -> Vec<String> {
-    if values.is_empty() {
-        defaults
-    } else {
-        values
-    }
+    if values.is_empty() { defaults } else { values }
 }
 
 fn adopted_action_item_from_plan(plan: &Value) -> Value {
