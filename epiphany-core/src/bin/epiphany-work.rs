@@ -3692,6 +3692,17 @@ fn derive_repo_planning_brief_plan(
         "candidate_items_must_name_closure_proofs = true".to_string(),
         "shell_commands_must_be_deterministic_lowerings = true".to_string(),
         String::new(),
+        "[candidate_action_template]".to_string(),
+        "required_fields = [\"id\", \"safe_action_family\", \"owner\", \"status\", \"requested_paths\", \"verification_asks\", \"evidence_needs\", \"closure_proofs\", \"authority_denials\", \"next_gate\"]".to_string(),
+        "allowed_statuses = [\"idea\", \"ready-for-mind-review\", \"ready-for-self-queue\", \"blocked-needs-evidence\", \"closed\"]".to_string(),
+        "status_must_be_explicit = true".to_string(),
+        "owner_must_match_safe_family_stage = true".to_string(),
+        "requested_paths_may_be_empty_only_for_readback_or_policy_requests = true".to_string(),
+        "closure_proofs_must_name_receipt_family = true".to_string(),
+        "authority_denials_must_be_carried_forward = true".to_string(),
+        "next_gate_must_name_owner = true".to_string(),
+        "candidate_items_are_not_queue_entries = true".to_string(),
+        String::new(),
         "[safe_family_matrix]".to_string(),
         "preparation = [\"repo.consensus_brief\", \"repo.interpreter_brief\", \"repo.objective_draft\", \"repo.task_card\"]".to_string(),
         "adoption_and_queue = [\"repo.adoption_request\", \"repo.scheduling_request\"]".to_string(),
@@ -3710,6 +3721,17 @@ fn derive_repo_planning_brief_plan(
         "bifrost_publication_gate_required_for_upstream = true".to_string(),
         "upstream_main_sync_required_after_publication = true".to_string(),
         "private_state_redaction_required = true".to_string(),
+        String::new(),
+        "[closure_ladder]".to_string(),
+        "draft_closed_by = \"explicit Mind or human selection of one candidate family\"".to_string(),
+        "queued_closed_by = \"Self queue-run receipt for the adopted item\"".to_string(),
+        "execution_closed_by = \"Hands patch, command, and commit receipts\"".to_string(),
+        "verification_closed_by = \"Soul closure review and verdict receipt\"".to_string(),
+        "map_closed_by = \"Modeling map update plus Mind gateway review and state commit\"".to_string(),
+        "publication_closed_by = \"Bifrost public proof publication or explicit non-publication decision\"".to_string(),
+        "deployment_closed_by = \"Idunn deployment config or lifecycle receipt when deployment is in scope\"".to_string(),
+        "private_state_closed_by = \"redaction report proving sealed worker/operator/private Verse payloads stayed sealed\"".to_string(),
+        "closure_ladder_is_planning_only = true".to_string(),
         String::new(),
         "[gates]".to_string(),
         "mind_interpreter_required = true".to_string(),
@@ -7083,6 +7105,28 @@ fn closure_family_assertions(
             );
             push_assertion(
                 &mut assertions,
+                "planning-brief-candidate-action-template",
+                content.contains("[candidate_action_template]")
+                    && content.contains("\"id\"")
+                    && content.contains("\"safe_action_family\"")
+                    && content.contains("\"owner\"")
+                    && content.contains("\"status\"")
+                    && content.contains("\"requested_paths\"")
+                    && content.contains("\"verification_asks\"")
+                    && content.contains("\"evidence_needs\"")
+                    && content.contains("\"closure_proofs\"")
+                    && content.contains("\"authority_denials\"")
+                    && content.contains("\"next_gate\"")
+                    && content.contains("allowed_statuses = [")
+                    && content.contains("\"ready-for-mind-review\"")
+                    && content.contains("\"ready-for-self-queue\"")
+                    && content.contains("\"blocked-needs-evidence\"")
+                    && content.contains("candidate_items_are_not_queue_entries = true"),
+                "Committed planning brief gives each candidate action an explicit status, owner, evidence, closure, denial, and next-gate shape without making it a queue entry."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
                 "planning-brief-family-matrix",
                 content.contains("[safe_family_matrix]")
                     && content.contains("preparation = [")
@@ -7117,6 +7161,38 @@ fn closure_family_assertions(
                     && content.contains("upstream_main_sync_required_after_publication = true")
                     && content.contains("private_state_redaction_required = true"),
                 "Committed planning brief names Soul, Modeling, Mind, Bifrost, upstream-main, and redaction closure proofs."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "planning-brief-closure-ladder",
+                content.contains("[closure_ladder]")
+                    && content.contains(
+                        "draft_closed_by = \"explicit Mind or human selection of one candidate family\"",
+                    )
+                    && content.contains(
+                        "queued_closed_by = \"Self queue-run receipt for the adopted item\"",
+                    )
+                    && content.contains(
+                        "execution_closed_by = \"Hands patch, command, and commit receipts\"",
+                    )
+                    && content.contains(
+                        "verification_closed_by = \"Soul closure review and verdict receipt\"",
+                    )
+                    && content.contains(
+                        "map_closed_by = \"Modeling map update plus Mind gateway review and state commit\"",
+                    )
+                    && content.contains(
+                        "publication_closed_by = \"Bifrost public proof publication or explicit non-publication decision\"",
+                    )
+                    && content.contains(
+                        "deployment_closed_by = \"Idunn deployment config or lifecycle receipt when deployment is in scope\"",
+                    )
+                    && content.contains(
+                        "private_state_closed_by = \"redaction report proving sealed worker/operator/private Verse payloads stayed sealed\"",
+                    )
+                    && content.contains("closure_ladder_is_planning_only = true"),
+                "Committed planning brief carries an explicit closure ladder from draft selection through Self, Hands, Soul, Modeling/Mind, Bifrost, Idunn, and redaction."
                     .to_string(),
             );
             push_assertion(
@@ -9246,6 +9322,22 @@ fn planning_brief_safe_family_readback(content: &str) -> Value {
         "familiesMayNotInheritAuthority": content.contains("families_may_not_inherit_authority = true"),
         "familyChoiceRequiresMindOrSelfReview": content.contains("family_choice_requires_mind_or_self_review = true"),
     });
+    let candidate_action_template = json!({
+        "idRequired": content.contains("\"id\""),
+        "safeActionFamilyRequired": content.contains("\"safe_action_family\""),
+        "ownerRequired": content.contains("\"owner\""),
+        "statusRequired": content.contains("\"status\""),
+        "requestedPathsRequired": content.contains("\"requested_paths\""),
+        "verificationAsksRequired": content.contains("\"verification_asks\""),
+        "evidenceNeedsRequired": content.contains("\"evidence_needs\""),
+        "closureProofsRequired": content.contains("\"closure_proofs\""),
+        "authorityDenialsRequired": content.contains("\"authority_denials\""),
+        "nextGateRequired": content.contains("\"next_gate\""),
+        "readyForMindReviewStatus": content.contains("\"ready-for-mind-review\""),
+        "readyForSelfQueueStatus": content.contains("\"ready-for-self-queue\""),
+        "blockedNeedsEvidenceStatus": content.contains("\"blocked-needs-evidence\""),
+        "notQueueEntry": content.contains("candidate_items_are_not_queue_entries = true"),
+    });
     let closure_proofs = json!({
         "soulFamilyAssertionsRequired": content.contains("soul_family_assertions_required = true"),
         "modelingMapUpdateRequiredAfterVerifiedConsequence": content.contains("modeling_map_update_required_after_verified_consequence = true"),
@@ -9254,6 +9346,17 @@ fn planning_brief_safe_family_readback(content: &str) -> Value {
         "bifrostPublicationGateRequiredForUpstream": content.contains("bifrost_publication_gate_required_for_upstream = true"),
         "upstreamMainSyncRequiredAfterPublication": content.contains("upstream_main_sync_required_after_publication = true"),
         "privateStateRedactionRequired": content.contains("private_state_redaction_required = true"),
+    });
+    let closure_ladder = json!({
+        "draftClosedBySelection": content.contains("draft_closed_by = \"explicit Mind or human selection of one candidate family\""),
+        "queuedClosedBySelf": content.contains("queued_closed_by = \"Self queue-run receipt for the adopted item\""),
+        "executionClosedByHands": content.contains("execution_closed_by = \"Hands patch, command, and commit receipts\""),
+        "verificationClosedBySoul": content.contains("verification_closed_by = \"Soul closure review and verdict receipt\""),
+        "mapClosedByModelingMind": content.contains("map_closed_by = \"Modeling map update plus Mind gateway review and state commit\""),
+        "publicationClosedByBifrost": content.contains("publication_closed_by = \"Bifrost public proof publication or explicit non-publication decision\""),
+        "deploymentClosedByIdunn": content.contains("deployment_closed_by = \"Idunn deployment config or lifecycle receipt when deployment is in scope\""),
+        "privateStateClosedByRedaction": content.contains("private_state_closed_by = \"redaction report proving sealed worker/operator/private Verse payloads stayed sealed\""),
+        "planningOnly": content.contains("closure_ladder_is_planning_only = true"),
     });
     let authority_denials = json!({
         "objectiveAdoptionAuthorized": content.contains("objective_adoption_authorized = true"),
@@ -9289,7 +9392,15 @@ fn planning_brief_safe_family_readback(content: &str) -> Value {
         .as_object()
         .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
         .unwrap_or(false);
+    let candidate_action_template_present = candidate_action_template
+        .as_object()
+        .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
+        .unwrap_or(false);
     let all_closure_proofs_present = closure_proofs
+        .as_object()
+        .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
+        .unwrap_or(false);
+    let closure_ladder_present = closure_ladder
         .as_object()
         .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
         .unwrap_or(false);
@@ -9311,8 +9422,12 @@ fn planning_brief_safe_family_readback(content: &str) -> Value {
         "allRequiredGatesPresent": all_required_gates_present,
         "matrixControls": matrix_controls,
         "matrixControlsPresent": matrix_controls_present,
+        "candidateActionTemplate": candidate_action_template,
+        "candidateActionTemplatePresent": candidate_action_template_present,
         "closureProofs": closure_proofs,
         "allClosureProofsPresent": all_closure_proofs_present,
+        "closureLadder": closure_ladder,
+        "closureLadderPresent": closure_ladder_present,
         "authorityDenials": authority_denials,
         "authorityDenied": authority_denied,
         "allPlanningRequirementsPresent": all_requirements_present,

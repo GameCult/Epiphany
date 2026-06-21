@@ -553,7 +553,7 @@ authority, and `privateStateExposed=false`.
 The richer family-friendly Imagination planning smoke now proves the full
 safe-family matrix and closure expectations instead of only the original
 six-family chain:
-`.epiphany-smoke\repo-planning-brief-family-20260621-090158` ran init ->
+`.epiphany-smoke\repo-planning-brief-family-20260621-114826` ran init ->
 online -> accept -> `derive-plan --action-family repo-planning-brief
 --model-ref repo-planning-brief-family-smoke-imagination-v1 --model-authored`
 -> tick through run/adopt/execute/close on a fresh repo. The plan carried
@@ -565,17 +565,25 @@ packet carried
 `candidateNextSafeFamilyCount=21`,
 `allExpectedCandidateFamiliesPresent=true`,
 `allMatrixGroupsComplete=true`, `matrixControlsPresent=true`,
-`allClosureProofsPresent=true`, `allPlanningRequirementsPresent=true`,
+`candidateActionTemplatePresent=true`, `allClosureProofsPresent=true`,
+`closureLadderPresent=true`, `allPlanningRequirementsPresent=true`,
 `allRequiredGatesPresent=true`, `authorityDenied=true`, and
-`privateStateExposed=false`. The committed brief still carries
+`privateStateExposed=false`. Wrapper Gjallar readback
+`local-20260621-124924-844-17b352e7` aimed at the disposable repo-local Verse
+and printed the accepted `repo.planning_brief` closure/acceptance rows with
+Soul/Mind receipts, Bifrost gate, and `private=false`. The committed brief still
+carries
 `schema_version = "epiphany.repo_planning_brief.v0"`, draft Imagination
 decomposition state, safe-family matrix groups for preparation, adoption/queue,
 execution/review, publication/accounting, and policy/deployment, requested-path
 / verification-ask / evidence-need / owner / authority-denial / closure-proof
-requirements, Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gate ordering,
-denied objective adoption, scheduling, substrate access, Hands action, shell,
-commit, publication, deployment execution, cross-body mutation, private
-transcript/raw-result access, and `privateStateExposed=false`.
+requirements, a candidate action template with explicit status/owner/path/
+evidence/closure/denial/next-gate fields, a closure ladder from Mind/human
+selection through Self, Hands, Soul, Modeling/Mind, Bifrost, Idunn, and
+redaction, Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gate ordering, denied
+objective adoption, scheduling, substrate access, Hands action, shell, commit,
+publication, deployment execution, cross-body mutation, private transcript/
+raw-result access, and `privateStateExposed=false`.
 
 The next Mind-owned interpreter smoke proved public-pressure-to-action-semantics
 cargo between Imagination consensus and any downstream action family:

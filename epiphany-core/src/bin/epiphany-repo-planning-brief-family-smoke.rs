@@ -310,7 +310,27 @@ fn run_smoke(args: Args) -> Result<Value> {
             "closureReview",
             "familyAssertions",
             "safeFamilyPlanning",
+            "candidateActionTemplatePresent",
+        ],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
             "allClosureProofsPresent",
+        ],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "closureLadderPresent",
         ],
         true,
     )?;
@@ -369,6 +389,26 @@ fn run_smoke(args: Args) -> Result<Value> {
         &brief_text,
         "candidate_items_must_name_closure_proofs = true",
     )?;
+    require_text(&brief_text, "[candidate_action_template]")?;
+    require_text(
+        &brief_text,
+        "required_fields = [\"id\", \"safe_action_family\", \"owner\", \"status\", \"requested_paths\", \"verification_asks\", \"evidence_needs\", \"closure_proofs\", \"authority_denials\", \"next_gate\"]",
+    )?;
+    require_text(&brief_text, "\"ready-for-mind-review\"")?;
+    require_text(&brief_text, "\"ready-for-self-queue\"")?;
+    require_text(&brief_text, "\"blocked-needs-evidence\"")?;
+    require_text(&brief_text, "status_must_be_explicit = true")?;
+    require_text(&brief_text, "owner_must_match_safe_family_stage = true")?;
+    require_text(
+        &brief_text,
+        "closure_proofs_must_name_receipt_family = true",
+    )?;
+    require_text(
+        &brief_text,
+        "authority_denials_must_be_carried_forward = true",
+    )?;
+    require_text(&brief_text, "next_gate_must_name_owner = true")?;
+    require_text(&brief_text, "candidate_items_are_not_queue_entries = true")?;
     require_text(&brief_text, "[safe_family_matrix]")?;
     require_text(&brief_text, "preparation = [")?;
     require_text(&brief_text, "adoption_and_queue = [")?;
@@ -398,6 +438,40 @@ fn run_smoke(args: Args) -> Result<Value> {
         "upstream_main_sync_required_after_publication = true",
     )?;
     require_text(&brief_text, "private_state_redaction_required = true")?;
+    require_text(&brief_text, "[closure_ladder]")?;
+    require_text(
+        &brief_text,
+        "draft_closed_by = \"explicit Mind or human selection of one candidate family\"",
+    )?;
+    require_text(
+        &brief_text,
+        "queued_closed_by = \"Self queue-run receipt for the adopted item\"",
+    )?;
+    require_text(
+        &brief_text,
+        "execution_closed_by = \"Hands patch, command, and commit receipts\"",
+    )?;
+    require_text(
+        &brief_text,
+        "verification_closed_by = \"Soul closure review and verdict receipt\"",
+    )?;
+    require_text(
+        &brief_text,
+        "map_closed_by = \"Modeling map update plus Mind gateway review and state commit\"",
+    )?;
+    require_text(
+        &brief_text,
+        "publication_closed_by = \"Bifrost public proof publication or explicit non-publication decision\"",
+    )?;
+    require_text(
+        &brief_text,
+        "deployment_closed_by = \"Idunn deployment config or lifecycle receipt when deployment is in scope\"",
+    )?;
+    require_text(
+        &brief_text,
+        "private_state_closed_by = \"redaction report proving sealed worker/operator/private Verse payloads stayed sealed\"",
+    )?;
+    require_text(&brief_text, "closure_ladder_is_planning_only = true")?;
     require_text(&brief_text, "[gates]")?;
     require_text(&brief_text, "mind_interpreter_required = true")?;
     require_text(&brief_text, "self_queue_selection_required = true")?;
@@ -443,7 +517,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "allExpectedCandidateFamiliesPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allExpectedCandidateFamiliesPresent"],
         "allMatrixGroupsComplete": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allMatrixGroupsComplete"],
         "matrixControlsPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["matrixControlsPresent"],
+        "candidateActionTemplatePresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["candidateActionTemplatePresent"],
         "allClosureProofsPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allClosureProofsPresent"],
+        "closureLadderPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["closureLadderPresent"],
         "allRequiredGatesPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allRequiredGatesPresent"],
         "authorityDenied": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["authorityDenied"],
         "briefIsDraft": true,
