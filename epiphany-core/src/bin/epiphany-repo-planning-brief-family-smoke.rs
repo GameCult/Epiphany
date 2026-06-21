@@ -282,7 +282,7 @@ fn run_smoke(args: Args) -> Result<Value> {
             "safeFamilyPlanning",
             "candidateNextSafeFamilyCount",
         ],
-        20,
+        21,
     )?;
     require_bool(
         &close,
@@ -342,6 +342,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&brief_text, "\"repo.pr_request\"")?;
     require_text(&brief_text, "\"repo.credit_request\"")?;
     require_text(&brief_text, "\"repo.metrics_request\"")?;
+    require_text(&brief_text, "\"repo.readiness_review_request\"")?;
     require_text(&brief_text, "\"repo.doctrine_update_request\"")?;
     require_text(&brief_text, "\"repo.secret_policy_request\"")?;
     require_text(&brief_text, "\"repo.dependency_policy_request\"")?;

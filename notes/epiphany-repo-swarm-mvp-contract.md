@@ -343,7 +343,16 @@ accounting request under `.epiphany/metrics-requests/<item>.toml`, naming model
 spend, review load, accepted artifact, public proof, credit readback, and
 redaction requirements without itself granting metrics ledger, spend,
 review-load, credit ledger, publication, PR, merge, upstream sync, Hands action,
-or cross-body authority; and `--action-family repo-doctrine-update-request`
+or cross-body authority; and `--action-family repo-readiness-review-request`
+writes a structured repo-swarm MVP readiness review request under
+`.epiphany/readiness-reviews/<item>.toml`, naming repo init, online swarm,
+Persona intake, Imagination planning, Self queue-run, Hands branch work, Soul
+closure, Modeling map update, Mind admission, Bifrost publication,
+upstream-main sync, Idunn lifecycle, global tool directory, and private-state
+redaction requirements without itself granting readiness approval, durable state
+commit, publication, PR, merge, upstream sync, deployment, service lifecycle,
+Hands action, or cross-body authority; and `--action-family
+repo-doctrine-update-request`
 writes a structured doctrine review request under
 `.epiphany/doctrine-update-requests/<item>.toml`, naming `AGENTS.md` review
 scope, source grounding, invariant impact, rehydration impact, rollback
@@ -374,7 +383,8 @@ includes
 `repo-verification-request`, `repo-publication-request`, `repo-sync-request`, or
 `repo-maintainer-review-request`, `repo-pr-request`, `repo-credit-request`,
 `repo-artifact-acceptance-request`, `repo-metrics-request`,
-`repo-doctrine-update-request`, `repo-secret-policy-request`,
+`repo-readiness-review-request`, `repo-doctrine-update-request`,
+`repo-secret-policy-request`,
 `repo-deployment-config`, or `repo-deployment-request`, a
 `safeActionFamily`, and an authority seal forbidding publication, merge, service
 lifecycle mutation, cross-repo mutation, and private state exposure.
@@ -542,7 +552,7 @@ authority, and `privateStateExposed=false`.
 The richer family-friendly Imagination planning smoke now proves the full
 safe-family matrix and closure expectations instead of only the original
 six-family chain:
-`.epiphany-smoke\repo-planning-brief-family-20260621-084546` ran init ->
+`.epiphany-smoke\repo-planning-brief-family-20260621-090158` ran init ->
 online -> accept -> `derive-plan --action-family repo-planning-brief
 --model-ref repo-planning-brief-family-smoke-imagination-v1 --model-authored`
 -> tick through run/adopt/execute/close on a fresh repo. The plan carried
@@ -551,7 +561,7 @@ online -> accept -> `derive-plan --action-family repo-planning-brief
 `pathScopeMatched=true` and `familyAssertions.status=passed`; the closure
 packet carried
 `safeFamilyPlanning.schemaVersion=epiphany.repo_work_safe_family_planning_readback.v0`,
-`candidateNextSafeFamilyCount=20`,
+`candidateNextSafeFamilyCount=21`,
 `allExpectedCandidateFamiliesPresent=true`,
 `allMatrixGroupsComplete=true`, `matrixControlsPresent=true`,
 `allClosureProofsPresent=true`, `allPlanningRequirementsPresent=true`,
@@ -763,6 +773,26 @@ for model calls, token/cost summary, review load, accepted artifact, proof,
 credit readback, and redaction, denied metrics ledger, spend, review-load,
 credit ledger, GitHub PR, merge, publication, upstream sync, Hands action,
 cross-body authority, and `privateStateExposed=false`.
+
+The next MVP readiness boundary smoke proved redacted proof-bundle review cargo:
+`.epiphany-smoke\repo-readiness-review-request-family-20260621-090003` ran init
+-> online -> accept -> `derive-plan --action-family
+repo-readiness-review-request --model-ref
+repo-readiness-review-request-family-smoke-imagination-v1 --model-authored` ->
+tick through run/adopt/execute/close on a fresh repo. The plan carried
+`safeActionFamily=repo.readiness_review_request`; Hands committed only
+`.epiphany/readiness-reviews/repo-readiness-review-request-family.toml`; Soul
+passed with `pathScopeMatched=true` and `familyAssertions.status=passed`; the
+committed request carried
+`schema_version = "epiphany.repo_readiness_review_request.v0"`,
+`status="awaiting-mvp-readiness-review"`, Maintainer/Soul/Mind/Bifrost review
+ownership, repo init, online swarm, Persona intake, Imagination planning, Self
+queue-run, Hands branch work, Soul closure, Modeling map update, Mind
+admission, Bifrost publication, upstream-main sync, Idunn lifecycle, global
+tool directory, and private-state redaction requirements; it denied readiness
+approval, durable state commit, publication, PR, merge, upstream sync,
+deployment, service lifecycle, Hands action, cross-body authority, private
+Verse rummaging, and `privateStateExposed=false`.
 
 The next governance boundary smoke proved doctrine update request cargo:
 `.epiphany-smoke\repo-doctrine-update-request-family-20260620-192140` ran init
@@ -1826,7 +1856,7 @@ temptation wearing clean robes.
 | Repo Body birth | `epiphany-repo init` exists and writes repo-local stores plus branch workbench intent. | Keep birth startup-only, review-gated, and branch-oriented. |
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
-| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-planning-brief` / `repo.planning_brief`, `repo-interpreter-brief` / `repo.interpreter_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, `repo-metrics-request` / `repo.metrics_request`, `repo-doctrine-update-request` / `repo.doctrine_update_request`, `repo-secret-policy-request` / `repo.secret_policy_request`, `repo-dependency-policy-request` / `repo.dependency_policy_request`, `repo-deployment-config` / `repo.deployment_config`, and `repo-deployment-request` / `repo.deployment_request`. `repo.planning_brief` is the rough-pressure decomposition family: it now names twenty candidate next safe families grouped as preparation, adoption/queue, execution/review, publication/accounting, and policy/deployment; requires requested paths, verification asks, evidence needs, owner, authority denials, and closure proofs; and names Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gates while granting no action authority. Soul closure emits `epiphany.repo_work_safe_family_planning_readback.v0` for that family with candidate-family counts, grouped matrix completeness, matrix controls, closure proof flags, gate/readiness flags, authority denials, and private-state seal. `repo.interpreter_brief` is the Mind-owned semantic interpretation family: it turns public Persona/Imagination pressure into draft action semantics with consensus, path, verification, evidence, rollback, non-goal, open-question, and gate checks while granting no adoption, scheduling, substrate, Hands, shell, commit, publication, deployment, cross-body, or private-state authority. `adopt` writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority, and refuses plan-derived items that lack explicit verification asks or planning evidence needs. `plan` remains manual quarantine scaffolding. | Deepen closure/map readback and Bifrost-first external-work accounting without turning model text into arbitrary shell authority. |
+| Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-planning-brief` / `repo.planning_brief`, `repo-interpreter-brief` / `repo.interpreter_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, `repo-metrics-request` / `repo.metrics_request`, `repo-readiness-review-request` / `repo.readiness_review_request`, `repo-doctrine-update-request` / `repo.doctrine_update_request`, `repo-secret-policy-request` / `repo.secret_policy_request`, `repo-dependency-policy-request` / `repo.dependency_policy_request`, `repo-deployment-config` / `repo.deployment_config`, and `repo-deployment-request` / `repo.deployment_request`. `repo.planning_brief` is the rough-pressure decomposition family: it now names twenty-one candidate next safe families grouped as preparation, adoption/queue, execution/review, publication/accounting, and policy/deployment; requires requested paths, verification asks, evidence needs, owner, authority denials, and closure proofs; and names Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gates while granting no action authority. Soul closure emits `epiphany.repo_work_safe_family_planning_readback.v0` for that family with candidate-family counts, grouped matrix completeness, matrix controls, closure proof flags, gate/readiness flags, authority denials, and private-state seal. `repo.readiness_review_request` asks Maintainer/Soul/Mind/Bifrost to review a redacted repo-swarm MVP proof bundle without granting readiness approval, durable state commit, publication, deployment, service lifecycle, Hands action, or cross-body authority. `repo.interpreter_brief` is the Mind-owned semantic interpretation family: it turns public Persona/Imagination pressure into draft action semantics with consensus, path, verification, evidence, rollback, non-goal, open-question, and gate checks while granting no adoption, scheduling, substrate, Hands, shell, commit, publication, deployment, cross-body, or private-state authority. `adopt` writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority, and refuses plan-derived items that lack explicit verification asks or planning evidence needs. `plan` remains manual quarantine scaffolding. | Deepen closure/map readback and Bifrost-first external-work accounting without turning model text into arbitrary shell authority. |
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan`, `repo-work-service-runbook`, `repo-work-service-launch`, and `repo-work-service-audit` write Idunn lifecycle receipts/artifacts for the same queue-run command and prove non-mutating launch/readiness closure. | Keep any future queue-run service install/start mutation behind Idunn and explicit elevated operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, can require verification output to cite declared changed paths with `--require-source-grounding`, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
@@ -2226,6 +2256,13 @@ Required organs before MVP:
   antecedents plus model-call/token-cost/review-load/artifact/proof/credit-readback/redaction
   packet requirements while granting no metrics ledger, spend, review-load,
   credit ledger, publication, PR, merge, sync, Hands, or cross-body authority.
+  `repo-readiness-review-request` now proves redacted repo-swarm MVP proof-bundle
+  review cargo that names repo init, online swarm, Persona intake, Imagination
+  planning, Self queue-run, Hands branch work, Soul closure, Modeling map
+  update, Mind admission, Bifrost publication, upstream-main sync, Idunn
+  lifecycle, global tool directory, and private-state redaction requirements
+  while granting no readiness approval, durable state commit, publication, PR,
+  merge, sync, deployment, service lifecycle, Hands, or cross-body authority.
   `repo-doctrine-update-request` now proves repo governance request cargo under
   `.epiphany/doctrine-update-requests/<item>.toml`, with `AGENTS.md` as review
   target, source grounding, invariant/rehydration/rollback/redaction packet
