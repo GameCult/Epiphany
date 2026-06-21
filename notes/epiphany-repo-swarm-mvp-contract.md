@@ -1727,7 +1727,8 @@ published `repo-work-public-proof-checklist-request` to
 Bifrost ledger readback now also emits derived external-work accounting rows
 without creating a rival ledger. `epiphany-verse-query bifrost-ledger` returns
 `accountingRows` and `accountingTuiRows` for `body-change-publication`,
-`public-proof-publication`, `repo-work-readiness-review`, and
+`public-proof-publication`, `repo-work-readiness-review`,
+`artifact-acceptance-request`, `metrics-request`, and
 `collaboration-consensus`, carrying closure status, ledger/receipt/public refs,
 review and credit receipt counts, artifact count, and the private-state seal.
 The readiness-review lane closes only when latest
@@ -1735,7 +1736,14 @@ The readiness-review lane closes only when latest
 Bifrost review refs, `status=readiness-approved`, zero missing required rows, a
 present review artifact, readiness approval true, and durable-state,
 publication, PR, merge, upstream-sync, deployment, service lifecycle, Hands, and
-private-state authority all false. Wrapper proof
+private-state authority all false. The accepted-artifact and metrics request
+lanes derive from Mind-admitted `epiphany.cultmesh.repo_work_map_entry.v0`
+branch work for safe families `repo.artifact_acceptance_request` and
+`repo.metrics_request`; they become `open` request-accounting sight with the
+latest Mind commit receipt, Bifrost gate, commit ref, closure review count, and
+changed-path artifact count, but they do not close final artifact acceptance,
+metrics, credit, publication, merge, upstream sync, deployment, service
+lifecycle, Hands, or private-state authority. Wrapper proof
 `local-20260621-091019-297-aaf2ad07` reported `accountingRows=3`,
 `closedAccounting=2`, `attentionAccounting=0`, closed body-change and
 collaboration rows, a visible missing public-proof-publication row, and
@@ -1748,6 +1756,14 @@ wrapper proof `local-20260621-131113-240-be2b19f2` printed the same closed
 `BIFROST-ACCOUNTING | repo-work-readiness-review` row from the explicit
 repo-local Verse target after the wrapper read path was corrected to use
 `-LocalVerseStore` / `-LocalVerseRuntimeId`.
+Focused request proofs
+`.epiphany-smoke\repo-artifact-acceptance-request-family-20260621-122343` and
+`.epiphany-smoke\repo-metrics-request-family-20260621-122503` reported
+`accountingRowCount=6`, an open `artifact-acceptance-request` or
+`metrics-request` row with `reviewReceiptCount=3`, `publicArtifactCount=1`,
+and `privateStateExposed=false`; wrapper proof
+`local-20260621-132626-365-878a1113` printed the open metrics request row from
+the repo-local Verse target.
 
 Wrapper mode `tools/epiphany_local_run.ps1 -Mode bifrost-public-proof` now
 exposes the same Bifrost mouth for operators and agents. It reads the latest
@@ -1976,7 +1992,7 @@ temptation wearing clean robes.
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan`, `repo-work-service-runbook`, `repo-work-service-launch`, and `repo-work-service-audit` write Idunn lifecycle receipts/artifacts for the same queue-run command and prove non-mutating launch/readiness closure. | Keep any future queue-run service install/start mutation behind Idunn and explicit elevated operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, can require verification output to cite declared changed paths with `--require-source-grounding`, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
-| Repo work sight/review | `overview` emits compact proof rows, an `epiphany.repo_work_intake_consensus_readback.v0` from the accept/plan chain, and typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; `readiness` now emits `epiphany.repo_work_readiness_report.v0` and mirrors `epiphany.cultmesh.repo_work_readiness.v0` over the MVP proof rows, including Soul's safe-family planning matrix readback, Idunn repo-work service audit validation, Odin/Gjallar tool-directory validation, Bifrost/GitHub publication receipt-chain validation, and upstream-main sync receipt plus git ancestry validation while still granting no readiness approval; `readiness-review` consumes that ready sight receipt and four Maintainer/Soul/Mind/Bifrost review refs to write `epiphany.repo_work_readiness_review_receipt.v0` with readiness approval only, not action authority, mirrors `epiphany.cultmesh.repo_work_readiness_review.v0`, and is indexed by `receipt-directory` as `repo-work-readiness-review` with review artifact status/SHA-256 and private-state seal; the CultMesh TUI rows include compact `CONSENSUS`, `REPO-WORK-READINESS`, and readiness-review readbacks showing Persona/public feedback ids, Imagination consensus route, public/candidate ref counts, safe family, readiness gaps, readiness approval, and authority denials without private payloads; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, readiness rows, readiness-review rows, map rows, semantic rows, closure rows, family lens rows, path lens rows, branch lens rows, stage lens rows, gate lens rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Deepen Bifrost-first external work accounting and semantic map readback without moving action authority out of Hands/Self/Bifrost. |
+| Repo work sight/review | `overview` emits compact proof rows, an `epiphany.repo_work_intake_consensus_readback.v0` from the accept/plan chain, and typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; `readiness` now emits `epiphany.repo_work_readiness_report.v0` and mirrors `epiphany.cultmesh.repo_work_readiness.v0` over the MVP proof rows, including Soul's safe-family planning matrix readback, Idunn repo-work service audit validation, Odin/Gjallar tool-directory validation, Bifrost/GitHub publication receipt-chain validation, and upstream-main sync receipt plus git ancestry validation while still granting no readiness approval; `readiness-review` consumes that ready sight receipt and four Maintainer/Soul/Mind/Bifrost review refs to write `epiphany.repo_work_readiness_review_receipt.v0` with readiness approval only, not action authority, mirrors `epiphany.cultmesh.repo_work_readiness_review.v0`, and is indexed by `receipt-directory` as `repo-work-readiness-review` with review artifact status/SHA-256 and private-state seal; `bifrost-ledger` now derives six accounting lanes, including open `artifact-acceptance-request` and `metrics-request` rows from Mind-admitted map entries without closing final Bifrost/maintainer acceptance or metrics authority; the CultMesh TUI rows include compact `CONSENSUS`, `REPO-WORK-READINESS`, readiness-review, and Bifrost accounting readbacks showing Persona/public feedback ids, Imagination consensus route, public/candidate ref counts, safe family, readiness gaps, readiness approval, request accounting, and authority denials without private payloads; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, readiness rows, readiness-review rows, map rows, semantic rows, closure rows, family lens rows, path lens rows, branch lens rows, stage lens rows, gate lens rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Next useful cuts are final accepted-artifact/metrics ledger receipts, another repo-owned safe family, or explicit elevated Idunn execution only under operator authority. |
 | Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
 | Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
 | Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |

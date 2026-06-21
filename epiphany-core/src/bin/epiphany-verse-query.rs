@@ -1229,6 +1229,7 @@ fn run_cli() -> Result<()> {
                     "publicationChainCount": report.publication_chain_count,
                     "publicProofPublicationCount": report.public_proof_publication_count,
                     "collaborationChainCount": report.collaboration_chain_count,
+                    "repoWorkAccountingRequestCount": report.repo_work_accounting_request_count,
                     "accountingRowCount": report.accounting_rows.len(),
                     "closedAccountingRowCount": report.closed_accounting_row_count,
                     "attentionAccountingRowCount": report.attention_accounting_row_count,
@@ -2715,9 +2716,10 @@ fn run_cli() -> Result<()> {
             if bifrost_ledger_report.status != "ok"
                 || bifrost_ledger_report.publication_chain_count != 3
                 || bifrost_ledger_report.collaboration_chain_count != 2
-                || bifrost_ledger_report.accounting_rows.len() != 4
+                || bifrost_ledger_report.accounting_rows.len() != 6
                 || bifrost_ledger_report.closed_accounting_row_count != 2
                 || bifrost_ledger_report.attention_accounting_row_count != 0
+                || bifrost_ledger_report.repo_work_accounting_request_count != 0
                 || bifrost_ledger_report.rows.len() != 5
                 || bifrost_ledger_report.private_state_exposed
                 || !bifrost_ledger_report.tui_rows.iter().any(|row| {
@@ -2755,6 +2757,18 @@ fn run_cli() -> Result<()> {
                         && row.contains("status=missing")
                         && row.contains("review=0")
                         && row.contains("approval=missing")
+                        && row.contains("private=false")
+                })
+                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
+                    row.contains("BIFROST-ACCOUNTING | artifact-acceptance-request")
+                        && row.contains("status=missing")
+                        && row.contains("request=missing")
+                        && row.contains("private=false")
+                })
+                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
+                    row.contains("BIFROST-ACCOUNTING | metrics-request")
+                        && row.contains("status=missing")
+                        && row.contains("request=missing")
                         && row.contains("private=false")
                 })
                 || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
@@ -4939,6 +4953,7 @@ struct BifrostLedgerReport {
     latest_readiness_review_id: Option<String>,
     latest_feedback_id: Option<String>,
     latest_consensus_receipt_id: Option<String>,
+    repo_work_accounting_request_count: usize,
     private_state_exposed: bool,
 }
 
@@ -8545,6 +8560,8 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
         &args.store,
         args.runtime_id.clone(),
     )?;
+    let repo_work_map_entries =
+        load_epiphany_cultmesh_repo_work_map_entries(&args.store, args.runtime_id.clone())?;
     Ok(bifrost_ledger_report(
         latest_intent.as_ref(),
         latest_publication.as_ref(),
@@ -8553,6 +8570,7 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
         latest_readiness_review.as_ref(),
         latest_feedback.as_ref(),
         latest_consensus.as_ref(),
+        &repo_work_map_entries,
     ))
 }
 
@@ -8566,6 +8584,7 @@ fn bifrost_ledger_report(
     latest_readiness_review: Option<&EpiphanyCultMeshRepoWorkReadinessReviewEntry>,
     latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
 ) -> BifrostLedgerReport {
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
@@ -8692,6 +8711,7 @@ fn bifrost_ledger_report(
         latest_readiness_review,
         latest_feedback,
         latest_consensus,
+        repo_work_map_entries,
     );
     let closed_accounting_row_count = accounting_rows
         .iter()
@@ -8731,6 +8751,13 @@ fn bifrost_ledger_report(
         latest_readiness_review_id: latest_readiness_review.map(|review| review.review_id.clone()),
         latest_feedback_id: latest_feedback.map(|feedback| feedback.feedback_id.clone()),
         latest_consensus_receipt_id: latest_consensus.map(|receipt| receipt.receipt_id.clone()),
+        repo_work_accounting_request_count: repo_work_map_entries
+            .iter()
+            .filter(|entry| {
+                entry.safe_action_family == "repo.artifact_acceptance_request"
+                    || entry.safe_action_family == "repo.metrics_request"
+            })
+            .count(),
         private_state_exposed,
     }
 }
@@ -8767,6 +8794,7 @@ fn bifrost_accounting_rows(
     latest_readiness_review: Option<&EpiphanyCultMeshRepoWorkReadinessReviewEntry>,
     latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
 ) -> (Vec<BifrostAccountingRow>, Vec<String>) {
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
@@ -8950,6 +8978,23 @@ fn bifrost_accounting_rows(
         },
     );
 
+    push_repo_work_request_accounting_row(
+        &mut rows,
+        &mut tui_rows,
+        repo_work_map_entries,
+        "artifact-acceptance-request",
+        "repo.artifact_acceptance_request",
+        "Maintainer/Bifrost",
+    );
+    push_repo_work_request_accounting_row(
+        &mut rows,
+        &mut tui_rows,
+        repo_work_map_entries,
+        "metrics-request",
+        "repo.metrics_request",
+        "Bifrost/Maintainer",
+    );
+
     let collaboration_private = latest_feedback
         .map(|feedback| feedback.private_state_included)
         .unwrap_or(false)
@@ -8997,6 +9042,74 @@ fn bifrost_accounting_rows(
     );
 
     (rows, tui_rows)
+}
+
+fn push_repo_work_request_accounting_row(
+    rows: &mut Vec<BifrostAccountingRow>,
+    tui_rows: &mut Vec<String>,
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+    lane: &str,
+    safe_action_family: &str,
+    owner: &str,
+) {
+    let matching = repo_work_map_entries
+        .iter()
+        .filter(|entry| entry.safe_action_family == safe_action_family)
+        .collect::<Vec<_>>();
+    let latest = matching.iter().copied().max_by(|left, right| {
+        left.admitted_at
+            .cmp(&right.admitted_at)
+            .then_with(|| left.map_entry_id.cmp(&right.map_entry_id))
+    });
+    let request_present = latest.is_some();
+    let private = matching.iter().any(|entry| entry.private_state_exposed);
+    let latest_item = latest.map(|entry| entry.item.as_str()).unwrap_or("none");
+    let review_receipt_count = latest
+        .map(|entry| {
+            [
+                &entry.soul_verdict_receipt_id,
+                &entry.mind_gateway_review_id,
+                &entry.mind_state_commit_receipt_id,
+            ]
+            .iter()
+            .filter(|receipt| !receipt.trim().is_empty() && receipt.as_str() != "none")
+            .count()
+        })
+        .unwrap_or(0);
+    push_bifrost_accounting_row(
+        rows,
+        tui_rows,
+        BifrostAccountingRow {
+            lane: lane.to_string(),
+            owner: owner.to_string(),
+            status: bifrost_accounting_status(false, request_present, private),
+            closure: format!(
+                "request={} items={} latest={}",
+                present_word(request_present),
+                matching.len(),
+                latest_item
+            ),
+            ledger_entry_id: latest
+                .map(|entry| entry.publication_gate.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            latest_receipt_id: latest
+                .map(|entry| entry.mind_state_commit_receipt_id.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            public_ref: latest
+                .map(|entry| {
+                    if entry.commit_sha.trim().is_empty() || entry.commit_sha == "none" {
+                        entry.branch.clone()
+                    } else {
+                        entry.commit_sha.clone()
+                    }
+                })
+                .unwrap_or_else(|| "none".to_string()),
+            review_receipt_count,
+            credit_receipt_count: 0,
+            public_artifact_count: latest.map(|entry| entry.changed_paths.len()).unwrap_or(0),
+            private_state_exposed: private,
+        },
+    );
 }
 
 fn push_bifrost_accounting_row(

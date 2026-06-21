@@ -195,6 +195,18 @@ fn run_smoke(args: Args) -> Result<Value> {
     let close = read_json(&close_path)?;
     let request_text = fs::read_to_string(repo.join(target_path))
         .with_context(|| format!("failed to read {}", repo.join(target_path).display()))?;
+    let bifrost_ledger = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "bifrost-ledger",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-artifact-acceptance-request-family-smoke",
+        ],
+        &root,
+    )?;
 
     require_eq(
         &plan,
@@ -299,6 +311,15 @@ fn run_smoke(args: Args) -> Result<Value> {
         "maintainer_or_bifrost_acceptance_authority_required = true",
     )?;
     require_text(&request_text, "private_state_exposed = false")?;
+    require_bifrost_accounting_row(&bifrost_ledger, "artifact-acceptance-request", "open", 3, 1)?;
+    require_tui_row_contains(
+        &bifrost_ledger,
+        &["accountingTuiRows"],
+        "BIFROST-ACCOUNTING | artifact-acceptance-request",
+    )?;
+    require_tui_row_contains(&bifrost_ledger, &["accountingTuiRows"], "status=open")?;
+    require_tui_row_contains(&bifrost_ledger, &["accountingTuiRows"], "request=present")?;
+    require_bool(&bifrost_ledger, &["privateStateExposed"], false)?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_artifact_acceptance_request_family_smoke.v0",
@@ -321,6 +342,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "publicationAuthorized": false,
         "upstreamSyncAuthorized": false,
         "handsActionAuthorized": false,
+        "bifrostLedgerAccountingRowCount": bifrost_ledger["accountingRowCount"],
+        "bifrostArtifactAcceptanceRequestAccountingRow": bifrost_accounting_row_value(&bifrost_ledger, "artifact-acceptance-request")?,
         "privateStateExposed": false,
     });
     write_json(&smoke_dir.join("summary.json"), &summary)?;
@@ -446,6 +469,74 @@ fn require_text(haystack: &str, needle: &str) -> Result<()> {
     } else {
         Err(anyhow!(
             "expected artifact acceptance request text to contain {needle:?}"
+        ))
+    }
+}
+
+fn require_tui_row_contains(value: &Value, path: &[&str], needle: &str) -> Result<()> {
+    let rows = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("missing TUI row array {}", path.join(".")))?;
+    if rows
+        .iter()
+        .filter_map(Value::as_str)
+        .any(|row| row.contains(needle))
+    {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to contain row fragment {needle:?}",
+            path.join(".")
+        ))
+    }
+}
+
+fn bifrost_accounting_row_value<'a>(value: &'a Value, lane: &str) -> Result<&'a Value> {
+    value
+        .get("accountingRows")
+        .and_then(Value::as_array)
+        .and_then(|rows| {
+            rows.iter()
+                .find(|row| row.get("lane").and_then(Value::as_str) == Some(lane))
+        })
+        .ok_or_else(|| anyhow!("missing Bifrost accounting row {lane:?}"))
+}
+
+fn require_bifrost_accounting_row(
+    value: &Value,
+    lane: &str,
+    status: &str,
+    review_receipt_count: u64,
+    public_artifact_count: u64,
+) -> Result<()> {
+    let row = bifrost_accounting_row_value(value, lane)?;
+    let actual_status = row
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    let actual_review_receipt_count = row
+        .get("reviewReceiptCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let actual_public_artifact_count = row
+        .get("publicArtifactCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let actual_private = row
+        .get("privateStateExposed")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    if actual_status == status
+        && actual_review_receipt_count == review_receipt_count
+        && actual_public_artifact_count == public_artifact_count
+        && !actual_private
+    {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "Bifrost accounting row {lane:?} mismatch: status={actual_status:?}, reviewReceiptCount={actual_review_receipt_count}, publicArtifactCount={actual_public_artifact_count}, privateStateExposed={actual_private}"
         ))
     }
 }
