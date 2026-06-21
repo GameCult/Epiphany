@@ -1,30 +1,8 @@
+use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Utc;
-use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
-use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
-use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
-use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
-use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
-use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
-use epiphany_core::HANDS_PR_RECEIPT_TYPE;
-use epiphany_core::HandsActionIntent;
-use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
-use epiphany_core::MindGatewayDecision;
-use epiphany_core::MindGatewayReview;
-use epiphany_core::RuntimeSpineInitOptions;
-use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::SoulVerdictReceipt;
-use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
@@ -56,10 +34,32 @@ use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
+use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
+use epiphany_core::HandsActionIntent;
+use epiphany_core::MindGatewayDecision;
+use epiphany_core::MindGatewayReview;
+use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::SoulVerdictReceipt;
+use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
+use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
+use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
+use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
+use epiphany_core::HANDS_PR_RECEIPT_TYPE;
+use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
+use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
 use serde_json::json;
+use serde_json::Value;
 use sha2::Digest;
 use sha2::Sha256;
 use std::env;
@@ -124,6 +124,9 @@ fn main() -> Result<()> {
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
         "overview" | "proof-bundle" | "status" => run_overview(parse_overview_args(args)?),
+        "readiness" | "readiness-report" | "mvp-readiness" => {
+            run_readiness(parse_readiness_args(args)?)
+        }
         "deployment-config-audit" | "audit-deployment-config" | "idunn-deployment-audit" => {
             run_deployment_config_audit(parse_deployment_config_audit_args(args)?)
         }
@@ -331,6 +334,18 @@ struct OverviewArgs {
     item: Option<String>,
     accept_receipt: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
+    write_receipt: bool,
+}
+
+#[derive(Clone, Debug)]
+struct ReadinessArgs {
+    workspace: PathBuf,
+    item: Option<String>,
+    accept_receipt: Option<PathBuf>,
+    artifact_dir: Option<PathBuf>,
+    public_proof: Option<PathBuf>,
+    idunn_lifecycle_receipt: Option<PathBuf>,
+    tool_directory_receipt: Option<PathBuf>,
     write_receipt: bool,
 }
 
@@ -1134,6 +1149,48 @@ fn parse_overview_args(args: impl Iterator<Item = String>) -> Result<OverviewArg
     })
 }
 
+fn parse_readiness_args(args: impl Iterator<Item = String>) -> Result<ReadinessArgs> {
+    let mut workspace = None;
+    let mut item = None;
+    let mut accept_receipt = None;
+    let mut artifact_dir = None;
+    let mut public_proof = None;
+    let mut idunn_lifecycle_receipt = None;
+    let mut tool_directory_receipt = None;
+    let mut write_receipt = true;
+
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--accept-receipt" => accept_receipt = Some(take_path(&mut args, "--accept-receipt")?),
+            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
+            "--public-proof" | "--public-proof-ref" => {
+                public_proof = Some(take_path(&mut args, "--public-proof")?);
+            }
+            "--idunn-lifecycle-receipt" | "--service-lifecycle-receipt" => {
+                idunn_lifecycle_receipt = Some(take_path(&mut args, "--idunn-lifecycle-receipt")?);
+            }
+            "--tool-directory-receipt" | "--tool-directory-ref" => {
+                tool_directory_receipt = Some(take_path(&mut args, "--tool-directory-receipt")?);
+            }
+            "--no-write" | "--read-only" => write_receipt = false,
+            other => return Err(anyhow!("unexpected readiness argument {other:?}")),
+        }
+    }
+    Ok(ReadinessArgs {
+        workspace: workspace.context("missing --workspace")?,
+        item,
+        accept_receipt,
+        artifact_dir,
+        public_proof,
+        idunn_lifecycle_receipt,
+        tool_directory_receipt,
+        write_receipt,
+    })
+}
+
 fn parse_deployment_config_audit_args(
     args: impl Iterator<Item = String>,
 ) -> Result<DeploymentConfigAuditArgs> {
@@ -1467,9 +1524,9 @@ fn run_accept(args: AcceptArgs) -> Result<Value> {
             .join("swarm-online")
             .join("repo-swarm-online-receipt.json")
     });
-    let online_receipt = read_json(&online_receipt_path).with_context(
-        || "repo swarm online receipt is required; run epiphany-swarm online first",
-    )?;
+    let online_receipt = read_json(&online_receipt_path).with_context(|| {
+        "repo swarm online receipt is required; run epiphany-swarm online first"
+    })?;
     let local_verse_store = args.local_verse_store.unwrap_or_else(|| {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
@@ -1630,9 +1687,9 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
             .join("swarm-online")
             .join("repo-swarm-online-receipt.json")
     });
-    let online_receipt = read_json(&online_receipt_path).with_context(
-        || "repo swarm online receipt is required; run epiphany-swarm online first",
-    )?;
+    let online_receipt = read_json(&online_receipt_path).with_context(|| {
+        "repo swarm online receipt is required; run epiphany-swarm online first"
+    })?;
     let local_verse_store = args.local_verse_store.clone().unwrap_or_else(|| {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
@@ -8391,8 +8448,7 @@ fn closure_family_assertions(
                 &mut assertions,
                 "readiness-review-request-private-seal",
                 content.contains("private_state_exposed = false"),
-                "Committed readiness review request preserves the private-state seal."
-                    .to_string(),
+                "Committed readiness review request preserves the private-state seal.".to_string(),
             );
         }
         "repo.doctrine_update_request" => {
@@ -11923,6 +11979,282 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
     }))
 }
 
+fn run_readiness(args: ReadinessArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let artifact_dir = args
+        .artifact_dir
+        .clone()
+        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
+    fs::create_dir_all(&artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let overview = run_overview(OverviewArgs {
+        workspace: workspace.clone(),
+        item: args.item.clone(),
+        accept_receipt: args.accept_receipt.clone(),
+        artifact_dir: Some(artifact_dir.clone()),
+        write_receipt: args.write_receipt,
+    })?;
+    let item = overview
+        .get("item")
+        .and_then(Value::as_str)
+        .unwrap_or("work-item")
+        .to_string();
+    let item_slug = sanitize(&item);
+    let accept_receipt_path = resolve_accept_receipt(&workspace, Some(&item), args.accept_receipt)?;
+    let plan_receipt_path = work_receipt_path(&workspace, "plan", &item);
+    let execute_receipt_path = work_receipt_path(&workspace, "execute", &item);
+    let close_receipt_path = work_receipt_path(&workspace, "close", &item);
+    let queue_run_receipt_path = artifact_dir.join("work-queue-run.json");
+    let publish_receipt_path = work_receipt_path(&workspace, "publish", &item);
+    let sync_receipt_path = work_receipt_path(&workspace, "sync", &item);
+    let init_receipt_path = workspace
+        .join(".epiphany")
+        .join("repo-init")
+        .join("repo-swarm-init-receipt.json");
+    let online_receipt_path = workspace
+        .join(".epiphany")
+        .join("swarm-online")
+        .join("repo-swarm-online-receipt.json");
+    let public_proof_path = args.public_proof.unwrap_or_else(|| {
+        workspace
+            .join(".epiphany")
+            .join("public")
+            .join("proof-bundles")
+            .join(format!("repo-work-public-proof-{item_slug}.json"))
+    });
+    let readiness_receipt_path = artifact_dir.join(format!("work-readiness-{item_slug}.json"));
+
+    let close_receipt = read_json_if_exists(&close_receipt_path)?;
+    let close_status = close_receipt
+        .as_ref()
+        .and_then(|receipt| receipt.get("status").and_then(Value::as_str));
+    let soul_passed = close_receipt
+        .as_ref()
+        .and_then(|receipt| string_from_json(receipt, &["soul", "verdict"]))
+        .as_deref()
+        == Some("passed");
+    let modeling_map_admitted = close_receipt
+        .as_ref()
+        .and_then(|receipt| bool_from_json(receipt, &["authority", "durableStateAdmitted"]))
+        .unwrap_or(false)
+        || close_receipt
+            .as_ref()
+            .and_then(|receipt| string_from_json(receipt, &["mind", "stateCommitReceiptId"]))
+            .is_some();
+    let publish_receipt = read_json_if_exists(&publish_receipt_path)?;
+    let sync_receipt = read_json_if_exists(&sync_receipt_path)?;
+    let upstream_synced = sync_receipt
+        .as_ref()
+        .and_then(sync_receipt_upstream_main_synced)
+        .unwrap_or(false);
+
+    let mut rows = vec![
+        readiness_path_row(
+            "repo-init",
+            "Self",
+            "epiphany.repo_swarm_init_receipt.v0",
+            &init_receipt_path,
+            init_receipt_path.exists(),
+            "Fresh repo was initialized as an Epiphany Body.",
+        )?,
+        readiness_path_row(
+            "swarm-online",
+            "Self/Gjallar",
+            "epiphany.repo_swarm_online_receipt.v0",
+            &online_receipt_path,
+            online_receipt_path.exists(),
+            "Repo-local swarm published compact CultMesh sight.",
+        )?,
+        readiness_path_row(
+            "persona-intake",
+            "Persona/Imagination",
+            "epiphany.repo_work_accept_receipt.v0",
+            &accept_receipt_path,
+            accept_receipt_path.exists(),
+            "Persona or Bifrost pressure was accepted without Hands authority.",
+        )?,
+        readiness_path_row(
+            "imagination-plan",
+            "Imagination",
+            "epiphany.repo_work_action_plan_receipt.v0",
+            &plan_receipt_path,
+            plan_receipt_path.exists(),
+            "Imagination produced action-item/plan cargo.",
+        )?,
+        readiness_path_row(
+            "self-queue-run",
+            "Self",
+            "epiphany.repo_work_queue_run_receipt.v0",
+            &queue_run_receipt_path,
+            queue_run_receipt_path.exists(),
+            "Self queue-run pulse selected or advanced repo work.",
+        )?,
+        readiness_path_row(
+            "hands-branch-work",
+            "Hands",
+            "epiphany.repo_work_execute_receipt.v0",
+            &execute_receipt_path,
+            execute_receipt_path.exists(),
+            "Hands executed branch-local work with receipts.",
+        )?,
+        readiness_path_row(
+            "soul-closure",
+            "Soul",
+            "epiphany.repo_work_closure_receipt.v0",
+            &close_receipt_path,
+            close_status == Some("closed") && soul_passed,
+            "Soul passed closure for the Hands consequence.",
+        )?,
+        readiness_path_row(
+            "modeling-mind-admission",
+            "Modeling/Mind",
+            "epiphany.mind.state_commit_receipt",
+            &close_receipt_path,
+            modeling_map_admitted,
+            "Modeling map update was admitted through Mind.",
+        )?,
+        readiness_path_row(
+            "public-proof",
+            "Bifrost/Gjallar",
+            "epiphany.repo_work_public_proof_bundle.v0",
+            &public_proof_path,
+            public_proof_path.exists(),
+            "Redacted public proof bundle exists.",
+        )?,
+        readiness_path_row(
+            "bifrost-publication",
+            "Bifrost",
+            "gamecult.bifrost.publication_receipt.v0",
+            &publish_receipt_path,
+            publish_receipt.is_some(),
+            "Bifrost/GitHub publication receipt exists.",
+        )?,
+        readiness_path_row(
+            "upstream-main-sync",
+            "Bifrost/GitHub",
+            "epiphany.repo_work_sync.v0",
+            &sync_receipt_path,
+            upstream_synced,
+            "Published commit is contained by upstream main.",
+        )?,
+    ];
+    if let Some(path) = args.idunn_lifecycle_receipt.as_ref() {
+        rows.push(readiness_path_row(
+            "idunn-lifecycle",
+            "Idunn",
+            "epiphany.cultmesh.daemon_service_lifecycle_receipt.v0",
+            path,
+            path.exists(),
+            "Idunn lifecycle receipt was supplied for the repo-work pulse.",
+        )?);
+    } else {
+        rows.push(readiness_missing_row(
+            "idunn-lifecycle",
+            "Idunn",
+            "epiphany.cultmesh.daemon_service_lifecycle_receipt.v0",
+            "Supply --idunn-lifecycle-receipt after Idunn service audit/readiness proof.",
+        ));
+    }
+    if let Some(path) = args.tool_directory_receipt.as_ref() {
+        rows.push(readiness_path_row(
+            "tool-directory",
+            "Odin/Gjallar",
+            "epiphany.cultmesh.daemon_tool_directory_readback.v0",
+            path,
+            path.exists(),
+            "Global daemon tool directory readback was supplied.",
+        )?);
+    } else {
+        rows.push(readiness_missing_row(
+            "tool-directory",
+            "Odin/Gjallar",
+            "epiphany.cultmesh.daemon_tool_directory_readback.v0",
+            "Supply --tool-directory-receipt from the compact daemon tool directory sight rite.",
+        ));
+    }
+    rows.push(json!({
+        "kind": "private-state-redaction",
+        "owner": "Soul/Bifrost",
+        "requiredSchema": "epiphany.private_state_redaction_report.v0",
+        "evidenceRef": overview["proofBundle"].get("bundleId").cloned().unwrap_or(Value::String("missing".to_string())),
+        "satisfied": overview
+            .get("privateStateExposed")
+            .and_then(Value::as_bool)
+            .map(|exposed| !exposed)
+            .unwrap_or(false),
+        "status": if overview.get("privateStateExposed").and_then(Value::as_bool) == Some(false) { "satisfied" } else { "missing" },
+        "note": "Readiness sight observed privateStateExposed=false on overview/proof-bundle projection."
+    }));
+
+    let missing_rows = rows
+        .iter()
+        .filter(|row| row.get("satisfied").and_then(Value::as_bool) != Some(true))
+        .count();
+    let verdict = if missing_rows == 0 {
+        "ready"
+    } else {
+        "not-ready"
+    };
+    let next_safe_move = if missing_rows == 0 {
+        "Route this sight receipt to Maintainer/Soul/Mind/Bifrost review; readiness approval is still external to this command."
+    } else {
+        "Complete the missing readiness rows, then rerun epiphany-work readiness before asking for review."
+    };
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let receipt = json!({
+        "schemaVersion": "epiphany.repo_work_readiness_report.v0",
+        "createdAt": now,
+        "workspace": workspace,
+        "item": item,
+        "status": verdict,
+        "verdict": verdict,
+        "missingRequiredCount": missing_rows,
+        "overviewReceiptPath": overview["receiptPath"],
+        "proofBundleId": overview["proofBundle"]["bundleId"],
+        "rows": rows,
+        "allowedVerdicts": ["ready", "ready-with-caveats", "not-ready", "needs-human-review"],
+        "authority": {
+            "owner": "Soul/Mind/Bifrost/Maintainer",
+            "sightOnly": true,
+            "readinessApprovalAuthorized": false,
+            "durableStateCommitAuthorized": false,
+            "publicationAuthorized": false,
+            "bifrostPublicationAuthorized": false,
+            "githubPrAuthorized": false,
+            "mergeAuthorized": false,
+            "upstreamSyncAuthorized": false,
+            "deploymentAuthority": false,
+            "serviceLifecycleAuthority": false,
+            "handsActionAuthorized": false,
+            "crossBodyMutationAuthorized": false,
+            "privateVerseRummaging": false,
+            "privateStateExposed": false
+        },
+        "privateStateExposed": false,
+        "nextSafeMove": next_safe_move
+    });
+    if args.write_receipt {
+        write_json(&readiness_receipt_path, &receipt)?;
+    }
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_work_readiness.v0",
+        "status": verdict,
+        "workspace": receipt["workspace"],
+        "item": receipt["item"],
+        "receiptPath": if args.write_receipt { Value::String(readiness_receipt_path.display().to_string()) } else { Value::Null },
+        "missingRequiredCount": missing_rows,
+        "rows": receipt["rows"],
+        "authority": receipt["authority"],
+        "privateStateExposed": false,
+        "nextSafeMove": receipt["nextSafeMove"]
+    }))
+}
+
 fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -13601,6 +13933,54 @@ fn existing_path_value(path: &Path) -> Value {
     }
 }
 
+fn readiness_path_row(
+    kind: &str,
+    owner: &str,
+    required_schema: &str,
+    path: &Path,
+    satisfied: bool,
+    note: &str,
+) -> Result<Value> {
+    let document = read_json_if_exists(path)?;
+    let schema_version = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["schemaVersion"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let document_status = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["status"]))
+        .unwrap_or_else(|| "missing".to_string());
+    Ok(json!({
+        "kind": kind,
+        "owner": owner,
+        "requiredSchema": required_schema,
+        "evidenceRef": existing_path_value(path),
+        "artifactStatus": if path.exists() { "present" } else { "missing" },
+        "schemaVersion": schema_version,
+        "documentStatus": document_status,
+        "satisfied": satisfied,
+        "status": if satisfied { "satisfied" } else { "missing" },
+        "note": note,
+        "privateStateExposed": false
+    }))
+}
+
+fn readiness_missing_row(kind: &str, owner: &str, required_schema: &str, note: &str) -> Value {
+    json!({
+        "kind": kind,
+        "owner": owner,
+        "requiredSchema": required_schema,
+        "evidenceRef": Value::Null,
+        "artifactStatus": "missing",
+        "schemaVersion": "missing",
+        "documentStatus": "missing",
+        "satisfied": false,
+        "status": "missing",
+        "note": note,
+        "privateStateExposed": false
+    })
+}
+
 fn read_json_if_exists(path: &Path) -> Result<Option<Value>> {
     if path.exists() {
         read_json(path).map(Some)
@@ -14402,7 +14782,11 @@ fn string_array_field(value: &Value, field: &str) -> Vec<String> {
 }
 
 fn default_if_empty(values: Vec<String>, defaults: Vec<String>) -> Vec<String> {
-    if values.is_empty() { defaults } else { values }
+    if values.is_empty() {
+        defaults
+    } else {
+        values
+    }
 }
 
 fn adopted_action_item_from_plan(plan: &Value) -> Value {
@@ -14633,7 +15017,7 @@ fn sanitize(value: &str) -> String {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|deployment-config-audit|deployment-execution-runbook|deployment-aftercare-audit|export-proof|tick|queue-run|serve> ...\n\
+        "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|readiness|deployment-config-audit|deployment-execution-runbook|deployment-aftercare-audit|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-planning-brief|repo-interpreter-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-readiness-review-request|repo-doctrine-update-request|repo-secret-policy-request|repo-dependency-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
@@ -14645,6 +15029,7 @@ fn print_usage() {
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
+         readiness --workspace <repo> [--item <id>] [--accept-receipt <path>] [--public-proof <path>] [--idunn-lifecycle-receipt <path>] [--tool-directory-receipt <path>] [--no-write]\n\
          deployment-config-audit --workspace <repo> [--artifact-dir <path>] [--no-write]\n\
          deployment-execution-runbook --workspace <repo> [--artifact-dir <path>] [--remote origin] [--no-write]\n\
          deployment-aftercare-audit --workspace <repo> [--artifact-dir <path>] [--local-verse-store <path>] [--runtime-id <id>] [--runbook-receipt <path>] [--idunn-deployment-receipt-ref <ref>|--idunn-deployment-receipt <path>] [--aftercare-audit-receipt-ref <ref>|--aftercare-audit-receipt <path>] [--no-write]\n\

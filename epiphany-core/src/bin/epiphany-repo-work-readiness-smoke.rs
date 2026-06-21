@@ -1,0 +1,431 @@
+use anyhow::anyhow;
+use anyhow::Context;
+use anyhow::Result;
+use chrono::Utc;
+use serde_json::json;
+use serde_json::Value;
+use std::env;
+use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+
+fn main() -> Result<()> {
+    let args = Args::parse()?;
+    let result = run_smoke(args)?;
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    Ok(())
+}
+
+#[derive(Clone, Debug)]
+struct Args {
+    root: PathBuf,
+    smoke_root: PathBuf,
+}
+
+impl Args {
+    fn parse() -> Result<Self> {
+        let mut root = env::current_dir().context("failed to resolve current directory")?;
+        let mut smoke_root = root.join(".epiphany-smoke");
+        let mut args = env::args().skip(1).peekable();
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--root" => root = take_path(&mut args, "--root")?,
+                "--smoke-root" => smoke_root = take_path(&mut args, "--smoke-root")?,
+                other => return Err(anyhow!("unexpected argument {other:?}")),
+            }
+        }
+        Ok(Self { root, smoke_root })
+    }
+}
+
+fn run_smoke(args: Args) -> Result<Value> {
+    let root = args
+        .root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.root.display()))?;
+    let manifest = root.join("epiphany-core").join("Cargo.toml");
+    if !manifest.exists() {
+        return Err(anyhow!(
+            "could not find epiphany-core manifest at {}",
+            manifest.display()
+        ));
+    }
+    fs::create_dir_all(&args.smoke_root)
+        .with_context(|| format!("failed to create {}", args.smoke_root.display()))?;
+    let stamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
+    let smoke_dir = args.smoke_root.join(format!("repo-work-readiness-{stamp}"));
+    if smoke_dir.exists() {
+        fs::remove_dir_all(&smoke_dir)
+            .with_context(|| format!("failed to clear {}", smoke_dir.display()))?;
+    }
+    fs::create_dir_all(&smoke_dir)
+        .with_context(|| format!("failed to create {}", smoke_dir.display()))?;
+
+    let repo = smoke_dir.join("repo-body");
+    fs::create_dir_all(&repo).with_context(|| format!("failed to create {}", repo.display()))?;
+    git(["init"], &repo)?;
+    git(
+        ["config", "user.email", "epiphany-smoke@example.invalid"],
+        &repo,
+    )?;
+    git(["config", "user.name", "Epiphany Smoke"], &repo)?;
+    fs::write(
+        repo.join("README.md"),
+        "# Repo Work Readiness Smoke\n\nThis repository proves readiness sight without readiness approval.\n",
+    )
+    .with_context(|| format!("failed to seed {}", repo.join("README.md").display()))?;
+    git(["add", "README.md"], &repo)?;
+    git(
+        ["commit", "-m", "Seed repo work readiness smoke body"],
+        &repo,
+    )?;
+    git(["switch", "-c", "epiphany/repo-work-readiness"], &repo)?;
+
+    let item = "repo-work-readiness";
+    let local_verse = repo.join(".epiphany").join("local-verse.ccmp");
+    cargo_json(
+        &manifest,
+        "epiphany-repo",
+        &[
+            "init",
+            "--workspace",
+            path_str(&repo)?,
+            "--epiphany-root",
+            path_str(&root)?,
+            "--swarm-id",
+            "repo-work-readiness-smoke",
+            "--topic",
+            "repo-work-readiness",
+        ],
+        &root,
+    )?;
+    cargo_json(
+        &manifest,
+        "epiphany-swarm",
+        &[
+            "online",
+            "--workspace",
+            path_str(&repo)?,
+            "--epiphany-root",
+            path_str(&root)?,
+            "--runtime-id",
+            "repo-work-readiness-smoke",
+            "--local-verse-store",
+            path_str(&local_verse)?,
+        ],
+        &root,
+    )?;
+    cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "accept",
+            "--workspace",
+            path_str(&repo)?,
+            "--from",
+            "persona",
+            "--item",
+            item,
+            "--summary",
+            "Prove repo-work readiness sight can name missing publication and lifecycle gates without granting authority.",
+            "--candidate-action-ref",
+            "candidate-action://repo-work-readiness/checklist",
+            "--public-discussion-ref",
+            "epiphany-global/persona-collaboration/repo-work-readiness",
+        ],
+        &root,
+    )?;
+    cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "derive-plan",
+            "--workspace",
+            path_str(&repo)?,
+            "--item",
+            item,
+            "--action-family",
+            "checklist-note",
+            "--model-ref",
+            "repo-work-readiness-smoke-imagination-v1",
+            "--model-authored",
+        ],
+        &root,
+    )?;
+    for _ in 0..4 {
+        cargo_json(
+            &manifest,
+            "epiphany-work",
+            &[
+                "tick",
+                "--workspace",
+                path_str(&repo)?,
+                "--epiphany-root",
+                path_str(&root)?,
+                "--item",
+                item,
+                "--cooldown-seconds",
+                "0",
+            ],
+            &root,
+        )?;
+    }
+    cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "queue-run",
+            "--workspace",
+            path_str(&repo)?,
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-work-readiness-smoke",
+            "--max-items",
+            "1",
+            "--dry-run",
+        ],
+        &root,
+    )?;
+    let public_proof = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "export-proof",
+            "--workspace",
+            path_str(&repo)?,
+            "--item",
+            item,
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-work-readiness-smoke",
+        ],
+        &root,
+    )?;
+    let readiness = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &["readiness", "--workspace", path_str(&repo)?, "--item", item],
+        &root,
+    )?;
+
+    require_eq(
+        &readiness,
+        &["schemaVersion"],
+        "epiphany.repo_work_readiness.v0",
+    )?;
+    require_eq(&readiness, &["status"], "not-ready")?;
+    require_u64(&readiness, &["missingRequiredCount"], 4)?;
+    require_bool(&readiness, &["authority", "sightOnly"], true)?;
+    require_bool(
+        &readiness,
+        &["authority", "readinessApprovalAuthorized"],
+        false,
+    )?;
+    require_bool(&readiness, &["authority", "publicationAuthorized"], false)?;
+    require_bool(&readiness, &["authority", "deploymentAuthority"], false)?;
+    require_bool(
+        &readiness,
+        &["authority", "serviceLifecycleAuthority"],
+        false,
+    )?;
+    require_bool(&readiness, &["authority", "handsActionAuthorized"], false)?;
+    require_bool(&readiness, &["authority", "privateStateExposed"], false)?;
+    require_row(&readiness, "repo-init", true)?;
+    require_row(&readiness, "swarm-online", true)?;
+    require_row(&readiness, "persona-intake", true)?;
+    require_row(&readiness, "imagination-plan", true)?;
+    require_row(&readiness, "self-queue-run", true)?;
+    require_row(&readiness, "hands-branch-work", true)?;
+    require_row(&readiness, "soul-closure", true)?;
+    require_row(&readiness, "modeling-mind-admission", true)?;
+    require_row(&readiness, "public-proof", true)?;
+    require_row(&readiness, "bifrost-publication", false)?;
+    require_row(&readiness, "upstream-main-sync", false)?;
+    require_row(&readiness, "idunn-lifecycle", false)?;
+    require_row(&readiness, "tool-directory", false)?;
+    require_row(&readiness, "private-state-redaction", true)?;
+
+    let summary = json!({
+        "schemaVersion": "epiphany.repo_work_readiness_smoke.v0",
+        "status": "ok",
+        "smokeDir": smoke_dir,
+        "repo": repo,
+        "branch": git_output(["branch", "--show-current"], &repo)?,
+        "item": item,
+        "publicProofOutput": public_proof["outputPath"],
+        "readinessStatus": readiness["status"],
+        "missingRequiredCount": readiness["missingRequiredCount"],
+        "sightOnly": readiness["authority"]["sightOnly"],
+        "readinessApprovalAuthorized": readiness["authority"]["readinessApprovalAuthorized"],
+        "publicationAuthorized": readiness["authority"]["publicationAuthorized"],
+        "deploymentAuthority": readiness["authority"]["deploymentAuthority"],
+        "serviceLifecycleAuthority": readiness["authority"]["serviceLifecycleAuthority"],
+        "handsActionAuthorized": readiness["authority"]["handsActionAuthorized"],
+        "privateStateExposed": readiness["privateStateExposed"],
+    });
+    write_json(&smoke_dir.join("summary.json"), &summary)?;
+    Ok(summary)
+}
+
+fn cargo_json(manifest: &Path, bin: &str, args: &[&str], cwd: &Path) -> Result<Value> {
+    let output = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .arg("--manifest-path")
+        .arg(manifest)
+        .arg("--bin")
+        .arg(bin)
+        .arg("--")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .with_context(|| format!("failed to run cargo bin {bin}"))?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "{bin} failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    serde_json::from_slice(&output.stdout).with_context(|| {
+        format!(
+            "{bin} did not emit JSON on stdout:\n{}",
+            String::from_utf8_lossy(&output.stdout)
+        )
+    })
+}
+
+fn git<const N: usize>(args: [&str; N], cwd: &Path) -> Result<()> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .with_context(|| format!("failed to run git in {}", cwd.display()))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "git failed in {} with status {:?}\nstdout:\n{}\nstderr:\n{}",
+            cwd.display(),
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
+}
+
+fn git_output<const N: usize>(args: [&str; N], cwd: &Path) -> Result<String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .with_context(|| format!("failed to run git in {}", cwd.display()))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(anyhow!(
+            "git failed in {} with status {:?}\nstdout:\n{}\nstderr:\n{}",
+            cwd.display(),
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
+}
+
+fn write_json(path: &Path, value: &Value) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+    fs::write(path, serde_json::to_vec_pretty(value)?)
+        .with_context(|| format!("failed to write {}", path.display()))
+}
+
+fn require_eq(value: &Value, path: &[&str], expected: &str) -> Result<()> {
+    let actual = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {expected:?}, got {actual:?}",
+            path.join(".")
+        ))
+    }
+}
+
+fn require_u64(value: &Value, path: &[&str], expected: u64) -> Result<()> {
+    let actual = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_u64)
+        .unwrap_or(u64::MAX);
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {expected:?}, got {actual:?}",
+            path.join(".")
+        ))
+    }
+}
+
+fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
+    let actual = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_bool)
+        .unwrap_or(!expected);
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {expected:?}, got {actual:?}",
+            path.join(".")
+        ))
+    }
+}
+
+fn require_row(value: &Value, kind: &str, expected_satisfied: bool) -> Result<()> {
+    let rows = value
+        .get("rows")
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("readiness output did not include rows"))?;
+    let row = rows
+        .iter()
+        .find(|row| row.get("kind").and_then(Value::as_str) == Some(kind))
+        .ok_or_else(|| anyhow!("missing readiness row {kind:?}"))?;
+    let actual = row
+        .get("satisfied")
+        .and_then(Value::as_bool)
+        .unwrap_or(!expected_satisfied);
+    if actual == expected_satisfied {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected readiness row {kind:?} satisfied={expected_satisfied}, got {actual}"
+        ))
+    }
+}
+
+fn take_path(
+    args: &mut std::iter::Peekable<impl Iterator<Item = String>>,
+    flag: &str,
+) -> Result<PathBuf> {
+    args.next()
+        .map(PathBuf::from)
+        .with_context(|| format!("missing value for {flag}"))
+}
+
+fn path_str(path: &Path) -> Result<&str> {
+    path.to_str()
+        .ok_or_else(|| anyhow!("path is not valid UTF-8: {}", path.display()))
+}
