@@ -1,30 +1,8 @@
+use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Utc;
-use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
-use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
-use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
-use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
-use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
-use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
-use epiphany_core::HANDS_PR_RECEIPT_TYPE;
-use epiphany_core::HandsActionIntent;
-use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
-use epiphany_core::MindGatewayDecision;
-use epiphany_core::MindGatewayReview;
-use epiphany_core::RuntimeSpineInitOptions;
-use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::SoulVerdictReceipt;
-use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
@@ -56,10 +34,32 @@ use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
+use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
+use epiphany_core::HandsActionIntent;
+use epiphany_core::MindGatewayDecision;
+use epiphany_core::MindGatewayReview;
+use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::SoulVerdictReceipt;
+use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
+use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
+use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
+use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
+use epiphany_core::HANDS_PR_RECEIPT_TYPE;
+use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
+use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
 use serde_json::json;
+use serde_json::Value;
 use sha2::Digest;
 use sha2::Sha256;
 use std::env;
@@ -1467,9 +1467,9 @@ fn run_accept(args: AcceptArgs) -> Result<Value> {
             .join("swarm-online")
             .join("repo-swarm-online-receipt.json")
     });
-    let online_receipt = read_json(&online_receipt_path).with_context(
-        || "repo swarm online receipt is required; run epiphany-swarm online first",
-    )?;
+    let online_receipt = read_json(&online_receipt_path).with_context(|| {
+        "repo swarm online receipt is required; run epiphany-swarm online first"
+    })?;
     let local_verse_store = args.local_verse_store.unwrap_or_else(|| {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
@@ -1630,9 +1630,9 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
             .join("swarm-online")
             .join("repo-swarm-online-receipt.json")
     });
-    let online_receipt = read_json(&online_receipt_path).with_context(
-        || "repo swarm online receipt is required; run epiphany-swarm online first",
-    )?;
+    let online_receipt = read_json(&online_receipt_path).with_context(|| {
+        "repo swarm online receipt is required; run epiphany-swarm online first"
+    })?;
     let local_verse_store = args.local_verse_store.clone().unwrap_or_else(|| {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
@@ -5747,6 +5747,7 @@ fn closure_family_assertions(
     let item_slug = sanitize(item);
     let committed_content = read_committed_file(workspace, commit_sha, &target_path)?;
     let mut assertions = Vec::new();
+    let mut safe_family_planning = Value::Null;
     push_assertion(
         &mut assertions,
         "target-blob-present",
@@ -6452,6 +6453,7 @@ fn closure_family_assertions(
                 "Committed planning brief preserves private-state and transcript seals."
                     .to_string(),
             );
+            safe_family_planning = planning_brief_safe_family_readback(&content);
         }
         "repo.objective_draft" => {
             push_assertion(
@@ -8042,10 +8044,95 @@ fn closure_family_assertions(
             "safeActionFamily": safe_family,
             "targetPath": target_path,
             "planReceiptPath": plan_receipt_path,
+            "safeFamilyPlanning": safe_family_planning,
             "assertions": assertions
         }),
         passed,
     ))
+}
+
+fn planning_brief_safe_family_readback(content: &str) -> Value {
+    let candidate_families = [
+        "repo.consensus_brief",
+        "repo.objective_draft",
+        "repo.task_card",
+        "repo.work_order",
+        "repo.verification_request",
+        "repo.publication_request",
+    ];
+    let candidate_rows: Vec<Value> = candidate_families
+        .iter()
+        .map(|family| {
+            json!({
+                "safeActionFamily": family,
+                "present": content.contains(&format!("\"{family}\"")),
+            })
+        })
+        .collect();
+    let gates = json!({
+        "mindInterpreterRequired": content.contains("mind_interpreter_required = true"),
+        "mindAdoptionRequired": content.contains("mind_adoption_required = true"),
+        "selfQueueSelectionRequired": content.contains("self_queue_selection_required = true"),
+        "substrateGateRequiredBeforeHands": content.contains("substrate_gate_required_before_hands = true"),
+        "handsReceiptsRequiredBeforeSoul": content.contains("hands_receipts_required_before_soul = true"),
+        "soulVerdictRequiredBeforeMindMapAdmission": content.contains("soul_verdict_required_before_mind_map_admission = true"),
+        "bifrostRequiredBeforePublication": content.contains("bifrost_required_before_publication = true"),
+        "idunnRequiredBeforeDeploymentExecution": content.contains("idunn_required_before_deployment_execution = true"),
+    });
+    let requirements = json!({
+        "oneSafeFamilyPerActionItem": content.contains("one_safe_family_per_action_item = true"),
+        "requestedPathsRequired": content.contains("candidate_items_must_name_requested_paths = true"),
+        "verificationAsksRequired": content.contains("candidate_items_must_name_verification_asks = true"),
+        "evidenceNeedsRequired": content.contains("candidate_items_must_name_evidence_needs = true"),
+        "deterministicLoweringRequired": content.contains("shell_commands_must_be_deterministic_lowerings = true"),
+    });
+    let authority_denials = json!({
+        "objectiveAdoptionAuthorized": content.contains("objective_adoption_authorized = true"),
+        "selfSchedulingAuthorized": content.contains("self_scheduling_authorized = true"),
+        "substrateAccessAuthorized": content.contains("substrate_access_authorized = true"),
+        "handsActionAuthorized": content.contains("hands_action_authorized = true"),
+        "shellCommandAuthorized": content.contains("shell_command_authorized = true"),
+        "commitAuthorized": content.contains("commit_authorized = true"),
+        "publicationAuthorized": content.contains("publication_authorized = true"),
+        "deploymentExecutionAuthority": content.contains("deployment_execution_authority = true"),
+        "crossBodyMutationAuthorized": content.contains("cross_body_mutation_authorized = true"),
+        "privateVerseRummaging": content.contains("private_verse_rummaging = true"),
+        "privateStateExposed": content.contains("private_state_exposed = true"),
+        "privateWorkerTranscriptsAllowed": content.contains("private_worker_transcripts_allowed = true"),
+        "rawResultPayloadsAllowed": content.contains("raw_result_payloads_allowed = true"),
+    });
+    let present_count = candidate_rows
+        .iter()
+        .filter(|row| row.get("present").and_then(Value::as_bool) == Some(true))
+        .count();
+    let all_required_gates_present = gates
+        .as_object()
+        .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
+        .unwrap_or(false);
+    let all_requirements_present = requirements
+        .as_object()
+        .map(|fields| fields.values().all(|value| value.as_bool() == Some(true)))
+        .unwrap_or(false);
+    let authority_denied = authority_denials
+        .as_object()
+        .map(|fields| fields.values().all(|value| value.as_bool() == Some(false)))
+        .unwrap_or(false);
+    json!({
+        "schemaVersion": "epiphany.repo_work_safe_family_planning_readback.v0",
+        "owner": "Soul",
+        "sourceSafeFamily": "repo.planning_brief",
+        "candidateNextSafeFamilies": candidate_rows,
+        "candidateNextSafeFamilyCount": present_count,
+        "allExpectedCandidateFamiliesPresent": present_count == candidate_families.len(),
+        "requirements": requirements,
+        "gates": gates,
+        "allRequiredGatesPresent": all_required_gates_present,
+        "authorityDenials": authority_denials,
+        "authorityDenied": authority_denied,
+        "allPlanningRequirementsPresent": all_requirements_present,
+        "privateStateExposed": false,
+        "nextSafeMove": "Self or Mind may choose one candidate safe family as a separate reviewed action item; this readback grants no Hands, scheduling, publication, deployment, or state-admission authority."
+    })
 }
 
 fn push_assertion(assertions: &mut Vec<Value>, id: &str, passed: bool, summary: String) {
@@ -13197,7 +13284,11 @@ fn string_array_field(value: &Value, field: &str) -> Vec<String> {
 }
 
 fn default_if_empty(values: Vec<String>, defaults: Vec<String>) -> Vec<String> {
-    if values.is_empty() { defaults } else { values }
+    if values.is_empty() {
+        defaults
+    } else {
+        values
+    }
 }
 
 fn adopted_action_item_from_plan(plan: &Value) -> Value {

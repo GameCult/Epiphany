@@ -1,9 +1,9 @@
+use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use chrono::Utc;
-use serde_json::Value;
 use serde_json::json;
+use serde_json::Value;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -204,6 +204,86 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["closureReview", "sourceGrounding", "pathScopeMatched"],
         true,
     )?;
+    require_eq(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "schemaVersion",
+        ],
+        "epiphany.repo_work_safe_family_planning_readback.v0",
+    )?;
+    require_eq(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "sourceSafeFamily",
+        ],
+        "repo.planning_brief",
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "allExpectedCandidateFamiliesPresent",
+        ],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "allPlanningRequirementsPresent",
+        ],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "allRequiredGatesPresent",
+        ],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "authorityDenied",
+        ],
+        true,
+    )?;
+    require_bool(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "privateStateExposed",
+        ],
+        false,
+    )?;
+    require_u64(
+        &close,
+        &[
+            "closureReview",
+            "familyAssertions",
+            "safeFamilyPlanning",
+            "candidateNextSafeFamilyCount",
+        ],
+        6,
+    )?;
     require_bool(&close, &["privateStateExposed"], false)?;
     require_text(
         &brief_text,
@@ -223,12 +303,18 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&brief_text, "\"repo.work_order\"")?;
     require_text(&brief_text, "\"repo.verification_request\"")?;
     require_text(&brief_text, "\"repo.publication_request\"")?;
-    require_text(&brief_text, "candidate_items_must_name_requested_paths = true")?;
+    require_text(
+        &brief_text,
+        "candidate_items_must_name_requested_paths = true",
+    )?;
     require_text(
         &brief_text,
         "candidate_items_must_name_verification_asks = true",
     )?;
-    require_text(&brief_text, "candidate_items_must_name_evidence_needs = true")?;
+    require_text(
+        &brief_text,
+        "candidate_items_must_name_evidence_needs = true",
+    )?;
     require_text(&brief_text, "[gates]")?;
     require_text(&brief_text, "mind_interpreter_required = true")?;
     require_text(&brief_text, "self_queue_selection_required = true")?;
@@ -269,6 +355,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         "soulVerdict": close["soul"]["verdict"],
         "familyAssertionsStatus": close["closureReview"]["familyAssertions"]["status"],
         "pathScopeMatched": close["closureReview"]["sourceGrounding"]["pathScopeMatched"],
+        "safeFamilyPlanningSchema": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["schemaVersion"],
+        "candidateNextSafeFamilyCount": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["candidateNextSafeFamilyCount"],
+        "allExpectedCandidateFamiliesPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allExpectedCandidateFamiliesPresent"],
+        "allRequiredGatesPresent": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["allRequiredGatesPresent"],
+        "authorityDenied": close["closureReview"]["familyAssertions"]["safeFamilyPlanning"]["authorityDenied"],
         "briefIsDraft": true,
         "candidateActionsNonAuthoritative": true,
         "mindInterpreterRequired": true,
@@ -382,6 +473,22 @@ fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
         .iter()
         .try_fold(value, |current, key| current.get(*key))
         .and_then(Value::as_bool);
+    if actual == Some(expected) {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {expected}, got {:?}",
+            path.join("."),
+            actual
+        ))
+    }
+}
+
+fn require_u64(value: &Value, path: &[&str], expected: u64) -> Result<()> {
+    let actual = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_u64);
     if actual == Some(expected) {
         Ok(())
     } else {
