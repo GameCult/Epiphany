@@ -1727,13 +1727,27 @@ published `repo-work-public-proof-checklist-request` to
 Bifrost ledger readback now also emits derived external-work accounting rows
 without creating a rival ledger. `epiphany-verse-query bifrost-ledger` returns
 `accountingRows` and `accountingTuiRows` for `body-change-publication`,
-`public-proof-publication`, and `collaboration-consensus`, carrying closure
-status, ledger/receipt/public refs, review and credit receipt counts, artifact
-count, and the private-state seal. Wrapper proof
+`public-proof-publication`, `repo-work-readiness-review`, and
+`collaboration-consensus`, carrying closure status, ledger/receipt/public refs,
+review and credit receipt counts, artifact count, and the private-state seal.
+The readiness-review lane closes only when latest
+`epiphany.cultmesh.repo_work_readiness_review.v0` has four Maintainer/Soul/Mind/
+Bifrost review refs, `status=readiness-approved`, zero missing required rows, a
+present review artifact, readiness approval true, and durable-state,
+publication, PR, merge, upstream-sync, deployment, service lifecycle, Hands, and
+private-state authority all false. Wrapper proof
 `local-20260621-091019-297-aaf2ad07` reported `accountingRows=3`,
 `closedAccounting=2`, `attentionAccounting=0`, closed body-change and
 collaboration rows, a visible missing public-proof-publication row, and
 `privateStateExposed=False`.
+Native proof `.epiphany-smoke\repo-work-readiness-20260621-120755` reported
+`bifrostReadinessReviewAccountingRow.status=closed`, `reviewReceiptCount=4`,
+`publicArtifactCount=1`, latest receipt
+`repo-work-readiness-review-repo-work-readiness`, and `privateStateExposed=false`;
+wrapper proof `local-20260621-131113-240-be2b19f2` printed the same closed
+`BIFROST-ACCOUNTING | repo-work-readiness-review` row from the explicit
+repo-local Verse target after the wrapper read path was corrected to use
+`-LocalVerseStore` / `-LocalVerseRuntimeId`.
 
 Wrapper mode `tools/epiphany_local_run.ps1 -Mode bifrost-public-proof` now
 exposes the same Bifrost mouth for operators and agents. It reads the latest

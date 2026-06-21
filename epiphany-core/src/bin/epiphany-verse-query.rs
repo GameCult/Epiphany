@@ -1236,6 +1236,7 @@ fn run_cli() -> Result<()> {
                     "latestBifrostPublicationReceipt": report.latest_publication_receipt_id,
                     "latestBifrostGithubReceipt": report.latest_github_receipt_id,
                     "latestBifrostPublicProofPublicationReceipt": report.latest_public_proof_publication_receipt_id,
+                    "latestRepoWorkReadinessReview": report.latest_readiness_review_id,
                     "latestBifrostCollaborationFeedback": report.latest_feedback_id,
                     "latestImaginationConsensusReceipt": report.latest_consensus_receipt_id,
                     "accountingTuiRows": report.accounting_tui_rows,
@@ -2714,7 +2715,7 @@ fn run_cli() -> Result<()> {
             if bifrost_ledger_report.status != "ok"
                 || bifrost_ledger_report.publication_chain_count != 3
                 || bifrost_ledger_report.collaboration_chain_count != 2
-                || bifrost_ledger_report.accounting_rows.len() != 3
+                || bifrost_ledger_report.accounting_rows.len() != 4
                 || bifrost_ledger_report.closed_accounting_row_count != 2
                 || bifrost_ledger_report.attention_accounting_row_count != 0
                 || bifrost_ledger_report.rows.len() != 5
@@ -2747,6 +2748,13 @@ fn run_cli() -> Result<()> {
                     row.contains("BIFROST-ACCOUNTING | public-proof-publication")
                         && row.contains("status=missing")
                         && row.contains("proof=missing")
+                        && row.contains("private=false")
+                })
+                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
+                    row.contains("BIFROST-ACCOUNTING | repo-work-readiness-review")
+                        && row.contains("status=missing")
+                        && row.contains("review=0")
+                        && row.contains("approval=missing")
                         && row.contains("private=false")
                 })
                 || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
@@ -4928,6 +4936,7 @@ struct BifrostLedgerReport {
     latest_publication_receipt_id: Option<String>,
     latest_github_receipt_id: Option<String>,
     latest_public_proof_publication_receipt_id: Option<String>,
+    latest_readiness_review_id: Option<String>,
     latest_feedback_id: Option<String>,
     latest_consensus_receipt_id: Option<String>,
     private_state_exposed: bool,
@@ -8524,6 +8533,10 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
             &args.store,
             args.runtime_id.clone(),
         )?;
+    let latest_readiness_review = load_latest_epiphany_cultmesh_repo_work_readiness_review(
+        &args.store,
+        args.runtime_id.clone(),
+    )?;
     let latest_feedback = load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
         &args.store,
         args.runtime_id.clone(),
@@ -8537,6 +8550,7 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
         latest_publication.as_ref(),
         latest_github.as_ref(),
         latest_public_proof_publication.as_ref(),
+        latest_readiness_review.as_ref(),
         latest_feedback.as_ref(),
         latest_consensus.as_ref(),
     ))
@@ -8549,6 +8563,7 @@ fn bifrost_ledger_report(
     latest_public_proof_publication: Option<
         &EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry,
     >,
+    latest_readiness_review: Option<&EpiphanyCultMeshRepoWorkReadinessReviewEntry>,
     latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
 ) -> BifrostLedgerReport {
@@ -8674,6 +8689,7 @@ fn bifrost_ledger_report(
         latest_publication,
         latest_github,
         latest_public_proof_publication,
+        latest_readiness_review,
         latest_feedback,
         latest_consensus,
     );
@@ -8685,7 +8701,8 @@ fn bifrost_ledger_report(
         .iter()
         .filter(|row| row.status == "attention" || row.private_state_exposed)
         .count();
-    let private_state_exposed = rows.iter().any(|row| row.private_state_exposed);
+    let private_state_exposed = rows.iter().any(|row| row.private_state_exposed)
+        || accounting_rows.iter().any(|row| row.private_state_exposed);
     let status = if rows.is_empty() {
         "empty"
     } else if private_state_exposed {
@@ -8711,6 +8728,7 @@ fn bifrost_ledger_report(
         latest_github_receipt_id: latest_github.map(|receipt| receipt.receipt_id.clone()),
         latest_public_proof_publication_receipt_id: latest_public_proof_publication
             .map(|receipt| receipt.receipt_id.clone()),
+        latest_readiness_review_id: latest_readiness_review.map(|review| review.review_id.clone()),
         latest_feedback_id: latest_feedback.map(|feedback| feedback.feedback_id.clone()),
         latest_consensus_receipt_id: latest_consensus.map(|receipt| receipt.receipt_id.clone()),
         private_state_exposed,
@@ -8746,6 +8764,7 @@ fn bifrost_accounting_rows(
     latest_public_proof_publication: Option<
         &EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry,
     >,
+    latest_readiness_review: Option<&EpiphanyCultMeshRepoWorkReadinessReviewEntry>,
     latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
 ) -> (Vec<BifrostAccountingRow>, Vec<String>) {
@@ -8859,6 +8878,75 @@ fn bifrost_accounting_rows(
             credit_receipt_count: proof_credit_count,
             public_artifact_count: usize::from(latest_public_proof_publication.is_some()),
             private_state_exposed: proof_private,
+        },
+    );
+
+    let readiness_private = latest_readiness_review
+        .map(|review| review.private_state_exposed)
+        .unwrap_or(false);
+    let readiness_review_count = latest_readiness_review
+        .map(|review| {
+            [
+                &review.maintainer_review_receipt,
+                &review.soul_review_receipt,
+                &review.mind_review_receipt,
+                &review.bifrost_review_receipt,
+            ]
+            .iter()
+            .filter(|receipt| !receipt.trim().is_empty() && receipt.as_str() != "none")
+            .count()
+        })
+        .unwrap_or(0);
+    let readiness_artifact_present = latest_readiness_review
+        .map(|review| operator_artifact_status(&review.readiness_review_receipt_ref) == "present")
+        .unwrap_or(false);
+    let readiness_closed = latest_readiness_review
+        .map(|review| {
+            review.status == "readiness-approved"
+                && review.missing_required_count == 0
+                && review.readiness_approval_authorized
+                && !review.durable_state_commit_authorized
+                && !review.publication_authorized
+                && !review.merge_authorized
+                && !review.upstream_sync_authorized
+                && !review.deployment_authority
+                && !review.service_lifecycle_authority
+                && !review.hands_action_authorized
+                && readiness_review_count == 4
+                && readiness_artifact_present
+                && !readiness_private
+        })
+        .unwrap_or(false);
+    push_bifrost_accounting_row(
+        &mut rows,
+        &mut tui_rows,
+        BifrostAccountingRow {
+            lane: "repo-work-readiness-review".to_string(),
+            owner: "Maintainer/Soul/Mind/Bifrost".to_string(),
+            status: bifrost_accounting_status(
+                readiness_closed,
+                latest_readiness_review.is_some(),
+                readiness_private,
+            ),
+            closure: format!(
+                "review={} approval={} artifact={}",
+                readiness_review_count,
+                latest_readiness_review
+                    .map(|review| review.status.as_str())
+                    .unwrap_or("missing"),
+                present_word(readiness_artifact_present)
+            ),
+            ledger_entry_id: "none".to_string(),
+            latest_receipt_id: latest_readiness_review
+                .map(|review| review.review_id.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            public_ref: latest_readiness_review
+                .map(|review| review.readiness_review_receipt_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            review_receipt_count: readiness_review_count,
+            credit_receipt_count: 0,
+            public_artifact_count: usize::from(readiness_artifact_present),
+            private_state_exposed: readiness_private,
         },
     );
 

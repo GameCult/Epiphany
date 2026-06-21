@@ -562,6 +562,33 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_tui_row_contains(&receipt_directory, &["tuiRows"], "artifact=present")?;
     require_bool(&receipt_directory, &["privateStateExposed"], false)?;
+    let bifrost_ledger = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "bifrost-ledger",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-work-readiness-smoke",
+        ],
+        &root,
+    )?;
+    require_bifrost_accounting_row(
+        &bifrost_ledger,
+        "repo-work-readiness-review",
+        "closed",
+        "repo-work-readiness-review-repo-work-readiness",
+        4,
+        1,
+    )?;
+    require_tui_row_contains(
+        &bifrost_ledger,
+        &["accountingTuiRows"],
+        "BIFROST-ACCOUNTING | repo-work-readiness-review",
+    )?;
+    require_tui_row_contains(&bifrost_ledger, &["accountingTuiRows"], "status=closed")?;
+    require_bool(&bifrost_ledger, &["privateStateExposed"], false)?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_work_readiness_smoke.v0",
@@ -586,6 +613,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "gjallarLatestRepoWorkReadinessReview": gjallar["latestRepoWorkReadinessReview"],
         "receiptDirectoryRowCount": receipt_directory["rowCount"],
         "receiptDirectoryReadinessReviewRow": receipt_directory_row_value(&receipt_directory, "repo-work-readiness-review")?,
+        "bifrostLedgerAccountingRowCount": bifrost_ledger["accountingRowCount"],
+        "bifrostReadinessReviewAccountingRow": bifrost_accounting_row_value(&bifrost_ledger, "repo-work-readiness-review")?,
         "sightOnly": readiness["authority"]["sightOnly"],
         "readinessApprovalAuthorized": readiness["authority"]["readinessApprovalAuthorized"],
         "publicationAuthorized": readiness["authority"]["publicationAuthorized"],
@@ -851,6 +880,60 @@ fn require_receipt_directory_row(
     } else {
         Err(anyhow!(
             "receipt-directory row {family:?} mismatch: latestId={actual_latest_id:?}, status={actual_status:?}, artifactStatus={actual_artifact_status:?}, artifactSha256={artifact_sha:?}, privateStateExposed={actual_private}"
+        ))
+    }
+}
+
+fn bifrost_accounting_row_value<'a>(value: &'a Value, lane: &str) -> Result<&'a Value> {
+    value
+        .get("accountingRows")
+        .and_then(Value::as_array)
+        .and_then(|rows| {
+            rows.iter()
+                .find(|row| row.get("lane").and_then(Value::as_str) == Some(lane))
+        })
+        .ok_or_else(|| anyhow!("missing Bifrost accounting row {lane:?}"))
+}
+
+fn require_bifrost_accounting_row(
+    value: &Value,
+    lane: &str,
+    status: &str,
+    latest_receipt_id: &str,
+    review_receipt_count: u64,
+    public_artifact_count: u64,
+) -> Result<()> {
+    let row = bifrost_accounting_row_value(value, lane)?;
+    let actual_status = row
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    let actual_latest_receipt_id = row
+        .get("latestReceiptId")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    let actual_review_receipt_count = row
+        .get("reviewReceiptCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let actual_public_artifact_count = row
+        .get("publicArtifactCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let actual_private = row
+        .get("privateStateExposed")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    if actual_status == status
+        && actual_latest_receipt_id == latest_receipt_id
+        && actual_review_receipt_count == review_receipt_count
+        && actual_public_artifact_count == public_artifact_count
+        && !actual_private
+    {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "Bifrost accounting row {lane:?} mismatch: status={actual_status:?}, latestReceiptId={actual_latest_receipt_id:?}, reviewReceiptCount={actual_review_receipt_count}, publicArtifactCount={actual_public_artifact_count}, privateStateExposed={actual_private}"
         ))
     }
 }

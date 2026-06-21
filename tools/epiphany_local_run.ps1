@@ -890,7 +890,7 @@ if ($Mode -eq "bifrost-ledger") {
         -FilePath $verseQueryExe `
         -Arguments @(
             "bifrost-ledger",
-            "--store", $localVerseStore,
+            "--store", $localVerseReadStore,
             "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
