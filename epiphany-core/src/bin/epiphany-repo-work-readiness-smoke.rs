@@ -536,6 +536,32 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["swarmActionTuiRows"],
         "repo-work-readiness-review",
     )?;
+    let receipt_directory = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "receipt-directory",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-work-readiness-smoke",
+        ],
+        &root,
+    )?;
+    require_receipt_directory_row(
+        &receipt_directory,
+        "repo-work-readiness-review",
+        "repo-work-readiness-review-repo-work-readiness",
+        "readiness-approved",
+        "present",
+    )?;
+    require_tui_row_contains(
+        &receipt_directory,
+        &["tuiRows"],
+        "repo-work-readiness-review",
+    )?;
+    require_tui_row_contains(&receipt_directory, &["tuiRows"], "artifact=present")?;
+    require_bool(&receipt_directory, &["privateStateExposed"], false)?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_work_readiness_smoke.v0",
@@ -558,6 +584,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "gjallarLatestRepoWorkReadiness": gjallar["latestRepoWorkReadiness"],
         "gjallarRepoWorkReadinessReviewCount": gjallar["repoWorkReadinessReviewCount"],
         "gjallarLatestRepoWorkReadinessReview": gjallar["latestRepoWorkReadinessReview"],
+        "receiptDirectoryRowCount": receipt_directory["rowCount"],
+        "receiptDirectoryReadinessReviewRow": receipt_directory_row_value(&receipt_directory, "repo-work-readiness-review")?,
         "sightOnly": readiness["authority"]["sightOnly"],
         "readinessApprovalAuthorized": readiness["authority"]["readinessApprovalAuthorized"],
         "publicationAuthorized": readiness["authority"]["publicationAuthorized"],
@@ -770,6 +798,59 @@ fn require_tui_row_contains(value: &Value, path: &[&str], needle: &str) -> Resul
         Err(anyhow!(
             "expected {} to contain row fragment {needle:?}",
             path.join(".")
+        ))
+    }
+}
+
+fn receipt_directory_row_value<'a>(value: &'a Value, family: &str) -> Result<&'a Value> {
+    value
+        .get("rows")
+        .and_then(Value::as_array)
+        .and_then(|rows| {
+            rows.iter()
+                .find(|row| row.get("family").and_then(Value::as_str) == Some(family))
+        })
+        .ok_or_else(|| anyhow!("missing receipt-directory row {family:?}"))
+}
+
+fn require_receipt_directory_row(
+    value: &Value,
+    family: &str,
+    latest_id: &str,
+    status: &str,
+    artifact_status: &str,
+) -> Result<()> {
+    let row = receipt_directory_row_value(value, family)?;
+    let actual_latest_id = row
+        .get("latestId")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    let actual_status = row
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    let actual_artifact_status = row
+        .get("artifactStatus")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    let actual_private = row
+        .get("privateStateExposed")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let artifact_sha = row
+        .get("artifactSha256")
+        .and_then(Value::as_str)
+        .unwrap_or("none");
+    if actual_latest_id == latest_id
+        && actual_status == status
+        && actual_artifact_status == artifact_status
+        && artifact_sha != "none"
+        && !actual_private
+    {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "receipt-directory row {family:?} mismatch: latestId={actual_latest_id:?}, status={actual_status:?}, artifactStatus={actual_artifact_status:?}, artifactSha256={artifact_sha:?}, privateStateExposed={actual_private}"
         ))
     }
 }

@@ -905,7 +905,7 @@ if ($Mode -eq "receipt-directory") {
         -FilePath $verseQueryExe `
         -Arguments @(
             "receipt-directory",
-            "--store", $localVerseStore,
+            "--store", $localVerseReadStore,
             "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `

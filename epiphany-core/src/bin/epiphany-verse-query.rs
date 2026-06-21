@@ -129,6 +129,8 @@ const WRAPPER_BIFROST_PUBLICATION_COMMAND: &str =
 const WRAPPER_BIFROST_LEDGER_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode bifrost-ledger";
 const WRAPPER_RECEIPT_DIRECTORY_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode receipt-directory";
+const WRAPPER_REPO_WORK_READINESS_REVIEW_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode repo-work-readiness-review";
 const DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND: &str = "epiphany-work deployment-aftercare-audit --workspace <repo> --local-verse-store <store> --idunn-deployment-receipt-ref latest --aftercare-audit-receipt-ref latest";
 const WRAPPER_SERVICE_TICK_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode service-tick";
 const WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND: &str =
@@ -221,7 +223,16 @@ fn run_cli() -> Result<()> {
                 &args.store,
                 args.runtime_id.clone(),
             )?;
-            let report = receipt_directory_report(&context, &lifecycle_receipts);
+            let latest_repo_work_readiness_review =
+                load_latest_epiphany_cultmesh_repo_work_readiness_review(
+                    &args.store,
+                    args.runtime_id.clone(),
+                )?;
+            let report = receipt_directory_report(
+                &context,
+                &lifecycle_receipts,
+                latest_repo_work_readiness_review.as_ref(),
+            );
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
@@ -2495,6 +2506,7 @@ fn run_cli() -> Result<()> {
                     &args.store,
                     args.runtime_id.clone(),
                 )?,
+                None,
             );
             if !degraded_receipt_directory.rows.iter().any(|row| {
                 row.family == "daemon-poke"
@@ -2575,6 +2587,7 @@ fn run_cli() -> Result<()> {
                     &args.store,
                     args.runtime_id.clone(),
                 )?,
+                None,
             );
             if !restored_receipt_directory.rows.iter().any(|row| {
                 row.family == "daemon-poke"
@@ -2934,7 +2947,7 @@ fn run_cli() -> Result<()> {
                 &args.store,
                 args.runtime_id.clone(),
             )?;
-            let receipt_directory = receipt_directory_report(&context, &lifecycle_receipts);
+            let receipt_directory = receipt_directory_report(&context, &lifecycle_receipts, None);
             if receipt_directory.status != "ok"
                 || receipt_directory.private_state_exposed
                 || !receipt_directory.attention_route_rows.is_empty()
@@ -3156,7 +3169,7 @@ fn run_cli() -> Result<()> {
                     &args.store,
                     args.runtime_id.clone(),
                 )?;
-                receipt_directory_report(&context, &lifecycle_receipts)
+                receipt_directory_report(&context, &lifecycle_receipts, None)
             };
             if service_overview.service_lifecycle_recommended_wrapper_mode
                 != "cluster-service-execution-audit"
@@ -7421,6 +7434,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
 fn receipt_directory_report(
     context: &EpiphanyLocalVerseContext,
     lifecycle_receipts: &[EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
+    latest_repo_work_readiness_review: Option<&EpiphanyCultMeshRepoWorkReadinessReviewEntry>,
 ) -> ReceiptDirectoryReport {
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
@@ -7945,6 +7959,42 @@ fn receipt_directory_report(
                 .latest_idunn_aftercare_audit_receipt
                 .as_ref()
                 .map(|receipt| receipt.private_state_exposed)
+                .unwrap_or(false),
+        },
+    );
+    let readiness_review_artifact_ref = latest_repo_work_readiness_review
+        .map(|review| review.readiness_review_receipt_ref.clone())
+        .unwrap_or_else(|| "none".to_string());
+    let readiness_review_artifact_status =
+        operator_artifact_status(&readiness_review_artifact_ref).to_string();
+    push_receipt_directory_row(
+        &mut rows,
+        &mut tui_rows,
+        ReceiptDirectoryRow {
+            family: "repo-work-readiness-review".to_string(),
+            owner: "Maintainer/Soul/Mind/Bifrost".to_string(),
+            document_kind: "epiphany.cultmesh.repo_work_readiness_review.v0".to_string(),
+            latest_id: latest_repo_work_readiness_review
+                .map(|review| review.review_id.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            status: latest_repo_work_readiness_review
+                .map(|review| review.status.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            route: latest_repo_work_readiness_review
+                .map(|review| review.readiness_receipt_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
+            follow_up_command: WRAPPER_REPO_WORK_READINESS_REVIEW_COMMAND.to_string(),
+            artifact_ref: readiness_review_artifact_ref.clone(),
+            artifact_status: readiness_review_artifact_status.clone(),
+            artifact_sha256: operator_artifact_sha256(
+                &readiness_review_artifact_ref,
+                &readiness_review_artifact_status,
+            ),
+            present: latest_repo_work_readiness_review.is_some(),
+            private_state_exposed: latest_repo_work_readiness_review
+                .map(|review| review.private_state_exposed)
                 .unwrap_or(false),
         },
     );
