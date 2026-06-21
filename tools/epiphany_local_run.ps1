@@ -626,9 +626,9 @@ Invoke-Checked `
     -StdoutPath (Join-Path $artifactRoot "operator-run-intent.stdout.json") `
     -StderrPath (Join-Path $artifactRoot "operator-run-intent.stderr.log")
 
-$compactReadOnlyModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "repo-swarm-mvp-gate", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-accounting-bundle", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "swarm-online-runbook", "service-policy-directory")
-$isCompactReadOnlyMode = $compactReadOnlyModes -contains $Mode
-$shouldReadLocalVerse = $Mode -ne "smoke" -and -not $isCompactReadOnlyMode
+$compactOperatorContextModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "repo-swarm-mvp-gate", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-accounting-bundle", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "swarm-online-runbook", "service-policy-directory")
+$usesCompactOperatorContext = $compactOperatorContextModes -contains $Mode
+$shouldReadLocalVerse = $Mode -ne "smoke" -and -not $usesCompactOperatorContext
 if ($shouldReadLocalVerse -and $Mode -ne "status" -and $Mode -ne "mvp") {
     Invoke-Checked `
         -Label "seed local Verse context" `
@@ -2672,7 +2672,15 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         } elseif ($Mode -eq "bifrost-publication") {
             Write-Host "Bifrost publication: status=$($result.status), intent=$($result.intentId), publication=$($result.publicationReceiptId), github=$($result.githubPublicationReceiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-public-proof") {
-            Write-Host "Bifrost public proof: status=$($result.status), proof=$($result.publicProofId), receipt=$($result.receiptId), ledger=$($result.ledgerEntryId), public=$($result.publicationUrl), privateStateExposed=$($result.privateStateExposed)"
+            $creditReceipts = "none"
+            if ($null -ne $result.creditReceiptIds -and $result.creditReceiptIds.Count -gt 0) {
+                $creditReceipts = ($result.creditReceiptIds -join ",")
+            }
+            $reviewReceipts = "none"
+            if ($null -ne $result.reviewReceiptIds -and $result.reviewReceiptIds.Count -gt 0) {
+                $reviewReceipts = ($result.reviewReceiptIds -join ",")
+            }
+            Write-Host "Bifrost public proof: status=$($result.status), item=$($result.item), proof=$($result.publicProofId), receipt=$($result.receiptId), publicVerse=$($result.targetPublicVerseId), room=$($result.publicRoomId), sha256=$($result.publicProofSha256), ledger=$($result.ledgerEntryId), credit=$creditReceipts, review=$reviewReceipts, public=$($result.publicationUrl), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-artifact-acceptance") {
             $changedPaths = "none"
             if ($null -ne $result.changedPaths -and $result.changedPaths.Count -gt 0) {
