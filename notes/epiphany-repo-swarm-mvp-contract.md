@@ -2751,6 +2751,10 @@ Required cuts:
   work, publication status, and upstream sync.
 - Make Gjallar announce the repo swarm's operator-safe status through Odin's
   discovery map without giving Gjallar lifecycle or mutation authority.
+- Project readiness-review approval receipts as typed local Verse sight
+  (`epiphany.cultmesh.repo_work_readiness_review.v0`) and compact Gjallar rows,
+  while preserving Bifrost/GitHub/Idunn/Hands ownership for publication, sync,
+  deployment, service lifecycle, and branch consequences.
 - Keep Bifrost ledger and credit receipts as the public labor trail.
 
 MVP exit proof:

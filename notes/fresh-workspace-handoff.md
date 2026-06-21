@@ -1611,6 +1611,16 @@ first dependency-body repair is landed: the missing
 CultCache/CultNet/CultMesh crates, and the `epiphany-core` library tests pass
 against that body.
 
+The repo-swarm readiness-review sight cut is now sealed. `epiphany-work
+readiness-review` mirrors approved readiness review receipts into local Verse as
+`epiphany.cultmesh.repo_work_readiness_review.v0`; Gjallar/swarm-overview/triage
+project `REPO-WORK-READINESS-REVIEW` rows and non-mutating action rows with
+readiness approval true but durable-state, publication, merge, upstream-sync,
+deployment, service lifecycle, Hands, and private-state authority false. Native
+proof `.epiphany-smoke\repo-work-readiness-20260621-113714` and wrapper proof
+`local-20260621-123904-738-cc48a47c` show one review row and
+`privateStateExposed=false`.
+
 ## Not Yet
 
 - automatic watcher-driven semantic invalidation

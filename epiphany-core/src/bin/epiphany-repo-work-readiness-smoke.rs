@@ -478,6 +478,21 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["authority", "handsActionAuthorized"],
         false,
     )?;
+    require_eq(
+        &readiness_review,
+        &["verseProjection", "documentType"],
+        "epiphany.cultmesh.repo_work_readiness_review",
+    )?;
+    require_eq(
+        &readiness_review,
+        &["verseProjection", "reviewId"],
+        "repo-work-readiness-review-repo-work-readiness",
+    )?;
+    require_bool(
+        &readiness_review,
+        &["verseProjection", "privateStateExposed"],
+        false,
+    )?;
     require_bool(&readiness_review, &["privateStateExposed"], false)?;
 
     let gjallar = cargo_json(
@@ -505,6 +520,22 @@ fn run_smoke(args: Args) -> Result<Value> {
         "REPO-WORK-READINESS",
     )?;
     require_tui_row_contains(&gjallar, &["swarmActionTuiRows"], "repo-work-readiness")?;
+    require_u64(&gjallar, &["repoWorkReadinessReviewCount"], 1)?;
+    require_eq(
+        &gjallar,
+        &["latestRepoWorkReadinessReview"],
+        "repo-work-readiness-review-repo-work-readiness",
+    )?;
+    require_tui_row_contains(
+        &gjallar,
+        &["repoWorkReadinessReviewTuiRows"],
+        "REPO-WORK-READINESS-REVIEW",
+    )?;
+    require_tui_row_contains(
+        &gjallar,
+        &["swarmActionTuiRows"],
+        "repo-work-readiness-review",
+    )?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_work_readiness_smoke.v0",
@@ -520,10 +551,13 @@ fn run_smoke(args: Args) -> Result<Value> {
         "readinessStatus": readiness["status"],
         "readinessReviewStatus": readiness_review["status"],
         "readinessReviewReceiptPath": readiness_review["receiptPath"],
+        "readinessReviewVerseProjection": readiness_review["verseProjection"],
         "missingRequiredCount": readiness["missingRequiredCount"],
         "readinessVerseProjection": readiness["verseProjection"],
         "gjallarRepoWorkReadinessCount": gjallar["repoWorkReadinessCount"],
         "gjallarLatestRepoWorkReadiness": gjallar["latestRepoWorkReadiness"],
+        "gjallarRepoWorkReadinessReviewCount": gjallar["repoWorkReadinessReviewCount"],
+        "gjallarLatestRepoWorkReadinessReview": gjallar["latestRepoWorkReadinessReview"],
         "sightOnly": readiness["authority"]["sightOnly"],
         "readinessApprovalAuthorized": readiness["authority"]["readinessApprovalAuthorized"],
         "publicationAuthorized": readiness["authority"]["publicationAuthorized"],

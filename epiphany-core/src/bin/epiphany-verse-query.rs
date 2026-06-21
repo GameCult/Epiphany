@@ -28,6 +28,7 @@ use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkReadinessEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkReadinessReviewEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
@@ -59,6 +60,7 @@ use epiphany_core::load_epiphany_cultmesh_repo_work_map_entries;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_repo_work_public_proofs;
 use epiphany_core::load_epiphany_cultmesh_repo_work_readiness_reports;
+use epiphany_core::load_epiphany_cultmesh_repo_work_readiness_reviews;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
@@ -78,6 +80,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness_review;
 use epiphany_core::open_epiphany_cultmesh_node;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
@@ -3603,6 +3606,7 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[],
+                &[],
             );
             if !missing_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -3651,6 +3655,7 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[synthetic_runbook_action],
+                &[],
                 &[],
                 &[],
                 &[],
@@ -4128,6 +4133,8 @@ struct SwarmOverviewReport {
     repo_work_overview_tui_rows: Vec<String>,
     repo_work_readiness_rows: Vec<RepoWorkReadinessRow>,
     repo_work_readiness_tui_rows: Vec<String>,
+    repo_work_readiness_review_rows: Vec<RepoWorkReadinessReviewRow>,
+    repo_work_readiness_review_tui_rows: Vec<String>,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
     idunn_deployment_receipt_rows: Vec<IdunnDeploymentReceiptRow>,
@@ -4138,6 +4145,7 @@ struct SwarmOverviewReport {
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
     latest_repo_work_readiness: Option<String>,
+    latest_repo_work_readiness_review: Option<String>,
     latest_repo_work_public_proof: Option<String>,
     latest_idunn_deployment_receipt: Option<String>,
     latest_idunn_aftercare_audit_receipt: Option<String>,
@@ -4364,6 +4372,32 @@ struct RepoWorkReadinessRow {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct RepoWorkReadinessReviewRow {
+    review_id: String,
+    workspace: String,
+    item: String,
+    status: String,
+    readiness_receipt_ref: String,
+    readiness_review_receipt_ref: String,
+    missing_required_count: u32,
+    satisfied_row_count: u32,
+    maintainer_review_receipt: String,
+    soul_review_receipt: String,
+    mind_review_receipt: String,
+    bifrost_review_receipt: String,
+    readiness_approval_authorized: bool,
+    durable_state_commit_authorized: bool,
+    publication_authorized: bool,
+    merge_authorized: bool,
+    upstream_sync_authorized: bool,
+    deployment_authority: bool,
+    service_lifecycle_authority: bool,
+    hands_action_authorized: bool,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct IdunnDeploymentReceiptRow {
     receipt_family: String,
     receipt_id: String,
@@ -4494,6 +4528,9 @@ struct SwarmOverviewOutput {
     repo_work_readiness_count: usize,
     repo_work_readiness_rows: Vec<RepoWorkReadinessRow>,
     repo_work_readiness_tui_rows: Vec<String>,
+    repo_work_readiness_review_count: usize,
+    repo_work_readiness_review_rows: Vec<RepoWorkReadinessReviewRow>,
+    repo_work_readiness_review_tui_rows: Vec<String>,
     repo_work_public_proof_count: usize,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
@@ -4506,6 +4543,7 @@ struct SwarmOverviewOutput {
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
     latest_repo_work_readiness: Option<String>,
+    latest_repo_work_readiness_review: Option<String>,
     latest_repo_work_public_proof: Option<String>,
     latest_idunn_deployment_receipt: Option<String>,
     latest_idunn_aftercare_audit_receipt: Option<String>,
@@ -4602,6 +4640,9 @@ impl SwarmOverviewOutput {
             repo_work_readiness_count: report.repo_work_readiness_rows.len(),
             repo_work_readiness_rows: report.repo_work_readiness_rows,
             repo_work_readiness_tui_rows: report.repo_work_readiness_tui_rows,
+            repo_work_readiness_review_count: report.repo_work_readiness_review_rows.len(),
+            repo_work_readiness_review_rows: report.repo_work_readiness_review_rows,
+            repo_work_readiness_review_tui_rows: report.repo_work_readiness_review_tui_rows,
             repo_work_public_proof_count: report.repo_work_public_proof_rows.len(),
             repo_work_public_proof_rows: report.repo_work_public_proof_rows,
             repo_work_public_proof_tui_rows: report.repo_work_public_proof_tui_rows,
@@ -4614,6 +4655,7 @@ impl SwarmOverviewOutput {
             latest_repo_work_blocker: report.latest_repo_work_blocker,
             latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
             latest_repo_work_readiness: report.latest_repo_work_readiness,
+            latest_repo_work_readiness_review: report.latest_repo_work_readiness_review,
             latest_repo_work_public_proof: report.latest_repo_work_public_proof,
             latest_idunn_deployment_receipt: report.latest_idunn_deployment_receipt,
             latest_idunn_aftercare_audit_receipt: report.latest_idunn_aftercare_audit_receipt,
@@ -4702,6 +4744,9 @@ struct SwarmTriageOutput {
     repo_work_readiness_count: usize,
     repo_work_readiness_rows: Vec<RepoWorkReadinessRow>,
     repo_work_readiness_tui_rows: Vec<String>,
+    repo_work_readiness_review_count: usize,
+    repo_work_readiness_review_rows: Vec<RepoWorkReadinessReviewRow>,
+    repo_work_readiness_review_tui_rows: Vec<String>,
     repo_work_public_proof_count: usize,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
     repo_work_public_proof_tui_rows: Vec<String>,
@@ -4714,6 +4759,7 @@ struct SwarmTriageOutput {
     latest_repo_work_blocker: Option<String>,
     latest_repo_work_next_safe_move: Option<String>,
     latest_repo_work_readiness: Option<String>,
+    latest_repo_work_readiness_review: Option<String>,
     latest_repo_work_public_proof: Option<String>,
     latest_idunn_deployment_receipt: Option<String>,
     latest_idunn_aftercare_audit_receipt: Option<String>,
@@ -4805,6 +4851,9 @@ impl SwarmTriageOutput {
             repo_work_readiness_count: report.repo_work_readiness_rows.len(),
             repo_work_readiness_rows: report.repo_work_readiness_rows,
             repo_work_readiness_tui_rows: report.repo_work_readiness_tui_rows,
+            repo_work_readiness_review_count: report.repo_work_readiness_review_rows.len(),
+            repo_work_readiness_review_rows: report.repo_work_readiness_review_rows,
+            repo_work_readiness_review_tui_rows: report.repo_work_readiness_review_tui_rows,
             repo_work_public_proof_count: report.repo_work_public_proof_rows.len(),
             repo_work_public_proof_rows: report.repo_work_public_proof_rows,
             repo_work_public_proof_tui_rows: report.repo_work_public_proof_tui_rows,
@@ -4817,6 +4866,7 @@ impl SwarmTriageOutput {
             latest_repo_work_blocker: report.latest_repo_work_blocker,
             latest_repo_work_next_safe_move: report.latest_repo_work_next_safe_move,
             latest_repo_work_readiness: report.latest_repo_work_readiness,
+            latest_repo_work_readiness_review: report.latest_repo_work_readiness_review,
             latest_repo_work_public_proof: report.latest_repo_work_public_proof,
             latest_idunn_deployment_receipt: report.latest_idunn_deployment_receipt,
             latest_idunn_aftercare_audit_receipt: report.latest_idunn_aftercare_audit_receipt,
@@ -5045,6 +5095,7 @@ fn swarm_action_rows(
     repo_work_overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
     repo_work_public_proofs: &[EpiphanyCultMeshRepoWorkPublicProofEntry],
     repo_work_readiness_reports: &[EpiphanyCultMeshRepoWorkReadinessEntry],
+    repo_work_readiness_reviews: &[EpiphanyCultMeshRepoWorkReadinessReviewEntry],
 ) -> (Vec<SwarmActionRow>, Vec<String>) {
     let mut rows = Vec::new();
     let mut service_execution_check_counts = BTreeMap::<String, (usize, usize)>::new();
@@ -5300,6 +5351,12 @@ fn swarm_action_rows(
     }
     for (index, readiness) in repo_work_readiness_reports.iter().take(5).enumerate() {
         rows.push(repo_work_readiness_action_row(readiness, 70 + index as u32));
+    }
+    for (index, review) in repo_work_readiness_reviews.iter().take(5).enumerate() {
+        rows.push(repo_work_readiness_review_action_row(
+            review,
+            75 + index as u32,
+        ));
     }
     if rows.is_empty() {
         rows.push(SwarmActionRow {
@@ -6110,6 +6167,69 @@ fn repo_work_readiness_tui_row(row: &RepoWorkReadinessRow) -> String {
     )
 }
 
+fn repo_work_readiness_review_rows(
+    reviews: &[EpiphanyCultMeshRepoWorkReadinessReviewEntry],
+) -> (Vec<RepoWorkReadinessReviewRow>, Vec<String>) {
+    let rows = reviews
+        .iter()
+        .map(repo_work_readiness_review_row)
+        .collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_readiness_review_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_readiness_review_row(
+    review: &EpiphanyCultMeshRepoWorkReadinessReviewEntry,
+) -> RepoWorkReadinessReviewRow {
+    RepoWorkReadinessReviewRow {
+        review_id: review.review_id.clone(),
+        workspace: review.workspace.clone(),
+        item: review.item.clone(),
+        status: review.status.clone(),
+        readiness_receipt_ref: review.readiness_receipt_ref.clone(),
+        readiness_review_receipt_ref: review.readiness_review_receipt_ref.clone(),
+        missing_required_count: review.missing_required_count,
+        satisfied_row_count: review.satisfied_row_count,
+        maintainer_review_receipt: review.maintainer_review_receipt.clone(),
+        soul_review_receipt: review.soul_review_receipt.clone(),
+        mind_review_receipt: review.mind_review_receipt.clone(),
+        bifrost_review_receipt: review.bifrost_review_receipt.clone(),
+        readiness_approval_authorized: review.readiness_approval_authorized,
+        durable_state_commit_authorized: review.durable_state_commit_authorized,
+        publication_authorized: review.publication_authorized,
+        merge_authorized: review.merge_authorized,
+        upstream_sync_authorized: review.upstream_sync_authorized,
+        deployment_authority: review.deployment_authority,
+        service_lifecycle_authority: review.service_lifecycle_authority,
+        hands_action_authorized: review.hands_action_authorized,
+        private_state_exposed: review.private_state_exposed,
+    }
+}
+
+fn repo_work_readiness_review_tui_row(row: &RepoWorkReadinessReviewRow) -> String {
+    format!(
+        "REPO-WORK-READINESS-REVIEW | item={} | status={} | missing={} | satisfied={} | review={} | readiness={} | approvalAuth={} | durableStateAuth={} | publicationAuth={} | mergeAuth={} | upstreamSyncAuth={} | deploymentAuth={} | serviceAuth={} | handsAuth={} | private={}",
+        row.item,
+        row.status,
+        row.missing_required_count,
+        row.satisfied_row_count,
+        row.readiness_review_receipt_ref,
+        row.readiness_receipt_ref,
+        row.readiness_approval_authorized,
+        row.durable_state_commit_authorized,
+        row.publication_authorized,
+        row.merge_authorized,
+        row.upstream_sync_authorized,
+        row.deployment_authority,
+        row.service_lifecycle_authority,
+        row.hands_action_authorized,
+        row.private_state_exposed
+    )
+}
+
 fn idunn_deployment_receipt_rows(
     deployment_receipt: Option<&EpiphanyCultMeshIdunnDeploymentReceiptEntry>,
     aftercare_receipt: Option<&EpiphanyCultMeshIdunnAftercareAuditReceiptEntry>,
@@ -6329,6 +6449,60 @@ fn repo_work_readiness_action_row(
             readiness.hands_action_authorized
         ),
         private_state_exposed: readiness.private_state_exposed,
+    }
+}
+
+fn repo_work_readiness_review_action_row(
+    review: &EpiphanyCultMeshRepoWorkReadinessReviewEntry,
+    priority: u32,
+) -> SwarmActionRow {
+    SwarmActionRow {
+        priority,
+        family: "repo-work-readiness-review".to_string(),
+        status: review.status.clone(),
+        lifecycle_owner: "Gjallar".to_string(),
+        hosted_body: "repo-work".to_string(),
+        action: format!(
+            "Read repo work readiness review {} for item {}; Bifrost/GitHub/Idunn/Hands still own publication, sync, deployment, service lifecycle, and branch consequences.",
+            review.review_id, review.item
+        ),
+        wrapper_mode: "repo-work-readiness-review".to_string(),
+        wrapper_command: format!(
+            "epiphany-work readiness-review --workspace \"{}\" --item \"{}\" --readiness-receipt \"{}\" --maintainer-review-receipt <ref> --soul-review-receipt <ref> --mind-review-receipt <ref> --bifrost-review-receipt <ref>",
+            review.workspace, review.item, review.readiness_receipt_ref
+        ),
+        operator_artifact_ref: review.readiness_review_receipt_ref.clone(),
+        operator_artifact_status: if review.readiness_review_receipt_ref == "none" {
+            "none".to_string()
+        } else {
+            "external-ref".to_string()
+        },
+        operator_artifact_sha256: "none".to_string(),
+        operator_artifact_execution_command: "none".to_string(),
+        operator_aftercare_command: "none".to_string(),
+        completion_audit_wrapper_mode: "none".to_string(),
+        completion_audit_wrapper_command: "none".to_string(),
+        authority_gate: "repo.work.readiness_review_readback".to_string(),
+        effect_class: "repo-work-readiness-review-readback".to_string(),
+        mutates_state: false,
+        requires_elevated_authority: false,
+        service_execution_failed_check_count: 0,
+        service_execution_missing_check_count: 0,
+        service_id: "none".to_string(),
+        service_route: "none".to_string(),
+        reason: format!(
+            "Readiness review status={} approval={}, durableState={}, publication={}, merge={}, sync={}, deployment={}, service={}, hands={}",
+            review.status,
+            review.readiness_approval_authorized,
+            review.durable_state_commit_authorized,
+            review.publication_authorized,
+            review.merge_authorized,
+            review.upstream_sync_authorized,
+            review.deployment_authority,
+            review.service_lifecycle_authority,
+            review.hands_action_authorized
+        ),
+        private_state_exposed: review.private_state_exposed,
     }
 }
 
@@ -6791,6 +6965,34 @@ fn load_repo_work_readiness_reports(
     Ok((latest_readiness, reports))
 }
 
+fn load_repo_work_readiness_reviews(
+    args: &Args,
+) -> Result<(
+    Option<EpiphanyCultMeshRepoWorkReadinessReviewEntry>,
+    Vec<EpiphanyCultMeshRepoWorkReadinessReviewEntry>,
+)> {
+    let latest_review = load_latest_epiphany_cultmesh_repo_work_readiness_review(
+        &args.store,
+        args.runtime_id.clone(),
+    )?;
+    let mut reviews =
+        load_epiphany_cultmesh_repo_work_readiness_reviews(&args.store, args.runtime_id.clone())?;
+    if let Some(latest) = latest_review.as_ref() {
+        if !reviews
+            .iter()
+            .any(|review| review.review_id == latest.review_id)
+        {
+            reviews.push(latest.clone());
+            reviews.sort_by(|a, b| {
+                b.generated_at
+                    .cmp(&a.generated_at)
+                    .then_with(|| a.review_id.cmp(&b.review_id))
+            });
+        }
+    }
+    Ok((latest_review, reviews))
+}
+
 fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
     let topology_report = cluster_topology_report(&topology);
@@ -6802,6 +7004,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         load_repo_work_public_proofs(args)?;
     let (latest_repo_work_readiness, repo_work_readiness_reports) =
         load_repo_work_readiness_reports(args)?;
+    let (latest_repo_work_readiness_review, repo_work_readiness_reviews) =
+        load_repo_work_readiness_reviews(args)?;
     let latest_idunn_deployment_receipt = load_latest_epiphany_cultmesh_idunn_deployment_receipt(
         &args.store,
         args.runtime_id.clone(),
@@ -7044,6 +7248,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_public_proof_rows(&repo_work_public_proofs);
     let (repo_work_readiness_rows, repo_work_readiness_tui_rows) =
         repo_work_readiness_rows(&repo_work_readiness_reports);
+    let (repo_work_readiness_review_rows, repo_work_readiness_review_tui_rows) =
+        repo_work_readiness_review_rows(&repo_work_readiness_reviews);
     let (idunn_deployment_receipt_rows, idunn_deployment_receipt_tui_rows) =
         idunn_deployment_receipt_rows(
             latest_idunn_deployment_receipt.as_ref(),
@@ -7059,6 +7265,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &repo_work_overviews,
         &repo_work_public_proofs,
         &repo_work_readiness_reports,
+        &repo_work_readiness_reviews,
     );
     let private_state_exposed = daemon_report
         .rows
@@ -7102,6 +7309,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         || repo_work_readiness_reports
             .iter()
             .any(|report| report.private_state_exposed)
+        || repo_work_readiness_reviews
+            .iter()
+            .any(|review| review.private_state_exposed)
         || idunn_deployment_receipt_rows
             .iter()
             .any(|row| row.private_state_exposed)
@@ -7130,6 +7340,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let latest_repo_work_readiness = latest_repo_work_readiness
         .as_ref()
         .map(|report| report.readiness_id.clone());
+    let latest_repo_work_readiness_review = latest_repo_work_readiness_review
+        .as_ref()
+        .map(|review| review.review_id.clone());
     let latest_idunn_deployment_receipt = latest_idunn_deployment_receipt
         .as_ref()
         .map(|receipt| receipt.receipt_id.clone());
@@ -7180,6 +7393,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_overview_tui_rows,
         repo_work_readiness_rows,
         repo_work_readiness_tui_rows,
+        repo_work_readiness_review_rows,
+        repo_work_readiness_review_tui_rows,
         repo_work_public_proof_rows,
         repo_work_public_proof_tui_rows,
         idunn_deployment_receipt_rows,
@@ -7190,6 +7405,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         latest_repo_work_blocker,
         latest_repo_work_next_safe_move,
         latest_repo_work_readiness,
+        latest_repo_work_readiness_review,
         latest_repo_work_public_proof,
         latest_idunn_deployment_receipt,
         latest_idunn_aftercare_audit_receipt,

@@ -82,6 +82,12 @@ pub const EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.repo_work_readiness.v0";
 pub const EPIPHANY_CULTMESH_REPO_WORK_READINESS_LATEST_KEY: &str =
     "gamecult-local/repo-work-readiness/latest";
+pub const EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_TYPE: &str =
+    "epiphany.cultmesh.repo_work_readiness_review";
+pub const EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.repo_work_readiness_review.v0";
+pub const EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_LATEST_KEY: &str =
+    "gamecult-local/repo-work-readiness-review/latest";
 pub const EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_TYPE: &str =
     "epiphany.cultmesh.repo_work_map_entry";
 pub const EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION: &str =
@@ -821,6 +827,68 @@ pub struct EpiphanyCultMeshRepoWorkReadinessEntry {
     #[cultcache(key = 20)]
     pub private_state_exposed: bool,
     #[cultcache(key = 21)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.repo_work_readiness_review",
+    schema = "EpiphanyCultMeshRepoWorkReadinessReviewEntry"
+)]
+pub struct EpiphanyCultMeshRepoWorkReadinessReviewEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub review_id: String,
+    #[cultcache(key = 4)]
+    pub generated_at: String,
+    #[cultcache(key = 5)]
+    pub workspace: String,
+    #[cultcache(key = 6)]
+    pub item: String,
+    #[cultcache(key = 7)]
+    pub status: String,
+    #[cultcache(key = 8)]
+    pub readiness_receipt_ref: String,
+    #[cultcache(key = 9)]
+    pub readiness_review_receipt_ref: String,
+    #[cultcache(key = 10)]
+    pub missing_required_count: u32,
+    #[cultcache(key = 11)]
+    pub satisfied_row_count: u32,
+    #[cultcache(key = 12)]
+    pub maintainer_review_receipt: String,
+    #[cultcache(key = 13)]
+    pub soul_review_receipt: String,
+    #[cultcache(key = 14)]
+    pub mind_review_receipt: String,
+    #[cultcache(key = 15)]
+    pub bifrost_review_receipt: String,
+    #[cultcache(key = 16)]
+    pub readiness_approval_authorized: bool,
+    #[cultcache(key = 17)]
+    pub durable_state_commit_authorized: bool,
+    #[cultcache(key = 18)]
+    pub publication_authorized: bool,
+    #[cultcache(key = 19)]
+    pub merge_authorized: bool,
+    #[cultcache(key = 20)]
+    pub upstream_sync_authorized: bool,
+    #[cultcache(key = 21)]
+    pub deployment_authority: bool,
+    #[cultcache(key = 22)]
+    pub service_lifecycle_authority: bool,
+    #[cultcache(key = 23)]
+    pub hands_action_authorized: bool,
+    #[cultcache(key = 24)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 25)]
+    pub tui_rows: Vec<String>,
+    #[cultcache(key = 26)]
     pub notes: Vec<String>,
 }
 
@@ -2333,6 +2401,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshAgentStateSoaSummaryEntry => EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkOverviewEntry => EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkReadinessEntry => EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION,
+    EpiphanyCultMeshRepoWorkReadinessReviewEntry => EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkMapEntry => EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION,
     EpiphanyCultMeshRepoWorkPublicProofEntry => EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
@@ -4773,6 +4842,48 @@ pub fn load_epiphany_cultmesh_repo_work_readiness_reports(
     Ok(reports)
 }
 
+pub fn write_epiphany_cultmesh_repo_work_readiness_review(
+    store_path: impl AsRef<Path>,
+    review: EpiphanyCultMeshRepoWorkReadinessReviewEntry,
+) -> Result<EpiphanyCultMeshRepoWorkReadinessReviewEntry> {
+    validate_repo_work_readiness_review(&review)?;
+    let mut node = open_epiphany_cultmesh_node(&store_path, review.runtime_id.clone())?;
+    let written = node.put(review.review_id.clone(), &review)?;
+    node.put(
+        EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_repo_work_readiness_review(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshRepoWorkReadinessReviewEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_LATEST_KEY)
+}
+
+pub fn load_epiphany_cultmesh_repo_work_readiness_reviews(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshRepoWorkReadinessReviewEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut reviews = node
+        .get_all_with_keys::<EpiphanyCultMeshRepoWorkReadinessReviewEntry>()?
+        .into_iter()
+        .filter(|(key, _)| key != EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_LATEST_KEY)
+        .map(|(_, review)| review)
+        .collect::<Vec<_>>();
+    reviews.sort_by(|a, b| {
+        b.generated_at
+            .cmp(&a.generated_at)
+            .then_with(|| a.review_id.cmp(&b.review_id))
+    });
+    Ok(reviews)
+}
+
 pub fn write_epiphany_cultmesh_repo_work_map_entry(
     store_path: impl AsRef<Path>,
     map_entry: EpiphanyCultMeshRepoWorkMapEntry,
@@ -4928,6 +5039,60 @@ fn validate_repo_work_readiness(readiness: &EpiphanyCultMeshRepoWorkReadinessEnt
     }) {
         return Err(anyhow!(
             "repo work readiness rows must not expose raw worker payload names"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_repo_work_readiness_review(
+    review: &EpiphanyCultMeshRepoWorkReadinessReviewEntry,
+) -> Result<()> {
+    if review.private_state_exposed {
+        return Err(anyhow!(
+            "repo work readiness review must not expose private state"
+        ));
+    }
+    if review.schema_version != EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "repo work readiness review schema_version must be {:?}",
+            EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION
+        ));
+    }
+    if review.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID {
+        return Err(anyhow!(
+            "repo work readiness review belongs in local-area Verse {:?}",
+            EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
+        ));
+    }
+    if review.review_id.trim().is_empty() || review.item.trim().is_empty() {
+        return Err(anyhow!(
+            "repo work readiness review requires review_id and item"
+        ));
+    }
+    if !review.readiness_approval_authorized
+        || review.durable_state_commit_authorized
+        || review.publication_authorized
+        || review.merge_authorized
+        || review.upstream_sync_authorized
+        || review.deployment_authority
+        || review.service_lifecycle_authority
+        || review.hands_action_authorized
+    {
+        return Err(anyhow!(
+            "repo work readiness review may grant readiness approval only; it must deny durable-state, publication, merge, sync, deployment, service, and Hands authority"
+        ));
+    }
+    if review.tui_rows.is_empty() {
+        return Err(anyhow!(
+            "repo work readiness review requires compact TUI rows"
+        ));
+    }
+    if review.tui_rows.iter().any(|row| {
+        let lower = row.to_ascii_lowercase();
+        lower.contains("rawresult") || lower.contains("receipt body") || lower.contains("thought")
+    }) {
+        return Err(anyhow!(
+            "repo work readiness review rows must not expose raw worker payload names"
         ));
     }
     Ok(())

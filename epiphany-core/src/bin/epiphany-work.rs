@@ -8,11 +8,13 @@ use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION;
 use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkReadinessEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkReadinessReviewEntry;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
 use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
 use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
@@ -61,6 +63,7 @@ use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::write_epiphany_cultmesh_repo_work_readiness;
+use epiphany_core::write_epiphany_cultmesh_repo_work_readiness_review;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -1230,9 +1233,7 @@ fn parse_readiness_args(args: impl Iterator<Item = String>) -> Result<ReadinessA
     })
 }
 
-fn parse_readiness_review_args(
-    args: impl Iterator<Item = String>,
-) -> Result<ReadinessReviewArgs> {
+fn parse_readiness_review_args(args: impl Iterator<Item = String>) -> Result<ReadinessReviewArgs> {
     let mut workspace = None;
     let mut item = None;
     let mut readiness_receipt = None;
@@ -1263,8 +1264,7 @@ fn parse_readiness_review_args(
                 mind_review_receipt = Some(take_string(&mut args, "--mind-review-receipt")?);
             }
             "--bifrost-review-receipt" | "--bifrost-review" => {
-                bifrost_review_receipt =
-                    Some(take_string(&mut args, "--bifrost-review-receipt")?);
+                bifrost_review_receipt = Some(take_string(&mut args, "--bifrost-review-receipt")?);
             }
             "--review-summary" | "--summary" => {
                 review_summary = Some(take_string(&mut args, "--review-summary")?);
@@ -12579,11 +12579,10 @@ fn run_readiness_review(args: ReadinessReviewArgs) -> Result<Value> {
     ]
     .iter()
     .all(|key| authority.get(*key).and_then(Value::as_bool) == Some(false));
-    let private_sealed =
-        readiness_receipt
-            .get("privateStateExposed")
-            .and_then(Value::as_bool)
-            == Some(false);
+    let private_sealed = readiness_receipt
+        .get("privateStateExposed")
+        .and_then(Value::as_bool)
+        == Some(false);
     let review_refs = vec![
         args.maintainer_review_receipt.clone(),
         args.soul_review_receipt.clone(),
@@ -12610,10 +12609,85 @@ fn run_readiness_review(args: ReadinessReviewArgs) -> Result<Value> {
 
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let review_id = format!("repo-work-readiness-review-{readiness_item_slug}");
-    let receipt_path = artifact_dir.join(format!("work-readiness-review-{readiness_item_slug}.json"));
+    let receipt_path =
+        artifact_dir.join(format!("work-readiness-review-{readiness_item_slug}.json"));
     let review_summary = args.review_summary.unwrap_or_else(|| {
-        "Maintainer/Soul/Mind/Bifrost reviewed a ready repo-work readiness sight receipt.".to_string()
+        "Maintainer/Soul/Mind/Bifrost reviewed a ready repo-work readiness sight receipt."
+            .to_string()
     });
+    let readiness_receipt_ref = readiness_receipt_path.display().to_string();
+    let review_receipt_ref = receipt_path.display().to_string();
+    let review_tui_rows = vec![
+        format!(
+            "REPO-WORK-READINESS-REVIEW | item={} | status=readiness-approved | missing={} | satisfied={} | readiness={} | review={} | approvalAuth=true | publicationAuth=false | serviceAuth=false | handsAuth=false | private=false",
+            readiness_item,
+            missing_required_count,
+            row_count,
+            readiness_receipt_ref,
+            review_receipt_ref
+        ),
+        format!(
+            "REPO-WORK-READINESS-REVIEW-REFS | item={} | maintainer={} | soul={} | mind={} | bifrost={} | private=false",
+            readiness_item,
+            args.maintainer_review_receipt,
+            args.soul_review_receipt,
+            args.mind_review_receipt,
+            args.bifrost_review_receipt
+        ),
+    ];
+    let mut verse_projection = Value::Null;
+    let accept_receipt_path = work_receipt_path(&workspace, "accept", &readiness_item);
+    if let Some(accept_receipt) = read_json_if_exists(&accept_receipt_path)? {
+        if let Some(store) = path_from_json(&accept_receipt, &["localVerseStore"])
+            .or_else(|| path_from_json(&accept_receipt, &["localVerseStorePath"]))
+        {
+            let runtime_id = string_from_json(&accept_receipt, &["runtimeId"])
+                .unwrap_or_else(|| "repo-swarm-local".to_string());
+            let entry = EpiphanyCultMeshRepoWorkReadinessReviewEntry {
+                schema_version: EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION
+                    .to_string(),
+                runtime_id: runtime_id.clone(),
+                verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+                review_id: review_id.clone(),
+                generated_at: now.clone(),
+                workspace: workspace.display().to_string(),
+                item: readiness_item.clone(),
+                status: "readiness-approved".to_string(),
+                readiness_receipt_ref: readiness_receipt_ref.clone(),
+                readiness_review_receipt_ref: review_receipt_ref.clone(),
+                missing_required_count: missing_required_count as u32,
+                satisfied_row_count: row_count as u32,
+                maintainer_review_receipt: args.maintainer_review_receipt.clone(),
+                soul_review_receipt: args.soul_review_receipt.clone(),
+                mind_review_receipt: args.mind_review_receipt.clone(),
+                bifrost_review_receipt: args.bifrost_review_receipt.clone(),
+                readiness_approval_authorized: true,
+                durable_state_commit_authorized: false,
+                publication_authorized: false,
+                merge_authorized: false,
+                upstream_sync_authorized: false,
+                deployment_authority: false,
+                service_lifecycle_authority: false,
+                hands_action_authorized: false,
+                private_state_exposed: false,
+                tui_rows: review_tui_rows.clone(),
+                notes: vec![
+                    "Readiness review approval is review evidence only; it does not publish, merge, deploy, sync upstream, mutate services, or grant Hands authority.".to_string(),
+                    "Maintainer, Soul, Mind, and Bifrost receipts remain the approval authorities; Gjallar only projects this compact row.".to_string(),
+                ],
+            };
+            let written = write_epiphany_cultmesh_repo_work_readiness_review(&store, entry)?;
+            verse_projection = json!({
+                "localVerseStore": store,
+                "runtimeId": runtime_id,
+                "documentType": "epiphany.cultmesh.repo_work_readiness_review",
+                "reviewId": written.review_id,
+                "latestKey": "gamecult-local/repo-work-readiness-review/latest",
+                "tuiRows": written.tui_rows,
+                "privateStateExposed": written.private_state_exposed
+            });
+        }
+    }
     let receipt = json!({
         "schemaVersion": "epiphany.repo_work_readiness_review_receipt.v0",
         "createdAt": now,
@@ -12656,6 +12730,8 @@ fn run_readiness_review(args: ReadinessReviewArgs) -> Result<Value> {
             "privateVerseRummaging": false,
             "privateStateExposed": false
         },
+        "tuiRows": review_tui_rows,
+        "verseProjection": verse_projection,
         "privateStateExposed": false,
         "nextSafeMove": "Use this readiness approval as review evidence for operator release decisions; do not treat it as publication, deployment, service lifecycle, Hands, merge, or cross-body authority."
     });
@@ -12670,6 +12746,7 @@ fn run_readiness_review(args: ReadinessReviewArgs) -> Result<Value> {
         "readinessReceiptPath": receipt["readinessReceiptPath"],
         "missingRequiredCount": receipt["missingRequiredCount"],
         "satisfiedRowCount": receipt["satisfiedRowCount"],
+        "verseProjection": receipt["verseProjection"],
         "authority": receipt["authority"],
         "privateStateExposed": false,
         "nextSafeMove": receipt["nextSafeMove"]
@@ -14562,9 +14639,9 @@ fn upstream_main_sync_readiness_row(
         == Some("epiphany.repo_work_sync_receipt.v0");
     let status_synced =
         string_from_json(receipt, &["status"]).as_deref() == Some("upstream-main-synced");
-    let upstream_main_synced =
-        bool_from_json(receipt, &["authority", "upstreamMainSynced"]) == Some(true)
-            || bool_from_json(receipt, &["upstreamMainSynced"]) == Some(true);
+    let upstream_main_synced = bool_from_json(receipt, &["authority", "upstreamMainSynced"])
+        == Some(true)
+        || bool_from_json(receipt, &["upstreamMainSynced"]) == Some(true);
     let publication_authorized =
         bool_from_json(receipt, &["authority", "publicationAuthorized"]) == Some(true);
     let merge_authorized = bool_from_json(receipt, &["authority", "mergeAuthorized"]) == Some(true);
