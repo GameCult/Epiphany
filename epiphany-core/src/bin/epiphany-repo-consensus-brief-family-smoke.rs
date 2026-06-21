@@ -184,6 +184,18 @@ fn run_smoke(args: Args) -> Result<Value> {
         .join("work")
         .join(format!("work-close-{item}.json"));
     let close = read_json(&close_path)?;
+    let overview = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "overview",
+            "--workspace",
+            path_str(&repo)?,
+            "--item",
+            item,
+        ],
+        &root,
+    )?;
     let brief_text = fs::read_to_string(repo.join(target_path))
         .with_context(|| format!("failed to read {}", repo.join(target_path).display()))?;
 
@@ -239,6 +251,76 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&brief_text, "mind_adoption_required = true")?;
     require_text(&brief_text, "bifrost_publication_required = true")?;
     require_text(&brief_text, "private_state_exposed = false")?;
+    require_eq(
+        &overview,
+        &["intakeConsensus", "schemaVersion"],
+        "epiphany.repo_work_intake_consensus_readback.v0",
+    )?;
+    require_eq(
+        &overview,
+        &["intakeConsensus", "owner"],
+        "Persona->Imagination",
+    )?;
+    require_eq(
+        &overview,
+        &["intakeConsensus", "requestedConsensusRoute"],
+        "imagination.consensus_discovery",
+    )?;
+    require_eq(
+        &overview,
+        &["intakeConsensus", "planSafeActionFamily"],
+        "repo.consensus_brief",
+    )?;
+    require_bool(
+        &overview,
+        &["intakeConsensus", "planModelAuthored"],
+        true,
+    )?;
+    require_bool(
+        &overview,
+        &["intakeConsensus", "handsAuthorityGranted"],
+        false,
+    )?;
+    require_bool(
+        &overview,
+        &["intakeConsensus", "durableStateAdmitted"],
+        false,
+    )?;
+    require_bool(
+        &overview,
+        &["intakeConsensus", "publicationAuthorized"],
+        false,
+    )?;
+    require_bool(
+        &overview,
+        &["intakeConsensus", "privateStateExposed"],
+        false,
+    )?;
+    require_u64(
+        &overview,
+        &["intakeConsensus", "publicDiscussionRefCount"],
+        1,
+    )?;
+    require_u64(
+        &overview,
+        &["intakeConsensus", "candidateActionRefCount"],
+        2,
+    )?;
+    require_eq(
+        &overview,
+        &["proofBundle", "intakeConsensus", "planSafeActionFamily"],
+        "repo.consensus_brief",
+    )?;
+    require_array_text_contains(
+        &overview,
+        &["verseProjection", "tuiRows"],
+        "CONSENSUS |",
+    )?;
+    require_array_text_contains(
+        &overview,
+        &["verseProjection", "tuiRows"],
+        "route=imagination.consensus_discovery",
+    )?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_work_consensus_brief_family_smoke.v0",
@@ -254,6 +336,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         "familyAssertionsStatus": close["closureReview"]["familyAssertions"]["status"],
         "pathScopeMatched": close["closureReview"]["sourceGrounding"]["pathScopeMatched"],
         "briefIsDraft": true,
+        "intakeConsensusSchema": overview["intakeConsensus"]["schemaVersion"],
+        "intakeConsensusRoute": overview["intakeConsensus"]["requestedConsensusRoute"],
+        "intakeConsensusCandidateActionRefCount": overview["intakeConsensus"]["candidateActionRefCount"],
+        "intakeConsensusPlanSafeActionFamily": overview["intakeConsensus"]["planSafeActionFamily"],
         "candidateActionsNonAuthoritative": true,
         "mindAdoptionRequired": true,
         "bifrostPublicationRequired": true,
@@ -372,6 +458,44 @@ fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
             "expected {} to be {expected}, got {:?}",
             path.join("."),
             actual
+        ))
+    }
+}
+
+fn require_u64(value: &Value, path: &[&str], expected: u64) -> Result<()> {
+    let actual = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_u64);
+    if actual == Some(expected) {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {expected}, got {:?}",
+            path.join("."),
+            actual
+        ))
+    }
+}
+
+fn require_array_text_contains(value: &Value, path: &[&str], needle: &str) -> Result<()> {
+    let values = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if values
+        .iter()
+        .filter_map(Value::as_str)
+        .any(|row| row.contains(needle))
+    {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to contain {needle:?}, got {:?}",
+            path.join("."),
+            values
         ))
     }
 }

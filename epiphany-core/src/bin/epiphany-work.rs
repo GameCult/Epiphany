@@ -10617,12 +10617,78 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         publish_receipt.as_ref(),
         sync_receipt.as_ref(),
     );
+    let public_discussion_refs =
+        string_array_from_json(&accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let candidate_action_refs =
+        string_array_from_json(&accept_receipt, &["feedback", "candidateActionRefs"]);
+    let feedback_id = string_from_json(&accept_receipt, &["feedback", "feedbackId"])
+        .unwrap_or_else(|| "missing".to_string());
+    let consensus_receipt_id =
+        string_from_json(&accept_receipt, &["feedback", "consensusReceiptId"])
+            .unwrap_or_else(|| "missing".to_string());
+    let consensus_route =
+        string_from_json(&accept_receipt, &["feedback", "requestedConsensusRoute"])
+            .unwrap_or_else(|| "missing".to_string());
+    let consensus_packet_ref =
+        string_from_json(&accept_receipt, &["feedback", "consensusPacketRef"])
+            .unwrap_or_else(|| "missing".to_string());
+    let adoption_gate = string_from_json(&accept_receipt, &["feedback", "adoptionGate"])
+        .unwrap_or_else(|| "missing".to_string());
+    let plan_action_item = plan_receipt
+        .as_ref()
+        .and_then(|receipt| receipt.get("derivation"))
+        .and_then(|value| value.get("actionItemReceipt"));
+    let plan_action_item_receipt_id = plan_action_item
+        .and_then(|value| value.get("receiptId"))
+        .and_then(Value::as_str)
+        .unwrap_or("missing")
+        .to_string();
+    let plan_safe_action_family = plan_action_item
+        .and_then(|value| value.get("safeActionFamily"))
+        .and_then(Value::as_str)
+        .unwrap_or("missing")
+        .to_string();
+    let plan_model_authored = plan_action_item
+        .and_then(|value| value.get("modelAuthored"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let intake_consensus_readback = json!({
+        "schemaVersion": "epiphany.repo_work_intake_consensus_readback.v0",
+        "owner": "Persona->Imagination",
+        "item": item,
+        "feedbackId": feedback_id,
+        "consensusReceiptId": consensus_receipt_id,
+        "requestedConsensusRoute": consensus_route,
+        "consensusPacketRef": consensus_packet_ref,
+        "adoptionGate": adoption_gate,
+        "publicDiscussionRefs": public_discussion_refs,
+        "publicDiscussionRefCount": public_discussion_refs.len(),
+        "candidateActionRefs": candidate_action_refs,
+        "candidateActionRefCount": candidate_action_refs.len(),
+        "planActionItemsReceiptId": plan_action_item_receipt_id,
+        "planSafeActionFamily": plan_safe_action_family,
+        "planModelAuthored": plan_model_authored,
+        "handsAuthorityGranted": false,
+        "durableStateAdmitted": false,
+        "publicationAuthorized": false,
+        "privateStateExposed": false
+    });
     let tui_rows = vec![
         format!("item {item}"),
         format!("branch {branch}"),
         format!("gate {gate}"),
         format!("blocker {blocker}"),
         format!("next {next_safe_move}"),
+        format!(
+            "CONSENSUS | feedback={} | receipt={} | route={} | publicRefs={} | candidates={} | planFamily={} | modelAuthored={} | private=false",
+            intake_consensus_readback["feedbackId"].as_str().unwrap_or("missing"),
+            intake_consensus_readback["consensusReceiptId"].as_str().unwrap_or("missing"),
+            intake_consensus_readback["requestedConsensusRoute"].as_str().unwrap_or("missing"),
+            intake_consensus_readback["publicDiscussionRefCount"].as_u64().unwrap_or(0),
+            intake_consensus_readback["candidateActionRefCount"].as_u64().unwrap_or(0),
+            intake_consensus_readback["planSafeActionFamily"].as_str().unwrap_or("missing"),
+            intake_consensus_readback["planModelAuthored"].as_bool().unwrap_or(false),
+        ),
         format!("closure {closure_status} soul {soul_verdict}"),
         format!("publication {publication_status} sync {sync_status}"),
         "private false".to_string(),
@@ -10700,6 +10766,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "syncReceiptPath": existing_path_value(&sync_receipt_path),
         "changedPaths": changed_paths,
         "commitSha": commit_sha,
+        "intakeConsensus": intake_consensus_readback,
         "soulVerdict": soul_verdict,
         "mindStateCommitReceiptId": close_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["mind", "stateCommitReceiptId"])),
         "bifrostPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["bifrost", "publicationReceiptId"])),
@@ -10715,6 +10782,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         {"key": "branch", "value": branch, "status": "current"},
         {"key": "gate", "value": gate, "status": if blocker == "none" { "ready" } else { "blocked" }},
         {"key": "blocker", "value": blocker, "status": if blocker == "none" { "clear" } else { "attention" }},
+        {"key": "consensus", "value": proof_bundle["intakeConsensus"]["consensusReceiptId"], "status": proof_bundle["intakeConsensus"]["requestedConsensusRoute"]},
         {"key": "closure", "value": closure_status, "status": closure_status},
         {"key": "publication", "value": publication_status, "status": publication_status},
         {"key": "sync", "value": sync_status, "status": sync_status},
@@ -10731,6 +10799,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "nextSafeMove": next_safe_move,
         "receiptChain": receipt_chain,
         "proofBundle": proof_bundle,
+        "intakeConsensus": proof_bundle["intakeConsensus"],
         "rows": rows,
         "authority": {
             "owner": "Eyes/Gjallar",
@@ -10773,6 +10842,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
                 private_state_exposed: false,
                 notes: vec![
                     "Repo work overview is compact local Verse sight; raw worker thoughts and receipt payload bodies remain sealed.".to_string(),
+                    "Persona/public feedback and candidate-action refs are shown only as compact Imagination consensus readback; adoption still requires Mind and Bifrost gates.".to_string(),
                     "Gjallar/Eve may project these rows, but they do not own scheduling, publication, merge, service lifecycle, or cross-repo mutation.".to_string(),
                 ],
             };
@@ -10798,6 +10868,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "nextSafeMove": receipt["nextSafeMove"],
         "receiptPath": if args.write_receipt { Value::String(overview_receipt_path.display().to_string()) } else { Value::Null },
         "proofBundle": receipt["proofBundle"],
+        "intakeConsensus": receipt["intakeConsensus"],
         "rows": receipt["rows"],
         "verseProjection": verse_projection,
         "authority": receipt["authority"],
