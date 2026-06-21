@@ -186,7 +186,43 @@ fn run_smoke(args: Args) -> Result<Value> {
     let close = read_json(&close_path)?;
     let request_text = fs::read_to_string(repo.join(target_path))
         .with_context(|| format!("failed to read {}", repo.join(target_path).display()))?;
-    let bifrost_ledger = cargo_json(
+    let open_bifrost_ledger = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "bifrost-ledger",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-metrics-request-family-smoke",
+        ],
+        &root,
+    )?;
+    let metrics_receipt = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "bifrost-metrics",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-metrics-request-family-smoke",
+            "--accepted-artifact-receipt-id",
+            "bifrost-artifact-acceptance:repo-metrics-request-family",
+            "--model-spend-receipt",
+            "model-spend:repo-metrics-request-family",
+            "--review-load-receipt",
+            "review-load:repo-metrics-request-family",
+            "--credit-receipt",
+            "credit-readback:repo-metrics-request-family",
+            "--public-proof-ref",
+            "public-proof:repo-metrics-request-family",
+            "--metrics-summary",
+            "model spend, review load, accepted artifact, and credit readback recorded for metrics smoke",
+        ],
+        &root,
+    )?;
+    let closed_bifrost_ledger = cargo_json(
         &manifest,
         "epiphany-verse-query",
         &[
@@ -305,15 +341,39 @@ fn run_smoke(args: Args) -> Result<Value> {
         "bifrost_or_maintainer_metrics_authority_required = true",
     )?;
     require_text(&request_text, "private_state_exposed = false")?;
-    require_bifrost_accounting_row(&bifrost_ledger, "metrics-request", "open", 3, 1)?;
+    require_bifrost_accounting_row(&open_bifrost_ledger, "metrics-request", "open", 3, 1)?;
     require_tui_row_contains(
-        &bifrost_ledger,
+        &open_bifrost_ledger,
         &["accountingTuiRows"],
         "BIFROST-ACCOUNTING | metrics-request",
     )?;
-    require_tui_row_contains(&bifrost_ledger, &["accountingTuiRows"], "status=open")?;
-    require_tui_row_contains(&bifrost_ledger, &["accountingTuiRows"], "request=present")?;
-    require_bool(&bifrost_ledger, &["privateStateExposed"], false)?;
+    require_tui_row_contains(&open_bifrost_ledger, &["accountingTuiRows"], "status=open")?;
+    require_tui_row_contains(
+        &open_bifrost_ledger,
+        &["accountingTuiRows"],
+        "request=present",
+    )?;
+    require_bool(&open_bifrost_ledger, &["privateStateExposed"], false)?;
+    require_eq(
+        &metrics_receipt,
+        &["receiptId"],
+        "bifrost-metrics-repo-metrics-request-family",
+    )?;
+    require_eq(&metrics_receipt, &["status"], "ok")?;
+    require_bool(&metrics_receipt, &["privateStateExposed"], false)?;
+    require_bifrost_accounting_row(&closed_bifrost_ledger, "metrics-request", "closed", 2, 1)?;
+    require_tui_row_contains(
+        &closed_bifrost_ledger,
+        &["accountingTuiRows"],
+        "metrics=present",
+    )?;
+    require_tui_row_contains(&closed_bifrost_ledger, &["accountingTuiRows"], "credit=1")?;
+    require_tui_row_contains(
+        &closed_bifrost_ledger,
+        &["accountingTuiRows"],
+        "receipt=bifrost-metrics-repo-metrics-request-family",
+    )?;
+    require_bool(&closed_bifrost_ledger, &["privateStateExposed"], false)?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_metrics_request_family_smoke.v0",
@@ -338,8 +398,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         "publicationAuthorized": false,
         "upstreamSyncAuthorized": false,
         "handsActionAuthorized": false,
-        "bifrostLedgerAccountingRowCount": bifrost_ledger["accountingRowCount"],
-        "bifrostMetricsRequestAccountingRow": bifrost_accounting_row_value(&bifrost_ledger, "metrics-request")?,
+        "bifrostLedgerAccountingRowCount": closed_bifrost_ledger["accountingRowCount"],
+        "bifrostMetricsReceiptId": metrics_receipt["receiptId"],
+        "bifrostMetricsOpenAccountingRow": bifrost_accounting_row_value(&open_bifrost_ledger, "metrics-request")?,
+        "bifrostMetricsClosedAccountingRow": bifrost_accounting_row_value(&closed_bifrost_ledger, "metrics-request")?,
         "privateStateExposed": false,
     });
     write_json(&smoke_dir.join("summary.json"), &summary)?;
