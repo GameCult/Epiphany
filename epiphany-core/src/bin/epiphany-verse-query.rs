@@ -7737,6 +7737,58 @@ fn receipt_directory_report(
         &mut rows,
         &mut tui_rows,
         ReceiptDirectoryRow {
+            family: "weksa-lowering".to_string(),
+            owner: "Weksa".to_string(),
+            document_kind: "epiphany.cultmesh.weksa_lowering_receipt.v0".to_string(),
+            latest_id: context
+                .latest_weksa_lowering_receipt
+                .as_ref()
+                .map(|receipt| receipt.receipt_id.clone())
+                .unwrap_or_else(|| "missing".to_string()),
+            status: context
+                .latest_weksa_lowering_receipt
+                .as_ref()
+                .map(|receipt| format!("lowered:{}", receipt.target_language))
+                .unwrap_or_else(|| "missing".to_string()),
+            route: context
+                .latest_weksa_lowering_receipt
+                .as_ref()
+                .map(|receipt| receipt.delivery_surface.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            service_id: "none".to_string(),
+            service_route: "none".to_string(),
+            follow_up_command: "cargo run --manifest-path .\\epiphany-core\\Cargo.toml --bin epiphany-weksa-interlingua-smoke".to_string(),
+            artifact_ref: context
+                .latest_weksa_lowering_receipt
+                .as_ref()
+                .map(|receipt| receipt.lowered_text_ref.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            artifact_status: context
+                .latest_weksa_lowering_receipt
+                .as_ref()
+                .map(|receipt| {
+                    if receipt.lowered_text_ref.trim().is_empty() {
+                        "none".to_string()
+                    } else {
+                        "external-ref".to_string()
+                    }
+                })
+                .unwrap_or_else(|| "none".to_string()),
+            artifact_sha256: "none".to_string(),
+            present: context.latest_weksa_lowering_receipt.is_some(),
+            private_state_exposed: context
+                .latest_weksa_lowering_receipt
+                .as_ref()
+                .map(|receipt| {
+                    receipt.private_state_exposed || receipt.publication_authorized
+                })
+                .unwrap_or(false),
+        },
+    );
+    push_receipt_directory_row(
+        &mut rows,
+        &mut tui_rows,
+        ReceiptDirectoryRow {
             family: "daemon-poke".to_string(),
             owner: "Self".to_string(),
             document_kind: "epiphany.cultmesh.daemon_poke_receipt.v0".to_string(),
