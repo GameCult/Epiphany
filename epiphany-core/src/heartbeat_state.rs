@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
+use epiphany_state_model::EpiphanyMemoryContextQuery;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -778,6 +779,12 @@ fn tick_once(
     }
 
     let selected_after = state.participants[selected_index].clone();
+    let persona_memory_recall = persona_memory_recall_for_scheduled_turn(
+        options.agent_store.as_deref(),
+        &selected_after,
+        &action,
+        &selected_pending_mentions,
+    );
     let event = HeartbeatHistoryEvent {
         ts: now_iso(),
         schedule_id: options.schedule_id.clone(),
@@ -827,6 +834,7 @@ fn tick_once(
             "commitment": action.commitment,
             "local_affordance_basis": action.local_affordance_basis,
             "pending_mentions": selected_pending_mentions,
+            "persona_memory_recall": persona_memory_recall,
         }],
         "reaction_windows": if let Some(work_role) = &work_role {
             serde_json::json!([{
@@ -1083,6 +1091,132 @@ fn action_for_selection(
             "When no coordinator work is active, idle rumination is slowed by the sleep multiplier and shaped by personality and mood cooldowns so the swarm dreams instead of thrashing.".to_string(),
         ],
     }
+}
+
+fn persona_memory_recall_for_scheduled_turn(
+    agent_store: Option<&Path>,
+    selected: &HeartbeatParticipant,
+    action: &HeartbeatAction,
+    pending_mentions: &[HeartbeatPendingMention],
+) -> Value {
+    if action.action_type != "persona_turn" || selected.role_id != "Persona" {
+        return Value::Null;
+    }
+    let Some(agent_store) = agent_store else {
+        return serde_json::json!({
+            "schemaVersion": crate::PERSONA_MEMORY_CACHE_SCHEMA_VERSION,
+            "status": "unavailable",
+            "cacheStatus": "agent-store-missing",
+            "renderedRecall": "- semantic Persona memory recall unavailable: no agent store was provided for this heartbeat tick",
+            "privateStateExposed": false,
+        });
+    };
+
+    let entry = match crate::agent_memory::load_agent_memory_entry_for_role(agent_store, "Persona")
+    {
+        Ok(Some(entry)) => entry,
+        Ok(None) => {
+            return serde_json::json!({
+                "schemaVersion": crate::PERSONA_MEMORY_CACHE_SCHEMA_VERSION,
+                "status": "unavailable",
+                "cacheStatus": "persona-memory-missing",
+                "renderedRecall": "- semantic Persona memory recall unavailable: Persona memory entry is missing",
+                "privateStateExposed": false,
+            });
+        }
+        Err(error) => {
+            return serde_json::json!({
+                "schemaVersion": crate::PERSONA_MEMORY_CACHE_SCHEMA_VERSION,
+                "status": "unavailable",
+                "cacheStatus": "persona-memory-load-failed",
+                "renderedRecall": format!("- semantic Persona memory recall unavailable: {}", compact_heartbeat_line(&format!("{error:#}"), 320)),
+                "privateStateExposed": false,
+            });
+        }
+    };
+
+    let query = persona_memory_recall_query(selected, pending_mentions);
+    let graph = crate::memory_graph_from_agent_memories(
+        "heartbeat-persona-memory",
+        std::slice::from_ref(&entry),
+    );
+    let fallback = crate::plan_memory_graph_context_cut(
+        &graph,
+        &EpiphanyMemoryContextQuery {
+            id: "heartbeat-persona-turn".to_string(),
+            profile: Some(crate::EpiphanyMemoryProfile::RoleSelf),
+            domain_ids: Vec::new(),
+            node_ids: Vec::new(),
+            edge_ids: Vec::new(),
+            text: Some(query.clone()),
+            budget: Some(8),
+        },
+    );
+    let config = persona_memory_cache_config_for_heartbeat();
+    let recall = crate::render_persona_memory_recall_with_cache(
+        &entry,
+        format!("{}#Persona", agent_store.display()),
+        &query,
+        8,
+        Some(&fallback),
+        &config,
+    );
+
+    serde_json::json!({
+        "schemaVersion": recall.schema_version,
+        "status": recall.status,
+        "cacheStatus": recall.cache_status,
+        "identityId": recall.identity_id,
+        "roleId": recall.role_id,
+        "chunkCount": recall.chunk_count,
+        "hitCount": recall.hit_count,
+        "renderedRecall": recall.rendered_recall,
+        "warnings": recall.warnings,
+        "privateStateExposed": recall.private_state_exposed,
+    })
+}
+
+fn persona_memory_recall_query(
+    selected: &HeartbeatParticipant,
+    pending_mentions: &[HeartbeatPendingMention],
+) -> String {
+    let mention_text = pending_mentions
+        .iter()
+        .map(|mention| {
+            format!(
+                "{}: {}",
+                mention.author_name.as_deref().unwrap_or(&mention.author_id),
+                mention.visible_prompt
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "{} current Persona turn\nPending addressed pressure:\n{}",
+        selected.display_name,
+        if mention_text.trim().is_empty() {
+            "(none)"
+        } else {
+            mention_text.as_str()
+        }
+    )
+}
+
+fn persona_memory_cache_config_for_heartbeat() -> crate::PersonaMemoryCacheConfig {
+    let mut config = crate::PersonaMemoryCacheConfig::from_env();
+    config.qdrant_timeout_ms = config.qdrant_timeout_ms.min(1_000);
+    config.ollama_timeout_ms = config.ollama_timeout_ms.min(1_000);
+    config
+}
+
+fn compact_heartbeat_line(value: &str, max_len: usize) -> String {
+    let mut compacted = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if compacted.len() > max_len {
+        let keep = max_len.saturating_sub(3);
+        compacted.truncate(keep);
+        compacted.push_str("...");
+    }
+    compacted
 }
 
 fn work_role_for_action(action: Option<&str>, target_role: Option<&str>) -> Option<String> {
@@ -3346,6 +3480,14 @@ const STOP_WORDS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::EpiphanyAgentMemoryEntry;
+    use crate::GhostlightAgent;
+    use crate::GhostlightCanonicalState;
+    use crate::GhostlightIdentity;
+    use crate::GhostlightMemories;
+    use crate::GhostlightMemory;
+    use crate::GhostlightValue;
+    use crate::GhostlightWorld;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -3687,6 +3829,110 @@ mod tests {
         let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
         assert!(state.pending_mentions.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn persona_turn_action_catalog_carries_memory_recall_from_agent_store() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("Persona-heartbeats.msgpack");
+        let agent_store = temp.path().join("agents.msgpack");
+        let artifact_dir = temp.path().join("artifacts");
+        initialize_heartbeat_store(&store_path, 1.0)?;
+        crate::write_agent_memory_entry_for_role(&agent_store, &persona_memory_entry())?;
+        queue_heartbeat_pending_mention_store(
+            &store_path,
+            HeartbeatQueueMentionOptions {
+                target_role_id: "Persona".to_string(),
+                source_surface: "discord".to_string(),
+                channel_id: "aquarium".to_string(),
+                message_id: "m1".to_string(),
+                author_id: "human".to_string(),
+                author_name: Some("Metacrat".to_string()),
+                content: "Epiphany, remember the typed contracts before speaking.".to_string(),
+                visible_prompt: "remember the typed contracts before speaking".to_string(),
+                reply_to_message_id: None,
+                queued_at: Some("2026-05-24T00:00:00+00:00".to_string()),
+                mention_id: Some("mention-Persona-memory-test".to_string()),
+            },
+        )?;
+
+        let tick = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 1.0,
+                coordinator_action: None,
+                target_role: None,
+                urgency: 0.0,
+                schedule_id: "Persona-mentioned-memory".to_string(),
+                source_scene_ref: "test/Persona-mentioned-memory".to_string(),
+                defer_completion: true,
+                agent_store: Some(agent_store),
+            },
+        )?;
+
+        let recall = &tick["schedule"]["action_catalog"][0]["persona_memory_recall"];
+        assert_eq!(
+            recall["schemaVersion"],
+            crate::PERSONA_MEMORY_CACHE_SCHEMA_VERSION
+        );
+        assert_eq!(recall["roleId"], "Persona");
+        assert_eq!(recall["privateStateExposed"], false);
+        assert!(
+            recall["renderedRecall"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("typed memory graph")
+        );
+        assert!(recall["chunkCount"].as_u64().unwrap_or_default() > 0);
+        assert!(
+            !recall["renderedRecall"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("sealed private note")
+        );
+        Ok(())
+    }
+
+    fn persona_memory_entry() -> EpiphanyAgentMemoryEntry {
+        EpiphanyAgentMemoryEntry {
+            schema_version: "ghostlight.agent_state.v0".to_string(),
+            role_id: "Persona".to_string(),
+            world: GhostlightWorld::default(),
+            agent: GhostlightAgent {
+                agent_id: "epiphany.Persona".to_string(),
+                identity: GhostlightIdentity {
+                    name: "Epiphany".to_string(),
+                    roles: vec!["Persona".to_string()],
+                    origin: "EpiphanyAgent".to_string(),
+                    public_description: "Public typed-contract voice.".to_string(),
+                    private_notes: vec!["sealed private note".to_string()],
+                },
+                memories: GhostlightMemories {
+                    semantic: vec![GhostlightMemory {
+                        memory_id: "semantic-1".to_string(),
+                        summary: "Clean typed contracts must shape Persona speech.".to_string(),
+                        salience: 0.9,
+                        confidence: 0.9,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                canonical_state: GhostlightCanonicalState {
+                    values: vec![GhostlightValue {
+                        value_id: "value-1".to_string(),
+                        label: "Clean typed contracts".to_string(),
+                        priority: 0.9,
+                        unforgivable_if_betrayed: true,
+                    }],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            relationships: Vec::new(),
+            events: Vec::new(),
+            scenes: Vec::new(),
+        }
     }
 
     #[test]

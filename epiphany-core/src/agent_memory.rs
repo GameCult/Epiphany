@@ -710,6 +710,26 @@ pub fn load_agent_memory_entry_for_role(
     Ok(entry)
 }
 
+pub fn write_agent_memory_entry_for_role(
+    store_path: impl AsRef<Path>,
+    entry: &EpiphanyAgentMemoryEntry,
+) -> Result<()> {
+    let store_path = store_path.as_ref();
+    let expected_agent_id =
+        agent_id_for_role(&entry.role_id).map_err(|message| anyhow!(message))?;
+    if entry.agent.agent_id != expected_agent_id {
+        return Err(anyhow!(
+            "{} agent_id {:?} does not match expected {:?}",
+            entry.role_id,
+            entry.agent.agent_id,
+            expected_agent_id
+        ));
+    }
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.put(entry.role_id.as_str(), entry)?;
+    Ok(())
+}
+
 pub fn agent_memory_role_ids() -> Vec<&'static str> {
     ROLE_TARGETS
         .iter()

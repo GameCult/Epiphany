@@ -101,6 +101,7 @@ pub use agent_memory::review_agent_memory_lifecycle_operation;
 pub use agent_memory::review_agent_self_patch;
 pub use agent_memory::review_agent_self_patch_document;
 pub use agent_memory::validate_agent_memory_store;
+pub use agent_memory::write_agent_memory_entry_for_role;
 pub use agent_utterance_state::AGENT_CHARACTER_STATE_VECTOR_SIZE;
 pub use agent_utterance_state::AGENT_UTTERANCE_STATE_SCHEMA_VERSION;
 pub use agent_utterance_state::AgentUtteranceActivation;
