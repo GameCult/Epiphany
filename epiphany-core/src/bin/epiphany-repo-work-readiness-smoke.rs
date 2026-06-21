@@ -418,6 +418,68 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_row(&readiness, "tool-directory", true)?;
     require_row(&readiness, "private-state-redaction", true)?;
 
+    let readiness_review = cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "readiness-review",
+            "--workspace",
+            path_str(&repo)?,
+            "--item",
+            item,
+            "--readiness-receipt",
+            readiness
+                .get("receiptPath")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow!("readiness result missing receiptPath"))?,
+            "--maintainer-review-receipt",
+            "maintainer-review:repo-work-readiness-smoke",
+            "--soul-review-receipt",
+            "soul-review:repo-work-readiness-smoke",
+            "--mind-review-receipt",
+            "mind-review:repo-work-readiness-smoke",
+            "--bifrost-review-receipt",
+            "bifrost-review:repo-work-readiness-smoke",
+            "--review-summary",
+            "Smoke reviewers approve the ready readiness sight receipt without granting action authority.",
+        ],
+        &root,
+    )?;
+    require_eq(
+        &readiness_review,
+        &["schemaVersion"],
+        "epiphany.repo_work_readiness_review.v0",
+    )?;
+    require_eq(&readiness_review, &["status"], "readiness-approved")?;
+    require_u64(&readiness_review, &["missingRequiredCount"], 0)?;
+    require_bool(
+        &readiness_review,
+        &["authority", "readinessApprovalAuthorized"],
+        true,
+    )?;
+    require_bool(
+        &readiness_review,
+        &["authority", "durableStateCommitAuthorized"],
+        false,
+    )?;
+    require_bool(
+        &readiness_review,
+        &["authority", "publicationAuthorized"],
+        false,
+    )?;
+    require_bool(&readiness_review, &["authority", "mergeAuthorized"], false)?;
+    require_bool(
+        &readiness_review,
+        &["authority", "serviceLifecycleAuthority"],
+        false,
+    )?;
+    require_bool(
+        &readiness_review,
+        &["authority", "handsActionAuthorized"],
+        false,
+    )?;
+    require_bool(&readiness_review, &["privateStateExposed"], false)?;
+
     let gjallar = cargo_json(
         &manifest,
         "epiphany-verse-query",
@@ -456,6 +518,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "syncStatus": sync["status"],
         "upstreamMainSynced": sync["authority"]["upstreamMainSynced"],
         "readinessStatus": readiness["status"],
+        "readinessReviewStatus": readiness_review["status"],
+        "readinessReviewReceiptPath": readiness_review["receiptPath"],
         "missingRequiredCount": readiness["missingRequiredCount"],
         "readinessVerseProjection": readiness["verseProjection"],
         "gjallarRepoWorkReadinessCount": gjallar["repoWorkReadinessCount"],
