@@ -1409,6 +1409,24 @@ refused. This is closure readback only, not publication authority, merge
 authority, service lifecycle authority, deployment authority, cross-repo
 authority, or Mind admission authority.
 
+The family-friendly acceptance lens names the closure state in one operator-safe
+row:
+`.epiphany-smoke\repo-close-mind-adoption-guard-20260621-082322` proves Gjallar
+now derives `repoWorkMapAcceptanceRows` and `REPO-WORK-MAP-ACCEPTANCE` TUI rows
+from Mind-admitted map entries. The proof row reports
+`status=accepted-awaiting-publication-gate`, `soulClosed=true`,
+`modelingClosed=true`, `mindCommitted=true`, `durableAdmitted=true`,
+`publicationGate=Bifrost`, `bifrostGateNamed=true`, `sightOnly=true`, and
+`privateStateExposed=false`; the smoke summary reports
+`gjallarRepoWorkMapAcceptanceCount=1` and
+`gjallarRepoWorkMapAcceptanceStatus=accepted-awaiting-publication-gate` after
+counterfeit Mind adoption is still refused. Wrapper proof
+`local-20260621-092458-019-7ba89841` pointed `gjallar` at the repo-local Verse
+and printed the same compact acceptance row. This is acceptance sight only:
+Bifrost still owns publication/upstream gates, and Gjallar does not schedule,
+publish, merge, deploy, keep daemons alive, cross repo boundaries, or admit Mind
+state.
+
 The wrapper mouth now forwards those Rust-owned repo-work map rows instead of
 making agents parse JSON artifacts. `tools/epiphany_local_run.ps1` accepts
 `-LocalVerseStore` and `-LocalVerseRuntimeId`, keeps operator run

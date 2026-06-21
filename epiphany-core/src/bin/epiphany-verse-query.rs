@@ -4117,6 +4117,8 @@ struct SwarmOverviewReport {
     repo_work_map_gate_lens_tui_rows: Vec<String>,
     repo_work_map_closure_rows: Vec<RepoWorkMapClosureRow>,
     repo_work_map_closure_tui_rows: Vec<String>,
+    repo_work_map_acceptance_rows: Vec<RepoWorkMapAcceptanceRow>,
+    repo_work_map_acceptance_tui_rows: Vec<String>,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
@@ -4291,6 +4293,27 @@ struct RepoWorkMapClosureRow {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct RepoWorkMapAcceptanceRow {
+    item: String,
+    branch: String,
+    safe_action_family: String,
+    acceptance_status: String,
+    soul_closed: bool,
+    modeling_closed: bool,
+    mind_committed: bool,
+    durable_state_admitted: bool,
+    bifrost_gate_named: bool,
+    soul_verdict_receipt_id: String,
+    modeling_summary: String,
+    mind_gateway_review_id: String,
+    mind_state_commit_receipt_id: String,
+    publication_gate: String,
+    sight_only: bool,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct RepoWorkPublicProofRow {
     public_proof_id: String,
     workspace: String,
@@ -4433,6 +4456,9 @@ struct SwarmOverviewOutput {
     repo_work_map_closure_count: usize,
     repo_work_map_closure_rows: Vec<RepoWorkMapClosureRow>,
     repo_work_map_closure_tui_rows: Vec<String>,
+    repo_work_map_acceptance_count: usize,
+    repo_work_map_acceptance_rows: Vec<RepoWorkMapAcceptanceRow>,
+    repo_work_map_acceptance_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4534,6 +4560,9 @@ impl SwarmOverviewOutput {
             repo_work_map_closure_count: report.repo_work_map_closure_rows.len(),
             repo_work_map_closure_rows: report.repo_work_map_closure_rows,
             repo_work_map_closure_tui_rows: report.repo_work_map_closure_tui_rows,
+            repo_work_map_acceptance_count: report.repo_work_map_acceptance_rows.len(),
+            repo_work_map_acceptance_rows: report.repo_work_map_acceptance_rows,
+            repo_work_map_acceptance_tui_rows: report.repo_work_map_acceptance_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -4627,6 +4656,9 @@ struct SwarmTriageOutput {
     repo_work_map_closure_count: usize,
     repo_work_map_closure_rows: Vec<RepoWorkMapClosureRow>,
     repo_work_map_closure_tui_rows: Vec<String>,
+    repo_work_map_acceptance_count: usize,
+    repo_work_map_acceptance_rows: Vec<RepoWorkMapAcceptanceRow>,
+    repo_work_map_acceptance_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4723,6 +4755,9 @@ impl SwarmTriageOutput {
             repo_work_map_closure_count: report.repo_work_map_closure_rows.len(),
             repo_work_map_closure_rows: report.repo_work_map_closure_rows,
             repo_work_map_closure_tui_rows: report.repo_work_map_closure_tui_rows,
+            repo_work_map_acceptance_count: report.repo_work_map_acceptance_rows.len(),
+            repo_work_map_acceptance_rows: report.repo_work_map_acceptance_rows,
+            repo_work_map_acceptance_tui_rows: report.repo_work_map_acceptance_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -5826,6 +5861,79 @@ fn repo_work_map_closure_tui_row(row: &RepoWorkMapClosureRow) -> String {
     )
 }
 
+fn repo_work_map_acceptance_rows(
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+) -> (Vec<RepoWorkMapAcceptanceRow>, Vec<String>) {
+    let rows = repo_work_map_entries
+        .iter()
+        .map(repo_work_map_acceptance_row)
+        .collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_map_acceptance_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_map_acceptance_row(
+    entry: &EpiphanyCultMeshRepoWorkMapEntry,
+) -> RepoWorkMapAcceptanceRow {
+    let soul_closed = !entry.soul_verdict_receipt_id.trim().is_empty();
+    let modeling_closed = !entry.modeling_summary.trim().is_empty();
+    let mind_committed = !entry.mind_gateway_review_id.trim().is_empty()
+        && !entry.mind_state_commit_receipt_id.trim().is_empty()
+        && entry.durable_state_admitted;
+    let bifrost_gate_named = !entry.publication_gate.trim().is_empty()
+        && entry.publication_gate != "none"
+        && entry.publication_gate != "missing";
+    let acceptance_status =
+        if soul_closed && modeling_closed && mind_committed && bifrost_gate_named {
+            "accepted-awaiting-publication-gate"
+        } else {
+            "incomplete-acceptance"
+        };
+    RepoWorkMapAcceptanceRow {
+        item: entry.item.clone(),
+        branch: entry.branch.clone(),
+        safe_action_family: entry.safe_action_family.clone(),
+        acceptance_status: acceptance_status.to_string(),
+        soul_closed,
+        modeling_closed,
+        mind_committed,
+        durable_state_admitted: entry.durable_state_admitted,
+        bifrost_gate_named,
+        soul_verdict_receipt_id: entry.soul_verdict_receipt_id.clone(),
+        modeling_summary: entry.modeling_summary.clone(),
+        mind_gateway_review_id: entry.mind_gateway_review_id.clone(),
+        mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
+        publication_gate: entry.publication_gate.clone(),
+        sight_only: true,
+        private_state_exposed: entry.private_state_exposed,
+    }
+}
+
+fn repo_work_map_acceptance_tui_row(row: &RepoWorkMapAcceptanceRow) -> String {
+    format!(
+        "REPO-WORK-MAP-ACCEPTANCE | item={} | family={} | branch={} | status={} | soulClosed={} | modelingClosed={} | mindCommitted={} | durableAdmitted={} | publicationGate={} | bifrostGateNamed={} | soul={} | mindReview={} | mindCommit={} | summary={} | sightOnly={} | private={}",
+        row.item,
+        row.safe_action_family,
+        row.branch,
+        row.acceptance_status,
+        row.soul_closed,
+        row.modeling_closed,
+        row.mind_committed,
+        row.durable_state_admitted,
+        row.publication_gate,
+        row.bifrost_gate_named,
+        row.soul_verdict_receipt_id,
+        row.mind_gateway_review_id,
+        row.mind_state_commit_receipt_id,
+        compact_tui_text(&row.modeling_summary, 120),
+        row.sight_only,
+        row.private_state_exposed
+    )
+}
+
 fn repo_work_peer_tui_rows(rows: &[RepoWorkOverviewRow]) -> Vec<String> {
     rows.iter()
         .map(|row| {
@@ -6741,6 +6849,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_gate_lens_rows(&repo_work_map_entries);
     let (repo_work_map_closure_rows, repo_work_map_closure_tui_rows) =
         repo_work_map_closure_rows(&repo_work_map_entries);
+    let (repo_work_map_acceptance_rows, repo_work_map_acceptance_tui_rows) =
+        repo_work_map_acceptance_rows(&repo_work_map_entries);
     let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
         repo_work_public_proof_rows(&repo_work_public_proofs);
     let (idunn_deployment_receipt_rows, idunn_deployment_receipt_tui_rows) =
@@ -6789,6 +6899,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_map_closure_rows
+            .iter()
+            .any(|row| row.private_state_exposed)
+        || repo_work_map_acceptance_rows
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_public_proofs
@@ -6863,6 +6976,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_gate_lens_tui_rows,
         repo_work_map_closure_rows,
         repo_work_map_closure_tui_rows,
+        repo_work_map_acceptance_rows,
+        repo_work_map_acceptance_tui_rows,
         repo_work_overview_rows,
         repo_work_overview_tui_rows,
         repo_work_public_proof_rows,

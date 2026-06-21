@@ -745,6 +745,70 @@ fn run_smoke(args: Args) -> Result<Value> {
         ));
     }
 
+    require_u64(&gjallar, &["repoWorkMapAcceptanceCount"], 1)?;
+    let acceptance_rows = value_at_path(&gjallar, &["repoWorkMapAcceptanceRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapAcceptanceRows array"))?;
+    let acceptance_row = acceptance_rows
+        .iter()
+        .find(|row| {
+            value_at_path(row, &["item"])
+                .and_then(Value::as_str)
+                .is_some_and(|value| value == item)
+        })
+        .ok_or_else(|| anyhow!("Gjallar output had no acceptance row for {item}"))?;
+    require_eq_value(acceptance_row, &["safeActionFamily"], "repo.markdown_planning_note")?;
+    require_eq_value(
+        acceptance_row,
+        &["acceptanceStatus"],
+        "accepted-awaiting-publication-gate",
+    )?;
+    require_bool_value(acceptance_row, &["soulClosed"], true)?;
+    require_bool_value(acceptance_row, &["modelingClosed"], true)?;
+    require_bool_value(acceptance_row, &["mindCommitted"], true)?;
+    require_bool_value(acceptance_row, &["durableStateAdmitted"], true)?;
+    require_bool_value(acceptance_row, &["bifrostGateNamed"], true)?;
+    require_eq_value(
+        acceptance_row,
+        &["soulVerdictReceiptId"],
+        close["soul"]["verdictReceiptId"]
+            .as_str()
+            .unwrap_or("<missing>"),
+    )?;
+    require_eq_value(
+        acceptance_row,
+        &["mindGatewayReviewId"],
+        &map_entry.mind_gateway_review_id,
+    )?;
+    require_eq_value(
+        acceptance_row,
+        &["mindStateCommitReceiptId"],
+        &map_entry.mind_state_commit_receipt_id,
+    )?;
+    require_eq_value(acceptance_row, &["publicationGate"], "Bifrost")?;
+    require_bool_value(acceptance_row, &["sightOnly"], true)?;
+    require_bool_value(acceptance_row, &["privateStateExposed"], false)?;
+    let acceptance_tui_rows = value_at_path(&gjallar, &["repoWorkMapAcceptanceTuiRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapAcceptanceTuiRows array"))?;
+    if !acceptance_tui_rows.iter().any(|row| {
+        row.as_str().is_some_and(|row| {
+            row.contains("REPO-WORK-MAP-ACCEPTANCE")
+                && row.contains("status=accepted-awaiting-publication-gate")
+                && row.contains("soulClosed=true")
+                && row.contains("modelingClosed=true")
+                && row.contains("mindCommitted=true")
+                && row.contains("durableAdmitted=true")
+                && row.contains("publicationGate=Bifrost")
+                && row.contains("bifrostGateNamed=true")
+                && row.contains("sightOnly=true")
+        })
+    }) {
+        return Err(anyhow!(
+            "Gjallar TUI rows did not expose repo map acceptance sight"
+        ));
+    }
+
     let summary = json!({
         "schemaVersion": "epiphany.repo_close_mind_adoption_guard_smoke.v0",
         "status": "ok",
@@ -771,6 +835,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "gjallarRepoWorkMapStageLensCount": gjallar["repoWorkMapStageLensCount"],
         "gjallarRepoWorkMapGateLensCount": gjallar["repoWorkMapGateLensCount"],
         "gjallarRepoWorkMapClosureCount": gjallar["repoWorkMapClosureCount"],
+        "gjallarRepoWorkMapAcceptanceCount": gjallar["repoWorkMapAcceptanceCount"],
+        "gjallarRepoWorkMapAcceptanceStatus": acceptance_row["acceptanceStatus"],
         "publicationAuthorized": false,
         "privateStateExposed": false
     });
