@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "bifrost-publication", "bifrost-public-proof", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "swarm-online-runbook", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "bifrost-publication", "bifrost-public-proof", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-readiness", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "swarm-online-runbook", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -55,6 +55,9 @@ param(
     [string]$RepoSwarmUntil = "blocked-or-published",
     [string]$RepoWorkItem = "persona-intake-local",
     [string]$RepoWorkRuntimeId = "repo-swarm-local",
+    [string]$RepoWorkPublicProof = "",
+    [string]$RepoWorkIdunnLifecycleReceipt = "",
+    [string]$RepoWorkToolDirectoryReceipt = "",
     [switch]$RepoWorkDryRun,
     [string]$PersonaInput = "",
     [switch]$SkipBuild,
@@ -348,7 +351,7 @@ $runtimeStore = Join-Path $Workspace "state\runtime-spine.msgpack"
 $liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
-    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
+    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
         Invoke-Checked `
             -Label "build Codex app-server compatibility organ" `
             -FilePath $cargoExe `
@@ -405,7 +408,7 @@ if (-not $SkipBuild) {
 }
 
 $requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQueryExe, $swarmExe, $repoWorkExe, $daemonSupervisorExe, $handsActionExe)
-if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
+if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
 }
 function Assert-SwarmBrakeAllowsLiveRun {
@@ -478,7 +481,7 @@ function Assert-SwarmBrakeAllowsLiveRun {
     }
 }
 
-if (@("plan", "run", "mvp", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute") -contains $Mode) {
+if (@("plan", "run", "mvp", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-readiness", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute") -contains $Mode) {
     if (-not (Test-Path -LiteralPath $verseQueryExe)) {
         throw "required binary not found for swarm brake preflight: $verseQueryExe"
     }
@@ -1949,6 +1952,31 @@ if ($Mode -eq "repo-work-queue-run") {
         -StderrPath (Join-Path $artifactRoot "repo-work-queue-run.stderr.log")
 }
 
+if ($Mode -eq "repo-work-readiness") {
+    $resultPath = Join-Path $artifactRoot "repo-work-readiness.stdout.json"
+    $repoWorkArgs = @(
+        "readiness",
+        "--workspace", $Workspace,
+        "--item", $RepoWorkItem
+    )
+    if ($RepoWorkPublicProof -ne "") {
+        $repoWorkArgs += @("--public-proof", $RepoWorkPublicProof)
+    }
+    if ($RepoWorkIdunnLifecycleReceipt -ne "") {
+        $repoWorkArgs += @("--idunn-lifecycle-receipt", $RepoWorkIdunnLifecycleReceipt)
+    }
+    if ($RepoWorkToolDirectoryReceipt -ne "") {
+        $repoWorkArgs += @("--tool-directory-receipt", $RepoWorkToolDirectoryReceipt)
+    }
+    Invoke-Checked `
+        -Label "read repo-work MVP readiness sight" `
+        -FilePath $repoWorkExe `
+        -Arguments $repoWorkArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "repo-work-readiness.stderr.log")
+}
+
 if ($Mode -eq "repo-work-service-plan" -or $Mode -eq "repo-work-service-runbook" -or $Mode -eq "repo-work-service-launch" -or $Mode -eq "repo-work-service-audit") {
     $repoWorkServiceId = $ServiceId
     if ($repoWorkServiceId -eq "epiphany-daemon-supervisor-service") {
@@ -2506,6 +2534,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $repoWorkAcceptanceRows = Format-TuiRows $result.repoWorkMapAcceptanceTuiRows
             $repoWorkOverviewRows = Format-TuiRows $result.repoWorkOverviewTuiRows
             $repoWorkPublicProofRows = Format-TuiRows $result.repoWorkPublicProofTuiRows
+            $repoWorkReadinessRows = Format-TuiRows $result.repoWorkReadinessTuiRows
             $swarmOnlineTool = "none"
             if ($null -ne $result.commands -and $null -ne $result.commands.wrapperInvokeSwarmOnlineRunbookTool) {
                 $swarmOnlineTool = $result.commands.wrapperInvokeSwarmOnlineRunbookTool
@@ -2514,7 +2543,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($Mode -eq "gjallar") {
                 $overviewLabel = "Gjallar"
             }
-            Write-Host "${overviewLabel}: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), swarmOnlineTool=$swarmOnlineTool, actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolRows=$toolRows, policyRows=$policyRows, repoWorkMapRows=$repoWorkMapRows, repoWorkSemanticRows=$repoWorkSemanticRows, repoWorkFamilyLensRows=$repoWorkFamilyLensRows, repoWorkPathLensRows=$repoWorkPathLensRows, repoWorkBranchLensRows=$repoWorkBranchLensRows, repoWorkStageLensRows=$repoWorkStageLensRows, repoWorkGateLensRows=$repoWorkGateLensRows, repoWorkClosureRows=$repoWorkClosureRows, repoWorkAcceptanceRows=$repoWorkAcceptanceRows, repoWorkOverviewRows=$repoWorkOverviewRows, repoWorkPublicProofRows=$repoWorkPublicProofRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "${overviewLabel}: status=$($result.status), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), agents=$($result.agentCount), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), surfaces=$($result.surfaceCount), tools=$($result.toolCount), nonReady=$($result.nonReadyDaemonCount), policyMissing=$($result.policyMissingCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), swarmOnlineTool=$swarmOnlineTool, actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, toolRows=$toolRows, policyRows=$policyRows, repoWorkMapRows=$repoWorkMapRows, repoWorkSemanticRows=$repoWorkSemanticRows, repoWorkFamilyLensRows=$repoWorkFamilyLensRows, repoWorkPathLensRows=$repoWorkPathLensRows, repoWorkBranchLensRows=$repoWorkBranchLensRows, repoWorkStageLensRows=$repoWorkStageLensRows, repoWorkGateLensRows=$repoWorkGateLensRows, repoWorkClosureRows=$repoWorkClosureRows, repoWorkAcceptanceRows=$repoWorkAcceptanceRows, repoWorkOverviewRows=$repoWorkOverviewRows, repoWorkPublicProofRows=$repoWorkPublicProofRows, repoWorkReadinessRows=$repoWorkReadinessRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "repo-persona-intake") {
             $feedbackId = "none"
             $consensusReceiptId = "none"
@@ -2550,6 +2579,41 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 }) -join "; ")
             }
             Write-Host "Repo work queue run: status=$($result.status), queue=$($result.queueCount), actionable=$($result.actionableCount), maxItems=$($result.maxItems), dryRun=$($result.dryRun), selectedRows=$selectedRows, tickRows=$tickRows, privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "repo-work-readiness") {
+            $readinessRows = "none"
+            if ($null -ne $result.rows -and @($result.rows).Count -gt 0) {
+                $readinessRows = ((@($result.rows) | ForEach-Object {
+                    $kind = $_.kind
+                    if ($null -eq $kind -or $kind -eq "") {
+                        $kind = "unknown"
+                    }
+                    $owner = $_.owner
+                    if ($null -eq $owner -or $owner -eq "") {
+                        $owner = "unknown"
+                    }
+                    $status = $_.status
+                    if ($null -eq $status -or $status -eq "") {
+                        $status = "unknown"
+                    }
+                    $schema = $_.requiredSchema
+                    if ($null -eq $schema -or $schema -eq "") {
+                        $schema = "unknown"
+                    }
+                    "${kind}:${status}:owner=${owner}:satisfied=$($_.satisfied):schema=${schema}"
+                }) -join "; ")
+            }
+            $missingKinds = "none"
+            if ($null -ne $result.rows -and @($result.rows).Count -gt 0) {
+                $missingKinds = ((@($result.rows) | Where-Object { $_.satisfied -ne $true } | ForEach-Object { $_.kind }) -join ",")
+                if ($missingKinds -eq "") {
+                    $missingKinds = "none"
+                }
+            }
+            $verseProjection = "none"
+            if ($null -ne $result.verseProjection -and $null -ne $result.verseProjection.readinessId) {
+                $verseProjection = "$($result.verseProjection.readinessId):$($result.verseProjection.latestKey)"
+            }
+            Write-Host "Repo work readiness: status=$($result.status), item=$($result.item), missing=$($result.missingRequiredCount), missingKinds=$missingKinds, receipt=$($result.receiptPath), verseProjection=$verseProjection, rows=$readinessRows, sightOnly=$($result.authority.sightOnly), readinessApprovalAuthorized=$($result.authority.readinessApprovalAuthorized), publicationAuthorized=$($result.authority.publicationAuthorized), serviceLifecycleAuthority=$($result.authority.serviceLifecycleAuthority), handsActionAuthorized=$($result.authority.handsActionAuthorized), next=$($result.nextSafeMove), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "repo-work-service-plan") {
             $plannedArgs = "none"
             if ($null -ne $result.args -and $result.args.Count -gt 0) {
@@ -2701,7 +2765,8 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             $repoWorkAcceptanceRows = Format-TuiRows $result.repoWorkMapAcceptanceTuiRows
             $repoWorkOverviewRows = Format-TuiRows $result.repoWorkOverviewTuiRows
             $repoWorkPublicProofRows = Format-TuiRows $result.repoWorkPublicProofTuiRows
-            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, repoWorkMapRows=$repoWorkMapRows, repoWorkSemanticRows=$repoWorkSemanticRows, repoWorkFamilyLensRows=$repoWorkFamilyLensRows, repoWorkPathLensRows=$repoWorkPathLensRows, repoWorkBranchLensRows=$repoWorkBranchLensRows, repoWorkStageLensRows=$repoWorkStageLensRows, repoWorkGateLensRows=$repoWorkGateLensRows, repoWorkClosureRows=$repoWorkClosureRows, repoWorkAcceptanceRows=$repoWorkAcceptanceRows, repoWorkOverviewRows=$repoWorkOverviewRows, repoWorkPublicProofRows=$repoWorkPublicProofRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
+            $repoWorkReadinessRows = Format-TuiRows $result.repoWorkReadinessTuiRows
+            Write-Host "Swarm triage: status=$($result.status), overview=$($result.overviewStatus), liveness=$($result.livenessStatus), recovery=$($result.recoveryStatus), clusters=$($result.clusterCount), privateVerses=$($result.privateVerseCount), recommended=$($result.recommendedWrapperMode), serviceRecommended=$($result.serviceLifecycleRecommendedWrapperMode), actionQueue=$actionQueue, actionRows=$actionRows, attention=$attention, daemonRows=$daemonRows, repoWorkMapRows=$repoWorkMapRows, repoWorkSemanticRows=$repoWorkSemanticRows, repoWorkFamilyLensRows=$repoWorkFamilyLensRows, repoWorkPathLensRows=$repoWorkPathLensRows, repoWorkBranchLensRows=$repoWorkBranchLensRows, repoWorkStageLensRows=$repoWorkStageLensRows, repoWorkGateLensRows=$repoWorkGateLensRows, repoWorkClosureRows=$repoWorkClosureRows, repoWorkAcceptanceRows=$repoWorkAcceptanceRows, repoWorkOverviewRows=$repoWorkOverviewRows, repoWorkPublicProofRows=$repoWorkPublicProofRows, repoWorkReadinessRows=$repoWorkReadinessRows, toolHostAttention=$toolHostAttention, toolAttentionRows=$toolAttentionRows, serviceLifecycleAttention=$serviceLifecycleAttention, serviceAttentionRows=$serviceAttentionRows, serviceExecutionFailedChecks=$serviceExecutionFailedChecks, serviceFailedCheckRows=$serviceFailedCheckRows, poked=$($result.pokedDaemonCount), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "service-runbook") {
             $artifactSha256 = Get-LocalArtifactSha256 $result.runbookPath
             Write-Host "Service runbook: service=$($result.serviceId), receipt=$($result.receiptId), artifactSha256=$artifactSha256, followUp=tools/epiphany_local_run.ps1 -Mode service-launch, aftercare=tools/epiphany_local_run.ps1 -Mode service-status, path=$($result.runbookPath)"
