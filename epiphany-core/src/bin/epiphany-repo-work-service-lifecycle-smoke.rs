@@ -68,6 +68,7 @@ fn run_smoke(args: Args) -> Result<Value> {
 
     let repo = smoke_dir.join("repo-body");
     fs::create_dir_all(&repo).with_context(|| format!("failed to create {}", repo.display()))?;
+    run_command(Command::new("git").arg("init").current_dir(&repo), "git init")?;
     let local_verse = repo.join(".epiphany").join("local-verse.ccmp");
     let runbook_path = smoke_dir.join("epiphany-repo-work-queue-runner.ps1");
     let service_id = "epiphany-repo-work-queue-runner";
@@ -150,13 +151,61 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         &service_args,
     )?;
+    let runbook_receipts = receipt_directory(&manifest, &root, &local_verse, runtime_id)?;
+    let runbook_rows = rows(&runbook_receipts);
+    let runbook_row = runbook_rows.iter().find(|row| {
+        row.get("family").and_then(Value::as_str) == Some("service-lifecycle")
+            && row.get("serviceId").and_then(Value::as_str) == Some(service_id)
+            && row
+                .get("serviceRoute")
+                .and_then(Value::as_str)
+                == Some("epiphany-repo-work-queue-runner::runbook")
+    });
+    let Some(runbook_row) = runbook_row else {
+        return Err(anyhow!(
+            "receipt directory did not expose runbook service-lifecycle row for {service_id}"
+        ));
+    };
+    require_eq(runbook_row, &["status"], "written")?;
+    require_eq(runbook_row, &["artifactStatus"], "present")?;
+
+    let launch = daemon_supervisor(
+        &manifest,
+        &root,
+        &local_verse,
+        &[
+            "service-launch",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            runtime_id,
+            "--daemon-id",
+            daemon_id,
+            "--scheduler-id",
+            scheduler_id,
+            "--service-id",
+            service_id,
+            "--service-command",
+            path_str(&epiphany_work_bin)?,
+            "--reason",
+            "Idunn-owned lifecycle launch proof for Self-owned repo work queue-run pulse.",
+            "--cwd",
+            path_str(&root)?,
+            "--wait-child",
+        ],
+        &service_args,
+    )?;
 
     require_eq(&plan, &["status"], "planned")?;
     require_eq(&runbook, &["status"], "written")?;
+    require_eq(&launch, &["status"], "completed")?;
     require_eq(&plan, &["serviceId"], service_id)?;
     require_eq(&runbook, &["serviceId"], service_id)?;
+    require_eq(&launch, &["serviceId"], service_id)?;
     require_bool(&plan, &["privateStateExposed"], false)?;
     require_bool(&runbook, &["privateStateExposed"], false)?;
+    require_bool(&launch, &["privateStateExposed"], false)?;
+    require_i64(&launch, &["exitCode"], 0)?;
     require_text_array_contains(&plan, &["args"], "queue-run")?;
     require_text_array_contains(&plan, &["args"], "--dry-run")?;
     require_text_array_contains(&plan, &["args"], path_str(&repo)?)?;
@@ -175,39 +224,22 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&runbook_text, "--dry-run")?;
     let runbook_sha256 = sha256_file(&runbook_path)?;
 
-    let receipts = cargo_json(
-        &manifest,
-        "epiphany-verse-query",
-        &[
-            "receipt-directory",
-            "--store",
-            path_str(&local_verse)?,
-            "--runtime-id",
-            runtime_id,
-        ],
-        &root,
-    )?;
-    let receipt_rows = receipts
-        .get("rows")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let service_row = receipt_rows.iter().find(|row| {
+    let receipts = receipt_directory(&manifest, &root, &local_verse, runtime_id)?;
+    let receipt_rows = rows(&receipts);
+    let launch_row = receipt_rows.iter().find(|row| {
         row.get("family").and_then(Value::as_str) == Some("service-lifecycle")
             && row.get("serviceId").and_then(Value::as_str) == Some(service_id)
+            && row
+                .get("serviceRoute")
+                .and_then(Value::as_str)
+                == Some("epiphany-repo-work-queue-runner::launch")
     });
-    let Some(service_row) = service_row else {
+    let Some(launch_row) = launch_row else {
         return Err(anyhow!(
-            "receipt directory did not expose service-lifecycle row for {service_id}"
+            "receipt directory did not expose launch service-lifecycle row for {service_id}"
         ));
     };
-    require_eq(service_row, &["status"], "written")?;
-    require_eq(service_row, &["artifactStatus"], "present")?;
-    require_eq(
-        service_row,
-        &["serviceRoute"],
-        "epiphany-repo-work-queue-runner::runbook",
-    )?;
+    require_eq(launch_row, &["status"], "completed")?;
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_work_service_lifecycle_smoke.v0",
@@ -224,12 +256,16 @@ fn run_smoke(args: Args) -> Result<Value> {
         "runbookReceiptId": runbook["receiptId"],
         "runbookPath": runbook_path,
         "runbookSha256": runbook_sha256,
+        "launchStatus": launch["status"],
+        "launchReceiptId": launch["receiptId"],
+        "launchExitCode": launch["exitCode"],
         "serviceCommand": plan["command"],
         "serviceArgs": plan["args"],
         "lifecycleOwner": "Idunn",
         "hostedBody": "repo-work",
         "mutatesServiceManager": false,
-        "launchesService": false,
+        "launchesService": true,
+        "waitChild": true,
         "requiresElevatedAuthority": false,
         "privateStateExposed": false,
     });
@@ -285,6 +321,49 @@ fn cargo_json(manifest: &Path, bin: &str, args: &[&str], cwd: &Path) -> Result<V
     })
 }
 
+fn receipt_directory(
+    manifest: &Path,
+    root: &Path,
+    local_verse: &Path,
+    runtime_id: &str,
+) -> Result<Value> {
+    cargo_json(
+        manifest,
+        "epiphany-verse-query",
+        &[
+            "receipt-directory",
+            "--store",
+            path_str(local_verse)?,
+            "--runtime-id",
+            runtime_id,
+        ],
+        root,
+    )
+}
+
+fn rows(value: &Value) -> Vec<Value> {
+    value
+        .get("rows")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn run_command(command: &mut Command, label: &str) -> Result<()> {
+    let output = command
+        .output()
+        .with_context(|| format!("failed to run {label}"))?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "{label} failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(())
+}
+
 fn write_json(path: &Path, value: &Value) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -320,6 +399,22 @@ fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
         .iter()
         .try_fold(value, |current, key| current.get(*key))
         .and_then(Value::as_bool);
+    if actual == Some(expected) {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to be {expected}, got {:?}",
+            path.join("."),
+            actual
+        ))
+    }
+}
+
+fn require_i64(value: &Value, path: &[&str], expected: i64) -> Result<()> {
+    let actual = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_i64);
     if actual == Some(expected) {
         Ok(())
     } else {

@@ -1755,11 +1755,12 @@ Build the remaining MVP in this order:
    pulse. The first cut should be non-mutating plan/runbook receipts. Only the
    operator may grant service mutation. Self must not become the daemon keeper.
    This first cut is landed through `tools/epiphany_local_run.ps1 -Mode
-   repo-work-service-plan` and `-Mode repo-work-service-runbook`, and now has a
-   native repeatable smoke at
-   `.epiphany-smoke\repo-work-service-lifecycle-20260620-185853` proving the
+   repo-work-service-plan`, `-Mode repo-work-service-runbook`, and `-Mode
+   repo-work-service-launch`, and now has a native repeatable smoke at
+   `.epiphany-smoke\repo-work-service-lifecycle-20260621-002707` proving the
    exact queue-run command vector with `--dry-run`, a written runbook receipt,
-   receipt-directory readback, no service-manager mutation, no launch, no
+   receipt-directory readback before launch, a bounded `service-launch
+   --wait-child` receipt with exit code 0, no service-manager mutation, no
    elevation, and `privateStateExposed=false`.
 2. **Persona-to-Imagination action items.** The first repo Persona intake mouth
    is landed: `epiphany-work persona-intake` routes work-shaped speech through
@@ -1976,30 +1977,30 @@ The chain is typed and sealed enough to be useful:
   bounded proof mode records finite iteration outputs, unbounded service mode
   relies on per-pulse tick receipts, and zero-interval unbounded polling is
   refused.
-- `tools/epiphany_local_run.ps1 -Mode repo-work-service-plan` and `-Mode
-  repo-work-service-runbook` are the first Idunn-hosted lifecycle artifacts for
-  the repo-work queue pulse. They call `epiphany-daemon-supervisor
-  service-plan` / `service-runbook` with `--service-command <epiphany-work>`
-  and explicit `--service-arg` values for `queue-run --workspace <repo>
+- `tools/epiphany_local_run.ps1 -Mode repo-work-service-plan`, `-Mode
+  repo-work-service-runbook`, and `-Mode repo-work-service-launch` are the
+  first Idunn-hosted lifecycle artifacts for the repo-work queue pulse. They
+  call `epiphany-daemon-supervisor service-plan` / `service-runbook` /
+  `service-launch --wait-child` with `--service-command <epiphany-work>` and
+  explicit `--service-arg` values for `queue-run --workspace <repo>
   --epiphany-root <root> --local-verse-store <repo>\.epiphany\local-verse.ccmp
-  --runtime-id <id> --max-items <n>`. The receipts and runbook describe the
-  real queue-run command, but do not launch, install, publish, merge, cross repo
-  boundaries, or expose private state. Native smoke
-  `.epiphany-smoke\repo-work-service-lifecycle-20260620-185853` now proves the
-  same Idunn plan/runbook artery without wrapper trust: plan status `planned`,
-  runbook status `written`, service id `epiphany-repo-work-queue-runner`,
-  plan/runbook receipt ids
-  `daemon-service-lifecycle-receipt-epiphany-repo-work-queue-runner-install-plan`
-  and
-  `daemon-service-lifecycle-receipt-epiphany-repo-work-queue-runner-runbook`,
+  --runtime-id <id> --max-items <n>`. The receipts and runbook describe or
+  launch the real queue-run command, but do not install a Windows service,
+  publish, merge, cross repo boundaries, elevate, or expose private state.
+  Native smoke `.epiphany-smoke\repo-work-service-lifecycle-20260621-002707`
+  now proves the same Idunn plan/runbook/launch artery without wrapper trust:
+  plan status `planned`, runbook status `written`, launch status `completed`,
+  launch exit code `0`, service id `epiphany-repo-work-queue-runner`,
+  runbook receipt-directory readback before launch, launch receipt-directory
+  readback after launch, service args containing `queue-run` and `--dry-run`,
   runbook SHA-256
-  `f2ec67c4f8243a3ebc2f9e915b6b9f5ae2ac2d99d2cdb86905b54667adc456f8`,
-  service args containing `queue-run` and `--dry-run`, a latest
-  receipt-directory `service-lifecycle` row with `artifactStatus=present` and
-  route `epiphany-repo-work-queue-runner::runbook`, plus
+  `50c3776c7d763a67634cdcefc1b1ed17d700107958bf7c5e221f6c03ce49f2a6`,
   `lifecycleOwner=Idunn`, `hostedBody=repo-work`,
-  `mutatesServiceManager=false`, `launchesService=false`,
-  `requiresElevatedAuthority=false`, and `privateStateExposed=false`.
+  `mutatesServiceManager=false`, `launchesService=true`, `waitChild=true`,
+  `requiresElevatedAuthority=false`, and `privateStateExposed=false`. Wrapper
+  proof `local-20260621-012741-653-dd4fdae2` exercised
+  `repo-work-service-launch` and printed `status=completed`, `exitCode=0`,
+  `owner=Idunn`, `hostedBody=repo-work`, and `serviceManagerMutation=false`.
 - `epiphany-work persona-intake` is the first repo Persona mouth over accepted
   work pressure. It requires an online repo swarm receipt, writes a Persona
   bubble plus speech-audit witness into the repo-local Verse, records public
