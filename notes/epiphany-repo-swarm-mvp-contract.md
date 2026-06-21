@@ -1394,6 +1394,21 @@ adoption and keeps `publicationAuthorized=false`. This is compact meaning
 readback only, not a scheduler, publisher, merge gate, deployment actor, daemon
 keeper, or Mind admission path.
 
+The next per-entry closure row makes the Soul/Modeling/Mind closure artery
+visible without opening sealed receipt bodies:
+`.epiphany-smoke\repo-close-mind-adoption-guard-20260621-075522` proves Gjallar
+now derives `repoWorkMapClosureRows` and `REPO-WORK-MAP-CLOSURE` TUI rows from
+Mind-admitted map entries. The proof row mirrors the accepted item, safe family,
+branch, latest commit, changed-path count, Soul verdict receipt id, Mind gateway
+review id, Mind state commit id, durable map admission, Bifrost publication
+gate, `sightOnly=true`, and explicit denials for publication, merge, service
+lifecycle, deployment execution, and cross-repo mutation while keeping
+`privateStateExposed=false`; the smoke summary reports
+`gjallarRepoWorkMapClosureCount=1` after counterfeit Mind adoption is still
+refused. This is closure readback only, not publication authority, merge
+authority, service lifecycle authority, deployment authority, cross-repo
+authority, or Mind admission authority.
+
 The wrapper mouth now forwards those Rust-owned repo-work map rows instead of
 making agents parse JSON artifacts. `tools/epiphany_local_run.ps1` accepts
 `-LocalVerseStore` and `-LocalVerseRuntimeId`, keeps operator run
@@ -1404,7 +1419,12 @@ proofs `local-20260621-011151-541-70056545` (`gjallar`) and
 `repo-planning-brief-family-smoke` repo store and printed actual
 `repoWorkMapRows`, `repoWorkSemanticRows`, `repoWorkFamilyLensRows`,
 `repoWorkPathLensRows`, `repoWorkBranchLensRows`, `repoWorkStageLensRows`, and
-`repoWorkGateLensRows` in the one-line operator summary. Earlier wrapper proofs
+`repoWorkGateLensRows` in the one-line operator summary. Follow-up wrapper proof
+`local-20260621-085736-645-72c217a6` pointed `gjallar` at the closure-row smoke
+repo-local Verse and printed `repoWorkClosureRows` with
+`publicationAuth=false`, `mergeAuth=false`, `serviceAuth=false`,
+`deploymentAuth=false`, `crossRepoAuth=false`, `sightOnly=true`, and
+`private=false`. Earlier wrapper proofs
 with no explicit repo-local store rendered `none`; that was a targeting wound,
 not absence of accepted repo-work. PowerShell does not reinterpret the rows or
 own schema registration; it only lowers existing Rust TUI arrays while leaving
@@ -1759,7 +1779,7 @@ temptation wearing clean robes.
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan`, `repo-work-service-runbook`, `repo-work-service-launch`, and `repo-work-service-audit` write Idunn lifecycle receipts/artifacts for the same queue-run command and prove non-mutating launch/readiness closure. | Keep any future queue-run service install/start mutation behind Idunn and explicit elevated operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, can require verification output to cite declared changed paths with `--require-source-grounding`, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
-| Repo work sight | `overview` emits compact proof rows, an `epiphany.repo_work_intake_consensus_readback.v0` from the accept/plan chain, and typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; the CultMesh TUI rows now include a compact `CONSENSUS` readback showing Persona/public feedback ids, Imagination consensus route, public/candidate ref counts, safe family, and authority denials without private payloads; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, map rows, family lens rows, path lens rows, branch lens rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop and semantic map readback without moving action authority out of Hands/Self/Bifrost. |
+| Repo work sight | `overview` emits compact proof rows, an `epiphany.repo_work_intake_consensus_readback.v0` from the accept/plan chain, and typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; the CultMesh TUI rows now include a compact `CONSENSUS` readback showing Persona/public feedback ids, Imagination consensus route, public/candidate ref counts, safe family, and authority denials without private payloads; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, map rows, semantic rows, closure rows, family lens rows, path lens rows, branch lens rows, stage lens rows, gate lens rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Deepen Bifrost-first external work accounting and semantic map readback without moving action authority out of Hands/Self/Bifrost. |
 | Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
 | Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
 | Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |

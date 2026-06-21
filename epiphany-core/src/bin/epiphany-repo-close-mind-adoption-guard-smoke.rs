@@ -690,6 +690,60 @@ fn run_smoke(args: Args) -> Result<Value> {
             "Gjallar TUI rows did not expose repo map gate lens sight"
         ));
     }
+    require_u64(&gjallar, &["repoWorkMapClosureCount"], 1)?;
+    let closure_rows = value_at_path(&gjallar, &["repoWorkMapClosureRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapClosureRows array"))?;
+    let closure_row = closure_rows
+        .iter()
+        .find(|row| row.get("item").and_then(Value::as_str) == Some(item))
+        .ok_or_else(|| anyhow!("Gjallar output had no repo map closure row"))?;
+    require_eq_value(closure_row, &["safeActionFamily"], "repo.markdown_planning_note")?;
+    require_eq_value(
+        closure_row,
+        &["soulVerdictReceiptId"],
+        close["soul"]["verdictReceiptId"]
+            .as_str()
+            .unwrap_or("<missing>"),
+    )?;
+    require_eq_value(
+        closure_row,
+        &["mindGatewayReviewId"],
+        &map_entry.mind_gateway_review_id,
+    )?;
+    require_eq_value(
+        closure_row,
+        &["mindStateCommitReceiptId"],
+        &map_entry.mind_state_commit_receipt_id,
+    )?;
+    require_bool_value(closure_row, &["durableStateAdmitted"], true)?;
+    require_eq_value(closure_row, &["publicationGate"], "Bifrost")?;
+    require_bool_value(closure_row, &["publicationAuthorized"], false)?;
+    require_bool_value(closure_row, &["mergeAuthorized"], false)?;
+    require_bool_value(closure_row, &["serviceLifecycleAuthorized"], false)?;
+    require_bool_value(closure_row, &["deploymentExecutionAuthorized"], false)?;
+    require_bool_value(closure_row, &["crossRepoMutationAuthorized"], false)?;
+    require_bool_value(closure_row, &["sightOnly"], true)?;
+    require_bool_value(closure_row, &["privateStateExposed"], false)?;
+    let closure_tui_rows = value_at_path(&gjallar, &["repoWorkMapClosureTuiRows"])
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapClosureTuiRows array"))?;
+    if !closure_tui_rows.iter().any(|row| {
+        row.as_str().is_some_and(|row| {
+            row.contains("REPO-WORK-MAP-CLOSURE")
+                && row.contains("publicationGate=Bifrost")
+                && row.contains("publicationAuth=false")
+                && row.contains("mergeAuth=false")
+                && row.contains("serviceAuth=false")
+                && row.contains("deploymentAuth=false")
+                && row.contains("crossRepoAuth=false")
+                && row.contains("sightOnly=true")
+        })
+    }) {
+        return Err(anyhow!(
+            "Gjallar TUI rows did not expose repo map closure sight"
+        ));
+    }
 
     let summary = json!({
         "schemaVersion": "epiphany.repo_close_mind_adoption_guard_smoke.v0",
@@ -716,6 +770,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "gjallarRepoWorkMapBranchLensCount": gjallar["repoWorkMapBranchLensCount"],
         "gjallarRepoWorkMapStageLensCount": gjallar["repoWorkMapStageLensCount"],
         "gjallarRepoWorkMapGateLensCount": gjallar["repoWorkMapGateLensCount"],
+        "gjallarRepoWorkMapClosureCount": gjallar["repoWorkMapClosureCount"],
         "publicationAuthorized": false,
         "privateStateExposed": false
     });

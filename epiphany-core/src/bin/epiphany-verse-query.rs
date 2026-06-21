@@ -4087,6 +4087,8 @@ struct SwarmOverviewReport {
     repo_work_map_stage_lens_tui_rows: Vec<String>,
     repo_work_map_gate_lens_rows: Vec<RepoWorkMapGateLensRow>,
     repo_work_map_gate_lens_tui_rows: Vec<String>,
+    repo_work_map_closure_rows: Vec<RepoWorkMapClosureRow>,
+    repo_work_map_closure_tui_rows: Vec<String>,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
     repo_work_public_proof_rows: Vec<RepoWorkPublicProofRow>,
@@ -4239,6 +4241,28 @@ struct RepoWorkMapGateLensRow {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct RepoWorkMapClosureRow {
+    item: String,
+    branch: String,
+    safe_action_family: String,
+    changed_path_count: usize,
+    commit_sha: String,
+    soul_verdict_receipt_id: String,
+    mind_gateway_review_id: String,
+    mind_state_commit_receipt_id: String,
+    durable_state_admitted: bool,
+    publication_gate: String,
+    publication_authorized: bool,
+    merge_authorized: bool,
+    service_lifecycle_authorized: bool,
+    deployment_execution_authorized: bool,
+    cross_repo_mutation_authorized: bool,
+    sight_only: bool,
+    private_state_exposed: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct RepoWorkPublicProofRow {
     public_proof_id: String,
     workspace: String,
@@ -4378,6 +4402,9 @@ struct SwarmOverviewOutput {
     repo_work_map_gate_lens_count: usize,
     repo_work_map_gate_lens_rows: Vec<RepoWorkMapGateLensRow>,
     repo_work_map_gate_lens_tui_rows: Vec<String>,
+    repo_work_map_closure_count: usize,
+    repo_work_map_closure_rows: Vec<RepoWorkMapClosureRow>,
+    repo_work_map_closure_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4476,6 +4503,9 @@ impl SwarmOverviewOutput {
             repo_work_map_gate_lens_count: report.repo_work_map_gate_lens_rows.len(),
             repo_work_map_gate_lens_rows: report.repo_work_map_gate_lens_rows,
             repo_work_map_gate_lens_tui_rows: report.repo_work_map_gate_lens_tui_rows,
+            repo_work_map_closure_count: report.repo_work_map_closure_rows.len(),
+            repo_work_map_closure_rows: report.repo_work_map_closure_rows,
+            repo_work_map_closure_tui_rows: report.repo_work_map_closure_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -4566,6 +4596,9 @@ struct SwarmTriageOutput {
     repo_work_map_gate_lens_count: usize,
     repo_work_map_gate_lens_rows: Vec<RepoWorkMapGateLensRow>,
     repo_work_map_gate_lens_tui_rows: Vec<String>,
+    repo_work_map_closure_count: usize,
+    repo_work_map_closure_rows: Vec<RepoWorkMapClosureRow>,
+    repo_work_map_closure_tui_rows: Vec<String>,
     repo_work_overview_count: usize,
     repo_work_overview_rows: Vec<RepoWorkOverviewRow>,
     repo_work_overview_tui_rows: Vec<String>,
@@ -4659,6 +4692,9 @@ impl SwarmTriageOutput {
             repo_work_map_gate_lens_count: report.repo_work_map_gate_lens_rows.len(),
             repo_work_map_gate_lens_rows: report.repo_work_map_gate_lens_rows,
             repo_work_map_gate_lens_tui_rows: report.repo_work_map_gate_lens_tui_rows,
+            repo_work_map_closure_count: report.repo_work_map_closure_rows.len(),
+            repo_work_map_closure_rows: report.repo_work_map_closure_rows,
+            repo_work_map_closure_tui_rows: report.repo_work_map_closure_tui_rows,
             repo_work_overview_count: report.repo_work_overview_rows.len(),
             repo_work_overview_rows: report.repo_work_overview_rows,
             repo_work_overview_tui_rows: report.repo_work_overview_tui_rows,
@@ -5683,6 +5719,65 @@ fn repo_work_map_gate_lens_tui_row(row: &RepoWorkMapGateLensRow) -> String {
     )
 }
 
+fn repo_work_map_closure_rows(
+    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+) -> (Vec<RepoWorkMapClosureRow>, Vec<String>) {
+    let rows = repo_work_map_entries
+        .iter()
+        .map(repo_work_map_closure_row)
+        .collect::<Vec<_>>();
+    let tui_rows = rows
+        .iter()
+        .map(repo_work_map_closure_tui_row)
+        .collect::<Vec<_>>();
+    (rows, tui_rows)
+}
+
+fn repo_work_map_closure_row(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> RepoWorkMapClosureRow {
+    RepoWorkMapClosureRow {
+        item: entry.item.clone(),
+        branch: entry.branch.clone(),
+        safe_action_family: entry.safe_action_family.clone(),
+        changed_path_count: entry.changed_paths.len(),
+        commit_sha: entry.commit_sha.clone(),
+        soul_verdict_receipt_id: entry.soul_verdict_receipt_id.clone(),
+        mind_gateway_review_id: entry.mind_gateway_review_id.clone(),
+        mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
+        durable_state_admitted: entry.durable_state_admitted,
+        publication_gate: entry.publication_gate.clone(),
+        publication_authorized: false,
+        merge_authorized: false,
+        service_lifecycle_authorized: false,
+        deployment_execution_authorized: false,
+        cross_repo_mutation_authorized: false,
+        sight_only: true,
+        private_state_exposed: entry.private_state_exposed,
+    }
+}
+
+fn repo_work_map_closure_tui_row(row: &RepoWorkMapClosureRow) -> String {
+    format!(
+        "REPO-WORK-MAP-CLOSURE | item={} | family={} | branch={} | commit={} | paths={} | soul={} | mindReview={} | mindCommit={} | durableAdmitted={} | publicationGate={} | publicationAuth={} | mergeAuth={} | serviceAuth={} | deploymentAuth={} | crossRepoAuth={} | sightOnly={} | private={}",
+        row.item,
+        row.safe_action_family,
+        row.branch,
+        short_commit(&row.commit_sha),
+        row.changed_path_count,
+        row.soul_verdict_receipt_id,
+        row.mind_gateway_review_id,
+        row.mind_state_commit_receipt_id,
+        row.durable_state_admitted,
+        row.publication_gate,
+        row.publication_authorized,
+        row.merge_authorized,
+        row.service_lifecycle_authorized,
+        row.deployment_execution_authorized,
+        row.cross_repo_mutation_authorized,
+        row.sight_only,
+        row.private_state_exposed
+    )
+}
+
 fn repo_work_peer_tui_rows(rows: &[RepoWorkOverviewRow]) -> Vec<String> {
     rows.iter()
         .map(|row| {
@@ -6596,6 +6691,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_stage_lens_rows(&repo_work_map_entries);
     let (repo_work_map_gate_lens_rows, repo_work_map_gate_lens_tui_rows) =
         repo_work_map_gate_lens_rows(&repo_work_map_entries);
+    let (repo_work_map_closure_rows, repo_work_map_closure_tui_rows) =
+        repo_work_map_closure_rows(&repo_work_map_entries);
     let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
         repo_work_public_proof_rows(&repo_work_public_proofs);
     let (idunn_deployment_receipt_rows, idunn_deployment_receipt_tui_rows) =
@@ -6641,6 +6738,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_map_gate_lens_rows
+            .iter()
+            .any(|row| row.private_state_exposed)
+        || repo_work_map_closure_rows
             .iter()
             .any(|row| row.private_state_exposed)
         || repo_work_public_proofs
@@ -6713,6 +6813,8 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         repo_work_map_stage_lens_tui_rows,
         repo_work_map_gate_lens_rows,
         repo_work_map_gate_lens_tui_rows,
+        repo_work_map_closure_rows,
+        repo_work_map_closure_tui_rows,
         repo_work_overview_rows,
         repo_work_overview_tui_rows,
         repo_work_public_proof_rows,
