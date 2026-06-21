@@ -12144,6 +12144,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             modeling_map_admitted,
             "Modeling map update was admitted through Mind.",
         )?,
+        safe_family_planning_readiness_row(&close_receipt_path, close_receipt.as_ref()),
         readiness_path_row(
             "public-proof",
             "Bifrost/Gjallar",
@@ -14172,6 +14173,80 @@ fn readiness_missing_row(kind: &str, owner: &str, required_schema: &str, note: &
         "status": "missing",
         "note": note,
         "privateStateExposed": false
+    })
+}
+
+fn safe_family_planning_readiness_row(
+    close_receipt_path: &Path,
+    close_receipt: Option<&Value>,
+) -> Value {
+    let readback = close_receipt
+        .and_then(|receipt| receipt.get("closureReview"))
+        .and_then(|review| review.get("familyAssertions"))
+        .and_then(|assertions| assertions.get("safeFamilyPlanning"));
+    let Some(readback) = readback else {
+        return readiness_missing_row(
+            "safe-family-planning",
+            "Imagination/Soul",
+            "epiphany.repo_work_safe_family_planning_readback.v0",
+            "Close a repo.planning_brief item so Soul can report the safe-family matrix before MVP readiness review.",
+        );
+    };
+
+    let schema_ok = string_from_json(readback, &["schemaVersion"]).as_deref()
+        == Some("epiphany.repo_work_safe_family_planning_readback.v0");
+    let source_ok =
+        string_from_json(readback, &["sourceSafeFamily"]).as_deref() == Some("repo.planning_brief");
+    let families_ok =
+        bool_from_json(readback, &["allExpectedCandidateFamiliesPresent"]) == Some(true);
+    let requirements_ok =
+        bool_from_json(readback, &["allPlanningRequirementsPresent"]) == Some(true);
+    let gates_ok = bool_from_json(readback, &["allRequiredGatesPresent"]) == Some(true);
+    let matrix_ok = bool_from_json(readback, &["allMatrixGroupsComplete"]) == Some(true);
+    let controls_ok = bool_from_json(readback, &["matrixControlsPresent"]) == Some(true);
+    let closure_ok = bool_from_json(readback, &["allClosureProofsPresent"]) == Some(true);
+    let authority_denied = bool_from_json(readback, &["authorityDenied"]) == Some(true);
+    let private_sealed = bool_from_json(readback, &["privateStateExposed"]) == Some(false);
+    let satisfied = schema_ok
+        && source_ok
+        && families_ok
+        && requirements_ok
+        && gates_ok
+        && matrix_ok
+        && controls_ok
+        && closure_ok
+        && authority_denied
+        && private_sealed;
+
+    json!({
+        "kind": "safe-family-planning",
+        "owner": "Imagination/Soul",
+        "requiredSchema": "epiphany.repo_work_safe_family_planning_readback.v0",
+        "evidenceRef": existing_path_value(close_receipt_path),
+        "artifactStatus": if close_receipt_path.exists() { "present" } else { "missing" },
+        "schemaVersion": string_from_json(readback, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
+        "sourceSafeFamily": string_from_json(readback, &["sourceSafeFamily"]).unwrap_or_else(|| "missing".to_string()),
+        "candidateNextSafeFamilyCount": readback
+            .get("candidateNextSafeFamilyCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        "allExpectedCandidateFamiliesPresent": families_ok,
+        "allPlanningRequirementsPresent": requirements_ok,
+        "allRequiredGatesPresent": gates_ok,
+        "allMatrixGroupsComplete": matrix_ok,
+        "matrixControlsPresent": controls_ok,
+        "allClosureProofsPresent": closure_ok,
+        "authorityDenied": authority_denied,
+        "privateStateExposed": !private_sealed,
+        "satisfied": satisfied,
+        "status": if satisfied { "satisfied" } else { "missing" },
+        "note": "Soul read back the repo.planning_brief safe-family matrix for MVP review sight without granting action authority.",
+        "schedulingAuthorized": false,
+        "handsActionAuthorized": false,
+        "publicationAuthorized": false,
+        "deploymentAuthority": false,
+        "serviceLifecycleAuthority": false,
+        "durableStateCommitAuthorized": false
     })
 }
 

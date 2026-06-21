@@ -128,13 +128,13 @@ fn run_smoke(args: Args) -> Result<Value> {
             "--item",
             item,
             "--summary",
-            "Prove repo-work readiness sight can name missing publication and lifecycle gates without granting authority.",
+            "Prove repo-work readiness sight can name safe-family planning depth and missing publication and lifecycle gates without granting authority.",
             "--local-verse-store",
             path_str(&local_verse)?,
             "--runtime-id",
             "repo-work-readiness-smoke",
             "--candidate-action-ref",
-            "candidate-action://repo-work-readiness/checklist",
+            "candidate-action://repo-work-readiness/safe-family-planning",
             "--public-discussion-ref",
             "epiphany-global/persona-collaboration/repo-work-readiness",
         ],
@@ -150,7 +150,7 @@ fn run_smoke(args: Args) -> Result<Value> {
             "--item",
             item,
             "--action-family",
-            "checklist-note",
+            "repo-planning-brief",
             "--model-ref",
             "repo-work-readiness-smoke-imagination-v1",
             "--model-authored",
@@ -276,6 +276,13 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_row(&readiness, "hands-branch-work", true)?;
     require_row(&readiness, "soul-closure", true)?;
     require_row(&readiness, "modeling-mind-admission", true)?;
+    require_row(&readiness, "safe-family-planning", true)?;
+    require_row_field_u64(
+        &readiness,
+        "safe-family-planning",
+        "candidateNextSafeFamilyCount",
+        21,
+    )?;
     require_row(&readiness, "public-proof", true)?;
     require_row(&readiness, "bifrost-publication", false)?;
     require_row(&readiness, "upstream-main-sync", false)?;
@@ -477,6 +484,25 @@ fn require_row(value: &Value, kind: &str, expected_satisfied: bool) -> Result<()
     } else {
         Err(anyhow!(
             "expected readiness row {kind:?} satisfied={expected_satisfied}, got {actual}"
+        ))
+    }
+}
+
+fn require_row_field_u64(value: &Value, kind: &str, field: &str, expected: u64) -> Result<()> {
+    let rows = value
+        .get("rows")
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("readiness output did not include rows"))?;
+    let row = rows
+        .iter()
+        .find(|row| row.get("kind").and_then(Value::as_str) == Some(kind))
+        .ok_or_else(|| anyhow!("missing readiness row {kind:?}"))?;
+    let actual = row.get(field).and_then(Value::as_u64).unwrap_or(u64::MAX);
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected readiness row {kind:?} field {field:?} to be {expected}, got {actual}"
         ))
     }
 }
