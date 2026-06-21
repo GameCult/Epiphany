@@ -17,13 +17,15 @@ use epiphany_core::build_persona_projector_prompt;
 use epiphany_core::build_persona_turn_prompt;
 use epiphany_core::render_persona_memory_recall_with_cache;
 use epiphany_core::render_persona_semantic_memory_recall;
+use epiphany_core::semantic_memory_recall_from_heartbeat_action;
 use epiphany_state_model::EpiphanyMemoryContextPacket;
 use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
 use epiphany_state_model::EpiphanyMemoryNode;
 use epiphany_state_model::EpiphanyMemorySummary;
+use serde_json::json;
 
 fn main() {
-    let recall = render_persona_semantic_memory_recall(&EpiphanyMemoryContextPacket {
+    let fallback_recall = render_persona_semantic_memory_recall(&EpiphanyMemoryContextPacket {
         id: "memctx-persona-smoke".to_string(),
         query_id: "persona-smoke-current-turn".to_string(),
         summaries: vec![EpiphanyMemorySummary {
@@ -50,45 +52,6 @@ fn main() {
         ..Default::default()
     });
 
-    let identity = PersonaIdentity {
-        identity_id: "epiphany".to_string(),
-        display_name: "Epiphany".to_string(),
-        repo_name: "EpiphanyAgent".to_string(),
-        public_description: "Repo Persona for typed agent substrate.".to_string(),
-        jurisdiction: vec!["typed state and review-gated agency".to_string()],
-    };
-
-    let projector_prompt = build_persona_projector_prompt(&PersonaProjectorInput {
-        identity: identity.clone(),
-        semantic_memory_recall: recall.clone(),
-        ..Default::default()
-    });
-    assert_contains(&projector_prompt, "Semantic memory recall");
-    assert_contains(&projector_prompt, "typed memory graph");
-    assert_contains(&projector_prompt, "not durable authority");
-
-    let persona_prompt = build_persona_turn_prompt(&PersonaTurnInput {
-        identity: identity.clone(),
-        projected_state: "Epiphany feels the mouth edge as a public contract, not a vent."
-            .to_string(),
-        semantic_memory_recall: recall.clone(),
-        ..Default::default()
-    });
-    assert_contains(&persona_prompt, "Semantic memory recall");
-    assert_contains(&persona_prompt, "VoidBot rebuilds semantic Persona recall");
-
-    let interpreter_prompt = build_persona_interpreter_prompt(&PersonaInterpreterInput {
-        identity,
-        persona_prompt,
-        persona_output: "I can speak, but the effect needs a receipt.".to_string(),
-        semantic_memory_recall: recall,
-        pending_mentions: Vec::new(),
-        allowed_channel_ids: vec!["aquarium".to_string()],
-    });
-    assert_contains(&interpreter_prompt, "Dynamic semantic memory recall");
-    assert_contains(&interpreter_prompt, "STATE NOTE");
-    assert_contains(&interpreter_prompt, "SAY");
-
     let chunks =
         build_persona_memory_chunks(&persona_memory_entry(), "state/agents.msgpack#Persona");
     assert!(
@@ -109,6 +72,17 @@ fn main() {
         Some(&EpiphanyMemoryContextPacket {
             id: "memctx-smoke-fallback".to_string(),
             query_id: "persona-smoke-fallback".to_string(),
+            summaries: vec![EpiphanyMemorySummary {
+                id: "summary-smoke-fallback".to_string(),
+                target: "role:Persona".to_string(),
+                claim: fallback_recall,
+                action_implication:
+                    "This fallback is heartbeat-carried context, not direct state authority."
+                        .to_string(),
+                freshness: EpiphanyMemoryFreshnessStatus::Ready,
+                confidence: 80,
+                ..Default::default()
+            }],
             nodes: vec![EpiphanyMemoryNode {
                 id: "node-smoke-fallback".to_string(),
                 title: "Smoke fallback memory".to_string(),
@@ -136,9 +110,57 @@ fn main() {
             .rendered_recall
             .contains("Fallback typed memory graph context")
     );
+    let heartbeat_action = json!({
+        "action_type": "persona_turn",
+        "persona_memory_recall": {
+            "privateStateExposed": false,
+            "renderedRecall": bridge.rendered_recall,
+        }
+    });
+    let recall = semantic_memory_recall_from_heartbeat_action(&heartbeat_action);
+    assert_contains(&recall, "Fallback typed memory graph context");
+
+    let identity = PersonaIdentity {
+        identity_id: "epiphany".to_string(),
+        display_name: "Epiphany".to_string(),
+        repo_name: "EpiphanyAgent".to_string(),
+        public_description: "Repo Persona for typed agent substrate.".to_string(),
+        jurisdiction: vec!["typed state and review-gated agency".to_string()],
+    };
+
+    let projector_prompt = build_persona_projector_prompt(&PersonaProjectorInput {
+        identity: identity.clone(),
+        semantic_memory_recall: recall.clone(),
+        ..Default::default()
+    });
+    assert_contains(&projector_prompt, "Semantic memory recall");
+    assert_contains(&projector_prompt, "typed memory graph");
+    assert_contains(&projector_prompt, "not durable authority");
+
+    let persona_prompt = build_persona_turn_prompt(&PersonaTurnInput {
+        identity: identity.clone(),
+        projected_state: "Epiphany feels the mouth edge as a public contract, not a vent."
+            .to_string(),
+        semantic_memory_recall: recall.clone(),
+        ..Default::default()
+    });
+    assert_contains(&persona_prompt, "Semantic memory recall");
+    assert_contains(&persona_prompt, "Fallback typed memory graph context");
+
+    let interpreter_prompt = build_persona_interpreter_prompt(&PersonaInterpreterInput {
+        identity,
+        persona_prompt,
+        persona_output: "I can speak, but the effect needs a receipt.".to_string(),
+        semantic_memory_recall: recall,
+        pending_mentions: Vec::new(),
+        allowed_channel_ids: vec!["aquarium".to_string()],
+    });
+    assert_contains(&interpreter_prompt, "Dynamic semantic memory recall");
+    assert_contains(&interpreter_prompt, "STATE NOTE");
+    assert_contains(&interpreter_prompt, "SAY");
 
     println!(
-        "status=ok recallSource=typed-memory-graph qdrantCache=persona-memory-bridge-wired liveQdrant=not-required personaLayers=projector,persona,interpreter privateStateExposed=false"
+        "status=ok recallSource=typed-memory-graph qdrantCache=persona-memory-bridge-wired heartbeatRecall=prompt-wired liveQdrant=not-required personaLayers=projector,persona,interpreter privateStateExposed=false"
     );
 }
 

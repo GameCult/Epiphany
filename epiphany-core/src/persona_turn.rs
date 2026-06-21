@@ -6,6 +6,7 @@ use crate::render_organ_dependencies;
 use epiphany_state_model::EpiphanyMemoryContextPacket;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Value;
 
 pub const PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
     "epiphany.imagination_persona_projector_prompt.v0";
@@ -306,6 +307,32 @@ pub fn render_persona_semantic_memory_recall(packet: &EpiphanyMemoryContextPacke
     lines.join("\n")
 }
 
+pub fn semantic_memory_recall_from_heartbeat_action(action: &Value) -> String {
+    let Some(recall) = action
+        .get("persona_memory_recall")
+        .or_else(|| action.get("personaMemoryRecall"))
+    else {
+        return "- semantic memory recall unavailable in heartbeat action; do not pretend it ran"
+            .to_string();
+    };
+
+    if recall.get("privateStateExposed").and_then(Value::as_bool) != Some(false) {
+        return "- semantic memory recall refused: heartbeat action did not carry a private-state seal"
+            .to_string();
+    }
+
+    recall
+        .get("renderedRecall")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| {
+            "- semantic memory recall unavailable in heartbeat action; do not pretend it ran"
+                .to_string()
+        })
+}
+
 pub fn persona_projected_surface_is_clean(surface: &str) -> bool {
     let forbidden = [
         "STATE NOTE",
@@ -477,6 +504,7 @@ mod tests {
     use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
     use epiphany_state_model::EpiphanyMemoryNode;
     use epiphany_state_model::EpiphanyMemorySummary;
+    use serde_json::json;
 
     fn identity() -> PersonaIdentity {
         PersonaIdentity {
@@ -613,6 +641,33 @@ mod tests {
         assert!(interpreter.contains("Dynamic semantic memory recall"));
         assert!(interpreter.contains("STATE NOTE"));
         assert!(interpreter.contains("SAY"));
+    }
+
+    #[test]
+    fn heartbeat_action_recall_extracts_only_when_private_state_is_sealed() {
+        let action = json!({
+            "persona_memory_recall": {
+                "privateStateExposed": false,
+                "renderedRecall": "Derived Qdrant Persona recall; hints only."
+            }
+        });
+        assert_eq!(
+            semantic_memory_recall_from_heartbeat_action(&action),
+            "Derived Qdrant Persona recall; hints only."
+        );
+
+        let leaking_action = json!({
+            "persona_memory_recall": {
+                "privateStateExposed": true,
+                "renderedRecall": "sealed private note"
+            }
+        });
+        let refused = semantic_memory_recall_from_heartbeat_action(&leaking_action);
+        assert!(refused.contains("refused"));
+        assert!(!refused.contains("sealed private note"));
+
+        let missing = semantic_memory_recall_from_heartbeat_action(&json!({}));
+        assert!(missing.contains("unavailable"));
     }
 
     #[test]

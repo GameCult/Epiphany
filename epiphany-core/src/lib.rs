@@ -631,6 +631,7 @@ pub use persona_turn::build_persona_projector_prompt;
 pub use persona_turn::build_persona_turn_prompt;
 pub use persona_turn::persona_projected_surface_is_clean;
 pub use persona_turn::render_persona_semantic_memory_recall;
+pub use persona_turn::semantic_memory_recall_from_heartbeat_action;
 pub use promotion::EpiphanyPromotionDecision;
 pub use promotion::EpiphanyPromotionInput;
 pub use promotion::EpiphanyStateReplacementValidationInput;
