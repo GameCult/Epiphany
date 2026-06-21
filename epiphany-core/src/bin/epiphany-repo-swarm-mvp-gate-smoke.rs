@@ -23,6 +23,7 @@ struct Args {
     fresh_repo_summary: Option<PathBuf>,
     readiness_summary: Option<PathBuf>,
     bifrost_accounting_summary: Option<PathBuf>,
+    daemon_survival_summary: Option<PathBuf>,
 }
 
 impl Args {
@@ -32,6 +33,7 @@ impl Args {
         let mut fresh_repo_summary = None;
         let mut readiness_summary = None;
         let mut bifrost_accounting_summary = None;
+        let mut daemon_survival_summary = None;
         let mut args = env::args().skip(1).peekable();
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -47,6 +49,10 @@ impl Args {
                     bifrost_accounting_summary =
                         Some(take_path(&mut args, "--bifrost-accounting-summary")?)
                 }
+                "--daemon-survival-summary" => {
+                    daemon_survival_summary =
+                        Some(take_path(&mut args, "--daemon-survival-summary")?)
+                }
                 other => return Err(anyhow!("unexpected argument {other:?}")),
             }
         }
@@ -56,6 +62,7 @@ impl Args {
             fresh_repo_summary,
             readiness_summary,
             bifrost_accounting_summary,
+            daemon_survival_summary,
         })
     }
 }
@@ -92,14 +99,19 @@ fn run_smoke(args: Args) -> Result<Value> {
     let bifrost_accounting_summary = args
         .bifrost_accounting_summary
         .unwrap_or_else(|| latest_summary(&args.smoke_root, "repo-bifrost-accounting-bundle-"));
+    let daemon_survival_summary = args
+        .daemon_survival_summary
+        .unwrap_or_else(|| latest_summary(&args.smoke_root, "daemon-survival-rehearsal-"));
 
     let fresh = read_json(&fresh_repo_summary)?;
     let readiness = read_json(&readiness_summary)?;
     let bifrost = read_json(&bifrost_accounting_summary)?;
+    let daemon_survival = read_json(&daemon_survival_summary)?;
 
     verify_fresh_repo(&fresh)?;
     verify_readiness(&readiness)?;
     verify_bifrost_accounting(&bifrost)?;
+    verify_daemon_survival(&daemon_survival)?;
 
     let gate_rows = vec![
         green(
@@ -149,15 +161,15 @@ fn run_smoke(args: Args) -> Result<Value> {
             "Bifrost",
             "readiness, artifact acceptance, and metrics accounting rows are closed",
         ),
+        green(
+            "long-running-daemon-proof",
+            "Idunn",
+            "bounded serve rehearsal wrote two scheduler pulses and sealed scheduler receipt",
+        ),
         warning(
             "idunn-elevated-service",
             "Idunn",
             "service install/start/remote deployment execution remains explicit operator authority",
-        ),
-        warning(
-            "long-running-daemon-proof",
-            "Idunn",
-            "unattended daemon survival is planned and audited but not yet a green MVP gate",
         ),
     ];
     let green_gate_count = gate_rows
@@ -192,9 +204,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         "freshRepoSummary": fresh_repo_summary,
         "readinessSummary": readiness_summary,
         "bifrostAccountingSummary": bifrost_accounting_summary,
+        "daemonSurvivalSummary": daemon_survival_summary,
         "freshRepoSmokeDir": fresh["smokeDir"],
         "readinessSmokeDir": readiness["smokeDir"],
         "bifrostAccountingSmokeDir": bifrost["smokeDir"],
+        "daemonSurvivalSmokeDir": daemon_survival["smokeDir"],
         "mvpReady": false,
         "demoReady": true,
         "greenGateCount": green_gate_count,
@@ -203,8 +217,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "gateRows": gate_rows,
         "gateTuiRows": gate_tui_rows,
         "knownRemainingAuthorityGates": [
-            "Idunn elevated service install/start/remote deployment execution",
-            "unattended long-running daemon survival proof"
+            "Idunn elevated service install/start/remote deployment execution"
         ],
         "privateStateExposed": false,
     });
@@ -300,6 +313,23 @@ fn verify_bifrost_accounting(value: &Value) -> Result<()> {
         2,
         1,
     )
+}
+
+fn verify_daemon_survival(value: &Value) -> Result<()> {
+    require_eq(
+        value,
+        &["schemaVersion"],
+        "epiphany.daemon_survival_rehearsal_smoke.v0",
+    )?;
+    require_eq(value, &["status"], "ok")?;
+    require_eq(value, &["policyStatus"], "written")?;
+    require_eq(value, &["serveStatus"], "serveComplete")?;
+    require_eq(value, &["schedulerReceiptStatus"], "tickComplete")?;
+    require_bool(value, &["boundedProofMode"], true)?;
+    require_bool(value, &["serviceManagerMutated"], false)?;
+    require_bool(value, &["requiresElevatedAuthority"], false)?;
+    require_bool(value, &["unattendedDaemonSurvivalRehearsed"], true)?;
+    require_bool(value, &["privateStateExposed"], false)
 }
 
 fn green(gate: &str, owner: &str, evidence: &str) -> Value {
