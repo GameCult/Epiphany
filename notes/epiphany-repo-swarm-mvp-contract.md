@@ -1552,6 +1552,17 @@ published `repo-work-public-proof-checklist-request` to
 `bifrost-public-proof-publication-checklist-request`, `status=ok`, and
 `privateStateExposed=false`.
 
+Bifrost ledger readback now also emits derived external-work accounting rows
+without creating a rival ledger. `epiphany-verse-query bifrost-ledger` returns
+`accountingRows` and `accountingTuiRows` for `body-change-publication`,
+`public-proof-publication`, and `collaboration-consensus`, carrying closure
+status, ledger/receipt/public refs, review and credit receipt counts, artifact
+count, and the private-state seal. Wrapper proof
+`local-20260621-091019-297-aaf2ad07` reported `accountingRows=3`,
+`closedAccounting=2`, `attentionAccounting=0`, closed body-change and
+collaboration rows, a visible missing public-proof-publication row, and
+`privateStateExposed=False`.
+
 Wrapper mode `tools/epiphany_local_run.ps1 -Mode bifrost-public-proof` now
 exposes the same Bifrost mouth for operators and agents. It reads the latest
 repo-local public proof row from `<workspace>\.epiphany\local-verse.ccmp` when

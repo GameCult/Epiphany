@@ -1212,12 +1212,17 @@ fn run_cli() -> Result<()> {
                     "publicationChainCount": report.publication_chain_count,
                     "publicProofPublicationCount": report.public_proof_publication_count,
                     "collaborationChainCount": report.collaboration_chain_count,
+                    "accountingRowCount": report.accounting_rows.len(),
+                    "closedAccountingRowCount": report.closed_accounting_row_count,
+                    "attentionAccountingRowCount": report.attention_accounting_row_count,
                     "latestBifrostPublicationIntent": report.latest_publication_intent_id,
                     "latestBifrostPublicationReceipt": report.latest_publication_receipt_id,
                     "latestBifrostGithubReceipt": report.latest_github_receipt_id,
                     "latestBifrostPublicProofPublicationReceipt": report.latest_public_proof_publication_receipt_id,
                     "latestBifrostCollaborationFeedback": report.latest_feedback_id,
                     "latestImaginationConsensusReceipt": report.latest_consensus_receipt_id,
+                    "accountingTuiRows": report.accounting_tui_rows,
+                    "accountingRows": report.accounting_rows,
                     "tuiRows": report.tui_rows,
                     "rows": report.rows,
                     "commands": {
@@ -2690,6 +2695,9 @@ fn run_cli() -> Result<()> {
             if bifrost_ledger_report.status != "ok"
                 || bifrost_ledger_report.publication_chain_count != 3
                 || bifrost_ledger_report.collaboration_chain_count != 2
+                || bifrost_ledger_report.accounting_rows.len() != 3
+                || bifrost_ledger_report.closed_accounting_row_count != 2
+                || bifrost_ledger_report.attention_accounting_row_count != 0
                 || bifrost_ledger_report.rows.len() != 5
                 || bifrost_ledger_report.private_state_exposed
                 || !bifrost_ledger_report.tui_rows.iter().any(|row| {
@@ -2706,6 +2714,26 @@ fn run_cli() -> Result<()> {
                         && row.contains(
                             "public=https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm",
                         )
+                        && row.contains("private=false")
+                })
+                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
+                    row.contains("BIFROST-ACCOUNTING | body-change-publication")
+                        && row.contains("status=closed")
+                        && row.contains("intent=present publication=present github=present")
+                        && row.contains("review=1")
+                        && row.contains("credit=1")
+                        && row.contains("private=false")
+                })
+                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
+                    row.contains("BIFROST-ACCOUNTING | public-proof-publication")
+                        && row.contains("status=missing")
+                        && row.contains("proof=missing")
+                        && row.contains("private=false")
+                })
+                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
+                    row.contains("BIFROST-ACCOUNTING | collaboration-consensus")
+                        && row.contains("status=closed")
+                        && row.contains("feedback=present consensus=present")
                         && row.contains("private=false")
                 })
             {
@@ -4746,9 +4774,13 @@ struct BifrostLedgerReport {
     status: String,
     rows: Vec<BifrostLedgerRow>,
     tui_rows: Vec<String>,
+    accounting_rows: Vec<BifrostAccountingRow>,
+    accounting_tui_rows: Vec<String>,
     publication_chain_count: usize,
     public_proof_publication_count: usize,
     collaboration_chain_count: usize,
+    closed_accounting_row_count: usize,
+    attention_accounting_row_count: usize,
     latest_publication_intent_id: Option<String>,
     latest_publication_receipt_id: Option<String>,
     latest_github_receipt_id: Option<String>,
@@ -4805,6 +4837,22 @@ struct BifrostLedgerRow {
     summary: String,
     public_ref: String,
     private_state_included: bool,
+    private_state_exposed: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BifrostAccountingRow {
+    lane: String,
+    owner: String,
+    status: String,
+    closure: String,
+    ledger_entry_id: String,
+    latest_receipt_id: String,
+    public_ref: String,
+    review_receipt_count: usize,
+    credit_receipt_count: usize,
+    public_artifact_count: usize,
     private_state_exposed: bool,
 }
 
@@ -8039,6 +8087,22 @@ fn bifrost_ledger_report(
     let public_proof_publication_count = usize::from(latest_public_proof_publication.is_some());
     let collaboration_chain_count =
         usize::from(latest_feedback.is_some()) + usize::from(latest_consensus.is_some());
+    let (accounting_rows, accounting_tui_rows) = bifrost_accounting_rows(
+        latest_intent,
+        latest_publication,
+        latest_github,
+        latest_public_proof_publication,
+        latest_feedback,
+        latest_consensus,
+    );
+    let closed_accounting_row_count = accounting_rows
+        .iter()
+        .filter(|row| row.status == "closed")
+        .count();
+    let attention_accounting_row_count = accounting_rows
+        .iter()
+        .filter(|row| row.status == "attention" || row.private_state_exposed)
+        .count();
     let private_state_exposed = rows.iter().any(|row| row.private_state_exposed);
     let status = if rows.is_empty() {
         "empty"
@@ -8053,9 +8117,13 @@ fn bifrost_ledger_report(
         status,
         rows,
         tui_rows,
+        accounting_rows,
+        accounting_tui_rows,
         publication_chain_count,
         public_proof_publication_count,
         collaboration_chain_count,
+        closed_accounting_row_count,
+        attention_accounting_row_count,
         latest_publication_intent_id: latest_intent.map(|intent| intent.intent_id.clone()),
         latest_publication_receipt_id: latest_publication.map(|receipt| receipt.receipt_id.clone()),
         latest_github_receipt_id: latest_github.map(|receipt| receipt.receipt_id.clone()),
@@ -8087,6 +8155,220 @@ fn push_bifrost_ledger_row(
         row.document_kind, row.owner, row.id, row.status, row.route, row.public_ref
     ));
     rows.push(row);
+}
+
+fn bifrost_accounting_rows(
+    latest_intent: Option<&EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
+    latest_publication: Option<&EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
+    latest_github: Option<&EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
+    latest_public_proof_publication: Option<
+        &EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry,
+    >,
+    latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
+    latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
+) -> (Vec<BifrostAccountingRow>, Vec<String>) {
+    let mut rows = Vec::new();
+    let mut tui_rows = Vec::new();
+
+    let body_private = latest_intent
+        .map(|intent| intent.private_state_included)
+        .unwrap_or(false)
+        || latest_publication
+            .map(|receipt| receipt.private_state_exposed)
+            .unwrap_or(false)
+        || latest_github
+            .map(|receipt| receipt.private_state_exposed)
+            .unwrap_or(false);
+    let body_review_count = latest_publication
+        .map(|receipt| receipt.reviewer_ids.len())
+        .or_else(|| latest_intent.map(|intent| intent.review_receipt_ids.len()))
+        .unwrap_or(0);
+    let body_credit_count = latest_github
+        .map(|receipt| receipt.credit_receipt_ids.len())
+        .or_else(|| latest_publication.map(|receipt| receipt.credit_receipt_ids.len()))
+        .or_else(|| latest_intent.map(|intent| intent.credit_subjects.len()))
+        .unwrap_or(0);
+    let body_chain_closed = latest_intent.is_some()
+        && latest_publication.is_some()
+        && latest_github.is_some()
+        && body_review_count > 0
+        && body_credit_count > 0
+        && !body_private;
+    push_bifrost_accounting_row(
+        &mut rows,
+        &mut tui_rows,
+        BifrostAccountingRow {
+            lane: "body-change-publication".to_string(),
+            owner: "Bifrost".to_string(),
+            status: bifrost_accounting_status(
+                body_chain_closed,
+                latest_intent.is_some() || latest_publication.is_some() || latest_github.is_some(),
+                body_private,
+            ),
+            closure: format!(
+                "intent={} publication={} github={} review={} credit={}",
+                present_word(latest_intent.is_some()),
+                present_word(latest_publication.is_some()),
+                present_word(latest_github.is_some()),
+                body_review_count,
+                body_credit_count
+            ),
+            ledger_entry_id: latest_publication
+                .map(|receipt| receipt.bifrost_ledger_entry_id.clone())
+                .or_else(|| latest_github.map(|receipt| receipt.ledger_entry_id.clone()))
+                .unwrap_or_else(|| "none".to_string()),
+            latest_receipt_id: latest_github
+                .map(|receipt| receipt.receipt_id.clone())
+                .or_else(|| latest_publication.map(|receipt| receipt.receipt_id.clone()))
+                .or_else(|| latest_intent.map(|intent| intent.intent_id.clone()))
+                .unwrap_or_else(|| "none".to_string()),
+            public_ref: latest_github
+                .map(|receipt| receipt.pull_request_url.clone())
+                .or_else(|| latest_publication.map(|receipt| receipt.publication_url.clone()))
+                .or_else(|| latest_intent.map(|intent| intent.target_branch.clone()))
+                .unwrap_or_else(|| "none".to_string()),
+            review_receipt_count: body_review_count,
+            credit_receipt_count: body_credit_count,
+            public_artifact_count: usize::from(latest_github.is_some()),
+            private_state_exposed: body_private,
+        },
+    );
+
+    let proof_private = latest_public_proof_publication
+        .map(|receipt| receipt.private_state_exposed)
+        .unwrap_or(false);
+    let proof_review_count = latest_public_proof_publication
+        .map(|receipt| receipt.reviewer_ids.len())
+        .unwrap_or(0);
+    let proof_credit_count = latest_public_proof_publication
+        .map(|receipt| receipt.credit_receipt_ids.len())
+        .unwrap_or(0);
+    let proof_closed = latest_public_proof_publication.is_some()
+        && proof_review_count > 0
+        && proof_credit_count > 0
+        && !proof_private;
+    push_bifrost_accounting_row(
+        &mut rows,
+        &mut tui_rows,
+        BifrostAccountingRow {
+            lane: "public-proof-publication".to_string(),
+            owner: "Bifrost".to_string(),
+            status: bifrost_accounting_status(
+                proof_closed,
+                latest_public_proof_publication.is_some(),
+                proof_private,
+            ),
+            closure: format!(
+                "proof={} review={} credit={}",
+                present_word(latest_public_proof_publication.is_some()),
+                proof_review_count,
+                proof_credit_count
+            ),
+            ledger_entry_id: latest_public_proof_publication
+                .map(|receipt| receipt.bifrost_ledger_entry_id.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            latest_receipt_id: latest_public_proof_publication
+                .map(|receipt| receipt.receipt_id.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            public_ref: latest_public_proof_publication
+                .map(|receipt| receipt.publication_url.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            review_receipt_count: proof_review_count,
+            credit_receipt_count: proof_credit_count,
+            public_artifact_count: usize::from(latest_public_proof_publication.is_some()),
+            private_state_exposed: proof_private,
+        },
+    );
+
+    let collaboration_private = latest_feedback
+        .map(|feedback| feedback.private_state_included)
+        .unwrap_or(false)
+        || latest_consensus
+            .map(|receipt| receipt.private_state_exposed)
+            .unwrap_or(false);
+    let collaboration_public_count = latest_feedback
+        .map(|feedback| feedback.public_discussion_refs.len())
+        .unwrap_or(0)
+        + latest_consensus
+            .map(|receipt| receipt.public_feedback_refs.len())
+            .unwrap_or(0);
+    let collaboration_closed =
+        latest_feedback.is_some() && latest_consensus.is_some() && !collaboration_private;
+    push_bifrost_accounting_row(
+        &mut rows,
+        &mut tui_rows,
+        BifrostAccountingRow {
+            lane: "collaboration-consensus".to_string(),
+            owner: "Persona->Imagination".to_string(),
+            status: bifrost_accounting_status(
+                collaboration_closed,
+                latest_feedback.is_some() || latest_consensus.is_some(),
+                collaboration_private,
+            ),
+            closure: format!(
+                "feedback={} consensus={} publicRefs={}",
+                present_word(latest_feedback.is_some()),
+                present_word(latest_consensus.is_some()),
+                collaboration_public_count
+            ),
+            ledger_entry_id: "none".to_string(),
+            latest_receipt_id: latest_consensus
+                .map(|receipt| receipt.receipt_id.clone())
+                .or_else(|| latest_feedback.map(|feedback| feedback.feedback_id.clone()))
+                .unwrap_or_else(|| "none".to_string()),
+            public_ref: latest_feedback
+                .map(|feedback| feedback.public_room_id.clone())
+                .unwrap_or_else(|| "none".to_string()),
+            review_receipt_count: 0,
+            credit_receipt_count: 0,
+            public_artifact_count: collaboration_public_count,
+            private_state_exposed: collaboration_private,
+        },
+    );
+
+    (rows, tui_rows)
+}
+
+fn push_bifrost_accounting_row(
+    rows: &mut Vec<BifrostAccountingRow>,
+    tui_rows: &mut Vec<String>,
+    row: BifrostAccountingRow,
+) {
+    let private = if row.private_state_exposed {
+        "private=true"
+    } else {
+        "private=false"
+    };
+    tui_rows.push(format!(
+        "BIFROST-ACCOUNTING | {} | owner={} | status={} | {} | ledger={} | receipt={} | public={} | review={} | credit={} | artifacts={} | {private}",
+        row.lane,
+        row.owner,
+        row.status,
+        row.closure,
+        row.ledger_entry_id,
+        row.latest_receipt_id,
+        row.public_ref,
+        row.review_receipt_count,
+        row.credit_receipt_count,
+        row.public_artifact_count
+    ));
+    rows.push(row);
+}
+
+fn bifrost_accounting_status(closed: bool, present: bool, private_state_exposed: bool) -> String {
+    if private_state_exposed {
+        "attention".to_string()
+    } else if closed {
+        "closed".to_string()
+    } else if present {
+        "open".to_string()
+    } else {
+        "missing".to_string()
+    }
+}
+
+fn present_word(present: bool) -> &'static str {
+    if present { "present" } else { "missing" }
 }
 
 fn collaboration_feedback_tui_rows(

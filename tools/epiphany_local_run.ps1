@@ -2329,6 +2329,10 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
                 $ledgerRows = ($result.tuiRows -join "; ")
             }
+            $accountingRows = "none"
+            if ($null -ne $result.accountingTuiRows -and $result.accountingTuiRows.Count -gt 0) {
+                $accountingRows = ($result.accountingTuiRows -join "; ")
+            }
             $publicRefs = "none"
             if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
                 $publicRefs = (($result.rows | ForEach-Object {
@@ -2339,7 +2343,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     "$($_.documentKind)=${publicRef}"
                 }) -join "; ")
             }
-            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), publicRefs=$publicRefs, ledgerRows=$ledgerRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), accountingRows=$($result.accountingRowCount), closedAccounting=$($result.closedAccountingRowCount), attentionAccounting=$($result.attentionAccountingRowCount), publicRefs=$publicRefs, accounting=$accountingRows, ledgerRows=$ledgerRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "receipt-directory") {
             $artifactHashes = "none"
             $attentionRoutes = "none"
