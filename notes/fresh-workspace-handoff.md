@@ -1526,6 +1526,12 @@ Epiphany has the first native slice of that membrane in `epiphany-core`:
 contracts, heartbeat state carries typed pending mentions, and pending Persona
 mentions select a `persona_turn` without letting Persona side effects execute
 themselves.
+Repo Persona intake now carries the Weksa side of the membrane too:
+`epiphany-work persona-intake` turns public SAY into a Weksa interlingua packet,
+target-language lowering request, lowering receipt, and local Verse
+`epiphany.cultmesh.weksa_lowering_receipt.v0` mirror before any mouth transport
+publication. The receipt-directory row is Weksa-owned sight only; Bifrost or the
+configured mouth edge still owns publication, and Mind still owns durable state.
 `notes/organ-dependency-contracts.md` is the standing dependency map: every
 sub-agent depends on all the other standing sub-agents. Dependency does not collapse
 ownership; it makes each turn whole-organism-aware while Substrate Gate still gates repo

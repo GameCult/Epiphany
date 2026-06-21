@@ -309,6 +309,8 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_eq(&publish, &["status"], "publication-receipts-recorded")?;
     require_eq(&sync, &["status"], "upstream-main-synced")?;
     require_eq(&export, &["status"], "public-proof-exported")?;
+    require_non_empty(&intake, &["weksaLoweringReceiptId"])?;
+    require_bool(&intake, &["privateStateExposed"], false)?;
     require_bool(&overview, &["privateStateExposed"], false)?;
     require_bool(&export, &["privateStateExposed"], false)?;
     let close_private = close
@@ -335,6 +337,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "initStatus": init["status"],
         "onlineStatus": online["status"],
         "personaIntakeStatus": intake["status"],
+        "weksaLoweringReceiptId": intake["weksaLoweringReceiptId"],
         "planStatus": plan["status"],
         "preRunOverviewGate": pre_run_overview["gate"],
         "preRunOverviewBlocker": pre_run_overview["blocker"],
@@ -470,6 +473,19 @@ fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
             path.join("."),
             actual
         ))
+    }
+}
+
+fn require_non_empty(value: &Value, path: &[&str]) -> Result<()> {
+    let actual = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if actual.trim().is_empty() {
+        Err(anyhow!("expected {} to be non-empty", path.join(".")))
+    } else {
+        Ok(())
     }
 }
 

@@ -10,11 +10,13 @@ use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkReadinessEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkReadinessReviewEntry;
+use epiphany_core::EpiphanyCultMeshWeksaLoweringReceiptEntry;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
 use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
 use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
@@ -29,6 +31,10 @@ use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SoulVerdictReceipt;
 use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
+use epiphany_core::WeksaInterlinguaInput;
+use epiphany_core::WeksaSpeakerContext;
+use epiphany_core::build_weksa_interlingua_packet;
+use epiphany_core::build_weksa_target_lowering_request;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
@@ -55,6 +61,7 @@ use epiphany_core::put_mind_gateway_review;
 use epiphany_core::put_mind_state_commit_receipt;
 use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
+use epiphany_core::record_weksa_target_lowering_receipt;
 use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
@@ -64,6 +71,7 @@ use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::write_epiphany_cultmesh_repo_work_readiness;
 use epiphany_core::write_epiphany_cultmesh_repo_work_readiness_review;
+use epiphany_core::write_epiphany_cultmesh_weksa_lowering_receipt;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -1840,6 +1848,14 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
     let summary = compact_text(&args.message, 480);
     let public_ref = format!("eve://epiphany/persona#repo-intake/{item_slug}/{audit_id}");
     let candidate_ref = format!("candidate-action://{runtime_id}/{item_slug}/{audit_id}");
+    let weksa = record_repo_persona_intake_weksa(
+        &local_verse_store,
+        &runtime_id,
+        &item_slug,
+        &audit_id,
+        &args.message,
+        &public_ref,
+    )?;
     let accept = run_accept(AcceptArgs {
         workspace: workspace.clone(),
         epiphany_root: epiphany_root.clone(),
@@ -1871,7 +1887,8 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
             "speechAudit": speech_audit,
             "contentFingerprint": content_fingerprint,
             "publicDiscussionRef": public_ref,
-            "candidateActionRef": candidate_ref
+            "candidateActionRef": candidate_ref,
+            "weksa": weksa
         },
         "accept": accept,
         "authority": {
@@ -1898,12 +1915,108 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
         "receiptPath": receipt_path,
         "item": receipt["item"],
         "speechAuditId": audit_id,
+        "weksaLoweringReceiptId": receipt["persona"]["weksa"]["receiptId"],
         "bubblePath": receipt["persona"]["bubblePath"],
         "acceptReceiptPath": accept["receiptPath"],
         "feedback": accept["feedback"],
         "authority": receipt["authority"],
         "privateStateExposed": false,
         "nextSafeMove": receipt["nextSafeMove"],
+    }))
+}
+
+fn record_repo_persona_intake_weksa(
+    local_verse_store: &Path,
+    runtime_id: &str,
+    item_slug: &str,
+    audit_id: &str,
+    message: &str,
+    public_ref: &str,
+) -> Result<Value> {
+    let audit_slug = sanitize(audit_id);
+    let packet_id = format!("weksa-packet-repo-intake-{item_slug}-{audit_slug}");
+    let request_id = format!("weksa-lower-repo-intake-{item_slug}-{audit_slug}");
+    let receipt_id = format!("weksa-lowering-repo-intake-{item_slug}-{audit_slug}");
+    let delivery_surface = "eve://epiphany/persona";
+    let target_language = "en";
+    let target_register = "repo-public-intake";
+    let packet = build_weksa_interlingua_packet(WeksaInterlinguaInput {
+        packet_id: packet_id.clone(),
+        source_interpreter_ref: format!("persona-intake:{runtime_id}:{item_slug}:{audit_slug}"),
+        source_speech_audit_ref: audit_id.to_string(),
+        speaker: WeksaSpeakerContext {
+            persona_id: "epiphany.Persona".to_string(),
+            display_name: "Epiphany".to_string(),
+            source_surface: delivery_surface.to_string(),
+            source_language: "en".to_string(),
+            utterance_state_ref: "state/agents.msgpack#Persona:utterance-state".to_string(),
+        },
+        meaning: message.to_string(),
+        speech_act: "repo-intake-say".to_string(),
+        delivery_register: target_register.to_string(),
+        target_audience: "repo-public-room".to_string(),
+        safety_notes: vec![
+            "Do not claim Hands, Bifrost, publication, merge, deployment, or service lifecycle authority.".to_string(),
+            "Do not expose private worker thought, raw result payloads, or private Verse state.".to_string(),
+        ],
+    })?;
+    let request = build_weksa_target_lowering_request(
+        request_id.clone(),
+        packet,
+        target_language,
+        target_register,
+        delivery_surface,
+    )?;
+    let receipt = record_weksa_target_lowering_receipt(
+        &request,
+        receipt_id.clone(),
+        message.to_string(),
+        "repo-persona-intake-local-text-lowering",
+    )?;
+    let lowered_text_preview = compact_text(&receipt.lowered_text, 480);
+    let cultmesh_receipt = EpiphanyCultMeshWeksaLoweringReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: receipt.receipt_id.clone(),
+        runtime_id: runtime_id.to_string(),
+        verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+        packet_id: receipt.packet_id.clone(),
+        request_id: receipt.request_id.clone(),
+        persona_agent_id: request.packet.speaker.persona_id.clone(),
+        target_language: receipt.target_language.clone(),
+        target_register: receipt.target_register.clone(),
+        delivery_surface: receipt.delivery_surface.clone(),
+        lowering_method: receipt.lowering_method.clone(),
+        transport_authority: receipt.transport_authority.clone(),
+        publication_authorized: false,
+        lowered_text_ref: public_ref.to_string(),
+        lowered_text_preview,
+        created_at_utc: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        private_state_exposed: false,
+        notes: vec![
+            "Repo Persona intake routed public SAY through Weksa interlingua/lowering before any mouth transport publication.".to_string(),
+        ],
+    };
+    write_epiphany_cultmesh_weksa_lowering_receipt(local_verse_store, cultmesh_receipt)?;
+
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_persona_intake_weksa.v0",
+        "packetSchemaVersion": request.packet.schema_version,
+        "requestSchemaVersion": request.schema_version,
+        "receiptSchemaVersion": receipt.schema_version,
+        "cultmeshSchemaVersion": EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION,
+        "packetId": packet_id,
+        "requestId": request_id,
+        "receiptId": receipt_id,
+        "sourceSpeechAuditRef": audit_id,
+        "targetLanguage": receipt.target_language,
+        "targetRegister": receipt.target_register,
+        "deliverySurface": receipt.delivery_surface,
+        "loweringMethod": receipt.lowering_method,
+        "transportAuthority": receipt.transport_authority,
+        "loweredTextRef": public_ref,
+        "modelRequired": request.model_required,
+        "publicationAuthorized": false,
+        "privateStateExposed": false,
     }))
 }
 
