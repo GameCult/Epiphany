@@ -208,6 +208,48 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         &root,
     )?;
+    let close_receipt = repo
+        .join(".epiphany")
+        .join("work")
+        .join(format!("work-close-{item}.json"));
+    cargo_json(
+        &manifest,
+        "epiphany-work",
+        &[
+            "publish",
+            "--workspace",
+            path_str(&repo)?,
+            "--epiphany-root",
+            path_str(&root)?,
+            "--item",
+            item,
+            "--closure-receipt",
+            path_str(&close_receipt)?,
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--change-summary",
+            "Repo-work readiness smoke Bifrost publication proof.",
+            "--justification",
+            "Disposable Bifrost publication proof for the repo-work readiness smoke.",
+            "--verification-receipt",
+            "soul-verdict:repo-work-readiness-smoke",
+            "--review-receipt",
+            "mind-review:repo-work-readiness-smoke",
+            "--author-agent",
+            "epiphany.Hands",
+            "--credit-subject",
+            "epiphany.Hands",
+            "--ledger-entry-id",
+            "repo-work-readiness-smoke-ledger",
+            "--pull-request-url",
+            "https://example.invalid/GameCult/repo-work-readiness-smoke/pull/1",
+            "--pull-request-number",
+            "1",
+            "--pull-request-title",
+            "Repo work readiness smoke proof",
+        ],
+        &root,
+    )?;
     let deployment_aftercare_fixture = repo
         .join(".epiphany")
         .join("work")
@@ -285,7 +327,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "epiphany.repo_work_readiness.v0",
     )?;
     require_eq(&readiness, &["status"], "not-ready")?;
-    require_u64(&readiness, &["missingRequiredCount"], 2)?;
+    require_u64(&readiness, &["missingRequiredCount"], 1)?;
     require_bool(&readiness, &["authority", "sightOnly"], true)?;
     require_bool(
         &readiness,
@@ -332,7 +374,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         21,
     )?;
     require_row(&readiness, "public-proof", true)?;
-    require_row(&readiness, "bifrost-publication", false)?;
+    require_row(&readiness, "bifrost-publication", true)?;
+    require_row_field_u64(&readiness, "bifrost-publication", "creditReceiptCount", 1)?;
+    require_row_field_u64(&readiness, "bifrost-publication", "changedPathCount", 1)?;
     require_row(&readiness, "upstream-main-sync", false)?;
     require_row(&readiness, "idunn-lifecycle", true)?;
     require_row(&readiness, "deployment-aftercare", true)?;

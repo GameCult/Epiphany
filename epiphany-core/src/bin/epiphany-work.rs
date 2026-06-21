@@ -37,6 +37,8 @@ use epiphany_core::load_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 use epiphany_core::load_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
@@ -12153,14 +12155,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             public_proof_path.exists(),
             "Redacted public proof bundle exists.",
         )?,
-        readiness_path_row(
-            "bifrost-publication",
-            "Bifrost",
-            "gamecult.bifrost.publication_receipt.v0",
-            &publish_receipt_path,
-            publish_receipt.is_some(),
-            "Bifrost/GitHub publication receipt exists.",
-        )?,
+        bifrost_publication_readiness_row(&publish_receipt_path, publish_receipt.as_ref())?,
         readiness_path_row(
             "upstream-main-sync",
             "Bifrost/GitHub",
@@ -14176,6 +14171,147 @@ fn readiness_missing_row(kind: &str, owner: &str, required_schema: &str, note: &
         "note": note,
         "privateStateExposed": false
     })
+}
+
+fn bifrost_publication_readiness_row(path: &Path, receipt: Option<&Value>) -> Result<Value> {
+    let Some(receipt) = receipt else {
+        return Ok(readiness_missing_row(
+            "bifrost-publication",
+            "Bifrost/GitHub",
+            "epiphany.repo_work_publish_receipt.v0 + gamecult.bifrost.body_change_publication_receipt.v0 + gamecult.bifrost.github_publication_receipt.v0",
+            "Run epiphany-work publish so Bifrost and GitHub publication receipts exist before readiness review.",
+        ));
+    };
+
+    let schema_ok = string_from_json(receipt, &["schemaVersion"]).as_deref()
+        == Some("epiphany.repo_work_publish_receipt.v0");
+    let status_ok =
+        string_from_json(receipt, &["status"]).as_deref() == Some("publication-receipts-recorded");
+    let publication_authorized =
+        bool_from_json(receipt, &["authority", "publicationAuthorized"]) == Some(true);
+    let upstream_not_claimed =
+        bool_from_json(receipt, &["authority", "upstreamMainSynced"]) == Some(false);
+    let merge_not_claimed =
+        bool_from_json(receipt, &["authority", "mergeAuthorized"]) == Some(false);
+    let private_sealed = bool_from_json(receipt, &["authority", "privateStateExposed"])
+        == Some(false)
+        && bool_from_json(receipt, &["privateStateExposed"]).unwrap_or(false) == false;
+    let local_verse_store = path_from_json(receipt, &["localVerseStore"]);
+    let runtime_id =
+        string_from_json(receipt, &["runtimeId"]).unwrap_or_else(|| "repo-swarm-local".to_string());
+    let bifrost_publication_receipt_id =
+        string_from_json(receipt, &["bifrost", "publicationReceiptId"]);
+    let github_publication_receipt_id =
+        string_from_json(receipt, &["bifrost", "githubPublicationReceiptId"]);
+    let ledger_entry_id = string_from_json(receipt, &["bifrost", "ledgerEntryId"]);
+    let pull_request_url = string_from_json(receipt, &["bifrost", "pullRequestUrl"]);
+    let credit_receipt_count = receipt
+        .get("bifrost")
+        .and_then(|bifrost| bifrost.get("creditReceiptIds"))
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or(0);
+    let changed_path_count = receipt
+        .get("changedPaths")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or(0);
+
+    let mut bifrost_latest_matches = false;
+    let mut github_latest_matches = false;
+    let mut bifrost_private_sealed = false;
+    let mut github_private_sealed = false;
+    let mut github_links_bifrost = false;
+    let mut publication_status = "missing".to_string();
+    let mut github_publication_status = "missing".to_string();
+
+    if let (Some(store), Some(bifrost_id), Some(github_id)) = (
+        local_verse_store.as_ref(),
+        bifrost_publication_receipt_id.as_ref(),
+        github_publication_receipt_id.as_ref(),
+    ) {
+        let latest_bifrost = load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+            store,
+            runtime_id.clone(),
+        )?;
+        let latest_github = load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
+            store,
+            runtime_id.clone(),
+        )?;
+        if let Some(latest) = latest_bifrost.as_ref() {
+            bifrost_latest_matches = latest.receipt_id == *bifrost_id
+                && latest.github_publication_receipt_id == *github_id
+                && latest.bifrost_ledger_entry_id == ledger_entry_id.clone().unwrap_or_default()
+                && !latest.accepted_changed_paths.is_empty()
+                && !latest.credit_receipt_ids.is_empty();
+            bifrost_private_sealed = !latest.private_state_exposed;
+            publication_status = latest.status.clone();
+        }
+        if let Some(latest) = latest_github.as_ref() {
+            github_latest_matches = latest.receipt_id == *github_id
+                && latest.bifrost_publication_receipt_id == *bifrost_id
+                && latest.hands_pr_receipt_id
+                    == string_from_json(receipt, &["handsReceipts", "prReceiptId"])
+                        .unwrap_or_default()
+                && latest.pull_request_url == pull_request_url.clone().unwrap_or_default()
+                && !latest.changed_paths.is_empty()
+                && !latest.ledger_entry_id.trim().is_empty();
+            github_links_bifrost = latest.bifrost_publication_receipt_id == *bifrost_id;
+            github_private_sealed = !latest.private_state_exposed;
+            github_publication_status = latest.publication_status.clone();
+        }
+    }
+
+    let satisfied = schema_ok
+        && status_ok
+        && publication_authorized
+        && upstream_not_claimed
+        && merge_not_claimed
+        && private_sealed
+        && local_verse_store.is_some()
+        && bifrost_latest_matches
+        && github_latest_matches
+        && bifrost_private_sealed
+        && github_private_sealed
+        && github_links_bifrost
+        && credit_receipt_count > 0
+        && changed_path_count > 0
+        && ledger_entry_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty())
+        && pull_request_url
+            .as_ref()
+            .is_some_and(|url| !url.trim().is_empty());
+
+    Ok(json!({
+        "kind": "bifrost-publication",
+        "owner": "Bifrost/GitHub",
+        "requiredSchema": "epiphany.repo_work_publish_receipt.v0 + gamecult.bifrost.body_change_publication_receipt.v0 + gamecult.bifrost.github_publication_receipt.v0",
+        "evidenceRef": existing_path_value(path),
+        "artifactStatus": if path.exists() { "present" } else { "missing" },
+        "schemaVersion": string_from_json(receipt, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
+        "documentStatus": string_from_json(receipt, &["status"]).unwrap_or_else(|| "missing".to_string()),
+        "bifrostPublicationReceiptId": bifrost_publication_receipt_id.unwrap_or_else(|| "missing".to_string()),
+        "githubPublicationReceiptId": github_publication_receipt_id.unwrap_or_else(|| "missing".to_string()),
+        "ledgerEntryId": ledger_entry_id.unwrap_or_else(|| "missing".to_string()),
+        "creditReceiptCount": credit_receipt_count,
+        "changedPathCount": changed_path_count,
+        "publicationStatus": publication_status,
+        "githubPublicationStatus": github_publication_status,
+        "bifrostLatestMatches": bifrost_latest_matches,
+        "githubLatestMatches": github_latest_matches,
+        "githubLinksBifrost": github_links_bifrost,
+        "publicationAuthorized": publication_authorized,
+        "upstreamMainSynced": !upstream_not_claimed,
+        "mergeAuthorized": !merge_not_claimed,
+        "privateStateExposed": !(private_sealed && bifrost_private_sealed && github_private_sealed),
+        "satisfied": satisfied,
+        "status": if satisfied { "satisfied" } else { "missing" },
+        "note": "Bifrost and GitHub publication receipts are present in repo-local CultMesh and match the repo publish artifact without claiming upstream-main sync.",
+        "readinessApprovalAuthorized": false,
+        "serviceLifecycleAuthority": false,
+        "handsActionAuthorized": false
+    }))
 }
 
 fn idunn_lifecycle_readiness_row(path: &Path) -> Result<Value> {
