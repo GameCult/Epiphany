@@ -224,6 +224,54 @@ fn run_smoke(args: Args) -> Result<Value> {
             "privateStateExposed": false
         }),
     )?;
+    let idunn_lifecycle_fixture = repo
+        .join(".epiphany")
+        .join("work")
+        .join("repo-work-service-audit.json");
+    write_json(
+        &idunn_lifecycle_fixture,
+        &json!({
+            "schemaVersion": "epiphany.repo_work_service_audit.v0",
+            "status": "complete",
+            "serviceId": "epiphany-repo-work-queue-runner",
+            "schedulerId": "epiphany-repo-work-queue-runner",
+            "receiptId": "repo-work-readiness-smoke-idunn-audit",
+            "planStatus": "present",
+            "runbookStatus": "present",
+            "runbookArtifactStatus": "present",
+            "runbookArtifactRef": "artifact://repo-work-readiness-smoke/repo-work-service-runbook.ps1",
+            "runbookSha256": "readiness-smoke-fixture",
+            "launchStatus": "ok",
+            "launchExitCode": 0,
+            "missingChecks": [],
+            "failedChecks": [],
+            "lifecycleOwner": "Idunn",
+            "hostedBody": "repo-work",
+            "mutatesServiceManager": false,
+            "requiresElevatedAuthority": false,
+            "privateStateExposed": false,
+            "nextSafeMove": "continue repo-swarm MVP planner/interpreter hardening"
+        }),
+    )?;
+    let tool_directory = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "tool-directory",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-work-readiness-smoke",
+        ],
+        &root,
+    )?;
+    write_json(
+        &repo
+            .join(".epiphany")
+            .join("work")
+            .join("tool-directory.json"),
+        &tool_directory,
+    )?;
     let readiness = cargo_json(
         &manifest,
         "epiphany-work",
@@ -237,7 +285,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "epiphany.repo_work_readiness.v0",
     )?;
     require_eq(&readiness, &["status"], "not-ready")?;
-    require_u64(&readiness, &["missingRequiredCount"], 4)?;
+    require_u64(&readiness, &["missingRequiredCount"], 2)?;
     require_bool(&readiness, &["authority", "sightOnly"], true)?;
     require_bool(
         &readiness,
@@ -286,9 +334,9 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_row(&readiness, "public-proof", true)?;
     require_row(&readiness, "bifrost-publication", false)?;
     require_row(&readiness, "upstream-main-sync", false)?;
-    require_row(&readiness, "idunn-lifecycle", false)?;
+    require_row(&readiness, "idunn-lifecycle", true)?;
     require_row(&readiness, "deployment-aftercare", true)?;
-    require_row(&readiness, "tool-directory", false)?;
+    require_row(&readiness, "tool-directory", true)?;
     require_row(&readiness, "private-state-redaction", true)?;
 
     let gjallar = cargo_json(

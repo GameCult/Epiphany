@@ -5556,8 +5556,8 @@ fn derive_repo_readiness_review_request_plan(
         "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"".to_string(),
         "bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\"".to_string(),
         "upstream_sync = \"epiphany.repo_work_upstream_sync_receipt.v0\"".to_string(),
-        "idunn_lifecycle = \"epiphany.cultmesh.daemon_service_lifecycle_receipt.v0\"".to_string(),
-        "tool_directory = \"epiphany.cultmesh.daemon_tool_directory_readback.v0\"".to_string(),
+        "idunn_lifecycle = \"epiphany.repo_work_service_audit.v0\"".to_string(),
+        "tool_directory = \"epiphany.cultmesh.daemon_tool_directory.v0\"".to_string(),
         String::new(),
         "[readiness_packet]".to_string(),
         "requires_proof_bundle_ref = true".to_string(),
@@ -8418,8 +8418,8 @@ fn closure_family_assertions(
                     && content.contains(
                         "upstream_sync = \"epiphany.repo_work_upstream_sync_receipt.v0\"",
                     )
-                    && content.contains("idunn_lifecycle = \"epiphany.cultmesh.daemon_service_lifecycle_receipt.v0\"")
-                    && content.contains("tool_directory = \"epiphany.cultmesh.daemon_tool_directory_readback.v0\""),
+                    && content.contains("idunn_lifecycle = \"epiphany.repo_work_service_audit.v0\"")
+                    && content.contains("tool_directory = \"epiphany.cultmesh.daemon_tool_directory.v0\""),
                 "Committed readiness review request names the MVP proof receipt contract."
                     .to_string(),
             );
@@ -12170,21 +12170,22 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             "Published commit is contained by upstream main.",
         )?,
     ];
-    if let Some(path) = args.idunn_lifecycle_receipt.as_ref() {
-        rows.push(readiness_path_row(
-            "idunn-lifecycle",
-            "Idunn",
-            "epiphany.cultmesh.daemon_service_lifecycle_receipt.v0",
-            path,
-            path.exists(),
-            "Idunn lifecycle receipt was supplied for the repo-work pulse.",
-        )?);
+    let default_idunn_lifecycle_receipt = artifact_dir.join("repo-work-service-audit.json");
+    let idunn_lifecycle_path = args.idunn_lifecycle_receipt.as_ref().or_else(|| {
+        if default_idunn_lifecycle_receipt.exists() {
+            Some(&default_idunn_lifecycle_receipt)
+        } else {
+            None
+        }
+    });
+    if let Some(path) = idunn_lifecycle_path {
+        rows.push(idunn_lifecycle_readiness_row(path)?);
     } else {
         rows.push(readiness_missing_row(
             "idunn-lifecycle",
             "Idunn",
-            "epiphany.cultmesh.daemon_service_lifecycle_receipt.v0",
-            "Supply --idunn-lifecycle-receipt after Idunn service audit/readiness proof.",
+            "epiphany.repo_work_service_audit.v0",
+            "Supply --idunn-lifecycle-receipt or run repo-work-service-audit into the repo work artifact directory.",
         ));
     }
     let default_deployment_aftercare_audit_receipt =
@@ -12279,21 +12280,22 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             "Supply --deployment-aftercare-audit-receipt, --deployment-aftercare-audit-receipt-ref, or run deployment-aftercare-audit into the repo work artifact directory.",
         ));
     }
-    if let Some(path) = args.tool_directory_receipt.as_ref() {
-        rows.push(readiness_path_row(
-            "tool-directory",
-            "Odin/Gjallar",
-            "epiphany.cultmesh.daemon_tool_directory_readback.v0",
-            path,
-            path.exists(),
-            "Global daemon tool directory readback was supplied.",
-        )?);
+    let default_tool_directory_receipt = artifact_dir.join("tool-directory.json");
+    let tool_directory_path = args.tool_directory_receipt.as_ref().or_else(|| {
+        if default_tool_directory_receipt.exists() {
+            Some(&default_tool_directory_receipt)
+        } else {
+            None
+        }
+    });
+    if let Some(path) = tool_directory_path {
+        rows.push(tool_directory_readiness_row(path)?);
     } else {
         rows.push(readiness_missing_row(
             "tool-directory",
             "Odin/Gjallar",
-            "epiphany.cultmesh.daemon_tool_directory_readback.v0",
-            "Supply --tool-directory-receipt from the compact daemon tool directory sight rite.",
+            "epiphany.cultmesh.daemon_tool_directory.v0",
+            "Supply --tool-directory-receipt or run tool-directory sight into the repo work artifact directory.",
         ));
     }
     rows.push(json!({
@@ -14174,6 +14176,191 @@ fn readiness_missing_row(kind: &str, owner: &str, required_schema: &str, note: &
         "note": note,
         "privateStateExposed": false
     })
+}
+
+fn idunn_lifecycle_readiness_row(path: &Path) -> Result<Value> {
+    let document = read_json_if_exists(path)?;
+    let schema_version = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["schemaVersion"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let document_status = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["status"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let plan_status = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["planStatus"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let runbook_status = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["runbookStatus"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let runbook_artifact_status = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["runbookArtifactStatus"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let launch_status = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["launchStatus"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let lifecycle_owner = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["lifecycleOwner"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let hosted_body = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["hostedBody"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let private_state_exposed = document
+        .as_ref()
+        .and_then(|value| bool_from_json(value, &["privateStateExposed"]))
+        .unwrap_or(true);
+    let missing_count = document
+        .as_ref()
+        .and_then(|value| value.get("missingChecks"))
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or(usize::MAX);
+    let failed_count = document
+        .as_ref()
+        .and_then(|value| value.get("failedChecks"))
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or(usize::MAX);
+    let satisfied = schema_version == "epiphany.repo_work_service_audit.v0"
+        && document_status == "complete"
+        && plan_status == "present"
+        && runbook_status == "present"
+        && runbook_artifact_status == "present"
+        && launch_status == "ok"
+        && lifecycle_owner == "Idunn"
+        && hosted_body == "repo-work"
+        && document
+            .as_ref()
+            .and_then(|value| bool_from_json(value, &["mutatesServiceManager"]))
+            == Some(false)
+        && document
+            .as_ref()
+            .and_then(|value| bool_from_json(value, &["requiresElevatedAuthority"]))
+            == Some(false)
+        && !private_state_exposed
+        && missing_count == 0
+        && failed_count == 0;
+
+    Ok(json!({
+        "kind": "idunn-lifecycle",
+        "owner": "Idunn",
+        "requiredSchema": "epiphany.repo_work_service_audit.v0",
+        "evidenceRef": existing_path_value(path),
+        "artifactStatus": if path.exists() { "present" } else { "missing" },
+        "schemaVersion": schema_version,
+        "documentStatus": document_status,
+        "planStatus": plan_status,
+        "runbookStatus": runbook_status,
+        "runbookArtifactStatus": runbook_artifact_status,
+        "launchStatus": launch_status,
+        "missingCheckCount": missing_count,
+        "failedCheckCount": failed_count,
+        "lifecycleOwner": lifecycle_owner,
+        "hostedBody": hosted_body,
+        "mutatesServiceManager": document
+            .as_ref()
+            .and_then(|value| bool_from_json(value, &["mutatesServiceManager"]))
+            .unwrap_or(true),
+        "requiresElevatedAuthority": document
+            .as_ref()
+            .and_then(|value| bool_from_json(value, &["requiresElevatedAuthority"]))
+            .unwrap_or(true),
+        "privateStateExposed": private_state_exposed,
+        "satisfied": satisfied,
+        "status": if satisfied { "satisfied" } else { "missing" },
+        "note": "Idunn repo-work service audit proves the queue runner lifecycle path without service-manager mutation.",
+        "serviceLifecycleAuthority": false,
+        "deploymentAuthority": false,
+        "handsActionAuthorized": false
+    }))
+}
+
+fn tool_directory_readiness_row(path: &Path) -> Result<Value> {
+    let document = read_json_if_exists(path)?;
+    let schema_version = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["schemaVersion"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let document_status = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["status"]))
+        .unwrap_or_else(|| "missing".to_string());
+    let tool_count = document
+        .as_ref()
+        .and_then(|value| value.get("toolCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let host_ready_count = document
+        .as_ref()
+        .and_then(|value| value.get("hostReadyCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let host_attention_count = document
+        .as_ref()
+        .and_then(|value| value.get("hostAttentionCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let invariant_all_agents = document
+        .as_ref()
+        .and_then(|value| bool_from_json(value, &["invariants", "availableToAllAgents"]))
+        .unwrap_or(false);
+    let invariant_receipts = document
+        .as_ref()
+        .and_then(|value| bool_from_json(value, &["invariants", "requiresReceipt"]))
+        .unwrap_or(false);
+    let invariant_private = document
+        .as_ref()
+        .and_then(|value| bool_from_json(value, &["invariants", "privateStateExposed"]))
+        .unwrap_or(true);
+    let has_invoke_command = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["invocationCommand"]))
+        .is_some_and(|command| command.contains("invoke-tool"));
+    let has_wrapper_command = document
+        .as_ref()
+        .and_then(|value| string_from_json(value, &["wrapperInvocationCommand"]))
+        .is_some_and(|command| command.contains("tool-invoke"));
+    let satisfied = schema_version == "epiphany.cultmesh.daemon_tool_directory.v0"
+        && document_status == "ok"
+        && tool_count > 0
+        && host_ready_count > 0
+        && host_attention_count == 0
+        && invariant_all_agents
+        && invariant_receipts
+        && !invariant_private
+        && has_invoke_command
+        && has_wrapper_command;
+
+    Ok(json!({
+        "kind": "tool-directory",
+        "owner": "Odin/Gjallar",
+        "requiredSchema": "epiphany.cultmesh.daemon_tool_directory.v0",
+        "evidenceRef": existing_path_value(path),
+        "artifactStatus": if path.exists() { "present" } else { "missing" },
+        "schemaVersion": schema_version,
+        "documentStatus": document_status,
+        "toolCount": tool_count,
+        "hostReadyCount": host_ready_count,
+        "hostAttentionCount": host_attention_count,
+        "availableToAllAgents": invariant_all_agents,
+        "requiresReceipt": invariant_receipts,
+        "hasInvocationCommand": has_invoke_command,
+        "hasWrapperInvocationCommand": has_wrapper_command,
+        "privateStateExposed": invariant_private,
+        "satisfied": satisfied,
+        "status": if satisfied { "satisfied" } else { "missing" },
+        "note": "Odin/Gjallar tool-directory sight proves globally available daemon-hosted tools through typed intents and receipts.",
+        "toolExecutionAuthority": false,
+        "serviceLifecycleAuthority": false,
+        "privateVerseRummagingAuthorized": false
+    }))
 }
 
 fn safe_family_planning_readiness_row(
