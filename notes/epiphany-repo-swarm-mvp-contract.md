@@ -1369,16 +1369,20 @@ readback only, not a scheduler, publisher, merge gate, deployment actor, daemon
 keeper, or Mind admission path.
 
 The wrapper mouth now forwards those Rust-owned repo-work map rows instead of
-making agents parse JSON artifacts: live wrapper proofs
-`local-20260621-004816-315-24fe14d4` (`gjallar`) and
-`local-20260621-004815-947-b647d7a9` (`swarm-triage`) print
+making agents parse JSON artifacts. `tools/epiphany_local_run.ps1` accepts
+`-LocalVerseStore` and `-LocalVerseRuntimeId`, keeps operator run
+intent/receipt writes in the operator local Verse, and points `gjallar` /
+`swarm-triage` readback at the explicit repo-local Verse store. Live wrapper
+proofs `local-20260621-011151-541-70056545` (`gjallar`) and
+`local-20260621-011207-755-d65e5c7e` (`swarm-triage`) read the
+`repo-planning-brief-family-smoke` repo store and printed actual
 `repoWorkMapRows`, `repoWorkSemanticRows`, `repoWorkFamilyLensRows`,
-`repoWorkPathLensRows`, `repoWorkBranchLensRows`, `repoWorkStageLensRows`,
-`repoWorkGateLensRows`, `repoWorkOverviewRows`, and
-`repoWorkPublicProofRows` in the one-line operator summary. The live store had
-no repo-work rows, so each field rendered `none`, but the agent-friendly mouth
-now exposes the row families whenever local Verse has accepted work. PowerShell
-does not reinterpret the rows; it only lowers existing Rust TUI arrays.
+`repoWorkPathLensRows`, `repoWorkBranchLensRows`, `repoWorkStageLensRows`, and
+`repoWorkGateLensRows` in the one-line operator summary. Earlier wrapper proofs
+with no explicit repo-local store rendered `none`; that was a targeting wound,
+not absence of accepted repo-work. PowerShell does not reinterpret the rows or
+own schema registration; it only lowers existing Rust TUI arrays while leaving
+repo-work truth in the repo-local CultMesh store.
 
 `epiphany-work overview` is the first compact repo work sight/proof surface:
 

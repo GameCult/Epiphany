@@ -3,6 +3,9 @@ param(
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
+    [Alias("LocalVerseStore")]
+    [string]$LocalVerseStoreOverride = "",
+    [string]$LocalVerseRuntimeId = "epiphany-local",
     [string]$ThreadId = "",
     [string]$CodexHome = "",
     [string]$TargetDir = "C:\Users\Meta\.cargo-target-codex",
@@ -321,6 +324,17 @@ if (Test-Path -LiteralPath $userCargoExe) {
     $cargoExe = $userCargoExe
 }
 $localVerseStore = Join-Path $Root ".epiphany-run\cultmesh\local-verse.ccmp"
+$localVerseReadStore = $localVerseStore
+if ($LocalVerseStoreOverride -ne "") {
+    $localVerseParent = Split-Path -Parent $LocalVerseStoreOverride
+    if ($localVerseParent -ne "" -and (Test-Path -LiteralPath $localVerseParent)) {
+        $localVerseReadStore = Join-Path (Resolve-Path $localVerseParent).Path (Split-Path -Leaf $LocalVerseStoreOverride)
+    } elseif (Test-Path -LiteralPath $LocalVerseStoreOverride) {
+        $localVerseReadStore = (Resolve-Path $LocalVerseStoreOverride).Path
+    } else {
+        $localVerseReadStore = $LocalVerseStoreOverride
+    }
+}
 $repoLocalVerseStore = Join-Path $Workspace ".epiphany\local-verse.ccmp"
 $operatorRunStore = $localVerseStore
 $operatorSnapshotStore = $localVerseStore
@@ -403,7 +417,7 @@ function Assert-SwarmBrakeAllowsLiveRun {
             -Arguments @(
                 "seed",
                 "--store", $localVerseStore,
-                "--runtime-id", "epiphany-local"
+                "--runtime-id", $LocalVerseRuntimeId
             ) `
             -WorkingDirectory $Root `
             -StdoutPath (Join-Path $artifactRoot "swarm-brake-preflight-seed.stdout.json") `
@@ -416,7 +430,7 @@ function Assert-SwarmBrakeAllowsLiveRun {
         -Arguments @(
             "query",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $brakeContextPath `
@@ -513,7 +527,7 @@ function Write-AgentStateSoaToLocalVerse {
         -Arguments @(
             "agent-state",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local",
+            "--runtime-id", $LocalVerseRuntimeId,
             "--agent-store", $agentStore
         ) `
         -WorkingDirectory $Root `
@@ -528,7 +542,7 @@ $noEphemeralValue = $effectiveNoEphemeral.ToString().ToLowerInvariant()
 $operatorRunIntentArgs = @(
     "intent",
     "--store", $operatorRunStore,
-    "--runtime-id", "epiphany-local",
+    "--runtime-id", $LocalVerseRuntimeId,
     "--run-id", $runId,
     "--mode", $Mode,
     "--root", $Root,
@@ -564,7 +578,7 @@ if ($shouldReadLocalVerse -and $Mode -ne "status" -and $Mode -ne "mvp") {
         -Arguments @(
             "seed-compact",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "local-verse-seed.stdout.json") `
@@ -601,7 +615,7 @@ if ($Mode -eq "status" -or $Mode -eq "mvp") {
         -Arguments @(
             "seed-compact",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "local-verse-seed.stdout.json") `
@@ -614,7 +628,7 @@ if ($Mode -eq "status" -or $Mode -eq "mvp") {
             -Arguments @(
                 "from-status",
                 "--store", $operatorSnapshotStore,
-                "--runtime-id", "epiphany-local",
+                "--runtime-id", $LocalVerseRuntimeId,
                 "--snapshot-id", $operatorSnapshotId,
                 "--source-mode", "status",
                 "--input", $statusJson
@@ -634,7 +648,7 @@ if ($Mode -eq "agent-state-soa") {
         -Arguments @(
             "agent-state-report",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -649,7 +663,7 @@ if ($Mode -eq "swarm-poke-down") {
         -Arguments @(
             "poke-down-daemons",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -663,8 +677,8 @@ if ($Mode -eq "swarm-triage") {
         -FilePath $verseQueryExe `
         -Arguments @(
             "swarm-triage",
-            "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--store", $localVerseReadStore,
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -679,7 +693,7 @@ if ($Mode -eq "swarm-status") {
         -Arguments @(
             "swarm-status",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -694,7 +708,7 @@ if ($Mode -eq "cluster-topology") {
         -Arguments @(
             "cluster-topology",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -709,7 +723,7 @@ if ($Mode -eq "eve-surfaces") {
         -Arguments @(
             "eve-surfaces",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -721,7 +735,7 @@ if ($Mode -eq "eve-connect") {
     $connectArgs = @(
         "connect-eve",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local"
+        "--runtime-id", $LocalVerseRuntimeId
     )
     if ($EveAdvertisementId -ne "") {
         $connectArgs += @("--advertisement-id", $EveAdvertisementId)
@@ -744,7 +758,7 @@ if ($Mode -eq "collaboration-feedback") {
         -Arguments @(
             "connect-eve",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local",
+            "--runtime-id", $LocalVerseRuntimeId,
             "--target-cluster-id", $EveTargetClusterId
         ) `
         -WorkingDirectory $Root `
@@ -758,7 +772,7 @@ if ($Mode -eq "collaboration-feedback") {
         -Arguments @(
             "collaboration-feedback",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local",
+            "--runtime-id", $LocalVerseRuntimeId,
             "--eve-connection-receipt-id", "eve-connection-receipt",
             "--collaboration-topic", $CollaborationTopic,
             "--feedback-summary", $CollaborationFeedbackSummary,
@@ -777,7 +791,7 @@ if ($Mode -eq "bifrost-publication") {
         -Arguments @(
             "bifrost-publication",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local",
+            "--runtime-id", $LocalVerseRuntimeId,
             "--target-repository", $BifrostTargetRepository,
             "--target-branch", $BifrostTargetBranch,
             "--change-summary", $BifrostChangeSummary,
@@ -860,7 +874,7 @@ if ($Mode -eq "bifrost-ledger") {
         -Arguments @(
             "bifrost-ledger",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -875,7 +889,7 @@ if ($Mode -eq "receipt-directory") {
         -Arguments @(
             "receipt-directory",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -890,7 +904,7 @@ if ($Mode -eq "tool-directory") {
         -Arguments @(
             "tool-directory",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -902,7 +916,7 @@ if ($Mode -eq "tool-invoke") {
     $toolInvokeArgs = @(
         "invoke-tool",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--capability-id", $ToolCapabilityId,
         "--requesting-agent-id", $ToolRequestingAgentId,
         "--source-cluster-id", $ToolRequestingClusterId
@@ -936,8 +950,8 @@ if ($Mode -eq "swarm-overview" -or $Mode -eq "gjallar") {
         -FilePath $verseQueryExe `
         -Arguments @(
             $overviewCommand,
-            "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--store", $localVerseReadStore,
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -959,7 +973,7 @@ if ($Mode -eq "swarm-online-runbook") {
         -Arguments @(
             "swarm-overview",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $overviewPath `
@@ -1152,7 +1166,7 @@ if ($Mode -eq "swarm-online-runbook") {
         status = "ok"
         preflightStatus = $preflightStatus
         store = $localVerseStore
-        runtimeId = "epiphany-local"
+        runtimeId = $LocalVerseRuntimeId
         runbookPath = $runbookPath
         artifactSha256 = $runbookSha256
         elevatedCommand = $elevatedCommand
@@ -1188,7 +1202,7 @@ if ($Mode -eq "service-policy-directory") {
         -Arguments @(
             "service-policy-directory",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -1200,7 +1214,7 @@ if ($Mode -eq "service-plan") {
     $planArgs = @(
         "service-plan",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId,
@@ -1223,7 +1237,7 @@ if ($Mode -eq "service-launch") {
     $launchArgs = @(
         "service-launch",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId,
@@ -1247,7 +1261,7 @@ if ($Mode -eq "service-runbook") {
     $runbookArgs = @(
         "service-runbook",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId,
@@ -1276,7 +1290,7 @@ if ($Mode -eq "cluster-service-runbook") {
     $runbookArgs = @(
         "cluster-service-runbook",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $clusterServiceId,
@@ -1307,7 +1321,7 @@ if ($Mode -eq "cluster-service-install-plan" -or $Mode -eq "cluster-service-inst
     $installArgs = @(
         "cluster-service-install-plan",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $clusterServiceId,
@@ -1346,7 +1360,7 @@ if ($Mode -eq "cluster-service-audit") {
     $auditArgs = @(
         "cluster-service-audit",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $clusterServiceId
@@ -1377,7 +1391,7 @@ if ($Mode -eq "cluster-service-start-plan" -or $Mode -eq "cluster-service-stop-p
     $controlArgs = @(
         "cluster-service-$control",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $clusterServiceId
@@ -1503,7 +1517,7 @@ if ($Mode -eq "cluster-service-execution-runbook") {
     $runbookReceiptArgs = @(
         "cluster-service-execution-runbook",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $clusterServiceId,
@@ -1530,7 +1544,7 @@ if ($Mode -eq "cluster-service-execution-readiness") {
     $readinessArgs = @(
         "cluster-service-execution-readiness",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $clusterServiceId
@@ -1559,7 +1573,7 @@ if ($Mode -eq "cluster-service-execution-audit") {
     $auditArgs = @(
         "cluster-service-execution-audit",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $clusterServiceId
@@ -1666,7 +1680,7 @@ if ($Mode -eq "service-execution-runbook") {
     $runbookReceiptArgs = @(
         "service-execution-runbook",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId,
@@ -1697,7 +1711,7 @@ if ($Mode -eq "service-install-plan" -or $Mode -eq "service-install-execute") {
     $installArgs = @(
         "windows-service-install",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId,
@@ -1731,7 +1745,7 @@ if ($Mode -eq "service-status") {
     $statusArgs = @(
         "windows-service-status",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId
@@ -1756,7 +1770,7 @@ if ($Mode -eq "service-tick") {
         -Arguments @(
             "tick",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local",
+            "--runtime-id", $LocalVerseRuntimeId,
             "--daemon-id", $DaemonId,
             "--scheduler-id", $SchedulerId
         ) `
@@ -1770,7 +1784,7 @@ if ($Mode -eq "service-reconcile") {
     $reconcileArgs = @(
         "windows-service-reconcile",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId,
@@ -1793,7 +1807,7 @@ if ($Mode -eq "service-execution-readiness") {
     $readinessArgs = @(
         "windows-service-execution-readiness",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId
@@ -1815,7 +1829,7 @@ if ($Mode -eq "service-execution-audit") {
     $auditArgs = @(
         "windows-service-execution-audit",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId
@@ -1839,7 +1853,7 @@ if ($Mode -eq "service-start-plan" -or $Mode -eq "service-stop-plan" -or $Mode -
     $controlArgs = @(
         "windows-service-$control",
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $SchedulerId,
         "--service-id", $ServiceId
@@ -1959,7 +1973,7 @@ if ($Mode -eq "repo-work-service-plan" -or $Mode -eq "repo-work-service-runbook"
 
     $serviceCommandArgs = @(
         "--store", $localVerseStore,
-        "--runtime-id", "epiphany-local",
+        "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
         "--scheduler-id", $repoWorkSchedulerId,
         "--service-id", $repoWorkServiceId,
@@ -2067,7 +2081,7 @@ if ($Mode -eq "mvp") {
             "bubble",
             "--artifact-dir", $PersonaArtifactDir,
             "--cultmesh-store", $localVerseStore,
-            "--runtime-id", "epiphany-local",
+            "--runtime-id", $LocalVerseRuntimeId,
             "--content", $PersonaInput,
             "--source", "epiphany/local-mvp",
             "--status", "ready",
@@ -2126,7 +2140,7 @@ if (($Mode -eq "plan" -or $liveRuntimeMode) -and (Test-Path -LiteralPath $coordi
         -Arguments @(
             "coordinator-receipt",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local",
+            "--runtime-id", $LocalVerseRuntimeId,
             "--run-id", $runId,
             "--artifact-root", (Join-Path $dogfoodRoot "coordinator"),
             "--coordinator-summary", $coordinatorSummaryPath,
@@ -2196,6 +2210,8 @@ $summary = @"
 - operatorSnapshotStore: $operatorSnapshotStore
 - localVerseBinary: $verseQueryExe
 - localVerseStore: $localVerseStore
+- localVerseReadStore: $localVerseReadStore
+- localVerseRuntimeId: $LocalVerseRuntimeId
 - coordinatorBinary: $coordinatorExe
 - runtimeStore: $runtimeStore
 - modelRuntimeBinary: $modelRuntimeExe
@@ -2768,7 +2784,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
 $operatorRunReceiptArgs = @(
     "receipt",
     "--store", $operatorRunStore,
-    "--runtime-id", "epiphany-local",
+    "--runtime-id", $LocalVerseRuntimeId,
     "--run-id", $runId,
     "--mode", $Mode,
     "--status", "completed",
@@ -2794,7 +2810,7 @@ if ($shouldReadLocalVerse) {
         -Arguments @(
             "query",
             "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
+            "--runtime-id", $LocalVerseRuntimeId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "local-verse-context.json") `
