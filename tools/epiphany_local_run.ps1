@@ -58,6 +58,7 @@ param(
     [string]$RepoSwarmMvpFreshRepoSummaryPath = "",
     [string]$RepoSwarmMvpReadinessSummaryPath = "",
     [string]$RepoSwarmMvpBifrostAccountingSummaryPath = "",
+    [string]$RepoSwarmMvpDeploymentHandoffSummaryPath = "",
     [string]$RepoSwarmMvpDaemonSurvivalSummaryPath = "",
     [string]$ToolCapabilityId = "epiphany.cluster.hands.tool.repo-action",
     [string]$ToolRequestingAgentId = "epiphany.Persona",
@@ -1010,6 +1011,9 @@ if ($Mode -eq "repo-swarm-mvp-gate") {
     }
     if ($RepoSwarmMvpBifrostAccountingSummaryPath -ne "") {
         $gateArgs += @("--bifrost-accounting-summary", $RepoSwarmMvpBifrostAccountingSummaryPath)
+    }
+    if ($RepoSwarmMvpDeploymentHandoffSummaryPath -ne "") {
+        $gateArgs += @("--deployment-handoff-summary", $RepoSwarmMvpDeploymentHandoffSummaryPath)
     }
     if ($RepoSwarmMvpDaemonSurvivalSummaryPath -ne "") {
         $gateArgs += @("--daemon-survival-summary", $RepoSwarmMvpDaemonSurvivalSummaryPath)
