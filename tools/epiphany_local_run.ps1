@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "bifrost-publication", "bifrost-public-proof", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-readiness", "repo-work-readiness-review", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "swarm-online-runbook", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-readiness", "repo-work-readiness-review", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "swarm-online-runbook", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -44,6 +44,15 @@ param(
     [string]$BifrostPublicProofCreditReceipt = "credit-public-proof-local-proof",
     [string]$BifrostPublicProofRoomId = "epiphany-global/repo-work/public-proofs",
     [string]$BifrostPublicProofPublicationUrl = "",
+    [string]$BifrostArtifactRef = "artifact://epiphany/local-proof",
+    [string]$BifrostArtifactAcceptanceReceiptId = "",
+    [string]$BifrostArtifactAcceptanceReviewReceipt = "artifact-acceptance-review-local-proof",
+    [string]$BifrostArtifactAcceptedBy = "Maintainer/Bifrost",
+    [string]$BifrostMetricsReceiptId = "",
+    [string]$BifrostModelSpendReceipt = "model-spend-local-proof",
+    [string]$BifrostReviewLoadReceipt = "review-load-local-proof",
+    [string]$BifrostCreditReadbackReceipt = "credit-readback-local-proof",
+    [string]$BifrostMetricsSummary = "model spend, review load, accepted artifact, and credit readback recorded",
     [string]$ToolCapabilityId = "epiphany.cluster.hands.tool.repo-action",
     [string]$ToolRequestingAgentId = "epiphany.Persona",
     [string]$ToolRequestingClusterId = "epiphany.cluster.persona",
@@ -365,7 +374,7 @@ $runtimeStore = Join-Path $Workspace "state\runtime-spine.msgpack"
 $liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
-    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-readiness-review" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
+    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-readiness-review" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
         Invoke-Checked `
             -Label "build Codex app-server compatibility organ" `
             -FilePath $cargoExe `
@@ -422,7 +431,7 @@ if (-not $SkipBuild) {
 }
 
 $requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQueryExe, $swarmExe, $repoWorkExe, $daemonSupervisorExe, $handsActionExe)
-if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-readiness-review" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
+if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-readiness-review" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
 }
 function Assert-SwarmBrakeAllowsLiveRun {
@@ -585,7 +594,7 @@ Invoke-Checked `
     -StdoutPath (Join-Path $artifactRoot "operator-run-intent.stdout.json") `
     -StderrPath (Join-Path $artifactRoot "operator-run-intent.stderr.log")
 
-$compactReadOnlyModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "bifrost-publication", "bifrost-public-proof", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "swarm-online-runbook", "service-policy-directory")
+$compactReadOnlyModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "swarm-online-runbook", "service-policy-directory")
 $isCompactReadOnlyMode = $compactReadOnlyModes -contains $Mode
 $shouldReadLocalVerse = $Mode -ne "smoke" -and -not $isCompactReadOnlyMode
 if ($shouldReadLocalVerse -and $Mode -ne "status" -and $Mode -ne "mvp") {
@@ -881,6 +890,75 @@ if ($Mode -eq "bifrost-public-proof") {
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
         -StderrPath (Join-Path $artifactRoot "bifrost-public-proof.stderr.log")
+}
+
+if ($Mode -eq "bifrost-artifact-acceptance") {
+    $resultPath = Join-Path $artifactRoot "bifrost-artifact-acceptance.stdout.json"
+    if (-not (Test-Path -LiteralPath $repoLocalVerseStore)) {
+        throw "repo-local Verse store not found for Bifrost artifact acceptance: $repoLocalVerseStore"
+    }
+    $receiptArgs = @(
+        "bifrost-artifact-acceptance",
+        "--store", $repoLocalVerseStore,
+        "--runtime-id", $RepoWorkRuntimeId,
+        "--artifact-ref", $BifrostArtifactRef,
+        "--ledger-entry-id", $BifrostLedgerEntryId,
+        "--review-receipt", $BifrostArtifactAcceptanceReviewReceipt,
+        "--source-agent-id", $BifrostArtifactAcceptedBy
+    )
+    if ($BifrostArtifactAcceptanceReceiptId -ne "") {
+        $receiptArgs += @("--receipt-id", $BifrostArtifactAcceptanceReceiptId)
+    }
+    if ($BifrostPublicProofId -ne "") {
+        $receiptArgs += @("--public-proof-ref", $BifrostPublicProofId)
+    } elseif ($RepoWorkPublicProof -ne "") {
+        $receiptArgs += @("--public-proof-ref", $RepoWorkPublicProof)
+    } else {
+        $receiptArgs += @("--public-proof-ref", "repo-work-public-proof:latest")
+    }
+    Invoke-Checked `
+        -Label "record Bifrost artifact acceptance receipt" `
+        -FilePath $verseQueryExe `
+        -Arguments $receiptArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "bifrost-artifact-acceptance.stderr.log")
+}
+
+if ($Mode -eq "bifrost-metrics") {
+    $resultPath = Join-Path $artifactRoot "bifrost-metrics.stdout.json"
+    if (-not (Test-Path -LiteralPath $repoLocalVerseStore)) {
+        throw "repo-local Verse store not found for Bifrost metrics: $repoLocalVerseStore"
+    }
+    $receiptArgs = @(
+        "bifrost-metrics",
+        "--store", $repoLocalVerseStore,
+        "--runtime-id", $RepoWorkRuntimeId,
+        "--model-spend-receipt", $BifrostModelSpendReceipt,
+        "--review-load-receipt", $BifrostReviewLoadReceipt,
+        "--credit-receipt", $BifrostCreditReadbackReceipt,
+        "--metrics-summary", $BifrostMetricsSummary
+    )
+    if ($BifrostMetricsReceiptId -ne "") {
+        $receiptArgs += @("--receipt-id", $BifrostMetricsReceiptId)
+    }
+    if ($BifrostArtifactAcceptanceReceiptId -ne "") {
+        $receiptArgs += @("--accepted-artifact-receipt-id", $BifrostArtifactAcceptanceReceiptId)
+    }
+    if ($BifrostPublicProofId -ne "") {
+        $receiptArgs += @("--public-proof-ref", $BifrostPublicProofId)
+    } elseif ($RepoWorkPublicProof -ne "") {
+        $receiptArgs += @("--public-proof-ref", $RepoWorkPublicProof)
+    } else {
+        $receiptArgs += @("--public-proof-ref", "repo-work-public-proof:latest")
+    }
+    Invoke-Checked `
+        -Label "record Bifrost metrics receipt" `
+        -FilePath $verseQueryExe `
+        -Arguments $receiptArgs `
+        -WorkingDirectory $Root `
+        -StdoutPath $resultPath `
+        -StderrPath (Join-Path $artifactRoot "bifrost-metrics.stderr.log")
 }
 
 if ($Mode -eq "bifrost-ledger") {
@@ -2458,6 +2536,26 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Bifrost publication: status=$($result.status), intent=$($result.intentId), publication=$($result.publicationReceiptId), github=$($result.githubPublicationReceiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-public-proof") {
             Write-Host "Bifrost public proof: status=$($result.status), proof=$($result.publicProofId), receipt=$($result.receiptId), ledger=$($result.ledgerEntryId), public=$($result.publicationUrl), privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "bifrost-artifact-acceptance") {
+            $changedPaths = "none"
+            if ($null -ne $result.changedPaths -and $result.changedPaths.Count -gt 0) {
+                $changedPaths = ($result.changedPaths -join ",")
+            }
+            Write-Host "Bifrost artifact acceptance: status=$($result.status), item=$($result.item), receipt=$($result.receiptId), artifact=$($result.artifactRef), publicProof=$($result.publicProofRef), changedPaths=$changedPaths, privateStateExposed=$($result.privateStateExposed)"
+        } elseif ($Mode -eq "bifrost-metrics") {
+            $modelSpend = "none"
+            if ($null -ne $result.modelSpendReceiptIds -and $result.modelSpendReceiptIds.Count -gt 0) {
+                $modelSpend = ($result.modelSpendReceiptIds -join ",")
+            }
+            $reviewLoad = "none"
+            if ($null -ne $result.reviewLoadReceiptIds -and $result.reviewLoadReceiptIds.Count -gt 0) {
+                $reviewLoad = ($result.reviewLoadReceiptIds -join ",")
+            }
+            $creditReadback = "none"
+            if ($null -ne $result.creditReadbackReceiptIds -and $result.creditReadbackReceiptIds.Count -gt 0) {
+                $creditReadback = ($result.creditReadbackReceiptIds -join ",")
+            }
+            Write-Host "Bifrost metrics: status=$($result.status), item=$($result.item), receipt=$($result.receiptId), artifactAcceptance=$($result.artifactAcceptanceReceiptId), modelSpend=$modelSpend, reviewLoad=$reviewLoad, creditReadback=$creditReadback, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-ledger") {
             $ledgerRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
@@ -2477,7 +2575,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                     "$($_.documentKind)=${publicRef}"
                 }) -join "; ")
             }
-            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), collaborationChain=$($result.collaborationChainCount), accountingRows=$($result.accountingRowCount), closedAccounting=$($result.closedAccountingRowCount), attentionAccounting=$($result.attentionAccountingRowCount), publicRefs=$publicRefs, accounting=$accountingRows, ledgerRows=$ledgerRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), publicProofPublications=$($result.publicProofPublicationCount), artifactAcceptance=$($result.artifactAcceptanceReceiptCount), metrics=$($result.metricsReceiptCount), collaborationChain=$($result.collaborationChainCount), accountingRows=$($result.accountingRowCount), closedAccounting=$($result.closedAccountingRowCount), attentionAccounting=$($result.attentionAccountingRowCount), publicRefs=$publicRefs, accounting=$accountingRows, ledgerRows=$ledgerRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "receipt-directory") {
             $artifactHashes = "none"
             $attentionRoutes = "none"

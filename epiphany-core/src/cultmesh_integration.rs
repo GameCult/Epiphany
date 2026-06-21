@@ -236,6 +236,17 @@ pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERS
     "gamecult.bifrost.public_proof_publication_receipt.v0";
 pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY: &str =
     "gamecult-local/bifrost/public-proof-publication-receipt/latest";
+pub const EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_TYPE: &str =
+    "gamecult.bifrost.artifact_acceptance_receipt";
+pub const EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.bifrost.artifact_acceptance_receipt.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_LATEST_KEY: &str =
+    "gamecult-local/bifrost/artifact-acceptance-receipt/latest";
+pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_TYPE: &str = "gamecult.bifrost.metrics_receipt";
+pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION: &str =
+    "gamecult.bifrost.metrics_receipt.v0";
+pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_LATEST_KEY: &str =
+    "gamecult-local/bifrost/metrics-receipt/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE: &str =
     "gamecult.bifrost.collaboration_feedback";
 pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION: &str =
@@ -2230,6 +2241,80 @@ pub struct EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
+    type = "gamecult.bifrost.artifact_acceptance_receipt",
+    schema = "EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry"
+)]
+pub struct EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub item: String,
+    #[cultcache(key = 3)]
+    pub source_workspace: String,
+    #[cultcache(key = 4)]
+    pub source_branch: String,
+    #[cultcache(key = 5)]
+    pub commit_sha: String,
+    #[cultcache(key = 6)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 7)]
+    pub artifact_ref: String,
+    #[cultcache(key = 8)]
+    pub public_proof_ref: String,
+    #[cultcache(key = 9)]
+    pub maintainer_review_receipt_ids: Vec<String>,
+    #[cultcache(key = 10)]
+    pub bifrost_ledger_entry_id: String,
+    #[cultcache(key = 11)]
+    pub status: String,
+    #[cultcache(key = 12)]
+    pub accepted_by: String,
+    #[cultcache(key = 13)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 14)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.bifrost.metrics_receipt",
+    schema = "EpiphanyCultMeshBifrostMetricsReceiptEntry"
+)]
+pub struct EpiphanyCultMeshBifrostMetricsReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub item: String,
+    #[cultcache(key = 3)]
+    pub source_workspace: String,
+    #[cultcache(key = 4)]
+    pub source_branch: String,
+    #[cultcache(key = 5)]
+    pub artifact_acceptance_receipt_id: String,
+    #[cultcache(key = 6)]
+    pub model_spend_receipt_ids: Vec<String>,
+    #[cultcache(key = 7)]
+    pub review_load_receipt_ids: Vec<String>,
+    #[cultcache(key = 8)]
+    pub credit_readback_receipt_ids: Vec<String>,
+    #[cultcache(key = 9)]
+    pub public_proof_ref: String,
+    #[cultcache(key = 10)]
+    pub metrics_summary: String,
+    #[cultcache(key = 11)]
+    pub status: String,
+    #[cultcache(key = 12)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 13)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
     type = "gamecult.bifrost.collaboration_feedback",
     schema = "EpiphanyCultMeshBifrostCollaborationFeedbackEntry"
 )]
@@ -2435,6 +2520,8 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostGithubPublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry => EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshBifrostMetricsReceiptEntry => EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostCollaborationFeedbackEntry => EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION,
     EpiphanyCultMeshImaginationConsensusReceiptEntry => EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION,
 });
@@ -4267,6 +4354,126 @@ pub fn load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
     node.get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn epiphany_cultmesh_bifrost_artifact_acceptance_receipt_for_map_entry(
+    receipt_id: impl Into<String>,
+    map_entry: &EpiphanyCultMeshRepoWorkMapEntry,
+    artifact_ref: impl Into<String>,
+    public_proof_ref: impl Into<String>,
+    maintainer_review_receipt_ids: Vec<String>,
+    bifrost_ledger_entry_id: impl Into<String>,
+    status: impl Into<String>,
+    accepted_by: impl Into<String>,
+) -> EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry {
+    EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_SCHEMA_VERSION
+            .to_string(),
+        receipt_id: receipt_id.into(),
+        item: map_entry.item.clone(),
+        source_workspace: map_entry.workspace.clone(),
+        source_branch: map_entry.branch.clone(),
+        commit_sha: map_entry.commit_sha.clone(),
+        changed_paths: map_entry.changed_paths.clone(),
+        artifact_ref: artifact_ref.into(),
+        public_proof_ref: public_proof_ref.into(),
+        maintainer_review_receipt_ids,
+        bifrost_ledger_entry_id: bifrost_ledger_entry_id.into(),
+        status: status.into(),
+        accepted_by: accepted_by.into(),
+        private_state_exposed: false,
+        notes: vec![
+            "Bifrost artifact acceptance receipt closes accepted-artifact accounting for Mind-admitted branch work.".to_string(),
+            "This receipt carries artifact, review, ledger, commit, and path refs only; private worker/operator/agent state remains sealed.".to_string(),
+            "Repo-work request cargo may ask for this receipt, but Bifrost/Maintainer owns acceptance.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry,
+) -> Result<EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry> {
+    validate_bifrost_artifact_acceptance_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key =
+        epiphany_cultmesh_bifrost_artifact_acceptance_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_LATEST_KEY)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn epiphany_cultmesh_bifrost_metrics_receipt_for_map_entry(
+    receipt_id: impl Into<String>,
+    map_entry: &EpiphanyCultMeshRepoWorkMapEntry,
+    artifact_acceptance_receipt_id: impl Into<String>,
+    model_spend_receipt_ids: Vec<String>,
+    review_load_receipt_ids: Vec<String>,
+    credit_readback_receipt_ids: Vec<String>,
+    public_proof_ref: impl Into<String>,
+    metrics_summary: impl Into<String>,
+    status: impl Into<String>,
+) -> EpiphanyCultMeshBifrostMetricsReceiptEntry {
+    EpiphanyCultMeshBifrostMetricsReceiptEntry {
+        schema_version: EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: receipt_id.into(),
+        item: map_entry.item.clone(),
+        source_workspace: map_entry.workspace.clone(),
+        source_branch: map_entry.branch.clone(),
+        artifact_acceptance_receipt_id: artifact_acceptance_receipt_id.into(),
+        model_spend_receipt_ids,
+        review_load_receipt_ids,
+        credit_readback_receipt_ids,
+        public_proof_ref: public_proof_ref.into(),
+        metrics_summary: metrics_summary.into(),
+        status: status.into(),
+        private_state_exposed: false,
+        notes: vec![
+            "Bifrost metrics receipt closes model-spend, review-load, accepted-artifact, and credit-readback accounting for branch work.".to_string(),
+            "Metrics are operator-safe refs and summaries, not private worker transcripts or raw model streams.".to_string(),
+            "Repo-work request cargo may ask for this receipt, but Bifrost/Maintainer owns accounting.".to_string(),
+        ],
+    }
+}
+
+pub fn write_epiphany_cultmesh_bifrost_metrics_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt: EpiphanyCultMeshBifrostMetricsReceiptEntry,
+) -> Result<EpiphanyCultMeshBifrostMetricsReceiptEntry> {
+    validate_bifrost_metrics_receipt(&receipt)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_bifrost_metrics_receipt_key(&receipt.receipt_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(
+        EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_LATEST_KEY,
+        &written,
+    )?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_bifrost_metrics_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshBifrostMetricsReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_LATEST_KEY)
+}
+
 pub fn epiphany_cultmesh_bifrost_collaboration_feedback(
     feedback_id: impl Into<String>,
     source_persona_id: impl Into<String>,
@@ -4537,6 +4744,115 @@ fn validate_bifrost_public_proof_publication_receipt(
     if receipt.reviewer_ids.is_empty() {
         return Err(anyhow!(
             "Bifrost public proof publication receipts require reviewer receipts"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_bifrost_artifact_acceptance_receipt(
+    receipt: &EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry,
+) -> Result<()> {
+    if receipt.schema_version
+        != EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_SCHEMA_VERSION
+    {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require schema version {}",
+            EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_SCHEMA_VERSION
+        ));
+    }
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts must not expose private state"
+        ));
+    }
+    if receipt.item.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require an item"
+        ));
+    }
+    if receipt.artifact_ref.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require an artifact ref"
+        ));
+    }
+    if receipt.public_proof_ref.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require a public proof ref"
+        ));
+    }
+    if receipt.commit_sha.trim().is_empty() || receipt.commit_sha == "none" {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require a commit SHA"
+        ));
+    }
+    if receipt.changed_paths.is_empty() {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require changed paths"
+        ));
+    }
+    if receipt.maintainer_review_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require maintainer review receipts"
+        ));
+    }
+    if receipt.bifrost_ledger_entry_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require a ledger entry"
+        ));
+    }
+    if receipt.accepted_by.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost artifact acceptance receipts require an accepted-by authority"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_bifrost_metrics_receipt(
+    receipt: &EpiphanyCultMeshBifrostMetricsReceiptEntry,
+) -> Result<()> {
+    if receipt.schema_version != EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require schema version {}",
+            EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION
+        ));
+    }
+    if receipt.private_state_exposed {
+        return Err(anyhow!(
+            "Bifrost metrics receipts must not expose private state"
+        ));
+    }
+    if receipt.item.trim().is_empty() {
+        return Err(anyhow!("Bifrost metrics receipts require an item"));
+    }
+    if receipt.artifact_acceptance_receipt_id.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require an artifact acceptance receipt"
+        ));
+    }
+    if receipt.model_spend_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require model spend receipts"
+        ));
+    }
+    if receipt.review_load_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require review load receipts"
+        ));
+    }
+    if receipt.credit_readback_receipt_ids.is_empty() {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require credit readback receipts"
+        ));
+    }
+    if receipt.public_proof_ref.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require a public proof ref"
+        ));
+    }
+    if receipt.metrics_summary.trim().is_empty() {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require a metrics summary"
         ));
     }
     Ok(())
@@ -5782,6 +6098,14 @@ fn epiphany_cultmesh_bifrost_github_publication_receipt_key(receipt_id: &str) ->
 
 fn epiphany_cultmesh_bifrost_public_proof_publication_receipt_key(receipt_id: &str) -> String {
     format!("gamecult-local/bifrost/public-proof-publication-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_bifrost_artifact_acceptance_receipt_key(receipt_id: &str) -> String {
+    format!("gamecult-local/bifrost/artifact-acceptance-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_bifrost_metrics_receipt_key(receipt_id: &str) -> String {
+    format!("gamecult-local/bifrost/metrics-receipt/{receipt_id}")
 }
 
 fn epiphany_cultmesh_bifrost_collaboration_feedback_key(feedback_id: &str) -> String {
