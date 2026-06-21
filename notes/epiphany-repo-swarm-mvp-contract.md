@@ -100,6 +100,38 @@ Human or peer talks to Persona
 Banter can stay banter. Work-shaped ideas become typed planning pressure only
 after Imagination and Self make them concrete enough to route.
 
+## Persona Mouth And Interlingua
+
+Public Persona output should not stop at `SAY` text. `SAY` is the
+Interpreter-owned public utterance intent: the reviewed meaning that may cross a
+mouth boundary. The portable object after interpretation should be a typed Weksa
+interlingua packet, not an English-only Discord string and not an audio-only
+side effect.
+
+The mouth pipeline is:
+
+```text
+Persona natural thought
+  -> Mind/Interpreter reviews and extracts public utterance intent
+  -> Weksa receives a typed interlingua packet plus speaker/Persona context
+  -> Weksa lowers the packet into the target language and delivery register
+  -> Bifrost or another transport publishes reviewed text when appropriate
+  -> optional speech providers lower the same accepted packet into audio
+  -> delivery/playback receipts prove what reached the room
+```
+
+Weksa therefore owns meaning-to-language lowering and delivery-realization
+planning. Audio is one target realization, not Weksa's whole job. Bifrost owns
+public transport, governance topics, dispatch, and receipts. Persona owns the
+character-facing expression. Mind/Interpreter owns the conversion from natural
+thought into reviewable public utterance intent. No renderer, Discord helper,
+or audio provider may become the source of truth for what the Persona meant.
+
+For interlingual operation, Epiphany should prefer the Weksa packet as the
+shared public-speech artifact, then derive English Discord text, other target
+languages, captions, voice-design requests, and audio playback from that same
+accepted packet with separate receipts.
+
 ## Git Branch Contract
 
 Every autonomous repo swarm needs a branch-local work area.
@@ -160,6 +192,8 @@ And produce a proof bundle showing:
 - Soul verification receipts
 - Mind admission receipts
 - Bifrost publication/credit receipts for upstream-facing work
+- Weksa interlingua and target-language lowering receipts for public Persona
+  utterances when speech leaves the local text-only surface
 - upstream-main sync proof for merged/published work
 - sealed private state and no raw worker thought leakage
 
