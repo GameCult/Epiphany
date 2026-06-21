@@ -1610,7 +1610,7 @@ MVP readiness report without approving readiness. `epiphany-work readiness`
 inspects repo init, swarm online, Persona intake, Imagination plan, Self
 queue-run, Hands branch work, Soul closure, Modeling/Mind admission, redacted
 public proof, Bifrost publication, upstream-main sync, Idunn lifecycle, daemon
-tool directory, and private-state redaction rows, then writes
+deployment aftercare, tool directory, and private-state redaction rows, then writes
 `.epiphany/work/work-readiness-<item>.json` as
 `epiphany.repo_work_readiness_report.v0`. When the accept receipt names a
 repo-local Verse store, it also mirrors a compact
@@ -1622,10 +1622,12 @@ rows, `latestRepoWorkReadiness`, and non-mutating `repo-work-readiness` action
 rows. The command is sight only: it denies readiness approval, durable state
 commit, publication, PR, merge, sync, deployment, service lifecycle, Hands
 action, cross-body mutation, private Verse rummaging, and private-state
-exposure. Smoke `.epiphany-smoke\repo-work-readiness-20260621-094043` proved a
-partial local work path reports `not-ready` with four missing rows: Bifrost
-publication, upstream-main sync, Idunn lifecycle, and tool directory; writes
-readiness id `repo-work-readiness-repo-work-readiness`; and Gjallar reports
+exposure. Smoke `.epiphany-smoke\repo-work-readiness-20260621-101053` proved a
+partial local work path can satisfy the deployment-aftercare row from a sealed
+`epiphany.repo_deployment_aftercare_audit.v0` artifact while still reporting
+`not-ready` with four missing rows: Bifrost publication, upstream-main sync,
+Idunn lifecycle, and tool directory; writes readiness id
+`repo-work-readiness-repo-work-readiness`; and Gjallar reports
 `repoWorkReadinessCount=1` without private-state exposure.
 
 Bifrost public-proof publication transport is now the closure after local

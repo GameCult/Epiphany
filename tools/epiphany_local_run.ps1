@@ -58,6 +58,8 @@ param(
     [string]$RepoWorkPublicProof = "",
     [string]$RepoWorkIdunnLifecycleReceipt = "",
     [string]$RepoWorkToolDirectoryReceipt = "",
+    [string]$RepoWorkDeploymentAftercareReceipt = "",
+    [string]$RepoWorkDeploymentAftercareReceiptRef = "",
     [string]$RepoDeploymentRemote = "origin",
     [string]$RepoDeploymentRunbookReceipt = "",
     [string]$RepoDeploymentIdunnReceipt = "",
@@ -1970,6 +1972,12 @@ if ($Mode -eq "repo-work-readiness") {
     }
     if ($RepoWorkIdunnLifecycleReceipt -ne "") {
         $repoWorkArgs += @("--idunn-lifecycle-receipt", $RepoWorkIdunnLifecycleReceipt)
+    }
+    if ($RepoWorkDeploymentAftercareReceipt -ne "") {
+        $repoWorkArgs += @("--deployment-aftercare-audit-receipt", $RepoWorkDeploymentAftercareReceipt)
+    }
+    if ($RepoWorkDeploymentAftercareReceiptRef -ne "") {
+        $repoWorkArgs += @("--deployment-aftercare-audit-receipt-ref", $RepoWorkDeploymentAftercareReceiptRef)
     }
     if ($RepoWorkToolDirectoryReceipt -ne "") {
         $repoWorkArgs += @("--tool-directory-receipt", $RepoWorkToolDirectoryReceipt)

@@ -349,6 +349,8 @@ struct ReadinessArgs {
     public_proof: Option<PathBuf>,
     idunn_lifecycle_receipt: Option<PathBuf>,
     tool_directory_receipt: Option<PathBuf>,
+    deployment_aftercare_audit_receipt: Option<PathBuf>,
+    deployment_aftercare_audit_receipt_ref: Option<String>,
     write_receipt: bool,
 }
 
@@ -1160,6 +1162,8 @@ fn parse_readiness_args(args: impl Iterator<Item = String>) -> Result<ReadinessA
     let mut public_proof = None;
     let mut idunn_lifecycle_receipt = None;
     let mut tool_directory_receipt = None;
+    let mut deployment_aftercare_audit_receipt = None;
+    let mut deployment_aftercare_audit_receipt_ref = None;
     let mut write_receipt = true;
 
     let mut args = args.peekable();
@@ -1178,6 +1182,18 @@ fn parse_readiness_args(args: impl Iterator<Item = String>) -> Result<ReadinessA
             "--tool-directory-receipt" | "--tool-directory-ref" => {
                 tool_directory_receipt = Some(take_path(&mut args, "--tool-directory-receipt")?);
             }
+            "--deployment-aftercare-audit-receipt" | "--deployment-aftercare-receipt" => {
+                deployment_aftercare_audit_receipt = Some(take_path(
+                    &mut args,
+                    "--deployment-aftercare-audit-receipt",
+                )?);
+            }
+            "--deployment-aftercare-audit-receipt-ref" | "--deployment-aftercare-receipt-ref" => {
+                deployment_aftercare_audit_receipt_ref = Some(take_string(
+                    &mut args,
+                    "--deployment-aftercare-audit-receipt-ref",
+                )?);
+            }
             "--no-write" | "--read-only" => write_receipt = false,
             other => return Err(anyhow!("unexpected readiness argument {other:?}")),
         }
@@ -1190,6 +1206,8 @@ fn parse_readiness_args(args: impl Iterator<Item = String>) -> Result<ReadinessA
         public_proof,
         idunn_lifecycle_receipt,
         tool_directory_receipt,
+        deployment_aftercare_audit_receipt,
+        deployment_aftercare_audit_receipt_ref,
         write_receipt,
     })
 }
@@ -12168,6 +12186,98 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             "Supply --idunn-lifecycle-receipt after Idunn service audit/readiness proof.",
         ));
     }
+    let default_deployment_aftercare_audit_receipt =
+        artifact_dir.join("deployment-aftercare-audit.json");
+    let deployment_aftercare_audit_path =
+        args.deployment_aftercare_audit_receipt
+            .as_ref()
+            .or_else(|| {
+                if default_deployment_aftercare_audit_receipt.exists() {
+                    Some(&default_deployment_aftercare_audit_receipt)
+                } else {
+                    None
+                }
+            });
+    if let Some(receipt_ref) = args.deployment_aftercare_audit_receipt_ref.as_ref() {
+        let readiness_store = local_verse_store
+            .clone()
+            .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"));
+        let receipt = if receipt_ref.trim().is_empty() || receipt_ref.trim() == "latest" {
+            load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+                &readiness_store,
+                runtime_id.clone(),
+            )?
+        } else {
+            load_epiphany_cultmesh_idunn_aftercare_audit_receipt(
+                &readiness_store,
+                runtime_id.clone(),
+                receipt_ref,
+            )?
+        };
+        if let Some(receipt) = receipt {
+            let status_ok = matches!(receipt.status.as_str(), "ok" | "complete" | "passed");
+            let satisfied = receipt.schema_version
+                == "gamecult.idunn.deployment_aftercare_audit.v0"
+                && status_ok
+                && !receipt.private_state_exposed;
+            rows.push(json!({
+                "kind": "deployment-aftercare",
+                "owner": "Idunn/Soul",
+                "requiredSchema": "gamecult.idunn.deployment_aftercare_audit.v0",
+                "evidenceRef": receipt_ref,
+                "artifactStatus": "cultmesh",
+                "schemaVersion": receipt.schema_version,
+                "documentStatus": receipt.status,
+                "source": "cultmesh",
+                "localVerseStore": readiness_store.display().to_string(),
+                "runtimeId": runtime_id.clone(),
+                "receiptId": receipt.receipt_id,
+                "deploymentReceiptId": receipt.deployment_receipt_id,
+                "auditRef": receipt.audit_ref,
+                "satisfied": satisfied,
+                "status": if satisfied { "satisfied" } else { "missing" },
+                "note": "Idunn deployment aftercare audit was supplied from repo-local CultMesh sight.",
+                "deploymentAuthority": false,
+                "gitPushAuthority": false,
+                "serviceLifecycleAuthority": false,
+                "privateStateExposed": receipt.private_state_exposed
+            }));
+        } else {
+            rows.push(readiness_missing_row(
+                "deployment-aftercare",
+                "Idunn/Soul",
+                "gamecult.idunn.deployment_aftercare_audit.v0",
+                "Supply --deployment-aftercare-audit-receipt-ref after Idunn records deployment aftercare in the repo-local Verse.",
+            ));
+        }
+    } else if let Some(path) = deployment_aftercare_audit_path {
+        let receipt = read_json_if_exists(path)?;
+        let satisfied = receipt.as_ref().is_some_and(|receipt| {
+            string_from_json(receipt, &["schemaVersion"]).as_deref()
+                == Some("epiphany.repo_deployment_aftercare_audit.v0")
+                && string_from_json(receipt, &["status"]).as_deref() == Some("complete")
+                && bool_from_json(receipt, &["deploymentComplete"]) == Some(true)
+                && bool_from_json(receipt, &["deploymentAuthority"]) == Some(false)
+                && bool_from_json(receipt, &["gitPushAuthority"]) == Some(false)
+                && bool_from_json(receipt, &["serviceLifecycleAuthority"]) == Some(false)
+                && bool_from_json(receipt, &["privateStateExposed"]) == Some(false)
+        });
+        rows.push(readiness_path_row(
+            "deployment-aftercare",
+            "Idunn/Soul",
+            "epiphany.repo_deployment_aftercare_audit.v0",
+            path,
+            satisfied,
+            "Idunn deployment aftercare audit completed and stayed sight-only.",
+        )?);
+    } else {
+        rows.push(readiness_missing_row(
+            "deployment-aftercare",
+            "Idunn/Soul",
+            "epiphany.repo_deployment_aftercare_audit.v0",
+            "Supply --deployment-aftercare-audit-receipt, --deployment-aftercare-audit-receipt-ref, or run deployment-aftercare-audit into the repo work artifact directory.",
+        ));
+    }
     if let Some(path) = args.tool_directory_receipt.as_ref() {
         rows.push(readiness_path_row(
             "tool-directory",
@@ -15109,7 +15219,7 @@ fn print_usage() {
          publish --workspace <repo> [--item <id>] --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>\n\
          sync --workspace <repo> [--item <id>] [--publish-receipt <path>] [--upstream-ref origin/main] --merge-receipt <ref>\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
-         readiness --workspace <repo> [--item <id>] [--accept-receipt <path>] [--public-proof <path>] [--idunn-lifecycle-receipt <path>] [--tool-directory-receipt <path>] [--no-write]\n\
+         readiness --workspace <repo> [--item <id>] [--accept-receipt <path>] [--public-proof <path>] [--idunn-lifecycle-receipt <path>] [--deployment-aftercare-audit-receipt <path>|--deployment-aftercare-audit-receipt-ref <ref>] [--tool-directory-receipt <path>] [--no-write]\n\
          deployment-config-audit --workspace <repo> [--artifact-dir <path>] [--no-write]\n\
          deployment-execution-runbook --workspace <repo> [--artifact-dir <path>] [--remote origin] [--no-write]\n\
          deployment-aftercare-audit --workspace <repo> [--artifact-dir <path>] [--local-verse-store <path>] [--runtime-id <id>] [--runbook-receipt <path>] [--idunn-deployment-receipt-ref <ref>|--idunn-deployment-receipt <path>] [--aftercare-audit-receipt-ref <ref>|--aftercare-audit-receipt <path>] [--no-write]\n\

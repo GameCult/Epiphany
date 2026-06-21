@@ -208,6 +208,22 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         &root,
     )?;
+    let deployment_aftercare_fixture = repo
+        .join(".epiphany")
+        .join("work")
+        .join("deployment-aftercare-audit.json");
+    write_json(
+        &deployment_aftercare_fixture,
+        &json!({
+            "schemaVersion": "epiphany.repo_deployment_aftercare_audit.v0",
+            "status": "complete",
+            "deploymentComplete": true,
+            "deploymentAuthority": false,
+            "gitPushAuthority": false,
+            "serviceLifecycleAuthority": false,
+            "privateStateExposed": false
+        }),
+    )?;
     let readiness = cargo_json(
         &manifest,
         "epiphany-work",
@@ -264,6 +280,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_row(&readiness, "bifrost-publication", false)?;
     require_row(&readiness, "upstream-main-sync", false)?;
     require_row(&readiness, "idunn-lifecycle", false)?;
+    require_row(&readiness, "deployment-aftercare", true)?;
     require_row(&readiness, "tool-directory", false)?;
     require_row(&readiness, "private-state-redaction", true)?;
 
