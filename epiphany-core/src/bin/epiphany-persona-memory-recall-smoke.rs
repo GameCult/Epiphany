@@ -1,8 +1,17 @@
+use epiphany_core::EpiphanyAgentMemoryEntry;
+use epiphany_core::GhostlightAgent;
+use epiphany_core::GhostlightCanonicalState;
+use epiphany_core::GhostlightIdentity;
+use epiphany_core::GhostlightMemories;
+use epiphany_core::GhostlightMemory;
+use epiphany_core::GhostlightValue;
+use epiphany_core::GhostlightWorld;
 use epiphany_core::PersonaIdentity;
 use epiphany_core::PersonaInterpreterInput;
 use epiphany_core::PersonaProjectorInput;
 use epiphany_core::PersonaTurnInput;
 use epiphany_core::build_persona_interpreter_prompt;
+use epiphany_core::build_persona_memory_chunks;
 use epiphany_core::build_persona_projector_prompt;
 use epiphany_core::build_persona_turn_prompt;
 use epiphany_core::render_persona_semantic_memory_recall;
@@ -78,8 +87,21 @@ fn main() {
     assert_contains(&interpreter_prompt, "STATE NOTE");
     assert_contains(&interpreter_prompt, "SAY");
 
+    let chunks =
+        build_persona_memory_chunks(&persona_memory_entry(), "state/agents.msgpack#Persona");
+    assert!(
+        chunks
+            .iter()
+            .any(|chunk| chunk.text.contains("public typed-contract zeal"))
+    );
+    assert!(
+        chunks
+            .iter()
+            .all(|chunk| !chunk.text.contains("sealed private note"))
+    );
+
     println!(
-        "status=ok recallSource=typed-memory-graph qdrantCache=not-wired personaLayers=projector,persona,interpreter privateStateExposed=false"
+        "status=ok recallSource=typed-memory-graph qdrantCache=persona-memory-module-wired liveQdrant=not-required personaLayers=projector,persona,interpreter privateStateExposed=false"
     );
 }
 
@@ -88,4 +110,46 @@ fn assert_contains(haystack: &str, needle: &str) {
         haystack.contains(needle),
         "expected prompt to contain `{needle}`"
     );
+}
+
+fn persona_memory_entry() -> EpiphanyAgentMemoryEntry {
+    EpiphanyAgentMemoryEntry {
+        schema_version: "ghostlight.agent_state.v0".to_string(),
+        role_id: "Persona".to_string(),
+        world: GhostlightWorld::default(),
+        agent: GhostlightAgent {
+            agent_id: "epiphany.Persona".to_string(),
+            identity: GhostlightIdentity {
+                name: "Epiphany".to_string(),
+                roles: vec!["Persona".to_string()],
+                origin: "EpiphanyAgent".to_string(),
+                public_description: "public typed-contract zeal".to_string(),
+                private_notes: vec!["sealed private note".to_string()],
+            },
+            memories: GhostlightMemories {
+                semantic: vec![GhostlightMemory {
+                    memory_id: "semantic-1".to_string(),
+                    summary: "Persona recall should be semantically available before speech."
+                        .to_string(),
+                    salience: 0.9,
+                    confidence: 0.9,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            canonical_state: GhostlightCanonicalState {
+                values: vec![GhostlightValue {
+                    value_id: "value-1".to_string(),
+                    label: "Keep memory recall typed and sealed.".to_string(),
+                    priority: 0.9,
+                    unforgivable_if_betrayed: true,
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        relationships: Vec::new(),
+        events: Vec::new(),
+        scenes: Vec::new(),
+    }
 }
