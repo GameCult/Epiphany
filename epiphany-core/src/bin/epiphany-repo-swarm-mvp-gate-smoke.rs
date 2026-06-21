@@ -2,11 +2,35 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::Utc;
+use epiphany_core::EpiphanyAgentMemoryEntry;
+use epiphany_core::GhostlightAgent;
+use epiphany_core::GhostlightCanonicalState;
+use epiphany_core::GhostlightIdentity;
+use epiphany_core::GhostlightMemories;
+use epiphany_core::GhostlightMemory;
+use epiphany_core::GhostlightValue;
+use epiphany_core::GhostlightWorld;
+use epiphany_core::PersonaIdentity;
+use epiphany_core::PersonaInterpreterInput;
+use epiphany_core::PersonaMemoryCacheConfig;
+use epiphany_core::PersonaProjectorInput;
+use epiphany_core::PersonaTurnInput;
 use epiphany_core::WeksaInterlinguaInput;
 use epiphany_core::WeksaSpeakerContext;
+use epiphany_core::build_persona_interpreter_prompt;
+use epiphany_core::build_persona_memory_chunks;
+use epiphany_core::build_persona_projector_prompt;
+use epiphany_core::build_persona_turn_prompt;
 use epiphany_core::build_weksa_interlingua_packet;
 use epiphany_core::build_weksa_target_lowering_request;
 use epiphany_core::record_weksa_target_lowering_receipt;
+use epiphany_core::render_persona_memory_recall_with_cache;
+use epiphany_core::render_persona_semantic_memory_recall;
+use epiphany_core::semantic_memory_recall_from_heartbeat_action;
+use epiphany_state_model::EpiphanyMemoryContextPacket;
+use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
+use epiphany_state_model::EpiphanyMemoryNode;
+use epiphany_state_model::EpiphanyMemorySummary;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -130,6 +154,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     verify_deployment_handoff(&deployment_handoff)?;
     verify_daemon_survival(&daemon_survival)?;
     let weksa_interlingua = verify_weksa_interlingua()?;
+    let persona_memory_recall = verify_persona_memory_recall()?;
 
     let gate_rows = vec![
         green(
@@ -143,6 +168,11 @@ fn run_smoke(args: Args) -> Result<Value> {
             "weksa-interlingua",
             "Weksa",
             "Persona SAY meaning lowers through Weksa interlingua packet/request/receipt without transport authority",
+        ),
+        green(
+            "persona-memory-recall",
+            "Persona/Mind",
+            "Qdrant-backed Persona memory cache and typed graph fallback feed Projector, Persona, and Interpreter prompts without exposing private state",
         ),
         green(
             "imagination-plan",
@@ -240,6 +270,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "deploymentHandoffSmokeDir": deployment_handoff["smokeDir"],
         "daemonSurvivalSmokeDir": daemon_survival["smokeDir"],
         "weksaInterlingua": weksa_interlingua,
+        "personaMemoryRecall": persona_memory_recall,
         "mvpReady": false,
         "demoReady": true,
         "greenGateCount": green_gate_count,
@@ -454,6 +485,243 @@ fn verify_weksa_interlingua() -> Result<Value> {
     }))
 }
 
+fn verify_persona_memory_recall() -> Result<Value> {
+    let fallback_recall = render_persona_semantic_memory_recall(&EpiphanyMemoryContextPacket {
+        id: "memctx-repo-swarm-mvp-gate-persona".to_string(),
+        query_id: "repo-swarm-mvp-gate-persona-current-turn".to_string(),
+        summaries: vec![EpiphanyMemorySummary {
+            id: "summary-repo-swarm-mvp-gate-persona-contracts".to_string(),
+            target: "role:Persona".to_string(),
+            claim:
+                "Persona remembers that public speech is a reviewed mouth edge, not raw side effect authority."
+                    .to_string(),
+            action_implication:
+                "Shape public voice, then let Mind, Bifrost, and the mouth edge route effects."
+                    .to_string(),
+            freshness: EpiphanyMemoryFreshnessStatus::Ready,
+            confidence: 84,
+            ..Default::default()
+        }],
+        nodes: vec![EpiphanyMemoryNode {
+            id: "node-repo-swarm-mvp-gate-persona-qdrant-pressure".to_string(),
+            title: "Persona memory retrieval pressure".to_string(),
+            claim: "VoidBot rebuilds semantic Persona recall from typed memory before each Face turn."
+                .to_string(),
+            action_implication:
+                "Epiphany Persona prompts must receive derived memory recall as hints before speech."
+                    .to_string(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    });
+
+    let memory_entry = persona_memory_entry();
+    let chunks = build_persona_memory_chunks(&memory_entry, "state/agents.msgpack#Persona");
+    if !chunks
+        .iter()
+        .any(|chunk| chunk.text.contains("public typed-contract zeal"))
+    {
+        return Err(anyhow!(
+            "Persona memory chunks did not include public identity memory"
+        ));
+    }
+    if chunks
+        .iter()
+        .any(|chunk| chunk.text.contains("sealed private note"))
+    {
+        return Err(anyhow!(
+            "Persona memory chunks exposed sealed private notes"
+        ));
+    }
+
+    let bridge = render_persona_memory_recall_with_cache(
+        &memory_entry,
+        "state/agents.msgpack#Persona",
+        "typed-contract zeal before public speech",
+        4,
+        Some(&EpiphanyMemoryContextPacket {
+            id: "memctx-repo-swarm-mvp-gate-fallback".to_string(),
+            query_id: "repo-swarm-mvp-gate-persona-fallback".to_string(),
+            summaries: vec![EpiphanyMemorySummary {
+                id: "summary-repo-swarm-mvp-gate-fallback".to_string(),
+                target: "role:Persona".to_string(),
+                claim: fallback_recall,
+                action_implication:
+                    "This fallback is heartbeat-carried context, not direct state authority."
+                        .to_string(),
+                freshness: EpiphanyMemoryFreshnessStatus::Ready,
+                confidence: 80,
+                ..Default::default()
+            }],
+            nodes: vec![EpiphanyMemoryNode {
+                id: "node-repo-swarm-mvp-gate-fallback".to_string(),
+                title: "Smoke fallback memory".to_string(),
+                claim: "Fallback typed memory graph context remains available.".to_string(),
+                action_implication: "Do not pretend live Qdrant was required for this smoke."
+                    .to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        &PersonaMemoryCacheConfig {
+            qdrant_url: "http://127.0.0.1:1".to_string(),
+            qdrant_api_key: None,
+            qdrant_timeout_ms: 1,
+            ollama_base_url: "http://127.0.0.1:1".to_string(),
+            ollama_model: "qwen3-embedding:0.6b".to_string(),
+            ollama_timeout_ms: 1,
+            collection_name: "epiphany_persona_memory_mvp_gate".to_string(),
+            query_instruction: "repo-swarm-mvp-gate".to_string(),
+        },
+    );
+    if bridge.status != "fallback" {
+        return Err(anyhow!(
+            "expected Persona memory recall fallback status, got {:?}",
+            bridge.status
+        ));
+    }
+    if bridge.private_state_exposed || bridge.rendered_recall.contains("sealed private note") {
+        return Err(anyhow!("Persona memory recall exposed private state"));
+    }
+    require_contains(
+        &bridge.rendered_recall,
+        "Fallback typed memory graph context",
+        "Persona memory recall fallback",
+    )?;
+
+    let heartbeat_action = json!({
+        "action_type": "persona_turn",
+        "persona_memory_recall": {
+            "privateStateExposed": false,
+            "renderedRecall": bridge.rendered_recall,
+        }
+    });
+    let recall = semantic_memory_recall_from_heartbeat_action(&heartbeat_action);
+    require_contains(
+        &recall,
+        "Fallback typed memory graph context",
+        "heartbeat Persona recall",
+    )?;
+
+    let identity = PersonaIdentity {
+        identity_id: "epiphany".to_string(),
+        display_name: "Epiphany".to_string(),
+        repo_name: "EpiphanyAgent".to_string(),
+        public_description: "Repo Persona for typed agent substrate.".to_string(),
+        jurisdiction: vec!["typed state and review-gated agency".to_string()],
+    };
+
+    let projector_prompt = build_persona_projector_prompt(&PersonaProjectorInput {
+        identity: identity.clone(),
+        semantic_memory_recall: recall.clone(),
+        ..Default::default()
+    });
+    require_contains(
+        &projector_prompt,
+        "Semantic memory recall",
+        "Persona Projector prompt",
+    )?;
+    require_contains(
+        &projector_prompt,
+        "typed memory graph",
+        "Persona Projector prompt",
+    )?;
+    require_contains(
+        &projector_prompt,
+        "not durable authority",
+        "Persona Projector prompt",
+    )?;
+
+    let persona_prompt = build_persona_turn_prompt(&PersonaTurnInput {
+        identity: identity.clone(),
+        projected_state: "Epiphany feels the mouth edge as a public contract, not a vent."
+            .to_string(),
+        semantic_memory_recall: recall.clone(),
+        ..Default::default()
+    });
+    require_contains(&persona_prompt, "Semantic memory recall", "Persona prompt")?;
+    require_contains(
+        &persona_prompt,
+        "Fallback typed memory graph context",
+        "Persona prompt",
+    )?;
+
+    let interpreter_prompt = build_persona_interpreter_prompt(&PersonaInterpreterInput {
+        identity,
+        persona_prompt,
+        persona_output: "I can speak, but the effect needs a receipt.".to_string(),
+        semantic_memory_recall: recall,
+        pending_mentions: Vec::new(),
+        allowed_channel_ids: vec!["aquarium".to_string()],
+    });
+    require_contains(
+        &interpreter_prompt,
+        "Dynamic semantic memory recall",
+        "Persona Interpreter prompt",
+    )?;
+    require_contains(
+        &interpreter_prompt,
+        "STATE NOTE",
+        "Persona Interpreter prompt",
+    )?;
+    require_contains(&interpreter_prompt, "SAY", "Persona Interpreter prompt")?;
+
+    Ok(json!({
+        "schemaVersion": "epiphany.repo_swarm_mvp_persona_memory_recall_gate.v0",
+        "status": bridge.status,
+        "cacheStatus": bridge.cache_status,
+        "chunkCount": bridge.chunk_count,
+        "hitCount": bridge.hit_count,
+        "fallbackContainsTypedGraph": true,
+        "heartbeatRecallWired": true,
+        "personaLayers": ["projector", "persona", "interpreter"],
+        "liveQdrantRequiredForSmoke": false,
+        "privateStateExposed": false,
+    }))
+}
+
+fn persona_memory_entry() -> EpiphanyAgentMemoryEntry {
+    EpiphanyAgentMemoryEntry {
+        schema_version: "ghostlight.agent_state.v0".to_string(),
+        role_id: "Persona".to_string(),
+        world: GhostlightWorld::default(),
+        agent: GhostlightAgent {
+            agent_id: "epiphany.Persona".to_string(),
+            identity: GhostlightIdentity {
+                name: "Epiphany".to_string(),
+                roles: vec!["Persona".to_string()],
+                origin: "EpiphanyAgent".to_string(),
+                public_description: "public typed-contract zeal".to_string(),
+                private_notes: vec!["sealed private note".to_string()],
+            },
+            memories: GhostlightMemories {
+                semantic: vec![GhostlightMemory {
+                    memory_id: "semantic-1".to_string(),
+                    summary: "Persona recall should be semantically available before speech."
+                        .to_string(),
+                    salience: 0.9,
+                    confidence: 0.9,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            canonical_state: GhostlightCanonicalState {
+                values: vec![GhostlightValue {
+                    value_id: "value-1".to_string(),
+                    label: "Keep memory recall typed and sealed.".to_string(),
+                    priority: 0.9,
+                    unforgivable_if_betrayed: true,
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        relationships: Vec::new(),
+        events: Vec::new(),
+        scenes: Vec::new(),
+    }
+}
+
 fn green(gate: &str, owner: &str, evidence: &str) -> Value {
     json!({
         "gate": gate,
@@ -554,6 +822,14 @@ fn require_bool(value: &Value, path: &[&str], expected: bool) -> Result<()> {
             path.join("."),
             actual
         ))
+    }
+}
+
+fn require_contains(haystack: &str, needle: &str, label: &str) -> Result<()> {
+    if haystack.contains(needle) {
+        Ok(())
+    } else {
+        Err(anyhow!("expected {label} to contain {needle:?}"))
     }
 }
 
