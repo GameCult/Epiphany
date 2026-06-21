@@ -1532,6 +1532,12 @@ target-language lowering request, lowering receipt, and local Verse
 `epiphany.cultmesh.weksa_lowering_receipt.v0` mirror before any mouth transport
 publication. The receipt-directory row is Weksa-owned sight only; Bifrost or the
 configured mouth edge still owns publication, and Mind still owns durable state.
+Repo Persona intake also carries semantic Persona memory recall now. It loads
+repo-local `agents.msgpack`, tries the bounded Qdrant/Ollama Persona-memory
+cache, falls back to a typed RoleSelf memory-graph context cut, and records
+sealed recall status in the intake receipt before routing public pressure to
+Imagination. Qdrant is a rebuildable semantic cache; typed memory remains the
+owner.
 `notes/organ-dependency-contracts.md` is the standing dependency map: every
 sub-agent depends on all the other standing sub-agents. Dependency does not collapse
 ownership; it makes each turn whole-organism-aware while Substrate Gate still gates repo

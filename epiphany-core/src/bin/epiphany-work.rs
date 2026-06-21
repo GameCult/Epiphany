@@ -26,6 +26,7 @@ use epiphany_core::HandsActionIntent;
 use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
 use epiphany_core::MindGatewayDecision;
 use epiphany_core::MindGatewayReview;
+use epiphany_core::PersonaMemoryCacheConfig;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
@@ -41,6 +42,7 @@ use epiphany_core::hands_commit_receipt_for_review;
 use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::hands_pr_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::load_agent_memory_entry_for_role;
 use epiphany_core::load_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 use epiphany_core::load_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
@@ -50,7 +52,9 @@ use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_rece
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
+use epiphany_core::memory_graph_from_agent_memories;
 use epiphany_core::mind_state_commit_receipt;
+use epiphany_core::plan_memory_graph_context_cut;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_hands_command_receipt;
@@ -62,6 +66,7 @@ use epiphany_core::put_mind_state_commit_receipt;
 use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::record_weksa_target_lowering_receipt;
+use epiphany_core::render_persona_memory_recall_with_cache;
 use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
@@ -72,6 +77,8 @@ use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::write_epiphany_cultmesh_repo_work_readiness;
 use epiphany_core::write_epiphany_cultmesh_repo_work_readiness_review;
 use epiphany_core::write_epiphany_cultmesh_weksa_lowering_receipt;
+use epiphany_state_model::EpiphanyMemoryContextQuery;
+use epiphany_state_model::EpiphanyMemoryProfile;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -1799,6 +1806,9 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
     });
+    let state_dir = path_from_json(&online_receipt, &["stateDir"])
+        .unwrap_or_else(|| workspace.join(".epiphany").join("state"));
+    let agent_store = state_dir.join("agents.msgpack");
     let runtime_id = args.runtime_id.clone().unwrap_or_else(|| {
         string_from_json(&online_receipt, &["runtimeId"])
             .unwrap_or_else(|| "repo-swarm-local".to_string())
@@ -1846,6 +1856,8 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
         .clone()
         .unwrap_or_else(|| format!("repo-persona-intake-{item_slug}"));
     let summary = compact_text(&args.message, 480);
+    let memory_recall =
+        record_repo_persona_intake_memory_recall(&agent_store, &item_slug, &args.message);
     let public_ref = format!("eve://epiphany/persona#repo-intake/{item_slug}/{audit_id}");
     let candidate_ref = format!("candidate-action://{runtime_id}/{item_slug}/{audit_id}");
     let weksa = record_repo_persona_intake_weksa(
@@ -1888,6 +1900,7 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
             "contentFingerprint": content_fingerprint,
             "publicDiscussionRef": public_ref,
             "candidateActionRef": candidate_ref,
+            "memoryRecall": memory_recall,
             "weksa": weksa
         },
         "accept": accept,
@@ -1915,6 +1928,9 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
         "receiptPath": receipt_path,
         "item": receipt["item"],
         "speechAuditId": audit_id,
+        "memoryRecallStatus": receipt["persona"]["memoryRecall"]["status"],
+        "memoryRecallCacheStatus": receipt["persona"]["memoryRecall"]["cacheStatus"],
+        "memoryRecallHitCount": receipt["persona"]["memoryRecall"]["hitCount"],
         "weksaLoweringReceiptId": receipt["persona"]["weksa"]["receiptId"],
         "bubblePath": receipt["persona"]["bubblePath"],
         "acceptReceiptPath": accept["receiptPath"],
@@ -1923,6 +1939,86 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
         "privateStateExposed": false,
         "nextSafeMove": receipt["nextSafeMove"],
     }))
+}
+
+fn record_repo_persona_intake_memory_recall(
+    agent_store: &Path,
+    item_slug: &str,
+    message: &str,
+) -> Value {
+    let entry = match load_agent_memory_entry_for_role(agent_store, "Persona") {
+        Ok(Some(entry)) => entry,
+        Ok(None) => {
+            return json!({
+                "schemaVersion": "epiphany.persona_memory_cache.v0",
+                "status": "unavailable",
+                "cacheStatus": "persona-memory-missing",
+                "identityId": "epiphany.Persona",
+                "roleId": "Persona",
+                "chunkCount": 0,
+                "hitCount": 0,
+                "renderedRecall": "- semantic Persona memory recall unavailable: Persona memory entry is missing",
+                "warnings": ["Persona memory entry is missing"],
+                "privateStateExposed": false,
+            });
+        }
+        Err(error) => {
+            return json!({
+                "schemaVersion": "epiphany.persona_memory_cache.v0",
+                "status": "unavailable",
+                "cacheStatus": "persona-memory-load-failed",
+                "identityId": "epiphany.Persona",
+                "roleId": "Persona",
+                "chunkCount": 0,
+                "hitCount": 0,
+                "renderedRecall": format!("- semantic Persona memory recall unavailable: {}", compact_text(&format!("{error:#}"), 320)),
+                "warnings": [format!("Persona memory load failed: {}", compact_text(&format!("{error:#}"), 240))],
+                "privateStateExposed": false,
+            });
+        }
+    };
+
+    let query = format!("Repo Persona intake {item_slug}\n{message}");
+    let graph = memory_graph_from_agent_memories(
+        "repo-persona-intake-memory",
+        std::slice::from_ref(&entry),
+    );
+    let fallback = plan_memory_graph_context_cut(
+        &graph,
+        &EpiphanyMemoryContextQuery {
+            id: format!("repo-persona-intake-{item_slug}"),
+            profile: Some(EpiphanyMemoryProfile::RoleSelf),
+            domain_ids: Vec::new(),
+            node_ids: Vec::new(),
+            edge_ids: Vec::new(),
+            text: Some(query.clone()),
+            budget: Some(8),
+        },
+    );
+    let mut config = PersonaMemoryCacheConfig::from_env();
+    config.qdrant_timeout_ms = config.qdrant_timeout_ms.min(1_000);
+    config.ollama_timeout_ms = config.ollama_timeout_ms.min(1_000);
+    let recall = render_persona_memory_recall_with_cache(
+        &entry,
+        format!("{}#Persona", agent_store.display()),
+        &query,
+        8,
+        Some(&fallback),
+        &config,
+    );
+
+    json!({
+        "schemaVersion": recall.schema_version,
+        "status": recall.status,
+        "cacheStatus": recall.cache_status,
+        "identityId": recall.identity_id,
+        "roleId": recall.role_id,
+        "chunkCount": recall.chunk_count,
+        "hitCount": recall.hit_count,
+        "renderedRecall": recall.rendered_recall,
+        "warnings": recall.warnings,
+        "privateStateExposed": recall.private_state_exposed,
+    })
 }
 
 fn record_repo_persona_intake_weksa(

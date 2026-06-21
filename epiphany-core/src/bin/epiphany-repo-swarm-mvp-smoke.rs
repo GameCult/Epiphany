@@ -309,6 +309,8 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_eq(&publish, &["status"], "publication-receipts-recorded")?;
     require_eq(&sync, &["status"], "upstream-main-synced")?;
     require_eq(&export, &["status"], "public-proof-exported")?;
+    require_non_empty(&intake, &["memoryRecallStatus"])?;
+    require_non_empty(&intake, &["memoryRecallCacheStatus"])?;
     require_non_empty(&intake, &["weksaLoweringReceiptId"])?;
     require_bool(&intake, &["privateStateExposed"], false)?;
     require_bool(&overview, &["privateStateExposed"], false)?;
@@ -337,6 +339,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "initStatus": init["status"],
         "onlineStatus": online["status"],
         "personaIntakeStatus": intake["status"],
+        "personaMemoryRecallStatus": intake["memoryRecallStatus"],
+        "personaMemoryRecallCacheStatus": intake["memoryRecallCacheStatus"],
+        "personaMemoryRecallHitCount": intake["memoryRecallHitCount"],
         "weksaLoweringReceiptId": intake["weksaLoweringReceiptId"],
         "planStatus": plan["status"],
         "preRunOverviewGate": pre_run_overview["gate"],
