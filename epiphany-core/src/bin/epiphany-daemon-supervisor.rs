@@ -32,7 +32,7 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::process::Stdio;
 
@@ -48,6 +48,9 @@ fn main() -> Result<()> {
         "service-plan" | "install-service" => service_plan(args),
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
         "service-runbook" | "runbook-service" => service_runbook(args),
+        "repo-work-service-audit"
+        | "repo-work-service-readiness"
+        | "repo-work-queue-runner-audit" => repo_work_service_audit(args),
         "cluster-service-runbook" | "cluster-daemon-runbook" => cluster_daemon_runbook(args),
         "cluster-windows-service-install"
         | "cluster-service-install-plan"
@@ -98,7 +101,7 @@ fn main() -> Result<()> {
         "windows-service-stop" | "service-stop" => windows_service_control(args, "stop"),
         "policy" | "write-policy" => write_policy(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use reconcile, tick, serve, service-plan, service-launch, service-runbook, cluster-service-runbook, cluster-service-install-plan, cluster-service-audit, cluster-service-start, cluster-service-stop, cluster-service-execution-readiness, cluster-service-execution-runbook, cluster-service-execution-audit, windows-service-install, windows-service-execution-readiness, windows-service-execution-runbook, windows-service-execution-audit, service-execution-audit-smoke, windows-service-reconcile, windows-service-status, windows-service-start, windows-service-stop, or policy"
+            "unknown command {other:?}; use reconcile, tick, serve, service-plan, service-launch, service-runbook, repo-work-service-audit, cluster-service-runbook, cluster-service-install-plan, cluster-service-audit, cluster-service-start, cluster-service-stop, cluster-service-execution-readiness, cluster-service-execution-runbook, cluster-service-execution-audit, windows-service-install, windows-service-execution-readiness, windows-service-execution-runbook, windows-service-execution-audit, service-execution-audit-smoke, windows-service-reconcile, windows-service-status, windows-service-start, windows-service-stop, or policy"
         ),
     }
 }
@@ -341,6 +344,201 @@ fn service_runbook(args: Args) -> Result<()> {
         }))?
     );
     Ok(())
+}
+
+fn repo_work_service_audit(args: Args) -> Result<()> {
+    seed_epiphany_local_verse_context(
+        &args.store,
+        args.runtime_id.clone(),
+        Utc::now().to_rfc3339(),
+    )?;
+    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let started_at = Utc::now();
+    let receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+        &args.store,
+        &args.runtime_id,
+    )?;
+    let service_receipts = receipts
+        .iter()
+        .filter(|receipt| receipt.service_id == args.service_id)
+        .collect::<Vec<_>>();
+    let plan = latest_service_lifecycle_receipt(&service_receipts, "install-plan");
+    let runbook = latest_service_lifecycle_receipt(&service_receipts, "runbook");
+    let launch = latest_service_lifecycle_receipt(&service_receipts, "launch");
+
+    let mut missing_checks = Vec::new();
+    let mut failed_checks = Vec::new();
+
+    let plan_status = receipt_status_or_missing(plan);
+    if plan.is_none() {
+        missing_checks.push("install-plan".to_string());
+    } else if plan_status != "planned" {
+        failed_checks.push(format!("install-plan status {plan_status}"));
+    }
+
+    let runbook_status = receipt_status_or_missing(runbook);
+    if runbook.is_none() {
+        missing_checks.push("runbook".to_string());
+    } else if runbook_status != "written" {
+        failed_checks.push(format!("runbook status {runbook_status}"));
+    }
+    let runbook_ref = runbook
+        .map(|receipt| receipt.operator_artifact_ref.as_str())
+        .unwrap_or("none");
+    let runbook_artifact_status = service_artifact_status(runbook_ref);
+    let runbook_sha256 = local_file_sha256(runbook_ref).unwrap_or_else(|| "none".to_string());
+    if runbook.is_some() && runbook_artifact_status != "present" {
+        failed_checks.push(format!("runbook artifact {runbook_artifact_status}"));
+    }
+
+    let launch_status = receipt_status_or_missing(launch);
+    let launch_exit_code = launch.and_then(|receipt| receipt.exit_code);
+    if launch.is_none() {
+        missing_checks.push("launch".to_string());
+    } else {
+        if launch_status != "completed" {
+            failed_checks.push(format!("launch status {launch_status}"));
+        }
+        if launch_exit_code != Some(0) {
+            failed_checks.push(format!(
+                "launch exit code {}",
+                launch_exit_code
+                    .map(|code| code.to_string())
+                    .unwrap_or_else(|| "none".to_string())
+            ));
+        }
+    }
+
+    let private_state_exposed = service_receipts
+        .iter()
+        .any(|receipt| receipt.private_state_exposed);
+    if private_state_exposed {
+        failed_checks.push("private state exposed".to_string());
+    }
+
+    let status = if missing_checks.is_empty() && failed_checks.is_empty() {
+        "complete"
+    } else {
+        "incomplete"
+    };
+    let next_safe_move = if missing_checks.iter().any(|check| check == "install-plan")
+        || failed_checks
+            .iter()
+            .any(|check| check.starts_with("install-plan "))
+    {
+        "tools/epiphany_local_run.ps1 -Mode repo-work-service-plan"
+    } else if missing_checks.iter().any(|check| check == "runbook")
+        || failed_checks.iter().any(|check| check.starts_with("runbook "))
+    {
+        "tools/epiphany_local_run.ps1 -Mode repo-work-service-runbook"
+    } else if missing_checks.iter().any(|check| check == "launch")
+        || failed_checks.iter().any(|check| check.starts_with("launch "))
+    {
+        "tools/epiphany_local_run.ps1 -Mode repo-work-service-launch"
+    } else {
+        "continue repo-swarm MVP planner/interpreter hardening"
+    };
+
+    let receipt = service_lifecycle_receipt(
+        &args,
+        "repo-work-service-audit",
+        status,
+        "repo-work-service-audit".to_string(),
+        vec![
+            format!("plan={plan_status}"),
+            format!("runbook={runbook_status}"),
+            format!("runbookArtifact={runbook_artifact_status}"),
+            format!("launch={launch_status}"),
+            format!(
+                "launchExitCode={}",
+                launch_exit_code
+                    .map(|code| code.to_string())
+                    .unwrap_or_else(|| "none".to_string())
+            ),
+            format!("missing={}", missing_checks.len()),
+            format!("failed={}", failed_checks.len()),
+        ],
+        None,
+        None,
+        started_at,
+        Some(Utc::now()),
+        Some(format!(
+            "service://{}/repo-work-service-audit",
+            sanitize_id(&args.service_id)
+        )),
+    );
+    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+        &args.store,
+        args.runtime_id.clone(),
+        receipt,
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.repo_work_service_audit.v0",
+            "status": status,
+            "store": args.store,
+            "runtimeId": args.runtime_id,
+            "serviceId": written.service_id,
+            "schedulerId": written.scheduler_id,
+            "receiptId": written.receipt_id,
+            "planStatus": plan_status,
+            "runbookStatus": runbook_status,
+            "runbookArtifactStatus": runbook_artifact_status,
+            "runbookArtifactRef": runbook_ref,
+            "runbookSha256": runbook_sha256,
+            "launchStatus": launch_status,
+            "launchExitCode": launch_exit_code,
+            "missingChecks": missing_checks,
+            "failedChecks": failed_checks,
+            "lifecycleOwner": "Idunn",
+            "hostedBody": "repo-work",
+            "mutatesServiceManager": false,
+            "requiresElevatedAuthority": false,
+            "privateStateExposed": private_state_exposed,
+            "nextSafeMove": next_safe_move,
+        }))?
+    );
+    Ok(())
+}
+
+fn latest_service_lifecycle_receipt<'a>(
+    receipts: &'a [&EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
+    action: &str,
+) -> Option<&'a EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
+    receipts
+        .iter()
+        .copied()
+        .filter(|receipt| receipt.action == action)
+        .max_by_key(|receipt| {
+            receipt
+                .completed_at_utc
+                .as_deref()
+                .unwrap_or(&receipt.started_at_utc)
+        })
+}
+
+fn receipt_status_or_missing(
+    receipt: Option<&EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>,
+) -> String {
+    receipt
+        .map(|receipt| receipt.status.clone())
+        .unwrap_or_else(|| "missing".to_string())
+}
+
+fn service_artifact_status(artifact_ref: &str) -> &'static str {
+    if artifact_ref.trim().is_empty() || artifact_ref == "none" {
+        return "none";
+    }
+    let path = Path::new(artifact_ref);
+    if path.is_file() {
+        return "present";
+    }
+    if artifact_ref.contains("://") {
+        return "external-ref";
+    }
+    "missing"
 }
 
 fn cluster_daemon_runbook(args: Args) -> Result<()> {
@@ -3171,6 +3369,9 @@ impl Args {
                     | "start-service"
                     | "service-runbook"
                     | "runbook-service"
+                    | "repo-work-service-audit"
+                    | "repo-work-service-readiness"
+                    | "repo-work-queue-runner-audit"
                     | "cluster-service-runbook"
                     | "cluster-daemon-runbook"
                     | "cluster-windows-service-install"

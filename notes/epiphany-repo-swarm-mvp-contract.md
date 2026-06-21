@@ -1730,7 +1730,7 @@ temptation wearing clean robes.
 | Local Verse online | `epiphany-swarm online` seeds repo-local CultMesh, standing-faculty SoA, topology, liveness, Eve, and tool sight. | Keep private Verse sealed while exposing operator-safe repo status. |
 | Persona/Bifrost intake | `epiphany-work accept` records pressure and candidate action refs without Hands authority. `epiphany-work persona-intake` now invokes the Persona bubble speech-audit path, records public discussion and candidate-action refs, then delegates to `accept`; wrapper mode `repo-persona-intake` exposes the operator mouth. | Deepen the intake-to-Imagination interpreter so richer model-authored action items can be proposed without granting Hands, publication, or durable-state authority at the mouth edge. |
 | Imagination planning | `derive-plan` now writes a typed `epiphany.repo_work_imagination_action_items_receipt.v0` before the executable plan receipt. The action-item receipt can carry model provenance, allowed safe family, requested paths, verification asks, stop conditions, escalation reasons, planning facets (assumptions, constraints, non-goals, open questions, decision points, and evidence needs), and private-state seals; command text remains deterministic safe-family lowering for `append-worklog`, `planning-note`, `checklist-note`, `section-note` / `repo.markdown_managed_section`, `repo-status-section` / `repo.status_section`, `task-card` / `repo.task_card`, `repo-manifest` / `repo.body_manifest`, `repo-tool-capabilities` / `repo.tool_capabilities`, `repo-tool-request` / `repo.tool_request`, `repo-eve-surface` / `repo.eve_surface`, `repo-collaboration-policy` / `repo.collaboration_policy`, `repo-collaboration-topic` / `repo.collaboration_topic`, `repo-consensus-brief` / `repo.consensus_brief`, `repo-planning-brief` / `repo.planning_brief`, `repo-objective-draft` / `repo.objective_draft`, `repo-adoption-request` / `repo.adoption_request`, `repo-scheduling-request` / `repo.scheduling_request`, `repo-work-order` / `repo.work_order`, `repo-verification-request` / `repo.verification_request`, `repo-publication-request` / `repo.publication_request`, `repo-sync-request` / `repo.sync_request`, `repo-maintainer-review-request` / `repo.maintainer_review_request`, `repo-pr-request` / `repo.pr_request`, `repo-credit-request` / `repo.credit_request`, `repo-artifact-acceptance-request` / `repo.artifact_acceptance_request`, `repo-metrics-request` / `repo.metrics_request`, `repo-doctrine-update-request` / `repo.doctrine_update_request`, `repo-secret-policy-request` / `repo.secret_policy_request`, `repo-deployment-config` / `repo.deployment_config`, and `repo-deployment-request` / `repo.deployment_request`. `repo.planning_brief` is the rough-pressure decomposition family: it names candidate next safe families, requested-path / verification-ask / evidence-need requirements, and Mind/Self/Substrate/Hands/Soul/Bifrost/Idunn gates while granting no action authority; Soul closure now emits `epiphany.repo_work_safe_family_planning_readback.v0` for that family with candidate-family counts, gate/readiness flags, authority denials, and private-state seal. `adopt` writes `epiphany.repo_work_mind_adoption_decision.v0` before the main adoption receipt cites the decision and grants branch-local Hands authority, and refuses plan-derived items that lack explicit verification asks or planning evidence needs. `plan` remains manual quarantine scaffolding. | Deepen further interpreter behavior and semantic closure/map readback without turning model text into arbitrary shell authority. |
-| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan` and `repo-work-service-runbook` write Idunn lifecycle receipts/artifacts for the same queue-run command without launching it. | Keep any future queue-run service launch/install behind Idunn and explicit operator authority. |
+| Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan`, `repo-work-service-runbook`, `repo-work-service-launch`, and `repo-work-service-audit` write Idunn lifecycle receipts/artifacts for the same queue-run command and prove non-mutating launch/readiness closure. | Keep any future queue-run service install/start mutation behind Idunn and explicit elevated operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, can require verification output to cite declared changed paths with `--require-source-grounding`, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
 | Repo work sight | `overview` emits compact proof rows and mirrors typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, map rows, family lens rows, path lens rows, branch lens rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Deepen the Persona-to-plan loop and semantic map readback without moving action authority out of Hands/Self/Bifrost. |
@@ -1752,16 +1752,19 @@ Build the remaining MVP in this order:
 1. **Idunn-hosted queue-run lifecycle.** Keep `epiphany-work queue-run` as the
    Self-owned branch-local pulse, but let Idunn publish the service plan,
    runbook, audit, and optional elevated installation/start path for that same
-   pulse. The first cut should be non-mutating plan/runbook receipts. Only the
-   operator may grant service mutation. Self must not become the daemon keeper.
-   This first cut is landed through `tools/epiphany_local_run.ps1 -Mode
+   pulse. The non-mutating plan/runbook/launch/audit artery is landed; only the
+   operator may grant service-manager mutation or elevated startup. Self must
+   not become the daemon keeper. This first cut is landed through
+   `tools/epiphany_local_run.ps1 -Mode
    repo-work-service-plan`, `-Mode repo-work-service-runbook`, and `-Mode
-   repo-work-service-launch`, and now has a native repeatable smoke at
-   `.epiphany-smoke\repo-work-service-lifecycle-20260621-002707` proving the
-   exact queue-run command vector with `--dry-run`, a written runbook receipt,
-   receipt-directory readback before launch, a bounded `service-launch
-   --wait-child` receipt with exit code 0, no service-manager mutation, no
-   elevation, and `privateStateExposed=false`.
+   repo-work-service-launch`, plus `-Mode repo-work-service-audit`. Native
+   smoke `.epiphany-smoke\repo-work-service-lifecycle-20260621-004202` proves
+   the exact queue-run command vector with `--dry-run`, a written runbook
+   receipt, receipt-directory readback before launch, a bounded
+   `service-launch --wait-child` receipt with exit code 0, then a
+   `repo-work-service-audit` receipt with `auditStatus=complete`,
+   `auditRunbookArtifactStatus=present`, no missing or failed checks, no
+   service-manager mutation, no elevation, and `privateStateExposed=false`.
 2. **Persona-to-Imagination action items.** The first repo Persona intake mouth
    is landed: `epiphany-work persona-intake` routes work-shaped speech through
    the Persona bubble speech-audit path, records public discussion refs and
@@ -1978,28 +1981,35 @@ The chain is typed and sealed enough to be useful:
   relies on per-pulse tick receipts, and zero-interval unbounded polling is
   refused.
 - `tools/epiphany_local_run.ps1 -Mode repo-work-service-plan`, `-Mode
-  repo-work-service-runbook`, and `-Mode repo-work-service-launch` are the
+  repo-work-service-runbook`, `-Mode repo-work-service-launch`, and `-Mode
+  repo-work-service-audit` are the
   first Idunn-hosted lifecycle artifacts for the repo-work queue pulse. They
   call `epiphany-daemon-supervisor service-plan` / `service-runbook` /
-  `service-launch --wait-child` with `--service-command <epiphany-work>` and
-  explicit `--service-arg` values for `queue-run --workspace <repo>
+  `service-launch --wait-child` / `repo-work-service-audit` with
+  `--service-command <epiphany-work>` and explicit `--service-arg` values for
+  `queue-run --workspace <repo>
   --epiphany-root <root> --local-verse-store <repo>\.epiphany\local-verse.ccmp
   --runtime-id <id> --max-items <n>`. The receipts and runbook describe or
-  launch the real queue-run command, but do not install a Windows service,
-  publish, merge, cross repo boundaries, elevate, or expose private state.
-  Native smoke `.epiphany-smoke\repo-work-service-lifecycle-20260621-002707`
-  now proves the same Idunn plan/runbook/launch artery without wrapper trust:
+  launch the real queue-run command and then audit the typed lifecycle trail,
+  but do not install a Windows service, publish, merge, cross repo boundaries,
+  elevate, or expose private state. Native smoke
+  `.epiphany-smoke\repo-work-service-lifecycle-20260621-004202` now proves the
+  same Idunn plan/runbook/launch/audit artery without wrapper trust:
   plan status `planned`, runbook status `written`, launch status `completed`,
-  launch exit code `0`, service id `epiphany-repo-work-queue-runner`,
+  launch exit code `0`, audit status `complete`, audit runbook artifact status
+  `present`, service id `epiphany-repo-work-queue-runner`,
   runbook receipt-directory readback before launch, launch receipt-directory
   readback after launch, service args containing `queue-run` and `--dry-run`,
   runbook SHA-256
-  `50c3776c7d763a67634cdcefc1b1ed17d700107958bf7c5e221f6c03ce49f2a6`,
+  `19af4154a19e41563a1a9e717b36e4db2a959db42892bef176c4493698d4b84a`,
   `lifecycleOwner=Idunn`, `hostedBody=repo-work`,
   `mutatesServiceManager=false`, `launchesService=true`, `waitChild=true`,
   `requiresElevatedAuthority=false`, and `privateStateExposed=false`. Wrapper
-  proof `local-20260621-012741-653-dd4fdae2` exercised
-  `repo-work-service-launch` and printed `status=completed`, `exitCode=0`,
+  proofs `local-20260621-014302-362-31bbef47`,
+  `local-20260621-014337-108-cbd99615`,
+  `local-20260621-014413-125-09e183c5`, and
+  `local-20260621-014558-197-f6951806` exercised plan/runbook/launch/audit;
+  final audit printed `status=complete`, `missing=none`, `failed=none`,
   `owner=Idunn`, `hostedBody=repo-work`, and `serviceManagerMutation=false`.
 - `epiphany-work persona-intake` is the first repo Persona mouth over accepted
   work pressure. It requires an online repo swarm receipt, writes a Persona
@@ -2043,9 +2053,10 @@ Required organs before MVP:
   `epiphany-work serve` adds bounded/unbounded cadence around that pulse, and
   `epiphany-swarm run` plus wrapper expose the bounded repo-swarm run mouth
   over the typed queue. Idunn-owned non-mutating queue-run service plan/runbook
-  receipts also exist, and the queue/tick path now hands branch-local execution
-  into `close-from-execute`. Remaining work is any later Idunn service
-  launch/install under explicit operator authority.
+  receipts plus bounded launch/audit readiness receipts also exist, and the
+  queue/tick path now hands branch-local execution into `close-from-execute`.
+  Remaining Idunn service work is optional elevated install/start execution
+  under explicit operator authority.
 - Persona-to-plan depth: deterministic `append-worklog` and `planning-note`
   derivations exist for accepted Persona/Bifrost pressure,
   `persona-intake` gives the project Persona a speech-audited mouth into that
@@ -2231,11 +2242,11 @@ Required organs before MVP:
   blocker, and `authority-gated` / Bifrost/GitHub /
   `awaiting-upstream-sync` for the upstream-main sync blocker. All stop
   packets are non-mutating, non-elevated, and private-state sealed. Native
-  service lifecycle plan/runbook proof for the queue-run pulse now exists at
-  `.epiphany-smoke\repo-work-service-lifecycle-20260620-185853`; remaining
-  service lifecycle work is optional elevated install/start execution proof
-  under explicit operator authority plus richer closure depth rather than basic
-  safe-family planning cargo.
+  service lifecycle plan/runbook/launch/audit proof for the queue-run pulse now
+  exists at `.epiphany-smoke\repo-work-service-lifecycle-20260621-004202`;
+  remaining service lifecycle work is optional elevated install/start execution
+  proof under explicit operator authority plus richer closure depth rather than
+  basic safe-family planning cargo.
 - Proof bundle depth: maintainers and future agents can inspect local
   operator-safe receipt chains, artifact schema/status rows, SHA-256 receipt
   hashes, compact TUI rows, commit refs, verification verdicts, map admission,
