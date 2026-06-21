@@ -794,6 +794,25 @@ requirements, and denied secret access, secret value materialization, write
 permission, deployment, publication, merge, service lifecycle, cross-body
 authority, and `privateStateExposed=false`.
 
+The next supply-chain boundary smoke proved dependency policy request cargo:
+`.epiphany-smoke\repo-dependency-policy-request-family-20260621-083433` ran
+init -> online -> accept ->
+`derive-plan --action-family repo-dependency-policy-request --model-ref
+repo-dependency-policy-request-family-smoke-imagination-v1 --model-authored` ->
+tick through run/adopt/execute/close on a fresh repo. The plan carried
+`safeActionFamily=repo.dependency_policy_request`; Hands committed only
+`.epiphany/dependency-policy-requests/repo-dependency-policy-request-family.toml`;
+Soul passed with `pathScopeMatched=true` and `familyAssertions.status=passed`;
+the request carried `schema_version =
+"epiphany.repo_dependency_policy_request.v0"`,
+`status="awaiting-dependency-policy-review"`, manifest inventory, lockfile
+policy, package-manager command review, network fetch policy, vulnerability
+review, license review, vendored-code policy, update cadence, rollback,
+Eyes/Soul/Mind/maintainer/Bifrost/dependency-audit receipt requirements, and
+denied direct dependency updates, package installs, lockfile mutation, network
+fetch, CI mutation, Hands, publication, merge, deployment, service lifecycle,
+cross-body authority, and `privateStateExposed=false`.
+
 The next Idunn boundary smoke proved deployment request cargo:
 `.epiphany-smoke\repo-deployment-request-family-20260620-195605` ran init ->
 online -> accept -> `derive-plan --action-family repo-deployment-request

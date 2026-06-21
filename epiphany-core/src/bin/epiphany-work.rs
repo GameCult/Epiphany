@@ -2208,6 +2208,13 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         | "secret-policy-request"
         | "security-policy-request"
         | "repo-security-request" => derive_repo_secret_policy_request_plan(input, &action_family),
+        "repo-dependency-policy-request"
+        | "dependency-policy-request"
+        | "dependency-policy"
+        | "supply-chain-policy-request"
+        | "repo-supply-chain-request" => {
+            derive_repo_dependency_policy_request_plan(input, &action_family)
+        }
         "repo-deployment-config"
         | "deployment-config"
         | "idunn-deployment-config"
@@ -2217,7 +2224,7 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         | "idunn-deployment-request"
         | "repo-deploy-request" => derive_repo_deployment_request_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-planning-brief, repo-interpreter-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, repo-secret-policy-request, repo-deployment-config, and repo-deployment-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-planning-brief, repo-interpreter-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, repo-secret-policy-request, repo-dependency-policy-request, repo-deployment-config, and repo-deployment-request"
         )),
     }
 }
@@ -5592,6 +5599,148 @@ fn derive_repo_secret_policy_request_plan(
     })
 }
 
+fn derive_repo_dependency_policy_request_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/dependency-policy-requests/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request_id = format!("repo-dependency-policy-request:{item_slug}");
+    let lines = vec![
+        "# Epiphany repo dependency policy request.".to_string(),
+        "# Branch-local supply-chain policy request cargo; not package install, lockfile mutation, network fetch, CI mutation, deployment, or publication authority.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_dependency_policy_request.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.dependency_policy_request")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "dependency_update_authorized = false".to_string(),
+        "package_install_authorized = false".to_string(),
+        "lockfile_mutation_authorized = false".to_string(),
+        "network_fetch_authorized = false".to_string(),
+        "ci_mutation_authorized = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "deployment_authority = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[request]".to_string(),
+        format!("id = {}", toml_basic_string(&request_id)),
+        "status = \"awaiting-dependency-policy-review\"".to_string(),
+        "requested_owner = \"Maintainer/Soul/Bifrost\"".to_string(),
+        "requested_effect = \"review-repo-dependency-and-supply-chain-policy\"".to_string(),
+        "dependency_scope = \"dependency manifests, lockfiles, package-manager commands, vendored code, update cadence, license posture, vulnerability review, and provenance requirements\"".to_string(),
+        "requires_manifest_inventory = true".to_string(),
+        "requires_lockfile_policy = true".to_string(),
+        "requires_package_manager_command_review = true".to_string(),
+        "requires_network_fetch_policy = true".to_string(),
+        "requires_vulnerability_review = true".to_string(),
+        "requires_license_review = true".to_string(),
+        "requires_rollback_plan = true".to_string(),
+        String::new(),
+        "[antecedents]".to_string(),
+        "source_grounding_required = true".to_string(),
+        "eyes_evidence_required = true".to_string(),
+        "soul_review_required = true".to_string(),
+        "mind_adoption_required = true".to_string(),
+        "maintainer_review_required = true".to_string(),
+        "bifrost_publication_review_required = true".to_string(),
+        String::new(),
+        "[required_receipts]".to_string(),
+        "source_grounding = \"epiphany.eyes.evidence_packet\"".to_string(),
+        "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
+        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
+        "bifrost_publication_review = \"gamecult.bifrost.publication_review_receipt.v0\""
+            .to_string(),
+        "dependency_audit = \"gamecult.supply_chain.dependency_audit_receipt.v0\""
+            .to_string(),
+        String::new(),
+        "[dependency_packet]".to_string(),
+        "requires_manifest_paths = true".to_string(),
+        "requires_lockfile_paths = true".to_string(),
+        "requires_package_manager_commands = true".to_string(),
+        "requires_vulnerability_sources = true".to_string(),
+        "requires_license_constraints = true".to_string(),
+        "requires_vendored_code_policy = true".to_string(),
+        "requires_update_cadence = true".to_string(),
+        "requires_private_state_redaction_check = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "direct_dependency_update_authority = false".to_string(),
+        "direct_package_install_authority = false".to_string(),
+        "direct_lockfile_mutation_authority = false".to_string(),
+        "direct_network_fetch_authority = false".to_string(),
+        "direct_ci_mutation_authority = false".to_string(),
+        "direct_hands_authority = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "deployment_authority = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_verse_rummaging = false".to_string(),
+        "maintainer_or_soul_dependency_authority_required = true".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the dependency policy request path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies the request names manifest inventory, lockfile policy, package-manager command review, network fetch policy, vulnerability review, license review, vendored-code policy, update cadence, and rollback planning.\",".to_string(),
+        "  \"Soul verifies no direct dependency update, package install, lockfile mutation, network fetch, CI mutation, Hands, publication, merge, deployment, service lifecycle, cross-body, or private Verse authority is granted.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the dependency policy request if the supply-chain review is not ready for maintainer/Soul/Bifrost review.\"]"
+            .to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.dependency_policy_request".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Imagination derived a repo dependency policy request from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add dependency policy request for repo work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo dependency policy request path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the request names manifest inventory, lockfile policy, package-manager command review, network fetch policy, vulnerability review, license review, vendored-code policy, update cadence, rollback planning, and no direct dependency/package/network/CI authority.".to_string(),
+            "Soul verifies no paths outside the declared dependency policy request changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated dependency policy request if the supply-chain review is not ready.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.dependency_policy_request"),
+    })
+}
+
 fn derive_repo_deployment_request_plan(
     input: DeriveSafePlanInput<'_>,
     action_family: &str,
@@ -8071,6 +8220,128 @@ fn closure_family_assertions(
                 "secret-policy-request-private-seal",
                 content.contains("private_state_exposed = false"),
                 "Committed secret policy request preserves the private-state seal.".to_string(),
+            );
+        }
+        "repo.dependency_policy_request" => {
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-schema-present",
+                content.contains(
+                    "schema_version = \"epiphany.repo_dependency_policy_request.v0\"",
+                ),
+                "Committed dependency policy request carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-family-present",
+                content.contains("safe_action_family = \"repo.dependency_policy_request\""),
+                "Committed dependency policy request carries the safe action family."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-summary-present",
+                content.contains(&compact_summary),
+                "Committed dependency policy request contains the accepted pressure summary."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-awaits-review",
+                content.contains("[request]")
+                    && content.contains("status = \"awaiting-dependency-policy-review\"")
+                    && content.contains("requested_owner = \"Maintainer/Soul/Bifrost\"")
+                    && content.contains(
+                        "requested_effect = \"review-repo-dependency-and-supply-chain-policy\"",
+                    )
+                    && content.contains("requires_manifest_inventory = true")
+                    && content.contains("requires_lockfile_policy = true")
+                    && content.contains("requires_package_manager_command_review = true")
+                    && content.contains("requires_network_fetch_policy = true")
+                    && content.contains("requires_vulnerability_review = true")
+                    && content.contains("requires_license_review = true")
+                    && content.contains("requires_rollback_plan = true"),
+                "Committed dependency policy request waits for maintainer/Soul/Bifrost review before consequence."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-antecedents-present",
+                content.contains("[antecedents]")
+                    && content.contains("source_grounding_required = true")
+                    && content.contains("eyes_evidence_required = true")
+                    && content.contains("soul_review_required = true")
+                    && content.contains("mind_adoption_required = true")
+                    && content.contains("maintainer_review_required = true")
+                    && content.contains("bifrost_publication_review_required = true"),
+                "Committed dependency policy request requires Eyes, Soul, Mind, maintainer, and Bifrost antecedents."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-receipt-contract",
+                content.contains("[required_receipts]")
+                    && content.contains("source_grounding = \"epiphany.eyes.evidence_packet\"")
+                    && content.contains(
+                        "soul_review = \"epiphany.repo_work_closure_review.v0\"",
+                    )
+                    && content.contains(
+                        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"",
+                    )
+                    && content.contains(
+                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
+                    )
+                    && content.contains(
+                        "bifrost_publication_review = \"gamecult.bifrost.publication_review_receipt.v0\"",
+                    )
+                    && content.contains(
+                        "dependency_audit = \"gamecult.supply_chain.dependency_audit_receipt.v0\"",
+                    ),
+                "Committed dependency policy request names Eyes, Soul, Mind, maintainer, Bifrost, and dependency-audit receipts."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-packet-contract",
+                content.contains("[dependency_packet]")
+                    && content.contains("requires_manifest_paths = true")
+                    && content.contains("requires_lockfile_paths = true")
+                    && content.contains("requires_package_manager_commands = true")
+                    && content.contains("requires_vulnerability_sources = true")
+                    && content.contains("requires_license_constraints = true")
+                    && content.contains("requires_vendored_code_policy = true")
+                    && content.contains("requires_update_cadence = true")
+                    && content.contains("requires_private_state_redaction_check = true"),
+                "Committed dependency policy request names manifest, lockfile, package-manager, vulnerability, license, vendored-code, update cadence, and redaction requirements."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("direct_dependency_update_authority = false")
+                    && content.contains("direct_package_install_authority = false")
+                    && content.contains("direct_lockfile_mutation_authority = false")
+                    && content.contains("direct_network_fetch_authority = false")
+                    && content.contains("direct_ci_mutation_authority = false")
+                    && content.contains("direct_hands_authority = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("merge_authorized = false")
+                    && content.contains("deployment_authority = false")
+                    && content.contains("service_lifecycle_authority = false")
+                    && content.contains("cross_body_mutation_authorized = false")
+                    && content.contains("private_verse_rummaging = false")
+                    && content
+                        .contains("maintainer_or_soul_dependency_authority_required = true"),
+                "Committed dependency policy request denies dependency/package/lockfile/network/CI/action/publication/service/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-private-seal",
+                content.contains("private_state_exposed = false"),
+                "Committed dependency policy request preserves the private-state seal."
+                    .to_string(),
             );
         }
         "repo.deployment_request" => {
@@ -13729,6 +14000,7 @@ fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
             | "repo.metrics_request"
             | "repo.doctrine_update_request"
             | "repo.secret_policy_request"
+            | "repo.dependency_policy_request"
             | "repo.deployment_config"
             | "repo.deployment_request"
     )
@@ -13862,7 +14134,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|deployment-config-audit|deployment-execution-runbook|deployment-aftercare-audit|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-planning-brief|repo-interpreter-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-planning-brief|repo-interpreter-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-dependency-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
