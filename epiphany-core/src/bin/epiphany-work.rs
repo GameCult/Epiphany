@@ -2159,6 +2159,9 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-planning-brief" | "planning-brief" | "safe-family-plan" => {
             derive_repo_planning_brief_plan(input, &action_family)
         }
+        "repo-interpreter-brief" | "interpreter-brief" | "mind-interpreter-brief" => {
+            derive_repo_interpreter_brief_plan(input, &action_family)
+        }
         "repo-objective-draft" | "objective-draft" | "imagination-objective" => {
             derive_repo_objective_draft_plan(input, &action_family)
         }
@@ -2214,7 +2217,7 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         | "idunn-deployment-request"
         | "repo-deploy-request" => derive_repo_deployment_request_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-planning-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, repo-secret-policy-request, repo-deployment-config, and repo-deployment-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-planning-brief, repo-interpreter-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-doctrine-update-request, repo-secret-policy-request, repo-deployment-config, and repo-deployment-request"
         )),
     }
 }
@@ -3567,6 +3570,161 @@ fn derive_repo_planning_brief_plan(
             "Remove the generated planning brief if Imagination decomposed the pressure incorrectly.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.planning_brief"),
+    })
+}
+
+fn derive_repo_interpreter_brief_plan(
+    input: DeriveSafePlanInput<'_>,
+    action_family: &str,
+) -> Result<DerivedSafePlan> {
+    let item_slug = sanitize(input.item);
+    let default_target = format!(".epiphany/interpreter-briefs/{item_slug}.toml");
+    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
+    let candidate_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
+    let public_refs =
+        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let brief_id = format!("repo-interpreter-brief:{item_slug}");
+    let candidate_families = vec![
+        "repo.consensus_brief".to_string(),
+        "repo.objective_draft".to_string(),
+        "repo.adoption_request".to_string(),
+        "repo.work_order".to_string(),
+        "repo.verification_request".to_string(),
+        "repo.publication_request".to_string(),
+    ];
+    let lines = vec![
+        "# Epiphany repo interpreter brief.".to_string(),
+        "# Branch-local Mind interpretation cargo; not objective adoption, scheduling, Hands authority, or publication.".to_string(),
+        format!(
+            "schema_version = {}",
+            toml_basic_string("epiphany.repo_interpreter_brief.v0")
+        ),
+        format!("item = {}", toml_basic_string(input.item)),
+        format!("created_at = {}", toml_basic_string(&now)),
+        format!("source = {}", toml_basic_string(input.source)),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!(
+            "safe_action_family = {}",
+            toml_basic_string("repo.interpreter_brief")
+        ),
+        format!("model_authored = {}", input.model_authored),
+        format!(
+            "model_ref = {}",
+            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
+        ),
+        "operator_authored_shell_details = false".to_string(),
+        "hands_authority_granted = false".to_string(),
+        "durable_state_admitted = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "deployment_execution_authority = false".to_string(),
+        "cross_repo_mutation = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        String::new(),
+        "[interpreter]".to_string(),
+        format!("id = {}", toml_basic_string(&brief_id)),
+        "status = \"draft\"".to_string(),
+        "owner = \"Mind\"".to_string(),
+        "source = \"Imagination\"".to_string(),
+        "purpose = \"public-pressure-to-action-semantics\"".to_string(),
+        "requires_consensus_readback = true".to_string(),
+        "requires_safe_family_choice = true".to_string(),
+        "requires_requested_paths = true".to_string(),
+        "requires_verification_asks = true".to_string(),
+        "requires_evidence_needs = true".to_string(),
+        "candidate_actions_non_authoritative = true".to_string(),
+        String::new(),
+        "[inputs]".to_string(),
+        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
+        format!("public_discussion_refs = {}", toml_array(&public_refs)),
+        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
+        "private_worker_transcripts_allowed = false".to_string(),
+        "raw_result_payloads_allowed = false".to_string(),
+        String::new(),
+        "[semantic_checks]".to_string(),
+        "intent_summary_required = true".to_string(),
+        "scope_boundary_required = true".to_string(),
+        "requested_paths_required = true".to_string(),
+        "verification_required = true".to_string(),
+        "evidence_required = true".to_string(),
+        "rollback_required = true".to_string(),
+        "non_goals_required = true".to_string(),
+        "open_questions_required = true".to_string(),
+        "consensus_alignment_required = true".to_string(),
+        String::new(),
+        "[allowed_outputs]".to_string(),
+        format!("candidate_safe_families = {}", toml_array(&candidate_families)),
+        "may_request_replanning = true".to_string(),
+        "may_request_more_consensus = true".to_string(),
+        "may_adopt_objective = false".to_string(),
+        "may_schedule_work = false".to_string(),
+        "may_touch_substrate = false".to_string(),
+        "may_publish = false".to_string(),
+        "may_deploy = false".to_string(),
+        String::new(),
+        "[required_gates]".to_string(),
+        "imagination_consensus_required = true".to_string(),
+        "mind_review_required = true".to_string(),
+        "soul_source_grounding_required = true".to_string(),
+        "bifrost_publication_review_required = true".to_string(),
+        "hands_receipt_required_before_state_change = true".to_string(),
+        "substrate_receipt_required_before_mutation = true".to_string(),
+        "idunn_receipt_required_before_deployment = true".to_string(),
+        String::new(),
+        "[authority]".to_string(),
+        "branch_local_only = true".to_string(),
+        "direct_state_commit_authorized = false".to_string(),
+        "objective_adoption_authorized = false".to_string(),
+        "self_scheduling_authorized = false".to_string(),
+        "substrate_access_authorized = false".to_string(),
+        "hands_action_authorized = false".to_string(),
+        "shell_command_authorized = false".to_string(),
+        "commit_authorized = false".to_string(),
+        "publication_authorized = false".to_string(),
+        "merge_authorized = false".to_string(),
+        "service_lifecycle_authority = false".to_string(),
+        "deployment_execution_authority = false".to_string(),
+        "cross_body_mutation_authorized = false".to_string(),
+        "private_worker_transcripts_allowed = false".to_string(),
+        "raw_result_payloads_allowed = false".to_string(),
+        "private_state_exposed = false".to_string(),
+        String::new(),
+        "[verification]".to_string(),
+        "asks = [".to_string(),
+        "  \"Soul verifies the interpreter brief path changed and contains the accepted pressure summary.\",".to_string(),
+        "  \"Soul verifies Mind owns interpretation while candidate actions remain non-authoritative.\",".to_string(),
+        "  \"Soul verifies semantic checks, required gates, and authority denials are present.\",".to_string(),
+        "  \"Soul verifies no paths outside the declared interpreter brief changed.\"".to_string(),
+        "]".to_string(),
+        String::new(),
+        "[rollback]".to_string(),
+        "hints = [\"Remove the interpreter brief if Mind misread Imagination consensus or the semantic checks are incomplete.\"]".to_string(),
+        String::new(),
+    ];
+    let command = powershell_set_lines_command(&target_path, &lines);
+    Ok(DerivedSafePlan {
+        safe_action_family: "repo.interpreter_brief".to_string(),
+        target_path,
+        plan_summary: format!(
+            "Mind derived a repo interpreter brief from accepted {} pressure.",
+            input.source
+        ),
+        command,
+        commit_message: format!("Add interpreter brief for work item {}", input.item),
+        verification_asks: vec![
+            "Soul verifies the repo interpreter brief path changed and contains the accepted pressure summary.".to_string(),
+            "Soul verifies the brief keeps interpretation non-authoritative and requires consensus, semantic checks, Mind review, Soul grounding, and downstream receipts.".to_string(),
+            "Soul verifies no paths outside the declared interpreter brief changed.".to_string(),
+        ],
+        rollback_hints: vec![
+            "Remove the generated interpreter brief if Mind misinterpreted Imagination consensus.".to_string(),
+        ],
+        derivation: plan_derivation_receipt(input, action_family, "repo.interpreter_brief"),
     })
 }
 
@@ -6454,6 +6612,119 @@ fn closure_family_assertions(
                     .to_string(),
             );
             safe_family_planning = planning_brief_safe_family_readback(&content);
+        }
+        "repo.interpreter_brief" => {
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-schema-present",
+                content.contains("schema_version = \"epiphany.repo_interpreter_brief.v0\""),
+                "Committed interpreter brief carries the schema version.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-family-present",
+                content.contains("safe_action_family = \"repo.interpreter_brief\""),
+                "Committed interpreter brief carries the safe action family.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-summary-present",
+                content.contains(&compact_summary),
+                "Committed interpreter brief contains the accepted pressure summary.".to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-draft-state",
+                content.contains("[interpreter]")
+                    && content.contains("status = \"draft\"")
+                    && content.contains("owner = \"Mind\"")
+                    && content.contains("source = \"Imagination\"")
+                    && content.contains("purpose = \"public-pressure-to-action-semantics\"")
+                    && content.contains("requires_consensus_readback = true")
+                    && content.contains("requires_safe_family_choice = true")
+                    && content.contains("requires_requested_paths = true")
+                    && content.contains("requires_verification_asks = true")
+                    && content.contains("requires_evidence_needs = true")
+                    && content.contains("candidate_actions_non_authoritative = true"),
+                "Committed interpreter brief stays draft, Mind-owned, and non-authoritative."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-semantic-checks",
+                content.contains("[semantic_checks]")
+                    && content.contains("intent_summary_required = true")
+                    && content.contains("scope_boundary_required = true")
+                    && content.contains("requested_paths_required = true")
+                    && content.contains("verification_required = true")
+                    && content.contains("evidence_required = true")
+                    && content.contains("rollback_required = true")
+                    && content.contains("non_goals_required = true")
+                    && content.contains("open_questions_required = true")
+                    && content.contains("consensus_alignment_required = true"),
+                "Committed interpreter brief names semantic checks before action adoption."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-allowed-outputs",
+                content.contains("[allowed_outputs]")
+                    && content.contains("\"repo.consensus_brief\"")
+                    && content.contains("\"repo.objective_draft\"")
+                    && content.contains("\"repo.adoption_request\"")
+                    && content.contains("\"repo.work_order\"")
+                    && content.contains("\"repo.verification_request\"")
+                    && content.contains("\"repo.publication_request\"")
+                    && content.contains("may_request_replanning = true")
+                    && content.contains("may_request_more_consensus = true")
+                    && content.contains("may_adopt_objective = false")
+                    && content.contains("may_schedule_work = false")
+                    && content.contains("may_touch_substrate = false")
+                    && content.contains("may_publish = false")
+                    && content.contains("may_deploy = false"),
+                "Committed interpreter brief limits outputs to candidate families or more planning."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-gates",
+                content.contains("[required_gates]")
+                    && content.contains("imagination_consensus_required = true")
+                    && content.contains("mind_review_required = true")
+                    && content.contains("soul_source_grounding_required = true")
+                    && content.contains("bifrost_publication_review_required = true")
+                    && content.contains("hands_receipt_required_before_state_change = true")
+                    && content.contains("substrate_receipt_required_before_mutation = true")
+                    && content.contains("idunn_receipt_required_before_deployment = true"),
+                "Committed interpreter brief names consensus, Mind, Soul, Bifrost, Hands, Substrate, and Idunn gates."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-authority-seals",
+                content.contains("[authority]")
+                    && content.contains("direct_state_commit_authorized = false")
+                    && content.contains("objective_adoption_authorized = false")
+                    && content.contains("self_scheduling_authorized = false")
+                    && content.contains("substrate_access_authorized = false")
+                    && content.contains("hands_action_authorized = false")
+                    && content.contains("shell_command_authorized = false")
+                    && content.contains("commit_authorized = false")
+                    && content.contains("publication_authorized = false")
+                    && content.contains("deployment_execution_authority = false")
+                    && content.contains("cross_body_mutation_authorized = false"),
+                "Committed interpreter brief denies state/adoption/scheduling/substrate/action/shell/commit/publication/deployment/cross-body authority."
+                    .to_string(),
+            );
+            push_assertion(
+                &mut assertions,
+                "interpreter-brief-private-seal",
+                content.contains("private_state_exposed = false")
+                    && content.contains("private_worker_transcripts_allowed = false")
+                    && content.contains("raw_result_payloads_allowed = false"),
+                "Committed interpreter brief preserves private-state and transcript seals."
+                    .to_string(),
+            );
         }
         "repo.objective_draft" => {
             push_assertion(
@@ -13443,6 +13714,7 @@ fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
             | "repo.collaboration_topic"
             | "repo.consensus_brief"
             | "repo.planning_brief"
+            | "repo.interpreter_brief"
             | "repo.objective_draft"
             | "repo.adoption_request"
             | "repo.scheduling_request"
@@ -13590,7 +13862,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|publish|sync|overview|deployment-config-audit|deployment-execution-runbook|deployment-aftercare-audit|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-planning-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-planning-brief|repo-interpreter-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-doctrine-update-request|repo-secret-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
