@@ -8,12 +8,14 @@ use epiphany_core::GhostlightValue;
 use epiphany_core::GhostlightWorld;
 use epiphany_core::PersonaIdentity;
 use epiphany_core::PersonaInterpreterInput;
+use epiphany_core::PersonaMemoryCacheConfig;
 use epiphany_core::PersonaProjectorInput;
 use epiphany_core::PersonaTurnInput;
 use epiphany_core::build_persona_interpreter_prompt;
 use epiphany_core::build_persona_memory_chunks;
 use epiphany_core::build_persona_projector_prompt;
 use epiphany_core::build_persona_turn_prompt;
+use epiphany_core::render_persona_memory_recall_with_cache;
 use epiphany_core::render_persona_semantic_memory_recall;
 use epiphany_state_model::EpiphanyMemoryContextPacket;
 use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
@@ -99,9 +101,44 @@ fn main() {
             .iter()
             .all(|chunk| !chunk.text.contains("sealed private note"))
     );
+    let bridge = render_persona_memory_recall_with_cache(
+        &persona_memory_entry(),
+        "state/agents.msgpack#Persona",
+        "typed-contract zeal before public speech",
+        4,
+        Some(&EpiphanyMemoryContextPacket {
+            id: "memctx-smoke-fallback".to_string(),
+            query_id: "persona-smoke-fallback".to_string(),
+            nodes: vec![EpiphanyMemoryNode {
+                id: "node-smoke-fallback".to_string(),
+                title: "Smoke fallback memory".to_string(),
+                claim: "Fallback typed memory graph context remains available.".to_string(),
+                action_implication: "Do not pretend live Qdrant was required for this smoke."
+                    .to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }),
+        &PersonaMemoryCacheConfig {
+            qdrant_url: "http://127.0.0.1:1".to_string(),
+            qdrant_api_key: None,
+            qdrant_timeout_ms: 1,
+            ollama_base_url: "http://127.0.0.1:1".to_string(),
+            ollama_model: "qwen3-embedding:0.6b".to_string(),
+            ollama_timeout_ms: 1,
+            collection_name: "epiphany_persona_memory_smoke".to_string(),
+            query_instruction: "smoke".to_string(),
+        },
+    );
+    assert_eq!(bridge.status, "fallback");
+    assert!(
+        bridge
+            .rendered_recall
+            .contains("Fallback typed memory graph context")
+    );
 
     println!(
-        "status=ok recallSource=typed-memory-graph qdrantCache=persona-memory-module-wired liveQdrant=not-required personaLayers=projector,persona,interpreter privateStateExposed=false"
+        "status=ok recallSource=typed-memory-graph qdrantCache=persona-memory-bridge-wired liveQdrant=not-required personaLayers=projector,persona,interpreter privateStateExposed=false"
     );
 }
 

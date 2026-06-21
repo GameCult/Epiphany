@@ -1,6 +1,8 @@
 use crate::EpiphanyAgentMemoryEntry;
+use crate::persona_turn::render_persona_semantic_memory_recall;
 use anyhow::Context;
 use anyhow::Result;
+use epiphany_state_model::EpiphanyMemoryContextPacket;
 use reqwest::StatusCode;
 use reqwest::blocking::Client;
 use reqwest::blocking::ClientBuilder;
@@ -104,6 +106,22 @@ pub struct PersonaMemoryCacheIndexReceipt {
     pub identity_id: String,
     pub role_id: String,
     pub chunk_count: usize,
+    pub private_state_exposed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonaMemoryRecallRender {
+    pub schema_version: String,
+    pub status: String,
+    pub cache_status: String,
+    pub identity_id: String,
+    pub role_id: String,
+    pub chunk_count: usize,
+    pub hit_count: usize,
+    pub rendered_recall: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
     pub private_state_exposed: bool,
 }
 
@@ -287,6 +305,110 @@ pub fn search_persona_memory_cache(
             })
         })
         .collect())
+}
+
+pub fn render_persona_memory_recall_with_cache(
+    entry: &EpiphanyAgentMemoryEntry,
+    source_state_ref: impl Into<String>,
+    query: &str,
+    limit: usize,
+    fallback_context: Option<&EpiphanyMemoryContextPacket>,
+    config: &PersonaMemoryCacheConfig,
+) -> PersonaMemoryRecallRender {
+    let chunks = build_persona_memory_chunks(entry, source_state_ref);
+    let identity_id = entry.agent.agent_id.clone();
+    let role_id = entry.role_id.clone();
+    if chunks.is_empty() {
+        return fallback_persona_memory_recall(
+            identity_id,
+            role_id,
+            0,
+            "empty-cache-source".to_string(),
+            "No public Persona memory chunks were available for cache recall.".to_string(),
+            fallback_context,
+        );
+    }
+
+    match index_persona_memory_chunks(&chunks, config)
+        .and_then(|_| search_persona_memory_cache(&identity_id, query, limit.max(1), config))
+    {
+        Ok(hits) if !hits.is_empty() => PersonaMemoryRecallRender {
+            schema_version: PERSONA_MEMORY_CACHE_SCHEMA_VERSION.to_string(),
+            status: "ok".to_string(),
+            cache_status: "qdrant-hit".to_string(),
+            identity_id,
+            role_id,
+            chunk_count: chunks.len(),
+            hit_count: hits.len(),
+            rendered_recall: render_persona_memory_cache_hits(&hits),
+            warnings: Vec::new(),
+            private_state_exposed: false,
+        },
+        Ok(_) => fallback_persona_memory_recall(
+            identity_id,
+            role_id,
+            chunks.len(),
+            "qdrant-empty".to_string(),
+            "Qdrant Persona-memory cache ran but returned no matching hits.".to_string(),
+            fallback_context,
+        ),
+        Err(error) => fallback_persona_memory_recall(
+            identity_id,
+            role_id,
+            chunks.len(),
+            "qdrant-unavailable".to_string(),
+            format!("Qdrant Persona-memory cache unavailable: {error:#}"),
+            fallback_context,
+        ),
+    }
+}
+
+fn render_persona_memory_cache_hits(hits: &[PersonaMemorySearchHit]) -> String {
+    let mut lines = vec![
+        "These are derived Qdrant Persona-memory cache hits from typed Persona state. They are hints, not durable authority; typed memory remains the owner.".to_string(),
+    ];
+    for (index, hit) in hits.iter().enumerate() {
+        lines.push(format!(
+            "- {}. {} / {} score={:.3}: {}",
+            index + 1,
+            hit.chunk.persona_name,
+            hit.chunk.memory_kind,
+            hit.score,
+            collapse_whitespace(&hit.chunk.text, 560)
+        ));
+    }
+    lines.join("\n")
+}
+
+fn fallback_persona_memory_recall(
+    identity_id: String,
+    role_id: String,
+    chunk_count: usize,
+    cache_status: String,
+    warning: String,
+    fallback_context: Option<&EpiphanyMemoryContextPacket>,
+) -> PersonaMemoryRecallRender {
+    let rendered_recall = if let Some(packet) = fallback_context {
+        let fallback = render_persona_semantic_memory_recall(packet);
+        format!("{warning}\nFalling back to typed memory graph context:\n{fallback}")
+    } else {
+        format!(
+            "{warning}\n- semantic Persona memory recall unavailable; use projected state and direct room evidence only"
+        )
+    };
+
+    PersonaMemoryRecallRender {
+        schema_version: PERSONA_MEMORY_CACHE_SCHEMA_VERSION.to_string(),
+        status: "fallback".to_string(),
+        cache_status,
+        identity_id,
+        role_id,
+        chunk_count,
+        hit_count: 0,
+        rendered_recall,
+        warnings: vec![warning],
+        private_state_exposed: false,
+    }
 }
 
 struct PersonaMemoryChunkInput<'a> {
@@ -711,6 +833,8 @@ mod tests {
     use crate::agent_memory::GhostlightMemory;
     use crate::agent_memory::GhostlightValue;
     use crate::agent_memory::GhostlightWorld;
+    use epiphany_state_model::EpiphanyMemoryContextPacket;
+    use epiphany_state_model::EpiphanyMemoryNode;
     use wiremock::Mock;
     use wiremock::MockServer;
     use wiremock::ResponseTemplate;
@@ -843,6 +967,172 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].chunk.identity_id, "epiphany.Persona");
         assert!(hits[0].chunk.text.contains("Public machine-saint"));
+        Ok(())
+    }
+
+    #[test]
+    fn persona_memory_recall_bridge_renders_qdrant_hits() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let qdrant = runtime.block_on(MockServer::start());
+        let ollama = runtime.block_on(MockServer::start());
+        let config = PersonaMemoryCacheConfig {
+            qdrant_url: qdrant.uri(),
+            qdrant_api_key: None,
+            qdrant_timeout_ms: 5_000,
+            ollama_base_url: ollama.uri(),
+            ollama_model: "qwen3-embedding:0.6b".to_string(),
+            ollama_timeout_ms: 5_000,
+            collection_name: "epiphany_persona_memory_bridge_test".to_string(),
+            query_instruction: DEFAULT_QUERY_INSTRUCTION.to_string(),
+        };
+        let chunks = build_persona_memory_chunks(&persona_entry(), "state/agents.msgpack#Persona");
+
+        runtime.block_on(async {
+            Mock::given(method("GET"))
+                .and(path("/collections/epiphany_persona_memory_bridge_test/exists"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "result": { "exists": true }
+                })))
+                .expect(2)
+                .mount(&qdrant)
+                .await;
+            Mock::given(method("POST"))
+                .and(path("/collections/epiphany_persona_memory_bridge_test/points/delete"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "result": { "status": "acknowledged" }
+                })))
+                .expect(1)
+                .mount(&qdrant)
+                .await;
+            Mock::given(method("PUT"))
+                .and(path("/collections/epiphany_persona_memory_bridge_test/points"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "result": { "status": "acknowledged" }
+                })))
+                .expect(1)
+                .mount(&qdrant)
+                .await;
+            Mock::given(method("POST"))
+                .and(path("/collections/epiphany_persona_memory_bridge_test/points/query"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "result": {
+                        "points": [{
+                            "score": 0.97,
+                            "payload": chunks[0],
+                        }]
+                    }
+                })))
+                .expect(1)
+                .mount(&qdrant)
+                .await;
+            Mock::given(method("POST"))
+                .and(path("/api/embed"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "embeddings": chunks.iter().map(|_| vec![0.1_f32, 0.2_f32, 0.3_f32]).collect::<Vec<_>>()
+                })))
+                .expect(2)
+                .mount(&ollama)
+                .await;
+        });
+
+        let render = render_persona_memory_recall_with_cache(
+            &persona_entry(),
+            "state/agents.msgpack#Persona",
+            "clean contracts",
+            4,
+            None,
+            &config,
+        );
+        assert_eq!(render.status, "ok");
+        assert_eq!(render.cache_status, "qdrant-hit");
+        assert!(
+            render
+                .rendered_recall
+                .contains("Qdrant Persona-memory cache hits")
+        );
+        assert!(render.rendered_recall.contains("Public machine-saint"));
+        assert!(!render.rendered_recall.contains("sealed private ache"));
+        Ok(())
+    }
+
+    #[test]
+    fn persona_memory_recall_bridge_falls_back_to_memory_graph_context() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let qdrant = runtime.block_on(MockServer::start());
+        let ollama = runtime.block_on(MockServer::start());
+        let config = PersonaMemoryCacheConfig {
+            qdrant_url: qdrant.uri(),
+            qdrant_api_key: None,
+            qdrant_timeout_ms: 5_000,
+            ollama_base_url: ollama.uri(),
+            ollama_model: "qwen3-embedding:0.6b".to_string(),
+            ollama_timeout_ms: 5_000,
+            collection_name: "epiphany_persona_memory_bridge_fallback".to_string(),
+            query_instruction: DEFAULT_QUERY_INSTRUCTION.to_string(),
+        };
+        let chunks = build_persona_memory_chunks(&persona_entry(), "state/agents.msgpack#Persona");
+
+        runtime.block_on(async {
+            Mock::given(method("POST"))
+                .and(path("/api/embed"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "embeddings": chunks.iter().map(|_| vec![0.1_f32, 0.2_f32, 0.3_f32]).collect::<Vec<_>>()
+                })))
+                .expect(1)
+                .mount(&ollama)
+                .await;
+            Mock::given(method("GET"))
+                .and(path(
+                    "/collections/epiphany_persona_memory_bridge_fallback/exists",
+                ))
+                .respond_with(ResponseTemplate::new(500).set_body_json(json!({
+                    "status": "unavailable"
+                })))
+                .expect(1)
+                .mount(&qdrant)
+                .await;
+        });
+
+        let fallback = EpiphanyMemoryContextPacket {
+            id: "memctx-fallback".to_string(),
+            query_id: "persona-fallback".to_string(),
+            nodes: vec![EpiphanyMemoryNode {
+                id: "node-fallback".to_string(),
+                title: "Fallback typed memory".to_string(),
+                claim: "Typed memory graph recall remains available when Qdrant is down."
+                    .to_string(),
+                action_implication: "Use fallback context without pretending cache was live."
+                    .to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let render = render_persona_memory_recall_with_cache(
+            &persona_entry(),
+            "state/agents.msgpack#Persona",
+            "clean contracts",
+            4,
+            Some(&fallback),
+            &config,
+        );
+        assert_eq!(render.status, "fallback");
+        assert_eq!(render.cache_status, "qdrant-unavailable");
+        assert!(
+            render
+                .rendered_recall
+                .contains("Falling back to typed memory graph context")
+        );
+        assert!(
+            render
+                .rendered_recall
+                .contains("Typed memory graph recall remains available")
+        );
+        assert!(!render.private_state_exposed);
         Ok(())
     }
 
