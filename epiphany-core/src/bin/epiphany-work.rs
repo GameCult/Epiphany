@@ -1,8 +1,32 @@
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkReadinessEntry;
+use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
+use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
+use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
+use epiphany_core::HANDS_PR_RECEIPT_TYPE;
+use epiphany_core::HandsActionIntent;
+use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
+use epiphany_core::MindGatewayDecision;
+use epiphany_core::MindGatewayReview;
+use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SoulVerdictReceipt;
+use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
@@ -34,32 +58,11 @@ use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
-use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
-use epiphany_core::HandsActionIntent;
-use epiphany_core::MindGatewayDecision;
-use epiphany_core::MindGatewayReview;
-use epiphany_core::RuntimeSpineInitOptions;
-use epiphany_core::SoulVerdictReceipt;
-use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
-use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_SCHEMA_VERSION;
-use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
-use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
-use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
-use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
-use epiphany_core::HANDS_PR_RECEIPT_TYPE;
-use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
-use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::write_epiphany_cultmesh_repo_work_readiness;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use sha2::Digest;
 use sha2::Sha256;
 use std::env;
@@ -1524,9 +1527,9 @@ fn run_accept(args: AcceptArgs) -> Result<Value> {
             .join("swarm-online")
             .join("repo-swarm-online-receipt.json")
     });
-    let online_receipt = read_json(&online_receipt_path).with_context(|| {
-        "repo swarm online receipt is required; run epiphany-swarm online first"
-    })?;
+    let online_receipt = read_json(&online_receipt_path).with_context(
+        || "repo swarm online receipt is required; run epiphany-swarm online first",
+    )?;
     let local_verse_store = args.local_verse_store.unwrap_or_else(|| {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
@@ -1687,9 +1690,9 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
             .join("swarm-online")
             .join("repo-swarm-online-receipt.json")
     });
-    let online_receipt = read_json(&online_receipt_path).with_context(|| {
-        "repo swarm online receipt is required; run epiphany-swarm online first"
-    })?;
+    let online_receipt = read_json(&online_receipt_path).with_context(
+        || "repo swarm online receipt is required; run epiphany-swarm online first",
+    )?;
     let local_verse_store = args.local_verse_store.clone().unwrap_or_else(|| {
         path_from_json(&online_receipt, &["localVerseStore"])
             .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
@@ -12028,6 +12031,11 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             .join(format!("repo-work-public-proof-{item_slug}.json"))
     });
     let readiness_receipt_path = artifact_dir.join(format!("work-readiness-{item_slug}.json"));
+    let accept_receipt = read_json(&accept_receipt_path)?;
+    let runtime_id = string_from_json(&accept_receipt, &["runtimeId"])
+        .unwrap_or_else(|| "repo-swarm-local".to_string());
+    let local_verse_store = path_from_json(&accept_receipt, &["localVerseStore"])
+        .or_else(|| path_from_json(&accept_receipt, &["localVerseStorePath"]));
 
     let close_receipt = read_json_if_exists(&close_receipt_path)?;
     let close_status = close_receipt
@@ -12195,6 +12203,13 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         .iter()
         .filter(|row| row.get("satisfied").and_then(Value::as_bool) != Some(true))
         .count();
+    let satisfied_rows = rows.len().saturating_sub(missing_rows);
+    let missing_kinds = rows
+        .iter()
+        .filter(|row| row.get("satisfied").and_then(Value::as_bool) != Some(true))
+        .filter_map(|row| row.get("kind").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
     let verdict = if missing_rows == 0 {
         "ready"
     } else {
@@ -12206,6 +12221,26 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         "Complete the missing readiness rows, then rerun epiphany-work readiness before asking for review."
     };
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let readiness_tui_rows = vec![
+        format!(
+            "REPO-WORK-READINESS | item={} | status={} | missing={} | satisfied={} | receipt={} | approvalAuth=false | publicationAuth=false | serviceAuth=false | handsAuth=false | private=false",
+            item,
+            verdict,
+            missing_rows,
+            satisfied_rows,
+            readiness_receipt_path.display()
+        ),
+        format!(
+            "REPO-WORK-READINESS-GAPS | item={} | missingKinds={} | next={} | private=false",
+            item,
+            if missing_kinds.is_empty() {
+                "none".to_string()
+            } else {
+                missing_kinds.join(",")
+            },
+            next_safe_move
+        ),
+    ];
     let receipt = json!({
         "schemaVersion": "epiphany.repo_work_readiness_report.v0",
         "createdAt": now,
@@ -12241,6 +12276,54 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
     if args.write_receipt {
         write_json(&readiness_receipt_path, &receipt)?;
     }
+    let mut verse_projection = Value::Null;
+    if args.write_receipt {
+        if let Some(store) = local_verse_store.as_ref() {
+            let entry = EpiphanyCultMeshRepoWorkReadinessEntry {
+                schema_version: EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION.to_string(),
+                runtime_id: runtime_id.clone(),
+                verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+                readiness_id: format!("repo-work-readiness-{item_slug}"),
+                generated_at: now.clone(),
+                workspace: workspace.display().to_string(),
+                item: item.clone(),
+                status: verdict.to_string(),
+                missing_required_count: missing_rows as u32,
+                satisfied_required_count: satisfied_rows as u32,
+                readiness_receipt_ref: readiness_receipt_path.display().to_string(),
+                overview_receipt_ref: overview["receiptPath"]
+                    .as_str()
+                    .unwrap_or("missing")
+                    .to_string(),
+                proof_bundle_id: overview["proofBundle"]["bundleId"]
+                    .as_str()
+                    .unwrap_or("missing")
+                    .to_string(),
+                missing_kinds: missing_kinds.clone(),
+                tui_rows: readiness_tui_rows.clone(),
+                sight_only: true,
+                readiness_approval_authorized: false,
+                publication_authorized: false,
+                service_lifecycle_authority: false,
+                hands_action_authorized: false,
+                private_state_exposed: false,
+                notes: vec![
+                    "Repo work readiness is reviewable sight only; Maintainer/Soul/Mind/Bifrost own any readiness approval.".to_string(),
+                    "Bifrost/GitHub own publication and upstream-main sync; Idunn owns service lifecycle; Hands owns branch-local action consequences.".to_string(),
+                    "Gjallar may project these rows without scheduling, publication, merge, deployment, service lifecycle, cross-body mutation, or private Verse authority.".to_string(),
+                ],
+            };
+            let written = write_epiphany_cultmesh_repo_work_readiness(store, entry)?;
+            verse_projection = json!({
+                "localVerseStore": store,
+                "documentType": "epiphany.cultmesh.repo_work_readiness",
+                "readinessId": written.readiness_id,
+                "latestKey": "gamecult-local/repo-work-readiness/latest",
+                "tuiRows": written.tui_rows,
+                "privateStateExposed": written.private_state_exposed
+            });
+        }
+    }
     Ok(json!({
         "schemaVersion": "epiphany.repo_work_readiness.v0",
         "status": verdict,
@@ -12249,6 +12332,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         "receiptPath": if args.write_receipt { Value::String(readiness_receipt_path.display().to_string()) } else { Value::Null },
         "missingRequiredCount": missing_rows,
         "rows": receipt["rows"],
+        "verseProjection": verse_projection,
         "authority": receipt["authority"],
         "privateStateExposed": false,
         "nextSafeMove": receipt["nextSafeMove"]
@@ -14782,11 +14866,7 @@ fn string_array_field(value: &Value, field: &str) -> Vec<String> {
 }
 
 fn default_if_empty(values: Vec<String>, defaults: Vec<String>) -> Vec<String> {
-    if values.is_empty() {
-        defaults
-    } else {
-        values
-    }
+    if values.is_empty() { defaults } else { values }
 }
 
 fn adopted_action_item_from_plan(plan: &Value) -> Value {

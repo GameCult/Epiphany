@@ -1,9 +1,9 @@
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::Utc;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -129,6 +129,10 @@ fn run_smoke(args: Args) -> Result<Value> {
             item,
             "--summary",
             "Prove repo-work readiness sight can name missing publication and lifecycle gates without granting authority.",
+            "--local-verse-store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-work-readiness-smoke",
             "--candidate-action-ref",
             "candidate-action://repo-work-readiness/checklist",
             "--public-discussion-ref",
@@ -233,6 +237,21 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_bool(&readiness, &["authority", "handsActionAuthorized"], false)?;
     require_bool(&readiness, &["authority", "privateStateExposed"], false)?;
+    require_eq(
+        &readiness,
+        &["verseProjection", "documentType"],
+        "epiphany.cultmesh.repo_work_readiness",
+    )?;
+    require_eq(
+        &readiness,
+        &["verseProjection", "readinessId"],
+        "repo-work-readiness-repo-work-readiness",
+    )?;
+    require_bool(
+        &readiness,
+        &["verseProjection", "privateStateExposed"],
+        false,
+    )?;
     require_row(&readiness, "repo-init", true)?;
     require_row(&readiness, "swarm-online", true)?;
     require_row(&readiness, "persona-intake", true)?;
@@ -248,6 +267,32 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_row(&readiness, "tool-directory", false)?;
     require_row(&readiness, "private-state-redaction", true)?;
 
+    let gjallar = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "gjallar",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            "repo-work-readiness-smoke",
+        ],
+        &root,
+    )?;
+    require_u64(&gjallar, &["repoWorkReadinessCount"], 1)?;
+    require_eq(
+        &gjallar,
+        &["latestRepoWorkReadiness"],
+        "repo-work-readiness-repo-work-readiness",
+    )?;
+    require_bool(&gjallar, &["privateStateExposed"], false)?;
+    require_tui_row_contains(
+        &gjallar,
+        &["repoWorkReadinessTuiRows"],
+        "REPO-WORK-READINESS",
+    )?;
+    require_tui_row_contains(&gjallar, &["swarmActionTuiRows"], "repo-work-readiness")?;
+
     let summary = json!({
         "schemaVersion": "epiphany.repo_work_readiness_smoke.v0",
         "status": "ok",
@@ -258,6 +303,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "publicProofOutput": public_proof["outputPath"],
         "readinessStatus": readiness["status"],
         "missingRequiredCount": readiness["missingRequiredCount"],
+        "readinessVerseProjection": readiness["verseProjection"],
+        "gjallarRepoWorkReadinessCount": gjallar["repoWorkReadinessCount"],
+        "gjallarLatestRepoWorkReadiness": gjallar["latestRepoWorkReadiness"],
         "sightOnly": readiness["authority"]["sightOnly"],
         "readinessApprovalAuthorized": readiness["authority"]["readinessApprovalAuthorized"],
         "publicationAuthorized": readiness["authority"]["publicationAuthorized"],
@@ -412,6 +460,26 @@ fn require_row(value: &Value, kind: &str, expected_satisfied: bool) -> Result<()
     } else {
         Err(anyhow!(
             "expected readiness row {kind:?} satisfied={expected_satisfied}, got {actual}"
+        ))
+    }
+}
+
+fn require_tui_row_contains(value: &Value, path: &[&str], needle: &str) -> Result<()> {
+    let rows = path
+        .iter()
+        .try_fold(value, |current, key| current.get(*key))
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("{} did not contain TUI rows", path.join(".")))?;
+    if rows
+        .iter()
+        .filter_map(Value::as_str)
+        .any(|row| row.contains(needle))
+    {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "expected {} to contain row fragment {needle:?}",
+            path.join(".")
         ))
     }
 }
