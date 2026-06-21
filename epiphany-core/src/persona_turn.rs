@@ -228,10 +228,17 @@ Hard boundary:
 
 Allowed effect vocabulary:
 - STATE NOTE: bounded Persona memory, mood, need, social read, bond, value, goal, or agency pressure.
-- SAY: public text candidate for an allowed channel.
+- SAY: public utterance meaning candidate for an allowed channel; this becomes Weksa interlingua before target-language lowering or transport.
 - DRAFT: private candidate artifact when posting is blocked or needs review.
 - ROUTE: non-public action such as keep private, ask Self, or propose a bounded repo investigation.
 - DROP: no durable effect.
+
+For any SAY block, preserve meaning separately from transport phrasing when possible:
+- meaning: what the Persona intends to communicate
+- speechAct: reply, status, invitation, correction, thanks, refusal, or other public act
+- register: public delivery feel such as warm-technical, concise, playful, careful
+- targetAudience: room or peer context
+- safetyNotes: anything Weksa must preserve while lowering into the target language
 
 Allowed channel ids:
 {channels}
