@@ -126,6 +126,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
         "planning": status["planning"],
         "heartbeat": status["heartbeat"],
         "Persona": status["persona"],
+        "bifrostBridge": status["bifrostBridge"],
         "stateStatus": status["scene"]["scene"]["stateStatus"],
         "availableActions": status["scene"]["scene"]["availableActions"],
         "rendered": rendered,
@@ -329,6 +330,38 @@ fn validate_status(status: &Value, rendered: &str) -> Result<()> {
         "status view should expose Persona bubble, character-turn, and Bifrost-routed public mouth actions for Aquarium",
     )?;
     require(
+        status
+            .pointer("/bifrostBridge/owner")
+            .and_then(Value::as_str)
+            == Some("Bifrost")
+            && status
+                .pointer("/bifrostBridge/privateStateExposed")
+                .and_then(Value::as_bool)
+                == Some(false),
+        "status view should expose Bifrost bridge sight without private state",
+    )?;
+    require(
+        status
+            .pointer("/bifrostBridge/surfaceCount")
+            .and_then(Value::as_u64)
+            .is_some_and(|count| count >= 5),
+        "Bifrost bridge sight should include the governed external-world surfaces",
+    )?;
+    require(
+        surface_is(status, "github", &["live"])
+            && surface_is(status, "other", &["live"])
+            && surface_is(status, "patron", &["live"])
+            && surface_is(status, "discord", &["live", "prepared"])
+            && surface_is(status, "reddit", &["live", "prepared"]),
+        "Bifrost bridge sight should report GitHub/Other/Patron live and Discord/Reddit live or prepared",
+    )?;
+    require(
+        rendered.contains("Bifrost bridge")
+            && rendered.contains("github=live")
+            && rendered.contains("patron=live"),
+        "rendered status should expose compact Bifrost bridge rows",
+    )?;
+    require(
         rendered.contains("Heartbeat") && rendered.contains("Persona"),
         "rendered status should expose heartbeat and Persona sections",
     )?;
@@ -393,6 +426,19 @@ fn array_contains(value: Option<&Value>, needle: &str) -> bool {
     value
         .and_then(Value::as_array)
         .is_some_and(|items| items.iter().any(|item| item.as_str() == Some(needle)))
+}
+
+fn surface_is(status: &Value, id: &str, allowed: &[&str]) -> bool {
+    status
+        .pointer("/bifrostBridge/surfaces")
+        .and_then(Value::as_array)
+        .and_then(|surfaces| {
+            surfaces
+                .iter()
+                .find(|surface| surface.get("id").and_then(Value::as_str) == Some(id))
+        })
+        .and_then(|surface| surface.get("status").and_then(Value::as_str))
+        .is_some_and(|surface_status| allowed.contains(&surface_status))
 }
 
 fn absolute_path(path: &Path) -> Result<PathBuf> {
