@@ -670,7 +670,7 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
             "8",
         ],
     )?;
-    let latest_persona = native_json(
+    let latest_discord_persona = native_json(
         "epiphany-persona-discord",
         &[
             "latest",
@@ -683,11 +683,36 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     .unwrap_or_else(
         |error| json!({"status": "error", "error": error.to_string(), "latestArtifacts": []}),
     );
+    let latest_other_persona = native_json(
+        "epiphany-persona-other",
+        &[
+            "latest",
+            "--artifact-dir",
+            &persona_dir.to_string_lossy(),
+            "--limit",
+            "8",
+        ],
+    )
+    .unwrap_or_else(
+        |error| json!({"status": "error", "error": error.to_string(), "latestArtifacts": []}),
+    );
+    let mut latest_artifacts = latest_discord_persona
+        .get("latestArtifacts")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    latest_artifacts.extend(
+        latest_other_persona
+            .get("latestArtifacts")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
+    );
     let persona = json!({
         "status": "ready",
         "artifactDir": persona_dir,
-        "latestArtifacts": latest_persona.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
-        "availableActions": ["personaBubble", "characterTurn", "discordPersonaPost"],
+        "latestArtifacts": latest_artifacts,
+        "availableActions": ["personaBubble", "characterTurn", "discordPersonaPost", "redditPersonaPost", "otherWorldPersonaRequest"],
     });
     let void_memory = native_json(
         "epiphany-void-memory",

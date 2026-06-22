@@ -316,8 +316,17 @@ fn validate_status(status: &Value, rendered: &str) -> Result<()> {
                 && items
                     .iter()
                     .any(|item| item.as_str() == Some("characterTurn"))
+                && items
+                    .iter()
+                    .any(|item| item.as_str() == Some("discordPersonaPost"))
+                && items
+                    .iter()
+                    .any(|item| item.as_str() == Some("redditPersonaPost"))
+                && items
+                    .iter()
+                    .any(|item| item.as_str() == Some("otherWorldPersonaRequest"))
         }),
-        "status view should expose Persona bubble and character-turn actions for Aquarium",
+        "status view should expose Persona bubble, character-turn, and Bifrost-routed public mouth actions for Aquarium",
     )?;
     require(
         rendered.contains("Heartbeat") && rendered.contains("Persona"),

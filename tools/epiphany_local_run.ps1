@@ -357,6 +357,7 @@ $modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
 $toolAdapterExe = Join-Path $TargetDir "debug\epiphany-tool-codex-mcp-spine.exe"
 $heartbeatExe = Join-Path $TargetDir "debug\epiphany-heartbeat-store.exe"
 $PersonaExe = Join-Path $TargetDir "debug\epiphany-persona-discord.exe"
+$PersonaOtherExe = Join-Path $TargetDir "debug\epiphany-persona-other.exe"
 $characterLoopExe = Join-Path $TargetDir "debug\epiphany-character-loop.exe"
 $agentMemoryExe = Join-Path $TargetDir "debug\epiphany-agent-memory-store.exe"
 $modelProvider = "openai-codex"
@@ -423,6 +424,7 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
             "--bin", "epiphany-persona-discord",
+            "--bin", "epiphany-persona-other",
             "--bin", "epiphany-character-loop",
             "--bin", "epiphany-agent-memory-store",
             "--bin", "epiphany-agent-telemetry",

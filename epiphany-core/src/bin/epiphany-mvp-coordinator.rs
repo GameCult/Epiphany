@@ -837,7 +837,7 @@ fn collect_coordinator_status(
             "8",
         ],
     )?;
-    let latest_persona = status_cli::native_json(
+    let latest_discord_persona = status_cli::native_json(
         "epiphany-persona-discord",
         &[
             "latest",
@@ -848,6 +848,29 @@ fn collect_coordinator_status(
         ],
     )
     .unwrap_or_else(|_| json!({"latestArtifacts": []}));
+    let latest_other_persona = status_cli::native_json(
+        "epiphany-persona-other",
+        &[
+            "latest",
+            "--artifact-dir",
+            &persona_dir.to_string_lossy(),
+            "--limit",
+            "8",
+        ],
+    )
+    .unwrap_or_else(|_| json!({"latestArtifacts": []}));
+    let mut latest_artifacts = latest_discord_persona
+        .get("latestArtifacts")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    latest_artifacts.extend(
+        latest_other_persona
+            .get("latestArtifacts")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
+    );
     Ok(json!({
         "threadId": thread_id,
         "read": read,
@@ -866,8 +889,8 @@ fn collect_coordinator_status(
         "persona": {
             "status": "ready",
             "artifactDir": persona_dir,
-            "latestArtifacts": latest_persona.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
-            "availableActions": ["PersonaBubble", "characterTurn"],
+            "latestArtifacts": latest_artifacts,
+            "availableActions": ["PersonaBubble", "characterTurn", "discordPersonaPost", "redditPersonaPost", "otherWorldPersonaRequest"],
         },
     }))
 }
