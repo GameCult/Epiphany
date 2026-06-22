@@ -2718,7 +2718,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         if ($Mode -eq "smoke") {
             Write-Host "Smoke: cold=$($result.coldAction), pressure=$($result.pressureAction), privateBackendMutationRejected=$($result.directBackendCompletionRejected)"
         } elseif ($Mode -eq "status") {
-            Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action)"
+            $bridgeRows = "none"
+            if ($null -ne $result.bifrostBridge -and $null -ne $result.bifrostBridge.surfaces -and $result.bifrostBridge.surfaces.Count -gt 0) {
+                $bridgeRows = (@($result.bifrostBridge.surfaces) | ForEach-Object { "$($_.id)=$($_.status)" }) -join ","
+            }
+            Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action), bifrostBridge=$($result.bifrostBridge.status), bridgeReady=$($result.bifrostBridge.readySurfaceCount)/$($result.bifrostBridge.surfaceCount), bridgeRows=$bridgeRows"
         } elseif ($Mode -eq "agent-state-soa") {
             $agentRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
