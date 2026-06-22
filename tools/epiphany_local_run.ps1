@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "repo-swarm-mvp-gate", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-accounting-bundle", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-work-readiness-review", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "swarm-online-runbook", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "daemon-survival-rehearsal", "repo-swarm-mvp-gate", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-accounting-bundle", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "gjallar", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-work-readiness-review", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "swarm-online-runbook", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -95,6 +95,14 @@ param(
     [string]$RepoDeploymentAftercareReceiptRef = "",
     [switch]$RepoWorkDryRun,
     [string]$PersonaInput = "",
+    [ValidateSet("draft", "bubble", "post", "request", "latest", "smoke")]
+    [string]$PersonaMouthAction = "draft",
+    [string]$PersonaTitle = "Epiphany Persona bridge request",
+    [string]$PersonaTarget = "",
+    [string]$PersonaSurfaceName = "future-surface",
+    [string]$PersonaName = "",
+    [string]$PersonaChannelId = "",
+    [string]$PersonaSubreddit = "",
     [switch]$SkipBuild,
     [switch]$AutoReview,
     [switch]$SupersedeFailedResults,
@@ -357,6 +365,7 @@ $modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
 $toolAdapterExe = Join-Path $TargetDir "debug\epiphany-tool-codex-mcp-spine.exe"
 $heartbeatExe = Join-Path $TargetDir "debug\epiphany-heartbeat-store.exe"
 $PersonaExe = Join-Path $TargetDir "debug\epiphany-persona-discord.exe"
+$PersonaRedditExe = Join-Path $TargetDir "debug\epiphany-persona-reddit.exe"
 $PersonaOtherExe = Join-Path $TargetDir "debug\epiphany-persona-other.exe"
 $characterLoopExe = Join-Path $TargetDir "debug\epiphany-character-loop.exe"
 $agentMemoryExe = Join-Path $TargetDir "debug\epiphany-agent-memory-store.exe"
@@ -391,7 +400,7 @@ $runtimeStore = Join-Path $Workspace "state\runtime-spine.msgpack"
 $liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
-    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "daemon-survival-rehearsal" -and $Mode -ne "repo-swarm-mvp-gate" -and $Mode -ne "repo-livefire-closure" -and $Mode -ne "repo-work-public-proof" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-accounting-bundle" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-readiness-review" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
+    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "persona-discord" -and $Mode -ne "persona-reddit" -and $Mode -ne "persona-other" -and $Mode -ne "daemon-survival-rehearsal" -and $Mode -ne "repo-swarm-mvp-gate" -and $Mode -ne "repo-livefire-closure" -and $Mode -ne "repo-work-public-proof" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-accounting-bundle" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-readiness-review" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
         Invoke-Checked `
             -Label "build Codex app-server compatibility organ" `
             -FilePath $cargoExe `
@@ -424,6 +433,7 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
             "--bin", "epiphany-persona-discord",
+            "--bin", "epiphany-persona-reddit",
             "--bin", "epiphany-persona-other",
             "--bin", "epiphany-character-loop",
             "--bin", "epiphany-agent-memory-store",
@@ -465,7 +475,7 @@ if ($Mode -eq "repo-livefire-closure") {
 if ($Mode -eq "bifrost-accounting-bundle") {
     $requiredBinaries += @($bifrostAccountingBundleExe)
 }
-if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "daemon-survival-rehearsal" -and $Mode -ne "repo-swarm-mvp-gate" -and $Mode -ne "repo-livefire-closure" -and $Mode -ne "repo-work-public-proof" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-accounting-bundle" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-readiness-review" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
+if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "persona-discord" -and $Mode -ne "persona-reddit" -and $Mode -ne "persona-other" -and $Mode -ne "daemon-survival-rehearsal" -and $Mode -ne "repo-swarm-mvp-gate" -and $Mode -ne "repo-livefire-closure" -and $Mode -ne "repo-work-public-proof" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-accounting-bundle" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "gjallar" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-work-readiness-review" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
 }
 function Assert-SwarmBrakeAllowsLiveRun {
@@ -553,6 +563,15 @@ if (@("service-policy-directory", "service-plan", "service-launch", "service-tic
 }
 if ($Mode -eq "mvp") {
     $requiredBinaries += @($heartbeatExe, $PersonaExe, $characterLoopExe)
+}
+if ($Mode -eq "persona-discord") {
+    $requiredBinaries += @($PersonaExe)
+}
+if ($Mode -eq "persona-reddit") {
+    $requiredBinaries += @($PersonaRedditExe)
+}
+if ($Mode -eq "persona-other") {
+    $requiredBinaries += @($PersonaOtherExe)
 }
 $requiredBinaries += @($agentMemoryExe)
 foreach ($required in $requiredBinaries) {
@@ -841,6 +860,98 @@ if ($Mode -eq "collaboration-feedback") {
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
         -StderrPath (Join-Path $artifactRoot "collaboration-feedback.stderr.log")
+}
+
+if (@("persona-discord", "persona-reddit", "persona-other") -contains $Mode) {
+    $personaArtifactDir = Join-Path $Root ".epiphany-persona"
+    if ($PersonaInput.Trim() -eq "") {
+        $PersonaInput = "Epiphany Persona bridge mouth smoke: operator requested a Bifrost-owned outside-world crossing witness."
+    }
+
+    if ($Mode -eq "persona-discord") {
+        if (@("draft", "bubble", "post", "latest", "smoke") -notcontains $PersonaMouthAction) {
+            throw "persona-discord supports PersonaMouthAction draft, bubble, post, latest, or smoke"
+        }
+        $resultPath = Join-Path $artifactRoot "persona-discord.stdout.json"
+        $personaArgs = @(
+            $PersonaMouthAction,
+            "--artifact-dir", $personaArtifactDir,
+            "--cultmesh-store", $localVerseStore,
+            "--runtime-id", $LocalVerseRuntimeId
+        )
+        if (@("draft", "bubble", "post") -contains $PersonaMouthAction) {
+            $personaArgs += @("--content", $PersonaInput)
+        }
+        if ($PersonaChannelId -ne "") {
+            $personaArgs += @("--channel-id", $PersonaChannelId)
+        }
+        if ($PersonaName -ne "") {
+            $personaArgs += @("--persona-name", $PersonaName)
+        }
+        Invoke-Checked `
+            -Label "route Persona Discord mouth through Bifrost policy" `
+            -FilePath $PersonaExe `
+            -Arguments $personaArgs `
+            -WorkingDirectory $Root `
+            -StdoutPath $resultPath `
+            -StderrPath (Join-Path $artifactRoot "persona-discord.stderr.log")
+    } elseif ($Mode -eq "persona-reddit") {
+        if (@("draft", "post", "latest", "smoke") -notcontains $PersonaMouthAction) {
+            throw "persona-reddit supports PersonaMouthAction draft, post, latest, or smoke"
+        }
+        $resultPath = Join-Path $artifactRoot "persona-reddit.stdout.json"
+        $personaArgs = @(
+            $PersonaMouthAction,
+            "--artifact-dir", $personaArtifactDir,
+            "--cultmesh-store", $localVerseStore,
+            "--runtime-id", $LocalVerseRuntimeId
+        )
+        if (@("draft", "post") -contains $PersonaMouthAction) {
+            $personaArgs += @("--title", $PersonaTitle, "--content", $PersonaInput)
+        }
+        if ($PersonaSubreddit -ne "") {
+            $personaArgs += @("--subreddit", $PersonaSubreddit)
+        }
+        if ($PersonaName -ne "") {
+            $personaArgs += @("--persona-name", $PersonaName)
+        }
+        Invoke-Checked `
+            -Label "route Persona Reddit mouth through Bifrost policy" `
+            -FilePath $PersonaRedditExe `
+            -Arguments $personaArgs `
+            -WorkingDirectory $Root `
+            -StdoutPath $resultPath `
+            -StderrPath (Join-Path $artifactRoot "persona-reddit.stderr.log")
+    } else {
+        if (@("draft", "request", "latest", "smoke") -notcontains $PersonaMouthAction) {
+            throw "persona-other supports PersonaMouthAction draft, request, latest, or smoke"
+        }
+        $resultPath = Join-Path $artifactRoot "persona-other.stdout.json"
+        $personaArgs = @(
+            $PersonaMouthAction,
+            "--artifact-dir", $personaArtifactDir,
+            "--cultmesh-store", $localVerseStore,
+            "--runtime-id", $LocalVerseRuntimeId
+        )
+        if (@("draft", "request") -contains $PersonaMouthAction) {
+            $personaArgs += @(
+                "--surface-name", $PersonaSurfaceName,
+                "--target-locator", $PersonaTarget,
+                "--title", $PersonaTitle,
+                "--content", $PersonaInput
+            )
+        }
+        if ($PersonaName -ne "") {
+            $personaArgs += @("--persona-name", $PersonaName)
+        }
+        Invoke-Checked `
+            -Label "route Persona future-surface mouth through Bifrost policy" `
+            -FilePath $PersonaOtherExe `
+            -Arguments $personaArgs `
+            -WorkingDirectory $Root `
+            -StdoutPath $resultPath `
+            -StderrPath (Join-Path $artifactRoot "persona-other.stderr.log")
+    }
 }
 
 if ($Mode -eq "bifrost-publication") {
@@ -2671,6 +2782,29 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 $candidateRefs = ($result.candidateActionRefs -join ",")
             }
             Write-Host "Collaboration feedback: status=$($result.status), feedback=$($result.feedbackId), consensus=$($result.consensusReceiptId), publicRefs=$publicRefs, candidateActions=$candidateRefs, consensusPacket=$($result.consensusPacketRef), adoptionGate=$($result.adoptionGate), feedbackRows=$feedbackRows, privateStateExposed=$($result.privateStateExposed)"
+        } elseif (@("persona-discord", "persona-reddit", "persona-other") -contains $Mode) {
+            $auditId = "none"
+            if ($null -ne $result.speechAudit -and $null -ne $result.speechAudit.auditId) {
+                $auditId = $result.speechAudit.auditId
+            } elseif ($null -ne $result.auditId) {
+                $auditId = $result.auditId
+            }
+            $decision = $result.decision
+            if ($null -eq $decision -or $decision -eq "") {
+                $decision = $result.status
+            }
+            $target = $result.target
+            if ($null -eq $target -or $target -eq "") {
+                $target = $result.requestedPublicTarget
+            }
+            if ($null -eq $target -or $target -eq "") {
+                $target = "none"
+            }
+            $bridgeAction = $result.bridgeActionId
+            if ($null -eq $bridgeAction -or $bridgeAction -eq "") {
+                $bridgeAction = "none"
+            }
+            Write-Host "Persona mouth: mode=$Mode, action=$PersonaMouthAction, decision=$decision, audit=$auditId, target=$target, bridgeAction=$bridgeAction, artifact=$resultPath"
         } elseif ($Mode -eq "bifrost-publication") {
             Write-Host "Bifrost publication: status=$($result.status), intent=$($result.intentId), publication=$($result.publicationReceiptId), github=$($result.githubPublicationReceiptId), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-public-proof") {

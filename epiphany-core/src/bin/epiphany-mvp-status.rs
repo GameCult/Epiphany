@@ -696,11 +696,31 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     .unwrap_or_else(
         |error| json!({"status": "error", "error": error.to_string(), "latestArtifacts": []}),
     );
+    let latest_reddit_persona = native_json(
+        "epiphany-persona-reddit",
+        &[
+            "latest",
+            "--artifact-dir",
+            &persona_dir.to_string_lossy(),
+            "--limit",
+            "8",
+        ],
+    )
+    .unwrap_or_else(
+        |error| json!({"status": "error", "error": error.to_string(), "latestArtifacts": []}),
+    );
     let mut latest_artifacts = latest_discord_persona
         .get("latestArtifacts")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    latest_artifacts.extend(
+        latest_reddit_persona
+            .get("latestArtifacts")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
+    );
     latest_artifacts.extend(
         latest_other_persona
             .get("latestArtifacts")
