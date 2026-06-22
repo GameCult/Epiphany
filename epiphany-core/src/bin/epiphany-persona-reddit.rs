@@ -1,12 +1,12 @@
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::SecondsFormat;
-use epiphany_core::load_latest_epiphany_cultmesh_persona_speech_audit;
-use epiphany_core::write_epiphany_cultmesh_persona_speech_audit;
-use epiphany_core::EpiphanyCultMeshPersonaSpeechAuditEntry;
 use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
 use epiphany_core::EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshPersonaSpeechAuditEntry;
+use epiphany_core::load_latest_epiphany_cultmesh_persona_speech_audit;
+use epiphany_core::write_epiphany_cultmesh_persona_speech_audit;
 use serde_json::Value;
 use std::cmp::Reverse;
 use std::env;
@@ -267,9 +267,49 @@ fn run_post(
             "speechAudit": audit,
         }));
     };
+    let Some(bifrost_identity) = required_bifrost_identity(config) else {
+        let path = write_post_artifact(
+            title,
+            content,
+            config,
+            artifact_dir,
+            "blocked",
+            "missing Bifrost identity for public Persona crossing",
+            Some(&audit),
+            None,
+        )?;
+        return Ok(serde_json::json!({
+            "ok": false,
+            "posted": false,
+            "blocked": "missing-bifrost-identity",
+            "draftPath": path,
+            "speechAudit": audit,
+        }));
+    };
+    let Some(heimdall_capability_ref) = required_heimdall_capability_ref(config) else {
+        let path = write_post_artifact(
+            title,
+            content,
+            config,
+            artifact_dir,
+            "blocked",
+            "missing Heimdall-backed capability/account reference for public Persona crossing",
+            Some(&audit),
+            None,
+        )?;
+        return Ok(serde_json::json!({
+            "ok": false,
+            "posted": false,
+            "blocked": "missing-heimdall-capability-ref",
+            "draftPath": path,
+            "speechAudit": audit,
+        }));
+    };
     let receipt = post_bifrost_reddit_thread(
         &bridge_cli_path,
         config,
+        &bifrost_identity,
+        &heimdall_capability_ref,
         &target_subreddit,
         title,
         content,
@@ -304,6 +344,8 @@ fn run_post(
 fn post_bifrost_reddit_thread(
     bridge_cli_path: &Path,
     config: &PersonaRedditConfig,
+    bifrost_identity: &str,
+    heimdall_capability_ref: &str,
     subreddit: &str,
     title: &str,
     content: &str,
@@ -331,12 +373,7 @@ fn post_bifrost_reddit_thread(
     if let Some(flair_id) = persona_flair_id {
         command.arg("--persona-flair-id").arg(flair_id);
     }
-    command.arg("--identity").arg(
-        config
-            .bifrost_identity
-            .as_deref()
-            .unwrap_or("epiphany.Persona"),
-    );
+    command.arg("--identity").arg(bifrost_identity);
     command.arg("--source-kind").arg(
         config
             .bifrost_source_kind
@@ -354,17 +391,15 @@ fn post_bifrost_reddit_thread(
     command
         .arg("--epiphany-agent-identity")
         .arg("epiphany.Persona");
+    command
+        .arg("--heimdall-capability-ref")
+        .arg(heimdall_capability_ref);
     if let Some(run_id) = env::var("EPIPHANY_RUN_ID")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
     {
         command.arg("--epiphany-run-id").arg(run_id);
-    }
-    if let Some(ref_name) = &config.heimdall_capability_ref_env {
-        if let Some(value) = env_value(ref_name) {
-            command.arg("--heimdall-capability-ref").arg(value);
-        }
     }
 
     let output = command.output().with_context(|| {
@@ -549,8 +584,13 @@ console.log(JSON.stringify({
         bifrost_bridge_cli_path: None,
         ..config.clone()
     };
+    let missing_capability_config = PersonaRedditConfig {
+        heimdall_capability_ref_env: Some("HEIMDALL_CAPABILITY_REF_MISSING_FOR_SMOKE".to_string()),
+        ..config.clone()
+    };
     unsafe {
         env::set_var("HEIMDALL_CAPABILITY_REF_TEST", "heimdall-reddit-smoke");
+        env::remove_var("HEIMDALL_CAPABILITY_REF_MISSING_FOR_SMOKE");
         env::set_var("EPIPHANY_RUN_ID", "epiphany-run-reddit-smoke");
     }
     let draft = run_draft(
@@ -567,6 +607,18 @@ console.log(JSON.stringify({
         "Epiphany missing bridge",
         "Persona should not reach Reddit without Bifrost configured.",
         &no_bridge_config,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        None,
+        None,
+        None,
+        None,
+    )?;
+    let missing_capability = run_post(
+        "Epiphany missing Heimdall capability",
+        "Persona should not reach Reddit without Heimdall-backed capability proof.",
+        &missing_capability_config,
         &temp_dir,
         &cultmesh_store,
         runtime_id,
@@ -634,6 +686,8 @@ console.log(JSON.stringify({
     let ok = draft["ok"] == true
         && missing_bridge["ok"] == false
         && missing_bridge["blocked"] == "missing-bifrost-bridge"
+        && missing_capability["ok"] == false
+        && missing_capability["blocked"] == "missing-heimdall-capability-ref"
         && bridged["ok"] == true
         && bridged["transport"] == "bifrost.reddit-post"
         && bridged["bifrostBridgeReceipt"]["provenance"]["bifrostIdentity"] == "epiphany.Persona"
@@ -650,6 +704,7 @@ console.log(JSON.stringify({
         "ok": ok,
         "draft": draft,
         "missingBridge": missing_bridge,
+        "missingCapability": missing_capability,
         "bridged": bridged,
         "repeatedSpeech": repeated,
         "latestCultMeshSpeechAudit": latest_cultmesh_audit,
@@ -847,6 +902,39 @@ fn bifrost_bridge_cli_path(config: &PersonaRedditConfig) -> Option<PathBuf> {
             .filter(|value| !value.is_empty())
             .map(PathBuf::from)
     })
+}
+
+fn required_bifrost_identity(config: &PersonaRedditConfig) -> Option<String> {
+    config
+        .bifrost_identity
+        .clone()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            env::var("BIFROST_IDENTITY")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+}
+
+fn required_heimdall_capability_ref(config: &PersonaRedditConfig) -> Option<String> {
+    config
+        .heimdall_capability_ref_env
+        .as_ref()
+        .and_then(env_value)
+        .or_else(|| {
+            env::var("HEIMDALL_CAPABILITY_REF")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .or_else(|| {
+            env::var("BIFROST_HEIMDALL_CAPABILITY_REF")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
 }
 
 fn bifrost_node_executable() -> String {

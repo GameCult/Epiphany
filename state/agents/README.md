@@ -49,7 +49,8 @@ license to rerun personality initialization whenever the repo mood changes.
 Persona's public mouth is a Bifrost crossing, not local OAuth improvisation.
 `state/persona-discord.toml` confines Discord speech to #aquarium and
 `state/persona-reddit.toml` confines Reddit organizing posts to the configured
-subreddit. If a channel, subreddit, bridge path, or authority reference is
+subreddit. If a channel, subreddit, bridge path, Bifrost identity, or
+Heimdall-backed capability/account reference is
 missing, Persona writes candidate artifacts through the native draft commands
 instead of posting. The public mouth does not invent new pulpits.
 
