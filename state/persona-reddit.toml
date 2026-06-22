@@ -11,7 +11,7 @@ heimdall_capability_ref_env = "HEIMDALL_CAPABILITY_REF"
 policy = [
   "Persona may create Reddit organizing posts only through Bifrost reddit-post.",
   "The subreddit is a public organizing surface, not a vote ledger.",
-  "Bifrost identity plus a Heimdall-backed capability/account reference must appear in bridge receipts for blessed crossings.",
+  "The Bifrost identity must be registered natively in Bifrost; OAuth is not a registration prerequisite, but Reddit crossings require a same-account Heimdall link plus a heimdall:reddit:* capability/account reference in bridge receipts.",
   "Persona flair identifies presentation voice; it does not grant authority or voting weight.",
   "Persona must not expose raw transcripts, private notes, sealed artifacts, or local Verse state.",
 ]

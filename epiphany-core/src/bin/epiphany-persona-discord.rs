@@ -311,7 +311,7 @@ fn run_post(
             config,
             artifact_dir,
             "blocked",
-            "missing Heimdall-backed capability/account reference for public Persona crossing",
+            "missing Heimdall-backed Discord capability/account reference for public Persona crossing; register the Bifrost identity, link it to Heimdall, and provide a heimdall:discord:* reference",
             Some(&audit),
         )?;
         return Ok(serde_json::json!({
@@ -322,6 +322,23 @@ fn run_post(
             "speechAudit": audit,
         }));
     };
+    if !is_heimdall_surface_reference(&heimdall_capability_ref, "discord") {
+        let path = write_draft(
+            content,
+            config,
+            artifact_dir,
+            "blocked",
+            "Heimdall reference must be shaped for Discord public Persona crossings: heimdall:discord:*",
+            Some(&audit),
+        )?;
+        return Ok(serde_json::json!({
+            "ok": false,
+            "posted": false,
+            "blocked": "wrong-heimdall-capability-surface",
+            "draftPath": path,
+            "speechAudit": audit,
+        }));
+    }
     let persona = resolve_persona(config, persona_name, persona_avatar_url)?;
     let posted = post_bifrost_discord_message(
         &bridge_cli_path,
@@ -705,9 +722,19 @@ console.log(JSON.stringify({
     let mut missing_capability_config = bridge_config.clone();
     missing_capability_config.heimdall_capability_ref_env =
         Some("HEIMDALL_CAPABILITY_REF_MISSING_FOR_SMOKE".to_string());
+    let mut wrong_surface_config = bridge_config.clone();
+    wrong_surface_config.heimdall_capability_ref_env =
+        Some("HEIMDALL_CAPABILITY_REF_WRONG_SURFACE_FOR_SMOKE".to_string());
     unsafe {
         env::remove_var("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST");
-        env::set_var("HEIMDALL_CAPABILITY_REF_TEST", "heimdall-capability-smoke");
+        env::set_var(
+            "HEIMDALL_CAPABILITY_REF_TEST",
+            "heimdall:discord:capability:smoke-persona",
+        );
+        env::set_var(
+            "HEIMDALL_CAPABILITY_REF_WRONG_SURFACE_FOR_SMOKE",
+            "heimdall:reddit:capability:smoke-persona",
+        );
         env::remove_var("HEIMDALL_CAPABILITY_REF_MISSING_FOR_SMOKE");
         env::set_var("EPIPHANY_RUN_ID", "epiphany-run-smoke");
     }
@@ -757,6 +784,17 @@ console.log(JSON.stringify({
     let missing_capability = run_post(
         "Persona should not cross Discord without Heimdall capability proof.",
         &missing_capability_config,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        Some("123".to_string()),
+        None,
+        None,
+        None,
+    )?;
+    let wrong_surface_capability = run_post(
+        "Wrong surface credential must stop before Discord transport.",
+        &wrong_surface_config,
         &temp_dir,
         &cultmesh_store,
         runtime_id,
@@ -836,11 +874,13 @@ console.log(JSON.stringify({
         && missing_bridge["blocked"] == "missing-bifrost-bridge"
         && missing_capability["ok"] == false
         && missing_capability["blocked"] == "missing-heimdall-capability-ref"
+        && wrong_surface_capability["ok"] == false
+        && wrong_surface_capability["blocked"] == "wrong-heimdall-capability-surface"
         && bridged["ok"] == true
         && bridged["transport"] == "bifrost.discord-post"
         && bridged["bifrostBridgeReceipt"]["provenance"]["bifrostIdentity"] == "epiphany.Persona"
         && bridged["bifrostBridgeReceipt"]["provenance"]["heimdallCapabilityRef"]
-            == "heimdall-capability-smoke"
+            == "heimdall:discord:capability:smoke-persona"
         && wrong["ok"] == false
         && wrong["blocked"] == "wrong-channel"
         && repeated["ok"] == false
@@ -862,6 +902,7 @@ console.log(JSON.stringify({
         "blocked": blocked,
         "missingBridge": missing_bridge,
         "missingCapability": missing_capability,
+        "wrongSurfaceCapability": wrong_surface_capability,
         "bridged": bridged,
         "wrongChannel": wrong,
         "repeatedSpeech": repeated,
@@ -1183,6 +1224,11 @@ fn required_heimdall_capability_ref(config: &PersonaConfig) -> Option<String> {
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
         })
+}
+
+fn is_heimdall_surface_reference(reference: &str, surface: &str) -> bool {
+    let reference = reference.trim().to_ascii_lowercase();
+    reference.starts_with("heimdall:") && reference.contains(&format!(":{surface}:"))
 }
 
 fn env_value(name: &String) -> Option<String> {

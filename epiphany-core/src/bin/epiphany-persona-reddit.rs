@@ -293,7 +293,7 @@ fn run_post(
             config,
             artifact_dir,
             "blocked",
-            "missing Heimdall-backed capability/account reference for public Persona crossing",
+            "missing Heimdall-backed Reddit capability/account reference for public Persona crossing; register the Bifrost identity, link it to Heimdall, and provide a heimdall:reddit:* reference",
             Some(&audit),
             None,
         )?;
@@ -305,6 +305,25 @@ fn run_post(
             "speechAudit": audit,
         }));
     };
+    if !is_heimdall_surface_reference(&heimdall_capability_ref, "reddit") {
+        let path = write_post_artifact(
+            title,
+            content,
+            config,
+            artifact_dir,
+            "blocked",
+            "Heimdall reference must be shaped for Reddit public Persona crossings: heimdall:reddit:*",
+            Some(&audit),
+            None,
+        )?;
+        return Ok(serde_json::json!({
+            "ok": false,
+            "posted": false,
+            "blocked": "wrong-heimdall-capability-surface",
+            "draftPath": path,
+            "speechAudit": audit,
+        }));
+    }
     let receipt = post_bifrost_reddit_thread(
         &bridge_cli_path,
         config,
@@ -588,8 +607,21 @@ console.log(JSON.stringify({
         heimdall_capability_ref_env: Some("HEIMDALL_CAPABILITY_REF_MISSING_FOR_SMOKE".to_string()),
         ..config.clone()
     };
+    let wrong_surface_config = PersonaRedditConfig {
+        heimdall_capability_ref_env: Some(
+            "HEIMDALL_CAPABILITY_REF_WRONG_SURFACE_FOR_SMOKE".to_string(),
+        ),
+        ..config.clone()
+    };
     unsafe {
-        env::set_var("HEIMDALL_CAPABILITY_REF_TEST", "heimdall-reddit-smoke");
+        env::set_var(
+            "HEIMDALL_CAPABILITY_REF_TEST",
+            "heimdall:reddit:capability:smoke-persona",
+        );
+        env::set_var(
+            "HEIMDALL_CAPABILITY_REF_WRONG_SURFACE_FOR_SMOKE",
+            "heimdall:discord:capability:smoke-persona",
+        );
         env::remove_var("HEIMDALL_CAPABILITY_REF_MISSING_FOR_SMOKE");
         env::set_var("EPIPHANY_RUN_ID", "epiphany-run-reddit-smoke");
     }
@@ -619,6 +651,18 @@ console.log(JSON.stringify({
         "Epiphany missing Heimdall capability",
         "Persona should not reach Reddit without Heimdall-backed capability proof.",
         &missing_capability_config,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        None,
+        None,
+        None,
+        None,
+    )?;
+    let wrong_surface_capability = run_post(
+        "Epiphany wrong Heimdall capability",
+        "Persona should not reach Reddit with Discord Heimdall-backed capability proof.",
+        &wrong_surface_config,
         &temp_dir,
         &cultmesh_store,
         runtime_id,
@@ -688,11 +732,13 @@ console.log(JSON.stringify({
         && missing_bridge["blocked"] == "missing-bifrost-bridge"
         && missing_capability["ok"] == false
         && missing_capability["blocked"] == "missing-heimdall-capability-ref"
+        && wrong_surface_capability["ok"] == false
+        && wrong_surface_capability["blocked"] == "wrong-heimdall-capability-surface"
         && bridged["ok"] == true
         && bridged["transport"] == "bifrost.reddit-post"
         && bridged["bifrostBridgeReceipt"]["provenance"]["bifrostIdentity"] == "epiphany.Persona"
         && bridged["bifrostBridgeReceipt"]["provenance"]["heimdallCapabilityRef"]
-            == "heimdall-reddit-smoke"
+            == "heimdall:reddit:capability:smoke-persona"
         && repeated["ok"] == false
         && repeated["blocked"] == "speech-audit"
         && repeated["speechAudit"]["reasons"]
@@ -705,6 +751,7 @@ console.log(JSON.stringify({
         "draft": draft,
         "missingBridge": missing_bridge,
         "missingCapability": missing_capability,
+        "wrongSurfaceCapability": wrong_surface_capability,
         "bridged": bridged,
         "repeatedSpeech": repeated,
         "latestCultMeshSpeechAudit": latest_cultmesh_audit,
@@ -935,6 +982,11 @@ fn required_heimdall_capability_ref(config: &PersonaRedditConfig) -> Option<Stri
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
         })
+}
+
+fn is_heimdall_surface_reference(reference: &str, surface: &str) -> bool {
+    let reference = reference.trim().to_ascii_lowercase();
+    reference.starts_with("heimdall:") && reference.contains(&format!(":{surface}:"))
 }
 
 fn bifrost_node_executable() -> String {

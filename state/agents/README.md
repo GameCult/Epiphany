@@ -50,16 +50,23 @@ Persona's public mouth is a Bifrost crossing, not local OAuth improvisation.
 `state/persona-discord.toml` confines Discord speech to #aquarium and
 `state/persona-reddit.toml` confines Reddit organizing posts to the configured
 subreddit. If a channel, subreddit, bridge path, Bifrost identity, or
-Heimdall-backed capability/account reference is
-missing, Persona writes candidate artifacts through the native draft commands
-instead of posting. The public mouth does not invent new pulpits.
+surface-shaped Heimdall-backed capability/account reference is missing, Persona
+writes candidate artifacts through the native draft commands instead of
+posting. The public mouth does not invent new pulpits.
 
 `epiphany-persona-discord post` and `epiphany-persona-reddit post` audit speech
 at the mouth edge, then ask Bifrost to perform the external crossing. Bifrost is
-the GameCult identity provider and bridge receipt owner; Heimdall owns outside
-provider OAuth/token custody and contributes capability/account references for
-the crossing. Persona nickname, avatar, and Reddit flair are presentation
-metadata only, not authority, voting power, or a separate platform identity.
+the GameCult identity provider and bridge receipt owner; native Bifrost
+registration does not require OAuth, and a Bifrost identity is the default
+authenticating identity for GameCult services that accept Bifrost trust. Heimdall
+is the external-account association and token-custody organ: it links Discord,
+Reddit, GitHub, or other provider accounts to the Bifrost identity and
+contributes surface-shaped capability/account references such as
+`heimdall:discord:*` or `heimdall:reddit:*`. Bifrost must know the Persona's
+registered identity and same-account Heimdall link before authorizing an
+outside-provider crossing. Persona nickname, avatar, and Reddit flair are
+presentation metadata only, not authority, voting power, or a separate platform
+identity.
 
 Void memory access lives behind `state/void-memory.toml` and the native
 `epiphany-void-memory` bridge. It checks Void's Docker Postgres state spine,
