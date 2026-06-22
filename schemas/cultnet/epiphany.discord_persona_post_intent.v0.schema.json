@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.discord_persona_post_intent.v0.schema.json",
   "title": "epiphany discord_persona_post_intent v0",
-  "description": "Persona persona post intent for the #aquarium Discord mouth.",
+  "description": "Persona post intent for the #aquarium Discord mouth. Epiphany audits the speech and asks Bifrost to perform the Discord crossing; Heimdall-backed capability/account references may be attached for outside-provider authority.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -31,6 +31,24 @@
       ]
     },
     "replyToMessageId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bifrostIdentity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "heimdallCapabilityRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "speechAuditId": {
       "type": [
         "string",
         "null"

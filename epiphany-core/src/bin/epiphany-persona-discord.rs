@@ -1,13 +1,12 @@
+use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use chrono::SecondsFormat;
-use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION;
-use epiphany_core::EpiphanyCultMeshPersonaSpeechAuditEntry;
 use epiphany_core::load_latest_epiphany_cultmesh_persona_speech_audit;
 use epiphany_core::write_epiphany_cultmesh_persona_speech_audit;
-use reqwest::blocking::Client;
+use epiphany_core::EpiphanyCultMeshPersonaSpeechAuditEntry;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_PERSONA_SPEECH_AUDIT_SCHEMA_VERSION;
 use serde_json::Value;
 use std::cmp::Reverse;
 use std::env;
@@ -15,22 +14,25 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 use uuid::Uuid;
 
 const CHAT_SCHEMA_VERSION: &str = "epiphany.persona_chat.v0";
 const BUBBLE_SCHEMA_VERSION: &str = "epiphany.persona_bubble.v0";
 const SPEECH_AUDIT_SCHEMA_VERSION: &str = "epiphany.persona_speech_audit.v0";
-const DISCORD_API: &str = "https://discord.com/api/v10";
 
 #[derive(Clone, Debug, Default)]
 struct PersonaConfig {
     allowed_channel_name: String,
     allowed_channel_id: Option<String>,
     allowed_channel_id_env: Option<String>,
-    bot_token_env: Option<String>,
     persona_name: Option<String>,
     persona_avatar_url: Option<String>,
-    webhook_cache_path: Option<PathBuf>,
+    bifrost_bridge_cli_path: Option<PathBuf>,
+    bifrost_identity: Option<String>,
+    bifrost_source_kind: Option<String>,
+    bifrost_authority_ref: Option<String>,
+    heimdall_capability_ref_env: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -269,32 +271,32 @@ fn run_post(
             "speechAudit": audit,
         }));
     }
-    let Some(token) = bot_token(config) else {
+    let Some(bridge_cli_path) = bifrost_bridge_cli_path(config) else {
         let path = write_draft(
             content,
             config,
             artifact_dir,
             "blocked",
-            "missing Discord bot token",
+            "missing Bifrost bridge CLI path",
             Some(&audit),
         )?;
         return Ok(serde_json::json!({
             "ok": false,
             "posted": false,
-            "blocked": "missing-token",
+            "blocked": "missing-bifrost-bridge",
             "draftPath": path,
             "speechAudit": audit,
         }));
     };
     let persona = resolve_persona(config, persona_name, persona_avatar_url)?;
-    let posted = post_discord_message(
-        &token,
+    let posted = post_bifrost_discord_message(
+        &bridge_cli_path,
+        config,
         &configured_channel_id,
         content.trim(),
         reply_to_message_id.as_deref(),
         persona.as_ref(),
-        config,
-        artifact_dir,
+        &audit,
     )?;
     let path = write_draft(
         content,
@@ -302,7 +304,7 @@ fn run_post(
         artifact_dir,
         "posted",
         &format!(
-            "posted message {} via {}",
+            "posted message {} through {}",
             posted.message_id, posted.transport
         ),
         Some(&audit),
@@ -312,6 +314,9 @@ fn run_post(
         "posted": true,
         "messageId": posted.message_id,
         "transport": posted.transport,
+        "receiptUrl": posted.receipt_url,
+        "externalReceiptId": posted.external_receipt_id,
+        "bifrostBridgeReceipt": posted.bridge_receipt,
         "persona": persona.map(|persona| serde_json::json!({
             "name": persona.name,
             "avatarUrl": persona.avatar_url,
@@ -330,7 +335,10 @@ struct PersonaPersona {
 #[derive(Clone, Debug)]
 struct PostedDiscordMessage {
     message_id: String,
-    transport: &'static str,
+    transport: String,
+    receipt_url: Option<String>,
+    external_receipt_id: Option<String>,
+    bridge_receipt: Value,
 }
 
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -512,178 +520,109 @@ fn resolve_persona(
     }))
 }
 
-fn post_discord_message(
-    token: &str,
+fn post_bifrost_discord_message(
+    bridge_cli_path: &Path,
+    config: &PersonaConfig,
     channel_id: &str,
     content: &str,
     reply_to_message_id: Option<&str>,
     persona: Option<&PersonaPersona>,
-    config: &PersonaConfig,
-    artifact_dir: &Path,
+    audit: &PersonaSpeechAudit,
 ) -> Result<PostedDiscordMessage> {
-    if let Some(persona) = persona {
-        return post_discord_persona_message(
-            token,
-            channel_id,
-            content,
-            reply_to_message_id,
-            persona,
-            config,
-            artifact_dir,
-        );
-    }
-
-    let response = Client::new()
-        .post(format!("{DISCORD_API}/channels/{channel_id}/messages"))
-        .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyPersona/0.1")
-        .json(&serde_json::json!({
-            "content": content,
-            "message_reference": reply_to_message_id.map(|message_id| serde_json::json!({
-                "message_id": message_id,
-                "fail_if_not_exists": false,
-            })),
-            "allowed_mentions": {"parse": []},
-        }))
-        .send()
-        .context("Discord post failed")?;
-    let payload = decode_discord_json(response, "Discord message post")?;
-    Ok(PostedDiscordMessage {
-        message_id: required_discord_id(&payload, "Discord message post")?,
-        transport: "bot",
-    })
-}
-
-fn post_discord_persona_message(
-    token: &str,
-    channel_id: &str,
-    content: &str,
-    reply_to_message_id: Option<&str>,
-    persona: &PersonaPersona,
-    config: &PersonaConfig,
-    artifact_dir: &Path,
-) -> Result<PostedDiscordMessage> {
-    let target = resolve_webhook_target(token, channel_id)?;
-    let cache_path = persona_webhook_cache_path(config, artifact_dir);
-    let mut webhook = cached_persona_webhook(&cache_path, &target.webhook_channel_id)?;
-    if webhook.is_none() {
-        let created = create_persona_webhook(token, &target.webhook_channel_id)?;
-        write_cached_persona_webhook(&cache_path, &target.webhook_channel_id, &created)?;
-        webhook = Some(created);
-    }
-    let webhook = webhook.context("persona webhook should exist")?;
-    match execute_persona_webhook(&webhook, &target, content, reply_to_message_id, persona) {
-        Ok(posted) => Ok(posted),
-        Err(error) if is_stale_webhook_error(&error) => {
-            clear_cached_persona_webhook(&cache_path, &target.webhook_channel_id)?;
-            let refreshed = create_persona_webhook(token, &target.webhook_channel_id)?;
-            write_cached_persona_webhook(&cache_path, &target.webhook_channel_id, &refreshed)?;
-            execute_persona_webhook(&refreshed, &target, content, reply_to_message_id, persona)
-        }
-        Err(error) => Err(error),
-    }
-}
-
-#[derive(Clone, Debug)]
-struct WebhookTarget {
-    webhook_channel_id: String,
-    thread_id: Option<String>,
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CachedWebhookRecord {
-    id: String,
-    token: String,
-    channel_id: String,
-    name: String,
-    created_at: String,
-}
-
-fn resolve_webhook_target(token: &str, channel_id: &str) -> Result<WebhookTarget> {
-    let response = Client::new()
-        .get(format!("{DISCORD_API}/channels/{channel_id}"))
-        .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyPersona/0.1")
-        .send()
-        .context("Discord channel lookup failed")?;
-    let payload = decode_discord_json(response, "Discord channel lookup")?;
-    let channel_type = payload["type"]
-        .as_i64()
-        .ok_or_else(|| anyhow!("Discord channel lookup returned no numeric type"))?;
-    let id = required_discord_id(&payload, "Discord channel lookup")?;
-    if matches!(channel_type, 10 | 11 | 12) {
-        let parent_id = payload["parent_id"].as_str().ok_or_else(|| {
-            anyhow!("Discord thread {id} has no parent channel for webhook routing")
-        })?;
-        return Ok(WebhookTarget {
-            webhook_channel_id: parent_id.to_string(),
-            thread_id: Some(id),
-        });
-    }
-    Ok(WebhookTarget {
-        webhook_channel_id: id,
-        thread_id: None,
-    })
-}
-
-fn create_persona_webhook(token: &str, channel_id: &str) -> Result<CachedWebhookRecord> {
-    let response = Client::new()
-        .post(format!("{DISCORD_API}/channels/{channel_id}/webhooks"))
-        .header("Authorization", format!("Bot {token}"))
-        .header("User-Agent", "EpiphanyPersona/0.1")
-        .json(&serde_json::json!({"name": "Epiphany Persona Pipe"}))
-        .send()
-        .context("Discord webhook creation failed")?;
-    let payload = decode_discord_json(response, "Discord webhook creation")?;
-    let id = required_discord_id(&payload, "Discord webhook creation")?;
-    let token = payload["token"]
-        .as_str()
-        .ok_or_else(|| anyhow!("Discord webhook creation returned no executable token"))?;
-    Ok(CachedWebhookRecord {
-        id,
-        token: token.to_string(),
-        channel_id: channel_id.to_string(),
-        name: "Epiphany Persona Pipe".to_string(),
-        created_at: now_iso(),
-    })
-}
-
-fn execute_persona_webhook(
-    webhook: &CachedWebhookRecord,
-    target: &WebhookTarget,
-    content: &str,
-    reply_to_message_id: Option<&str>,
-    persona: &PersonaPersona,
-) -> Result<PostedDiscordMessage> {
-    let mut url = format!(
-        "{DISCORD_API}/webhooks/{}/{}?wait=true",
-        webhook.id, webhook.token
+    let mut command = Command::new(bifrost_node_executable());
+    command.arg(bridge_cli_path);
+    command.arg("discord-post");
+    command.arg("--channel-id").arg(channel_id);
+    command.arg("--content").arg(content);
+    command.arg("--identity").arg(
+        config
+            .bifrost_identity
+            .as_deref()
+            .unwrap_or("epiphany.Persona"),
     );
-    if let Some(thread_id) = &target.thread_id {
-        url.push_str("&thread_id=");
-        url.push_str(thread_id);
+    command.arg("--source-kind").arg(
+        config
+            .bifrost_source_kind
+            .as_deref()
+            .unwrap_or("epiphany_persona_speech"),
+    );
+    command.arg("--source-id").arg(&audit.audit_id);
+    command.arg("--authority-ref").arg(
+        config
+            .bifrost_authority_ref
+            .as_deref()
+            .unwrap_or("epiphany.persona_speech_audit"),
+    );
+    command.arg("--epiphany-lane-id").arg("Persona");
+    command
+        .arg("--epiphany-agent-identity")
+        .arg("epiphany.Persona");
+    if let Some(run_id) = env::var("EPIPHANY_RUN_ID")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        command.arg("--epiphany-run-id").arg(run_id);
     }
-    let response = Client::new()
-        .post(url)
-        .header("User-Agent", "EpiphanyPersona/0.1")
-        .json(&serde_json::json!({
-            "content": content,
-            "username": persona.name,
-            "avatar_url": persona.avatar_url,
-            "message_reference": reply_to_message_id.map(|message_id| serde_json::json!({
-                "message_id": message_id,
-                "fail_if_not_exists": false,
-            })),
-            "allowed_mentions": {"parse": []},
-        }))
-        .send()
-        .context("Discord webhook execution failed")?;
-    let payload = decode_discord_json(response, "Discord webhook execution")?;
+    if let Some(ref_name) = &config.heimdall_capability_ref_env {
+        if let Some(value) = env_value(ref_name) {
+            command.arg("--heimdall-capability-ref").arg(value);
+        }
+    }
+    if let Some(message_id) = reply_to_message_id {
+        command.arg("--reply-to-message-id").arg(message_id);
+    }
+    if let Some(persona) = persona {
+        command.arg("--persona-name").arg(&persona.name);
+        if let Some(avatar_url) = &persona.avatar_url {
+            command.arg("--persona-avatar-url").arg(avatar_url);
+        }
+    }
+
+    let output = command.output().with_context(|| {
+        format!(
+            "failed to invoke Bifrost bridge CLI at {}",
+            bridge_cli_path.display()
+        )
+    })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(anyhow!(
+            "Bifrost bridge Discord post failed with status {}: {}{}{}",
+            output.status,
+            stderr.trim(),
+            if stdout.trim().is_empty() {
+                ""
+            } else {
+                "\nstdout: "
+            },
+            stdout.trim()
+        ));
+    }
+    let stdout = String::from_utf8(output.stdout).context("Bifrost bridge stdout was not UTF-8")?;
+    let receipt: Value =
+        serde_json::from_str(strip_bom(&stdout)).context("Bifrost bridge stdout was not JSON")?;
+    let message_id = receipt["messageId"]
+        .as_str()
+        .or_else(|| receipt["externalReceiptId"].as_str())
+        .unwrap_or("bifrost-discord-post")
+        .to_string();
     Ok(PostedDiscordMessage {
-        message_id: required_discord_id(&payload, "Discord webhook execution")?,
-        transport: "webhook",
+        message_id,
+        transport: "bifrost.discord-post".to_string(),
+        receipt_url: receipt["url"].as_str().map(str::to_string),
+        external_receipt_id: receipt["externalReceiptId"].as_str().map(str::to_string),
+        bridge_receipt: receipt,
     })
+}
+
+fn bifrost_node_executable() -> String {
+    env::var("EPIPHANY_BIFROST_NODE")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "node".to_string())
 }
 
 fn run_smoke() -> Result<Value> {
@@ -694,13 +633,48 @@ fn run_smoke() -> Result<Value> {
         allowed_channel_name: "#aquarium".to_string(),
         allowed_channel_id: None,
         allowed_channel_id_env: Some("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST".to_string()),
-        bot_token_env: Some("DISCORD_BOT_TOKEN_TEST".to_string()),
         persona_name: Some("Smoke Persona".to_string()),
         persona_avatar_url: Some("https://example.invalid/Persona.png".to_string()),
-        webhook_cache_path: Some(temp_dir.join("webhook-cache.json")),
+        bifrost_bridge_cli_path: None,
+        bifrost_identity: Some("epiphany.Persona".to_string()),
+        bifrost_source_kind: Some("epiphany_persona_speech".to_string()),
+        bifrost_authority_ref: Some("epiphany.persona_speech_audit".to_string()),
+        heimdall_capability_ref_env: Some("HEIMDALL_CAPABILITY_REF_TEST".to_string()),
     };
+    let fake_bridge = temp_dir.join("fake-bifrost-bridge.mjs");
+    fs::write(
+        &fake_bridge,
+        r#"
+const args = process.argv.slice(2);
+function opt(name) {
+  const i = args.indexOf(name);
+  return i >= 0 && i + 1 < args.length ? args[i + 1] : "";
+}
+console.log(JSON.stringify({
+  action: args[0],
+  messageId: "bridge-message-123",
+  externalReceiptId: "bridge-message-123",
+  url: `https://discord.com/channels/test/${opt("--channel-id")}/bridge-message-123`,
+  provenance: {
+    bifrostIdentity: opt("--identity"),
+    sourceKind: opt("--source-kind"),
+    sourceId: opt("--source-id"),
+    authorityReference: opt("--authority-ref"),
+    epiphanyRunId: opt("--epiphany-run-id"),
+    epiphanyLaneId: opt("--epiphany-lane-id"),
+    epiphanyAgentIdentity: opt("--epiphany-agent-identity"),
+    heimdallCapabilityRef: opt("--heimdall-capability-ref")
+  }
+}));
+"#,
+    )
+    .with_context(|| format!("failed to write {}", fake_bridge.display()))?;
+    let mut bridge_config = config.clone();
+    bridge_config.bifrost_bridge_cli_path = Some(fake_bridge);
     unsafe {
         env::remove_var("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST");
+        env::set_var("HEIMDALL_CAPABILITY_REF_TEST", "heimdall-capability-smoke");
+        env::set_var("EPIPHANY_RUN_ID", "epiphany-run-smoke");
     }
     let draft = run_draft(
         "Persona notices Modeling and Soul disagree about evidence shape.",
@@ -734,9 +708,31 @@ fn run_smoke() -> Result<Value> {
     unsafe {
         env::set_var("EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID_TEST", "123");
     }
+    let missing_bridge = run_post(
+        "Persona should not cross Discord without Bifrost bridge configuration.",
+        &config,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        Some("123".to_string()),
+        None,
+        None,
+        None,
+    )?;
+    let bridged = run_post(
+        "Persona crosses to Discord only through Bifrost.",
+        &bridge_config,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        Some("123".to_string()),
+        Some("Smoke Persona".to_string()),
+        Some("https://example.invalid/Persona.png".to_string()),
+        None,
+    )?;
     let wrong = run_post(
         "Persona should not post outside #aquarium.",
-        &config,
+        &bridge_config,
         &temp_dir,
         &cultmesh_store,
         runtime_id,
@@ -772,7 +768,7 @@ fn run_smoke() -> Result<Value> {
     )?;
     let repeated = run_post(
         "Rite noted: Modeling and Soul keep circling the same evidence seam again.",
-        &config,
+        &bridge_config,
         &temp_dir,
         &cultmesh_store,
         runtime_id,
@@ -790,6 +786,13 @@ fn run_smoke() -> Result<Value> {
         && bubble["bubble"]["bubble"]["requiresDiscord"] == false
         && blocked["ok"] == false
         && blocked["blocked"] == "missing-channel-id"
+        && missing_bridge["ok"] == false
+        && missing_bridge["blocked"] == "missing-bifrost-bridge"
+        && bridged["ok"] == true
+        && bridged["transport"] == "bifrost.discord-post"
+        && bridged["bifrostBridgeReceipt"]["provenance"]["bifrostIdentity"] == "epiphany.Persona"
+        && bridged["bifrostBridgeReceipt"]["provenance"]["heimdallCapabilityRef"]
+            == "heimdall-capability-smoke"
         && wrong["ok"] == false
         && wrong["blocked"] == "wrong-channel"
         && repeated["ok"] == false
@@ -809,6 +812,8 @@ fn run_smoke() -> Result<Value> {
         "draft": draft,
         "bubble": bubble,
         "blocked": blocked,
+        "missingBridge": missing_bridge,
+        "bridged": bridged,
         "wrongChannel": wrong,
         "repeatedSpeech": repeated,
         "latestCultMeshSpeechAudit": latest_cultmesh_audit,
@@ -1006,77 +1011,6 @@ fn persona_stopword(value: &str) -> bool {
     )
 }
 
-fn persona_webhook_cache_path(config: &PersonaConfig, artifact_dir: &Path) -> PathBuf {
-    config
-        .webhook_cache_path
-        .clone()
-        .unwrap_or_else(|| artifact_dir.join("discord-webhook-cache.json"))
-}
-
-fn cached_persona_webhook(path: &Path, channel_id: &str) -> Result<Option<CachedWebhookRecord>> {
-    let cache = read_persona_webhook_cache(path)?;
-    let Some(value) = cache.get(channel_id) else {
-        return Ok(None);
-    };
-    let record: CachedWebhookRecord = serde_json::from_value(value.clone())
-        .with_context(|| format!("cached persona webhook for channel {channel_id} is malformed"))?;
-    Ok((record.channel_id == channel_id).then_some(record))
-}
-
-fn read_persona_webhook_cache(path: &Path) -> Result<serde_json::Map<String, Value>> {
-    match fs::read_to_string(path) {
-        Ok(raw) => {
-            let value: Value = serde_json::from_str(strip_bom(&raw))
-                .with_context(|| format!("failed to decode {}", path.display()))?;
-            Ok(value.as_object().cloned().unwrap_or_default())
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(serde_json::Map::new()),
-        Err(error) => Err(error).with_context(|| format!("failed to read {}", path.display())),
-    }
-}
-
-fn write_cached_persona_webhook(
-    path: &Path,
-    channel_id: &str,
-    webhook: &CachedWebhookRecord,
-) -> Result<()> {
-    let mut cache = read_persona_webhook_cache(path)?;
-    cache.insert(channel_id.to_string(), serde_json::to_value(webhook)?);
-    write_json(path, &Value::Object(cache))
-}
-
-fn clear_cached_persona_webhook(path: &Path, channel_id: &str) -> Result<()> {
-    let mut cache = read_persona_webhook_cache(path)?;
-    if cache.remove(channel_id).is_some() {
-        write_json(path, &Value::Object(cache))?;
-    }
-    Ok(())
-}
-
-fn decode_discord_json(response: reqwest::blocking::Response, context: &str) -> Result<Value> {
-    let status = response.status();
-    let body = response
-        .text()
-        .with_context(|| format!("{context} response body read failed"))?;
-    if !status.is_success() {
-        return Err(anyhow!("{context} failed with HTTP {status}: {body}"));
-    }
-    serde_json::from_str(&body).with_context(|| format!("{context} response was not JSON"))
-}
-
-fn required_discord_id(payload: &Value, context: &str) -> Result<String> {
-    payload["id"]
-        .as_str()
-        .map(str::to_string)
-        .ok_or_else(|| anyhow!("{context} returned no id"))
-}
-
-fn is_stale_webhook_error(error: &anyhow::Error) -> bool {
-    let message = error.to_string();
-    message.contains("Discord webhook execution failed with HTTP 401")
-        || message.contains("Discord webhook execution failed with HTTP 404")
-}
-
 fn trim_optional(value: Option<String>) -> Option<String> {
     value
         .map(|value| value.trim().to_string())
@@ -1109,10 +1043,19 @@ fn load_config(path: &Path) -> Result<PersonaConfig> {
             allowed_channel_id_env: payload["allowed_channel_id_env"]
                 .as_str()
                 .map(str::to_string),
-            bot_token_env: payload["bot_token_env"].as_str().map(str::to_string),
             persona_name: payload["persona_name"].as_str().map(str::to_string),
             persona_avatar_url: payload["persona_avatar_url"].as_str().map(str::to_string),
-            webhook_cache_path: payload["webhook_cache_path"].as_str().map(PathBuf::from),
+            bifrost_bridge_cli_path: payload["bifrost_bridge_cli_path"]
+                .as_str()
+                .map(PathBuf::from),
+            bifrost_identity: payload["bifrost_identity"].as_str().map(str::to_string),
+            bifrost_source_kind: payload["bifrost_source_kind"].as_str().map(str::to_string),
+            bifrost_authority_ref: payload["bifrost_authority_ref"]
+                .as_str()
+                .map(str::to_string),
+            heimdall_capability_ref_env: payload["heimdall_capability_ref_env"]
+                .as_str()
+                .map(str::to_string),
         });
     }
     Ok(PersonaConfig {
@@ -1120,10 +1063,13 @@ fn load_config(path: &Path) -> Result<PersonaConfig> {
             .unwrap_or_else(|| "#aquarium".to_string()),
         allowed_channel_id: toml_string(&raw, "allowed_channel_id"),
         allowed_channel_id_env: toml_string(&raw, "allowed_channel_id_env"),
-        bot_token_env: toml_string(&raw, "bot_token_env"),
         persona_name: toml_string(&raw, "persona_name"),
         persona_avatar_url: toml_string(&raw, "persona_avatar_url"),
-        webhook_cache_path: toml_string(&raw, "webhook_cache_path").map(PathBuf::from),
+        bifrost_bridge_cli_path: toml_string(&raw, "bifrost_bridge_cli_path").map(PathBuf::from),
+        bifrost_identity: toml_string(&raw, "bifrost_identity"),
+        bifrost_source_kind: toml_string(&raw, "bifrost_source_kind"),
+        bifrost_authority_ref: toml_string(&raw, "bifrost_authority_ref"),
+        heimdall_capability_ref_env: toml_string(&raw, "heimdall_capability_ref_env"),
     })
 }
 
@@ -1152,8 +1098,14 @@ fn allowed_channel_id(config: &PersonaConfig) -> Option<String> {
         .or_else(|| config.allowed_channel_id_env.as_ref().and_then(env_value))
 }
 
-fn bot_token(config: &PersonaConfig) -> Option<String> {
-    config.bot_token_env.as_ref().and_then(env_value)
+fn bifrost_bridge_cli_path(config: &PersonaConfig) -> Option<PathBuf> {
+    config.bifrost_bridge_cli_path.clone().or_else(|| {
+        env::var("EPIPHANY_PERSONA_BIFROST_BRIDGE_CLI")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+    })
 }
 
 fn env_value(name: &String) -> Option<String> {

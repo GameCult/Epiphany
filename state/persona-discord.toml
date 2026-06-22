@@ -1,15 +1,19 @@
 schema_version = "epiphany.persona_discord.v0"
 allowed_channel_name = "#aquarium"
 allowed_channel_id_env = "EPIPHANY_PERSONA_AQUARIUM_CHANNEL_ID"
-bot_token_env = "DISCORD_BOT_TOKEN"
-webhook_cache_path = ".epiphany-persona/discord-webhook-cache.json"
 persona_name = "Epiphany Persona"
 # persona_avatar_url may be set per Persona/backend when a specific swarm avatar exists.
+bifrost_bridge_cli_path = "../Bifrost/tools/bifrost-bridge.mjs"
+bifrost_identity = "epiphany.Persona"
+bifrost_source_kind = "epiphany_persona_speech"
+bifrost_authority_ref = "epiphany.persona_speech_audit"
+heimdall_capability_ref_env = "HEIMDALL_CAPABILITY_REF"
 
 policy = [
   "Persona may post only in #aquarium.",
   "If the #aquarium channel id is missing, Persona writes candidate chat artifacts instead of posting.",
-  "When a Persona has a persona name/avatar, it speaks through the shared Discord webhook pipe so each Epiphany can present as itself without separate bot identities.",
+  "When a Persona has a persona name/avatar, it asks Bifrost to cross into Discord through the bridge; Epiphany does not own Discord tokens or webhook execution.",
+  "Bifrost identity plus a Heimdall-backed capability/account reference should appear in bridge receipts for blessed crossings.",
   "Persona must not DM, moderate, escalate, or substitute another channel.",
   "Persona translates agent thought-weather; it does not leak raw transcripts, private notes, or sealed artifacts.",
 ]
