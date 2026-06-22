@@ -624,6 +624,17 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
+Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
+repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
+Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
+and other public worlds, linked-account association, bridge policy, receipts,
+credit, and ledger facts. Heimdall owns outside-provider OAuth, token custody,
+and verifiable capability/account claims that Bifrost associates with a
+Bifrost identity. The old Bifrost dispatch bridge was transitional
+VoidBot-era queueing, not the blessed Epiphany launcher. Future receipts should
+carry Bifrost identity plus Heimdall-backed capability/account references,
+never raw bearer tokens.
+
 The next real move remains Codex starvation, not outward bridge work. The
 inventory and ledger now exist:
 

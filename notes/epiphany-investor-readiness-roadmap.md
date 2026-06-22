@@ -20,9 +20,11 @@ The operating todo list is:
 1. Make the local Mom MVP a repeatable proof bundle: Persona entry, Bifrost-linked
    scope, one bounded coordinator action, runtime result, review, receipt, sleep,
    and sealed operator-safe artifacts.
-2. Build the Bifrost-first external-work bridge: topics, work items, dispatch
-   packets, Epiphany execution requests, artifacts, receipts, credit, and ledger
-   entries.
+2. Build the Bifrost-first external-work bridge: topics, work items, Epiphany
+   execution requests, artifacts, receipts, credit, and ledger entries. Bifrost
+   is the GameCult identity provider and bridge policy owner; Heimdall supplies
+   outside-account OAuth/token/capability claims that Bifrost associates with
+   that identity.
 3. Add accounting surfaces: model spend, role time, human review load, accepted
    artifact count, rejected-output reasons, and lessons written to memory.
 4. Keep fresh-repo operation repeatable without supervisor contamination, and
@@ -42,7 +44,7 @@ authority into a draft.
 
 Every investor-scale Objective Draft should answer:
 
-- What Bifrost topic, work item, dispatch, receipt, credit, or ledger surface
+- What Bifrost topic, work item, bridge receipt, credit, or ledger surface
   will own the governed work?
 - What bounded Epiphany execution proves the loop on a fresh or semi-external
   repo?
@@ -64,8 +66,9 @@ Every investor-scale Objective Draft should answer:
    loop toward an external or semi-external repo after Bifrost owns the work
    item bridge.
 2. Bifrost-first private alpha: all external swarm work exists as Bifrost
-   topics/work items/dispatches/receipts/credit before Discord, VoidBot, Persona,
-   or scripts can mirror it.
+   topics/work items/bridge receipts/credit, with Bifrost identity and
+   Heimdall-backed outside-account capability references where needed, before
+   Discord, VoidBot, Persona, or scripts can mirror it.
 3. Public proof sprint: selected consented tasks record scope, roles, model
    spend, review load, artifacts, outcome, memory lessons, and case-study
    permission.

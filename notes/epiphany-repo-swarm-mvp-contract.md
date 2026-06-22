@@ -2153,7 +2153,8 @@ The MVP succeeds only if each organ keeps its throne small enough to deserve it.
 | Gjallar | Whole-Verse/operator-safe sight rows over advertised state. | Discovery ownership, service lifecycle, mutation, private-state inspection. |
 | Odin | Discovery, rendezvous, schema and surface awareness. | Provider ownership, daemon survival, repo mutation. |
 | Idunn | Daemon/service lifecycle physiology, runbooks, scheduler service aftercare. | Repo work planning, branch commits, publication. |
-| Bifrost | Publication, credit, ledger, merge/sync authority receipts. | Local branch implementation, private thought, daemon survival. |
+| Bifrost | GameCult identity, governed external-world crossings, linked-account association, publication, credit, ledger, merge/sync authority receipts. | Local branch implementation, private thought, daemon survival, outside-provider token custody. |
+| Heimdall | Outside-provider OAuth, token custody, linked-account capability/account claims for Bifrost to verify. | GameCult identity, bridge policy, repo execution, publication receipts. |
 | Eve/CultUI | Interface projection of typed state. | Source of truth or hidden action authority. |
 
 ### Tool Availability Doctrine
@@ -2189,6 +2190,9 @@ a publication receipt exists. A repo swarm's public work item reaches the
 upstream-complete state only when:
 
 - Bifrost or maintainer authority records publication/merge permission.
+- The publication receipt names the Bifrost identity and, when the crossing
+  touches GitHub/Discord/Reddit or another outside provider, the
+  Heimdall-backed capability/account reference that made the crossing legal.
 - The Hands commit being published is known.
 - The configured upstream ref, normally `origin/main`, resolves.
 - Git ancestry proves the Hands commit is contained by upstream main.
