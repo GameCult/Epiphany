@@ -3107,6 +3107,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.persona_bubble_intent.v0",
                 "epiphany.character_turn_intent.v0",
                 "epiphany.discord_persona_post_intent.v0",
+                "epiphany.reddit_persona_post_intent.v0",
             ],
             vec![
                 "epiphany.persona_bubble.v0",
@@ -3114,7 +3115,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.character_turn_packet.v0",
             ],
             vec![
-                "Persona bubble, draft, and Discord persona affordances are projected from typed Persona and character-loop artifacts.",
+                "Persona bubble, draft, Discord, and Reddit public mouth affordances are projected from typed Persona and character-loop artifacts; public crossings route through Bifrost.",
                 "Humans talk to Persona; sealed inner thoughts stay behind the projection boundary.",
             ],
         ),

@@ -706,6 +706,17 @@
       "path": "epiphany.discord_persona_post_intent.v0.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.reddit_persona_post_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.reddit_persona_post_intent.v0",
+      "documentType": "epiphany.reddit_persona_post_intent.v0",
+      "title": "epiphany reddit_persona_post_intent v0",
+      "path": "epiphany.reddit_persona_post_intent.v0.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_startup_intent.v0.schema.json",
       "kind": "document_payload",
       "wireContracts": [

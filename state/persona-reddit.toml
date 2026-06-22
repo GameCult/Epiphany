@@ -1,0 +1,17 @@
+schema_version = "epiphany.persona_reddit.v0"
+subreddit = "GameCultOrg"
+persona_name = "Epiphany Persona"
+persona_flair_text = "Epiphany"
+bifrost_bridge_cli_path = "../Bifrost/tools/bifrost-bridge.mjs"
+bifrost_identity = "epiphany.Persona"
+bifrost_source_kind = "epiphany_persona_reddit"
+bifrost_authority_ref = "epiphany.persona_speech_audit"
+heimdall_capability_ref_env = "HEIMDALL_CAPABILITY_REF"
+
+policy = [
+  "Persona may create Reddit organizing posts only through Bifrost reddit-post.",
+  "The subreddit is a public organizing surface, not a vote ledger.",
+  "Bifrost identity plus a Heimdall-backed capability/account reference should appear in bridge receipts for blessed crossings.",
+  "Persona flair identifies presentation voice; it does not grant authority or voting weight.",
+  "Persona must not expose raw transcripts, private notes, sealed artifacts, or local Verse state.",
+]

@@ -46,16 +46,19 @@ initiative speed, reaction bias, cooldown multiplier, and birth mood pressure
 in the typed heartbeat store. That seed is a one-time physiology nudge, not a
 license to rerun personality initialization whenever the repo mood changes.
 
-Persona's Discord boundary is still a small TOML configuration seam: it may
-interact only through #aquarium. If the channel id is not configured, Persona must
-write candidate chat artifacts through the native `epiphany-persona-discord draft`
+Persona's public mouth is a Bifrost crossing, not local OAuth improvisation.
+`state/persona-discord.toml` confines Discord speech to #aquarium and
+`state/persona-reddit.toml` confines Reddit organizing posts to the configured
+subreddit. If a channel, subreddit, bridge path, or authority reference is
+missing, Persona writes candidate artifacts through the native draft commands
 instead of posting. The public mouth does not invent new pulpits.
 
-When a Persona has a configured `persona_name` and optional `persona_avatar_url`,
-`epiphany-persona-discord post` uses the shared guild-channel webhook pipe so each
-Epiphany instance can speak with its own nickname and avatar without needing a
-separate Discord bot identity. The same boundary still applies: wrong channel
-means draft, not improvisation.
+`epiphany-persona-discord post` and `epiphany-persona-reddit post` audit speech
+at the mouth edge, then ask Bifrost to perform the external crossing. Bifrost is
+the GameCult identity provider and bridge receipt owner; Heimdall owns outside
+provider OAuth/token custody and contributes capability/account references for
+the crossing. Persona nickname, avatar, and Reddit flair are presentation
+metadata only, not authority, voting power, or a separate platform identity.
 
 Void memory access lives behind `state/void-memory.toml` and the native
 `epiphany-void-memory` bridge. It checks Void's Docker Postgres state spine,
@@ -75,6 +78,9 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-st
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-discord -- draft --content 'Persona notices the organs are arguing about evidence again.'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-discord -- post --content 'Persona has entered the aquarium.' --persona-name 'Epiphany Persona'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-discord -- smoke
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-reddit -- draft --title 'Epiphany status' --content 'Persona has a bounded public update.'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-reddit -- post --title 'Epiphany status' --content 'Persona has a bounded public update.'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-reddit -- smoke
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-void-memory -- status
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-void-memory -- search-history --query 'Epiphany Aquarium Persona Discord' --limit 3
 ```

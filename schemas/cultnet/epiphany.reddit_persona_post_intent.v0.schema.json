@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.reddit_persona_post_intent.v0.schema.json",
+  "title": "epiphany reddit_persona_post_intent v0",
+  "description": "Persona Reddit post intent for public organizing surfaces. Epiphany audits the speech and asks Bifrost to perform the Reddit crossing; Heimdall-backed capability/account references may be attached for outside-provider authority.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "subreddit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "personaName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "personaFlairId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "personaFlairText": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bifrostIdentity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "heimdallCapabilityRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "speechAuditId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "threadId",
+    "title",
+    "content"
+  ]
+}
