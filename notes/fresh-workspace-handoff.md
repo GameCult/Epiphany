@@ -635,6 +635,12 @@ Bifrost identity. The old Bifrost dispatch bridge was transitional
 VoidBot-era queueing, not the blessed Epiphany launcher. Future receipts should
 carry Bifrost identity plus Heimdall-backed capability/account references,
 never raw bearer tokens.
+Bifrost commit `445c279` now makes that partly executable in the hosted bridge
+ledger: bridge actions store Bifrost identity, Heimdall capability/account
+reference, Epiphany run id, lane id, and agent identity, and Persona/agent
+Discord or Reddit actions are denied without the Bifrost identity plus
+Heimdall-backed reference. The local bridge token remains an actuator credential,
+not identity or provider authority.
 
 The next real move remains Codex starvation, not outward bridge work. The
 inventory and ledger now exist:
