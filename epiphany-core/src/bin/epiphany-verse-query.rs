@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
+use cultmesh_rs::CultMeshRudpDocumentPublishOptions;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_GLOBAL_VERSE_ID;
@@ -52,6 +53,7 @@ use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
 use epiphany_core::epiphany_cultmesh_eve_connection_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_imagination_consensus_receipt_for_feedback;
+use epiphany_core::epiphany_gamecult_eve_provider_advertisements;
 use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_agent_state_soa_entry;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
@@ -117,6 +119,7 @@ use sha2::Sha256;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 const WRAPPER_OVERVIEW_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-overview";
@@ -215,6 +218,70 @@ fn run_cli() -> Result<()> {
                     "status": "ok",
                     "store": args.store,
                     "runtimeId": args.runtime_id,
+                    "privateStateExposed": false,
+                }))?
+            );
+        }
+        "provider-advertisements" | "provider-advertisement" => {
+            let advertisements =
+                epiphany_gamecult_eve_provider_advertisements(Utc::now().to_rfc3339());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.odin_provider_advertisement_preview.v0",
+                    "status": "ok",
+                    "schemaId": epiphany_core::GAMECULT_EVE_PROVIDER_ADVERTISEMENT_SCHEMA_VERSION,
+                    "count": advertisements.len(),
+                    "providerIds": advertisements.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(),
+                    "providers": advertisements.iter().map(|(_, entry)| entry.value.clone()).collect::<Vec<_>>(),
+                    "privateStateExposed": false,
+                }))?
+            );
+        }
+        "publish-odin" | "odin-startup-respect" => {
+            let target = args
+                .odin_cultmesh_rudp
+                .context("publish-odin requires --odin-cultmesh-rudp <host:port>")?;
+            let observed_at = Utc::now().to_rfc3339();
+            seed_epiphany_local_verse_context(
+                &args.store,
+                args.runtime_id.clone(),
+                observed_at.clone(),
+            )?;
+            let mut node = open_epiphany_cultmesh_node(&args.store, args.runtime_id.clone())?;
+            let advertisements = epiphany_gamecult_eve_provider_advertisements(observed_at);
+            let mut provider_ids = Vec::new();
+            for (provider_id, advertisement) in &advertisements {
+                node.put(provider_id.clone(), advertisement)?;
+                node.publish_document_to_rudp_catalog(
+                    provider_id.clone(),
+                    advertisement,
+                    CultMeshRudpDocumentPublishOptions {
+                        target,
+                        runtime_id: args.runtime_id.clone(),
+                        source_role: Some("epiphany.provider".to_string()),
+                        tags: vec![
+                            "startup-respect".to_string(),
+                            "odin-verse-discovery".to_string(),
+                        ],
+                        ..CultMeshRudpDocumentPublishOptions::default()
+                    },
+                )?;
+                provider_ids.push(provider_id.clone());
+            }
+            node.flush()?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.odin_startup_respect_receipt.v0",
+                    "status": "ok",
+                    "store": args.store,
+                    "runtimeId": args.runtime_id,
+                    "odinCultMeshRudp": target.to_string(),
+                    "schemaId": epiphany_core::GAMECULT_EVE_PROVIDER_ADVERTISEMENT_SCHEMA_VERSION,
+                    "publishedCount": provider_ids.len(),
+                    "providerIds": provider_ids,
+                    "tags": ["startup-respect", "odin-verse-discovery"],
                     "privateStateExposed": false,
                 }))?
             );
@@ -3972,7 +4039,7 @@ fn run_cli() -> Result<()> {
             );
         }
         other => anyhow::bail!(
-            "unknown command {other:?}; use seed, query, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, cluster-topology, eve-surfaces, daemon-status, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-artifact-acceptance, bifrost-metrics, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
+            "unknown command {other:?}; use seed, query, provider-advertisements, publish-odin, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, cluster-topology, eve-surfaces, daemon-status, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-artifact-acceptance, bifrost-metrics, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
         ),
     }
     Ok(())
@@ -10781,6 +10848,7 @@ struct Args {
     requested_action: Option<String>,
     affected_clusters: Option<Vec<String>>,
     protected_surfaces: Option<Vec<String>>,
+    odin_cultmesh_rudp: Option<SocketAddr>,
 }
 
 impl Args {
@@ -10845,6 +10913,7 @@ impl Args {
         let mut requested_action = None;
         let mut affected_clusters = Vec::new();
         let mut protected_surfaces = Vec::new();
+        let mut odin_cultmesh_rudp = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -10903,6 +10972,16 @@ impl Args {
                     extend_list(
                         &mut protected_surfaces,
                         values.next().context("missing --protected-surface value")?,
+                    );
+                }
+                "--odin-cultmesh-rudp" => {
+                    let value = values
+                        .next()
+                        .context("missing --odin-cultmesh-rudp value")?;
+                    odin_cultmesh_rudp = Some(
+                        value
+                            .parse::<SocketAddr>()
+                            .with_context(|| format!("invalid --odin-cultmesh-rudp {value:?}"))?,
                     );
                 }
                 "--reason" => {
@@ -11181,6 +11260,7 @@ impl Args {
             requested_action,
             affected_clusters: some_if_not_empty(affected_clusters),
             protected_surfaces: some_if_not_empty(protected_surfaces),
+            odin_cultmesh_rudp,
         })
     }
 }

@@ -1894,6 +1894,7 @@ pub fn runtime_hello_frame(store_path: impl AsRef<Path>) -> Result<Vec<u8>> {
             "cultnet.schema_catalog_request.v0".to_string(),
             "cultnet.schema_catalog_response.v0".to_string(),
         ]),
+        transport_profiles: None,
         supports_schema_catalog: Some(true),
     };
     let payload = encode_cultnet_message_to_vec(&message, CultNetWireContract::CultNetSchemaV0)?;
