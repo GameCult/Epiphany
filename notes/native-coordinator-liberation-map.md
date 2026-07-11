@@ -165,7 +165,12 @@ actuators. `launch_job` composes native planning with the atomic launch commit;
 `accept_role` loads the typed completed finding, builds and proof-checks the
 Mind-gated acceptance, and atomically publishes state plus witnesses. Callers
 must delegate to these methods rather than replaying their choreography. The
-compatibility bridge's role-accept body is the next obsolete policy copy to cut.
+bridge supplies host state,
+thread identity, reference turn, timestamp, and nonce to
+`EpiphanyCoordinatorService::accept_role`, then maps the typed result to the
+compatibility response. It no longer builds evidence packets, Soul verdicts,
+proof sets, Mind receipts, or state commits. Reorientation acceptance is the
+remaining acceptance choreography still duplicated in the bridge.
 
 ## Acceptance Transaction Wound
 

@@ -1845,9 +1845,12 @@ native context organ so Codex starvation does not starve the workers too.
 actuators. The latter owns the complete role-accept path: typed result readback,
 policy-shaped acceptance update, launch-contract proof enforcement, Research
 Substrate Gate/Eyes or Verification/Soul prerequisites, Mind commit witness,
-and atomic state publication. Thirteen focused coordinator tests pass. The
-compatibility bridge still contains its older copy of that orchestration; cut
-that copy before rewiring `epiphany-mvp-coordinator`, or authority remains split.
+and atomic state publication. Thirteen focused coordinator tests pass. Its compatibility function only
+loads host facts, invokes `EpiphanyCoordinatorService::accept_role`, and maps the
+typed native result. Eight bridge tests and the vendored app-server check pass;
+the architecture guard expects one native role acceptance call and only the
+single remaining reorientation atomic commit. Move reorientation acceptance
+behind the service next, then begin coordinator AppServerClient removal.
 
 ## Immediate Re-entry Instruction
 
