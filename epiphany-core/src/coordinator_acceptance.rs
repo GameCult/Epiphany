@@ -53,6 +53,104 @@ pub struct EpiphanyNativeRoleAcceptance {
     pub update: EpiphanyRoleAcceptanceUpdate,
 }
 
+#[derive(Debug, Clone)]
+pub struct EpiphanyNativeReorientAcceptance {
+    pub state: EpiphanyThreadState,
+    pub finding: EpiphanyReorientFindingInterpretation,
+    pub update: EpiphanyReorientAcceptanceUpdate,
+}
+
+pub fn accept_coordinator_reorient_finding(
+    store: &Path,
+    thread_id: &str,
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+    expected_revision: Option<u64>,
+    reference_turn_id: Option<String>,
+    accepted_at: String,
+    nonce: &str,
+    update_scratch: bool,
+    update_investigation_checkpoint: bool,
+) -> anyhow::Result<EpiphanyNativeReorientAcceptance> {
+    if update_investigation_checkpoint && state.investigation_checkpoint.is_none() {
+        return Err(anyhow::anyhow!(
+            "cannot update investigation checkpoint because state has no durable checkpoint"
+        ));
+    }
+    let snapshot = read_reorient_result_snapshot(Some(state), Some(store), binding_id);
+    if snapshot.status != EpiphanyCrrcResultStatus::Completed {
+        return Err(anyhow::anyhow!(
+            "reorientation finding is not completed: {}",
+            snapshot.note
+        ));
+    }
+    let finding = snapshot
+        .finding
+        .ok_or_else(|| anyhow::anyhow!("completed reorientation result has no typed finding"))?;
+    let update = build_native_reorient_acceptance_update(
+        expected_revision,
+        binding_id,
+        &finding,
+        format!("ev-reorient-{nonce}"),
+        format!("obs-reorient-{nonce}"),
+        accepted_at.clone(),
+        update_scratch,
+        update_investigation_checkpoint,
+        state.investigation_checkpoint.clone(),
+    )
+    .map_err(anyhow::Error::msg)?;
+    let contract = acceptance_launch_contract_for_binding(store, state, binding_id, "reorient")
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    enforce_acceptance_receipt_proofs(
+        &contract,
+        &reorient_acceptance_claimed_effects(),
+        &[
+            MIND_GATEWAY_REVIEW_TYPE.to_string(),
+            CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
+        ],
+        &[
+            MIND_GATEWAY_REVIEW_TYPE.to_string(),
+            CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
+        ],
+    )
+    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let recovery = continuity_recovery_receipt_from_reorient_finding(
+        format!("continuity-recovery-{}", update.accepted_receipt_id),
+        binding_id.to_string(),
+        &finding,
+        accepted_at.clone(),
+    );
+    let next_state = apply_coordinator_state_update_to_state(
+        state,
+        update.state_update.clone(),
+        reference_turn_id,
+    )?;
+    let commit = mind_state_commit_receipt(
+        format!("mind-commit-{}", update.accepted_receipt_id),
+        &update.mind_review,
+        next_state.revision,
+        update
+            .changed_fields
+            .iter()
+            .map(|field| format!("{field:?}"))
+            .collect(),
+        accepted_at,
+    );
+    commit_state_with_mind_witness(
+        store,
+        thread_id,
+        &next_state,
+        &update.mind_review,
+        &commit,
+        &[EpiphanyAcceptancePrerequisite::Continuity(recovery)],
+    )?;
+    Ok(EpiphanyNativeReorientAcceptance {
+        state: next_state,
+        finding,
+        update,
+    })
+}
+
 pub fn accept_coordinator_role_finding(
     store: &Path,
     thread_id: &str,

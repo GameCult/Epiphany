@@ -170,7 +170,9 @@ thread identity, reference turn, timestamp, and nonce to
 `EpiphanyCoordinatorService::accept_role`, then maps the typed result to the
 compatibility response. It no longer builds evidence packets, Soul verdicts,
 proof sets, Mind receipts, or state commits. Reorientation acceptance is the
-remaining acceptance choreography still duplicated in the bridge.
+same shape: `accept_reorient` owns typed result admission, Continuity recovery
+proof, Mind witness, and atomic state publication. The bridge delegates both
+acceptance families and contains zero direct witness commits.
 
 ## Acceptance Transaction Wound
 

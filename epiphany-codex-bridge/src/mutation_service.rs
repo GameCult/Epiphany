@@ -3,16 +3,13 @@ use chrono::Utc;
 use std::path::Path;
 use std::path::PathBuf;
 
-use epiphany_core::CONTINUITY_RECOVERY_RECEIPT_TYPE;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyJobLaunchResult;
 use epiphany_core::EpiphanyJobView;
-use epiphany_core::EpiphanyLaunchOrganContract;
 use epiphany_core::EpiphanyPromotionInput;
-use epiphany_core::EpiphanyReceiptEffectKind;
 use epiphany_core::EpiphanyReorientDecision;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyReorientStateStatus;
@@ -22,15 +19,12 @@ use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
-use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
 use epiphany_core::apply_coordinator_state_update_to_state;
 use epiphany_core::build_epiphany_reorient_launch_request_with_dynamic_context;
 use epiphany_core::build_epiphany_role_launch_request_with_dynamic_context;
 use epiphany_core::clear_epiphany_job_binding_backend;
-use epiphany_core::continuity_recovery_receipt_from_reorient_finding;
 use epiphany_core::epiphany_role_label;
 use epiphany_core::evaluate_promotion;
-use epiphany_core::mind_state_commit_receipt;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -48,7 +42,6 @@ use crate::launch_context::append_verification_hands_receipt_context;
 use crate::launch_context::render_launch_dynamic_prompt_context;
 use crate::launch_context::reorient_launch_context_focus;
 use crate::launch_context::role_launch_context_focus;
-use crate::mutation::build_reorient_acceptance_update;
 use crate::mutation::epiphany_job_launch_changed_fields;
 use crate::mutation::epiphany_promote_changed_fields;
 use crate::mutation::epiphany_update_patch_changed_fields;
@@ -57,7 +50,6 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::runtime_results::load_completed_core_epiphany_reorient_finding;
 use uuid::Uuid;
 
 #[allow(async_fn_in_trait)]
@@ -373,94 +365,33 @@ pub async fn apply_thread_epiphany_reorient_accept(
                 .to_string(),
         )
     })?;
-    validate_expected_revision(expected_revision, state.revision)?;
-    if update_investigation_checkpoint && state.investigation_checkpoint.is_none() {
-        return Err(EpiphanyBridgeError::InvalidRequest(
-            "cannot update investigation checkpoint because this thread has no durable checkpoint"
-                .to_string(),
-        ));
-    }
-
     let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
-    let finding = load_completed_core_epiphany_reorient_finding(
-        Some(runtime_store_path.as_path()),
-        &state,
-        binding_id,
-    )?;
-    let acceptance_update = build_reorient_acceptance_update(
-        expected_revision,
-        binding_id,
-        &finding,
-        format!("ev-reorient-{}", Uuid::new_v4()),
-        format!("obs-reorient-{}", Uuid::new_v4()),
-        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-        update_scratch,
-        update_investigation_checkpoint,
-        state.investigation_checkpoint.clone(),
-    )
-    .map_err(EpiphanyBridgeError::InvalidRequest)?;
-    let organ_contract =
-        launch_contract_for_binding(runtime_store_path.as_path(), &state, binding_id, "reorient")?;
-
-    let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
-    let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
-    let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
-    let changed_fields = acceptance_update.changed_fields.clone();
-    let mut available_document_types = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
-    let recovery_receipt = continuity_recovery_receipt_from_reorient_finding(
-        format!("continuity-recovery-{accepted_receipt_id}"),
-        binding_id.to_string(),
-        &finding,
-        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-    );
-    available_document_types.push(CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string());
-    enforce_current_receipt_proofs(
-        &organ_contract,
-        &reorient_acceptance_claimed_effects(),
-        &available_document_types,
-        &[
-            MIND_GATEWAY_REVIEW_TYPE.to_string(),
-            CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
-        ],
-    )?;
-    let reference_turn_id = thread.epiphany_reference_turn_id().await;
-    let epiphany_state = epiphany_core::apply_coordinator_state_update_to_state(
-        &state,
-        acceptance_update.state_update,
-        reference_turn_id,
-    )
-    .map_err(|error| EpiphanyBridgeError::InvalidRequest(error.to_string()))?;
-    let commit_receipt = mind_state_commit_receipt(
-        format!("mind-commit-{accepted_receipt_id}"),
-        &acceptance_update.mind_review,
-        epiphany_state.revision,
-        changed_fields
-            .iter()
-            .map(|field| format!("{field:?}"))
-            .collect(),
-        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-    );
     let thread_id = thread.epiphany_thread_id().await;
-    epiphany_core::commit_state_with_mind_witness(
-        runtime_store_path.as_path(),
-        &thread_id,
-        &epiphany_state,
-        &acceptance_update.mind_review,
-        &commit_receipt,
-        &[epiphany_core::EpiphanyAcceptancePrerequisite::Continuity(
-            recovery_receipt,
-        )],
-    )
-    .map_err(|error| EpiphanyBridgeError::Fatal(error.to_string()))?;
-
+    let service = epiphany_core::EpiphanyCoordinatorService::new(
+        runtime_store_path.clone(),
+        runtime_store_path,
+    );
+    let accepted = service
+        .accept_reorient(
+            &thread_id,
+            &state,
+            binding_id,
+            expected_revision,
+            thread.epiphany_reference_turn_id().await,
+            Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+            Uuid::new_v4().to_string().as_str(),
+            update_scratch,
+            update_investigation_checkpoint,
+        )
+        .map_err(|error| EpiphanyBridgeError::InvalidRequest(error.to_string()))?;
     Ok(EpiphanyReorientAcceptApplied {
-        revision: epiphany_state.revision,
-        changed_fields,
-        epiphany_state,
-        accepted_receipt_id,
-        accepted_observation_id,
-        accepted_evidence_id,
-        finding,
+        revision: accepted.state.revision,
+        changed_fields: accepted.update.changed_fields,
+        epiphany_state: accepted.state,
+        accepted_receipt_id: accepted.update.accepted_receipt_id,
+        accepted_observation_id: accepted.update.accepted_observation_id,
+        accepted_evidence_id: accepted.update.accepted_evidence_id,
+        finding: accepted.finding,
     })
 }
 
@@ -674,53 +605,6 @@ fn validate_expected_revision(
     Ok(())
 }
 
-fn launch_contract_for_binding(
-    runtime_store_path: &Path,
-    state: &EpiphanyThreadState,
-    binding_id: &str,
-    expected_document_kind: &str,
-) -> BridgeResult<EpiphanyLaunchOrganContract> {
-    epiphany_core::acceptance_launch_contract_for_binding(
-        runtime_store_path,
-        state,
-        binding_id,
-        expected_document_kind,
-    )
-    .map_err(map_coordinator_admission_error)
-}
-
-fn enforce_current_receipt_proofs(
-    contract: &EpiphanyLaunchOrganContract,
-    claimed_effects: &[EpiphanyReceiptEffectKind],
-    available_document_types: &[String],
-    enforceable_document_types: &[String],
-) -> BridgeResult<()> {
-    epiphany_core::enforce_acceptance_receipt_proofs(
-        contract,
-        claimed_effects,
-        available_document_types,
-        enforceable_document_types,
-    )
-    .map_err(map_coordinator_admission_error)
-}
-
-fn reorient_acceptance_claimed_effects() -> Vec<EpiphanyReceiptEffectKind> {
-    epiphany_core::reorient_acceptance_claimed_effects()
-}
-
-fn map_coordinator_admission_error(
-    error: epiphany_core::EpiphanyCoordinatorAdmissionError,
-) -> EpiphanyBridgeError {
-    match error {
-        epiphany_core::EpiphanyCoordinatorAdmissionError::InvalidRequest(message) => {
-            EpiphanyBridgeError::InvalidRequest(message)
-        }
-        epiphany_core::EpiphanyCoordinatorAdmissionError::Store(message) => {
-            EpiphanyBridgeError::Fatal(message)
-        }
-    }
-}
-
 #[cfg(test)]
 mod acceptance_architecture_tests {
     #[test]
@@ -776,8 +660,9 @@ mod acceptance_architecture_tests {
         }
         assert_eq!(
             acceptance.matches("commit_state_with_mind_witness").count(),
-            1
+            0
         );
         assert_eq!(acceptance.matches(".accept_role(").count(), 1);
+        assert_eq!(acceptance.matches(".accept_reorient(").count(), 1);
     }
 }

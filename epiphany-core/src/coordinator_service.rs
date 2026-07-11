@@ -3,9 +3,11 @@ use crate::EpiphanyCoordinatorRoleResultSnapshot;
 use crate::EpiphanyCoordinatorStateApplied;
 use crate::EpiphanyJobLaunchRequest;
 use crate::EpiphanyJobLaunchResult;
+use crate::EpiphanyNativeReorientAcceptance;
 use crate::EpiphanyNativeRoleAcceptance;
 use crate::EpiphanyRoleResultRoleId;
 use crate::EpiphanyStateUpdate;
+use crate::accept_coordinator_reorient_finding;
 use crate::accept_coordinator_role_finding;
 use crate::apply_coordinator_state_update;
 use crate::commit_coordinator_job_launch;
@@ -133,6 +135,32 @@ impl EpiphanyCoordinatorService {
             nonce,
         )
     }
+
+    pub fn accept_reorient(
+        &self,
+        thread_id: &str,
+        state: &EpiphanyThreadState,
+        binding_id: &str,
+        expected_revision: Option<u64>,
+        reference_turn_id: Option<String>,
+        accepted_at: String,
+        nonce: &str,
+        update_scratch: bool,
+        update_investigation_checkpoint: bool,
+    ) -> Result<EpiphanyNativeReorientAcceptance> {
+        accept_coordinator_reorient_finding(
+            &self.runtime_spine_store,
+            thread_id,
+            state,
+            binding_id,
+            expected_revision,
+            reference_turn_id,
+            accepted_at,
+            nonce,
+            update_scratch,
+            update_investigation_checkpoint,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -142,7 +170,7 @@ mod tests {
         let source = include_str!("coordinator_service.rs");
         let production = source.split("#[cfg(test)]").next().unwrap_or(source);
         assert!(
-            production.lines().count() < 140,
+            production.lines().count() < 175,
             "coordinator facade regrew into a host brain"
         );
         for forbidden in [

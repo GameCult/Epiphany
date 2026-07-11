@@ -1847,10 +1847,12 @@ policy-shaped acceptance update, launch-contract proof enforcement, Research
 Substrate Gate/Eyes or Verification/Soul prerequisites, Mind commit witness,
 and atomic state publication. Thirteen focused coordinator tests pass. Its compatibility function only
 loads host facts, invokes `EpiphanyCoordinatorService::accept_role`, and maps the
-typed native result. Eight bridge tests and the vendored app-server check pass;
-the architecture guard expects one native role acceptance call and only the
-single remaining reorientation atomic commit. Move reorientation acceptance
-behind the service next, then begin coordinator AppServerClient removal.
+typed native result. Reorientation acceptance is native too: `accept_reorient` owns completed
+typed finding admission, checkpoint preconditions, launch-contract enforcement,
+Continuity recovery receipt, Mind review/commit witness, and atomic state
+publication. The bridge delegates both role and reorientation acceptance and
+contains zero direct witness commits; its obsolete acceptance helpers and
+imports are deleted. Begin `epiphany-mvp-coordinator` AppServerClient removal.
 
 ## Immediate Re-entry Instruction
 
