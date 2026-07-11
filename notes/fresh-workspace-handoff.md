@@ -719,6 +719,15 @@ leave unwitnessed accepted state. The transaction/recovery law is specified in
 `notes/native-coordinator-liberation-map.md` and must be solved before final
 acceptance persistence moves.
 
+CultCache now has the first transaction substrate: `prepare_entry` validates a
+typed document without writing, and `put_prepared_batch` publishes a
+heterogeneous single-store snapshot once while refusing mirror routes or
+multiple backing stores. A reload test proves state-shaped and receipt-shaped
+test documents arrive together. This is necessary but not sufficient:
+Epiphany acceptance must register thread state plus Mind/prerequisite receipt
+families on one authoritative store and commit them through this batch before
+the bridge persistence sequence can be deleted.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
