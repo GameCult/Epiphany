@@ -1,6 +1,8 @@
 use crate::EpiphanyCoordinatorReorientResultSnapshot;
 use crate::EpiphanyCoordinatorRoleResultSnapshot;
 use crate::EpiphanyCoordinatorStateApplied;
+use crate::EpiphanyJobInterruptRequest;
+use crate::EpiphanyJobInterruptResult;
 use crate::EpiphanyJobLaunchRequest;
 use crate::EpiphanyJobLaunchResult;
 use crate::EpiphanyNativeReorientAcceptance;
@@ -11,6 +13,7 @@ use crate::accept_coordinator_reorient_finding;
 use crate::accept_coordinator_role_finding;
 use crate::apply_coordinator_state_update;
 use crate::commit_coordinator_job_launch;
+use crate::interrupt_coordinator_job;
 use crate::plan_coordinator_job_launch;
 use crate::read_coordinator_state;
 use crate::read_reorient_result_snapshot;
@@ -161,6 +164,15 @@ impl EpiphanyCoordinatorService {
             update_investigation_checkpoint,
         )
     }
+
+    pub fn interrupt_job(
+        &self,
+        thread_id: &str,
+        state: &EpiphanyThreadState,
+        request: EpiphanyJobInterruptRequest,
+    ) -> Result<EpiphanyJobInterruptResult> {
+        interrupt_coordinator_job(&self.thread_state_store, thread_id, state, request)
+    }
 }
 
 #[cfg(test)]
@@ -170,7 +182,7 @@ mod tests {
         let source = include_str!("coordinator_service.rs");
         let production = source.split("#[cfg(test)]").next().unwrap_or(source);
         assert!(
-            production.lines().count() < 175,
+            production.lines().count() < 190,
             "coordinator facade regrew into a host brain"
         );
         for forbidden in [

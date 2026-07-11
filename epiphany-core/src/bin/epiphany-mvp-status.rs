@@ -195,12 +195,55 @@ impl Args {
 
 fn run_status(args: &Args) -> Result<Value> {
     if args.interrupt_binding.is_some() {
-        return run_codex_interrupt(args);
+        return match args.source {
+            StatusSource::Native => run_native_interrupt(args),
+            StatusSource::Codex => run_codex_interrupt(args),
+        };
     }
     match args.source {
         StatusSource::Native => run_native_status(args),
         StatusSource::Codex => run_codex_status(args),
     }
+}
+
+fn run_native_interrupt(args: &Args) -> Result<Value> {
+    let thread_id = args
+        .thread_id
+        .as_ref()
+        .ok_or_else(|| anyhow!("--interrupt-binding requires --thread-id"))?;
+    let binding_id = args
+        .interrupt_binding
+        .as_ref()
+        .ok_or_else(|| anyhow!("--interrupt-binding requires a binding id"))?;
+    let store = absolute_path(&args.thread_state_store)?;
+    let runtime_store = absolute_path(&args.runtime_store)?;
+    if store != runtime_store {
+        return Err(anyhow!(
+            "native interruption requires one unified thread/runtime store"
+        ));
+    }
+    let service = epiphany_core::EpiphanyCoordinatorService::new(&store, &runtime_store);
+    let state = service
+        .state()?
+        .ok_or_else(|| anyhow!("cannot interrupt without native coordinator state"))?;
+    let result = service.interrupt_job(
+        thread_id,
+        &state,
+        epiphany_core::EpiphanyJobInterruptRequest {
+            expected_revision: Some(state.revision),
+            binding_id: binding_id.clone(),
+            reason: args.interrupt_reason.clone(),
+        },
+    )?;
+    Ok(json!({
+        "source": "native",
+        "threadId": thread_id,
+        "bindingId": result.binding_id,
+        "revision": result.epiphany_state.revision,
+        "cancelRequested": result.cancel_requested,
+        "interruptedThreadIds": result.interrupted_thread_ids,
+        "epiphanyState": result.epiphany_state,
+    }))
 }
 
 fn run_codex_interrupt(args: &Args) -> Result<Value> {
@@ -1863,6 +1906,61 @@ fn home_dir() -> PathBuf {
         .or_else(|| env::var_os("HOME"))
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(test)]
+mod native_interrupt_tests {
+    use super::*;
+    use epiphany_state_model::{EpiphanyJobBinding, EpiphanyJobKind};
+
+    #[test]
+    fn default_status_interrupt_uses_native_coordinator_state() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("status-interrupt.cc");
+        let service = epiphany_core::EpiphanyCoordinatorService::new(&store, &store);
+        service.apply_state_update(
+            "thread-1",
+            epiphany_core::EpiphanyStateUpdate {
+                expected_revision: Some(0),
+                job_bindings: Some(vec![EpiphanyJobBinding {
+                    id: "modeling-worker".to_string(),
+                    kind: EpiphanyJobKind::Specialist,
+                    scope: "model".to_string(),
+                    owner_role: "modeling".to_string(),
+                    authority_scope: Some("model".to_string()),
+                    linked_subgoal_ids: Vec::new(),
+                    linked_graph_node_ids: Vec::new(),
+                    blocking_reason: None,
+                }]),
+                ..Default::default()
+            },
+            None,
+        )?;
+        let args = Args {
+            source: StatusSource::Native,
+            app_server: PathBuf::new(),
+            codex_home: PathBuf::new(),
+            thread_id: Some("thread-1".to_string()),
+            cwd: temp.path().to_path_buf(),
+            thread_state_store: store.clone(),
+            runtime_store: store,
+            ephemeral: true,
+            json: true,
+            result: None,
+            transcript: PathBuf::new(),
+            stderr: PathBuf::new(),
+            interrupt_binding: Some("modeling-worker".to_string()),
+            interrupt_reason: Some("native status proof".to_string()),
+        };
+        let result = run_status(&args)?;
+        assert_eq!(result["source"], "native");
+        assert_eq!(result["cancelRequested"], false);
+        assert_eq!(
+            result["epiphanyState"]["job_bindings"][0]["blocking_reason"],
+            "native status proof"
+        );
+        Ok(())
+    }
 }
 
 pub fn absolute_path(path: &Path) -> Result<PathBuf> {

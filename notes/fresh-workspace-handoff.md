@@ -1878,9 +1878,12 @@ survives there. The route-vocabulary audit is complete: active worker contracts
 now name typed coordinator capabilities and Mind-admitted `statePatch` cargo;
 status defaults to native; remaining Rust occurrences are explicit `--codex`
 compatibility, phase-6 app-server contract smokes, negative tests, or a
-historical-input fixture. The next live CLI fault is `--interrupt-binding`,
-which still refuses native source and must route through the native coordinator
-service before Codex interruption is demoted to explicit compatibility only.
+historical-input fixture. Native `--interrupt-binding` is now live:
+`interrupt_coordinator_job` owns revision/binding validation and canonical
+binding mutation, while status reports `cancelRequested=false` honestly. A
+focused core test and status-command test prove the transition. Explicit
+`--codex` retains compatibility. The bridge still duplicates interruption
+choreography; delegate it to `EpiphanyCoordinatorService::interrupt_job` next.
 
 ## Immediate Re-entry Instruction
 

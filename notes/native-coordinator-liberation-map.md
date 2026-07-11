@@ -264,6 +264,10 @@ now describe typed coordinator capabilities and Mind-admitted `statePatch`
 cargo. `epiphany-mvp-status` defaults to native state; its route calls exist only
 behind explicit `--codex` compatibility. `epiphany-phase6-*-smoke` binaries are
 compatibility contract probes, coordinator source occurrences are negative
-tests, and the distillation occurrence is a historical-input test fixture. The
-live status gap is interruption: `--interrupt-binding` still requires the
-explicit Codex source instead of a native coordinator operation.
+tests, and the distillation occurrence is a historical-input test fixture.
+Interruption now has a native owner. `interrupt_coordinator_job` validates the
+binding and revision, records the operator reason through the canonical state
+owner, and reports `cancelRequested=false` rather than inventing backend
+cancellation. `epiphany-mvp-status --interrupt-binding` uses this path by
+default; `--codex` selects the compatibility route explicitly. The bridge still
+contains its older interruption choreography and should delegate next.
