@@ -677,6 +677,14 @@ state update are produced by `epiphany-core::coordinator_service`. The old
 bridge builders were deleted rather than retained as fallbacks. Bridge receipt
 persistence/proof enforcement and final state admission still remain to move.
 
+Architecture correction: stop adding to `coordinator_service.rs`. At 1,122
+lines it has nearly recreated the 1,143-line bridge host brain inside core.
+Before moving receipt persistence or launch, split the native implementation
+into state, results, acceptance, launch, and projection organs behind a thin
+facade as specified in `notes/native-coordinator-liberation-map.md`. Preserve
+the landed authority moves, but delete the newborn monolithic shape. A smaller
+crate address does not make a giant mixed-authority file pure.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit

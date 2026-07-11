@@ -126,6 +126,34 @@ introduce a second authoritative store or a native/JSON-RPC mode flag.
 5. Make Codex JSON-RPC routes delegate to the same service. Remove duplicated
    route/bridge policy and mapper-only tests that no longer protect a boundary.
 
+## Native Organ Boundary
+
+The native service is a façade, not a new host brain. The first extraction
+proved the authority direction but allowed `epiphany-core/src/coordinator_service.rs`
+to grow to 1,122 lines, almost the same size as the 1,143-line bridge mutation
+service it is starving. That shape is rejected. Do not continue pouring bridge
+functions into one core file.
+
+The native body must be split before further authority moves:
+
+- coordinator state owner: CultCache thread-state load, revision gate,
+  validation, write, and changed-field report
+- coordinator result reader: runtime-link selection, runtime-spine lifecycle,
+  typed finding interpretation, and result notes
+- coordinator acceptance organ: completed-finding admission, launch-contract
+  proof checks, role/reorientation acceptance construction, receipt persistence,
+  proof enforcement, and Mind commit
+- coordinator launch organ: typed dynamic context, launch document construction,
+  runtime-spine opening/interruption, and state linkage
+- coordinator projection organ: freshness, role board, CRRC, and coordinator
+  views derived from typed inputs without persistence
+- coordinator façade: narrow composition over those organs; no policy bodies,
+  protocol DTOs, JSON, or Codex host hooks
+
+Each organ owns one invariant and must be testable against injected paths and
+typed inputs without starting Codex. A source guard should fail if the façade
+regrows policy bodies or if any native organ imports app-server protocol types.
+
 ## Invariants
 
 - There is one durable thread-state owner and one runtime lifecycle owner.
