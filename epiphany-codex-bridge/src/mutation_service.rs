@@ -5,7 +5,6 @@ use std::path::PathBuf;
 
 use epiphany_core::CONTINUITY_RECOVERY_RECEIPT_TYPE;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
-use epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID;
 use epiphany_core::EYES_EVIDENCE_PACKET_TYPE;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
@@ -25,7 +24,6 @@ use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
-use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_TYPE;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
 use epiphany_core::apply_coordinator_state_update_to_state;
@@ -37,11 +35,8 @@ use epiphany_core::epiphany_role_label;
 use epiphany_core::evaluate_promotion;
 use epiphany_core::eyes_evidence_packet_from_research_finding;
 use epiphany_core::mind_state_commit_receipt;
-use epiphany_core::open_runtime_spine_heartbeat_job;
-use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::soul_verdict_receipt_from_verification_finding;
-use epiphany_core::substrate_gate_repo_access_grant_for_launch;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -213,27 +208,16 @@ pub async fn launch_epiphany_job_on_thread(
         Uuid::new_v4().to_string(),
     )
     .map_err(|err| EpiphanyBridgeError::InvalidRequest(err.to_string()))?;
-    open_epiphany_runtime_spine_job(
+    let thread_id = thread.epiphany_thread_id().await;
+    epiphany_core::commit_coordinator_job_launch(
         runtime_store.as_path(),
-        &launch_plan.planning_state,
+        &thread_id,
+        &current_state,
         &request,
-        launch_plan.backend_job_id.as_str(),
-    )?;
-    maybe_put_substrate_gate_launch_grant(
-        runtime_store.as_path(),
-        &request,
-        launch_plan.backend_job_id.as_str(),
-    )?;
-
-    let epiphany_state =
-        apply_epiphany_state_update_to_thread(thread, launch_plan.state_update).await?;
-
-    Ok(EpiphanyJobLaunchResult {
-        epiphany_state,
-        binding_id: request.binding_id,
-        launcher_job_id: launch_plan.launcher_job_id,
-        backend_job_id: launch_plan.backend_job_id,
-    })
+        &launch_plan,
+        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+    )
+    .map_err(|error| EpiphanyBridgeError::Fatal(error.to_string()))
 }
 
 pub async fn interrupt_epiphany_job_on_thread(
@@ -753,46 +737,6 @@ pub async fn launch_thread_epiphany_reorient(
     })
 }
 
-fn open_epiphany_runtime_spine_job(
-    store_path: &Path,
-    state: &EpiphanyThreadState,
-    request: &EpiphanyJobLaunchRequest,
-    backend_job_id: &str,
-) -> BridgeResult<()> {
-    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
-    open_runtime_spine_heartbeat_job(
-        store_path,
-        RuntimeSpineHeartbeatJobOptions {
-            runtime_id: "epiphany-local".to_string(),
-            display_name: "Epiphany Local".to_string(),
-            session_id: "epiphany-main".to_string(),
-            objective: state
-                .objective
-                .clone()
-                .filter(|objective| !objective.trim().is_empty())
-                .unwrap_or_else(|| "Epiphany heartbeat activation".to_string()),
-            coordinator_note: "App-server launch opened this typed runtime session.".to_string(),
-            job_id: backend_job_id.to_string(),
-            role: request.owner_role.clone(),
-            binding_id: request.binding_id.clone(),
-            authority_scope: request.authority_scope.clone(),
-            instruction: request.instruction.clone(),
-            launch_document: request.launch_document.clone(),
-            output_contract_id: request.output_contract_id.clone(),
-            organ_launch_contract: request.organ_launch_contract.clone(),
-            created_at: now,
-        },
-    )
-    .map_err(|err| {
-        EpiphanyBridgeError::Fatal(format!(
-            "failed to open Epiphany runtime spine job {:?} in {}: {err}",
-            backend_job_id,
-            store_path.display()
-        ))
-    })?;
-    Ok(())
-}
-
 fn validate_expected_revision(
     expected_revision: Option<u64>,
     actual_revision: u64,
@@ -835,27 +779,6 @@ fn enforce_current_receipt_proofs(
         enforceable_document_types,
     )
     .map_err(map_coordinator_admission_error)
-}
-
-fn maybe_put_substrate_gate_launch_grant(
-    runtime_store_path: &Path,
-    request: &EpiphanyJobLaunchRequest,
-    backend_job_id: &str,
-) -> BridgeResult<()> {
-    if request.binding_id != EPIPHANY_RESEARCH_ROLE_BINDING_ID {
-        return Ok(());
-    }
-    let grant = substrate_gate_repo_access_grant_for_launch(
-        substrate_gate_grant_receipt_id(backend_job_id),
-        backend_job_id.to_string(),
-        request,
-        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-    );
-    put_substrate_gate_repo_access_grant_receipt(runtime_store_path, &grant).map_err(|err| {
-        EpiphanyBridgeError::Fatal(format!(
-            "failed to persist Substrate Gate access grant for research launch: {err}"
-        ))
-    })
 }
 
 fn persisted_substrate_gate_grant_types(
@@ -920,11 +843,15 @@ mod acceptance_architecture_tests {
             .unwrap();
         let launch = &source[launch_start..interrupt_start];
         assert_eq!(launch.matches("plan_coordinator_job_launch").count(), 1);
+        assert_eq!(launch.matches("commit_coordinator_job_launch").count(), 1);
         for forbidden in [
             ["plan", "runtime", "spine", "heartbeat", "launch"].join("_"),
             ["replace", "or", "append", "epiphany", "job", "binding"].join("_"),
             ["runtime", "job", "snapshot"].join("_"),
             ["epiphany", "state", "update", "validation", "errors"].join("_"),
+            ["open", "epiphany", "runtime", "spine", "job"].join("_"),
+            ["maybe", "put", "substrate", "gate", "launch", "grant"].join("_"),
+            ["apply", "epiphany", "state", "update", "to", "thread"].join("_"),
         ] {
             assert!(
                 !launch.contains(&forbidden),

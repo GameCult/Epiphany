@@ -1820,15 +1820,16 @@ proof `.epiphany-smoke\repo-work-readiness-20260621-113714` and wrapper proof
 The machine is no longer cleared to move outward. Free it from the Codex organ
 first.
 
-Native worker-launch planning has been extracted into
-`epiphany-core/src/coordinator_launch.rs`. It owns revision refusal, prior
-terminal-link discovery, heartbeat launch planning, binding replacement, and
-the derived state update. The bridge delegates those decisions and a source
-guard prevents the policy from growing back. The remaining launch wound is
-transactional: runtime documents, the optional Substrate Gate grant, and
-thread-state linkage are still separate compatibility writes. The next cut is
-one prepared atomic launch commit with injected-failure proof; do not remove
-the coordinator JSON-RPC dependency before that invariant is real.
+Native worker launch is now one transaction. `coordinator_launch` owns revision
+refusal, prior terminal-link discovery, heartbeat planning, binding replacement,
+derived state, and atomic publication of runtime identity/session/job/event,
+worker request, optional Research Substrate Gate grant, and thread state. The
+bridge delegates planning and commit; its former runtime/grant/state writers are
+deleted and guarded against regrowth. Focused proof reads every document from
+the shared snapshot, while an injected batch refusal preserves the prior state
+with no partial job, worker request, or grant. The next cut is direct native
+`epiphany-mvp-coordinator` operation and removal of its `thread/epiphany/*`
+JSON-RPC dependency.
 
 ## Immediate Re-entry Instruction
 

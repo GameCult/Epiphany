@@ -64,6 +64,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use cultcache_rs::CultCache;
+use cultcache_rs::CultCacheEnvelope;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
 use cultnet_rs::CultNetDocumentMutationContract;
@@ -633,6 +634,12 @@ pub struct RuntimeSpineHeartbeatJobOptions {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct PreparedRuntimeSpineHeartbeatJob {
+    pub job: EpiphanyRuntimeJob,
+    pub envelopes: Vec<CultCacheEnvelope>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeSpineHeartbeatLaunchPlanOptions {
     pub binding_id: String,
     pub kind: EpiphanyJobKind,
@@ -1048,6 +1055,136 @@ pub fn open_runtime_spine_heartbeat_job(
     };
     cache.put(&job_id, &request)?;
     Ok(job)
+}
+
+pub fn prepare_runtime_spine_heartbeat_job(
+    cache: &CultCache,
+    options: RuntimeSpineHeartbeatJobOptions,
+) -> Result<PreparedRuntimeSpineHeartbeatJob> {
+    validate_non_empty(&options.runtime_id, "runtime id")?;
+    validate_non_empty(&options.display_name, "display name")?;
+    validate_non_empty(&options.session_id, "session id")?;
+    validate_non_empty(&options.objective, "objective")?;
+    validate_non_empty(&options.job_id, "job id")?;
+    validate_non_empty(&options.role, "role")?;
+    validate_non_empty(&options.binding_id, "binding id")?;
+    validate_non_empty(&options.authority_scope, "authority scope")?;
+    validate_non_empty(&options.instruction, "instruction")?;
+    validate_non_empty(
+        options.launch_document.thread_id(),
+        "worker launch document thread id",
+    )?;
+    validate_non_empty(&options.output_contract_id, "output contract id")?;
+    if options.output_contract_id != options.launch_document.output_contract_id() {
+        return Err(anyhow!(
+            "worker launch output_contract_id must match the typed launch document"
+        ));
+    }
+    validate_launch_organ_contract(
+        &options.organ_launch_contract,
+        &options.authority_scope,
+        options.launch_document.document_kind(),
+        &options.output_contract_id,
+    )?;
+    validate_non_empty(&options.created_at, "created at")?;
+
+    let existing_identity = cache.get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?;
+    let identity = EpiphanyRuntimeIdentity {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        runtime_id: options.runtime_id,
+        display_name: options.display_name,
+        runtime_kind: "epiphany.native".to_string(),
+        created_at: existing_identity
+            .as_ref()
+            .map(|value| value.created_at.clone())
+            .unwrap_or_else(|| options.created_at.clone()),
+        updated_at: options.created_at.clone(),
+        supported_document_types: supported_runtime_document_types(),
+        metadata: BTreeMap::from([("codexEvacuationBridge".to_string(), "temporary".to_string())]),
+    };
+    let session = match cache.get::<EpiphanyRuntimeSession>(&options.session_id)? {
+        Some(existing)
+            if matches!(
+                existing.status,
+                EpiphanyRuntimeSessionStatus::Completed | EpiphanyRuntimeSessionStatus::Archived
+            ) =>
+        {
+            return Err(anyhow!(
+                "runtime session {:?} is terminal and cannot accept jobs",
+                options.session_id
+            ));
+        }
+        Some(existing) => existing,
+        None => EpiphanyRuntimeSession {
+            schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+            session_id: options.session_id.clone(),
+            objective: options.objective,
+            status: EpiphanyRuntimeSessionStatus::Active,
+            created_at: options.created_at.clone(),
+            updated_at: options.created_at.clone(),
+            coordinator_note: options.coordinator_note,
+            metadata: BTreeMap::new(),
+        },
+    };
+    if cache.get::<EpiphanyRuntimeJob>(&options.job_id)?.is_some() {
+        return Err(anyhow!("runtime job {:?} already exists", options.job_id));
+    }
+    if cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&options.job_id)?
+        .is_some()
+    {
+        return Err(anyhow!(
+            "runtime worker launch request {:?} already exists",
+            options.job_id
+        ));
+    }
+    let job = EpiphanyRuntimeJob {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        job_id: options.job_id.clone(),
+        session_id: options.session_id.clone(),
+        role: options.role.clone(),
+        status: EpiphanyRuntimeJobStatus::Queued,
+        created_at: options.created_at.clone(),
+        updated_at: options.created_at.clone(),
+        summary: format!(
+            "Heartbeat activation queued for binding {} with authority {}.",
+            options.binding_id, options.authority_scope
+        ),
+        artifact_refs: Vec::new(),
+        metadata: BTreeMap::new(),
+    };
+    let event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id: format!("event-job-opened-{}", options.job_id),
+        occurred_at: options.created_at,
+        event_type: "job.opened".to_string(),
+        source: "runtime-spine".to_string(),
+        session_id: Some(options.session_id),
+        job_id: Some(options.job_id.clone()),
+        summary: "Native runtime job opened.".to_string(),
+        metadata: BTreeMap::new(),
+    };
+    let request = EpiphanyRuntimeWorkerLaunchRequest {
+        schema_version: RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
+        job_id: options.job_id.clone(),
+        binding_id: options.binding_id,
+        role: options.role,
+        authority_scope: options.authority_scope,
+        instruction: options.instruction,
+        output_contract_id: options.output_contract_id,
+        document_kind: worker_launch_document_kind(&options.launch_document).to_string(),
+        launch_document_msgpack: encode_worker_launch_document(&options.launch_document)?,
+        metadata: BTreeMap::new(),
+        organ_launch_contract: options.organ_launch_contract,
+    };
+    let envelopes = vec![
+        cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
+        cache.prepare_entry(&session.session_id, &session)?.0,
+        cache.prepare_entry(&job.job_id, &job)?.0,
+        cache.prepare_entry(&event.event_id, &event)?.0,
+        cache.prepare_entry(&request.job_id, &request)?.0,
+    ];
+    Ok(PreparedRuntimeSpineHeartbeatJob { job, envelopes })
 }
 
 pub fn runtime_job_snapshot(
