@@ -1,5 +1,7 @@
 use crate::EpiphanyCoordinatorRoleResultStatus;
 use crate::EpiphanyCrrcResultStatus;
+use crate::EpiphanyLaunchOrganContract;
+use crate::EpiphanyReceiptEffectKind;
 use crate::EpiphanyReorientFindingInterpretation;
 use crate::EpiphanyRoleFindingInterpretation;
 use crate::EpiphanyRoleResultRoleId;
@@ -10,6 +12,7 @@ use crate::EpiphanyRuntimeJobSnapshot;
 use crate::EpiphanyRuntimeJobStatus;
 use crate::EpiphanyStateUpdate;
 use crate::EpiphanyStateUpdatedField;
+use crate::MIND_GATEWAY_REVIEW_TYPE;
 use crate::apply_epiphany_state_update;
 use crate::epiphany_state_update_validation_errors;
 use crate::interpret_runtime_reorient_worker_result;
@@ -18,12 +21,29 @@ use crate::load_thread_state;
 use crate::runtime_job_snapshot;
 use crate::runtime_reorient_worker_result;
 use crate::runtime_role_worker_result;
+use crate::runtime_worker_launch_request;
 use crate::write_thread_state;
 use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_state_model::EpiphanyThreadState;
 use std::path::Path;
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EpiphanyCoordinatorAdmissionError {
+    InvalidRequest(String),
+    Store(String),
+}
+
+impl std::fmt::Display for EpiphanyCoordinatorAdmissionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidRequest(message) | Self::Store(message) => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for EpiphanyCoordinatorAdmissionError {}
 
 /// The Epiphany-native owner of coordinator state.
 ///
@@ -193,6 +213,140 @@ pub fn read_reorient_result_snapshot(
     } else {
         reorient_snapshot(EpiphanyCrrcResultStatus::MissingBinding, None, None)
     }
+}
+
+pub fn completed_role_finding(
+    runtime_store_path: Option<&Path>,
+    state: &EpiphanyThreadState,
+    role_id: EpiphanyRoleResultRoleId,
+    binding_id: &str,
+) -> Result<EpiphanyRoleFindingInterpretation, EpiphanyCoordinatorAdmissionError> {
+    let Some(link) = latest_runtime_link(state, binding_id) else {
+        return if state
+            .job_bindings
+            .iter()
+            .any(|binding| binding.id == binding_id)
+        {
+            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(
+                "role findings without runtime-spine results are unsupported; accept only typed runtime-spine results".to_string(),
+            ))
+        } else {
+            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+                "epiphany role binding {binding_id:?} was not found"
+            )))
+        };
+    };
+    let snapshot = read_runtime_role_result(runtime_store_path, &link.runtime_job_id, role_id);
+    if snapshot.status != EpiphanyCoordinatorRoleResultStatus::Completed {
+        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+            "cannot accept role result while worker status is {:?}",
+            snapshot.status
+        )));
+    }
+    let store = runtime_store_path.ok_or_else(|| {
+        EpiphanyCoordinatorAdmissionError::InvalidRequest(
+            "cannot accept completed role worker without a loaded runtime-spine store".to_string(),
+        )
+    })?;
+    load_launch_organ_contract(store, &link.runtime_job_id, "role")?;
+    snapshot.finding.ok_or_else(|| {
+        EpiphanyCoordinatorAdmissionError::InvalidRequest(
+            "cannot accept completed role worker because no typed runtime-spine result was recorded"
+                .to_string(),
+        )
+    })
+}
+
+pub fn completed_reorient_finding(
+    runtime_store_path: Option<&Path>,
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+) -> Result<EpiphanyReorientFindingInterpretation, EpiphanyCoordinatorAdmissionError> {
+    let Some(link) = latest_runtime_link(state, binding_id) else {
+        return if state
+            .job_bindings
+            .iter()
+            .any(|binding| binding.id == binding_id)
+        {
+            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(
+                "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results".to_string(),
+            ))
+        } else {
+            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+                "epiphany reorientation binding {binding_id:?} was not found"
+            )))
+        };
+    };
+    let snapshot = read_runtime_reorient_result(runtime_store_path, &link.runtime_job_id);
+    if snapshot.status != EpiphanyCrrcResultStatus::Completed {
+        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+            "cannot accept reorientation result while worker status is {:?}",
+            snapshot.status
+        )));
+    }
+    let store = runtime_store_path.ok_or_else(|| {
+        EpiphanyCoordinatorAdmissionError::InvalidRequest(
+            "cannot accept completed reorientation worker without a loaded runtime-spine store"
+                .to_string(),
+        )
+    })?;
+    load_launch_organ_contract(store, &link.runtime_job_id, "reorient")?;
+    snapshot.finding.ok_or_else(|| {
+        EpiphanyCoordinatorAdmissionError::InvalidRequest(
+            "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
+                .to_string(),
+        )
+    })
+}
+
+pub fn load_launch_organ_contract(
+    runtime_store_path: &Path,
+    job_id: &str,
+    expected_document_kind: &str,
+) -> Result<EpiphanyLaunchOrganContract, EpiphanyCoordinatorAdmissionError> {
+    let request = runtime_worker_launch_request(runtime_store_path, job_id).map_err(|error| {
+        EpiphanyCoordinatorAdmissionError::Store(format!(
+            "failed to read worker launch request for runtime job {job_id:?}: {error}"
+        ))
+    })?;
+    let request = request.ok_or_else(|| {
+        EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+            "cannot accept runtime job {job_id:?} without its typed worker launch request"
+        ))
+    })?;
+    if request.document_kind != expected_document_kind {
+        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+            "cannot accept runtime job {job_id:?}: launch document kind {:?} does not match expected {expected_document_kind:?}",
+            request.document_kind
+        )));
+    }
+    if request.organ_launch_contract.dependencies.is_empty()
+        || request
+            .organ_launch_contract
+            .receipt_proof_profiles
+            .is_empty()
+    {
+        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+            "cannot accept runtime job {job_id:?}: worker launch request has no organ dependency/proof-profile contract"
+        )));
+    }
+    if !request
+        .organ_launch_contract
+        .receipt_proof_profiles
+        .iter()
+        .any(|profile| {
+            profile.effect_kind == EpiphanyReceiptEffectKind::StateAdmission
+                && profile
+                    .required_before_promotion_document_types
+                    .iter()
+                    .any(|document_type| document_type == MIND_GATEWAY_REVIEW_TYPE)
+        })
+    {
+        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+            "cannot accept runtime job {job_id:?}: worker launch contract has no state-admission proof profile requiring Mind review"
+        )));
+    }
+    Ok(request.organ_launch_contract)
 }
 
 fn latest_runtime_link<'a>(
@@ -727,5 +881,23 @@ mod tests {
         assert_eq!(state.revision, 1);
         assert_eq!(state.objective.as_deref(), Some("Canonical objective"));
         Ok(())
+    }
+
+    #[test]
+    fn completed_finding_admission_refuses_missing_binding() {
+        let error = completed_role_finding(
+            None,
+            &EpiphanyThreadState::default(),
+            EpiphanyRoleResultRoleId::Modeling,
+            "modeling-worker",
+        )
+        .expect_err("missing binding must not become an acceptable finding");
+
+        assert_eq!(
+            error,
+            EpiphanyCoordinatorAdmissionError::InvalidRequest(
+                "epiphany role binding \"modeling-worker\" was not found".to_string()
+            )
+        );
     }
 }

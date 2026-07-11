@@ -663,6 +663,13 @@ now also lives in core and the concrete service exposes `role_result` and
 bridge delegates snapshot selection. Completed-finding acceptance choreography
 and launch still live in the bridge and remain the next extraction seam.
 
+Completed-finding admission preflight is now core-owned too. Core verifies the
+binding/runtime link, completed typed finding, worker launch document kind,
+organ dependencies, receipt proof profiles, and the state-admission profile's
+Mind-review requirement. `epiphany-codex-bridge::runtime_results` only maps the
+native admission error into compatibility error classes. Full role/reorient
+acceptance mutation and launch choreography remain in the bridge.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit

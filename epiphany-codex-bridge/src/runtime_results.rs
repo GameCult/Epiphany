@@ -1,14 +1,9 @@
 use std::path::Path;
 
-use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
-use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyLaunchOrganContract;
-use epiphany_core::EpiphanyReceiptEffectKind;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::EpiphanyRoleResultRoleId;
-use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
-use epiphany_core::runtime_worker_launch_request;
 use epiphany_state_model::EpiphanyRuntimeLink;
 use epiphany_state_model::EpiphanyThreadState;
 
@@ -48,48 +43,8 @@ pub fn load_completed_core_epiphany_role_finding(
     role_id: EpiphanyRoleResultRoleId,
     binding_id: &str,
 ) -> BridgeResult<EpiphanyRoleFindingInterpretation> {
-    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let snapshot = load_core_epiphany_role_result_from_runtime_spine_job(
-            link.runtime_job_id.as_str(),
-            runtime_store_path,
-            role_id,
-        );
-        if snapshot.status != CoreEpiphanyCoordinatorRoleResultStatus::Completed {
-            return Err(EpiphanyBridgeError::InvalidRequest(format!(
-                "cannot accept role result while worker status is {:?}",
-                snapshot.status
-            )));
-        }
-        let runtime_store_path = runtime_store_path.ok_or_else(|| {
-            EpiphanyBridgeError::InvalidRequest(
-                "cannot accept completed role worker without a loaded runtime-spine store"
-                    .to_string(),
-            )
-        })?;
-        require_launch_organ_contract(runtime_store_path, link.runtime_job_id.as_str(), "role")?;
-        return snapshot.finding.ok_or_else(|| {
-            EpiphanyBridgeError::InvalidRequest(
-                "cannot accept completed role worker because no typed runtime-spine result was recorded"
-                    .to_string(),
-            )
-        });
-    }
-
-    if !state
-        .job_bindings
-        .iter()
-        .any(|binding| binding.id == binding_id)
-    {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "epiphany role binding {:?} was not found",
-            binding_id
-        )));
-    }
-
-    Err(EpiphanyBridgeError::InvalidRequest(
-        "role findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
-            .to_string(),
-    ))
+    epiphany_core::completed_role_finding(runtime_store_path, state, role_id, binding_id)
+        .map_err(map_admission_error)
 }
 
 pub async fn load_core_epiphany_reorient_result_snapshot(
@@ -105,60 +60,8 @@ pub fn load_completed_core_epiphany_reorient_finding(
     state: &EpiphanyThreadState,
     binding_id: &str,
 ) -> BridgeResult<EpiphanyReorientFindingInterpretation> {
-    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let snapshot = load_core_epiphany_reorient_result_from_runtime_spine_job(
-            link.runtime_job_id.as_str(),
-            runtime_store_path,
-        );
-        if snapshot.status != CoreEpiphanyCrrcResultStatus::Completed {
-            return Err(EpiphanyBridgeError::InvalidRequest(format!(
-                "cannot accept reorientation result while worker status is {:?}",
-                snapshot.status
-            )));
-        }
-        let runtime_store_path = runtime_store_path.ok_or_else(|| {
-            EpiphanyBridgeError::InvalidRequest(
-                "cannot accept completed reorientation worker without a loaded runtime-spine store"
-                    .to_string(),
-            )
-        })?;
-        require_launch_organ_contract(
-            runtime_store_path,
-            link.runtime_job_id.as_str(),
-            "reorient",
-        )?;
-        return snapshot.finding.ok_or_else(|| {
-            EpiphanyBridgeError::InvalidRequest(
-                "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
-                    .to_string(),
-            )
-        });
-    }
-
-    if !state
-        .job_bindings
-        .iter()
-        .any(|binding| binding.id == binding_id)
-    {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "epiphany reorientation binding {:?} was not found",
-            binding_id
-        )));
-    }
-
-    Err(EpiphanyBridgeError::InvalidRequest(
-        "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
-            .to_string(),
-    ))
-}
-
-fn require_launch_organ_contract(
-    runtime_store_path: &Path,
-    job_id: &str,
-    expected_document_kind: &str,
-) -> BridgeResult<()> {
-    load_launch_organ_contract_for_runtime_job(runtime_store_path, job_id, expected_document_kind)
-        .map(|_| ())
+    epiphany_core::completed_reorient_finding(runtime_store_path, state, binding_id)
+        .map_err(map_admission_error)
 }
 
 pub fn load_launch_organ_contract_for_runtime_job(
@@ -166,53 +69,21 @@ pub fn load_launch_organ_contract_for_runtime_job(
     job_id: &str,
     expected_document_kind: &str,
 ) -> BridgeResult<EpiphanyLaunchOrganContract> {
-    let request = runtime_worker_launch_request(runtime_store_path, job_id).map_err(|err| {
-        EpiphanyBridgeError::Fatal(format!(
-            "failed to read worker launch request for runtime job {:?}: {err}",
-            job_id
-        ))
-    })?;
-    let request = request.ok_or_else(|| {
-        EpiphanyBridgeError::InvalidRequest(format!(
-            "cannot accept runtime job {:?} without its typed worker launch request",
-            job_id
-        ))
-    })?;
-    if request.document_kind != expected_document_kind {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "cannot accept runtime job {:?}: launch document kind {:?} does not match expected {:?}",
-            job_id, request.document_kind, expected_document_kind
-        )));
+    epiphany_core::load_launch_organ_contract(runtime_store_path, job_id, expected_document_kind)
+        .map_err(map_admission_error)
+}
+
+fn map_admission_error(
+    error: epiphany_core::EpiphanyCoordinatorAdmissionError,
+) -> EpiphanyBridgeError {
+    match error {
+        epiphany_core::EpiphanyCoordinatorAdmissionError::InvalidRequest(message) => {
+            EpiphanyBridgeError::InvalidRequest(message)
+        }
+        epiphany_core::EpiphanyCoordinatorAdmissionError::Store(message) => {
+            EpiphanyBridgeError::Fatal(message)
+        }
     }
-    if request.organ_launch_contract.dependencies.is_empty()
-        || request
-            .organ_launch_contract
-            .receipt_proof_profiles
-            .is_empty()
-    {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "cannot accept runtime job {:?}: worker launch request has no organ dependency/proof-profile contract",
-            job_id
-        )));
-    }
-    if !request
-        .organ_launch_contract
-        .receipt_proof_profiles
-        .iter()
-        .any(|profile| {
-            profile.effect_kind == EpiphanyReceiptEffectKind::StateAdmission
-                && profile
-                    .required_before_promotion_document_types
-                    .iter()
-                    .any(|document_type| document_type == MIND_GATEWAY_REVIEW_TYPE)
-        })
-    {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "cannot accept runtime job {:?}: worker launch contract has no state-admission proof profile requiring Mind review",
-            job_id
-        )));
-    }
-    Ok(request.organ_launch_contract)
 }
 
 pub fn latest_epiphany_runtime_link_for_binding<'a>(
