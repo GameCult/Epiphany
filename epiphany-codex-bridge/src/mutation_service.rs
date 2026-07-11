@@ -30,7 +30,7 @@ use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_TYPE;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
-use epiphany_core::apply_epiphany_state_update;
+use epiphany_core::apply_coordinator_state_update_to_state;
 use epiphany_core::build_epiphany_reorient_launch_request_with_dynamic_context;
 use epiphany_core::build_epiphany_role_launch_request_with_dynamic_context;
 use epiphany_core::clear_epiphany_job_binding_backend;
@@ -205,32 +205,8 @@ pub fn apply_epiphany_state_update_to_state(
     update: EpiphanyStateUpdate,
     reference_turn_id: Option<String>,
 ) -> BridgeResult<EpiphanyThreadState> {
-    if update.is_empty() {
-        return Err(EpiphanyBridgeError::InvalidRequest(
-            "epiphany update patch must contain at least one mutation".to_string(),
-        ));
-    }
-
-    let mut next_state = current_state.clone();
-    if let Some(expected_revision) = update.expected_revision
-        && next_state.revision != expected_revision
-    {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "epiphany state revision mismatch: expected {expected_revision}, found {}",
-            next_state.revision
-        )));
-    }
-
-    let validation_errors = epiphany_state_update_validation_errors(&next_state, &update);
-    if !validation_errors.is_empty() {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "invalid epiphany update patch: {}",
-            validation_errors.join("; ")
-        )));
-    }
-
-    apply_epiphany_state_update(&mut next_state, update, reference_turn_id);
-    Ok(next_state)
+    apply_coordinator_state_update_to_state(current_state, update, reference_turn_id)
+        .map_err(|error| EpiphanyBridgeError::InvalidRequest(error.to_string()))
 }
 
 pub async fn launch_epiphany_job_on_thread(
