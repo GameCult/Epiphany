@@ -254,7 +254,7 @@ strings, and emits telemetry with `appServerCalls=0`. Its smoke harness no
 longer builds or requires codex-app-server and passes cold, local bootstrap,
 pressure, Hands gate, and real commit-receipt scenarios.
 
-The live output still advertises old JSON-RPC method names in role-board
-`authorityScopes`. Those strings are presentation residue, not callable
-coordinator authority, but they now lie about the native body and must be
-replaced by typed native/CultNet capability identifiers.
+Role-board `authorityScopes` now publish typed capability identifiers such as
+`epiphany.coordinator.role.launch`, `epiphany.coordinator.role.accept`, and
+`epiphany.coordinator.reorient.result.read`. Source proof rejects slash-shaped
+authority, and rendered native status contains no `thread/epiphany/*` scopes.

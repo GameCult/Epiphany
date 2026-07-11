@@ -285,12 +285,24 @@ fn record_hands_pass(hands_action: &Path, summary: &Value) -> Result<Value> {
     fs::write(&stdout_artifact, "hands pass smoke command output\n")?;
     fs::write(&stderr_artifact, "")?;
     let commit = Command::new("git")
-        .args(["log", "-1", "--format=%H", "--", "tools/epiphany_local_run.ps1"])
+        .args([
+            "log",
+            "-1",
+            "--format=%H",
+            "--",
+            "tools/epiphany_local_run.ps1",
+        ])
         .output()
         .context("failed to locate a real commit for the Hands smoke path")?;
-    require(commit.status.success(), "failed to resolve Hands smoke commit")?;
+    require(
+        commit.status.success(),
+        "failed to resolve Hands smoke commit",
+    )?;
     let commit_sha = String::from_utf8(commit.stdout)?.trim().to_string();
-    require(!commit_sha.is_empty(), "Hands smoke path has no commit history")?;
+    require(
+        !commit_sha.is_empty(),
+        "Hands smoke path has no commit history",
+    )?;
     let output = Command::new(hands_action)
         .arg("--store")
         .arg(artifact_dir.join("runtime-spine.msgpack"))

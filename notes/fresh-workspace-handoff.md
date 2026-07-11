@@ -1872,9 +1872,11 @@ stale global Cargo target. `epiphany-mvp-coordinator-smoke` no longer builds or
 requires codex-app-server; live proof at
 `.epiphany-dogfood/native-coordinator-liberation` passed cold, local-bootstrap,
 pressure, Hands gate, and real historical commit receipt checks with telemetry
-`appServerCalls=0`. The next visible lie is role-board `authorityScopes` still
-naming old `thread/epiphany/*` methods; replace them with native/CultNet typed
-capability identifiers.
+`appServerCalls=0`. Role-board `authorityScopes` now use typed native capability
+identifiers, and rendered native status proves no `thread/epiphany/*` authority
+survives there. The next pass should classify remaining route vocabulary across
+live prompts/Eve/CLI/CultNet surfaces versus compatibility tests and historical
+documentation before deleting it; do not flatten provenance into a blind grep.
 
 ## Immediate Re-entry Instruction
 

@@ -228,10 +228,10 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             note: imagination_note,
             jobs: imagination_jobs,
             authority_scopes: vec![
-                "thread/epiphany/roleLaunch".to_string(),
-                "thread/epiphany/roleResult".to_string(),
-                "thread/epiphany/roleAccept".to_string(),
-                "thread/epiphany/update".to_string(),
+                "epiphany.coordinator.role.launch".to_string(),
+                "epiphany.coordinator.role.result.read".to_string(),
+                "epiphany.coordinator.role.accept".to_string(),
+                "epiphany.coordinator.state.update".to_string(),
             ],
             recommended_action: imagination_recommended_action,
         },
@@ -243,10 +243,10 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             note: research_note,
             jobs: research_jobs,
             authority_scopes: vec![
-                "thread/epiphany/roleLaunch".to_string(),
-                "thread/epiphany/roleResult".to_string(),
-                "thread/epiphany/roleAccept".to_string(),
-                "thread/epiphany/update".to_string(),
+                "epiphany.coordinator.role.launch".to_string(),
+                "epiphany.coordinator.role.result.read".to_string(),
+                "epiphany.coordinator.role.accept".to_string(),
+                "epiphany.coordinator.state.update".to_string(),
             ],
             recommended_action: research_recommended_action,
         },
@@ -258,10 +258,10 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             note: render_modeling_role_note(input.checkpoint.as_ref(), &input.reorient_next_action),
             jobs: modeling_jobs,
             authority_scopes: vec![
-                "thread/epiphany/roleLaunch".to_string(),
-                "thread/epiphany/roleResult".to_string(),
-                "thread/epiphany/roleAccept".to_string(),
-                "thread/epiphany/update".to_string(),
+                "epiphany.coordinator.role.launch".to_string(),
+                "epiphany.coordinator.role.result.read".to_string(),
+                "epiphany.coordinator.role.accept".to_string(),
+                "epiphany.coordinator.state.update".to_string(),
             ],
             recommended_action: modeling_recommended_action,
         },
@@ -273,12 +273,12 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             note: verification_note,
             jobs: verification_jobs,
             authority_scopes: vec![
-                "thread/epiphany/roleLaunch".to_string(),
-                "thread/epiphany/roleResult".to_string(),
-                "thread/epiphany/roleAccept".to_string(),
-                "thread/epiphany/distill".to_string(),
-                "thread/epiphany/propose".to_string(),
-                "thread/epiphany/promote".to_string(),
+                "epiphany.coordinator.role.launch".to_string(),
+                "epiphany.coordinator.role.result.read".to_string(),
+                "epiphany.coordinator.role.accept".to_string(),
+                "epiphany.mind.distill".to_string(),
+                "epiphany.mind.propose".to_string(),
+                "epiphany.mind.promote".to_string(),
             ],
             recommended_action: verification_recommended_action,
         },
@@ -296,9 +296,9 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
             ),
             jobs: reorientation_jobs,
             authority_scopes: vec![
-                "thread/epiphany/reorientLaunch".to_string(),
-                "thread/epiphany/reorientResult".to_string(),
-                "thread/epiphany/reorientAccept".to_string(),
+                "epiphany.coordinator.reorient.launch".to_string(),
+                "epiphany.coordinator.reorient.result.read".to_string(),
+                "epiphany.coordinator.reorient.accept".to_string(),
             ],
             recommended_action: input.crrc_recommended_scene_action,
         },
@@ -535,5 +535,30 @@ mod tests {
             ),
             EpiphanyCoordinatorRoleStatus::Waiting
         );
+    }
+
+    #[test]
+    fn authority_scopes_name_live_typed_capabilities() {
+        let roles = derive_role_board(input());
+        let scopes = roles
+            .iter()
+            .flat_map(|role| role.authority_scopes.iter())
+            .collect::<Vec<_>>();
+        assert!(!scopes.is_empty());
+        assert!(
+            scopes
+                .iter()
+                .all(|scope| scope.starts_with("epiphany.") && !scope.contains('/'))
+        );
+        for required in [
+            "epiphany.coordinator.role.launch",
+            "epiphany.coordinator.role.result.read",
+            "epiphany.coordinator.role.accept",
+            "epiphany.coordinator.reorient.launch",
+            "epiphany.coordinator.reorient.result.read",
+            "epiphany.coordinator.reorient.accept",
+        ] {
+            assert!(scopes.iter().any(|scope| scope.as_str() == required));
+        }
     }
 }
