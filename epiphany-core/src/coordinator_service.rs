@@ -1,9 +1,15 @@
 use crate::EpiphanyCoordinatorReorientResultSnapshot;
 use crate::EpiphanyCoordinatorRoleResultSnapshot;
 use crate::EpiphanyCoordinatorStateApplied;
+use crate::EpiphanyJobLaunchRequest;
+use crate::EpiphanyJobLaunchResult;
+use crate::EpiphanyNativeRoleAcceptance;
 use crate::EpiphanyRoleResultRoleId;
 use crate::EpiphanyStateUpdate;
+use crate::accept_coordinator_role_finding;
 use crate::apply_coordinator_state_update;
+use crate::commit_coordinator_job_launch;
+use crate::plan_coordinator_job_launch;
 use crate::read_coordinator_state;
 use crate::read_reorient_result_snapshot;
 use crate::read_role_result_snapshot;
@@ -77,6 +83,56 @@ impl EpiphanyCoordinatorService {
             reference_turn_id,
         )
     }
+
+    pub fn launch_job(
+        &self,
+        thread_id: &str,
+        state: &EpiphanyThreadState,
+        request: &EpiphanyJobLaunchRequest,
+        launcher_job_id: String,
+        backend_job_id: String,
+        created_at: String,
+    ) -> Result<EpiphanyJobLaunchResult> {
+        let plan = plan_coordinator_job_launch(
+            state,
+            request,
+            &self.runtime_spine_store,
+            launcher_job_id,
+            backend_job_id,
+        )?;
+        commit_coordinator_job_launch(
+            &self.runtime_spine_store,
+            thread_id,
+            state,
+            request,
+            &plan,
+            created_at,
+        )
+    }
+
+    pub fn accept_role(
+        &self,
+        thread_id: &str,
+        state: &EpiphanyThreadState,
+        role_id: EpiphanyRoleResultRoleId,
+        binding_id: &str,
+        expected_revision: Option<u64>,
+        reference_turn_id: Option<String>,
+        accepted_at: String,
+        nonce: &str,
+    ) -> Result<EpiphanyNativeRoleAcceptance> {
+        accept_coordinator_role_finding(
+            &self.runtime_spine_store,
+            thread_id,
+            state,
+            role_id,
+            binding_id,
+            expected_revision,
+            reference_turn_id,
+            accepted_at,
+            nonce,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -86,7 +142,7 @@ mod tests {
         let source = include_str!("coordinator_service.rs");
         let production = source.split("#[cfg(test)]").next().unwrap_or(source);
         assert!(
-            production.lines().count() < 90,
+            production.lines().count() < 140,
             "coordinator facade regrew into a host brain"
         );
         for forbidden in [

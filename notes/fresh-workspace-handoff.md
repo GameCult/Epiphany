@@ -1841,6 +1841,14 @@ Hands evidence projection, and absence of bridge/AppServer/JSON dependencies.
 Do not rewire the coordinator through the context-free launch builders: use this
 native context organ so Codex starvation does not starve the workers too.
 
+`EpiphanyCoordinatorService` now exposes native `launch_job` and `accept_role`
+actuators. The latter owns the complete role-accept path: typed result readback,
+policy-shaped acceptance update, launch-contract proof enforcement, Research
+Substrate Gate/Eyes or Verification/Soul prerequisites, Mind commit witness,
+and atomic state publication. Thirteen focused coordinator tests pass. The
+compatibility bridge still contains its older copy of that orchestration; cut
+that copy before rewiring `epiphany-mvp-coordinator`, or authority remains split.
+
 ## Immediate Re-entry Instruction
 
 After compaction, first rehydrate and reorient from the listed files and git

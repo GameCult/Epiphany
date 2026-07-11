@@ -25,6 +25,7 @@ impl std::error::Error for EpiphanyCoordinatorAdmissionError {}
 /// Codex compatibility surfaces may translate requests into calls on this
 /// service, but they do not receive a persistence hook or retain an independent
 /// state opinion.
+#[derive(Debug, Clone)]
 pub struct EpiphanyRoleAcceptanceUpdate {
     pub state_update: EpiphanyStateUpdate,
     pub applied_patch: EpiphanyRoleStatePatchDocument,
@@ -35,6 +36,7 @@ pub struct EpiphanyRoleAcceptanceUpdate {
     pub mind_review: MindGatewayReview,
 }
 
+#[derive(Debug, Clone)]
 pub struct EpiphanyReorientAcceptanceUpdate {
     pub state_update: EpiphanyStateUpdate,
     pub changed_fields: Vec<EpiphanyStateUpdatedField>,
@@ -42,6 +44,112 @@ pub struct EpiphanyReorientAcceptanceUpdate {
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
     pub mind_review: MindGatewayReview,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpiphanyNativeRoleAcceptance {
+    pub state: EpiphanyThreadState,
+    pub finding: EpiphanyRoleFindingInterpretation,
+    pub update: EpiphanyRoleAcceptanceUpdate,
+}
+
+pub fn accept_coordinator_role_finding(
+    store: &Path,
+    thread_id: &str,
+    state: &EpiphanyThreadState,
+    role_id: EpiphanyRoleResultRoleId,
+    binding_id: &str,
+    expected_revision: Option<u64>,
+    reference_turn_id: Option<String>,
+    accepted_at: String,
+    nonce: &str,
+) -> anyhow::Result<EpiphanyNativeRoleAcceptance> {
+    let snapshot = read_role_result_snapshot(Some(state), Some(store), role_id, binding_id);
+    if snapshot.status != EpiphanyCoordinatorRoleResultStatus::Completed {
+        return Err(anyhow::anyhow!(
+            "role finding is not completed: {}",
+            snapshot.note
+        ));
+    }
+    let finding = snapshot
+        .finding
+        .ok_or_else(|| anyhow::anyhow!("completed role result has no typed finding"))?;
+    let label = role_label_lower(role_id);
+    let update = build_native_role_acceptance_update(
+        expected_revision,
+        role_id,
+        binding_id,
+        &finding,
+        format!("ev-{label}-{nonce}"),
+        format!("obs-{label}-{nonce}"),
+        accepted_at.clone(),
+    )
+    .map_err(anyhow::Error::msg)?;
+    let contract = acceptance_launch_contract_for_binding(store, state, binding_id, "role")
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let mut available = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
+    let mut prerequisites = Vec::new();
+    if role_id == EpiphanyRoleResultRoleId::Research {
+        let packet = eyes_evidence_packet_from_research_finding(
+            format!("eyes-packet-{}", update.accepted_receipt_id),
+            &finding,
+            &update.applied_patch,
+            accepted_at.clone(),
+        );
+        available.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
+        prerequisites.push(EpiphanyAcceptancePrerequisite::Eyes(packet));
+        let grant_id = format!(
+            "substrate-grant-{}",
+            finding.runtime_job_id.as_deref().unwrap_or_default()
+        );
+        if runtime_substrate_gate_repo_access_grant_receipt(store, &grant_id)?.is_some() {
+            available.push(SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string());
+        }
+    } else if role_id == EpiphanyRoleResultRoleId::Verification {
+        let verdict = soul_verdict_receipt_from_verification_finding(
+            format!("soul-verdict-{}", update.accepted_receipt_id),
+            &finding,
+            accepted_at.clone(),
+        );
+        available.push(SOUL_VERDICT_RECEIPT_TYPE.to_string());
+        prerequisites.push(EpiphanyAcceptancePrerequisite::Soul(verdict));
+    }
+    enforce_acceptance_receipt_proofs(
+        &contract,
+        &role_acceptance_claimed_effects(role_id, &update.changed_fields),
+        &available,
+        &role_acceptance_enforceable_receipts(role_id),
+    )
+    .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let next_state = apply_coordinator_state_update_to_state(
+        state,
+        update.state_update.clone(),
+        reference_turn_id,
+    )?;
+    let commit = mind_state_commit_receipt(
+        format!("mind-commit-{}", update.accepted_receipt_id),
+        &update.mind_review,
+        next_state.revision,
+        update
+            .changed_fields
+            .iter()
+            .map(|field| format!("{field:?}"))
+            .collect(),
+        accepted_at,
+    );
+    commit_state_with_mind_witness(
+        store,
+        thread_id,
+        &next_state,
+        &update.mind_review,
+        &commit,
+        &prerequisites,
+    )?;
+    Ok(EpiphanyNativeRoleAcceptance {
+        state: next_state,
+        finding,
+        update,
+    })
 }
 
 pub fn completed_role_finding(

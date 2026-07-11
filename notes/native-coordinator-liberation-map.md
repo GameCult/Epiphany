@@ -160,6 +160,13 @@ work-loop telemetry, and bounded prompt rendering. The compatibility bridge's
 `launch_context` module is only a re-export membrane. Coordinator rewiring must
 use these same functions; a context-free launch is not an acceptable shortcut.
 
+The coordinator façade now exposes typed `launch_job` and `accept_role`
+actuators. `launch_job` composes native planning with the atomic launch commit;
+`accept_role` loads the typed completed finding, builds and proof-checks the
+Mind-gated acceptance, and atomically publishes state plus witnesses. Callers
+must delegate to these methods rather than replaying their choreography. The
+compatibility bridge's role-accept body is the next obsolete policy copy to cut.
+
 ## Acceptance Transaction Wound
 
 The compatibility bridge currently persists prerequisite receipts, writes
