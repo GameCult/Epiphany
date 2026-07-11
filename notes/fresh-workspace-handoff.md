@@ -633,6 +633,13 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
+The source-grounded cut map for the current Codex-starvation incision is
+`notes/native-coordinator-liberation-map.md`. The highest-leverage surviving
+ownership fault is that `epiphany-mvp-coordinator` still uses
+`thread/epiphany/*` JSON-RPC for state, views, specialist launch/result/accept,
+and recovery. Migrate that whole control loop to one native typed service; do
+not add a parallel native state path or a native/compatibility mode flag.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit

@@ -290,6 +290,11 @@ Stop and redesign if a proposed change:
 
 ## First Slice
 
+This inventory slice is complete. The live implementation cut is defined in
+`notes/native-coordinator-liberation-map.md`: remove Codex JSON-RPC from the
+native coordinator control loop, then leave the old endpoints as delegating
+compatibility wrappers only.
+
 Do not start by cutting random code. Map first.
 
 First concrete slice:
