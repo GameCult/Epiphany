@@ -657,8 +657,11 @@ cancelled finding projection, and operator note rendering no longer belong to
 `epiphany-codex-bridge::runtime_results`. The bridge retains compatibility type
 aliases and delegates job readback to core. Native coordinator tests and all
 eight bridge library tests pass, including typed-result enforcement and failed
-lifecycle projection. Binding selection and acceptance choreography still live
-in the bridge and remain the next extraction seam.
+lifecycle projection. Binding selection for role/reorientation result readback
+now also lives in core and the concrete service exposes `role_result` and
+`reorient_result` over its canonical thread-state/runtime-spine stores. The
+bridge delegates snapshot selection. Completed-finding acceptance choreography
+and launch still live in the bridge and remain the next extraction seam.
 
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.

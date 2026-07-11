@@ -124,6 +124,8 @@ pub use coordinator_service::EpiphanyCoordinatorRoleResultSnapshot;
 pub use coordinator_service::EpiphanyCoordinatorService;
 pub use coordinator_service::EpiphanyCoordinatorStateApplied;
 pub use coordinator_service::apply_coordinator_state_update_to_state;
+pub use coordinator_service::read_reorient_result_snapshot;
+pub use coordinator_service::read_role_result_snapshot;
 pub use coordinator_service::read_runtime_reorient_result;
 pub use coordinator_service::read_runtime_role_result;
 pub use cultcache_rs::CacheBackingStore;

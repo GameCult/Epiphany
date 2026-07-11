@@ -80,6 +80,32 @@ impl EpiphanyCoordinatorService {
         load_thread_state(&self.thread_state_store)
     }
 
+    pub fn role_result(
+        &self,
+        role_id: EpiphanyRoleResultRoleId,
+        binding_id: &str,
+    ) -> Result<EpiphanyCoordinatorRoleResultSnapshot> {
+        let state = self.state()?;
+        Ok(read_role_result_snapshot(
+            state.as_ref(),
+            Some(&self.runtime_spine_store),
+            role_id,
+            binding_id,
+        ))
+    }
+
+    pub fn reorient_result(
+        &self,
+        binding_id: &str,
+    ) -> Result<EpiphanyCoordinatorReorientResultSnapshot> {
+        let state = self.state()?;
+        Ok(read_reorient_result_snapshot(
+            state.as_ref(),
+            Some(&self.runtime_spine_store),
+            binding_id,
+        ))
+    }
+
     pub fn apply_state_update(
         &self,
         thread_id: &str,
@@ -99,6 +125,84 @@ impl EpiphanyCoordinatorService {
             state,
         })
     }
+}
+
+pub fn read_role_result_snapshot(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store_path: Option<&Path>,
+    role_id: EpiphanyRoleResultRoleId,
+    binding_id: &str,
+) -> EpiphanyCoordinatorRoleResultSnapshot {
+    let Some(state) = state else {
+        return role_snapshot(
+            role_id,
+            EpiphanyCoordinatorRoleResultStatus::MissingState,
+            None,
+            None,
+        );
+    };
+    if let Some(link) = latest_runtime_link(state, binding_id) {
+        return read_runtime_role_result(runtime_store_path, &link.runtime_job_id, role_id);
+    }
+    if state
+        .job_bindings
+        .iter()
+        .any(|binding| binding.id == binding_id)
+    {
+        role_snapshot(
+            role_id,
+            EpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
+            None,
+            Some(
+                "Role binding has no runtime-spine job id; launch a runtime-linked role worker for typed results.",
+            ),
+        )
+    } else {
+        role_snapshot(
+            role_id,
+            EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+            None,
+            None,
+        )
+    }
+}
+
+pub fn read_reorient_result_snapshot(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store_path: Option<&Path>,
+    binding_id: &str,
+) -> EpiphanyCoordinatorReorientResultSnapshot {
+    let Some(state) = state else {
+        return reorient_snapshot(EpiphanyCrrcResultStatus::MissingState, None, None);
+    };
+    if let Some(link) = latest_runtime_link(state, binding_id) {
+        return read_runtime_reorient_result(runtime_store_path, &link.runtime_job_id);
+    }
+    if state
+        .job_bindings
+        .iter()
+        .any(|binding| binding.id == binding_id)
+    {
+        reorient_snapshot(
+            EpiphanyCrrcResultStatus::BackendUnavailable,
+            None,
+            Some(
+                "Reorientation binding has no runtime-spine job id; launch a runtime-linked reorient worker for typed results.",
+            ),
+        )
+    } else {
+        reorient_snapshot(EpiphanyCrrcResultStatus::MissingBinding, None, None)
+    }
+}
+
+fn latest_runtime_link<'a>(
+    state: &'a EpiphanyThreadState,
+    binding_id: &str,
+) -> Option<&'a epiphany_state_model::EpiphanyRuntimeLink> {
+    state
+        .runtime_links
+        .iter()
+        .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
 }
 
 pub fn read_runtime_role_result(
