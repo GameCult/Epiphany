@@ -256,6 +256,43 @@ pub fn reorient_acceptance_claimed_effects() -> Vec<EpiphanyReceiptEffectKind> {
     ]
 }
 
+pub fn coordinator_acceptance_cache(store_path: &Path) -> anyhow::Result<CultCache> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.register_entry_type::<EpiphanyThreadStateEntry>()?;
+    cache.pull_all_backing_stores()?;
+    Ok(cache)
+}
+
+pub fn commit_state_with_mind_witness(
+    store_path: &Path,
+    thread_id: &str,
+    state: &EpiphanyThreadState,
+    mind_review: &MindGatewayReview,
+    commit_receipt: &MindStateCommitReceipt,
+) -> anyhow::Result<EpiphanyThreadState> {
+    if commit_receipt.gateway_id != mind_review.gateway_id {
+        return Err(anyhow::anyhow!(
+            "Mind commit receipt gateway {:?} does not match review {:?}",
+            commit_receipt.gateway_id,
+            mind_review.gateway_id
+        ));
+    }
+    if commit_receipt.state_revision != state.revision {
+        return Err(anyhow::anyhow!(
+            "Mind commit receipt revision {} does not match state revision {}",
+            commit_receipt.state_revision,
+            state.revision
+        ));
+    }
+    let mut cache = coordinator_acceptance_cache(store_path)?;
+    let state_entry = EpiphanyThreadStateEntry::from_state(thread_id, state)?;
+    let (state_envelope, _) = cache.prepare_entry(THREAD_STATE_KEY, &state_entry)?;
+    let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
+    let (commit_envelope, _) = cache.prepare_entry(&commit_receipt.receipt_id, commit_receipt)?;
+    cache.put_prepared_batch(vec![state_envelope, review_envelope, commit_envelope])?;
+    Ok(state.clone())
+}
+
 pub fn build_native_role_acceptance_update(
     expected_revision: Option<u64>,
     role_id: EpiphanyRoleResultRoleId,
@@ -463,5 +500,87 @@ mod tests {
                 "epiphany role binding \"modeling-worker\" was not found".to_string()
             )
         );
+    }
+
+    #[test]
+    fn state_and_mind_witness_publish_in_one_acceptance_snapshot() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("acceptance.cc");
+        let state = EpiphanyThreadState {
+            revision: 7,
+            objective: Some("Atomic acceptance".to_string()),
+            ..Default::default()
+        };
+        let review = MindGatewayReview {
+            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "mind-review-7".to_string(),
+            source_kind: "role".to_string(),
+            source_role_id: "modeling".to_string(),
+            decision: MindGatewayDecision::Accept,
+            allowed_effects: vec!["state".to_string()],
+            refused_effects: Vec::new(),
+            reasons: Vec::new(),
+            contract: "test".to_string(),
+        };
+        let receipt = mind_state_commit_receipt(
+            "mind-commit-7".to_string(),
+            &review,
+            7,
+            vec!["Objective".to_string()],
+            "2026-07-11T00:00:00Z".to_string(),
+        );
+        commit_state_with_mind_witness(&store, "thread-7", &state, &review, &receipt)?;
+
+        let cache = coordinator_acceptance_cache(&store)?;
+        assert_eq!(
+            cache
+                .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+                .state()?
+                .objective
+                .as_deref(),
+            Some("Atomic acceptance")
+        );
+        assert_eq!(
+            cache.get_required::<MindGatewayReview>("mind-review-7")?,
+            review
+        );
+        assert_eq!(
+            cache.get_required::<MindStateCommitReceipt>("mind-commit-7")?,
+            receipt
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_witness_cannot_publish_state() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("acceptance.cc");
+        let state = EpiphanyThreadState {
+            revision: 3,
+            ..Default::default()
+        };
+        let review = MindGatewayReview {
+            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "review-3".to_string(),
+            source_kind: "role".to_string(),
+            source_role_id: "modeling".to_string(),
+            decision: MindGatewayDecision::Accept,
+            allowed_effects: Vec::new(),
+            refused_effects: Vec::new(),
+            reasons: Vec::new(),
+            contract: "test".to_string(),
+        };
+        let receipt = mind_state_commit_receipt(
+            "commit-4".to_string(),
+            &review,
+            4,
+            Vec::new(),
+            "2026-07-11T00:00:00Z".to_string(),
+        );
+        assert!(
+            commit_state_with_mind_witness(&store, "thread-3", &state, &review, &receipt).is_err()
+        );
+        assert!(!store.exists());
+        Ok(())
     }
 }

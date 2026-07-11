@@ -728,6 +728,15 @@ Epiphany acceptance must register thread state plus Mind/prerequisite receipt
 families on one authoritative store and commit them through this batch before
 the bridge persistence sequence can be deleted.
 
+The first unified acceptance store is now executable.
+`coordinator_acceptance_cache` registers the full runtime-spine catalog plus
+`EpiphanyThreadStateEntry` before pulling, and
+`commit_state_with_mind_witness` prepares state, Mind review, and Mind commit
+receipt then publishes them in one snapshot. Reload proves the complete triad;
+a mismatched revision fails before a store is created. Add Eyes/Substrate Gate,
+Soul, and Continuity prerequisite receipts to the same prepared batch next,
+then replace bridge acceptance persistence.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
