@@ -234,3 +234,10 @@ The proof must observe the stores and receipts where the invariant lives:
 The migration is not complete because the coordinator eventually converges on
 the same state after an app-server round trip. The old path must be structurally
 unable to decide the result.
+
+Coordinator sight has crossed the boundary. `collect_coordinator_status`, role
+result readback, and reorientation result readback now use the native status
+projection over the shared thread/runtime CultCache store. The coordinator no
+longer calls Codex for `view`, `roleResult`, or `reorientResult`. Bootstrap,
+launch, acceptance dispatch, and supersession mutations still use app-server
+routes and remain the live cut line.

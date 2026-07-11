@@ -1854,6 +1854,13 @@ publication. The bridge delegates both role and reorientation acceptance and
 contains zero direct witness commits; its obsolete acceptance helpers and
 imports are deleted. Begin `epiphany-mvp-coordinator` AppServerClient removal.
 
+Coordinator read authority is now native. Status plus role/reorientation result
+reads invoke `epiphany-mvp-status --native` over the shared CultCache store; six
+Codex view/result calls were deleted and a source test rejects AppServerClient or
+`thread/epiphany/*` inside those functions. Seven production mutation route
+strings remain: bootstrap update/freshness, role acceptance, role/reorient
+launch, and supersession update. Cut those next, then delete app-server startup.
+
 ## Immediate Re-entry Instruction
 
 After compaction, first rehydrate and reorient from the listed files and git

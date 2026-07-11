@@ -54,7 +54,6 @@ const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-codex-mcp-spine";
 const WORKER_AUTO_TOOL_MAX_ROUNDS: usize = 24;
-const REORIENT_BINDING_ID: &str = "reorient-worker";
 const GRAPH_NODE_ID: &str = "reorient-target";
 const WATCHED_RELATIVE_PATH: &str = "src/reorient_target.rs";
 
@@ -352,7 +351,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     }
 
     for index in 0..args.max_steps {
-        let status = collect_coordinator_status(&mut client, &thread_id)?;
+        let status = collect_coordinator_status(&runtime_store, &thread_id)?;
         let mut coordinator = status
             .get("coordinator")
             .cloned()
@@ -409,11 +408,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "reviewResearchResult" | "reviewModelingResult" | "reviewVerificationResult" => {
                 let role_id = role_id_for_coordinator_action(&action)
                     .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
-                let result = client.send(
-                    "thread/epiphany/roleResult",
-                    Some(json!({"threadId": thread_id, "roleId": role_id})),
-                    true,
-                )?;
+                let result = read_role_result(&runtime_store, &thread_id, role_id)?;
                 push_event(
                     &mut step,
                     json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
@@ -438,7 +433,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &mut step,
                         json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
                     );
-                    final_status = collect_coordinator_status(&mut client, &thread_id)?;
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                     append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     continue;
@@ -473,10 +468,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted)}),
                     );
                 }
-                final_status = collect_coordinator_status(&mut client, &thread_id)?;
+                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
             }
             "reviewReorientResult" => {
-                let result = read_reorient_result(&mut client, &thread_id)?;
+                let result = read_reorient_result(&runtime_store, &thread_id)?;
                 push_event(
                     &mut step,
                     json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
@@ -547,12 +542,12 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &mut step,
                     json!({"type": "workerRuntime", "roleId": role_id, "run": worker_run}),
                 );
-                let result = read_role_result(&mut client, &thread_id, role_id)?;
+                let result = read_role_result(&runtime_store, &thread_id, role_id)?;
                 push_event(
                     &mut step,
                     json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
                 );
-                final_status = collect_coordinator_status(&mut client, &thread_id)?;
+                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                 if !matches!(
                     result["status"].as_str(),
                     Some("completed" | "failed" | "cancelled")
@@ -601,12 +596,12 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &mut step,
                     json!({"type": "workerRuntime", "roleId": "reorient-worker", "run": worker_run}),
                 );
-                let result = read_reorient_result(&mut client, &thread_id)?;
+                let result = read_reorient_result(&runtime_store, &thread_id)?;
                 push_event(
                     &mut step,
                     json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
                 );
-                final_status = collect_coordinator_status(&mut client, &thread_id)?;
+                final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
                 if !matches!(
                     result["status"].as_str(),
                     Some("completed" | "failed" | "cancelled")
@@ -775,144 +770,22 @@ fn assert_local_verse_brake_released(local_verse_store: &Path, runner_name: &str
     Ok(())
 }
 
-fn collect_coordinator_status(
-    client: &mut status_cli::AppServerClient,
-    thread_id: &str,
-) -> Result<Value> {
-    let read = client.send(
-        "thread/read",
-        Some(json!({"threadId": thread_id, "includeTurns": false})),
-        true,
-    )?;
-    let view = client.send(
-        "thread/epiphany/view",
-        Some(json!({"threadId": thread_id, "lenses": ["scene", "pressure", "jobs", "roles", "planning", "reorient", "crrc", "coordinator"]})),
-        true,
-    )?;
-    let scene = json!({
-        "threadId": thread_id,
-        "scene": view.get("scene").cloned().unwrap_or_else(|| json!(null)),
-    });
-    let pressure = json!({
-        "threadId": thread_id,
-        "source": "live",
-        "pressure": view.get("pressure").cloned().unwrap_or_else(|| json!(null)),
-    });
-    let reorient = view.get("reorient").cloned().unwrap_or_else(|| json!(null));
-    let jobs = json!({
-        "threadId": thread_id,
-        "source": "live",
-        "jobs": view.get("jobs").cloned().unwrap_or_else(|| json!([])),
-    });
-    let roles = view.get("roles").cloned().unwrap_or_else(|| json!(null));
-    let planning = view.get("planning").cloned().unwrap_or_else(|| json!(null));
-    let role_results = json!({
-        "imagination": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "imagination"})), true)?,
-        "research": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "research"})), true)?,
-        "modeling": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "modeling"})), true)?,
-        "verification": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "verification"})), true)?,
-    });
-    let reorient_result = client.send(
-        "thread/epiphany/reorientResult",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
-    let crrc = view.get("crrc").cloned().unwrap_or_else(|| json!(null));
-    let coordinator = view
-        .get("coordinator")
-        .cloned()
-        .unwrap_or_else(|| json!(null));
-    let root = env::current_dir()?;
-    let heartbeat_dir = root.join(".epiphany-heartbeats");
-    let persona_dir = root.join(".epiphany-persona");
-    let heartbeat = status_cli::native_json(
-        "epiphany-heartbeat-store",
+fn collect_coordinator_status(runtime_store: &Path, thread_id: &str) -> Result<Value> {
+    let store = runtime_store.to_string_lossy();
+    status_cli::native_json(
+        "epiphany-mvp-status",
         &[
-            "status",
-            "--store",
-            "state/agent-heartbeats.msgpack",
-            "--artifact-dir",
-            &heartbeat_dir.to_string_lossy(),
-            "--limit",
-            "8",
-        ],
-    )?;
-    let latest_discord_persona = status_cli::native_json(
-        "epiphany-persona-discord",
-        &[
-            "latest",
-            "--artifact-dir",
-            &persona_dir.to_string_lossy(),
-            "--limit",
-            "8",
+            "--native",
+            "--json",
+            "--thread-id",
+            thread_id,
+            "--thread-state-store",
+            &store,
+            "--runtime-store",
+            &store,
         ],
     )
-    .unwrap_or_else(|_| json!({"latestArtifacts": []}));
-    let latest_other_persona = status_cli::native_json(
-        "epiphany-persona-other",
-        &[
-            "latest",
-            "--artifact-dir",
-            &persona_dir.to_string_lossy(),
-            "--limit",
-            "8",
-        ],
-    )
-    .unwrap_or_else(|_| json!({"latestArtifacts": []}));
-    let latest_reddit_persona = status_cli::native_json(
-        "epiphany-persona-reddit",
-        &[
-            "latest",
-            "--artifact-dir",
-            &persona_dir.to_string_lossy(),
-            "--limit",
-            "8",
-        ],
-    )
-    .unwrap_or_else(|_| json!({"latestArtifacts": []}));
-    let mut latest_artifacts = latest_discord_persona
-        .get("latestArtifacts")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    latest_artifacts.extend(
-        latest_reddit_persona
-            .get("latestArtifacts")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default(),
-    );
-    latest_artifacts.extend(
-        latest_other_persona
-            .get("latestArtifacts")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default(),
-    );
-    Ok(json!({
-        "threadId": thread_id,
-        "read": read,
-        "view": view,
-        "scene": scene,
-        "pressure": pressure,
-        "reorient": reorient,
-        "jobs": jobs,
-        "roles": roles,
-        "planning": planning,
-        "roleResults": role_results,
-        "reorientResult": reorient_result,
-        "crrc": crrc,
-        "coordinator": coordinator,
-        "heartbeat": heartbeat,
-        "persona": {
-            "status": "ready",
-            "artifactDir": persona_dir,
-            "latestArtifacts": latest_artifacts,
-            "availableActions": ["PersonaBubble", "characterTurn", "discordPersonaPost", "redditPersonaPost", "otherWorldPersonaRequest"],
-        },
-    }))
 }
-
 fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> {
     if configured.components().count() != 1 {
         return status_cli::absolute_path(configured);
@@ -1329,27 +1202,12 @@ fn launch_worker_runtime_detached(
     }))
 }
 
-fn read_role_result(
-    client: &mut status_cli::AppServerClient,
-    thread_id: &str,
-    role_id: &str,
-) -> Result<Value> {
-    client.send(
-        "thread/epiphany/roleResult",
-        Some(json!({"threadId": thread_id, "roleId": role_id})),
-        true,
-    )
+fn read_role_result(runtime_store: &Path, thread_id: &str, role_id: &str) -> Result<Value> {
+    Ok(collect_coordinator_status(runtime_store, thread_id)?["roleResults"][role_id].clone())
 }
 
-fn read_reorient_result(
-    client: &mut status_cli::AppServerClient,
-    thread_id: &str,
-) -> Result<Value> {
-    client.send(
-        "thread/epiphany/reorientResult",
-        Some(json!({"threadId": thread_id, "bindingId": REORIENT_BINDING_ID})),
-        true,
-    )
+fn read_reorient_result(runtime_store: &Path, thread_id: &str) -> Result<Value> {
+    Ok(collect_coordinator_status(runtime_store, thread_id)?["reorientResult"].clone())
 }
 
 fn maybe_apply_role_self_patch(accepted: &Value, agent_memory_dir: &Path) -> Result<Option<Value>> {
@@ -1824,6 +1682,25 @@ fn home_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn coordinator_status_and_result_reads_are_native() {
+        let source = include_str!("epiphany-mvp-coordinator.rs");
+        let status_start = source.find("fn collect_coordinator_status").unwrap();
+        let status_end = source.find("fn resolve_model_runtime_bin").unwrap();
+        let status = &source[status_start..status_end];
+        assert!(status.contains("epiphany-mvp-status"));
+        assert!(status.contains("--native"));
+        assert!(!status.contains("AppServerClient"));
+        assert!(!status.contains("thread/epiphany/"));
+
+        let reads_start = source.find("fn read_role_result").unwrap();
+        let reads_end = source.find("fn maybe_apply_role_self_patch").unwrap();
+        let reads = &source[reads_start..reads_end];
+        assert!(reads.contains("collect_coordinator_status"));
+        assert!(!reads.contains("AppServerClient"));
+        assert!(!reads.contains("thread/epiphany/"));
+    }
 
     #[test]
     fn continue_implementation_is_not_a_passive_stop_action() {
