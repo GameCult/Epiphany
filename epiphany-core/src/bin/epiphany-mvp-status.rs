@@ -138,7 +138,7 @@ impl Args {
         let root = env::current_dir().context("failed to resolve current directory")?;
         let mut args = env::args().skip(1);
         let mut parsed = Args {
-            source: StatusSource::Codex,
+            source: StatusSource::Native,
             app_server: PathBuf::from(DEFAULT_APP_SERVER),
             codex_home: env::var_os("CODEX_HOME")
                 .map(PathBuf::from)

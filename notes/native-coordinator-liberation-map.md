@@ -258,3 +258,12 @@ Role-board `authorityScopes` now publish typed capability identifiers such as
 `epiphany.coordinator.role.launch`, `epiphany.coordinator.role.accept`, and
 `epiphany.coordinator.reorient.result.read`. Source proof rejects slash-shaped
 authority, and rendered native status contains no `thread/epiphany/*` scopes.
+
+The remaining source vocabulary is classified. Active worker launch contracts
+now describe typed coordinator capabilities and Mind-admitted `statePatch`
+cargo. `epiphany-mvp-status` defaults to native state; its route calls exist only
+behind explicit `--codex` compatibility. `epiphany-phase6-*-smoke` binaries are
+compatibility contract probes, coordinator source occurrences are negative
+tests, and the distillation occurrence is a historical-input test fixture. The
+live status gap is interruption: `--interrupt-binding` still requires the
+explicit Codex source instead of a native coordinator operation.

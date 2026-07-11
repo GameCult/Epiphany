@@ -1874,9 +1874,13 @@ requires codex-app-server; live proof at
 pressure, Hands gate, and real historical commit receipt checks with telemetry
 `appServerCalls=0`. Role-board `authorityScopes` now use typed native capability
 identifiers, and rendered native status proves no `thread/epiphany/*` authority
-survives there. The next pass should classify remaining route vocabulary across
-live prompts/Eve/CLI/CultNet surfaces versus compatibility tests and historical
-documentation before deleting it; do not flatten provenance into a blind grep.
+survives there. The route-vocabulary audit is complete: active worker contracts
+now name typed coordinator capabilities and Mind-admitted `statePatch` cargo;
+status defaults to native; remaining Rust occurrences are explicit `--codex`
+compatibility, phase-6 app-server contract smokes, negative tests, or a
+historical-input fixture. The next live CLI fault is `--interrupt-binding`,
+which still refuses native source and must route through the native coordinator
+service before Codex interruption is demoted to explicit compatibility only.
 
 ## Immediate Re-entry Instruction
 

@@ -41,7 +41,7 @@ pub fn epiphany_role_binding_id(role_id: EpiphanyRoleResultRoleId) -> Result<&'s
                 .to_string(),
         ),
         EpiphanyRoleResultRoleId::Reorientation => Err(
-            "reorientation uses thread/epiphany/reorientLaunch and thread/epiphany/reorientResult"
+            "reorientation uses epiphany.coordinator.reorient.launch and epiphany.coordinator.reorient.result.read"
                 .to_string(),
         ),
     }
@@ -208,7 +208,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                 "statePatch".to_string(),
                 serde_json::json!({
                     "type": "object",
-                    "description": "Required reviewable thread/epiphany/update patch for Imagination. Use only planning plus optional observations/evidence. planning is a full replacement object and must include at least one objective_drafts entry with status draft.",
+                    "description": "Required reviewable statePatch for Mind admission from Imagination. Use only planning plus optional observations/evidence. planning is a full replacement object and must include at least one objective_drafts entry with status draft.",
                     "required": ["planning"],
                     "properties": {
                         "planning": {
@@ -245,7 +245,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                 "statePatch".to_string(),
                 serde_json::json!({
                     "type": "object",
-                    "description": "Required reviewable thread/epiphany/update patch for research/Eyes. Use only observations, evidence, scratch, and optional investigationCheckpoint. The patch must include at least one evidence record and one observation that cites it.",
+                    "description": "Required reviewable statePatch for Mind admission from research/Eyes. Use only observations, evidence, scratch, and optional investigationCheckpoint. The patch must include at least one evidence record and one observation that cites it.",
                     "required": ["observations", "evidence"],
                     "properties": {
                         "observations": {
@@ -282,7 +282,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                 "statePatch".to_string(),
                 serde_json::json!({
                     "type": "object",
-                    "description": "Required reviewable thread/epiphany/update patch for modeling. Use only graphs, graphFrontier, graphCheckpoint, scratch, investigationCheckpoint, observations, and evidence. The patch must include at least one durable modeling field, not observations/evidence alone.",
+                    "description": "Required reviewable statePatch for Mind admission from Modeling. Use only graphs, graphFrontier, graphCheckpoint, scratch, investigationCheckpoint, observations, and evidence. The patch must include at least one durable modeling field, not observations/evidence alone.",
                     "anyOf": [
                         {"required": ["graphs"]},
                         {"required": ["graphFrontier"]},
@@ -754,6 +754,15 @@ fn epiphany_active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn live_worker_contracts_contain_no_codex_route_vocabulary() {
+        let source = include_str!("agent_launch.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        assert!(!production.contains("thread/epiphany/"));
+        assert!(production.contains("epiphany.coordinator.reorient.launch"));
+        assert!(production.contains("statePatch for Mind admission"));
+    }
 
     #[test]
     fn bundled_epiphany_agent_prompts_do_not_name_codex_as_prompt_authority() {
