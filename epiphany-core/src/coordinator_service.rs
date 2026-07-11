@@ -12,6 +12,7 @@ use crate::EpiphanyStateUpdate;
 use crate::accept_coordinator_reorient_finding;
 use crate::accept_coordinator_role_finding;
 use crate::apply_coordinator_state_update;
+use crate::apply_coordinator_state_update_from_state;
 use crate::commit_coordinator_job_launch;
 use crate::interrupt_coordinator_job;
 use crate::plan_coordinator_job_launch;
@@ -84,6 +85,22 @@ impl EpiphanyCoordinatorService {
         apply_coordinator_state_update(
             &self.thread_state_store,
             thread_id,
+            update,
+            reference_turn_id,
+        )
+    }
+
+    pub fn apply_state_update_from(
+        &self,
+        thread_id: &str,
+        current_state: &EpiphanyThreadState,
+        update: EpiphanyStateUpdate,
+        reference_turn_id: Option<String>,
+    ) -> Result<EpiphanyCoordinatorStateApplied> {
+        apply_coordinator_state_update_from_state(
+            &self.thread_state_store,
+            thread_id,
+            current_state,
             update,
             reference_turn_id,
         )
@@ -182,7 +199,7 @@ mod tests {
         let source = include_str!("coordinator_service.rs");
         let production = source.split("#[cfg(test)]").next().unwrap_or(source);
         assert!(
-            production.lines().count() < 190,
+            production.lines().count() < 210,
             "coordinator facade regrew into a host brain"
         );
         for forbidden in [

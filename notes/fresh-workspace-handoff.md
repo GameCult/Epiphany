@@ -1884,9 +1884,13 @@ binding mutation, while status reports `cancelRequested=false` honestly. A
 focused core test and status-command test prove the transition. Explicit
 `--codex` retains compatibility. The bridge now delegates interruption to
 `EpiphanyCoordinatorService::interrupt_job`; nine bridge tests prove no local
-binding mutation policy remains, and the vendored app-server compiles. General
-update/promotion persistence still uses the host hook and is the next surviving
-state-authority seam.
+binding mutation policy remains, and the vendored app-server compiles. Generic update and promotion
+commit via `EpiphanyCoordinatorService::apply_state_update_from`, allow a legacy
+rollout to seed only an empty unified store, refuse stale host overwrite, then
+mirror the exact committed state to rollout for legacy clients. Ten bridge tests
+and two coordinator-state tests pass; the vendored app-server compiles. Next
+decide whether the rollout mirror can be deleted and notifications/readback
+projected directly from unified CultCache.
 
 ## Immediate Re-entry Instruction
 

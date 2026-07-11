@@ -60,10 +60,10 @@ pub trait EpiphanyMutationHost {
     /// host snapshot is an input fact, not a bridge-owned source of truth.
     async fn epiphany_state(&self) -> Option<EpiphanyThreadState>;
     async fn epiphany_reference_turn_id(&self) -> Option<String>;
-    /// Persist a state document already validated by Epiphany core policy.
+    /// Mirror an already committed native state document for legacy clients.
     ///
-    /// This is the Codex JSON-RPC shell's current persistence hook. It must not
-    /// grow mutation policy of its own.
+    /// Native CultCache is authoritative before this hook runs. The returned
+    /// mirror cannot override or repair the native result.
     async fn epiphany_persist_state(
         &self,
         next_state: EpiphanyThreadState,
@@ -160,9 +160,13 @@ pub async fn apply_epiphany_state_update_to_thread(
 ) -> BridgeResult<EpiphanyThreadState> {
     let current_state = thread.epiphany_state().await.unwrap_or_default();
     let reference_turn_id = thread.epiphany_reference_turn_id().await;
-    let next_state =
-        apply_epiphany_state_update_to_state(&current_state, update, reference_turn_id)?;
-    thread.epiphany_persist_state(next_state).await
+    let store = thread.epiphany_runtime_spine_store_path().await;
+    let thread_id = thread.epiphany_thread_id().await;
+    let applied = epiphany_core::EpiphanyCoordinatorService::new(&store, &store)
+        .apply_state_update_from(&thread_id, &current_state, update, reference_turn_id)
+        .map_err(|error| EpiphanyBridgeError::InvalidRequest(error.to_string()))?;
+    thread.epiphany_persist_state(applied.state.clone()).await?;
+    Ok(applied.state)
 }
 
 pub fn apply_epiphany_state_update_to_state(
@@ -569,6 +573,26 @@ fn validate_expected_revision(
 
 #[cfg(test)]
 mod acceptance_architecture_tests {
+    #[test]
+    fn generic_update_commits_native_state_before_legacy_projection() {
+        let source = include_str!("mutation_service.rs");
+        let start = source
+            .find("pub async fn apply_epiphany_state_update_to_thread")
+            .unwrap();
+        let end = source
+            .find("pub fn apply_epiphany_state_update_to_state")
+            .unwrap();
+        let update = &source[start..end];
+        assert_eq!(update.matches(".apply_state_update_from(").count(), 1);
+        assert_eq!(update.matches("epiphany_persist_state(").count(), 1);
+        assert!(
+            update.find(".apply_state_update_from(").unwrap()
+                < update.find("epiphany_persist_state(").unwrap()
+        );
+        assert!(!update.contains("Ok(next_state)"));
+        assert!(update.contains("Ok(applied.state)"));
+    }
+
     #[test]
     fn interrupt_route_delegates_binding_mutation_to_native_service() {
         let source = include_str!("mutation_service.rs");

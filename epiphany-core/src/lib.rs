@@ -168,6 +168,7 @@ pub use coordinator_results::read_runtime_role_result;
 pub use coordinator_service::EpiphanyCoordinatorService;
 pub use coordinator_state::EpiphanyCoordinatorStateApplied;
 pub use coordinator_state::apply_coordinator_state_update;
+pub use coordinator_state::apply_coordinator_state_update_from_state;
 pub use coordinator_state::apply_coordinator_state_update_to_state;
 pub use coordinator_state::read_coordinator_state;
 pub use cultcache_rs::CacheBackingStore;

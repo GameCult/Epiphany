@@ -28,12 +28,26 @@ pub fn apply_coordinator_state_update(
     update: EpiphanyStateUpdate,
     reference_turn_id: Option<String>,
 ) -> Result<EpiphanyCoordinatorStateApplied> {
+    let current = read_coordinator_state(store)?.unwrap_or_default();
+    apply_coordinator_state_update_from_state(store, thread_id, &current, update, reference_turn_id)
+}
+
+pub fn apply_coordinator_state_update_from_state(
+    store: &Path,
+    thread_id: &str,
+    current_state: &EpiphanyThreadState,
+    update: EpiphanyStateUpdate,
+    reference_turn_id: Option<String>,
+) -> Result<EpiphanyCoordinatorStateApplied> {
+    if let Some(persisted) = read_coordinator_state(store)?
+        && persisted != *current_state
+    {
+        return Err(anyhow!(
+            "authoritative coordinator state changed before update commit"
+        ));
+    }
     let changed_fields = changed_fields(&update);
-    let state = apply_coordinator_state_update_to_state(
-        &read_coordinator_state(store)?.unwrap_or_default(),
-        update,
-        reference_turn_id,
-    )?;
+    let state = apply_coordinator_state_update_to_state(current_state, update, reference_turn_id)?;
     let mut cache = coordinator_acceptance_cache(store)?;
     let entry = EpiphanyThreadStateEntry::from_state(thread_id, &state)?;
     cache.put(THREAD_STATE_KEY, &entry)?;
@@ -144,6 +158,51 @@ mod tests {
                 .objective
                 .as_deref(),
             Some("Canonical objective")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn imported_host_state_seeds_once_then_cannot_override_native_truth() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("imported-state.msgpack");
+        let imported = EpiphanyThreadState {
+            revision: 4,
+            objective: Some("Imported rollout state".to_string()),
+            ..Default::default()
+        };
+        let applied = apply_coordinator_state_update_from_state(
+            &store,
+            "thread-1",
+            &imported,
+            EpiphanyStateUpdate {
+                expected_revision: Some(4),
+                objective: Some("Native authority".to_string()),
+                ..Default::default()
+            },
+            None,
+        )?;
+        assert_eq!(applied.revision, 5);
+        assert!(
+            apply_coordinator_state_update_from_state(
+                &store,
+                "thread-1",
+                &imported,
+                EpiphanyStateUpdate {
+                    expected_revision: None,
+                    objective: Some("Stale host overwrite".to_string()),
+                    ..Default::default()
+                },
+                None,
+            )
+            .is_err()
+        );
+        assert_eq!(
+            read_coordinator_state(&store)?
+                .unwrap()
+                .objective
+                .as_deref(),
+            Some("Native authority")
         );
         Ok(())
     }

@@ -272,5 +272,13 @@ cancellation. `epiphany-mvp-status --interrupt-binding` uses this path by
 default; `--codex` selects the compatibility route explicitly. The bridge now
 delegates interruption to `EpiphanyCoordinatorService::interrupt_job`; a source
 guard rejects local binding mutation, and stale unified state is refused before
-commit. General update/promotion routes still persist through the host hook and
-are the next surviving state-authority seam.
+commit.
+
+Generic update and promotion now commit through
+`EpiphanyCoordinatorService::apply_state_update_from`. A rollout snapshot may
+seed native state only when the unified store has no state document; once native
+truth exists, stale host input is refused even without an expected revision.
+Only after the native commit succeeds does `epiphany_persist_state` mirror the
+exact committed document for legacy clients, and its return value cannot repair
+or override native truth. The remaining question is whether the rollout mirror
+can be deleted in favor of notification/read projection directly from CultCache.
