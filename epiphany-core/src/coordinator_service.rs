@@ -1,36 +1,13 @@
 use crate::EpiphanyCoordinatorReorientResultSnapshot;
 use crate::EpiphanyCoordinatorRoleResultSnapshot;
-use crate::EpiphanyCoordinatorRoleResultStatus;
-use crate::EpiphanyCrrcResultStatus;
-use crate::EpiphanyLaunchOrganContract;
-use crate::EpiphanyReceiptEffectKind;
-use crate::EpiphanyReorientAcceptanceFinding;
-use crate::EpiphanyReorientFindingInterpretation;
-use crate::EpiphanyRoleAcceptanceFinding;
-use crate::EpiphanyRoleFindingInterpretation;
 use crate::EpiphanyRoleResultRoleId;
-use crate::EpiphanyRoleStatePatchDocument;
 use crate::EpiphanyStateUpdate;
 use crate::EpiphanyStateUpdatedField;
-use crate::MIND_GATEWAY_REVIEW_TYPE;
-use crate::MindGatewayReview;
 use crate::apply_epiphany_state_update;
-use crate::build_reorient_acceptance_bundle;
-use crate::build_role_acceptance_bundle;
-use crate::coordinator_results::latest_runtime_link;
 use crate::epiphany_state_update_validation_errors;
-use crate::imagination_role_state_patch_policy_errors;
 use crate::load_thread_state;
-use crate::mind_review_allows_state;
-use crate::mind_review_reorient_acceptance;
-use crate::mind_review_role_acceptance;
-use crate::modeling_role_state_patch_policy_errors;
 use crate::read_reorient_result_snapshot;
 use crate::read_role_result_snapshot;
-use crate::read_runtime_reorient_result;
-use crate::read_runtime_role_result;
-use crate::research_role_state_patch_policy_errors;
-use crate::runtime_worker_launch_request;
 use crate::write_thread_state;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -38,27 +15,6 @@ use epiphany_state_model::EpiphanyThreadState;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EpiphanyCoordinatorAdmissionError {
-    InvalidRequest(String),
-    Store(String),
-}
-
-impl std::fmt::Display for EpiphanyCoordinatorAdmissionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidRequest(message) | Self::Store(message) => formatter.write_str(message),
-        }
-    }
-}
-
-impl std::error::Error for EpiphanyCoordinatorAdmissionError {}
-
-/// The Epiphany-native owner of coordinator state.
-///
-/// Codex compatibility surfaces may translate requests into calls on this
-/// service, but they do not receive a persistence hook or retain an independent
-/// state opinion.
 #[derive(Debug, Clone)]
 pub struct EpiphanyCoordinatorService {
     thread_state_store: PathBuf,
@@ -70,25 +26,6 @@ pub struct EpiphanyCoordinatorStateApplied {
     pub revision: u64,
     pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub state: EpiphanyThreadState,
-}
-
-pub struct EpiphanyRoleAcceptanceUpdate {
-    pub state_update: EpiphanyStateUpdate,
-    pub applied_patch: EpiphanyRoleStatePatchDocument,
-    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
-    pub accepted_receipt_id: String,
-    pub accepted_observation_id: String,
-    pub accepted_evidence_id: String,
-    pub mind_review: MindGatewayReview,
-}
-
-pub struct EpiphanyReorientAcceptanceUpdate {
-    pub state_update: EpiphanyStateUpdate,
-    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
-    pub accepted_receipt_id: String,
-    pub accepted_observation_id: String,
-    pub accepted_evidence_id: String,
-    pub mind_review: MindGatewayReview,
 }
 
 impl EpiphanyCoordinatorService {
@@ -161,328 +98,6 @@ impl EpiphanyCoordinatorService {
     }
 }
 
-pub fn completed_role_finding(
-    runtime_store_path: Option<&Path>,
-    state: &EpiphanyThreadState,
-    role_id: EpiphanyRoleResultRoleId,
-    binding_id: &str,
-) -> Result<EpiphanyRoleFindingInterpretation, EpiphanyCoordinatorAdmissionError> {
-    let Some(link) = latest_runtime_link(state, binding_id) else {
-        return if state
-            .job_bindings
-            .iter()
-            .any(|binding| binding.id == binding_id)
-        {
-            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(
-                "role findings without runtime-spine results are unsupported; accept only typed runtime-spine results".to_string(),
-            ))
-        } else {
-            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-                "epiphany role binding {binding_id:?} was not found"
-            )))
-        };
-    };
-    let snapshot = read_runtime_role_result(runtime_store_path, &link.runtime_job_id, role_id);
-    if snapshot.status != EpiphanyCoordinatorRoleResultStatus::Completed {
-        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-            "cannot accept role result while worker status is {:?}",
-            snapshot.status
-        )));
-    }
-    let store = runtime_store_path.ok_or_else(|| {
-        EpiphanyCoordinatorAdmissionError::InvalidRequest(
-            "cannot accept completed role worker without a loaded runtime-spine store".to_string(),
-        )
-    })?;
-    load_launch_organ_contract(store, &link.runtime_job_id, "role")?;
-    snapshot.finding.ok_or_else(|| {
-        EpiphanyCoordinatorAdmissionError::InvalidRequest(
-            "cannot accept completed role worker because no typed runtime-spine result was recorded"
-                .to_string(),
-        )
-    })
-}
-
-pub fn completed_reorient_finding(
-    runtime_store_path: Option<&Path>,
-    state: &EpiphanyThreadState,
-    binding_id: &str,
-) -> Result<EpiphanyReorientFindingInterpretation, EpiphanyCoordinatorAdmissionError> {
-    let Some(link) = latest_runtime_link(state, binding_id) else {
-        return if state
-            .job_bindings
-            .iter()
-            .any(|binding| binding.id == binding_id)
-        {
-            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(
-                "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results".to_string(),
-            ))
-        } else {
-            Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-                "epiphany reorientation binding {binding_id:?} was not found"
-            )))
-        };
-    };
-    let snapshot = read_runtime_reorient_result(runtime_store_path, &link.runtime_job_id);
-    if snapshot.status != EpiphanyCrrcResultStatus::Completed {
-        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-            "cannot accept reorientation result while worker status is {:?}",
-            snapshot.status
-        )));
-    }
-    let store = runtime_store_path.ok_or_else(|| {
-        EpiphanyCoordinatorAdmissionError::InvalidRequest(
-            "cannot accept completed reorientation worker without a loaded runtime-spine store"
-                .to_string(),
-        )
-    })?;
-    load_launch_organ_contract(store, &link.runtime_job_id, "reorient")?;
-    snapshot.finding.ok_or_else(|| {
-        EpiphanyCoordinatorAdmissionError::InvalidRequest(
-            "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
-                .to_string(),
-        )
-    })
-}
-
-pub fn load_launch_organ_contract(
-    runtime_store_path: &Path,
-    job_id: &str,
-    expected_document_kind: &str,
-) -> Result<EpiphanyLaunchOrganContract, EpiphanyCoordinatorAdmissionError> {
-    let request = runtime_worker_launch_request(runtime_store_path, job_id).map_err(|error| {
-        EpiphanyCoordinatorAdmissionError::Store(format!(
-            "failed to read worker launch request for runtime job {job_id:?}: {error}"
-        ))
-    })?;
-    let request = request.ok_or_else(|| {
-        EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-            "cannot accept runtime job {job_id:?} without its typed worker launch request"
-        ))
-    })?;
-    if request.document_kind != expected_document_kind {
-        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-            "cannot accept runtime job {job_id:?}: launch document kind {:?} does not match expected {expected_document_kind:?}",
-            request.document_kind
-        )));
-    }
-    if request.organ_launch_contract.dependencies.is_empty()
-        || request
-            .organ_launch_contract
-            .receipt_proof_profiles
-            .is_empty()
-    {
-        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-            "cannot accept runtime job {job_id:?}: worker launch request has no organ dependency/proof-profile contract"
-        )));
-    }
-    if !request
-        .organ_launch_contract
-        .receipt_proof_profiles
-        .iter()
-        .any(|profile| {
-            profile.effect_kind == EpiphanyReceiptEffectKind::StateAdmission
-                && profile
-                    .required_before_promotion_document_types
-                    .iter()
-                    .any(|document_type| document_type == MIND_GATEWAY_REVIEW_TYPE)
-        })
-    {
-        return Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
-            "cannot accept runtime job {job_id:?}: worker launch contract has no state-admission proof profile requiring Mind review"
-        )));
-    }
-    Ok(request.organ_launch_contract)
-}
-
-pub fn build_native_role_acceptance_update(
-    expected_revision: Option<u64>,
-    role_id: EpiphanyRoleResultRoleId,
-    binding_id: &str,
-    finding: &EpiphanyRoleFindingInterpretation,
-    accepted_evidence_id: String,
-    accepted_observation_id: String,
-    accepted_at: String,
-) -> Result<EpiphanyRoleAcceptanceUpdate, String> {
-    let mut patch = finding.state_patch.clone().unwrap_or_default();
-    let errors = match role_id {
-        EpiphanyRoleResultRoleId::Imagination => imagination_role_state_patch_policy_errors(&patch),
-        EpiphanyRoleResultRoleId::Modeling => modeling_role_state_patch_policy_errors(&patch),
-        EpiphanyRoleResultRoleId::Research => research_role_state_patch_policy_errors(&patch),
-        EpiphanyRoleResultRoleId::Verification => {
-            patch = EpiphanyRoleStatePatchDocument::default();
-            Vec::new()
-        }
-        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
-            return Err(format!(
-                "role {role_id:?} cannot be accepted through roleAccept"
-            ));
-        }
-    };
-    if role_id != EpiphanyRoleResultRoleId::Verification && finding.state_patch.is_none() {
-        return Err("completed role finding did not include a reviewable statePatch".to_string());
-    }
-    if !errors.is_empty() {
-        return Err(format!(
-            "{} role state patch is not acceptable: {}",
-            role_label_lower(role_id),
-            errors.join("; ")
-        ));
-    }
-
-    let projected_fields = changed_fields_from_patch(&patch)
-        .iter()
-        .map(|field| format!("{field:?}"))
-        .collect();
-    let mind_review = mind_review_role_acceptance(binding_id, role_id, finding, &patch);
-    mind_review_allows_state(&mind_review)?;
-    let bundle = build_role_acceptance_bundle(
-        binding_id,
-        EpiphanyRoleAcceptanceFinding {
-            role_id,
-            verdict: finding.verdict.clone(),
-            summary: finding.summary.clone(),
-            next_safe_move: finding.next_safe_move.clone(),
-            files_inspected: finding.files_inspected.clone(),
-            runtime_result_id: finding.runtime_result_id.clone(),
-            runtime_job_id: finding.runtime_job_id.clone(),
-            projected_fields,
-        },
-        accepted_evidence_id,
-        accepted_observation_id,
-        accepted_at,
-    )?;
-    let accepted_receipt_id = bundle.accepted_receipt_id.clone();
-    let accepted_observation_id = bundle.accepted_observation_id.clone();
-    let accepted_evidence_id = bundle.accepted_evidence_id.clone();
-    patch.evidence.push(bundle.evidence);
-    patch.observations.push(bundle.observation);
-    patch.acceptance_receipts.push(bundle.receipt);
-    let changed_fields = changed_fields_from_patch(&patch);
-    Ok(EpiphanyRoleAcceptanceUpdate {
-        state_update: state_update_from_patch(expected_revision, patch.clone()),
-        applied_patch: patch,
-        changed_fields,
-        accepted_receipt_id,
-        accepted_observation_id,
-        accepted_evidence_id,
-        mind_review,
-    })
-}
-
-pub fn build_native_reorient_acceptance_update(
-    expected_revision: Option<u64>,
-    binding_id: &str,
-    finding: &EpiphanyReorientFindingInterpretation,
-    accepted_evidence_id: String,
-    accepted_observation_id: String,
-    accepted_at: String,
-    update_scratch: bool,
-    update_investigation_checkpoint: bool,
-    checkpoint: Option<epiphany_state_model::EpiphanyInvestigationCheckpoint>,
-) -> Result<EpiphanyReorientAcceptanceUpdate, String> {
-    let mind_finding = EpiphanyReorientAcceptanceFinding {
-        mode: finding.mode.clone(),
-        summary: finding.summary.clone(),
-        next_safe_move: finding.next_safe_move.clone(),
-        checkpoint_still_valid: finding.checkpoint_still_valid,
-        files_inspected: finding.files_inspected.clone(),
-        runtime_result_id: finding.runtime_result_id.clone(),
-        runtime_job_id: finding.runtime_job_id.clone(),
-    };
-    let mind_review = mind_review_reorient_acceptance(
-        binding_id,
-        &mind_finding,
-        update_scratch,
-        update_investigation_checkpoint,
-    );
-    mind_review_allows_state(&mind_review)?;
-    let bundle = build_reorient_acceptance_bundle(
-        binding_id,
-        mind_finding,
-        accepted_evidence_id,
-        accepted_observation_id,
-        accepted_at,
-        update_scratch,
-        update_investigation_checkpoint
-            .then_some(checkpoint)
-            .flatten(),
-    )?;
-    let accepted_receipt_id = bundle.accepted_receipt_id.clone();
-    let accepted_observation_id = bundle.accepted_observation_id.clone();
-    let accepted_evidence_id = bundle.accepted_evidence_id.clone();
-    let mut changed_fields = vec![
-        EpiphanyStateUpdatedField::AcceptanceReceipts,
-        EpiphanyStateUpdatedField::Observations,
-        EpiphanyStateUpdatedField::Evidence,
-    ];
-    if bundle.scratch.is_some() {
-        changed_fields.push(EpiphanyStateUpdatedField::Scratch);
-    }
-    if bundle.investigation_checkpoint.is_some() {
-        changed_fields.push(EpiphanyStateUpdatedField::InvestigationCheckpoint);
-    }
-    Ok(EpiphanyReorientAcceptanceUpdate {
-        state_update: EpiphanyStateUpdate {
-            expected_revision,
-            scratch: bundle.scratch,
-            investigation_checkpoint: bundle.investigation_checkpoint,
-            acceptance_receipts: vec![bundle.receipt],
-            observations: vec![bundle.observation],
-            evidence: vec![bundle.evidence],
-            ..Default::default()
-        },
-        changed_fields,
-        accepted_receipt_id,
-        accepted_observation_id,
-        accepted_evidence_id,
-        mind_review,
-    })
-}
-
-fn state_update_from_patch(
-    expected_revision: Option<u64>,
-    patch: EpiphanyRoleStatePatchDocument,
-) -> EpiphanyStateUpdate {
-    EpiphanyStateUpdate {
-        expected_revision,
-        objective: patch.objective,
-        active_subgoal_id: patch.active_subgoal_id,
-        subgoals: patch.subgoals,
-        invariants: patch.invariants,
-        graphs: patch.graphs,
-        graph_frontier: patch.graph_frontier,
-        graph_checkpoint: patch.graph_checkpoint,
-        scratch: patch.scratch,
-        investigation_checkpoint: patch.investigation_checkpoint,
-        job_bindings: patch.job_bindings,
-        acceptance_receipts: patch.acceptance_receipts,
-        runtime_links: patch.runtime_links,
-        observations: patch.observations,
-        evidence: patch.evidence,
-        churn: patch.churn,
-        mode: patch.mode,
-        planning: patch.planning,
-    }
-}
-
-fn changed_fields_from_patch(
-    patch: &EpiphanyRoleStatePatchDocument,
-) -> Vec<EpiphanyStateUpdatedField> {
-    changed_fields(&state_update_from_patch(None, patch.clone()))
-}
-
-fn role_label_lower(role_id: EpiphanyRoleResultRoleId) -> &'static str {
-    match role_id {
-        EpiphanyRoleResultRoleId::Imagination => "imagination",
-        EpiphanyRoleResultRoleId::Modeling => "modeling",
-        EpiphanyRoleResultRoleId::Research => "research",
-        EpiphanyRoleResultRoleId::Verification => "verification",
-        EpiphanyRoleResultRoleId::Implementation => "implementation",
-        EpiphanyRoleResultRoleId::Reorientation => "reorientation",
-    }
-}
-
 pub fn apply_coordinator_state_update_to_state(
     current_state: &EpiphanyThreadState,
     update: EpiphanyStateUpdate,
@@ -515,7 +130,7 @@ pub fn apply_coordinator_state_update_to_state(
     Ok(next_state)
 }
 
-fn changed_fields(update: &EpiphanyStateUpdate) -> Vec<EpiphanyStateUpdatedField> {
+pub(crate) fn changed_fields(update: &EpiphanyStateUpdate) -> Vec<EpiphanyStateUpdatedField> {
     let mut fields = Vec::new();
     if update.objective.is_some() {
         fields.push(EpiphanyStateUpdatedField::Objective);
@@ -574,6 +189,8 @@ fn changed_fields(update: &EpiphanyStateUpdate) -> Vec<EpiphanyStateUpdatedField
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::EpiphanyCoordinatorAdmissionError;
+    use crate::completed_role_finding;
 
     #[test]
     fn native_service_owns_revision_gated_thread_state() -> Result<()> {

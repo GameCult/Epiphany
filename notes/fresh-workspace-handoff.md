@@ -692,6 +692,14 @@ service fell from 1,122 to 661 lines; the result organ is 461 lines and remains
 read-only. Sixteen coordinator-related core tests and all eight bridge tests
 pass. Split acceptance and state next before resuming authority extraction.
 
+Acceptance is now split into
+`epiphany-core/src/coordinator_acceptance.rs`: admission errors,
+completed-finding checks, launch-contract proof validation, Mind review, and
+role/reorientation acceptance mutation construction. The remaining mixed
+service fell from 661 to 278 lines; acceptance is 367 lines and results remain
+461 lines. The same sixteen coordinator-related core tests and eight bridge
+tests pass. Extract state ownership next, leaving a policy-free facade.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
