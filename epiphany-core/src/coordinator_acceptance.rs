@@ -1,5 +1,5 @@
 use crate::coordinator_results::latest_runtime_link;
-use crate::coordinator_service::changed_fields;
+use crate::coordinator_state::changed_fields;
 use crate::*;
 use epiphany_state_model::EpiphanyThreadState;
 use std::path::Path;
@@ -363,5 +363,27 @@ fn role_label_lower(role_id: EpiphanyRoleResultRoleId) -> &'static str {
         EpiphanyRoleResultRoleId::Verification => "verification",
         EpiphanyRoleResultRoleId::Implementation => "implementation",
         EpiphanyRoleResultRoleId::Reorientation => "reorientation",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completed_finding_admission_refuses_missing_binding() {
+        let error = completed_role_finding(
+            None,
+            &EpiphanyThreadState::default(),
+            EpiphanyRoleResultRoleId::Modeling,
+            "modeling-worker",
+        )
+        .expect_err("missing binding must not become an acceptable finding");
+        assert_eq!(
+            error,
+            EpiphanyCoordinatorAdmissionError::InvalidRequest(
+                "epiphany role binding \"modeling-worker\" was not found".to_string()
+            )
+        );
     }
 }

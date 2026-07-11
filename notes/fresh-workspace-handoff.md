@@ -700,6 +700,16 @@ service fell from 661 to 278 lines; acceptance is 367 lines and results remain
 461 lines. The same sixteen coordinator-related core tests and eight bridge
 tests pass. Extract state ownership next, leaving a policy-free facade.
 
+The corrective anatomy split is complete. CultCache state load/write, revision
+validation, mutation application, and changed-field derivation now live in
+`coordinator_state.rs` (146 lines). The production coordinator facade is 81
+lines; a source guard forbids policy functions, JSON, and
+`thread/epiphany/*` markers and caps its size below 90 production lines.
+Acceptance is 389 lines and results are 461 lines. Sixteen coordinator core
+tests and all eight bridge tests pass. Resume receipt persistence/proof
+enforcement extraction through the acceptance organ; do not add policy back to
+the facade.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
