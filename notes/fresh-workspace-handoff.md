@@ -1857,9 +1857,13 @@ imports are deleted. Begin `epiphany-mvp-coordinator` AppServerClient removal.
 Coordinator read authority is now native. Status plus role/reorientation result
 reads invoke `epiphany-mvp-status --native` over the shared CultCache store; six
 Codex view/result calls were deleted and a source test rejects AppServerClient or
-`thread/epiphany/*` inside those functions. Seven production mutation route
-strings remain: bootstrap update/freshness, role acceptance, role/reorient
-launch, and supersession update. Cut those next, then delete app-server startup.
+`thread/epiphany/*` inside those functions. Role mutation is native too: `launch_role` loads native state, renders the same
+Verse/memory context, appends Verification Hands evidence or Modeling work-loop
+telemetry, builds the typed request, and calls the atomic service launch.
+`accept_role` calls the service acceptance actuator directly. A source test
+guards every required context seam and rejects AppServerClient/routes. Five
+production routes remain: bootstrap update/freshness, supersession update, and
+reorientation launch.
 
 ## Immediate Re-entry Instruction
 

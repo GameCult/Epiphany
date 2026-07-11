@@ -238,6 +238,11 @@ unable to decide the result.
 Coordinator sight has crossed the boundary. `collect_coordinator_status`, role
 result readback, and reorientation result readback now use the native status
 projection over the shared thread/runtime CultCache store. The coordinator no
-longer calls Codex for `view`, `roleResult`, or `reorientResult`. Bootstrap,
-launch, acceptance dispatch, and supersession mutations still use app-server
-routes and remain the live cut line.
+longer calls Codex for `view`, `roleResult`, or `reorientResult`.
+
+Role mutation has now crossed too. `epiphany-mvp-coordinator` builds role launch
+requests from native state plus the full native Verse/memory/work-loop context,
+publishes them through `EpiphanyCoordinatorService::launch_job`, and dispatches
+auto-review through `accept_role`. The role launch and role acceptance routes
+are gone. Bootstrap/freshness, supersession update, and reorientation launch are
+the five remaining production route strings.

@@ -450,10 +450,11 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     steps.push(step);
                     break;
                 }
-                let accepted = client.send(
-                    "thread/epiphany/roleAccept",
-                    Some(json!({"threadId": thread_id, "roleId": role_id, "expectedRevision": revision})),
-                    true,
+                let accepted = accept_role(
+                    &runtime_store,
+                    &thread_id,
+                    role_id,
+                    revision.and_then(|value| u64::try_from(value).ok()),
                 )?;
                 if let Some(memory) = maybe_apply_role_self_patch(&accepted, &agent_memory_dir)? {
                     let mut accepted_with_memory = accepted.clone();
@@ -513,7 +514,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 let role_id = role_id_for_coordinator_action(&action)
                     .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
                 let launch = launch_role(
-                    &mut client,
+                    &runtime_store,
                     &thread_id,
                     role_id,
                     revision,
@@ -983,18 +984,106 @@ fn push_requested_path(paths: &mut Vec<String>, path: &str) {
 }
 
 fn launch_role(
-    client: &mut status_cli::AppServerClient,
+    runtime_store: &Path,
     thread_id: &str,
     role_id: &str,
     expected_revision: Option<i64>,
     max_runtime_seconds: u64,
 ) -> Result<Value> {
-    let mut payload =
-        json!({"threadId": thread_id, "roleId": role_id, "maxRuntimeSeconds": max_runtime_seconds});
-    if let Some(revision) = expected_revision {
-        payload["expectedRevision"] = json!(revision);
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let state = service
+        .state()?
+        .ok_or_else(|| anyhow!("cannot launch role without native coordinator state"))?;
+    let role = parse_role_id(role_id)?;
+    let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
+    let mut context = epiphany_core::render_launch_dynamic_prompt_context(
+        runtime_store,
+        &state,
+        epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role)),
+    )
+    .map_err(anyhow::Error::msg)?;
+    if role == epiphany_core::EpiphanyRoleResultRoleId::Verification {
+        context = epiphany_core::append_verification_hands_receipt_context(
+            context,
+            runtime_store,
+            &state,
+        )
+        .map_err(anyhow::Error::msg)?;
+    } else if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
+        context = epiphany_core::append_modeling_work_loop_telemetry_context(
+            context,
+            runtime_store,
+            &state,
+        )
+        .map_err(anyhow::Error::msg)?;
     }
-    client.send("thread/epiphany/roleLaunch", Some(payload), true)
+    let request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
+        thread_id,
+        role,
+        expected_revision,
+        Some(max_runtime_seconds),
+        &state,
+        Some(context),
+    )
+    .map_err(anyhow::Error::msg)?;
+    let launched = service.launch_job(
+        thread_id,
+        &state,
+        &request,
+        format!("epiphany-heartbeat-launch-{}", Uuid::new_v4()),
+        Uuid::new_v4().to_string(),
+        now(),
+    )?;
+    Ok(json!({
+        "bindingId": launched.binding_id,
+        "launcherJobId": launched.launcher_job_id,
+        "backendJobId": launched.backend_job_id,
+        "revision": launched.epiphany_state.revision,
+        "epiphanyState": launched.epiphany_state,
+    }))
+}
+
+fn accept_role(
+    runtime_store: &Path,
+    thread_id: &str,
+    role_id: &str,
+    expected_revision: Option<u64>,
+) -> Result<Value> {
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let state = service
+        .state()?
+        .ok_or_else(|| anyhow!("cannot accept role without native coordinator state"))?;
+    let role = parse_role_id(role_id)?;
+    let accepted = service.accept_role(
+        thread_id,
+        &state,
+        role,
+        &default_binding_id_for_role(role_id),
+        expected_revision,
+        None,
+        now(),
+        &Uuid::new_v4().to_string(),
+    )?;
+    Ok(json!({
+        "roleId": role,
+        "revision": accepted.state.revision,
+        "epiphanyState": accepted.state,
+        "acceptedReceiptId": accepted.update.accepted_receipt_id,
+        "acceptedObservationId": accepted.update.accepted_observation_id,
+        "acceptedEvidenceId": accepted.update.accepted_evidence_id,
+        "appliedPatch": accepted.update.applied_patch,
+        "finding": accepted.finding,
+    }))
+}
+
+fn parse_role_id(role_id: &str) -> Result<epiphany_core::EpiphanyRoleResultRoleId> {
+    match role_id {
+        "imagination" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Imagination),
+        "research" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Research),
+        "modeling" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Modeling),
+        "verification" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Verification),
+        _ => Err(anyhow!("unsupported coordinator role {role_id:?}")),
+    }
 }
 
 fn role_id_for_coordinator_action(action: &str) -> Option<&'static str> {
@@ -1700,6 +1789,28 @@ mod tests {
         assert!(reads.contains("collect_coordinator_status"));
         assert!(!reads.contains("AppServerClient"));
         assert!(!reads.contains("thread/epiphany/"));
+    }
+
+    #[test]
+    fn coordinator_role_launch_and_acceptance_are_native() {
+        let source = include_str!("epiphany-mvp-coordinator.rs");
+        let start = source.find("fn launch_role").unwrap();
+        let end = source.find("fn role_id_for_coordinator_action").unwrap();
+        let native_roles = &source[start..end];
+        for required in [
+            "render_launch_dynamic_prompt_context",
+            "append_verification_hands_receipt_context",
+            "append_modeling_work_loop_telemetry_context",
+            ".launch_job(",
+            ".accept_role(",
+        ] {
+            assert!(
+                native_roles.contains(required),
+                "missing native role seam {required:?}"
+            );
+        }
+        assert!(!native_roles.contains("AppServerClient"));
+        assert!(!native_roles.contains("thread/epiphany/"));
     }
 
     #[test]
