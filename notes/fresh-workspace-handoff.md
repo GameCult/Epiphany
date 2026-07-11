@@ -685,6 +685,13 @@ facade as specified in `notes/native-coordinator-liberation-map.md`. Preserve
 the landed authority moves, but delete the newborn monolithic shape. A smaller
 crate address does not make a giant mixed-authority file pure.
 
+The first corrective split is landed: typed role/reorientation result
+selection, runtime-spine decoding, lifecycle failure interpretation, and note
+rendering now live in `epiphany-core/src/coordinator_results.rs`. The mixed
+service fell from 1,122 to 661 lines; the result organ is 461 lines and remains
+read-only. Sixteen coordinator-related core tests and all eight bridge tests
+pass. Split acceptance and state next before resuming authority extraction.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
