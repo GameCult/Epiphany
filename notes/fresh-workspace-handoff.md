@@ -670,6 +670,13 @@ Mind-review requirement. `epiphany-codex-bridge::runtime_results` only maps the
 native admission error into compatibility error classes. Full role/reorient
 acceptance mutation and launch choreography remain in the bridge.
 
+Role/reorientation acceptance mutation construction is now core-owned as well:
+role-specific patch policy, Mind review, acceptance bundle, accepted
+evidence/observation/receipt insertion, changed-field derivation, and the typed
+state update are produced by `epiphany-core::coordinator_service`. The old
+bridge builders were deleted rather than retained as fallbacks. Bridge receipt
+persistence/proof enforcement and final state admission still remain to move.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
