@@ -651,6 +651,15 @@ binary still use the compatibility nervous system. Move those authorities next
 and do not call the service complete while `AppServerClient` remains in the
 coordinator.
 
+Second native cut moves runtime result decoding into the same core service:
+role and reorientation lifecycle status, typed worker-result loading, failed or
+cancelled finding projection, and operator note rendering no longer belong to
+`epiphany-codex-bridge::runtime_results`. The bridge retains compatibility type
+aliases and delegates job readback to core. Native coordinator tests and all
+eight bridge library tests pass, including typed-result enforcement and failed
+lifecycle projection. Binding selection and acceptance choreography still live
+in the bridge and remain the next extraction seam.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
