@@ -640,6 +640,17 @@ ownership fault is that `epiphany-mvp-coordinator` still uses
 and recovery. Migrate that whole control loop to one native typed service; do
 not add a parallel native state path or a native/compatibility mode flag.
 
+First executable cut landed in `023b47cb`: `epiphany-core::coordinator_service`
+now owns CultCache thread-state loading/writing plus revision and admission
+policy. The bridge's pure state-update function delegates to the core policy
+instead of retaining a second implementation. Core tests prove native write
+and stale-revision refusal without mutation; all eight bridge library tests
+pass after `72bf0102` corrected the bundled Persona prompt key. This is not yet
+coordinator liberation: launch, result, acceptance, views, and the coordinator
+binary still use the compatibility nervous system. Move those authorities next
+and do not call the service complete while `AppServerClient` remains in the
+coordinator.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
