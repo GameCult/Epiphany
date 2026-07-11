@@ -187,13 +187,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     let overview = cargo_json(
         &manifest,
         "epiphany-work",
-        &[
-            "overview",
-            "--workspace",
-            path_str(&repo)?,
-            "--item",
-            item,
-        ],
+        &["overview", "--workspace", path_str(&repo)?, "--item", item],
         &root,
     )?;
     let brief_text = fs::read_to_string(repo.join(target_path))
@@ -271,11 +265,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["intakeConsensus", "planSafeActionFamily"],
         "repo.consensus_brief",
     )?;
-    require_bool(
-        &overview,
-        &["intakeConsensus", "planModelAuthored"],
-        true,
-    )?;
+    require_bool(&overview, &["intakeConsensus", "planModelAuthored"], true)?;
     require_bool(
         &overview,
         &["intakeConsensus", "handsAuthorityGranted"],
@@ -311,11 +301,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["proofBundle", "intakeConsensus", "planSafeActionFamily"],
         "repo.consensus_brief",
     )?;
-    require_array_text_contains(
-        &overview,
-        &["verseProjection", "tuiRows"],
-        "CONSENSUS |",
-    )?;
+    require_array_text_contains(&overview, &["verseProjection", "tuiRows"], "CONSENSUS |")?;
     require_array_text_contains(
         &overview,
         &["verseProjection", "tuiRows"],

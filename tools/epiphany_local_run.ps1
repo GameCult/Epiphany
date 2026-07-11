@@ -2855,7 +2855,11 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.changedPaths -and $result.changedPaths.Count -gt 0) {
                 $changedPaths = ($result.changedPaths -join ",")
             }
-            Write-Host "Bifrost artifact acceptance: status=$($result.status), item=$($result.item), receipt=$($result.receiptId), artifact=$($result.artifactRef), publicProof=$($result.publicProofRef), changedPaths=$changedPaths, privateStateExposed=$($result.privateStateExposed)"
+            $reviewReceipts = "none"
+            if ($null -ne $result.reviewReceiptIds -and $result.reviewReceiptIds.Count -gt 0) {
+                $reviewReceipts = ($result.reviewReceiptIds -join ",")
+            }
+            Write-Host "Bifrost artifact acceptance: status=$($result.status), item=$($result.item), receipt=$($result.receiptId), branch=$($result.sourceBranch), commit=$($result.commitSha), artifact=$($result.artifactRef), publicProof=$($result.publicProofRef), ledger=$($result.ledgerEntryId), acceptedBy=$($result.acceptedBy), review=$reviewReceipts, changedPaths=$changedPaths, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-metrics") {
             $modelSpend = "none"
             if ($null -ne $result.modelSpendReceiptIds -and $result.modelSpendReceiptIds.Count -gt 0) {
@@ -2869,7 +2873,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.creditReadbackReceiptIds -and $result.creditReadbackReceiptIds.Count -gt 0) {
                 $creditReadback = ($result.creditReadbackReceiptIds -join ",")
             }
-            Write-Host "Bifrost metrics: status=$($result.status), item=$($result.item), receipt=$($result.receiptId), artifactAcceptance=$($result.artifactAcceptanceReceiptId), modelSpend=$modelSpend, reviewLoad=$reviewLoad, creditReadback=$creditReadback, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Bifrost metrics: status=$($result.status), item=$($result.item), receipt=$($result.receiptId), branch=$($result.sourceBranch), artifactAcceptance=$($result.artifactAcceptanceReceiptId), publicProof=$($result.publicProofRef), modelSpend=$modelSpend, reviewLoad=$reviewLoad, creditReadback=$creditReadback, summary=$($result.metricsSummary), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "daemon-survival-rehearsal") {
             Write-Host "Daemon survival rehearsal: status=$($result.status), daemon=$($result.daemonId), scheduler=$($result.schedulerId), policy=$($result.policyStatus), serve=$($result.serveStatus), iterations=$($result.serveIterations), schedulerReceipt=$($result.schedulerReceiptId), serviceManagerMutated=$($result.serviceManagerMutated), elevated=$($result.requiresElevatedAuthority), privateStateExposed=$($result.privateStateExposed), smokeDir=$($result.smokeDir)"
         } elseif ($Mode -eq "repo-swarm-mvp-gate") {

@@ -757,7 +757,9 @@ fn bifrost_bridge_readiness(root: &Path) -> Value {
         .parent()
         .map(|parent| parent.join("Bifrost"))
         .unwrap_or_else(|| root.join("../Bifrost"));
-    let advertisement_tool = bifrost_root.join("tools").join("provider-advertisement.mjs");
+    let advertisement_tool = bifrost_root
+        .join("tools")
+        .join("provider-advertisement.mjs");
     if !advertisement_tool.exists() {
         return json!({
             "status": "unavailable",

@@ -93,7 +93,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         &repo,
     )?;
     git(
-        ["switch", "-c", "epiphany/repo-dependency-policy-request-family"],
+        [
+            "switch",
+            "-c",
+            "epiphany/repo-dependency-policy-request-family",
+        ],
         &repo,
     )?;
 

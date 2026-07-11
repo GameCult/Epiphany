@@ -632,9 +632,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapStageLensRows array"))?;
     let stage_lens_row = stage_lens_rows
         .iter()
-        .find(|row| {
-            row.get("stage").and_then(Value::as_str) == Some("imagination-planning")
-        })
+        .find(|row| row.get("stage").and_then(Value::as_str) == Some("imagination-planning"))
         .ok_or_else(|| anyhow!("Gjallar output had no repo map stage lens row"))?;
     require_eq_value(stage_lens_row, &["owner"], "Imagination")?;
     require_eq_value(stage_lens_row, &["latestItem"], item)?;
@@ -698,7 +696,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         .iter()
         .find(|row| row.get("item").and_then(Value::as_str) == Some(item))
         .ok_or_else(|| anyhow!("Gjallar output had no repo map closure row"))?;
-    require_eq_value(closure_row, &["safeActionFamily"], "repo.markdown_planning_note")?;
+    require_eq_value(
+        closure_row,
+        &["safeActionFamily"],
+        "repo.markdown_planning_note",
+    )?;
     require_eq_value(
         closure_row,
         &["soulVerdictReceiptId"],
@@ -757,7 +759,11 @@ fn run_smoke(args: Args) -> Result<Value> {
                 .is_some_and(|value| value == item)
         })
         .ok_or_else(|| anyhow!("Gjallar output had no acceptance row for {item}"))?;
-    require_eq_value(acceptance_row, &["safeActionFamily"], "repo.markdown_planning_note")?;
+    require_eq_value(
+        acceptance_row,
+        &["safeActionFamily"],
+        "repo.markdown_planning_note",
+    )?;
     require_eq_value(
         acceptance_row,
         &["acceptanceStatus"],

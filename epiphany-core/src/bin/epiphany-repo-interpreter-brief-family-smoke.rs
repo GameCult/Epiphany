@@ -1,9 +1,9 @@
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::Utc;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -209,7 +209,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         &brief_text,
         "schema_version = \"epiphany.repo_interpreter_brief.v0\"",
     )?;
-    require_text(&brief_text, "safe_action_family = \"repo.interpreter_brief\"")?;
+    require_text(
+        &brief_text,
+        "safe_action_family = \"repo.interpreter_brief\"",
+    )?;
     require_text(&brief_text, "[interpreter]")?;
     require_text(&brief_text, "status = \"draft\"")?;
     require_text(&brief_text, "owner = \"Mind\"")?;
@@ -261,7 +264,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         &brief_text,
         "substrate_receipt_required_before_mutation = true",
     )?;
-    require_text(&brief_text, "idunn_receipt_required_before_deployment = true")?;
+    require_text(
+        &brief_text,
+        "idunn_receipt_required_before_deployment = true",
+    )?;
     require_text(&brief_text, "direct_state_commit_authorized = false")?;
     require_text(&brief_text, "objective_adoption_authorized = false")?;
     require_text(&brief_text, "self_scheduling_authorized = false")?;

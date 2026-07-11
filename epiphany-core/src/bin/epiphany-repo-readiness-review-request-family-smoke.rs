@@ -79,11 +79,19 @@ fn run_smoke(args: Args) -> Result<Value> {
     .with_context(|| format!("failed to seed {}", repo.join("README.md").display()))?;
     git(["add", "README.md"], &repo)?;
     git(
-        ["commit", "-m", "Seed repo readiness review request smoke body"],
+        [
+            "commit",
+            "-m",
+            "Seed repo readiness review request smoke body",
+        ],
         &repo,
     )?;
     git(
-        ["switch", "-c", "epiphany/repo-readiness-review-request-family"],
+        [
+            "switch",
+            "-c",
+            "epiphany/repo-readiness-review-request-family",
+        ],
         &repo,
     )?;
 
@@ -223,7 +231,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         &request_text,
         "requested_effect = \"review-redacted-repo-swarm-mvp-proof-bundle\"",
     )?;
-    require_text(&request_text, "readiness_scope = \"fresh repo init, online swarm, Persona intake, Imagination planning, Self queue-run, Hands branch work, Soul closure, Modeling map update, Mind admission, Bifrost public proof, upstream-main sync, Idunn lifecycle, global tool directory, and private-state redaction\"")?;
+    require_text(
+        &request_text,
+        "readiness_scope = \"fresh repo init, online swarm, Persona intake, Imagination planning, Self queue-run, Hands branch work, Soul closure, Modeling map update, Mind admission, Bifrost public proof, upstream-main sync, Idunn lifecycle, global tool directory, and private-state redaction\"",
+    )?;
     require_text(
         &request_text,
         "review_is_advisory_until_maintainer_or_bifrost_acceptance = true",

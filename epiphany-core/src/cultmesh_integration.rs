@@ -2721,7 +2721,7 @@ pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
         available_actions: pointer_string_array(status_json, "/scene/scene/availableActions")?,
         notes: vec![
             "Snapshot is derived from the operator-safe MVP status artifact; raw JSON remains an edge artifact, not internal state.".to_string(),
-            "Codex app-server remains compatibility transport for this source until the status surface is native end to end.".to_string(),
+            "Codex app-server is an external edge adapter for this source until the status surface is native end to end; it is not CultMesh transport authority.".to_string(),
         ],
     })
 }

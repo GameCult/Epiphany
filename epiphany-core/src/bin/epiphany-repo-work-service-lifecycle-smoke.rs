@@ -68,7 +68,10 @@ fn run_smoke(args: Args) -> Result<Value> {
 
     let repo = smoke_dir.join("repo-body");
     fs::create_dir_all(&repo).with_context(|| format!("failed to create {}", repo.display()))?;
-    run_command(Command::new("git").arg("init").current_dir(&repo), "git init")?;
+    run_command(
+        Command::new("git").arg("init").current_dir(&repo),
+        "git init",
+    )?;
     let local_verse = repo.join(".epiphany").join("local-verse.ccmp");
     let runbook_path = smoke_dir.join("epiphany-repo-work-queue-runner.ps1");
     let service_id = "epiphany-repo-work-queue-runner";
@@ -156,9 +159,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     let runbook_row = runbook_rows.iter().find(|row| {
         row.get("family").and_then(Value::as_str) == Some("service-lifecycle")
             && row.get("serviceId").and_then(Value::as_str) == Some(service_id)
-            && row
-                .get("serviceRoute")
-                .and_then(Value::as_str)
+            && row.get("serviceRoute").and_then(Value::as_str)
                 == Some("epiphany-repo-work-queue-runner::runbook")
     });
     let Some(runbook_row) = runbook_row else {
@@ -200,9 +201,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     let launch_row = launch_rows.iter().find(|row| {
         row.get("family").and_then(Value::as_str) == Some("service-lifecycle")
             && row.get("serviceId").and_then(Value::as_str) == Some(service_id)
-            && row
-                .get("serviceRoute")
-                .and_then(Value::as_str)
+            && row.get("serviceRoute").and_then(Value::as_str)
                 == Some("epiphany-repo-work-queue-runner::launch")
     });
     let Some(launch_row) = launch_row else {
@@ -279,9 +278,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     let audit_row = audit_rows.iter().find(|row| {
         row.get("family").and_then(Value::as_str) == Some("service-lifecycle")
             && row.get("serviceId").and_then(Value::as_str) == Some(service_id)
-            && row
-                .get("serviceRoute")
-                .and_then(Value::as_str)
+            && row.get("serviceRoute").and_then(Value::as_str)
                 == Some("epiphany-repo-work-queue-runner::repo-work-service-audit")
     });
     let Some(audit_row) = audit_row else {

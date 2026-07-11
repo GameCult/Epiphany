@@ -355,10 +355,8 @@ fn repo_work_service_audit(args: Args) -> Result<()> {
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
     assert_swarm_brake_allows_service_lifecycle(&context)?;
     let started_at = Utc::now();
-    let receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        &args.runtime_id,
-    )?;
+    let receipts =
+        load_epiphany_cultmesh_daemon_service_lifecycle_receipts(&args.store, &args.runtime_id)?;
     let service_receipts = receipts
         .iter()
         .filter(|receipt| receipt.service_id == args.service_id)
@@ -429,11 +427,15 @@ fn repo_work_service_audit(args: Args) -> Result<()> {
     {
         "tools/epiphany_local_run.ps1 -Mode repo-work-service-plan"
     } else if missing_checks.iter().any(|check| check == "runbook")
-        || failed_checks.iter().any(|check| check.starts_with("runbook "))
+        || failed_checks
+            .iter()
+            .any(|check| check.starts_with("runbook "))
     {
         "tools/epiphany_local_run.ps1 -Mode repo-work-service-runbook"
     } else if missing_checks.iter().any(|check| check == "launch")
-        || failed_checks.iter().any(|check| check.starts_with("launch "))
+        || failed_checks
+            .iter()
+            .any(|check| check.starts_with("launch "))
     {
         "tools/epiphany_local_run.ps1 -Mode repo-work-service-launch"
     } else {

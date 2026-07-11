@@ -96,14 +96,21 @@ pub struct EpiphanyModelToolDefinition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EpiphanyModelInputItem {
-    UserText { text: String },
-    AssistantText { text: String },
+    UserText {
+        text: String,
+    },
+    AssistantText {
+        text: String,
+    },
     ToolCall {
         call_id: String,
         name: String,
         arguments: String,
     },
-    ToolResult { call_id: String, output: String },
+    ToolResult {
+        call_id: String,
+        output: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, DatabaseEntry)]
