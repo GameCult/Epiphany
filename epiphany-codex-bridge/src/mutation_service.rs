@@ -25,7 +25,6 @@ use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
-use epiphany_core::MindGatewayReview;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_TYPE;
@@ -42,19 +41,9 @@ use epiphany_core::eyes_evidence_packet_from_research_finding;
 use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::open_runtime_spine_heartbeat_job;
 use epiphany_core::plan_runtime_spine_heartbeat_launch;
-use epiphany_core::put_continuity_recovery_receipt;
-use epiphany_core::put_eyes_evidence_packet;
-use epiphany_core::put_mind_gateway_review;
-use epiphany_core::put_mind_state_commit_receipt;
-use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::replace_or_append_epiphany_job_binding;
-use epiphany_core::runtime_continuity_recovery_receipt;
-use epiphany_core::runtime_eyes_evidence_packet;
 use epiphany_core::runtime_job_snapshot;
-use epiphany_core::runtime_mind_gateway_review;
-use epiphany_core::runtime_mind_state_commit_receipt;
-use epiphany_core::runtime_soul_verdict_receipt;
 use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::soul_verdict_receipt_from_verification_finding;
 use epiphany_core::substrate_gate_repo_access_grant_for_launch;
@@ -486,17 +475,8 @@ pub async fn apply_thread_epiphany_role_accept(
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
     let applied_patch = acceptance_update.applied_patch.clone();
-    put_mind_gateway_review(runtime_store_path.as_path(), &acceptance_update.mind_review).map_err(
-        |err| {
-            EpiphanyBridgeError::Fatal(format!(
-                "failed to persist Mind review receipt before role state admission: {err}"
-            ))
-        },
-    )?;
-    let mut available_document_types = persisted_mind_review_receipt_types(
-        runtime_store_path.as_path(),
-        acceptance_update.mind_review.gateway_id.as_str(),
-    )?;
+    let mut available_document_types = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
+    let mut prerequisites = Vec::new();
     if role_id == EpiphanyRoleResultRoleId::Research {
         let packet = eyes_evidence_packet_from_research_finding(
             format!("eyes-packet-{accepted_receipt_id}"),
@@ -504,15 +484,8 @@ pub async fn apply_thread_epiphany_role_accept(
             &applied_patch,
             Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
         );
-        put_eyes_evidence_packet(runtime_store_path.as_path(), &packet).map_err(|err| {
-            EpiphanyBridgeError::Fatal(format!(
-                "failed to persist Eyes evidence packet before research state admission: {err}"
-            ))
-        })?;
-        available_document_types.extend(persisted_eyes_evidence_packet_types(
-            runtime_store_path.as_path(),
-            packet.packet_id.as_str(),
-        )?);
+        available_document_types.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
+        prerequisites.push(epiphany_core::EpiphanyAcceptancePrerequisite::Eyes(packet));
         available_document_types.extend(persisted_substrate_gate_grant_types(
             runtime_store_path.as_path(),
             substrate_gate_grant_receipt_id(finding.runtime_job_id.as_deref().unwrap_or_default())
@@ -524,15 +497,8 @@ pub async fn apply_thread_epiphany_role_accept(
             &finding,
             Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
         );
-        put_soul_verdict_receipt(runtime_store_path.as_path(), &verdict).map_err(|err| {
-            EpiphanyBridgeError::Fatal(format!(
-                "failed to persist Soul verdict receipt before verification state admission: {err}"
-            ))
-        })?;
-        available_document_types.extend(persisted_soul_verdict_types(
-            runtime_store_path.as_path(),
-            verdict.receipt_id.as_str(),
-        )?);
+        available_document_types.push(SOUL_VERDICT_RECEIPT_TYPE.to_string());
+        prerequisites.push(epiphany_core::EpiphanyAcceptancePrerequisite::Soul(verdict));
     }
     enforce_current_receipt_proofs(
         &organ_contract,
@@ -540,17 +506,33 @@ pub async fn apply_thread_epiphany_role_accept(
         &available_document_types,
         &role_acceptance_enforceable_receipts(role_id),
     )?;
-    let epiphany_state = admit_epiphany_state_with_mind_commit(
-        thread,
-        runtime_store_path.as_path(),
+    let reference_turn_id = thread.epiphany_reference_turn_id().await;
+    let epiphany_state = epiphany_core::apply_coordinator_state_update_to_state(
+        &state,
         acceptance_update.state_update,
-        acceptance_update.mind_review,
-        format!("mind-commit-{accepted_receipt_id}"),
-        &changed_fields,
-        "role",
+        reference_turn_id,
     )
-    .await?;
-    let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
+    .map_err(|error| EpiphanyBridgeError::InvalidRequest(error.to_string()))?;
+    let commit_receipt = mind_state_commit_receipt(
+        format!("mind-commit-{accepted_receipt_id}"),
+        &acceptance_update.mind_review,
+        epiphany_state.revision,
+        changed_fields
+            .iter()
+            .map(|field| format!("{field:?}"))
+            .collect(),
+        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+    );
+    let thread_id = thread.epiphany_thread_id().await;
+    epiphany_core::commit_state_with_mind_witness(
+        runtime_store_path.as_path(),
+        &thread_id,
+        &epiphany_state,
+        &acceptance_update.mind_review,
+        &commit_receipt,
+        &prerequisites,
+    )
+    .map_err(|error| EpiphanyBridgeError::Fatal(error.to_string()))?;
 
     Ok(EpiphanyRoleAcceptApplied {
         revision: epiphany_state.revision,
@@ -610,34 +592,14 @@ pub async fn apply_thread_epiphany_reorient_accept(
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
-    put_mind_gateway_review(runtime_store_path.as_path(), &acceptance_update.mind_review).map_err(
-        |err| {
-            EpiphanyBridgeError::Fatal(format!(
-                "failed to persist Mind review receipt before reorientation state admission: {err}"
-            ))
-        },
-    )?;
-    let mut available_document_types = persisted_mind_review_receipt_types(
-        runtime_store_path.as_path(),
-        acceptance_update.mind_review.gateway_id.as_str(),
-    )?;
+    let mut available_document_types = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
     let recovery_receipt = continuity_recovery_receipt_from_reorient_finding(
         format!("continuity-recovery-{accepted_receipt_id}"),
         binding_id.to_string(),
         &finding,
         Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
     );
-    put_continuity_recovery_receipt(runtime_store_path.as_path(), &recovery_receipt).map_err(
-        |err| {
-            EpiphanyBridgeError::Fatal(format!(
-                "failed to persist Continuity recovery receipt before reorientation state admission: {err}"
-            ))
-        },
-    )?;
-    available_document_types.extend(persisted_continuity_recovery_types(
-        runtime_store_path.as_path(),
-        recovery_receipt.receipt_id.as_str(),
-    )?);
+    available_document_types.push(CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string());
     enforce_current_receipt_proofs(
         &organ_contract,
         &reorient_acceptance_claimed_effects(),
@@ -647,17 +609,35 @@ pub async fn apply_thread_epiphany_reorient_accept(
             CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
         ],
     )?;
-    let epiphany_state = admit_epiphany_state_with_mind_commit(
-        thread,
-        runtime_store_path.as_path(),
+    let reference_turn_id = thread.epiphany_reference_turn_id().await;
+    let epiphany_state = epiphany_core::apply_coordinator_state_update_to_state(
+        &state,
         acceptance_update.state_update,
-        acceptance_update.mind_review,
-        format!("mind-commit-{accepted_receipt_id}"),
-        &changed_fields,
-        "reorientation",
+        reference_turn_id,
     )
-    .await?;
-    let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
+    .map_err(|error| EpiphanyBridgeError::InvalidRequest(error.to_string()))?;
+    let commit_receipt = mind_state_commit_receipt(
+        format!("mind-commit-{accepted_receipt_id}"),
+        &acceptance_update.mind_review,
+        epiphany_state.revision,
+        changed_fields
+            .iter()
+            .map(|field| format!("{field:?}"))
+            .collect(),
+        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+    );
+    let thread_id = thread.epiphany_thread_id().await;
+    epiphany_core::commit_state_with_mind_witness(
+        runtime_store_path.as_path(),
+        &thread_id,
+        &epiphany_state,
+        &acceptance_update.mind_review,
+        &commit_receipt,
+        &[epiphany_core::EpiphanyAcceptancePrerequisite::Continuity(
+            recovery_receipt,
+        )],
+    )
+    .map_err(|error| EpiphanyBridgeError::Fatal(error.to_string()))?;
 
     Ok(EpiphanyReorientAcceptApplied {
         revision: epiphany_state.revision,
@@ -950,78 +930,6 @@ fn enforce_current_receipt_proofs(
     .map_err(map_coordinator_admission_error)
 }
 
-async fn admit_epiphany_state_with_mind_commit(
-    thread: &impl EpiphanyMutationHost,
-    runtime_store_path: &Path,
-    state_update: EpiphanyStateUpdate,
-    mind_review: MindGatewayReview,
-    commit_receipt_id: String,
-    changed_fields: &[EpiphanyStateUpdatedField],
-    admission_kind: &str,
-) -> BridgeResult<EpiphanyThreadState> {
-    let epiphany_state = apply_epiphany_state_update_to_thread(thread, state_update).await?;
-    let commit_receipt = mind_state_commit_receipt(
-        commit_receipt_id.clone(),
-        &mind_review,
-        epiphany_state.revision,
-        changed_fields
-            .iter()
-            .map(|field| format!("{field:?}"))
-            .collect(),
-        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-    );
-    put_mind_state_commit_receipt(runtime_store_path, &commit_receipt).map_err(|err| {
-        EpiphanyBridgeError::Fatal(format!(
-            "failed to persist Mind state-commit receipt after {admission_kind} state admission: {err}"
-        ))
-    })?;
-    let persisted = runtime_mind_state_commit_receipt(runtime_store_path, commit_receipt_id.as_str())
-        .map_err(|err| {
-            EpiphanyBridgeError::Fatal(format!(
-                "failed to verify Mind state-commit receipt after {admission_kind} state admission: {err}"
-            ))
-        })?;
-    if persisted.is_none() {
-        return Err(EpiphanyBridgeError::Fatal(format!(
-            "Mind state-commit receipt {:?} was missing after {admission_kind} state admission",
-            commit_receipt_id
-        )));
-    }
-    Ok(epiphany_state)
-}
-
-fn persisted_mind_review_receipt_types(
-    runtime_store_path: &Path,
-    gateway_id: &str,
-) -> BridgeResult<Vec<String>> {
-    let review = runtime_mind_gateway_review(runtime_store_path, gateway_id).map_err(|err| {
-        EpiphanyBridgeError::Fatal(format!(
-            "failed to verify persisted Mind review receipt {:?}: {err}",
-            gateway_id
-        ))
-    })?;
-    Ok(review
-        .is_some()
-        .then(|| vec![MIND_GATEWAY_REVIEW_TYPE.to_string()])
-        .unwrap_or_default())
-}
-
-fn persisted_eyes_evidence_packet_types(
-    runtime_store_path: &Path,
-    packet_id: &str,
-) -> BridgeResult<Vec<String>> {
-    let packet = runtime_eyes_evidence_packet(runtime_store_path, packet_id).map_err(|err| {
-        EpiphanyBridgeError::Fatal(format!(
-            "failed to verify persisted Eyes evidence packet {:?}: {err}",
-            packet_id
-        ))
-    })?;
-    Ok(packet
-        .is_some()
-        .then(|| vec![EYES_EVIDENCE_PACKET_TYPE.to_string()])
-        .unwrap_or_default())
-}
-
 fn maybe_put_substrate_gate_launch_grant(
     runtime_store_path: &Path,
     request: &EpiphanyJobLaunchRequest,
@@ -1060,39 +968,6 @@ fn persisted_substrate_gate_grant_types(
         .unwrap_or_default())
 }
 
-fn persisted_soul_verdict_types(
-    runtime_store_path: &Path,
-    receipt_id: &str,
-) -> BridgeResult<Vec<String>> {
-    let verdict = runtime_soul_verdict_receipt(runtime_store_path, receipt_id).map_err(|err| {
-        EpiphanyBridgeError::Fatal(format!(
-            "failed to verify persisted Soul verdict {:?}: {err}",
-            receipt_id
-        ))
-    })?;
-    Ok(verdict
-        .is_some()
-        .then(|| vec![SOUL_VERDICT_RECEIPT_TYPE.to_string()])
-        .unwrap_or_default())
-}
-
-fn persisted_continuity_recovery_types(
-    runtime_store_path: &Path,
-    receipt_id: &str,
-) -> BridgeResult<Vec<String>> {
-    let recovery =
-        runtime_continuity_recovery_receipt(runtime_store_path, receipt_id).map_err(|err| {
-            EpiphanyBridgeError::Fatal(format!(
-                "failed to verify persisted Continuity recovery receipt {:?}: {err}",
-                receipt_id
-            ))
-        })?;
-    Ok(recovery
-        .is_some()
-        .then(|| vec![CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string()])
-        .unwrap_or_default())
-}
-
 fn substrate_gate_grant_receipt_id(runtime_job_id: &str) -> String {
     format!("substrate-grant-{runtime_job_id}")
 }
@@ -1122,5 +997,37 @@ fn map_coordinator_admission_error(
         epiphany_core::EpiphanyCoordinatorAdmissionError::Store(message) => {
             EpiphanyBridgeError::Fatal(message)
         }
+    }
+}
+
+#[cfg(test)]
+mod acceptance_architecture_tests {
+    #[test]
+    fn acceptance_routes_have_no_individual_or_post_state_receipt_writes() {
+        let source = include_str!("mutation_service.rs");
+        let role_start = source
+            .find("pub async fn apply_thread_epiphany_role_accept")
+            .unwrap();
+        let launch_start = source
+            .find("pub async fn launch_thread_epiphany_role")
+            .unwrap();
+        let acceptance = &source[role_start..launch_start];
+        for forbidden in [
+            ["put", "mind", "gateway", "review"].join("_"),
+            ["put", "eyes", "evidence", "packet"].join("_"),
+            ["put", "soul", "verdict", "receipt"].join("_"),
+            ["put", "continuity", "recovery", "receipt"].join("_"),
+            ["admit", "epiphany", "state", "with", "mind", "commit"].join("_"),
+            ["epiphany", "persist", "state"].join("_"),
+        ] {
+            assert!(
+                !acceptance.contains(&forbidden),
+                "acceptance route regrew obsolete writer {forbidden:?}"
+            );
+        }
+        assert_eq!(
+            acceptance.matches("commit_state_with_mind_witness").count(),
+            2
+        );
     }
 }

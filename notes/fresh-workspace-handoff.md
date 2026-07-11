@@ -752,6 +752,15 @@ state exists. A corrupt unified store fails closed instead of letting stale
 Codex state retake authority. The vendored app-server check passes. Replace the
 role/reorient write path with the atomic batch next.
 
+Bridge role and reorientation acceptance now use the unified transaction.
+Next state is derived in memory, proof profiles are checked against the exact
+documents destined for the batch, and state + Mind review + role-specific
+prerequisites + Mind commit receipt publish once. The individual Mind/Eyes/
+Soul/Continuity writes and post-state commit helper were deleted. A bridge
+source guard proves both acceptance routes contain exactly one batch call each
+and no obsolete writer or Codex state persistence call. Four native acceptance
+tests, nine bridge tests, and the app-server check pass.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit
