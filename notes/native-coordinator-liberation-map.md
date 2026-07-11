@@ -154,6 +154,12 @@ Each organ owns one invariant and must be testable against injected paths and
 typed inputs without starting Codex. A source guard should fail if the façade
 regrows policy bodies or if any native organ imports app-server protocol types.
 
+Launch-context ownership is now native. `coordinator_launch_context` owns local
+Verse context, memory-graph cuts, Hands consequence evidence, Soul/Modeling
+work-loop telemetry, and bounded prompt rendering. The compatibility bridge's
+`launch_context` module is only a re-export membrane. Coordinator rewiring must
+use these same functions; a context-free launch is not an acceptable shortcut.
+
 ## Acceptance Transaction Wound
 
 The compatibility bridge currently persists prerequisite receipts, writes

@@ -1831,6 +1831,16 @@ with no partial job, worker request, or grant. The next cut is direct native
 `epiphany-mvp-coordinator` operation and removal of its `thread/epiphany/*`
 JSON-RPC dependency.
 
+The final launch-policy survivor in the bridge has also been cut. The former
+`epiphany-codex-bridge/src/launch_context.rs` implementation now lives at
+`epiphany-core/src/coordinator_launch_context.rs`; it preserves local Verse
+seeding/query, memory-graph context cuts, Hands receipt evidence, work-loop
+telemetry for Soul/Modeling, and prompt rendering. The bridge file contains
+only five native re-exports. Three focused native tests prove context persistence,
+Hands evidence projection, and absence of bridge/AppServer/JSON dependencies.
+Do not rewire the coordinator through the context-free launch builders: use this
+native context organ so Codex starvation does not starve the workers too.
+
 ## Immediate Re-entry Instruction
 
 After compaction, first rehydrate and reorient from the listed files and git
