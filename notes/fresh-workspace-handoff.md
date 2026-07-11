@@ -710,6 +710,15 @@ tests and all eight bridge tests pass. Resume receipt persistence/proof
 enforcement extraction through the acceptance organ; do not add policy back to
 the facade.
 
+Pure receipt-proof policy is now native: acceptance launch-contract lookup,
+claimed effects, enforceable receipt families, and proof-profile evaluation
+live in `coordinator_acceptance.rs`; bridge helpers delegate. Do not move the
+remaining persistence sequence unchanged. It writes thread state before the
+Mind state-commit receipt in another store, so a final receipt failure can
+leave unwitnessed accepted state. The transaction/recovery law is specified in
+`notes/native-coordinator-liberation-map.md` and must be solved before final
+acceptance persistence moves.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit

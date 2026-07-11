@@ -38,7 +38,6 @@ use epiphany_core::continuity_recovery_receipt_from_reorient_finding;
 use epiphany_core::epiphany_role_label;
 use epiphany_core::epiphany_state_update_validation_errors;
 use epiphany_core::evaluate_promotion;
-use epiphany_core::evaluate_receipt_proof_profiles;
 use epiphany_core::eyes_evidence_packet_from_research_finding;
 use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::open_runtime_spine_heartbeat_job;
@@ -49,7 +48,6 @@ use epiphany_core::put_mind_gateway_review;
 use epiphany_core::put_mind_state_commit_receipt;
 use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
-use epiphany_core::receipt_proof_evaluation_errors;
 use epiphany_core::replace_or_append_epiphany_job_binding;
 use epiphany_core::runtime_continuity_recovery_receipt;
 use epiphany_core::runtime_eyes_evidence_packet;
@@ -88,10 +86,8 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::runtime_results::latest_epiphany_runtime_link_for_binding;
 use crate::runtime_results::load_completed_core_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_core_epiphany_role_finding;
-use crate::runtime_results::load_launch_organ_contract_for_runtime_job;
 use uuid::Uuid;
 
 #[allow(async_fn_in_trait)]
@@ -922,17 +918,13 @@ fn launch_contract_for_binding(
     binding_id: &str,
     expected_document_kind: &str,
 ) -> BridgeResult<EpiphanyLaunchOrganContract> {
-    let link = latest_epiphany_runtime_link_for_binding(state, binding_id).ok_or_else(|| {
-        EpiphanyBridgeError::InvalidRequest(format!(
-            "cannot prove receipt profile for binding {:?}: no runtime link exists",
-            binding_id
-        ))
-    })?;
-    load_launch_organ_contract_for_runtime_job(
+    epiphany_core::acceptance_launch_contract_for_binding(
         runtime_store_path,
-        link.runtime_job_id.as_str(),
+        state,
+        binding_id,
         expected_document_kind,
     )
+    .map_err(map_coordinator_admission_error)
 }
 
 fn enforce_current_receipt_proofs(
@@ -941,21 +933,13 @@ fn enforce_current_receipt_proofs(
     available_document_types: &[String],
     enforceable_document_types: &[String],
 ) -> BridgeResult<()> {
-    let evaluations = evaluate_receipt_proof_profiles(
+    epiphany_core::enforce_acceptance_receipt_proofs(
         contract,
         claimed_effects,
         available_document_types,
         enforceable_document_types,
-    );
-    let errors = receipt_proof_evaluation_errors(&evaluations);
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "receipt proof profile rejected state admission: {}",
-            errors.join("; ")
-        )))
-    }
+    )
+    .map_err(map_coordinator_admission_error)
 }
 
 async fn admit_epiphany_state_with_mind_commit(
@@ -1109,35 +1093,26 @@ fn role_acceptance_claimed_effects(
     role_id: EpiphanyRoleResultRoleId,
     changed_fields: &[EpiphanyStateUpdatedField],
 ) -> Vec<EpiphanyReceiptEffectKind> {
-    let mut effects = vec![EpiphanyReceiptEffectKind::StateAdmission];
-    if changed_fields.iter().any(|field| {
-        matches!(
-            field,
-            EpiphanyStateUpdatedField::Evidence | EpiphanyStateUpdatedField::Observations
-        )
-    }) {
-        effects.push(EpiphanyReceiptEffectKind::EvidencePromotion);
-    }
-    if matches!(role_id, EpiphanyRoleResultRoleId::Verification) {
-        effects.push(EpiphanyReceiptEffectKind::Verification);
-    }
-    effects
+    epiphany_core::role_acceptance_claimed_effects(role_id, changed_fields)
 }
 
 fn role_acceptance_enforceable_receipts(role_id: EpiphanyRoleResultRoleId) -> Vec<String> {
-    let mut receipts = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
-    if role_id == EpiphanyRoleResultRoleId::Research {
-        receipts.push(SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string());
-        receipts.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
-    } else if role_id == EpiphanyRoleResultRoleId::Verification {
-        receipts.push(SOUL_VERDICT_RECEIPT_TYPE.to_string());
-    }
-    receipts
+    epiphany_core::role_acceptance_enforceable_receipts(role_id)
 }
 
 fn reorient_acceptance_claimed_effects() -> Vec<EpiphanyReceiptEffectKind> {
-    vec![
-        EpiphanyReceiptEffectKind::StateAdmission,
-        EpiphanyReceiptEffectKind::ContinuityRecovery,
-    ]
+    epiphany_core::reorient_acceptance_claimed_effects()
+}
+
+fn map_coordinator_admission_error(
+    error: epiphany_core::EpiphanyCoordinatorAdmissionError,
+) -> EpiphanyBridgeError {
+    match error {
+        epiphany_core::EpiphanyCoordinatorAdmissionError::InvalidRequest(message) => {
+            EpiphanyBridgeError::InvalidRequest(message)
+        }
+        epiphany_core::EpiphanyCoordinatorAdmissionError::Store(message) => {
+            EpiphanyBridgeError::Fatal(message)
+        }
+    }
 }

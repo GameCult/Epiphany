@@ -178,6 +178,84 @@ pub fn load_launch_organ_contract(
     Ok(request.organ_launch_contract)
 }
 
+pub fn acceptance_launch_contract_for_binding(
+    runtime_store_path: &Path,
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+    expected_document_kind: &str,
+) -> Result<EpiphanyLaunchOrganContract, EpiphanyCoordinatorAdmissionError> {
+    let link = latest_runtime_link(state, binding_id).ok_or_else(|| {
+        EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+            "cannot prove receipt profile for binding {binding_id:?}: no runtime link exists"
+        ))
+    })?;
+    load_launch_organ_contract(
+        runtime_store_path,
+        &link.runtime_job_id,
+        expected_document_kind,
+    )
+}
+
+pub fn enforce_acceptance_receipt_proofs(
+    contract: &EpiphanyLaunchOrganContract,
+    claimed_effects: &[EpiphanyReceiptEffectKind],
+    available_document_types: &[String],
+    enforceable_document_types: &[String],
+) -> Result<(), EpiphanyCoordinatorAdmissionError> {
+    let evaluations = evaluate_receipt_proof_profiles(
+        contract,
+        claimed_effects,
+        available_document_types,
+        enforceable_document_types,
+    );
+    let errors = receipt_proof_evaluation_errors(&evaluations);
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(EpiphanyCoordinatorAdmissionError::InvalidRequest(format!(
+            "receipt proof profile rejected state admission: {}",
+            errors.join("; ")
+        )))
+    }
+}
+
+pub fn role_acceptance_claimed_effects(
+    role_id: EpiphanyRoleResultRoleId,
+    changed_fields: &[EpiphanyStateUpdatedField],
+) -> Vec<EpiphanyReceiptEffectKind> {
+    let mut effects = vec![EpiphanyReceiptEffectKind::StateAdmission];
+    if changed_fields.iter().any(|field| {
+        matches!(
+            field,
+            EpiphanyStateUpdatedField::Evidence | EpiphanyStateUpdatedField::Observations
+        )
+    }) {
+        effects.push(EpiphanyReceiptEffectKind::EvidencePromotion);
+    }
+    if role_id == EpiphanyRoleResultRoleId::Verification {
+        effects.push(EpiphanyReceiptEffectKind::Verification);
+    }
+    effects
+}
+
+pub fn role_acceptance_enforceable_receipts(role_id: EpiphanyRoleResultRoleId) -> Vec<String> {
+    let mut receipts = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
+    if role_id == EpiphanyRoleResultRoleId::Research {
+        receipts.push(SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string());
+        receipts.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
+    } else if role_id == EpiphanyRoleResultRoleId::Verification {
+        receipts.push(SOUL_VERDICT_RECEIPT_TYPE.to_string());
+    }
+    receipts
+}
+
+pub fn reorient_acceptance_claimed_effects() -> Vec<EpiphanyReceiptEffectKind> {
+    vec![
+        EpiphanyReceiptEffectKind::StateAdmission,
+        EpiphanyReceiptEffectKind::ContinuityRecovery,
+    ]
+}
+
 pub fn build_native_role_acceptance_update(
     expected_revision: Option<u64>,
     role_id: EpiphanyRoleResultRoleId,

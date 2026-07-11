@@ -154,6 +154,22 @@ Each organ owns one invariant and must be testable against injected paths and
 typed inputs without starting Codex. A source guard should fail if the façade
 regrows policy bodies or if any native organ imports app-server protocol types.
 
+## Acceptance Transaction Wound
+
+The compatibility bridge currently persists prerequisite receipts, writes
+thread state, then writes the Mind state-commit receipt in a separate
+runtime-spine store. If the final write fails, accepted durable state survives
+without its promised commit witness. Moving that sequence into core unchanged
+is forbidden.
+
+Before final acceptance persistence moves, define one typed transaction law:
+either co-locate state admission and its commit witness in one CultCache
+transaction boundary, or persist a prepared acceptance transaction whose
+recovery protocol can deterministically finish or refuse admission after
+interruption. Best-effort rollback across two files is not atomicity. A negative
+smoke must inject failure after prerequisite receipts and after state write and
+prove no unwitnessed accepted state becomes authoritative.
+
 ## Invariants
 
 - There is one durable thread-state owner and one runtime lifecycle owner.
