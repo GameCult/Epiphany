@@ -711,6 +711,7 @@ pub struct EpiphanyRuntimeJobSnapshot {
 pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let store_path = store_path.as_ref();
     let mut cache = CultCache::new();
+    cache.register_entry_type::<crate::EpiphanyThreadStateEntry>()?;
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;

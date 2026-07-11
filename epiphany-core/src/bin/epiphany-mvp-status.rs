@@ -37,7 +37,7 @@ use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
 use epiphany_core::interpret_runtime_role_worker_result;
-use epiphany_core::load_thread_state_entry;
+use epiphany_core::read_accepted_coordinator_state;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
 use epiphany_core::runtime_job_snapshot;
@@ -253,8 +253,8 @@ fn run_native_status(args: &Args) -> Result<Value> {
     let cwd = absolute_path(&args.cwd)?;
     let store_path = absolute_path(&args.thread_state_store)?;
     let runtime_store_path = absolute_path(&args.runtime_store)?;
-    let state_entry = if store_path.exists() {
-        load_thread_state_entry(&store_path)
+    let state = if store_path.exists() {
+        read_accepted_coordinator_state(&store_path)
             .with_context(|| format!("failed to load {}", store_path.display()))?
     } else {
         None
@@ -262,13 +262,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
     let thread_id = args
         .thread_id
         .clone()
-        .or_else(|| state_entry.as_ref().map(|entry| entry.thread_id.clone()))
         .unwrap_or_else(|| "native-local".to_string());
-    let state = state_entry
-        .as_ref()
-        .map(|entry| entry.state())
-        .transpose()
-        .context("failed to decode native Epiphany thread state")?;
     let state_ref = state.as_ref();
     let loaded = state_ref.is_some();
 
@@ -1801,11 +1795,16 @@ pub fn write_transcript_telemetry(transcript: &Path, output: &Path) -> Result<()
 }
 
 pub fn native_json(bin_name: &str, args: &[&str]) -> Result<Value> {
-    let exe = PathBuf::from(
+    let sibling = env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+        .map(|path| path.join(format!("{bin_name}.exe")));
+    let configured = PathBuf::from(
         env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| DEFAULT_CARGO_TARGET_DIR.to_string()),
     )
     .join("debug")
     .join(format!("{bin_name}.exe"));
+    let exe = sibling.filter(|path| path.exists()).unwrap_or(configured);
     let output = if exe.exists() {
         Command::new(&exe).args(args).output()
     } else {

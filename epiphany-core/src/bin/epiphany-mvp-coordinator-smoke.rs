@@ -8,8 +8,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
-
 fn main() -> Result<()> {
     let args = Args::parse()?;
     let result = run_smoke(&args)?;
@@ -19,7 +17,6 @@ fn main() -> Result<()> {
 
 #[derive(Debug)]
 struct Args {
-    app_server: PathBuf,
     artifact_root: PathBuf,
     coordinator_exe: Option<PathBuf>,
 }
@@ -28,14 +25,15 @@ impl Args {
     fn parse() -> Result<Self> {
         let root = env::current_dir().context("failed to resolve current dir")?;
         let mut parsed = Self {
-            app_server: PathBuf::from(DEFAULT_APP_SERVER),
             artifact_root: root.join(".epiphany-dogfood").join("coordinator-smoke"),
             coordinator_exe: None,
         };
         let mut args = env::args().skip(1);
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--app-server" => parsed.app_server = take_path(&mut args, "--app-server")?,
+                "--app-server" => {
+                    let _ = take_path(&mut args, "--app-server")?;
+                }
                 "--artifact-root" => {
                     parsed.artifact_root = take_path(&mut args, "--artifact-root")?;
                 }
@@ -51,14 +49,6 @@ impl Args {
 
 fn run_smoke(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
-    let app_server = absolute_path(&args.app_server)?;
-    ensure_default_app_server_built(&root, &app_server)?;
-    if !app_server.exists() {
-        return Err(anyhow!(
-            "codex app-server binary not found: {}",
-            app_server.display()
-        ));
-    }
     let artifact_root = absolute_path(&args.artifact_root)?;
     reset_artifact_root(&root, &artifact_root)?;
     let coordinator = match &args.coordinator_exe {
@@ -72,7 +62,6 @@ fn run_smoke(args: &Args) -> Result<Value> {
     let cold = run_coordinator(
         &root,
         &coordinator,
-        &app_server,
         &artifact_root,
         RunOptions {
             name: "cold",
@@ -95,7 +84,6 @@ fn run_smoke(args: &Args) -> Result<Value> {
     let local = run_coordinator(
         &root,
         &coordinator,
-        &app_server,
         &artifact_root,
         RunOptions {
             name: "local-bootstrap",
@@ -118,7 +106,6 @@ fn run_smoke(args: &Args) -> Result<Value> {
     let pressure = run_coordinator(
         &root,
         &coordinator,
-        &app_server,
         &artifact_root,
         RunOptions {
             name: "pressure",
@@ -149,7 +136,6 @@ fn run_smoke(args: &Args) -> Result<Value> {
     let hands_gate = run_coordinator(
         &root,
         &coordinator,
-        &app_server,
         &artifact_root,
         RunOptions {
             name: "hands-gate",
@@ -233,7 +219,6 @@ struct RunOptions {
 fn run_coordinator(
     root: &Path,
     coordinator: &Path,
-    app_server: &Path,
     artifact_root: &Path,
     options: RunOptions,
 ) -> Result<Value> {
@@ -241,8 +226,6 @@ fn run_coordinator(
     let mut command = Command::new(coordinator);
     command
         .current_dir(root)
-        .arg("--app-server")
-        .arg(app_server)
         .arg("--artifact-dir")
         .arg(&artifact_dir)
         .arg("--runtime-store")
@@ -301,6 +284,13 @@ fn record_hands_pass(hands_action: &Path, summary: &Value) -> Result<Value> {
     let stderr_artifact = artifact_dir.join("hands-pass-command.stderr.log");
     fs::write(&stdout_artifact, "hands pass smoke command output\n")?;
     fs::write(&stderr_artifact, "")?;
+    let commit = Command::new("git")
+        .args(["log", "-1", "--format=%H", "--", "tools/epiphany_local_run.ps1"])
+        .output()
+        .context("failed to locate a real commit for the Hands smoke path")?;
+    require(commit.status.success(), "failed to resolve Hands smoke commit")?;
+    let commit_sha = String::from_utf8(commit.stdout)?.trim().to_string();
+    require(!commit_sha.is_empty(), "Hands smoke path has no commit history")?;
     let output = Command::new(hands_action)
         .arg("--store")
         .arg(artifact_dir.join("runtime-spine.msgpack"))
@@ -320,9 +310,9 @@ fn record_hands_pass(hands_action: &Path, summary: &Value) -> Result<Value> {
         .arg("--stderr-artifact")
         .arg(&stderr_artifact)
         .arg("--commit-sha")
-        .arg("dry-run-smoke")
+        .arg(commit_sha)
         .arg("--branch")
-        .arg("coordinator-smoke")
+        .arg("main")
         .output()
         .context("failed to run Hands action recorder")?;
     if !output.status.success() {
@@ -348,8 +338,6 @@ fn require_artifacts(summary: &Value) -> Result<()> {
         "coordinator-final-status.json",
         "coordinator-final-status.txt",
         "coordinator-final-action.txt",
-        "epiphany-transcript.jsonl",
-        "epiphany-server.stderr.log",
         "agent-function-telemetry.json",
         "runtime-spine-status.json",
     ] {
@@ -372,6 +360,14 @@ fn require_artifacts(summary: &Value) -> Result<()> {
     require(
         runtime_status["sessions"].as_u64().unwrap_or(0) >= 1,
         "native runtime spine should record a session",
+    )?;
+    let telemetry: Value = serde_json::from_str(&fs::read_to_string(
+        artifact_dir.join("agent-function-telemetry.json"),
+    )?)?;
+    require(
+        telemetry["appServerCalls"].as_u64() == Some(0)
+            && telemetry["transport"].as_str() == Some("cultcache"),
+        "native coordinator telemetry must prove zero app-server calls",
     )?;
     Ok(())
 }
@@ -451,40 +447,6 @@ fn ensure_epiphany_bin_built(root: &Path, binary: &Path, bin_name: &str) -> Resu
     require(
         status.success() && binary.exists(),
         &format!("native binary was not built: {}", binary.display()),
-    )
-}
-
-fn ensure_default_app_server_built(root: &Path, app_server: &Path) -> Result<()> {
-    let default_app_server = PathBuf::from(DEFAULT_APP_SERVER);
-    if app_server != default_app_server {
-        return Ok(());
-    }
-    if app_server.exists() {
-        return Ok(());
-    }
-    let status = Command::new("cargo")
-        .current_dir(root)
-        .env("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")
-        .arg("build")
-        .arg("--manifest-path")
-        .arg(
-            root.join("vendor")
-                .join("codex")
-                .join("codex-rs")
-                .join("Cargo.toml"),
-        )
-        .arg("-p")
-        .arg("codex-app-server")
-        .arg("--bin")
-        .arg("codex-app-server")
-        .status()
-        .context("failed to build default codex-app-server")?;
-    require(
-        status.success() && app_server.exists(),
-        &format!(
-            "default codex-app-server binary was not built: {}",
-            app_server.display()
-        ),
     )
 }
 

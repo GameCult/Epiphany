@@ -244,5 +244,17 @@ Role mutation has now crossed too. `epiphany-mvp-coordinator` builds role launch
 requests from native state plus the full native Verse/memory/work-loop context,
 publishes them through `EpiphanyCoordinatorService::launch_job`, and dispatches
 auto-review through `accept_role`. The role launch and role acceptance routes
-are gone. Bootstrap/freshness, supersession update, and reorientation launch are
-the five remaining production route strings.
+are gone.
+
+`epiphany-mvp-coordinator` is now fully native. Reorientation launch consumes
+the typed native status decision, preserves native prompt context, and uses the
+same atomic launch actuator. Bootstrap and supersession use typed state updates.
+The binary starts no app-server, contains no production `thread/epiphany/*`
+strings, and emits telemetry with `appServerCalls=0`. Its smoke harness no
+longer builds or requires codex-app-server and passes cold, local bootstrap,
+pressure, Hands gate, and real commit-receipt scenarios.
+
+The live output still advertises old JSON-RPC method names in role-board
+`authorityScopes`. Those strings are presentation residue, not callable
+coordinator authority, but they now lie about the native body and must be
+replaced by typed native/CultNet capability identifiers.

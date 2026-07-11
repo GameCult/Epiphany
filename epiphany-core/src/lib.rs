@@ -145,6 +145,7 @@ pub use coordinator_acceptance::read_accepted_coordinator_state;
 pub use coordinator_acceptance::reorient_acceptance_claimed_effects;
 pub use coordinator_acceptance::role_acceptance_claimed_effects;
 pub use coordinator_acceptance::role_acceptance_enforceable_receipts;
+pub use coordinator_acceptance::state_update_from_role_patch;
 pub use coordinator_launch::EpiphanyCoordinatorJobLaunchPlan;
 pub use coordinator_launch::commit_coordinator_job_launch;
 pub use coordinator_launch::plan_coordinator_job_launch;

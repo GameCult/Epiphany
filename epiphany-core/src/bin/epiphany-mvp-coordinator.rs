@@ -50,7 +50,6 @@ const DETACHED_PROCESS: u32 = 0x0000_0008;
 #[path = "epiphany-mvp-status.rs"]
 mod status_cli;
 
-const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-codex-mcp-spine";
 const WORKER_AUTO_TOOL_MAX_ROUNDS: usize = 24;
@@ -66,7 +65,6 @@ fn main() -> Result<()> {
 
 #[derive(Debug)]
 struct Args {
-    app_server: PathBuf,
     model_runtime_bin: PathBuf,
     tool_adapter_bin: PathBuf,
     model_provider: String,
@@ -100,7 +98,6 @@ impl Args {
         let root = env::current_dir().context("failed to resolve current dir")?;
         let mut args = env::args().skip(1);
         let mut parsed = Args {
-            app_server: PathBuf::from(DEFAULT_APP_SERVER),
             model_runtime_bin: PathBuf::from(DEFAULT_MODEL_RUNTIME_BIN),
             tool_adapter_bin: PathBuf::from(DEFAULT_TOOL_ADAPTER_BIN),
             model_provider: "openai-codex".to_string(),
@@ -135,7 +132,9 @@ impl Args {
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--app-server" => parsed.app_server = take_path(&mut args, "--app-server")?,
+                "--app-server" => {
+                    let _ = take_path(&mut args, "--app-server")?;
+                }
                 "--model-runtime-bin" => {
                     parsed.model_runtime_bin = take_path(&mut args, "--model-runtime-bin")?;
                 }
@@ -210,7 +209,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
     let local_verse_store = status_cli::absolute_path(&args.local_verse_store)?;
     assert_local_verse_brake_released(&local_verse_store, "epiphany-mvp-coordinator")?;
-    let app_server = status_cli::absolute_path(&args.app_server)?;
     let mut cwd = status_cli::absolute_path(&args.cwd)?;
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
     let tool_adapter_bin = resolve_model_runtime_bin(&root, &args.tool_adapter_bin)?;
@@ -225,8 +223,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         prepare_workspace(&cwd)?;
     }
 
-    let transcript_path = artifact_dir.join("epiphany-transcript.jsonl");
-    let stderr_path = artifact_dir.join("epiphany-server.stderr.log");
     let telemetry_path = artifact_dir.join("agent-function-telemetry.json");
     let steps_path = artifact_dir.join("coordinator-steps.jsonl");
     let mut steps = Vec::new();
@@ -235,39 +231,16 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let mut final_status = Value::Null;
     let mut final_action = Value::Null;
 
-    let mut client = status_cli::AppServerClient::start(
-        &app_server,
-        &codex_home,
-        &transcript_path,
-        &stderr_path,
-    )?;
-    client.send(
-        "initialize",
-        Some(json!({
-            "clientInfo": {
-                "name": "epiphany-mvp-coordinator",
-                "title": "Epiphany MVP Coordinator",
-                "version": "0.1.0",
-            },
-            "capabilities": {"experimentalApi": true},
-        })),
-        true,
-    )?;
-    client.send("initialized", None, false)?;
-
-    let thread_id = if let Some(thread_id) = &args.thread_id {
-        let resumed = client.send("thread/resume", Some(json!({"threadId": thread_id})), true)?;
-        startup_events.push(thread_lifecycle_event("threadResume", &resumed));
-        thread_id.clone()
-    } else {
-        let started = client.send(
-            "thread/start",
-            Some(json!({"cwd": cwd, "ephemeral": args.ephemeral})),
-            true,
-        )?;
-        startup_events.push(thread_lifecycle_event("threadStart", &started));
-        text_at(&started, &["thread", "id"])?
-    };
+    let thread_id = args
+        .thread_id
+        .clone()
+        .unwrap_or_else(|| format!("epiphany-native-{}", Uuid::new_v4()));
+    startup_events.push(json!({
+        "type": "nativeCoordinatorThread",
+        "threadId": thread_id,
+        "ephemeral": args.ephemeral,
+        "workspace": cwd,
+    }));
     let runtime_session_id = format!("coordinator-{thread_id}");
     let runtime_identity = initialize_runtime_spine(
         &runtime_store,
@@ -321,17 +294,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     }));
 
     if args.bootstrap_smoke_state {
-        client.send(
-            "thread/epiphany/update",
-            Some(json!({"threadId": thread_id, "expectedRevision": 0, "patch": reorient_patch()})),
-            true,
-        )?;
+        apply_bootstrap_patch(&runtime_store, &thread_id, reorient_patch())?;
         if args.simulate_source_drift {
-            let _ = client.send(
-                "thread/epiphany/freshness",
-                Some(json!({"threadId": thread_id})),
-                true,
-            );
             fs::write(
                 cwd.join(WATCHED_RELATIVE_PATH),
                 "pub fn reorient_target() -> &'static str {\n    \"after\"\n}\n",
@@ -339,14 +303,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             thread::sleep(Duration::from_millis(500));
         }
     } else if args.bootstrap_local_state {
-        client.send(
-            "thread/epiphany/update",
-            Some(json!({
-                "threadId": thread_id,
-                "expectedRevision": 0,
-                "patch": local_mvp_checkpoint_patch(&cwd, args.bootstrap_objective.as_deref()),
-            })),
-            true,
+        apply_bootstrap_patch(
+            &runtime_store,
+            &thread_id,
+            local_mvp_checkpoint_patch(&cwd, args.bootstrap_objective.as_deref()),
         )?;
     }
 
@@ -427,8 +387,13 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 }
                 if args.supersede_failed_results && role_result_needs_supersession(role_id, &result)
                 {
-                    let superseded =
-                        supersede_role_result(&mut client, &thread_id, role_id, revision, &result)?;
+                    let superseded = supersede_role_result(
+                        &runtime_store,
+                        &thread_id,
+                        role_id,
+                        revision,
+                        &result,
+                    )?;
                     push_event(
                         &mut step,
                         json!({"type": "roleFailureReview", "roleId": role_id, "superseded": status_cli::sanitize_for_operator(superseded)}),
@@ -572,8 +537,12 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 }
             }
             "launchReorientWorker" => {
-                let launch =
-                    launch_reorient(&mut client, &thread_id, revision, args.max_runtime_seconds)?;
+                let launch = launch_reorient(
+                    &runtime_store,
+                    &thread_id,
+                    revision,
+                    args.max_runtime_seconds,
+                )?;
                 let worker_job_id = worker_job_id_from_launch(&launch)?;
                 push_event(
                     &mut step,
@@ -655,10 +624,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "agent-function-telemetry.json".to_string(),
         "runtime-spine-status.json".to_string(),
     ];
-    let sealed_artifact_manifest = vec![
-        "epiphany-transcript.jsonl".to_string(),
-        "epiphany-server.stderr.log".to_string(),
-    ];
+    let sealed_artifact_manifest = Vec::new();
     let receipt_created_at = now();
     let coordinator_run_receipt = EpiphanyCoordinatorRunReceipt {
         schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
@@ -699,7 +665,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     };
     put_coordinator_run_receipt(&runtime_store, &coordinator_run_receipt)?;
     let summary = json!({
-        "objective": "Coordinate the Epiphany MVP lanes over existing app-server APIs.",
+        "objective": "Coordinate the Epiphany MVP lanes through native typed state and runtime organs.",
         "artifactDir": artifact_dir,
         "modelRuntimeBin": model_runtime_bin,
         "toolAdapterBin": tool_adapter_bin,
@@ -722,10 +688,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "store": runtime_store,
         },
         "artifactManifest": artifact_manifest,
-        "sealedArtifactManifest": [
-            {"path": "epiphany-transcript.jsonl", "reason": "sealed JSON-RPC audit trail; do not read during normal supervision"},
-            {"path": "epiphany-server.stderr.log", "reason": "sealed app-server diagnostics; inspect only for explicit debugging"}
-        ]
+        "sealedArtifactManifest": []
     });
     write_json(&artifact_dir.join("coordinator-summary.json"), &summary)?;
     write_json(
@@ -747,7 +710,15 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             serde_json::to_string_pretty(&summary["finalAction"])?
         ),
     )?;
-    status_cli::write_transcript_telemetry(&transcript_path, &telemetry_path)?;
+    write_json(
+        &telemetry_path,
+        &json!({
+            "source": "epiphany-native-coordinator",
+            "transport": "cultcache",
+            "appServerCalls": 0,
+            "rawTextExposed": false,
+        }),
+    )?;
     Ok(summary)
 }
 
@@ -786,6 +757,22 @@ fn collect_coordinator_status(runtime_store: &Path, thread_id: &str) -> Result<V
             &store,
         ],
     )
+}
+
+fn apply_bootstrap_patch(runtime_store: &Path, thread_id: &str, patch: Value) -> Result<Value> {
+    let patch: epiphany_core::EpiphanyRoleStatePatchDocument =
+        serde_json::from_value(patch).context("failed to decode typed bootstrap state patch")?;
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let applied = service.apply_state_update(
+        thread_id,
+        epiphany_core::state_update_from_role_patch(Some(0), patch),
+        None,
+    )?;
+    Ok(json!({
+        "revision": applied.revision,
+        "changedFields": applied.changed_fields.iter().map(|field| format!("{field:?}")).collect::<Vec<_>>(),
+        "epiphanyState": applied.state,
+    }))
 }
 fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> {
     if configured.components().count() != 1 {
@@ -1148,7 +1135,7 @@ fn role_result_needs_supersession(role_id: &str, result: &Value) -> bool {
 }
 
 fn supersede_role_result(
-    client: &mut status_cli::AppServerClient,
+    runtime_store: &Path,
     thread_id: &str,
     role_id: &str,
     expected_revision: Option<i64>,
@@ -1162,27 +1149,35 @@ fn supersede_role_result(
         .unwrap_or_else(|| default_binding_id_for_role(role_id));
     let summary = first_string_at(result, &[&["finding", "summary"], &["note"]])
         .unwrap_or_else(|| "Role result reviewed and superseded.".to_string());
-    let receipt = json!({
-        "id": format!("role-failure-review-{}", Uuid::new_v4()),
-        "result_id": result_id,
-        "job_id": job_id,
-        "binding_id": binding_id,
-        "surface": "roleFailureReview",
-        "role_id": role_id,
-        "status": "superseded",
-        "accepted_at": now(),
-        "summary": summary,
-    });
-    let mut payload = json!({
-        "threadId": thread_id,
-        "patch": {
-            "acceptanceReceipts": [receipt],
+    let receipt = epiphany_state_model::EpiphanyAcceptanceReceipt {
+        id: format!("role-failure-review-{}", Uuid::new_v4()),
+        result_id,
+        job_id,
+        binding_id,
+        surface: "roleFailureReview".to_string(),
+        role_id: role_id.to_string(),
+        status: "superseded".to_string(),
+        accepted_at: now(),
+        accepted_observation_id: None,
+        accepted_evidence_id: None,
+        summary: Some(summary),
+    };
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let applied = service.apply_state_update(
+        thread_id,
+        epiphany_core::EpiphanyStateUpdate {
+            expected_revision: expected_revision.and_then(|value| u64::try_from(value).ok()),
+            acceptance_receipts: vec![receipt.clone()],
+            ..Default::default()
         },
-    });
-    if let Some(revision) = expected_revision {
-        payload["expectedRevision"] = json!(revision);
-    }
-    client.send("thread/epiphany/update", Some(payload), true)
+        None,
+    )?;
+    Ok(json!({
+        "revision": applied.revision,
+        "changedFields": applied.changed_fields.iter().map(|field| format!("{field:?}")).collect::<Vec<_>>(),
+        "epiphanyState": applied.state,
+        "receipt": receipt,
+    }))
 }
 
 fn default_binding_id_for_role(role_id: &str) -> String {
@@ -1196,16 +1191,55 @@ fn default_binding_id_for_role(role_id: &str) -> String {
 }
 
 fn launch_reorient(
-    client: &mut status_cli::AppServerClient,
+    runtime_store: &Path,
     thread_id: &str,
     expected_revision: Option<i64>,
     max_runtime_seconds: u64,
 ) -> Result<Value> {
-    let mut payload = json!({"threadId": thread_id, "maxRuntimeSeconds": max_runtime_seconds});
-    if let Some(revision) = expected_revision {
-        payload["expectedRevision"] = json!(revision);
-    }
-    client.send("thread/epiphany/reorientLaunch", Some(payload), true)
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let state = service
+        .state()?
+        .ok_or_else(|| anyhow!("cannot launch reorientation without native coordinator state"))?;
+    let checkpoint = state
+        .investigation_checkpoint
+        .as_ref()
+        .ok_or_else(|| anyhow!("cannot launch reorientation without a durable checkpoint"))?;
+    let status = collect_coordinator_status(runtime_store, thread_id)?;
+    let decision: epiphany_core::EpiphanyReorientDecision =
+        serde_json::from_value(status["reorient"]["decision"].clone())
+            .context("native reorientation status did not contain a typed decision")?;
+    let context = epiphany_core::render_launch_dynamic_prompt_context(
+        runtime_store,
+        &state,
+        epiphany_core::reorient_launch_context_focus(&state, &decision.next_action),
+    )
+    .map_err(anyhow::Error::msg)?;
+    let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
+    let request = epiphany_core::build_epiphany_reorient_launch_request_with_dynamic_context(
+        thread_id,
+        expected_revision,
+        Some(max_runtime_seconds),
+        &state,
+        checkpoint,
+        &decision,
+        Some(context),
+    );
+    let launched = service.launch_job(
+        thread_id,
+        &state,
+        &request,
+        format!("epiphany-heartbeat-launch-{}", Uuid::new_v4()),
+        Uuid::new_v4().to_string(),
+        now(),
+    )?;
+    Ok(json!({
+        "bindingId": launched.binding_id,
+        "launcherJobId": launched.launcher_job_id,
+        "backendJobId": launched.backend_job_id,
+        "revision": launched.epiphany_state.revision,
+        "epiphanyState": launched.epiphany_state,
+        "decision": decision,
+    }))
 }
 
 fn worker_job_id_from_launch(launch: &Value) -> Result<String> {
@@ -1684,16 +1718,6 @@ fn state_revision(status: &Value) -> Option<i64> {
         })
 }
 
-fn thread_lifecycle_event(kind: &str, response: &Value) -> Value {
-    json!({
-        "type": kind,
-        "threadId": response.pointer("/thread/id"),
-        "status": response.pointer("/thread/status"),
-        "cwd": response.pointer("/thread/cwd"),
-        "ephemeral": response.pointer("/thread/ephemeral"),
-    })
-}
-
 fn push_event(step: &mut Value, event: Value) {
     step["events"].as_array_mut().unwrap().push(event);
 }
@@ -1741,17 +1765,6 @@ fn append_operator_step_jsonl(path: &Path, step: &Value) -> Result<()> {
     append_jsonl(path, &status_cli::sanitize_for_operator(step.clone()))
 }
 
-fn text_at(value: &Value, path: &[&str]) -> Result<String> {
-    let mut cursor = value;
-    for key in path {
-        cursor = &cursor[*key];
-    }
-    cursor
-        .as_str()
-        .map(ToString::to_string)
-        .ok_or_else(|| anyhow!("missing string at {}", path.join(".")))
-}
-
 fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
     args.next()
         .ok_or_else(|| anyhow!("{name} requires a value"))
@@ -1771,6 +1784,18 @@ fn home_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn coordinator_binary_has_no_codex_host_or_epiphany_json_rpc_dependency() {
+        let source = include_str!("epiphany-mvp-coordinator.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        for forbidden in ["AppServerClient", "thread/epiphany/", "codex-app-server"] {
+            assert!(
+                !production.contains(forbidden),
+                "native coordinator regrew host dependency {forbidden:?}"
+            );
+        }
+    }
 
     #[test]
     fn coordinator_status_and_result_reads_are_native() {

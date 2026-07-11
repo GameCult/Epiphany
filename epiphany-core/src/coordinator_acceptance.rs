@@ -464,7 +464,6 @@ pub fn reorient_acceptance_claimed_effects() -> Vec<EpiphanyReceiptEffectKind> {
 
 pub fn coordinator_acceptance_cache(store_path: &Path) -> anyhow::Result<CultCache> {
     let mut cache = runtime_spine_cache(store_path)?;
-    cache.register_entry_type::<EpiphanyThreadStateEntry>()?;
     cache.pull_all_backing_stores()?;
     Ok(cache)
 }
@@ -704,6 +703,13 @@ fn state_update_from_patch(
         mode: patch.mode,
         planning: patch.planning,
     }
+}
+
+pub fn state_update_from_role_patch(
+    expected_revision: Option<u64>,
+    patch: EpiphanyRoleStatePatchDocument,
+) -> EpiphanyStateUpdate {
+    state_update_from_patch(expected_revision, patch)
 }
 
 fn changed_fields_from_patch(

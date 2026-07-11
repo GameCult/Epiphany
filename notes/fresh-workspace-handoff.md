@@ -1861,9 +1861,20 @@ Codex view/result calls were deleted and a source test rejects AppServerClient o
 Verse/memory context, appends Verification Hands evidence or Modeling work-loop
 telemetry, builds the typed request, and calls the atomic service launch.
 `accept_role` calls the service acceptance actuator directly. A source test
-guards every required context seam and rejects AppServerClient/routes. Five
-production routes remain: bootstrap update/freshness, supersession update, and
-reorientation launch.
+guards every required context seam and rejects AppServerClient/routes.
+
+The coordinator liberation cut is now complete at runtime. Reorientation launch,
+bootstrap, and supersession use typed native service operations; the binary
+starts no app-server and contains no production Epiphany JSON-RPC route. Native
+status and runtime caches now share the heterogeneous state/runtime schema, and
+native binary lookup prefers the current executable's siblings instead of a
+stale global Cargo target. `epiphany-mvp-coordinator-smoke` no longer builds or
+requires codex-app-server; live proof at
+`.epiphany-dogfood/native-coordinator-liberation` passed cold, local-bootstrap,
+pressure, Hands gate, and real historical commit receipt checks with telemetry
+`appServerCalls=0`. The next visible lie is role-board `authorityScopes` still
+naming old `thread/epiphany/*` methods; replace them with native/CultNet typed
+capability identifiers.
 
 ## Immediate Re-entry Instruction
 

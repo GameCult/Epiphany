@@ -1,9 +1,11 @@
 use crate::EpiphanyStateUpdate;
 use crate::EpiphanyStateUpdatedField;
+use crate::EpiphanyThreadStateEntry;
+use crate::THREAD_STATE_KEY;
 use crate::apply_epiphany_state_update;
+use crate::coordinator_acceptance_cache;
 use crate::epiphany_state_update_validation_errors;
-use crate::load_thread_state;
-use crate::write_thread_state;
+use crate::read_accepted_coordinator_state;
 use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_state_model::EpiphanyThreadState;
@@ -17,7 +19,7 @@ pub struct EpiphanyCoordinatorStateApplied {
 }
 
 pub fn read_coordinator_state(store: &Path) -> Result<Option<EpiphanyThreadState>> {
-    load_thread_state(store)
+    read_accepted_coordinator_state(store)
 }
 
 pub fn apply_coordinator_state_update(
@@ -32,7 +34,9 @@ pub fn apply_coordinator_state_update(
         update,
         reference_turn_id,
     )?;
-    write_thread_state(store, thread_id, &state)?;
+    let mut cache = coordinator_acceptance_cache(store)?;
+    let entry = EpiphanyThreadStateEntry::from_state(thread_id, &state)?;
+    cache.put(THREAD_STATE_KEY, &entry)?;
     Ok(EpiphanyCoordinatorStateApplied {
         revision: state.revision,
         changed_fields,
