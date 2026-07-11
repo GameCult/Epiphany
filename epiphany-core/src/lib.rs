@@ -122,6 +122,7 @@ pub use agent_utterance_state::AgentUtteranceValue;
 pub use agent_utterance_state::WEKSA_UTTERANCE_HANDOFF_SCHEMA_VERSION;
 pub use agent_utterance_state::derive_agent_utterance_state;
 pub use continuity_gateway::*;
+pub use coordinator_acceptance::EpiphanyAcceptancePrerequisite;
 pub use coordinator_acceptance::EpiphanyCoordinatorAdmissionError;
 pub use coordinator_acceptance::EpiphanyReorientAcceptanceUpdate;
 pub use coordinator_acceptance::EpiphanyRoleAcceptanceUpdate;

@@ -737,6 +737,14 @@ a mismatched revision fails before a store is created. Add Eyes/Substrate Gate,
 Soul, and Continuity prerequisite receipts to the same prepared batch next,
 then replace bridge acceptance persistence.
 
+The acceptance batch now accepts a closed typed prerequisite enum for Eyes,
+Substrate Gate, Soul, and Continuity documents; no raw envelope crosses the
+API. An Eyes packet is proven in the same snapshot as state and both Mind
+witnesses. CultCache commit `38388f6` adds an injected backing-store refusal
+test proving a failed batch preserves the prior snapshot in memory and after
+reload. The storage primitive is ready; rewire bridge role/reorient acceptance
+to build the full prerequisite set and invoke this one batch.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit

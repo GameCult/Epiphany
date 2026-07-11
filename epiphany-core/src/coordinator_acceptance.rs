@@ -263,12 +263,21 @@ pub fn coordinator_acceptance_cache(store_path: &Path) -> anyhow::Result<CultCac
     Ok(cache)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EpiphanyAcceptancePrerequisite {
+    Eyes(EyesEvidencePacket),
+    SubstrateGate(SubstrateGateRepoAccessGrantReceipt),
+    Soul(SoulVerdictReceipt),
+    Continuity(ContinuityRecoveryReceipt),
+}
+
 pub fn commit_state_with_mind_witness(
     store_path: &Path,
     thread_id: &str,
     state: &EpiphanyThreadState,
     mind_review: &MindGatewayReview,
     commit_receipt: &MindStateCommitReceipt,
+    prerequisites: &[EpiphanyAcceptancePrerequisite],
 ) -> anyhow::Result<EpiphanyThreadState> {
     if commit_receipt.gateway_id != mind_review.gateway_id {
         return Err(anyhow::anyhow!(
@@ -289,7 +298,24 @@ pub fn commit_state_with_mind_witness(
     let (state_envelope, _) = cache.prepare_entry(THREAD_STATE_KEY, &state_entry)?;
     let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
     let (commit_envelope, _) = cache.prepare_entry(&commit_receipt.receipt_id, commit_receipt)?;
-    cache.put_prepared_batch(vec![state_envelope, review_envelope, commit_envelope])?;
+    let mut batch = vec![state_envelope, review_envelope, commit_envelope];
+    for prerequisite in prerequisites {
+        batch.push(match prerequisite {
+            EpiphanyAcceptancePrerequisite::Eyes(document) => {
+                cache.prepare_entry(&document.packet_id, document)?.0
+            }
+            EpiphanyAcceptancePrerequisite::SubstrateGate(document) => {
+                cache.prepare_entry(&document.receipt_id, document)?.0
+            }
+            EpiphanyAcceptancePrerequisite::Soul(document) => {
+                cache.prepare_entry(&document.receipt_id, document)?.0
+            }
+            EpiphanyAcceptancePrerequisite::Continuity(document) => {
+                cache.prepare_entry(&document.receipt_id, document)?.0
+            }
+        });
+    }
+    cache.put_prepared_batch(batch)?;
     Ok(state.clone())
 }
 
@@ -529,7 +555,7 @@ mod tests {
             vec!["Objective".to_string()],
             "2026-07-11T00:00:00Z".to_string(),
         );
-        commit_state_with_mind_witness(&store, "thread-7", &state, &review, &receipt)?;
+        commit_state_with_mind_witness(&store, "thread-7", &state, &review, &receipt, &[])?;
 
         let cache = coordinator_acceptance_cache(&store)?;
         assert_eq!(
@@ -578,9 +604,69 @@ mod tests {
             "2026-07-11T00:00:00Z".to_string(),
         );
         assert!(
-            commit_state_with_mind_witness(&store, "thread-3", &state, &review, &receipt).is_err()
+            commit_state_with_mind_witness(&store, "thread-3", &state, &review, &receipt, &[])
+                .is_err()
         );
         assert!(!store.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn prerequisite_receipt_shares_acceptance_snapshot() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("acceptance-eyes.cc");
+        let state = EpiphanyThreadState {
+            revision: 9,
+            ..Default::default()
+        };
+        let review = MindGatewayReview {
+            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "review-9".to_string(),
+            source_kind: "role".to_string(),
+            source_role_id: "research".to_string(),
+            decision: MindGatewayDecision::Accept,
+            allowed_effects: Vec::new(),
+            refused_effects: Vec::new(),
+            reasons: Vec::new(),
+            contract: "test".to_string(),
+        };
+        let commit = mind_state_commit_receipt(
+            "commit-9".to_string(),
+            &review,
+            9,
+            Vec::new(),
+            "2026-07-11T00:00:00Z".to_string(),
+        );
+        let eyes = EyesEvidencePacket {
+            schema_version: EYES_EVIDENCE_PACKET_SCHEMA_VERSION.to_string(),
+            packet_id: "eyes-9".to_string(),
+            source_result_id: "result-9".to_string(),
+            source_job_id: "job-9".to_string(),
+            source_role_id: "research".to_string(),
+            evidence_ids: Vec::new(),
+            observation_ids: Vec::new(),
+            source_refs: Vec::new(),
+            summary: "looked".to_string(),
+            uncertainty: "none".to_string(),
+            emitted_at: "2026-07-11T00:00:00Z".to_string(),
+            contract: "test".to_string(),
+        };
+        commit_state_with_mind_witness(
+            &store,
+            "thread-9",
+            &state,
+            &review,
+            &commit,
+            &[EpiphanyAcceptancePrerequisite::Eyes(eyes.clone())],
+        )?;
+        let cache = coordinator_acceptance_cache(&store)?;
+        assert_eq!(cache.get_required::<EyesEvidencePacket>("eyes-9")?, eyes);
+        assert!(
+            cache
+                .get::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+                .is_some()
+        );
+        assert!(cache.get::<MindStateCommitReceipt>("commit-9")?.is_some());
         Ok(())
     }
 }
