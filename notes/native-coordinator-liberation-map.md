@@ -269,5 +269,8 @@ Interruption now has a native owner. `interrupt_coordinator_job` validates the
 binding and revision, records the operator reason through the canonical state
 owner, and reports `cancelRequested=false` rather than inventing backend
 cancellation. `epiphany-mvp-status --interrupt-binding` uses this path by
-default; `--codex` selects the compatibility route explicitly. The bridge still
-contains its older interruption choreography and should delegate next.
+default; `--codex` selects the compatibility route explicitly. The bridge now
+delegates interruption to `EpiphanyCoordinatorService::interrupt_job`; a source
+guard rejects local binding mutation, and stale unified state is refused before
+commit. General update/promotion routes still persist through the host hook and
+are the next surviving state-authority seam.

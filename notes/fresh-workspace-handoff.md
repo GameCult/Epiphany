@@ -1882,8 +1882,11 @@ historical-input fixture. Native `--interrupt-binding` is now live:
 `interrupt_coordinator_job` owns revision/binding validation and canonical
 binding mutation, while status reports `cancelRequested=false` honestly. A
 focused core test and status-command test prove the transition. Explicit
-`--codex` retains compatibility. The bridge still duplicates interruption
-choreography; delegate it to `EpiphanyCoordinatorService::interrupt_job` next.
+`--codex` retains compatibility. The bridge now delegates interruption to
+`EpiphanyCoordinatorService::interrupt_job`; nine bridge tests prove no local
+binding mutation policy remains, and the vendored app-server compiles. General
+update/promotion persistence still uses the host hook and is the next surviving
+state-authority seam.
 
 ## Immediate Re-entry Instruction
 

@@ -9,6 +9,13 @@ pub fn interrupt_coordinator_job(
     state: &EpiphanyThreadState,
     request: EpiphanyJobInterruptRequest,
 ) -> Result<EpiphanyJobInterruptResult> {
+    if let Some(persisted) = read_coordinator_state(store)?
+        && persisted != *state
+    {
+        return Err(anyhow!(
+            "authoritative coordinator state changed before interrupt commit"
+        ));
+    }
     if request.binding_id.trim().is_empty() {
         return Err(anyhow!(
             "epiphany job interrupt binding_id must be non-empty"

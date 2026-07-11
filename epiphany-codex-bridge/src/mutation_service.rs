@@ -22,7 +22,6 @@ use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::apply_coordinator_state_update_to_state;
 use epiphany_core::build_epiphany_reorient_launch_request_with_dynamic_context;
 use epiphany_core::build_epiphany_role_launch_request_with_dynamic_context;
-use epiphany_core::clear_epiphany_job_binding_backend;
 use epiphany_core::epiphany_role_label;
 use epiphany_core::evaluate_promotion;
 use epiphany_state_model::EpiphanyEvidenceRecord;
@@ -208,49 +207,12 @@ pub async fn interrupt_epiphany_job_on_thread(
     thread: &impl EpiphanyMutationHost,
     request: EpiphanyJobInterruptRequest,
 ) -> BridgeResult<EpiphanyJobInterruptResult> {
-    if request.binding_id.trim().is_empty() {
-        return Err(EpiphanyBridgeError::InvalidRequest(
-            "epiphany job interrupt binding_id must be non-empty".to_string(),
-        ));
-    }
-
     let current_state = thread.epiphany_state().await.unwrap_or_default();
-    validate_expected_revision(request.expected_revision, current_state.revision)?;
-
-    let Some(binding_index) = current_state
-        .job_bindings
-        .iter()
-        .position(|binding| binding.id == request.binding_id)
-    else {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "epiphany job binding {:?} was not found",
-            request.binding_id
-        )));
-    };
-    let interrupted_thread_ids = Vec::new();
-    let cancel_requested = false;
-
-    let next_job_bindings = clear_epiphany_job_binding_backend(
-        current_state.job_bindings.clone(),
-        binding_index,
-        "No active heartbeat turn is currently bound; launch explicitly to resume specialist work.",
-    );
-    let epiphany_state = apply_epiphany_state_update_to_thread(
-        thread,
-        EpiphanyStateUpdate {
-            expected_revision: request.expected_revision,
-            job_bindings: Some(next_job_bindings),
-            ..Default::default()
-        },
-    )
-    .await?;
-
-    Ok(EpiphanyJobInterruptResult {
-        epiphany_state,
-        binding_id: request.binding_id,
-        cancel_requested,
-        interrupted_thread_ids,
-    })
+    let store = thread.epiphany_runtime_spine_store_path().await;
+    let thread_id = thread.epiphany_thread_id().await;
+    epiphany_core::EpiphanyCoordinatorService::new(&store, &store)
+        .interrupt_job(&thread_id, &current_state, request)
+        .map_err(|error| EpiphanyBridgeError::InvalidRequest(error.to_string()))
 }
 
 pub async fn apply_thread_epiphany_update(
@@ -607,6 +569,29 @@ fn validate_expected_revision(
 
 #[cfg(test)]
 mod acceptance_architecture_tests {
+    #[test]
+    fn interrupt_route_delegates_binding_mutation_to_native_service() {
+        let source = include_str!("mutation_service.rs");
+        let start = source
+            .find("pub async fn interrupt_epiphany_job_on_thread")
+            .unwrap();
+        let end = source
+            .find("pub async fn apply_thread_epiphany_update")
+            .unwrap();
+        let interrupt = &source[start..end];
+        assert_eq!(interrupt.matches(".interrupt_job(").count(), 1);
+        for forbidden in [
+            ["clear", "epiphany", "job", "binding", "backend"].join("_"),
+            ["job_bindings", "Some"].join(": "),
+            ["apply", "epiphany", "state", "update", "to", "thread"].join("_"),
+        ] {
+            assert!(
+                !interrupt.contains(&forbidden),
+                "interrupt route regrew binding policy {forbidden:?}"
+            );
+        }
+    }
+
     #[test]
     fn launch_route_delegates_planning_to_the_native_organ() {
         let source = include_str!("mutation_service.rs");
