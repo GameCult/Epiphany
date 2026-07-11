@@ -170,6 +170,22 @@ interruption. Best-effort rollback across two files is not atomicity. A negative
 smoke must inject failure after prerequisite receipts and after state write and
 prove no unwitnessed accepted state becomes authoritative.
 
+## Launch Transaction Wound
+
+Launch planning now belongs to `coordinator_launch`: it validates the expected
+thread revision, inspects the prior runtime binding, prepares the heartbeat
+launch documents, and derives the new thread-state linkage without writing.
+The Codex bridge is a compatibility actuator for that plan; it no longer owns
+those policy decisions.
+
+Persistence is not yet a coherent launch transaction. Runtime identity,
+session, job, event, worker request, optional Substrate Gate grant, and thread
+state linkage are still published through separate writes. None may become the
+authoritative sign of a completed launch until one native commit primitive
+publishes the prepared set atomically, or a typed prepared transaction gives
+interruption a deterministic finish-or-refuse law. Rollback and reconciliation
+are not owners.
+
 ## Invariants
 
 - There is one durable thread-state owner and one runtime lifecycle owner.

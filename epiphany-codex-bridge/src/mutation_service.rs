@@ -26,7 +26,6 @@ use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
-use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_TYPE;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
 use epiphany_core::apply_coordinator_state_update_to_state;
@@ -35,22 +34,17 @@ use epiphany_core::build_epiphany_role_launch_request_with_dynamic_context;
 use epiphany_core::clear_epiphany_job_binding_backend;
 use epiphany_core::continuity_recovery_receipt_from_reorient_finding;
 use epiphany_core::epiphany_role_label;
-use epiphany_core::epiphany_state_update_validation_errors;
 use epiphany_core::evaluate_promotion;
 use epiphany_core::eyes_evidence_packet_from_research_finding;
 use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::open_runtime_spine_heartbeat_job;
-use epiphany_core::plan_runtime_spine_heartbeat_launch;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
-use epiphany_core::replace_or_append_epiphany_job_binding;
-use epiphany_core::runtime_job_snapshot;
 use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::soul_verdict_receipt_from_verification_finding;
 use epiphany_core::substrate_gate_repo_access_grant_for_launch;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
-use epiphany_state_model::EpiphanyRuntimeLink;
 use epiphany_state_model::EpiphanyThreadState;
 
 use crate::cultnet::EpiphanySurfaceSource;
@@ -210,123 +204,36 @@ pub async fn launch_epiphany_job_on_thread(
     // runtime-spine opens the typed job. The bridge stitches those typed
     // documents into Codex's JSON-RPC thread shell until CultNet owns the route.
     let current_state = thread.epiphany_state().await.unwrap_or_default();
-    validate_expected_revision(request.expected_revision, current_state.revision)?;
     let runtime_store = thread.epiphany_runtime_spine_store_path().await;
-    let completed_prior_link = terminal_runtime_link_for_binding(
+    let launch_plan = epiphany_core::plan_coordinator_job_launch(
         &current_state,
-        request.binding_id.as_str(),
+        &request,
         runtime_store.as_path(),
-    )?;
-    let mut planning_state = current_state.clone();
-    if let Some(link) = completed_prior_link.clone() {
-        planning_state.runtime_links.insert(0, link);
-    }
-
-    let launcher_job_id = format!("epiphany-heartbeat-launch-{}", Uuid::new_v4());
-    let backend_job_id = Uuid::new_v4().to_string();
-    let launch_plan = plan_runtime_spine_heartbeat_launch(
-        &planning_state,
-        RuntimeSpineHeartbeatLaunchPlanOptions {
-            binding_id: request.binding_id.clone(),
-            kind: request.kind,
-            scope: request.scope.clone(),
-            owner_role: request.owner_role.clone(),
-            authority_scope: request.authority_scope.clone(),
-            linked_subgoal_ids: request.linked_subgoal_ids.clone(),
-            linked_graph_node_ids: request.linked_graph_node_ids.clone(),
-            instruction: request.instruction.clone(),
-            launch_document: request.launch_document.clone(),
-            output_contract_id: request.output_contract_id.clone(),
-            organ_launch_contract: request.organ_launch_contract.clone(),
-            max_runtime_seconds: request.max_runtime_seconds,
-            runtime_job_id: backend_job_id.clone(),
-        },
+        format!("epiphany-heartbeat-launch-{}", Uuid::new_v4()),
+        Uuid::new_v4().to_string(),
     )
     .map_err(|err| EpiphanyBridgeError::InvalidRequest(err.to_string()))?;
-    let next_job_bindings = replace_or_append_epiphany_job_binding(
-        current_state.job_bindings.clone(),
-        launch_plan.binding,
-    );
-
-    let mut runtime_links = Vec::new();
-    runtime_links.push(launch_plan.runtime_link.clone());
-    if let Some(link) = completed_prior_link {
-        runtime_links.push(link);
-    }
-
-    let validation_errors = epiphany_state_update_validation_errors(
-        &current_state,
-        &EpiphanyStateUpdate {
-            job_bindings: Some(next_job_bindings.clone()),
-            runtime_links: runtime_links.clone(),
-            ..Default::default()
-        },
-    );
-    if !validation_errors.is_empty() {
-        return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "invalid Epiphany job launch patch: {}",
-            validation_errors.join("; ")
-        )));
-    }
     open_epiphany_runtime_spine_job(
         runtime_store.as_path(),
-        &planning_state,
+        &launch_plan.planning_state,
         &request,
-        backend_job_id.as_str(),
+        launch_plan.backend_job_id.as_str(),
     )?;
     maybe_put_substrate_gate_launch_grant(
         runtime_store.as_path(),
         &request,
-        backend_job_id.as_str(),
+        launch_plan.backend_job_id.as_str(),
     )?;
 
-    let epiphany_state = apply_epiphany_state_update_to_thread(
-        thread,
-        EpiphanyStateUpdate {
-            expected_revision: request.expected_revision,
-            job_bindings: Some(next_job_bindings),
-            runtime_links,
-            ..Default::default()
-        },
-    )
-    .await?;
+    let epiphany_state =
+        apply_epiphany_state_update_to_thread(thread, launch_plan.state_update).await?;
 
     Ok(EpiphanyJobLaunchResult {
         epiphany_state,
         binding_id: request.binding_id,
-        launcher_job_id,
-        backend_job_id,
+        launcher_job_id: launch_plan.launcher_job_id,
+        backend_job_id: launch_plan.backend_job_id,
     })
-}
-
-fn terminal_runtime_link_for_binding(
-    state: &EpiphanyThreadState,
-    binding_id: &str,
-    runtime_store: &Path,
-) -> BridgeResult<Option<EpiphanyRuntimeLink>> {
-    let Some(link) = state
-        .runtime_links
-        .iter()
-        .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
-    else {
-        return Ok(None);
-    };
-    if link.runtime_result_id.is_some() {
-        return Ok(None);
-    }
-    let Some(snapshot) = runtime_job_snapshot(runtime_store, link.runtime_job_id.as_str())
-        .map_err(|err| EpiphanyBridgeError::Fatal(err.to_string()))?
-    else {
-        return Ok(None);
-    };
-    let Some(result) = snapshot.result else {
-        return Ok(None);
-    };
-    let mut terminal = link.clone();
-    terminal.id = format!("{}-{}", link.id, result.result_id);
-    terminal.surface = "runtimeResult".to_string();
-    terminal.runtime_result_id = Some(result.result_id);
-    Ok(Some(terminal))
 }
 
 pub async fn interrupt_epiphany_job_on_thread(
@@ -1002,6 +909,30 @@ fn map_coordinator_admission_error(
 
 #[cfg(test)]
 mod acceptance_architecture_tests {
+    #[test]
+    fn launch_route_delegates_planning_to_the_native_organ() {
+        let source = include_str!("mutation_service.rs");
+        let launch_start = source
+            .find("pub async fn launch_epiphany_job_on_thread")
+            .unwrap();
+        let interrupt_start = source
+            .find("pub async fn interrupt_epiphany_job_on_thread")
+            .unwrap();
+        let launch = &source[launch_start..interrupt_start];
+        assert_eq!(launch.matches("plan_coordinator_job_launch").count(), 1);
+        for forbidden in [
+            ["plan", "runtime", "spine", "heartbeat", "launch"].join("_"),
+            ["replace", "or", "append", "epiphany", "job", "binding"].join("_"),
+            ["runtime", "job", "snapshot"].join("_"),
+            ["epiphany", "state", "update", "validation", "errors"].join("_"),
+        ] {
+            assert!(
+                !launch.contains(&forbidden),
+                "launch route regrew native planning policy {forbidden:?}"
+            );
+        }
+    }
+
     #[test]
     fn acceptance_routes_have_no_individual_or_post_state_receipt_writes() {
         let source = include_str!("mutation_service.rs");
