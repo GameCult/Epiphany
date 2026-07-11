@@ -745,6 +745,13 @@ test proving a failed batch preserves the prior snapshot in memory and after
 reload. The storage primitive is ready; rewire bridge role/reorient acceptance
 to build the full prerequisite set and invoke this one batch.
 
+Compatibility host read authority now prefers the unified acceptance state in
+runtime-spine. App-server reaches it through a bridge wrapper, preserving the
+dependency direction; legacy rollout state is consulted only when no unified
+state exists. A corrupt unified store fails closed instead of letting stale
+Codex state retake authority. The vendored app-server check passes. Replace the
+role/reorient write path with the atomic batch next.
+
 Bridge identity correction from 2026-06-22: Epiphany owns swarm execution,
 repo Body work, branch-local lanes, memory, evidence, and Persona cognition.
 Bifrost owns GameCult identity, governed crossings into GitHub/Discord/Reddit

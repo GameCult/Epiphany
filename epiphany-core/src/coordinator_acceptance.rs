@@ -263,6 +263,16 @@ pub fn coordinator_acceptance_cache(store_path: &Path) -> anyhow::Result<CultCac
     Ok(cache)
 }
 
+pub fn read_accepted_coordinator_state(
+    store_path: &Path,
+) -> anyhow::Result<Option<EpiphanyThreadState>> {
+    let cache = coordinator_acceptance_cache(store_path)?;
+    cache
+        .get::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+        .map(|entry| entry.state())
+        .transpose()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EpiphanyAcceptancePrerequisite {
     Eyes(EyesEvidencePacket),

@@ -92,6 +92,7 @@ use uuid::Uuid;
 
 #[allow(async_fn_in_trait)]
 pub trait EpiphanyMutationHost {
+    async fn epiphany_thread_id(&self) -> String;
     /// Read the Codex-hosted compatibility snapshot.
     ///
     /// The bridge may request host state so core can evaluate typed policy. The
@@ -113,6 +114,13 @@ pub trait EpiphanyMutationHost {
         &self,
         fallback: EpiphanyThreadState,
     ) -> EpiphanyThreadState;
+}
+
+pub fn load_authoritative_accepted_state(
+    store_path: &Path,
+) -> BridgeResult<Option<EpiphanyThreadState>> {
+    epiphany_core::read_accepted_coordinator_state(store_path)
+        .map_err(|error| EpiphanyBridgeError::Fatal(error.to_string()))
 }
 
 #[derive(Debug, Clone)]

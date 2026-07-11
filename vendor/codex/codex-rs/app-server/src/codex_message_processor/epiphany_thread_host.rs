@@ -9,6 +9,7 @@ use codex_protocol::protocol::TokenUsageInfo;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::error::Result as BridgeResult;
 use epiphany_codex_bridge::mutation_service::EpiphanyMutationHost;
+use epiphany_codex_bridge::mutation_service::load_authoritative_accepted_state;
 use epiphany_codex_bridge::pressure::EpiphanyTokenUsageSnapshot;
 use epiphany_codex_bridge::state::client_visible_epiphany_state_for_paths;
 use epiphany_codex_bridge::state::thread_state_mirror_id_from_rollout_path;
@@ -24,8 +25,20 @@ impl<'a> EpiphanyCodexThreadHost<'a> {
 }
 
 impl EpiphanyMutationHost for EpiphanyCodexThreadHost<'_> {
+    async fn epiphany_thread_id(&self) -> String {
+        thread_state_mirror_id_from_rollout_path(self.thread.rollout_path().as_deref())
+    }
+
     async fn epiphany_state(&self) -> Option<EpiphanyThreadState> {
-        self.thread.epiphany_state().await
+        let store = self.thread.epiphany_runtime_spine_store_path().await;
+        match load_authoritative_accepted_state(&store) {
+            Ok(Some(state)) => Some(state),
+            Ok(None) => self.thread.epiphany_state().await,
+            Err(error) => {
+                tracing::error!(%error, store = %store.display(), "failed to read authoritative unified Epiphany acceptance state");
+                None
+            }
+        }
     }
 
     async fn epiphany_reference_turn_id(&self) -> Option<String> {

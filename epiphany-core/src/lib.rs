@@ -135,6 +135,7 @@ pub use coordinator_acceptance::completed_role_finding;
 pub use coordinator_acceptance::coordinator_acceptance_cache;
 pub use coordinator_acceptance::enforce_acceptance_receipt_proofs;
 pub use coordinator_acceptance::load_launch_organ_contract;
+pub use coordinator_acceptance::read_accepted_coordinator_state;
 pub use coordinator_acceptance::reorient_acceptance_claimed_effects;
 pub use coordinator_acceptance::role_acceptance_claimed_effects;
 pub use coordinator_acceptance::role_acceptance_enforceable_receipts;
