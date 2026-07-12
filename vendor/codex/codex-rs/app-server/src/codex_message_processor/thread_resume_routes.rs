@@ -391,7 +391,6 @@ impl CodexMessageProcessor {
         )
         .await?;
         self.attach_thread_name(thread_id, &mut thread).await;
-        thread.epiphany_state = live_thread_epiphany_state(live_thread).await;
         Ok(thread)
     }
 

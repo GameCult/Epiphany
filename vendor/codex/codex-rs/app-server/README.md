@@ -134,19 +134,6 @@ Example with notification opt-out:
 
 ## API Overview
 
-Hydrated thread responses such as `thread/start`, `thread/resume`, `thread/fork`, `thread/read`, and `thread/unarchive` may include `thread.epiphanyState` when the thread has persisted Epiphany state. When the thread is currently loaded, app-server prefers the live in-memory value; otherwise it reconstructs the latest surviving snapshot from rollout items using the same rollback/compaction semantics as core session replay. For live threads with Epiphany state but no persisted retrieval summary yet, app-server backfills a lightweight query-time retrieval summary instead of pretending the retrieval field is absent.
-
-Experimental Epiphany state access:
-
-- `thread/epiphany/context` is a targeted read-only state-shard surface. It selects graph nodes/edges, active frontier, checkpoint, observations, and evidence from authoritative typed state without mutating or notifying.
-- `thread/epiphany/graphQuery` is a read-only graph traversal surface over authoritative typed state. It can return explicit nodes, path/symbol matches, one-to-three-hop neighbors, and the current frontier neighborhood while preserving architecture/dataflow links; it does not mutate, index, schedule, or promote.
-- `thread/epiphany/update` is the explicit loaded-thread-only control-plane write path for Epiphany state. It can append observations/evidence and replace bounded typed state fields such as objective, subgoals, graph frontier/checkpoint, scratch, churn, and mode; it bumps the Epiphany revision, returns `revision` plus `changedFields`, and persists a rollout snapshot immediately.
-- `thread/epiphany/stateUpdated` is an experimental server notification emitted after successful `thread/epiphany/update`. It carries the updated typed `epiphanyState`, an `update` source, event-level `revision`, and typed `changedFields`.
-- `thread/epiphany/jobsUpdated` is a sealed legacy notification shape. Epiphany no longer emits it from Codex batch-job progress; heartbeat/runtime-spine owns live activation telemetry, while the `jobs` lens on `thread/epiphany/view` remains a read-only projection over current typed state.
-- `thread/epiphany/freshness` is a read-only reflection surface for retrieval and graph staleness. It reports revision/source identity, retrieval freshness, graph freshness, and exact dirty-path pressure, and for loaded threads now also reports watcher-backed invalidation inputs with watched root, changed paths, mapped graph-node hits, and active-frontier hits. It still does not mutate state, schedule refresh work, or perform automatic watcher-driven semantic invalidation.
-- `thread/epiphany/reorient` is a read-only CRRC policy surface. It consumes the durable investigation checkpoint plus freshness, watcher, and pressure signals to return a bounded `resume` versus `regather` verdict with explicit checkpoint-path/frontier reasons. It does not mutate state, compact, notify, schedule, or silently continue work on the caller's behalf.
-  The request envelope is camelCase, but nested reused Epiphany core DTOs currently keep their core snake_case fields, such as `source_kind`, `understanding_status`, and `diff_pressure`.
-
 - `thread/start` — create a new thread; emits `thread/started` (including the current `thread.status`) and auto-subscribes you to turn/item events for that thread. When the request includes a `cwd` and the resolved sandbox is `workspace-write` or full access, app-server also marks that project as trusted in the user `config.toml`. Pass `sessionStartSource: "clear"` when starting a replacement thread after clearing the current session so `SessionStart` hooks receive `source: "clear"` instead of the default `"startup"`. For permissions, prefer `permissionProfile`; the legacy `sandbox` shorthand is still accepted but cannot be combined with `permissionProfile`.
 - `thread/resume` — reopen an existing thread by id so subsequent `turn/start` calls append to it. Accepts the same permission override rules as `thread/start`.
 - `thread/fork` — fork an existing thread into a new thread id by copying the stored history; if the source thread is currently mid-turn, the fork records the same interruption marker as `turn/interrupt` instead of inheriting an unmarked partial turn suffix. The returned `thread.forkedFromId` points at the source thread when known. Accepts `ephemeral: true` for an in-memory temporary fork, emits `thread/started` (including the current `thread.status`), and auto-subscribes you to turn/item events for the new thread. Accepts the same permission override rules as `thread/start`.
@@ -375,8 +362,6 @@ Later, after the idle unload timeout:
 ### Example: Read a thread
 
 Use `thread/read` to fetch a stored thread by id without resuming it. Pass `includeTurns` when you want the full rollout history loaded into `thread.turns`. The returned thread includes `agentNickname` and `agentRole` for AgentControl-spawned thread sub-agents when available.
-
-When present, `thread.epiphanyState` is the latest surviving persisted `EpiphanyThreadState` snapshot for that thread.
 
 ```json
 { "method": "thread/read", "id": 22, "params": { "threadId": "thr_123" } }

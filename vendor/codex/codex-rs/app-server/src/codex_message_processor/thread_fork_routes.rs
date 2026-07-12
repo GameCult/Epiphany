@@ -267,8 +267,6 @@ impl CodexMessageProcessor {
             return;
         }
 
-        thread.epiphany_state = live_thread_epiphany_state(forked_thread.as_ref()).await;
-
         self.thread_watch_manager
             .upsert_thread_silently(thread.clone())
             .await;

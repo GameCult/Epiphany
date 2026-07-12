@@ -47,19 +47,9 @@ use serde_json::Value;
 use serde_json::json;
 use std::env;
 use std::fs;
-use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::mpsc;
-use std::thread;
-use std::time::{Duration, Instant};
+use std::process::Command;
 
-const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
 const DEFAULT_CARGO_TARGET_DIR: &str = r"C:\Users\Meta\.cargo-target-codex";
 const DEFAULT_THREAD_STATE_STORE: &str = "state/thread-state.msgpack";
 const DEFAULT_RUNTIME_STORE: &str = "state/runtime-spine.msgpack";
@@ -91,15 +81,6 @@ fn main() -> Result<()> {
             format!("{}\n", serde_json::to_string_pretty(&status)?),
         )
         .with_context(|| format!("failed to write {}", result.display()))?;
-        if args.source == StatusSource::Codex {
-            write_transcript_telemetry(&args.transcript, &result.with_extension("telemetry.json"))?;
-        }
-    }
-    if args.source == StatusSource::Codex {
-        write_transcript_telemetry(
-            &args.transcript,
-            &args.transcript.with_extension("telemetry.json"),
-        )?;
     }
     if args.json {
         println!("{}", serde_json::to_string_pretty(&status)?);
@@ -109,17 +90,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StatusSource {
-    Native,
-    Codex,
-}
-
 #[derive(Debug)]
 struct Args {
-    source: StatusSource,
-    app_server: PathBuf,
-    codex_home: PathBuf,
     thread_id: Option<String>,
     cwd: PathBuf,
     thread_state_store: PathBuf,
@@ -138,11 +110,6 @@ impl Args {
         let root = env::current_dir().context("failed to resolve current directory")?;
         let mut args = env::args().skip(1);
         let mut parsed = Args {
-            source: StatusSource::Native,
-            app_server: PathBuf::from(DEFAULT_APP_SERVER),
-            codex_home: env::var_os("CODEX_HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| home_dir().join(".codex")),
             thread_id: None,
             cwd: root.clone(),
             thread_state_store: PathBuf::from(DEFAULT_THREAD_STATE_STORE),
@@ -161,11 +128,6 @@ impl Args {
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--source" => parsed.source = take_source(&mut args, "--source")?,
-                "--native" => parsed.source = StatusSource::Native,
-                "--codex" => parsed.source = StatusSource::Codex,
-                "--app-server" => parsed.app_server = take_path(&mut args, "--app-server")?,
-                "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
                 "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
                 "--thread-state-store" => {
@@ -195,15 +157,9 @@ impl Args {
 
 fn run_status(args: &Args) -> Result<Value> {
     if args.interrupt_binding.is_some() {
-        return match args.source {
-            StatusSource::Native => run_native_interrupt(args),
-            StatusSource::Codex => run_codex_interrupt(args),
-        };
+        return run_native_interrupt(args);
     }
-    match args.source {
-        StatusSource::Native => run_native_status(args),
-        StatusSource::Codex => run_codex_status(args),
-    }
+    run_native_status(args)
 }
 
 fn run_native_interrupt(args: &Args) -> Result<Value> {
@@ -244,52 +200,6 @@ fn run_native_interrupt(args: &Args) -> Result<Value> {
         "interruptedThreadIds": result.interrupted_thread_ids,
         "epiphanyState": result.epiphany_state,
     }))
-}
-
-fn run_codex_interrupt(args: &Args) -> Result<Value> {
-    if args.source != StatusSource::Codex {
-        return Err(anyhow!(
-            "--interrupt-binding requires Codex/app-server status source"
-        ));
-    }
-    let thread_id = args
-        .thread_id
-        .as_ref()
-        .ok_or_else(|| anyhow!("--interrupt-binding requires --thread-id"))?;
-    let binding_id = args
-        .interrupt_binding
-        .as_ref()
-        .ok_or_else(|| anyhow!("--interrupt-binding requires a binding id"))?;
-    let app_server = absolute_path(&args.app_server)?;
-    let codex_home = absolute_path(&args.codex_home)?;
-    let transcript = absolute_path(&args.transcript)?;
-    let stderr = absolute_path(&args.stderr)?;
-    let mut client = AppServerClient::start(&app_server, &codex_home, &transcript, &stderr)?;
-    client.send(
-        "initialize",
-        Some(json!({
-            "clientInfo": {
-                "name": "epiphany-mvp-status",
-                "title": "Epiphany MVP Status",
-                "version": "0.1.0",
-            },
-            "capabilities": {"experimentalApi": true},
-        })),
-        true,
-    )?;
-    client.send("initialized", None, false)?;
-    if !args.ephemeral {
-        client.send("thread/resume", Some(json!({"threadId": thread_id})), true)?;
-    }
-    client.send(
-        "thread/epiphany/jobInterrupt",
-        Some(json!({
-            "threadId": thread_id,
-            "bindingId": binding_id,
-            "reason": args.interrupt_reason,
-        })),
-        true,
-    )
 }
 
 fn run_native_status(args: &Args) -> Result<Value> {
@@ -562,123 +472,6 @@ fn run_native_status(args: &Args) -> Result<Value> {
             "recommendation": recommendation,
         },
         "coordinator": coordinator_json,
-        "tools": tool_invocations,
-        "heartbeat": native_aux.heartbeat,
-        "persona": native_aux.persona,
-        "bifrostBridge": native_aux.bifrost_bridge,
-        "voidMemory": native_aux.void_memory,
-    });
-    Ok(sanitize_for_operator(status))
-}
-
-fn run_codex_status(args: &Args) -> Result<Value> {
-    let app_server = absolute_path(&args.app_server)?;
-    let codex_home = absolute_path(&args.codex_home)?;
-    let cwd = absolute_path(&args.cwd)?;
-    let transcript = absolute_path(&args.transcript)?;
-    let stderr = absolute_path(&args.stderr)?;
-
-    if !app_server.exists() {
-        return Err(anyhow!(
-            "codex app-server binary not found: {}",
-            app_server.display()
-        ));
-    }
-    fs::create_dir_all(&codex_home)
-        .with_context(|| format!("failed to create {}", codex_home.display()))?;
-    let mut client = AppServerClient::start(&app_server, &codex_home, &transcript, &stderr)?;
-    client.send(
-        "initialize",
-        Some(json!({
-            "clientInfo": {
-                "name": "epiphany-mvp-status",
-                "title": "Epiphany MVP Status",
-                "version": "0.1.0",
-            },
-            "capabilities": {"experimentalApi": true},
-        })),
-        true,
-    )?;
-    client.send("initialized", None, false)?;
-
-    let thread_id = if let Some(thread_id) = &args.thread_id {
-        if !args.ephemeral {
-            client.send("thread/resume", Some(json!({"threadId": thread_id})), true)?;
-        }
-        thread_id.clone()
-    } else {
-        let started = client.send(
-            "thread/start",
-            Some(json!({"cwd": cwd, "ephemeral": args.ephemeral})),
-            true,
-        )?;
-        started["thread"]["id"]
-            .as_str()
-            .ok_or_else(|| anyhow!("thread/start returned no thread id"))?
-            .to_string()
-    };
-
-    let read = client.send(
-        "thread/read",
-        Some(json!({"threadId": thread_id, "includeTurns": false})),
-        true,
-    )?;
-    let view = client.send(
-        "thread/epiphany/view",
-        Some(json!({"threadId": thread_id, "lenses": ["scene", "pressure", "jobs", "roles", "planning", "reorient", "crrc", "coordinator"]})),
-        true,
-    )?;
-    let scene = json!({
-        "threadId": thread_id,
-        "scene": view.get("scene").cloned().unwrap_or_else(|| json!(null)),
-    });
-    let pressure = json!({
-        "threadId": thread_id,
-        "source": "live",
-        "pressure": view.get("pressure").cloned().unwrap_or_else(|| json!(null)),
-    });
-    let reorient = view.get("reorient").cloned().unwrap_or_else(|| json!(null));
-    let jobs = json!({
-        "threadId": thread_id,
-        "source": "live",
-        "jobs": view.get("jobs").cloned().unwrap_or_else(|| json!([])),
-    });
-    let roles = view.get("roles").cloned().unwrap_or_else(|| json!(null));
-    let planning = view.get("planning").cloned().unwrap_or_else(|| json!(null));
-    let role_results = json!({
-        "imagination": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "imagination"})), true)?,
-        "research": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "research"})), true)?,
-        "modeling": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "modeling"})), true)?,
-        "verification": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "verification"})), true)?,
-    });
-    let reorient_result = client.send(
-        "thread/epiphany/reorientResult",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
-    let crrc = view.get("crrc").cloned().unwrap_or_else(|| json!(null));
-    let coordinator = view
-        .get("coordinator")
-        .cloned()
-        .unwrap_or_else(|| json!(null));
-    let runtime_store_path = absolute_path(&args.runtime_store)?;
-    let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;
-    let root = env::current_dir().context("failed to resolve current directory")?;
-    let native_aux = native_auxiliary_status(&root)?;
-    let status = json!({
-        "threadId": thread_id,
-        "read": read,
-        "view": view,
-        "scene": scene,
-        "pressure": pressure,
-        "reorient": reorient,
-        "jobs": jobs,
-        "roles": roles,
-        "planning": planning,
-        "roleResults": role_results,
-        "reorientResult": reorient_result,
-        "crrc": crrc,
-        "coordinator": coordinator,
         "tools": tool_invocations,
         "heartbeat": native_aux.heartbeat,
         "persona": native_aux.persona,
@@ -1293,262 +1086,6 @@ fn role_job_status(status: epiphany_core::EpiphanyJobStatus) -> EpiphanyRoleBoar
     }
 }
 
-pub struct AppServerClient {
-    child: Child,
-    stdin: ChildStdin,
-    rx: mpsc::Receiver<Value>,
-    transcript: Arc<Mutex<File>>,
-    notifications: Arc<Mutex<Vec<Value>>>,
-    next_id: u64,
-}
-
-impl AppServerClient {
-    pub fn start(
-        app_server: &Path,
-        codex_home: &Path,
-        transcript_path: &Path,
-        stderr_path: &Path,
-    ) -> Result<Self> {
-        if let Some(parent) = transcript_path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
-        if let Some(parent) = stderr_path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("failed to create {}", parent.display()))?;
-        }
-        let transcript = Arc::new(Mutex::new(
-            File::create(transcript_path)
-                .with_context(|| format!("failed to create {}", transcript_path.display()))?,
-        ));
-        let stderr_file = Arc::new(Mutex::new(
-            File::create(stderr_path)
-                .with_context(|| format!("failed to create {}", stderr_path.display()))?,
-        ));
-        let mut command = Command::new(app_server);
-        command
-            .current_dir(
-                env::current_dir()?
-                    .join("vendor")
-                    .join("codex")
-                    .join("codex-rs"),
-            )
-            .env("CODEX_HOME", codex_home)
-            .env(
-                "CARGO_TARGET_DIR",
-                env::var("CARGO_TARGET_DIR")
-                    .unwrap_or_else(|_| DEFAULT_CARGO_TARGET_DIR.to_string()),
-            )
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let mut child = command
-            .spawn()
-            .context("failed to spawn codex app-server")?;
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| anyhow!("app-server stdin unavailable"))?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| anyhow!("app-server stdout unavailable"))?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| anyhow!("app-server stderr unavailable"))?;
-        let (tx, rx) = mpsc::channel();
-        let transcript_for_stdout = Arc::clone(&transcript);
-        let notifications = Arc::new(Mutex::new(Vec::new()));
-        let notifications_for_stdout = Arc::clone(&notifications);
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                if line.trim().is_empty() {
-                    continue;
-                }
-                let message = serde_json::from_str::<Value>(&line).unwrap_or_else(
-                    |error| json!({"_decode_error": error.to_string(), "raw": line}),
-                );
-                record(&transcript_for_stdout, "received", &message);
-                if message.get("method").is_some()
-                    && message.get("id").is_none()
-                    && let Ok(mut notifications) = notifications_for_stdout.lock()
-                {
-                    notifications.push(message.clone());
-                }
-                let _ = tx.send(message);
-            }
-        });
-        thread::spawn(move || {
-            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                if let Ok(mut file) = stderr_file.lock() {
-                    let _ = writeln!(file, "{line}");
-                }
-            }
-        });
-        Ok(Self {
-            child,
-            stdin,
-            rx,
-            transcript,
-            notifications,
-            next_id: 1,
-        })
-    }
-
-    pub fn send(
-        &mut self,
-        method: &str,
-        params: Option<Value>,
-        expect_response: bool,
-    ) -> Result<Value> {
-        let mut message = serde_json::Map::new();
-        message.insert("method".to_string(), json!(method));
-        let request_id = if expect_response {
-            let id = self.next_id;
-            self.next_id += 1;
-            message.insert("id".to_string(), json!(id));
-            Some(id)
-        } else {
-            None
-        };
-        if let Some(params) = params {
-            message.insert("params".to_string(), params);
-        }
-        let message = Value::Object(message);
-        record(&self.transcript, "sent", &message);
-        writeln!(
-            self.stdin,
-            "{}",
-            serde_json::to_string(&message).context("failed to encode request")?
-        )
-        .context("failed to write app-server request")?;
-        self.stdin
-            .flush()
-            .context("failed to flush app-server stdin")?;
-        let Some(request_id) = request_id else {
-            return Ok(Value::Null);
-        };
-        self.wait_for(request_id)
-    }
-
-    fn wait_for(&mut self, request_id: u64) -> Result<Value> {
-        let deadline = Instant::now() + Duration::from_secs(45);
-        while Instant::now() < deadline {
-            if let Some(status) = self.child.try_wait()? {
-                return Err(anyhow!(
-                    "app-server exited with {} before response {}",
-                    status,
-                    request_id
-                ));
-            }
-            match self.rx.recv_timeout(Duration::from_millis(500)) {
-                Ok(message) => {
-                    if message.get("id").and_then(Value::as_u64) != Some(request_id) {
-                        continue;
-                    }
-                    if let Some(error) = message.get("error") {
-                        return Err(anyhow!("request {request_id} failed: {error}"));
-                    }
-                    let result = message
-                        .get("result")
-                        .cloned()
-                        .ok_or_else(|| anyhow!("request {request_id} returned no result"))?;
-                    if !result.is_object() {
-                        return Err(anyhow!(
-                            "request {request_id} returned non-object result: {result}"
-                        ));
-                    }
-                    return Ok(result);
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {}
-                Err(error) => return Err(anyhow!("app-server response channel closed: {error}")),
-            }
-        }
-        Err(anyhow!("timed out waiting for response {request_id}"))
-    }
-
-    pub fn notification_count(&self, method: &str, start_index: usize) -> usize {
-        self.notifications
-            .lock()
-            .ok()
-            .map(|notifications| {
-                notifications
-                    .iter()
-                    .skip(start_index)
-                    .filter(|message| message.get("method").and_then(Value::as_str) == Some(method))
-                    .count()
-            })
-            .unwrap_or(0)
-    }
-
-    pub fn notification_len(&self) -> usize {
-        self.notifications
-            .lock()
-            .map(|notifications| notifications.len())
-            .unwrap_or(0)
-    }
-
-    pub fn require_no_notification(
-        &mut self,
-        method: &str,
-        start_index: usize,
-        timeout: Duration,
-    ) -> Result<()> {
-        let deadline = Instant::now() + timeout;
-        while Instant::now() < deadline {
-            if let Some(status) = self.child.try_wait()? {
-                return Err(anyhow!(
-                    "app-server exited with {} while checking notification {}",
-                    status,
-                    method
-                ));
-            }
-            if self.notification_count(method, start_index) > 0 {
-                return Err(anyhow!("unexpected notification {method}"));
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-        Ok(())
-    }
-
-    pub fn wait_for_notification(
-        &mut self,
-        method: &str,
-        start_index: usize,
-        timeout: Duration,
-    ) -> Result<Value> {
-        let deadline = Instant::now() + timeout;
-        while Instant::now() < deadline {
-            if let Some(status) = self.child.try_wait()? {
-                return Err(anyhow!(
-                    "app-server exited with {} before notification {}",
-                    status,
-                    method
-                ));
-            }
-            if let Ok(notifications) = self.notifications.lock()
-                && let Some(message) = notifications
-                    .iter()
-                    .skip(start_index)
-                    .find(|message| message.get("method").and_then(Value::as_str) == Some(method))
-            {
-                return Ok(message.clone());
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-        Err(anyhow!("timed out waiting for notification {method}"))
-    }
-}
-
-impl Drop for AppServerClient {
-    fn drop(&mut self) {
-        let _ = self.stdin.flush();
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
 pub fn render_status(status: &Value) -> String {
     let scene = &status["scene"]["scene"];
     let pressure = &status["pressure"]["pressure"];
@@ -1825,18 +1362,6 @@ fn sealed_long_text(key: &str, text: &str) -> Value {
     })
 }
 
-pub fn write_transcript_telemetry(transcript: &Path, output: &Path) -> Result<()> {
-    let _ = native_json(
-        "epiphany-agent-telemetry",
-        &[
-            &transcript.to_string_lossy(),
-            "--output",
-            &output.to_string_lossy(),
-        ],
-    )?;
-    Ok(())
-}
-
 pub fn native_json(bin_name: &str, args: &[&str]) -> Result<Value> {
     let sibling = env::current_exe()
         .ok()
@@ -1876,12 +1401,6 @@ pub fn native_json(bin_name: &str, args: &[&str]) -> Result<Value> {
         .with_context(|| format!("{bin_name} returned invalid JSON"))
 }
 
-fn record(transcript: &Arc<Mutex<File>>, kind: &str, payload: &Value) {
-    if let Ok(mut file) = transcript.lock() {
-        let _ = writeln!(file, "{}", json!({kind: payload}));
-    }
-}
-
 fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
     args.next()
         .ok_or_else(|| anyhow!("{name} requires a value"))
@@ -1889,23 +1408,6 @@ fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<St
 
 fn take_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(take_string(args, name)?))
-}
-
-fn take_source(args: &mut impl Iterator<Item = String>, name: &str) -> Result<StatusSource> {
-    match take_string(args, name)?.as_str() {
-        "native" => Ok(StatusSource::Native),
-        "codex" => Ok(StatusSource::Codex),
-        other => Err(anyhow!(
-            "{name} must be 'native' or 'codex', received {other:?}"
-        )),
-    }
-}
-
-fn home_dir() -> PathBuf {
-    env::var_os("USERPROFILE")
-        .or_else(|| env::var_os("HOME"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 #[cfg(test)]
@@ -1937,9 +1439,6 @@ mod native_interrupt_tests {
             None,
         )?;
         let args = Args {
-            source: StatusSource::Native,
-            app_server: PathBuf::new(),
-            codex_home: PathBuf::new(),
             thread_id: Some("thread-1".to_string()),
             cwd: temp.path().to_path_buf(),
             thread_state_store: store.clone(),

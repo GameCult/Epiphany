@@ -248,7 +248,6 @@ pub(crate) fn thread_from_stored_thread(
         source: source.into(),
         git_info,
         name: thread.name,
-        epiphany_state: None,
         turns: Vec::new(),
     };
     (thread, history)
@@ -709,7 +708,6 @@ pub(crate) fn build_thread_from_snapshot(
         source: config_snapshot.session_source.clone().into(),
         git_info: None,
         name: None,
-        epiphany_state: None,
         turns: Vec::new(),
     }
 }
@@ -765,7 +763,6 @@ pub(crate) fn summary_to_thread(
         source: source.into(),
         git_info,
         name: None,
-        epiphany_state: None,
         turns: Vec::new(),
     }
 }

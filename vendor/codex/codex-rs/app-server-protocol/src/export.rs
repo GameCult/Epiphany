@@ -2116,7 +2116,6 @@ mod tests {
                         // Epiphany DTOs are durable sparse state rather than conventional
                         // request/response envelopes, so optional fields are intentional there.
                         || stem.starts_with("Epiphany")
-                        || stem == "ThreadEpiphanyUpdatePatch"
                         || matches!(
                             stem,
                             "CollabAgentRef"

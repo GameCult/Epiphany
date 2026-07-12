@@ -391,3 +391,13 @@ hierarchy and retrieval result/index projection shapes. Bridge-only distill,
 propose, job-document, index, and retrieve conversions plus the entire
 `retrieve_protocol` module are deleted. Regenerated JSON/TypeScript fixtures
 contain none of those types; their in-memory fixture comparison passes.
+
+The final eight-route compatibility surface is gone too. Seven phase-6
+app-server smoke binaries and the app-server-backed MVP status smoke were
+deleted; `epiphany-mvp-status` has one native status/interruption path and no
+Codex transport client. App-server request/notification registrations,
+dispatch, route modules, all `ThreadEpiphany*` DTOs, generated exports, generic
+Codex `Thread.epiphanyState`, and legacy rollout-state migration are deleted.
+`codex-app-server-protocol` no longer depends on `epiphany-state-model`.
+`epiphany-codex-bridge` has collapsed to its only living consumer surface: the
+Codex-hosted file-watcher invalidation manager.

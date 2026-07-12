@@ -141,8 +141,6 @@ impl CodexMessageProcessor {
             match read_summary_from_rollout(rollout_path.as_path(), fallback_provider).await {
                 Ok(summary) => {
                     let mut thread = summary_to_thread(summary, &self.config.cwd);
-                    thread.epiphany_state =
-                        live_thread_epiphany_state(review_thread.as_ref()).await;
                     self.thread_watch_manager
                         .upsert_thread_silently(thread.clone())
                         .await;

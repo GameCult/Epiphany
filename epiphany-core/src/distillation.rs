@@ -206,7 +206,7 @@ mod tests {
         let proposal = distill_observation(EpiphanyDistillInput {
             source_kind: "smoke".to_string(),
             status: "ok".to_string(),
-            subject: Some("thread/epiphany/update".to_string()),
+            subject: Some("native-state-update".to_string()),
             text: "  live smoke returned revision 1  ".to_string(),
             code_refs: vec![EpiphanyCodeRef {
                 path: PathBuf::from("src/lib.rs"),
@@ -229,7 +229,7 @@ mod tests {
         assert_eq!(proposal.evidence.kind, "verification");
         assert_eq!(
             proposal.observation.summary,
-            "thread/epiphany/update: live smoke returned revision 1"
+            "native-state-update: live smoke returned revision 1"
         );
         assert_eq!(proposal.evidence.code_refs.len(), 1);
     }

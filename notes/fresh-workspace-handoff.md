@@ -1963,6 +1963,14 @@ and TypeScript fixtures were regenerated; their two fixture-equivalence tests,
 protocol/bridge compilation, and full app-server compilation pass. Next map the
 real invariant behind each phase-6 smoke and `epiphany-mvp-status --codex`, then
 migrate or retire those clients rather than preserving JSON-RPC for its own tests.
+That cut is complete. All phase-6 app-server smokes plus the app-server MVP
+status smoke are deleted; MVP status and interruption are native-only. The final
+eight request methods, two notifications, dispatch/handlers, `ThreadEpiphany*`
+DTO slab, generated exports, Codex thread-state projection, and legacy rollout
+migration are gone. Schema fixture equivalence, full app-server compilation,
+and native status interruption tests pass. `epiphany-codex-bridge` now contains
+only the file-watcher invalidation manager; move that host-owned organ into
+app-server and delete the bridge crate next.
 
 ## Immediate Re-entry Instruction
 

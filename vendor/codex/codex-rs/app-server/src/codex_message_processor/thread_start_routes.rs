@@ -281,13 +281,6 @@ impl CodexMessageProcessor {
                     &config_snapshot,
                     session_configured.rollout_path.clone(),
                 );
-                thread.epiphany_state = live_thread_epiphany_state(&codex_thread)
-                    .instrument(tracing::info_span!(
-                        "app_server.thread_start.epiphany_state",
-                        otel.name = "app_server.thread_start.epiphany_state",
-                    ))
-                    .await;
-
                 // Auto-attach a thread listener when starting a thread.
                 Self::log_listener_attach_result(
                     Self::ensure_conversation_listener_task(

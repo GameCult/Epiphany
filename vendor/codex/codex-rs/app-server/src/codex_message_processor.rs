@@ -1,13 +1,7 @@
 mod auth_routes;
 mod catalog_routes;
 mod command_routes;
-mod epiphany_mutation_routes;
-mod epiphany_read_routes;
-mod epiphany_thread_host;
-#[cfg(test)]
-mod epiphany_compatibility_architecture;
 mod listener_lifecycle;
-mod legacy_epiphany_rollout;
 mod mcp_routes;
 mod realtime_routes;
 mod review_routes;
@@ -26,13 +20,10 @@ mod thread_turn_routes;
 mod turn_routes;
 
 use self::auth_routes::ActiveLogin;
-use self::epiphany_thread_host::live_thread_epiphany_state;
-use self::epiphany_thread_host::load_epiphany_state_from_rollout_path;
 pub(super) use self::listener_lifecycle::{EnsureConversationListenerResult, ListenerTaskContext};
 pub(crate) use self::running_thread_resume_routes::handle_pending_thread_resume_request;
 pub(crate) use self::thread_config::{config_load_error, validate_dynamic_tools};
 pub(crate) use self::thread_projection::*;
-pub(super) use self::thread_read_routes::ThreadReadViewError;
 pub(crate) use self::thread_turn_projection::*;
 use crate::bespoke_event_handling::apply_bespoke_event_handling;
 use crate::bespoke_event_handling::maybe_emit_hook_prompt_item_completed;
@@ -374,7 +365,6 @@ use crate::filters::source_kind_matches;
 use crate::thread_state::ThreadListenerCommand;
 use crate::thread_state::ThreadState;
 use crate::thread_state::ThreadStateManager;
-use token_usage_replay::latest_token_usage_info_from_rollout_path;
 use token_usage_replay::latest_token_usage_turn_id_for_thread_path;
 use token_usage_replay::latest_token_usage_turn_id_from_rollout_items;
 use token_usage_replay::latest_token_usage_turn_id_from_rollout_path;
@@ -635,38 +625,6 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadRead { request_id, params } => {
                 self.thread_read(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyView { request_id, params } => {
-                self.thread_epiphany_view(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyRoleResult { request_id, params } => {
-                self.thread_epiphany_role_result(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyFreshness { request_id, params } => {
-                self.thread_epiphany_freshness(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyContext { request_id, params } => {
-                self.thread_epiphany_context(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyGraphQuery { request_id, params } => {
-                self.thread_epiphany_graph_query(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyReorientResult { request_id, params } => {
-                self.thread_epiphany_reorient_result(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyJobInterrupt { request_id, params } => {
-                self.thread_epiphany_job_interrupt(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyUpdate { request_id, params } => {
-                self.thread_epiphany_update(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadTurnsList { request_id, params } => {

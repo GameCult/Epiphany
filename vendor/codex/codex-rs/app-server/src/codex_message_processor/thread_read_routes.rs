@@ -257,9 +257,6 @@ impl CodexMessageProcessor {
             )));
         };
 
-        self.apply_thread_read_epiphany_state(&mut thread, loaded_thread.as_ref())
-            .await?;
-
         let has_live_in_progress_turn = if let Some(loaded_thread) = loaded_thread.as_ref() {
             matches!(loaded_thread.agent_status().await, AgentStatus::Running)
         } else {
@@ -349,27 +346,6 @@ impl CodexMessageProcessor {
         )
         .await?;
         Ok(Some(thread))
-    }
-
-    async fn apply_thread_read_epiphany_state(
-        &self,
-        thread: &mut Thread,
-        loaded_thread: Option<&Arc<CodexThread>>,
-    ) -> Result<(), ThreadReadViewError> {
-        if let Some(loaded_thread) = loaded_thread {
-            thread.epiphany_state = live_thread_epiphany_state(loaded_thread).await;
-            return Ok(());
-        }
-
-        let Some(rollout_path) = thread.path.as_deref() else {
-            thread.epiphany_state = None;
-            return Ok(());
-        };
-
-        thread.epiphany_state = load_epiphany_state_from_rollout_path(rollout_path)
-            .await
-            .map_err(ThreadReadViewError::Internal)?;
-        Ok(())
     }
 
     async fn apply_thread_read_rollout_fields(

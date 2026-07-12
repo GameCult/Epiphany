@@ -7,20 +7,9 @@ handler itself do not count as clients.
 
 ## Living explicit compatibility clients
 
-| Route | Executable consumer | Compatibility purpose |
-|---|---|---|
-| `view` | phase-6 scene/reorient/pressure/planning smokes; `epiphany-mvp-status --codex` | old aggregate read projection |
-| `roleResult` | `epiphany-mvp-status --codex` | old worker-result read projection |
-| `freshness` | phase-6 freshness smoke | old freshness projection |
-| `context` | phase-6 context smoke | old context projection |
-| `graphQuery` | phase-6 graph-query smoke | old graph projection |
-| `reorientResult` | `epiphany-mvp-status --codex` | old reorientation-result projection |
-| `jobInterrupt` | `epiphany-mvp-status --codex` | explicit delegated interruption fallback |
-| `update` | phase-6 scene/context/freshness/graph/reorient/planning smokes | explicit delegated state-update fallback |
-
-These are retained only while the named compatibility binaries remain. They do
-not justify route-local policy, implicit triggers, Codex state ownership, or new
-clients.
+None. The phase-6 app-server smokes and `epiphany-mvp-status --codex` fallback
+were the final clients and are deleted. MVP status and interruption now use the
+native coordinator/state stores exclusively.
 
 ## Removed unconsumed routes
 

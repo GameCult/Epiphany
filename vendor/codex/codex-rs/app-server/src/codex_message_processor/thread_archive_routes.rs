@@ -194,17 +194,6 @@ impl CodexMessageProcessor {
                     /*has_in_progress_turn*/ false,
                 );
                 self.attach_thread_name(thread_id, &mut thread).await;
-                if let Some(rollout_path) = thread.path.as_deref() {
-                    match load_epiphany_state_from_rollout_path(rollout_path).await {
-                        Ok(epiphany_state) => {
-                            thread.epiphany_state = epiphany_state;
-                        }
-                        Err(message) => {
-                            self.send_internal_error(request_id, message).await;
-                            return;
-                        }
-                    }
-                }
                 let thread_id = thread.id.clone();
                 let response = ThreadUnarchiveResponse { thread };
                 self.outgoing.send_response(request_id, response).await;
