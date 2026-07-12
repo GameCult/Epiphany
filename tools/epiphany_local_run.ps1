@@ -36,8 +36,6 @@ param(
     [string]$BifrostAuthorAgent = "epiphany.Hands",
     [string]$BifrostCreditSubject = "epiphany.swarm",
     [string]$BifrostLedgerEntryId = "bifrost-ledger-local-proof",
-    [string]$BifrostHandsPrReceiptId = "hands-pr-receipt-local-proof",
-    [string]$BifrostPublicationUrl = "https://github.com/local-proof/epiphany/pull/local-proof",
     [string]$BifrostPublicProofId = "",
     [string]$BifrostPublicProofPublicationReceiptId = "bifrost-public-proof-publication-local-proof",
     [string]$BifrostPublicProofReviewReceipt = "public-proof-review-local-proof",
@@ -974,7 +972,7 @@ if ($Mode -eq "persona-bridge") {
 if ($Mode -eq "bifrost-publication") {
     $resultPath = Join-Path $artifactRoot "bifrost-publication.stdout.json"
     Invoke-Checked `
-        -Label "record Bifrost body-change publication chain" `
+        -Label "submit Bifrost body-change publication intent" `
         -FilePath $verseQueryExe `
         -Arguments @(
             "bifrost-publication",
@@ -988,10 +986,7 @@ if ($Mode -eq "bifrost-publication") {
             "--verification-receipt", $BifrostVerificationReceipt,
             "--review-receipt", $BifrostReviewReceipt,
             "--author-agent", $BifrostAuthorAgent,
-            "--credit-subject", $BifrostCreditSubject,
-            "--ledger-entry-id", $BifrostLedgerEntryId,
-            "--hands-pr-receipt-id", $BifrostHandsPrReceiptId,
-            "--publication-url", $BifrostPublicationUrl
+            "--credit-subject", $BifrostCreditSubject
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -2835,7 +2830,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             }
             Write-Host "Persona bridge: status=$($result.status), bridge=$($result.readiness.status), ready=$($result.readiness.readySurfaceCount)/$($result.readiness.surfaceCount), bridgeRows=$bridgeRows, mouthRows=$surfaceRows, privateStateExposed=$($result.privateStateExposed), artifact=$resultPath"
         } elseif ($Mode -eq "bifrost-publication") {
-            Write-Host "Bifrost publication: status=$($result.status), intent=$($result.intentId), publication=$($result.publicationReceiptId), github=$($result.githubPublicationReceiptId), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Bifrost publication request: status=$($result.status), intent=$($result.intentId), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-public-proof") {
             $creditReceipts = "none"
             if ($null -ne $result.creditReceiptIds -and $result.creditReceiptIds.Count -gt 0) {

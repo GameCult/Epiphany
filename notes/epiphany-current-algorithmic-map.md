@@ -9,6 +9,16 @@
 - Forbidden writers removed in this pass: read-command calls to `seed_epiphany_local_verse_context`, loader fallback constructors, and bootstrap's default-ready daemon-status loop.
 - Next authority cut: requester commands may author intents, but Bifrost, GitHub, tool providers, Eve providers, and daemon lifecycle owners must author their own response receipts.
 
+## Bifrost body-change request path (2026-07-12)
+
+- Owner: the calling Hands/requester owns the body-change intent.
+- Inputs: repository, branch, change summary, justification, changed paths, verification/review receipt references, authors, and credit subjects.
+- Output: one persisted `gamecult.bifrost.body_change_publication_intent`; command status is `pending-bifrost`.
+- Derived sight: the Bifrost ledger shows the open request and attributes the intent row to `source_agent_id`.
+- Forbidden writers: the requester CLI no longer constructs or writes Bifrost acceptance, ledger attribution, GitHub publication, PR, commit, publication URL, or credit receipts.
+- Response owners: Bifrost may answer with its publication receipt; the GitHub publication adapter may answer only after real substrate evidence exists.
+- Negative proof: after request submission, latest intent is present while latest Bifrost publication and GitHub publication receipts are absent.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

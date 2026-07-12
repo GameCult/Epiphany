@@ -4,6 +4,10 @@
 
 The conceptual-substitution audit found observation manufacturing the body it claimed to inspect. The current local pass removes seeding from read-only Verse commands; persisted topology now bounds liveness, restart-policy, Eve-surface, and tool-directory loaders; absent documents remain empty or unknown; and explicit local bootstrap no longer counterfeits daemon-ready heartbeats. Negative proof covers a nonexistent CultCache path and all 249 library tests pass. Next cut the local CLI's requester/provider collapse: Bifrost/GitHub publication, tool invocation, Eve connection, and daemon poke commands must stop authoring both intent and accepted response receipt.
 
+## 2026-07-12 Bifrost requester/provider split
+
+`epiphany-verse-query bifrost-publication` and its wrapper now submit only `gamecult.bifrost.body_change_publication_intent`. The requester can describe the body change, evidence, review, authorship, and credit subjects; it can no longer supply a Bifrost ledger result, Hands PR receipt, GitHub receipt, commit, PR number, or publication URL and have the local CLI bless them. Output is `pending-bifrost` with null response receipt ids. A physical CultCache proof shows the intent row open while both Bifrost publication and GitHub publication receipts remain absent. Ledger intent rows name the requesting agent as author; Bifrost remains the response lane owner. Next apply this ownership split to tool invocation, Eve connection, daemon poke, and the remaining Bifrost accounting commands.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

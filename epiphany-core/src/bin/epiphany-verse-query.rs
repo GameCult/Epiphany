@@ -2,41 +2,6 @@ use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
 use cultmesh_rs::CultMeshRudpDocumentPublishOptions;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_GLOBAL_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
-use epiphany_core::EpiphanyAgentStateSoaEntry;
-use epiphany_core::EpiphanyCultMeshAgentStateSoaSummaryEntry;
-use epiphany_core::EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry;
-use epiphany_core::EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry;
-use epiphany_core::EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry;
-use epiphany_core::EpiphanyCultMeshBifrostCollaborationFeedbackEntry;
-use epiphany_core::EpiphanyCultMeshBifrostGithubPublicationReceiptEntry;
-use epiphany_core::EpiphanyCultMeshBifrostMetricsReceiptEntry;
-use epiphany_core::EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry;
-use epiphany_core::EpiphanyCultMeshClusterTopologyEntry;
-use epiphany_core::EpiphanyCultMeshDaemonPokeReceiptEntry;
-use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
-use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
-use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
-use epiphany_core::EpiphanyCultMeshDaemonToolCapabilityEntry;
-use epiphany_core::EpiphanyCultMeshEveSurfaceStateEntry;
-use epiphany_core::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
-use epiphany_core::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
-use epiphany_core::EpiphanyCultMeshImaginationConsensusReceiptEntry;
-use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
-use epiphany_core::EpiphanyCultMeshOdinAdvertisementEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkReadinessEntry;
-use epiphany_core::EpiphanyCultMeshRepoWorkReadinessReviewEntry;
-use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
-use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
-use epiphany_core::EpiphanyLocalVerseContext;
-use epiphany_core::EpiphanyServiceExecutionAuditCheck;
 use epiphany_core::default_epiphany_cultmesh_swarm_brake;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_agent_state_soa_summary_from_entry;
@@ -115,6 +80,41 @@ use epiphany_core::write_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::write_epiphany_cultmesh_imagination_consensus_receipt;
 use epiphany_core::write_epiphany_cultmesh_swarm_brake;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
+use epiphany_core::EpiphanyAgentStateSoaEntry;
+use epiphany_core::EpiphanyCultMeshAgentStateSoaSummaryEntry;
+use epiphany_core::EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry;
+use epiphany_core::EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry;
+use epiphany_core::EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry;
+use epiphany_core::EpiphanyCultMeshBifrostCollaborationFeedbackEntry;
+use epiphany_core::EpiphanyCultMeshBifrostGithubPublicationReceiptEntry;
+use epiphany_core::EpiphanyCultMeshBifrostMetricsReceiptEntry;
+use epiphany_core::EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry;
+use epiphany_core::EpiphanyCultMeshClusterTopologyEntry;
+use epiphany_core::EpiphanyCultMeshDaemonPokeReceiptEntry;
+use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
+use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
+use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
+use epiphany_core::EpiphanyCultMeshDaemonToolCapabilityEntry;
+use epiphany_core::EpiphanyCultMeshEveSurfaceStateEntry;
+use epiphany_core::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
+use epiphany_core::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
+use epiphany_core::EpiphanyCultMeshImaginationConsensusReceiptEntry;
+use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
+use epiphany_core::EpiphanyCultMeshOdinAdvertisementEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkReadinessEntry;
+use epiphany_core::EpiphanyCultMeshRepoWorkReadinessReviewEntry;
+use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
+use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
+use epiphany_core::EpiphanyLocalVerseContext;
+use epiphany_core::EpiphanyServiceExecutionAuditCheck;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_GLOBAL_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
 use serde::Serialize;
 use serde_json::json;
 use sha2::Digest;
@@ -937,6 +937,16 @@ fn run_cli() -> Result<()> {
             );
         }
         "bifrost-publication" | "publish-body-change" => {
+            if args.receipt_id.is_some()
+                || args.receipt_status.is_some()
+                || args.ledger_entry_id.is_some()
+                || args.publication_url.is_some()
+                || args.credit_receipt_ids.is_some()
+            {
+                anyhow::bail!(
+                    "bifrost-publication accepts requester intent fields only; Bifrost and the GitHub publication adapter own receipt, ledger, credit, and publication-result fields"
+                );
+            }
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -946,14 +956,6 @@ fn run_cli() -> Result<()> {
                 .intent_id
                 .clone()
                 .unwrap_or_else(|| "bifrost-publication-intent".to_string());
-            let publication_receipt_id = args
-                .receipt_id
-                .clone()
-                .unwrap_or_else(|| "bifrost-publication-receipt".to_string());
-            let github_receipt_id = args
-                .github_receipt_id
-                .clone()
-                .unwrap_or_else(|| "github-publication-receipt".to_string());
             let target_repository = args.target_repository.clone().with_context(|| {
                 "bifrost-publication requires --target-repository, for example repo:E:/Projects/EpiphanyAgent"
             })?;
@@ -989,26 +991,6 @@ fn run_cli() -> Result<()> {
                 &args.credit_subjects,
                 "bifrost-publication requires --credit-subject",
             )?;
-            let ledger_entry_id = args
-                .ledger_entry_id
-                .clone()
-                .context("bifrost-publication requires --ledger-entry-id")?;
-            let hands_pr_receipt_id = args
-                .hands_pr_receipt_id
-                .clone()
-                .context("bifrost-publication requires --hands-pr-receipt-id")?;
-            let publication_url = args
-                .publication_url
-                .clone()
-                .context("bifrost-publication requires --publication-url")?;
-            let pull_request_number = args
-                .pull_request_number
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
-            let commit_sha = args
-                .commit_sha
-                .clone()
-                .unwrap_or_else(|| "dry-run-no-commit".to_string());
             let source_cluster_id = args
                 .source_cluster_id
                 .clone()
@@ -1021,24 +1003,6 @@ fn run_cli() -> Result<()> {
                 .body_domain
                 .clone()
                 .unwrap_or_else(|| target_repository.clone());
-            let publication_status = args
-                .receipt_status
-                .clone()
-                .unwrap_or_else(|| "accepted-for-github-publication".to_string());
-            let credit_receipts = args.credit_receipt_ids.clone().unwrap_or_else(|| {
-                credit_subjects
-                    .iter()
-                    .map(|subject| {
-                        format!(
-                            "credit-receipt-{}",
-                            subject
-                                .chars()
-                                .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
-                                .collect::<String>()
-                        )
-                    })
-                    .collect()
-            });
             let intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
                 intent_id,
                 source_cluster_id,
@@ -1050,7 +1014,7 @@ fn run_cli() -> Result<()> {
                 justification,
                 changed_paths,
                 verification_receipts,
-                review_receipts.clone(),
+                review_receipts,
                 authors,
                 credit_subjects,
             );
@@ -1059,81 +1023,33 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 intent.clone(),
             )?;
-            let publication_receipt =
-                epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent(
-                    publication_receipt_id,
-                    &intent,
-                    publication_status,
-                    ledger_entry_id,
-                    github_receipt_id.clone(),
-                    credit_receipts,
-                    review_receipts,
-                    publication_url,
-                );
-            let written_publication =
-                write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
-                    &args.store,
-                    args.runtime_id.clone(),
-                    publication_receipt.clone(),
-                )?;
-            let github_receipt =
-                epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
-                    github_receipt_id,
-                    &publication_receipt,
-                    hands_pr_receipt_id,
-                    target_repository,
-                    target_branch,
-                    pull_request_number,
-                    commit_sha,
-                    source_agent_id,
-                );
-            let written_github = write_epiphany_cultmesh_bifrost_github_publication_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                github_receipt,
-            )?;
             let latest_intent =
                 load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
                     &args.store,
                     args.runtime_id.clone(),
                 )?;
-            let latest_publication =
-                load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
-                    &args.store,
-                    args.runtime_id.clone(),
-                )?;
-            let latest_github = load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-            )?;
             if latest_intent
                 .as_ref()
                 .map(|intent| intent.intent_id.as_str())
                 != Some(written_intent.intent_id.as_str())
-                || latest_publication
-                    .as_ref()
-                    .map(|receipt| receipt.receipt_id.as_str())
-                    != Some(written_publication.receipt_id.as_str())
-                || latest_github
-                    .as_ref()
-                    .map(|receipt| receipt.receipt_id.as_str())
-                    != Some(written_github.receipt_id.as_str())
             {
-                anyhow::bail!("local Verse query lost Bifrost publication chain after write");
+                anyhow::bail!("local Verse query lost Bifrost publication intent after write");
             }
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "status": "ok",
+                    "status": "pending-bifrost",
                     "store": args.store,
                     "runtimeId": args.runtime_id,
                     "intentId": written_intent.intent_id,
-                    "publicationReceiptId": written_publication.receipt_id,
-                    "githubPublicationReceiptId": written_github.receipt_id,
-                    "ledgerEntryId": written_publication.bifrost_ledger_entry_id,
-                    "pullRequestUrl": written_github.pull_request_url,
-                    "changedPaths": written_github.changed_paths,
-                    "creditReceiptIds": written_github.credit_receipt_ids,
+                    "publicationReceiptId": null,
+                    "githubPublicationReceiptId": null,
+                    "ledgerEntryId": null,
+                    "pullRequestUrl": null,
+                    "changedPaths": written_intent.changed_paths,
+                    "creditSubjects": written_intent.credit_subjects,
+                    "responseOwner": "Bifrost",
+                    "githubReceiptOwner": "GitHub publication adapter",
                     "commands": {
                         "swarmOverview": WRAPPER_OVERVIEW_COMMAND,
                         "toolDirectory": "tools/epiphany_local_run.ps1 -Mode tool-directory",
@@ -1141,7 +1057,7 @@ fn run_cli() -> Result<()> {
                         "bifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND
                     },
                     "privateStateIncluded": written_intent.private_state_included,
-                    "privateStateExposed": written_github.private_state_exposed,
+                    "privateStateExposed": false,
                 }))?
             );
         }
@@ -9078,7 +8994,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "body-change-intent".to_string(),
-                owner: "Bifrost".to_string(),
+                owner: intent.source_agent_id.clone(),
                 id: intent.intent_id.clone(),
                 status: status.to_string(),
                 route: intent.target_repository.clone(),
@@ -9805,7 +9721,11 @@ fn bifrost_accounting_status(closed: bool, present: bool, private_state_exposed:
 }
 
 fn present_word(present: bool) -> &'static str {
-    if present { "present" } else { "missing" }
+    if present {
+        "present"
+    } else {
+        "missing"
+    }
 }
 
 fn collaboration_feedback_tui_rows(
@@ -10916,7 +10836,6 @@ struct Args {
     invocation_ref: Option<String>,
     result_ref: Option<String>,
     receipt_summary: Option<String>,
-    github_receipt_id: Option<String>,
     target_repository: Option<String>,
     target_branch: Option<String>,
     change_summary: Option<String>,
@@ -10928,11 +10847,8 @@ struct Args {
     credit_subjects: Option<Vec<String>>,
     credit_receipt_ids: Option<Vec<String>>,
     ledger_entry_id: Option<String>,
-    hands_pr_receipt_id: Option<String>,
     publication_url: Option<String>,
     public_proof_id: Option<String>,
-    pull_request_number: Option<String>,
-    commit_sha: Option<String>,
     source_cluster_id: Option<String>,
     source_agent_id: Option<String>,
     body_domain: Option<String>,
@@ -10981,7 +10897,6 @@ impl Args {
         let mut invocation_ref = None;
         let mut result_ref = None;
         let mut receipt_summary = None;
-        let mut github_receipt_id = None;
         let mut target_repository = None;
         let mut target_branch = None;
         let mut change_summary = None;
@@ -10993,11 +10908,8 @@ impl Args {
         let mut credit_subjects = Vec::new();
         let mut credit_receipt_ids = Vec::new();
         let mut ledger_entry_id = None;
-        let mut hands_pr_receipt_id = None;
         let mut publication_url = None;
         let mut public_proof_id = None;
-        let mut pull_request_number = None;
-        let mut commit_sha = None;
         let mut source_cluster_id = None;
         let mut source_agent_id = None;
         let mut body_domain = None;
@@ -11116,10 +11028,6 @@ impl Args {
                     receipt_summary =
                         Some(values.next().context("missing --receipt-summary value")?);
                 }
-                "--github-receipt-id" => {
-                    github_receipt_id =
-                        Some(values.next().context("missing --github-receipt-id value")?);
-                }
                 "--target-repository" => {
                     target_repository =
                         Some(values.next().context("missing --target-repository value")?);
@@ -11181,13 +11089,6 @@ impl Args {
                     ledger_entry_id =
                         Some(values.next().context("missing --ledger-entry-id value")?);
                 }
-                "--hands-pr-receipt-id" => {
-                    hands_pr_receipt_id = Some(
-                        values
-                            .next()
-                            .context("missing --hands-pr-receipt-id value")?,
-                    );
-                }
                 "--publication-url" => {
                     publication_url =
                         Some(values.next().context("missing --publication-url value")?);
@@ -11195,16 +11096,6 @@ impl Args {
                 "--public-proof-id" | "--public-proof-ref" => {
                     public_proof_id =
                         Some(values.next().context("missing --public-proof-id value")?);
-                }
-                "--pull-request-number" => {
-                    pull_request_number = Some(
-                        values
-                            .next()
-                            .context("missing --pull-request-number value")?,
-                    );
-                }
-                "--commit-sha" => {
-                    commit_sha = Some(values.next().context("missing --commit-sha value")?);
                 }
                 "--source-cluster-id" => {
                     source_cluster_id =
@@ -11328,7 +11219,6 @@ impl Args {
             invocation_ref,
             result_ref,
             receipt_summary,
-            github_receipt_id,
             target_repository,
             target_branch,
             change_summary,
@@ -11340,11 +11230,8 @@ impl Args {
             credit_subjects: some_if_not_empty(credit_subjects),
             credit_receipt_ids: some_if_not_empty(credit_receipt_ids),
             ledger_entry_id,
-            hands_pr_receipt_id,
             publication_url,
             public_proof_id,
-            pull_request_number,
-            commit_sha,
             source_cluster_id,
             source_agent_id,
             body_domain,
