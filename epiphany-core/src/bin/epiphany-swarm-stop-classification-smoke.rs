@@ -156,7 +156,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["stopClassification", "category"],
         "queue-empty",
     )?;
-    require_eq(&empty_run, &["stopClassification", "owner"], "Gjallar")?;
+    require_eq(&empty_run, &["stopClassification", "owner"], "Self")?;
     require_eq(
         &empty_run,
         &["stopClassification", "authorityGate"],

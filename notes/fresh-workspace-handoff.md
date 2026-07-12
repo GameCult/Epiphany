@@ -2253,6 +2253,17 @@ after forced termination, using lifecycle receipt
 No child remains. Next lower this row family into the main Gjallar/Eve
 composition graph and its advertised command/readback surface.
 
+That final paragraph exposed a renderer-ownership fault. Epiphany's local
+`swarm-overview` diagnostic had acquired `gjallar` aliases and false sight/
+lifecycle ownership labels even though the real Gjallar application is a
+downstream Eve compositor. The aliases are now deleted from the Rust CLI and
+PowerShell wrapper; current smoke cargo uses `swarm-overview`; read-only action
+rows carry `lifecycleOwner=none`; and live architecture/state no longer treats
+a downstream renderer as an Epiphany organ. Historical entries above retain
+their original names as evidence. The next cut is simply to publish managed
+service state through Epiphany's standard provider-owned Eve contract, with no
+renderer, layout, or Nightwing knowledge.
+
 ## Immediate Re-entry Instruction
 
 After compaction, first rehydrate and reorient from the listed files and git

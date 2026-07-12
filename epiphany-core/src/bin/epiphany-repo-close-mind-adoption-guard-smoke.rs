@@ -457,11 +457,11 @@ fn run_smoke(args: Args) -> Result<Value> {
             map_entry.private_state_exposed
         ));
     }
-    let gjallar = cargo_json(
+    let swarm_overview = cargo_json(
         &manifest,
         "epiphany-verse-query",
         &[
-            "gjallar",
+            "swarm-overview",
             "--store",
             path_str(&local_verse)?,
             "--runtime-id",
@@ -470,48 +470,48 @@ fn run_smoke(args: Args) -> Result<Value> {
         &root,
     )?;
     require_eq(
-        &gjallar,
+        &swarm_overview,
         &["latestRepoWorkMapEntry"],
         "repo-work-map-repo-close-mind-adoption-guard",
     )?;
-    require_bool(&gjallar, &["privateStateExposed"], false)?;
-    let map_rows = value_at_path(&gjallar, &["repoWorkMapRows"])
+    require_bool(&swarm_overview, &["privateStateExposed"], false)?;
+    let map_rows = value_at_path(&swarm_overview, &["repoWorkMapRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapRows array"))?;
-    let gjallar_map_row = map_rows
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapRows array"))?;
+    let swarm_overview_map_row = map_rows
         .iter()
         .find(|row| row.get("item").and_then(Value::as_str) == Some(item))
-        .ok_or_else(|| anyhow!("Gjallar output had no repo work map row for {item}"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repo work map row for {item}"))?;
     require_eq_value(
-        gjallar_map_row,
+        swarm_overview_map_row,
         &["safeActionFamily"],
         "repo.markdown_planning_note",
     )?;
     require_eq_value(
-        gjallar_map_row,
+        swarm_overview_map_row,
         &["mindStateCommitReceiptId"],
         &map_entry.mind_state_commit_receipt_id,
     )?;
-    require_bool_value(gjallar_map_row, &["privateStateExposed"], false)?;
-    let map_tui_rows = value_at_path(&gjallar, &["repoWorkMapTuiRows"])
+    require_bool_value(swarm_overview_map_row, &["privateStateExposed"], false)?;
+    let map_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapTuiRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapTuiRows array"))?;
     if !map_tui_rows.iter().any(|row| {
         row.as_str()
             .is_some_and(|row| row.contains("REPO-WORK-MAP") && row.contains(item))
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose compact repo map sight"
+            "Swarm overview TUI rows did not expose compact repo map sight"
         ));
     }
-    require_u64(&gjallar, &["repoWorkMapSemanticCount"], 1)?;
-    let semantic_rows = value_at_path(&gjallar, &["repoWorkMapSemanticRows"])
+    require_u64(&swarm_overview, &["repoWorkMapSemanticCount"], 1)?;
+    let semantic_rows = value_at_path(&swarm_overview, &["repoWorkMapSemanticRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapSemanticRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapSemanticRows array"))?;
     let semantic_row = semantic_rows
         .iter()
         .find(|row| row.get("item").and_then(Value::as_str) == Some(item))
-        .ok_or_else(|| anyhow!("Gjallar output had no repo map semantic row for {item}"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repo map semantic row for {item}"))?;
     require_eq_value(semantic_row, &["stage"], "imagination-planning")?;
     require_eq_value(semantic_row, &["stageOwner"], "Imagination")?;
     require_eq_value(semantic_row, &["publicationGate"], "Bifrost")?;
@@ -523,9 +523,9 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_bool_value(semantic_row, &["sightOnly"], true)?;
     require_bool_value(semantic_row, &["privateStateExposed"], false)?;
-    let semantic_tui_rows = value_at_path(&gjallar, &["repoWorkMapSemanticTuiRows"])
+    let semantic_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapSemanticTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapSemanticTuiRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapSemanticTuiRows array"))?;
     if !semantic_tui_rows.iter().any(|row| {
         row.as_str().is_some_and(|row| {
             row.contains("REPO-WORK-MAP-SEMANTIC")
@@ -536,20 +536,20 @@ fn run_smoke(args: Args) -> Result<Value> {
         })
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose repo map semantic sight"
+            "Swarm overview TUI rows did not expose repo map semantic sight"
         ));
     }
-    require_u64(&gjallar, &["repoWorkMapFamilyLensCount"], 1)?;
-    let family_lens_rows = value_at_path(&gjallar, &["repoWorkMapFamilyLensRows"])
+    require_u64(&swarm_overview, &["repoWorkMapFamilyLensCount"], 1)?;
+    let family_lens_rows = value_at_path(&swarm_overview, &["repoWorkMapFamilyLensRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapFamilyLensRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapFamilyLensRows array"))?;
     let family_lens_row = family_lens_rows
         .iter()
         .find(|row| {
             row.get("safeActionFamily").and_then(Value::as_str)
                 == Some("repo.markdown_planning_note")
         })
-        .ok_or_else(|| anyhow!("Gjallar output had no repo map family lens row"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repo map family lens row"))?;
     require_eq_value(family_lens_row, &["latestItem"], item)?;
     require_eq_value(
         family_lens_row,
@@ -557,26 +557,28 @@ fn run_smoke(args: Args) -> Result<Value> {
         &map_entry.mind_state_commit_receipt_id,
     )?;
     require_bool_value(family_lens_row, &["privateStateExposed"], false)?;
-    let family_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapFamilyLensTuiRows"])
+    let family_lens_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapFamilyLensTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapFamilyLensTuiRows array"))?;
+        .ok_or_else(|| {
+            anyhow!("Swarm overview output had no repoWorkMapFamilyLensTuiRows array")
+        })?;
     if !family_lens_tui_rows.iter().any(|row| {
         row.as_str().is_some_and(|row| {
             row.contains("REPO-WORK-MAP-LENS") && row.contains("repo.markdown_planning_note")
         })
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose repo map family lens sight"
+            "Swarm overview TUI rows did not expose repo map family lens sight"
         ));
     }
-    require_u64(&gjallar, &["repoWorkMapPathLensCount"], 1)?;
-    let path_lens_rows = value_at_path(&gjallar, &["repoWorkMapPathLensRows"])
+    require_u64(&swarm_overview, &["repoWorkMapPathLensCount"], 1)?;
+    let path_lens_rows = value_at_path(&swarm_overview, &["repoWorkMapPathLensRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapPathLensRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapPathLensRows array"))?;
     let path_lens_row = path_lens_rows
         .iter()
         .find(|row| row.get("path").and_then(Value::as_str) == Some(target_path))
-        .ok_or_else(|| anyhow!("Gjallar output had no repo map path lens row"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repo map path lens row"))?;
     require_eq_value(path_lens_row, &["latestItem"], item)?;
     require_eq_value(
         path_lens_row,
@@ -584,28 +586,28 @@ fn run_smoke(args: Args) -> Result<Value> {
         &map_entry.mind_state_commit_receipt_id,
     )?;
     require_bool_value(path_lens_row, &["privateStateExposed"], false)?;
-    let path_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapPathLensTuiRows"])
+    let path_lens_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapPathLensTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapPathLensTuiRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapPathLensTuiRows array"))?;
     if !path_lens_tui_rows.iter().any(|row| {
         row.as_str()
             .is_some_and(|row| row.contains("REPO-WORK-MAP-PATH") && row.contains(target_path))
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose repo map path lens sight"
+            "Swarm overview TUI rows did not expose repo map path lens sight"
         ));
     }
-    require_u64(&gjallar, &["repoWorkMapBranchLensCount"], 1)?;
-    let branch_lens_rows = value_at_path(&gjallar, &["repoWorkMapBranchLensRows"])
+    require_u64(&swarm_overview, &["repoWorkMapBranchLensCount"], 1)?;
+    let branch_lens_rows = value_at_path(&swarm_overview, &["repoWorkMapBranchLensRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapBranchLensRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapBranchLensRows array"))?;
     let branch_lens_row = branch_lens_rows
         .iter()
         .find(|row| {
             row.get("branch").and_then(Value::as_str)
                 == Some("epiphany/repo-close-mind-adoption-guard")
         })
-        .ok_or_else(|| anyhow!("Gjallar output had no repo map branch lens row"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repo map branch lens row"))?;
     require_eq_value(branch_lens_row, &["latestItem"], item)?;
     require_eq_value(
         branch_lens_row,
@@ -613,9 +615,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         &map_entry.mind_state_commit_receipt_id,
     )?;
     require_bool_value(branch_lens_row, &["privateStateExposed"], false)?;
-    let branch_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapBranchLensTuiRows"])
+    let branch_lens_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapBranchLensTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapBranchLensTuiRows array"))?;
+        .ok_or_else(|| {
+            anyhow!("Swarm overview output had no repoWorkMapBranchLensTuiRows array")
+        })?;
     if !branch_lens_tui_rows.iter().any(|row| {
         row.as_str().is_some_and(|row| {
             row.contains("REPO-WORK-MAP-BRANCH")
@@ -623,17 +627,17 @@ fn run_smoke(args: Args) -> Result<Value> {
         })
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose repo map branch lens sight"
+            "Swarm overview TUI rows did not expose repo map branch lens sight"
         ));
     }
-    require_u64(&gjallar, &["repoWorkMapStageLensCount"], 1)?;
-    let stage_lens_rows = value_at_path(&gjallar, &["repoWorkMapStageLensRows"])
+    require_u64(&swarm_overview, &["repoWorkMapStageLensCount"], 1)?;
+    let stage_lens_rows = value_at_path(&swarm_overview, &["repoWorkMapStageLensRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapStageLensRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapStageLensRows array"))?;
     let stage_lens_row = stage_lens_rows
         .iter()
         .find(|row| row.get("stage").and_then(Value::as_str) == Some("imagination-planning"))
-        .ok_or_else(|| anyhow!("Gjallar output had no repo map stage lens row"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repo map stage lens row"))?;
     require_eq_value(stage_lens_row, &["owner"], "Imagination")?;
     require_eq_value(stage_lens_row, &["latestItem"], item)?;
     require_eq_value(
@@ -642,9 +646,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         &map_entry.mind_state_commit_receipt_id,
     )?;
     require_bool_value(stage_lens_row, &["privateStateExposed"], false)?;
-    let stage_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapStageLensTuiRows"])
+    let stage_lens_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapStageLensTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapStageLensTuiRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapStageLensTuiRows array"))?;
     if !stage_lens_tui_rows.iter().any(|row| {
         row.as_str().is_some_and(|row| {
             row.contains("REPO-WORK-MAP-STAGE")
@@ -653,17 +657,17 @@ fn run_smoke(args: Args) -> Result<Value> {
         })
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose repo map stage lens sight"
+            "Swarm overview TUI rows did not expose repo map stage lens sight"
         ));
     }
-    require_u64(&gjallar, &["repoWorkMapGateLensCount"], 1)?;
-    let gate_lens_rows = value_at_path(&gjallar, &["repoWorkMapGateLensRows"])
+    require_u64(&swarm_overview, &["repoWorkMapGateLensCount"], 1)?;
+    let gate_lens_rows = value_at_path(&swarm_overview, &["repoWorkMapGateLensRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapGateLensRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapGateLensRows array"))?;
     let gate_lens_row = gate_lens_rows
         .iter()
         .find(|row| row.get("publicationGate").and_then(Value::as_str) == Some("Bifrost"))
-        .ok_or_else(|| anyhow!("Gjallar output had no repo map gate lens row"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repo map gate lens row"))?;
     require_eq_value(gate_lens_row, &["owner"], "Bifrost")?;
     require_eq_value(gate_lens_row, &["latestItem"], item)?;
     require_eq_value(
@@ -673,9 +677,9 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_bool_value(gate_lens_row, &["sightOnly"], true)?;
     require_bool_value(gate_lens_row, &["privateStateExposed"], false)?;
-    let gate_lens_tui_rows = value_at_path(&gjallar, &["repoWorkMapGateLensTuiRows"])
+    let gate_lens_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapGateLensTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapGateLensTuiRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapGateLensTuiRows array"))?;
     if !gate_lens_tui_rows.iter().any(|row| {
         row.as_str().is_some_and(|row| {
             row.contains("REPO-WORK-MAP-GATE")
@@ -685,17 +689,17 @@ fn run_smoke(args: Args) -> Result<Value> {
         })
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose repo map gate lens sight"
+            "Swarm overview TUI rows did not expose repo map gate lens sight"
         ));
     }
-    require_u64(&gjallar, &["repoWorkMapClosureCount"], 1)?;
-    let closure_rows = value_at_path(&gjallar, &["repoWorkMapClosureRows"])
+    require_u64(&swarm_overview, &["repoWorkMapClosureCount"], 1)?;
+    let closure_rows = value_at_path(&swarm_overview, &["repoWorkMapClosureRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapClosureRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapClosureRows array"))?;
     let closure_row = closure_rows
         .iter()
         .find(|row| row.get("item").and_then(Value::as_str) == Some(item))
-        .ok_or_else(|| anyhow!("Gjallar output had no repo map closure row"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repo map closure row"))?;
     require_eq_value(
         closure_row,
         &["safeActionFamily"],
@@ -727,9 +731,9 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_bool_value(closure_row, &["crossRepoMutationAuthorized"], false)?;
     require_bool_value(closure_row, &["sightOnly"], true)?;
     require_bool_value(closure_row, &["privateStateExposed"], false)?;
-    let closure_tui_rows = value_at_path(&gjallar, &["repoWorkMapClosureTuiRows"])
+    let closure_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapClosureTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapClosureTuiRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapClosureTuiRows array"))?;
     if !closure_tui_rows.iter().any(|row| {
         row.as_str().is_some_and(|row| {
             row.contains("REPO-WORK-MAP-CLOSURE")
@@ -743,14 +747,14 @@ fn run_smoke(args: Args) -> Result<Value> {
         })
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose repo map closure sight"
+            "Swarm overview TUI rows did not expose repo map closure sight"
         ));
     }
 
-    require_u64(&gjallar, &["repoWorkMapAcceptanceCount"], 1)?;
-    let acceptance_rows = value_at_path(&gjallar, &["repoWorkMapAcceptanceRows"])
+    require_u64(&swarm_overview, &["repoWorkMapAcceptanceCount"], 1)?;
+    let acceptance_rows = value_at_path(&swarm_overview, &["repoWorkMapAcceptanceRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapAcceptanceRows array"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no repoWorkMapAcceptanceRows array"))?;
     let acceptance_row = acceptance_rows
         .iter()
         .find(|row| {
@@ -758,7 +762,7 @@ fn run_smoke(args: Args) -> Result<Value> {
                 .and_then(Value::as_str)
                 .is_some_and(|value| value == item)
         })
-        .ok_or_else(|| anyhow!("Gjallar output had no acceptance row for {item}"))?;
+        .ok_or_else(|| anyhow!("Swarm overview output had no acceptance row for {item}"))?;
     require_eq_value(
         acceptance_row,
         &["safeActionFamily"],
@@ -794,9 +798,11 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_eq_value(acceptance_row, &["publicationGate"], "Bifrost")?;
     require_bool_value(acceptance_row, &["sightOnly"], true)?;
     require_bool_value(acceptance_row, &["privateStateExposed"], false)?;
-    let acceptance_tui_rows = value_at_path(&gjallar, &["repoWorkMapAcceptanceTuiRows"])
+    let acceptance_tui_rows = value_at_path(&swarm_overview, &["repoWorkMapAcceptanceTuiRows"])
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("Gjallar output had no repoWorkMapAcceptanceTuiRows array"))?;
+        .ok_or_else(|| {
+            anyhow!("Swarm overview output had no repoWorkMapAcceptanceTuiRows array")
+        })?;
     if !acceptance_tui_rows.iter().any(|row| {
         row.as_str().is_some_and(|row| {
             row.contains("REPO-WORK-MAP-ACCEPTANCE")
@@ -811,7 +817,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         })
     }) {
         return Err(anyhow!(
-            "Gjallar TUI rows did not expose repo map acceptance sight"
+            "Swarm overview TUI rows did not expose repo map acceptance sight"
         ));
     }
 
@@ -833,16 +839,16 @@ fn run_smoke(args: Args) -> Result<Value> {
         "repoMapEntrySchema": map_entry.schema_version,
         "repoMapDurableStateAdmitted": map_entry.durable_state_admitted,
         "repoMapLocalVerseProjected": true,
-        "gjallarLatestRepoWorkMapEntry": gjallar["latestRepoWorkMapEntry"],
-        "gjallarRepoWorkMapSemanticCount": gjallar["repoWorkMapSemanticCount"],
-        "gjallarRepoWorkMapFamilyLensCount": gjallar["repoWorkMapFamilyLensCount"],
-        "gjallarRepoWorkMapPathLensCount": gjallar["repoWorkMapPathLensCount"],
-        "gjallarRepoWorkMapBranchLensCount": gjallar["repoWorkMapBranchLensCount"],
-        "gjallarRepoWorkMapStageLensCount": gjallar["repoWorkMapStageLensCount"],
-        "gjallarRepoWorkMapGateLensCount": gjallar["repoWorkMapGateLensCount"],
-        "gjallarRepoWorkMapClosureCount": gjallar["repoWorkMapClosureCount"],
-        "gjallarRepoWorkMapAcceptanceCount": gjallar["repoWorkMapAcceptanceCount"],
-        "gjallarRepoWorkMapAcceptanceStatus": acceptance_row["acceptanceStatus"],
+        "swarmOverviewLatestRepoWorkMapEntry": swarm_overview["latestRepoWorkMapEntry"],
+        "swarmOverviewRepoWorkMapSemanticCount": swarm_overview["repoWorkMapSemanticCount"],
+        "swarmOverviewRepoWorkMapFamilyLensCount": swarm_overview["repoWorkMapFamilyLensCount"],
+        "swarmOverviewRepoWorkMapPathLensCount": swarm_overview["repoWorkMapPathLensCount"],
+        "swarmOverviewRepoWorkMapBranchLensCount": swarm_overview["repoWorkMapBranchLensCount"],
+        "swarmOverviewRepoWorkMapStageLensCount": swarm_overview["repoWorkMapStageLensCount"],
+        "swarmOverviewRepoWorkMapGateLensCount": swarm_overview["repoWorkMapGateLensCount"],
+        "swarmOverviewRepoWorkMapClosureCount": swarm_overview["repoWorkMapClosureCount"],
+        "swarmOverviewRepoWorkMapAcceptanceCount": swarm_overview["repoWorkMapAcceptanceCount"],
+        "swarmOverviewRepoWorkMapAcceptanceStatus": acceptance_row["acceptanceStatus"],
         "publicationAuthorized": false,
         "privateStateExposed": false
     });

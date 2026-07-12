@@ -291,11 +291,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         &root,
     )?;
-    let gjallar = cargo_json(
+    let swarm_overview = cargo_json(
         &manifest,
         "epiphany-verse-query",
         &[
-            "gjallar",
+            "swarm-overview",
             "--store",
             path_str(&local_verse)?,
             "--runtime-id",
@@ -474,29 +474,29 @@ fn run_smoke(args: Args) -> Result<Value> {
         "gamecult.idunn.deployment_aftercare_audit.v0",
     )?;
     require_eq(
-        &gjallar,
+        &swarm_overview,
         &["latestIdunnDeploymentReceipt"],
         idunn_deployment_receipt_id,
     )?;
     require_eq(
-        &gjallar,
+        &swarm_overview,
         &["latestIdunnAftercareAuditReceipt"],
         idunn_aftercare_receipt_id,
     )?;
-    require_u64(&gjallar, &["idunnDeploymentReceiptCount"], 2)?;
-    require_bool(&gjallar, &["privateStateExposed"], false)?;
+    require_u64(&swarm_overview, &["idunnDeploymentReceiptCount"], 2)?;
+    require_bool(&swarm_overview, &["privateStateExposed"], false)?;
     require_array_contains(
-        &gjallar,
+        &swarm_overview,
         &["idunnDeploymentReceiptTuiRows"],
         "IDUNN-DEPLOYMENT",
     )?;
     require_array_contains(
-        &gjallar,
+        &swarm_overview,
         &["idunnDeploymentReceiptTuiRows"],
         idunn_deployment_receipt_id,
     )?;
     require_array_contains(
-        &gjallar,
+        &swarm_overview,
         &["idunnDeploymentReceiptTuiRows"],
         idunn_aftercare_receipt_id,
     )?;
@@ -529,9 +529,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "idunnAftercareAuditReceiptSource": aftercare["idunnAftercareAuditReceipt"]["source"],
         "idunnDeploymentReceiptId": aftercare["idunnDeploymentReceipt"]["receiptId"],
         "idunnAftercareAuditReceiptId": aftercare["idunnAftercareAuditReceipt"]["receiptId"],
-        "gjallarIdunnDeploymentReceiptCount": gjallar["idunnDeploymentReceiptCount"],
-        "gjallarLatestIdunnDeploymentReceipt": gjallar["latestIdunnDeploymentReceipt"],
-        "gjallarLatestIdunnAftercareAuditReceipt": gjallar["latestIdunnAftercareAuditReceipt"],
+        "swarmOverviewIdunnDeploymentReceiptCount": swarm_overview["idunnDeploymentReceiptCount"],
+        "swarmOverviewLatestIdunnDeploymentReceipt": swarm_overview["latestIdunnDeploymentReceipt"],
+        "swarmOverviewLatestIdunnAftercareAuditReceipt": swarm_overview["latestIdunnAftercareAuditReceipt"],
         "deploymentTrigger": "git-push-observed-by-idunn",
         "deploymentOwner": "Idunn",
         "daemonOwnsExecution": true,

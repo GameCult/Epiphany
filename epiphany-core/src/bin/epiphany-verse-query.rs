@@ -20,13 +20,13 @@ use epiphany_core::EpiphanyCultMeshClusterTopologyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonPokeReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
-use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyCultMeshDaemonToolCapabilityEntry;
 use epiphany_core::EpiphanyCultMeshEveSurfaceStateEntry;
 use epiphany_core::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
 use epiphany_core::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
 use epiphany_core::EpiphanyCultMeshImaginationConsensusReceiptEntry;
+use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
 use epiphany_core::EpiphanyCultMeshOdinAdvertisementEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
@@ -61,9 +61,9 @@ use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
-use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
 use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
+use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_repo_work_map_entries;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_repo_work_public_proofs;
@@ -91,8 +91,8 @@ use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness_review;
-use epiphany_core::open_epiphany_cultmesh_node;
 use epiphany_core::observe_native_process;
+use epiphany_core::open_epiphany_cultmesh_node;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_agent_state_soa_summary;
@@ -126,7 +126,6 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 const WRAPPER_OVERVIEW_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-overview";
-const WRAPPER_GJALLAR_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode gjallar";
 const WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode swarm-online-runbook";
 const WRAPPER_POKE_NON_READY_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-poke-down";
@@ -334,9 +333,7 @@ fn run_cli() -> Result<()> {
                     "artifactMissingCount": report.artifact_missing_count,
                     "commands": {
                         "overview": "epiphany-verse-query swarm-overview",
-                        "gjallar": "epiphany-verse-query gjallar",
                         "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
-                        "wrapperGjallar": WRAPPER_GJALLAR_COMMAND,
                         "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                         "tools": "epiphany-verse-query tool-directory",
                         "wrapperTools": "tools/epiphany_local_run.ps1 -Mode tool-directory",
@@ -389,20 +386,22 @@ fn run_cli() -> Result<()> {
                 }))?
             );
         }
-        "managed-services" | "gjallar-managed-services" | "idunn-services" => {
+        "managed-services" | "idunn-services" => {
             let report = managed_service_sight_report(&args.store, &args.runtime_id)?;
-            println!("{}", serde_json::to_string_pretty(&json!({
-                "schemaVersion": "epiphany.cultmesh.managed_service_sight.v0",
-                "status": report.status,
-                "owner": "Gjallar",
-                "lifecycleOwner": "Idunn",
-                "serviceCount": report.rows.len(),
-                "aliveCount": report.alive_count,
-                "attentionCount": report.attention_count,
-                "rows": report.rows,
-                "tuiRows": report.tui_rows,
-                "privateStateExposed": false,
-            }))?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.cultmesh.managed_service_sight.v0",
+                    "status": report.status,
+                    "lifecycleOwner": "Idunn",
+                    "serviceCount": report.rows.len(),
+                    "aliveCount": report.alive_count,
+                    "attentionCount": report.attention_count,
+                    "rows": report.rows,
+                    "tuiRows": report.tui_rows,
+                    "privateStateExposed": false,
+                }))?
+            );
         }
         "tools" | "tool-directory" => {
             seed_epiphany_local_verse_context(
@@ -864,7 +863,7 @@ fn run_cli() -> Result<()> {
                 }))?
             );
         }
-        "swarm-overview" | "agent-overview" | "global-agents" | "gjallar" => {
+        "swarm-overview" | "agent-overview" | "global-agents" => {
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -879,12 +878,10 @@ fn run_cli() -> Result<()> {
                 "receipts": "epiphany-verse-query receipt-directory",
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
                 "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
-                "repoWorkMap": "epiphany-verse-query gjallar",
+                "repoWorkMap": "epiphany-verse-query swarm-overview",
                 "idunnDeploymentAftercareAudit": DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND,
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
-                "gjallar": "epiphany-verse-query gjallar",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
-                "wrapperGjallar": WRAPPER_GJALLAR_COMMAND,
                 "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                 "wrapperReceipts": WRAPPER_RECEIPT_DIRECTORY_COMMAND,
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
@@ -2146,7 +2143,6 @@ fn run_cli() -> Result<()> {
                 || !WRAPPER_CONNECT_EVE_COMMAND.contains("-Mode eve-connect")
                 || !WRAPPER_BIFROST_LEDGER_COMMAND.contains("-Mode bifrost-ledger")
                 || !WRAPPER_RECEIPT_DIRECTORY_COMMAND.contains("-Mode receipt-directory")
-                || !WRAPPER_GJALLAR_COMMAND.contains("-Mode gjallar")
                 || !WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND.contains("-Mode swarm-online-runbook")
                 || !WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND.contains("-Mode tool-invoke")
                 || !WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND
@@ -4077,7 +4073,7 @@ fn run_cli() -> Result<()> {
             );
         }
         other => anyhow::bail!(
-            "unknown command {other:?}; use seed, query, provider-advertisements, publish-odin, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, cluster-topology, eve-surfaces, daemon-status, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-artifact-acceptance, bifrost-metrics, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
+            "unknown command {other:?}; use seed, query, provider-advertisements, publish-odin, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, swarm-overview, swarm-triage, managed-services, cluster-topology, eve-surfaces, daemon-status, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-artifact-acceptance, bifrost-metrics, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
         ),
     }
     Ok(())
@@ -4443,10 +4439,8 @@ fn managed_service_sight_report(
     runtime_id: &str,
 ) -> Result<ManagedServiceSightReport> {
     let policies = load_epiphany_cultmesh_managed_service_policies(store, runtime_id.to_string())?;
-    let lifecycle = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        store,
-        runtime_id.to_string(),
-    )?;
+    let lifecycle =
+        load_epiphany_cultmesh_daemon_service_lifecycle_receipts(store, runtime_id.to_string())?;
     let mut rows = Vec::new();
     for policy in policies {
         let latest = lifecycle
@@ -4469,7 +4463,10 @@ fn managed_service_sight_report(
             process_id,
             lifecycle_receipt_id: latest.map(|receipt| receipt.receipt_id.clone()),
             lifecycle_status: latest.map(|receipt| receipt.status.clone()),
-            last_pulse_status: pulse.as_ref().and_then(|value| value["status"].as_str()).map(str::to_string),
+            last_pulse_status: pulse
+                .as_ref()
+                .and_then(|value| value["status"].as_str())
+                .map(str::to_string),
             last_pulse_iteration: pulse.as_ref().and_then(|value| value["iteration"].as_u64()),
             last_pulse_artifact: pulse
                 .as_ref()
@@ -4506,7 +4503,12 @@ fn managed_service_sight_report(
         })
         .collect();
     Ok(ManagedServiceSightReport {
-        status: if attention_count == 0 { "ready" } else { "attention" }.to_string(),
+        status: if attention_count == 0 {
+            "ready"
+        } else {
+            "attention"
+        }
+        .to_string(),
         alive_count,
         attention_count,
         rows,
@@ -4514,7 +4516,9 @@ fn managed_service_sight_report(
     })
 }
 
-fn compact_last_service_pulse(policy: &EpiphanyCultMeshManagedServicePolicyEntry) -> Option<serde_json::Value> {
+fn compact_last_service_pulse(
+    policy: &EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Option<serde_json::Value> {
     let text = fs::read_to_string(&policy.stdout_artifact).ok()?;
     text.lines()
         .rev()
@@ -5344,9 +5348,7 @@ impl SwarmTriageOutput {
             pokes,
             commands: json!({
                 "overview": "epiphany-verse-query swarm-overview",
-                "gjallar": "epiphany-verse-query gjallar",
                 "wrapperOverview": WRAPPER_OVERVIEW_COMMAND,
-                "wrapperGjallar": WRAPPER_GJALLAR_COMMAND,
                 "wrapperSwarmOnlineRunbook": WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND,
                 "pokeNonReady": "epiphany-verse-query poke-down-daemons",
                 "wrapperPokeNonReady": WRAPPER_POKE_NON_READY_COMMAND,
@@ -5354,7 +5356,7 @@ impl SwarmTriageOutput {
                 "wrapperReceipts": WRAPPER_RECEIPT_DIRECTORY_COMMAND,
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
                 "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
-                "repoWorkMap": "epiphany-verse-query gjallar",
+                "repoWorkMap": "epiphany-verse-query swarm-overview",
                 "idunnDeploymentAftercareAudit": DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND,
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
                 "bifrostLedger": "epiphany-verse-query bifrost-ledger",
@@ -6788,7 +6790,7 @@ fn repo_work_overview_action_row(
         priority,
         family: "repo-work-overview".to_string(),
         status,
-        lifecycle_owner: "Gjallar".to_string(),
+        lifecycle_owner: "none".to_string(),
         hosted_body: "repo-work".to_string(),
         action: format!(
             "Read latest repo work overview {} for item {}.",
@@ -6831,7 +6833,7 @@ fn repo_work_public_proof_action_row(
         priority,
         family: "repo-work-public-proof".to_string(),
         status: proof.current_gate.clone(),
-        lifecycle_owner: "Gjallar".to_string(),
+        lifecycle_owner: "none".to_string(),
         hosted_body: "repo-work".to_string(),
         action: format!(
             "Read redacted public proof {} for item {}; Bifrost owns any public publication or credit consequence.",
@@ -6880,7 +6882,7 @@ fn repo_work_readiness_action_row(
         priority,
         family: "repo-work-readiness".to_string(),
         status: readiness.status.clone(),
-        lifecycle_owner: "Gjallar".to_string(),
+        lifecycle_owner: "none".to_string(),
         hosted_body: "repo-work".to_string(),
         action: format!(
             "Read repo work readiness {} for item {}; Maintainer/Soul/Mind/Bifrost own readiness approval.",
@@ -6936,7 +6938,7 @@ fn repo_work_readiness_review_action_row(
         priority,
         family: "repo-work-readiness-review".to_string(),
         status: review.status.clone(),
-        lifecycle_owner: "Gjallar".to_string(),
+        lifecycle_owner: "none".to_string(),
         hosted_body: "repo-work".to_string(),
         action: format!(
             "Read repo work readiness review {} for item {}; Bifrost/GitHub/Idunn/Hands still own publication, sync, deployment, service lifecycle, and branch consequences.",

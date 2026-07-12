@@ -301,7 +301,7 @@ fn run_online(args: OnlineArgs) -> Result<Value> {
             "clusterTopology": topology["schemaVersion"],
             "idunnLiveness": liveness["schemaVersion"],
             "globalToolDirectory": tool_directory["schemaVersion"],
-            "gjallarOverview": overview["schemaVersion"],
+            "swarmOverview": overview["schemaVersion"],
             "privateStateExposed": false
         },
         "nextSafeMove": "Accept a Persona or Bifrost work item into typed Imagination/Self action pressure; the next missing command is epiphany-work accept --workspace <repo>."
@@ -613,7 +613,7 @@ fn classify_run_stop(
             ),
             "blocked-or-noop" if queue_count == 0 => (
                 "queue-empty",
-                "Gjallar",
+                "Self",
                 "repo.work.overview",
                 "no-repo-work-rows",
                 "epiphany-work persona-intake --workspace <repo> --item <id> --message <text>",

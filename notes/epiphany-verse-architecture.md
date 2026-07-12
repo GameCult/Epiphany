@@ -80,15 +80,6 @@ access receipts, or private-state export rules.
 
 Odin sees the map. Odin does not get to steal the throne.
 
-### Gjallar
-
-Gjallar is Odin's herald: the compact publisher that lets agents and operators
-see the whole Verse surface Odin advertises without opening private state.
-
-Gjallar announces topology, liveness, Eve surfaces, daemon tools, receipt
-attention, and action queues as sealed operator-safe rows. Odin coordinates the
-discovery map; Gjallar carries the horn blast.
-
 ### Yggdrasil
 
 Yggdrasil is the hosting spine for important trusted GameCult Verses.

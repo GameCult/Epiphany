@@ -495,11 +495,11 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_bool(&readiness_review, &["privateStateExposed"], false)?;
 
-    let gjallar = cargo_json(
+    let swarm_overview = cargo_json(
         &manifest,
         "epiphany-verse-query",
         &[
-            "gjallar",
+            "swarm-overview",
             "--store",
             path_str(&local_verse)?,
             "--runtime-id",
@@ -507,32 +507,36 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         &root,
     )?;
-    require_u64(&gjallar, &["repoWorkReadinessCount"], 1)?;
+    require_u64(&swarm_overview, &["repoWorkReadinessCount"], 1)?;
     require_eq(
-        &gjallar,
+        &swarm_overview,
         &["latestRepoWorkReadiness"],
         "repo-work-readiness-repo-work-readiness",
     )?;
-    require_bool(&gjallar, &["privateStateExposed"], false)?;
+    require_bool(&swarm_overview, &["privateStateExposed"], false)?;
     require_tui_row_contains(
-        &gjallar,
+        &swarm_overview,
         &["repoWorkReadinessTuiRows"],
         "REPO-WORK-READINESS",
     )?;
-    require_tui_row_contains(&gjallar, &["swarmActionTuiRows"], "repo-work-readiness")?;
-    require_u64(&gjallar, &["repoWorkReadinessReviewCount"], 1)?;
+    require_tui_row_contains(
+        &swarm_overview,
+        &["swarmActionTuiRows"],
+        "repo-work-readiness",
+    )?;
+    require_u64(&swarm_overview, &["repoWorkReadinessReviewCount"], 1)?;
     require_eq(
-        &gjallar,
+        &swarm_overview,
         &["latestRepoWorkReadinessReview"],
         "repo-work-readiness-review-repo-work-readiness",
     )?;
     require_tui_row_contains(
-        &gjallar,
+        &swarm_overview,
         &["repoWorkReadinessReviewTuiRows"],
         "REPO-WORK-READINESS-REVIEW",
     )?;
     require_tui_row_contains(
-        &gjallar,
+        &swarm_overview,
         &["swarmActionTuiRows"],
         "repo-work-readiness-review",
     )?;
@@ -607,10 +611,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         "readinessReviewVerseProjection": readiness_review["verseProjection"],
         "missingRequiredCount": readiness["missingRequiredCount"],
         "readinessVerseProjection": readiness["verseProjection"],
-        "gjallarRepoWorkReadinessCount": gjallar["repoWorkReadinessCount"],
-        "gjallarLatestRepoWorkReadiness": gjallar["latestRepoWorkReadiness"],
-        "gjallarRepoWorkReadinessReviewCount": gjallar["repoWorkReadinessReviewCount"],
-        "gjallarLatestRepoWorkReadinessReview": gjallar["latestRepoWorkReadinessReview"],
+        "swarmOverviewRepoWorkReadinessCount": swarm_overview["repoWorkReadinessCount"],
+        "swarmOverviewLatestRepoWorkReadiness": swarm_overview["latestRepoWorkReadiness"],
+        "swarmOverviewRepoWorkReadinessReviewCount": swarm_overview["repoWorkReadinessReviewCount"],
+        "swarmOverviewLatestRepoWorkReadinessReview": swarm_overview["latestRepoWorkReadinessReview"],
         "receiptDirectoryRowCount": receipt_directory["rowCount"],
         "receiptDirectoryReadinessReviewRow": receipt_directory_row_value(&receipt_directory, "repo-work-readiness-review")?,
         "bifrostLedgerAccountingRowCount": bifrost_ledger["accountingRowCount"],

@@ -4030,9 +4030,13 @@ fn validate_daemon_restart_policy(policy: &EpiphanyCultMeshDaemonRestartPolicyEn
     Ok(())
 }
 
-fn validate_managed_service_policy(policy: &EpiphanyCultMeshManagedServicePolicyEntry) -> Result<()> {
+fn validate_managed_service_policy(
+    policy: &EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<()> {
     if policy.private_state_exposed {
-        return Err(anyhow!("managed service policies must not expose private state"));
+        return Err(anyhow!(
+            "managed service policies must not expose private state"
+        ));
     }
     for (label, value) in [
         ("policy id", policy.policy_id.as_str()),
@@ -4048,11 +4052,18 @@ fn validate_managed_service_policy(policy: &EpiphanyCultMeshManagedServicePolicy
             return Err(anyhow!("managed service policy missing {label}"));
         }
     }
-    if !matches!(policy.restart_mode.as_str(), "always" | "on-failure" | "never") {
-        return Err(anyhow!("managed service policy restart_mode must be always, on-failure, or never"));
+    if !matches!(
+        policy.restart_mode.as_str(),
+        "always" | "on-failure" | "never"
+    ) {
+        return Err(anyhow!(
+            "managed service policy restart_mode must be always, on-failure, or never"
+        ));
     }
     if policy.cooldown_seconds < 0 || policy.backoff_multiplier == 0 {
-        return Err(anyhow!("managed service policy requires non-negative cooldown and positive backoff"));
+        return Err(anyhow!(
+            "managed service policy requires non-negative cooldown and positive backoff"
+        ));
     }
     Ok(())
 }
@@ -4587,7 +4598,7 @@ pub fn epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
         notes: vec![
             "Bifrost public-proof publication receipt binds a redacted repo-work proof bundle to a public Verse room.".to_string(),
             "The receipt carries only proof refs, hashes, ledger, review, and credit ids; private worker/operator/agent state remains sealed.".to_string(),
-            "Gjallar may read this closure, but Bifrost owns public publication authority.".to_string(),
+            "Downstream consumers may read this closure, but Bifrost owns public publication authority.".to_string(),
         ],
     }
 }
@@ -7291,7 +7302,7 @@ pub fn epiphany_cultmesh_bifrost_contracts() -> Vec<EpiphanyCultMeshBifrostContr
                     "CultMesh advertises this Bifrost contract as {EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE}."
                 ),
                 "Repo-work public proof bundles are redacted evidence packets, not body changes; Bifrost publishes them into public Verse rooms after review and credit receipts exist.".to_string(),
-                "Gjallar reads the published proof closure, but Bifrost owns public publication authority and ledger attribution.".to_string(),
+                "Downstream consumers may read the published proof closure, but Bifrost owns public publication authority and ledger attribution.".to_string(),
             ],
         },
     ]

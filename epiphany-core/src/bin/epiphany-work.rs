@@ -10041,7 +10041,7 @@ fn project_repo_work_map_entry_to_local_verse(
         private_state_exposed: false,
         notes: vec![
             "Repo work map entry is compact local Verse sight over Mind-admitted durable state; raw worker thoughts and receipt payload bodies remain sealed.".to_string(),
-            "Gjallar may project this row, but it does not own scheduling, publication, merge, service lifecycle, deployment, or cross-repo mutation.".to_string(),
+            "Downstream consumers may project this row; the projection grants no scheduling, publication, merge, service lifecycle, deployment, or cross-repo mutation authority.".to_string(),
         ],
     };
     write_epiphany_cultmesh_repo_work_map_entry(local_verse_store, map_entry)
@@ -12661,7 +12661,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "intakeConsensus": proof_bundle["intakeConsensus"],
         "rows": rows,
         "authority": {
-            "owner": "Eyes/Gjallar",
+            "owner": "Eyes",
             "sightOnly": true,
             "branchLocalOnly": false,
             "publicationAuthorized": false,
@@ -12702,7 +12702,7 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
                 notes: vec![
                     "Repo work overview is compact local Verse sight; raw worker thoughts and receipt payload bodies remain sealed.".to_string(),
                     "Persona/public feedback and candidate-action refs are shown only as compact Imagination consensus readback; adoption still requires Mind and Bifrost gates.".to_string(),
-                    "Gjallar/Eve may project these rows, but they do not own scheduling, publication, merge, service lifecycle, or cross-repo mutation.".to_string(),
+                    "downstream Eve lowerers may project these rows, but they do not own scheduling, publication, merge, service lifecycle, or cross-repo mutation.".to_string(),
                 ],
             };
             let written = write_epiphany_cultmesh_repo_work_overview(store, entry)?;
@@ -12821,7 +12821,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         )?,
         readiness_path_row(
             "swarm-online",
-            "Self/Gjallar",
+            "Self",
             "epiphany.repo_swarm_online_receipt.v0",
             &online_receipt_path,
             online_receipt_path.exists(),
@@ -12878,7 +12878,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         safe_family_planning_readiness_row(&close_receipt_path, close_receipt.as_ref()),
         readiness_path_row(
             "public-proof",
-            "Bifrost/Gjallar",
+            "Bifrost",
             "epiphany.repo_work_public_proof_bundle.v0",
             &public_proof_path,
             public_proof_path.exists(),
@@ -13015,7 +13015,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
     } else {
         rows.push(readiness_missing_row(
             "tool-directory",
-            "Odin/Gjallar",
+            "Odin",
             "epiphany.cultmesh.daemon_tool_directory.v0",
             "Supply --tool-directory-receipt or run tool-directory sight into the repo work artifact directory.",
         ));
@@ -13145,7 +13145,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
                 notes: vec![
                     "Repo work readiness is reviewable sight only; Maintainer/Soul/Mind/Bifrost own any readiness approval.".to_string(),
                     "Bifrost/GitHub own publication and upstream-main sync; Idunn owns service lifecycle; Hands owns branch-local action consequences.".to_string(),
-                    "Gjallar may project these rows without scheduling, publication, merge, deployment, service lifecycle, cross-body mutation, or private Verse authority.".to_string(),
+                    "Downstream consumers may project these rows without scheduling, publication, merge, deployment, service lifecycle, cross-body mutation, or private Verse authority.".to_string(),
                 ],
             };
             let written = write_epiphany_cultmesh_repo_work_readiness(store, entry)?;
@@ -13332,7 +13332,7 @@ fn run_readiness_review(args: ReadinessReviewArgs) -> Result<Value> {
                 tui_rows: review_tui_rows.clone(),
                 notes: vec![
                     "Readiness review approval is review evidence only; it does not publish, merge, deploy, sync upstream, mutate services, or grant Hands authority.".to_string(),
-                    "Maintainer, Soul, Mind, and Bifrost receipts remain the approval authorities; Gjallar only projects this compact row.".to_string(),
+                    "Maintainer, Soul, Mind, and Bifrost receipts remain the approval authorities; The provider sight projection only publishes this compact row.".to_string(),
                 ],
             };
             let written = write_epiphany_cultmesh_repo_work_readiness_review(&store, entry)?;
@@ -14047,7 +14047,7 @@ fn run_export_proof(args: ExportProofArgs) -> Result<Value> {
         private_state_exposed: false,
         notes: vec![
             "Repo work public proof is a redacted local Verse index for public/Bifrost transport; raw receipt bodies, local receipt paths, worker thought, and private Verse contents remain sealed.".to_string(),
-            "Gjallar/Odin may discover this proof, but Bifrost still owns publication, labor ledger, credit, and public consequence.".to_string(),
+            "Odin may discover this proof, but Bifrost still owns publication, labor ledger, credit, and public consequence.".to_string(),
         ],
     };
     let written_public_proof =
@@ -15982,7 +15982,7 @@ fn tool_directory_readiness_row(path: &Path) -> Result<Value> {
 
     Ok(json!({
         "kind": "tool-directory",
-        "owner": "Odin/Gjallar",
+        "owner": "Odin",
         "requiredSchema": "epiphany.cultmesh.daemon_tool_directory.v0",
         "evidenceRef": existing_path_value(path),
         "artifactStatus": if path.exists() { "present" } else { "missing" },
@@ -15998,7 +15998,7 @@ fn tool_directory_readiness_row(path: &Path) -> Result<Value> {
         "privateStateExposed": invariant_private,
         "satisfied": satisfied,
         "status": if satisfied { "satisfied" } else { "missing" },
-        "note": "Odin/Gjallar tool-directory sight proves globally available daemon-hosted tools through typed intents and receipts.",
+        "note": "Odin tool-directory sight proves globally available daemon-hosted tools through typed intents and receipts.",
         "toolExecutionAuthority": false,
         "serviceLifecycleAuthority": false,
         "privateVerseRummagingAuthorized": false
@@ -16231,7 +16231,7 @@ fn repo_work_public_proof_bundle(overview: &Value) -> Result<Value> {
             "privateStateExposed": false
         },
         "authority": {
-            "owner": "Eyes/Gjallar",
+            "owner": "Eyes",
             "sightOnly": true,
             "publicationAuthorized": false,
             "mergeAuthorized": false,
@@ -17297,8 +17297,20 @@ mod authority_tests {
             .status()?;
         assert!(git.success());
         for args in [
-            ["-C", workspace.to_str().unwrap(), "config", "user.name", "Epiphany Smoke"],
-            ["-C", workspace.to_str().unwrap(), "config", "user.email", "smoke@epiphany.invalid"],
+            [
+                "-C",
+                workspace.to_str().unwrap(),
+                "config",
+                "user.name",
+                "Epiphany Smoke",
+            ],
+            [
+                "-C",
+                workspace.to_str().unwrap(),
+                "config",
+                "user.email",
+                "smoke@epiphany.invalid",
+            ],
         ] {
             assert!(Command::new("git").args(args).status()?.success());
         }
@@ -17468,8 +17480,7 @@ mod authority_tests {
                 active_timeout_seconds: 900,
                 dry_run: false,
             })?;
-            let live_receipt =
-                read_json(Path::new(live_tick["receiptPath"].as_str().unwrap()))?;
+            let live_receipt = read_json(Path::new(live_tick["receiptPath"].as_str().unwrap()))?;
             assert_eq!(live_receipt["status"], "modeling-launched");
             assert_eq!(live_receipt["action"], "launch-modeling");
             assert_eq!(
