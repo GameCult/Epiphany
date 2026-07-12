@@ -45,6 +45,15 @@
 - Heartbeat owner: `epiphany-cluster-daemon` writes status. On its first run it derives identity/routing fields from persisted topology and authors the first heartbeat itself.
 - Negative proof: a real provider heartbeat can precede a pending poke; no poke receipt appears, counterfeit `ready` result is rejected, and `set-daemon-status` is unavailable.
 
+## Persona feedback and Imagination consensus boundary (2026-07-12)
+
+- Eve provider: `epiphany-eve-provider accept` loads the pending connection intent, verifies `provider_cluster_id == target_cluster_id`, and writes the provider receipt.
+- Persona owner: `collaboration-feedback` writes public, bounded feedback only after that provider receipt exists.
+- Imagination owner: consensus participant selection, packet reference, receipt status/id, and adoption gate.
+- Persona output: `pending-imagination` with null consensus fields and `responseOwner=Imagination`.
+- Forbidden writers: Persona cannot pass or synthesize Imagination response fields.
+- Negative proof: the full consumer-request/provider-accept/Persona-feedback chain persists no consensus receipt until Imagination answers.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

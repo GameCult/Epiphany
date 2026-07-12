@@ -20,6 +20,10 @@ The conceptual-substitution audit found observation manufacturing the body it cl
 
 Single poke, batch poke, and swarm triage now write only `epiphany.cultmesh.daemon_poke_intent`. They report `pending-lifecycle-owner`, leave receipt/result fields null, and reject caller-supplied receipt id/status, resulting daemon status, or artifact result. The generic `daemon-status` / `set-daemon-status` CLI writer was deleted because it let callers proclaim readiness and stamp a heartbeat. `epiphany-cluster-daemon`, the provider body, now creates its own initial status from persisted topology after bootstrap rather than depending on a seeded fake heartbeat. Physical proof: provider heartbeat `degraded`, poke intent observes `degraded`, provider receipt absent, caller-supplied `ready` result rejected, and generic status writer unavailable.
 
+## 2026-07-12 Persona feedback / Imagination consensus split
+
+`collaboration-feedback` now writes only bounded Persona feedback after verifying the cited Eve provider receipt exists. It returns `pending-imagination`, leaves consensus receipt/packet/adoption gate null, and rejects caller-supplied consensus receipt id/status, participant ids, or packet reference. The new narrow `epiphany-eve-provider accept` executable owns Eve connection acceptance: it loads the pending intent, verifies the provider cluster owns the target, and writes the connection receipt. Physical proof ran consumer request -> provider acceptance -> Persona feedback and showed no persisted Imagination consensus receipt; counterfeit consensus status was rejected.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

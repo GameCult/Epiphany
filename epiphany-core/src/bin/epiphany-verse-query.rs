@@ -1332,6 +1332,15 @@ fn run_cli() -> Result<()> {
             );
         }
         "collaboration-feedback" | "persona-feedback" => {
+            if args.receipt_id.is_some()
+                || args.receipt_status.is_some()
+                || args.imagination_agent_ids.is_some()
+                || args.consensus_packet_ref.is_some()
+            {
+                anyhow::bail!(
+                    "collaboration-feedback accepts Persona feedback fields only; Imagination owns consensus receipt, participants, packet, status, and adoption gate"
+                );
+            }
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -1341,10 +1350,6 @@ fn run_cli() -> Result<()> {
                 .feedback_id
                 .clone()
                 .unwrap_or_else(|| "collaboration-feedback".to_string());
-            let consensus_receipt_id = args
-                .receipt_id
-                .clone()
-                .unwrap_or_else(|| "imagination-consensus-receipt".to_string());
             let source_persona_id = args
                 .source_persona_id
                 .clone()
@@ -1388,17 +1393,6 @@ fn run_cli() -> Result<()> {
                 "collaboration-feedback requires --public-discussion-ref",
             )?;
             let candidate_action_refs = args.candidate_action_refs.clone().unwrap_or_default();
-            let imagination_agent_ids = args
-                .imagination_agent_ids
-                .clone()
-                .unwrap_or_else(|| vec!["epiphany.Imagination".to_string()]);
-            let consensus_packet_ref = args.consensus_packet_ref.clone().unwrap_or_else(|| {
-                format!("gamecult-local/imagination/consensus-packets/{feedback_id}")
-            });
-            let consensus_status = args
-                .receipt_status
-                .clone()
-                .unwrap_or_else(|| "queued-for-consensus-discovery".to_string());
             let feedback = epiphany_cultmesh_bifrost_collaboration_feedback(
                 feedback_id,
                 source_persona_id,
@@ -1415,23 +1409,7 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 feedback.clone(),
             )?;
-            let consensus = epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
-                consensus_receipt_id,
-                &feedback,
-                consensus_status,
-                imagination_agent_ids,
-                consensus_packet_ref,
-            );
-            let written_consensus = write_epiphany_cultmesh_imagination_consensus_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                consensus,
-            )?;
             let latest_feedback = load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
-                &args.store,
-                args.runtime_id.clone(),
-            )?;
-            let latest_consensus = load_latest_epiphany_cultmesh_imagination_consensus_receipt(
                 &args.store,
                 args.runtime_id.clone(),
             )?;
@@ -1439,26 +1417,21 @@ fn run_cli() -> Result<()> {
                 .as_ref()
                 .map(|feedback| feedback.feedback_id.as_str())
                 != Some(written_feedback.feedback_id.as_str())
-                || latest_consensus
-                    .as_ref()
-                    .map(|receipt| receipt.receipt_id.as_str())
-                    != Some(written_consensus.receipt_id.as_str())
             {
-                anyhow::bail!(
-                    "local Verse query lost collaboration feedback or Imagination consensus receipt after write"
-                );
+                anyhow::bail!("local Verse query lost collaboration feedback after write");
             }
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "status": "ok",
+                    "status": "pending-imagination",
                     "store": args.store,
                     "runtimeId": args.runtime_id,
                     "feedbackId": written_feedback.feedback_id,
-                    "consensusReceiptId": written_consensus.receipt_id,
+                    "consensusReceiptId": null,
                     "requestedConsensusRoute": written_feedback.requested_consensus_route,
-                    "consensusPacketRef": written_consensus.consensus_packet_ref,
-                    "adoptionGate": written_consensus.adoption_gate,
+                    "consensusPacketRef": null,
+                    "adoptionGate": null,
+                    "responseOwner": "Imagination",
                     "commands": {
                         "connectEve": WRAPPER_CONNECT_EVE_COMMAND,
                         "bifrostPublication": DIRECT_BIFROST_PUBLICATION_COMMAND,
@@ -1468,9 +1441,9 @@ fn run_cli() -> Result<()> {
                     },
                     "publicDiscussionRefs": written_feedback.public_discussion_refs,
                     "candidateActionRefs": written_feedback.candidate_action_refs,
-                    "tuiRows": collaboration_feedback_tui_rows(&written_feedback, &written_consensus),
+                    "tuiRows": [format!("FEEDBACK | {} | owner={} | status=pending-imagination | route={} | publicRefs={} | candidateActions={} | private=false", written_feedback.collaboration_topic, written_feedback.source_persona_id, written_feedback.requested_consensus_route, written_feedback.public_discussion_refs.len(), written_feedback.candidate_action_refs.len())],
                     "privateStateIncluded": written_feedback.private_state_included,
-                    "privateStateExposed": written_consensus.private_state_exposed,
+                    "privateStateExposed": false,
                 }))?
             );
         }
