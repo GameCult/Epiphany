@@ -73,3 +73,8 @@ the receipts and projections without first separating those writers.
 5. Make provider-owned Eve publication explicit; remove generated fallback
    surfaces from discovery loaders.
 
+## Resolution ledger
+
+All confirmed substitutions above have now been structurally cut from their caller-facing production paths. Diagnostics preserve absence; bootstrap does not seed liveness; cluster-daemon owns first heartbeat; discovery loaders do not synthesize providers; tool, Eve, poke, body-change, public-proof, artifact-acceptance, metrics, and Persona-feedback commands write or select requests only; provider/result fields are rejected. `epiphany-eve-provider` is the first narrow provider receipt mouth. Receipt constructors and writers remain available to owning provider binaries and focused contract tests; their mere existence is no longer caller authority.
+
+Remaining audit work is provenance rather than this original dual-writer cluster: identify every production call site of response-receipt writers, ensure it belongs to a named provider executable or ingest boundary, and distill contaminated historical claims from `state/map.yaml`.

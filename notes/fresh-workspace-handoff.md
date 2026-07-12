@@ -28,6 +28,10 @@ Single poke, batch poke, and swarm triage now write only `epiphany.cultmesh.daem
 
 `bifrost-public-proof` and its wrapper now select an already persisted redacted repo-work public proof and report `pending-bifrost`. They do not construct or write `gamecult.bifrost.public_proof_publication_receipt`. Caller-supplied ledger attribution, reviewers, credit receipts, public room/destination, publication URL, receipt id, and receipt status are rejected as Bifrost-owned result fields. Output publication and receipt coordinates remain null. The current canonical `state/local-verse.ccmp` contains no repo-work public proof fixture, so the physical negative proof covered refusal before any receipt mutation plus rejection of counterfeit result fields; full behavior remains covered by typed public-proof storage tests and compilation. Next split artifact acceptance and metrics the same way or move their receipt writers into a narrow Bifrost provider executable.
 
+## 2026-07-12 artifact acceptance and metrics request split
+
+`bifrost-artifact-acceptance` and `bifrost-metrics`, plus their wrappers, now inspect the latest Mind-admitted `repo.artifact_acceptance_request` / `repo.metrics_request` map entry and report `pending-maintainer-bifrost` / `pending-bifrost-maintainer`. They write no provider receipts. Artifact/proof/review/ledger/accepted-by/status fields and accepted-artifact/spend/review-load/credit/proof/summary/status fields are rejected respectively. The canonical local Verse currently contains neither request family, so negative proof showed clean missing-request failure, no receipt mutation, and rejection of counterfeit result fields. The original conceptual-substitution audit now records all confirmed substitutions as structurally cut; next audit every remaining production receipt-writer call site for provider provenance.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

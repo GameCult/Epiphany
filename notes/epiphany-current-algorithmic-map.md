@@ -62,6 +62,14 @@
 - Forbidden writers: the caller-facing command rejects all Bifrost result fields and leaves publication coordinates null.
 - Negative check: absence of a pending proof fails without writing a publication receipt; response-shaped fields are rejected before mutation.
 
+## Bifrost accounting request boundaries (2026-07-12)
+
+- Artifact acceptance source: Mind-admitted `repo.artifact_acceptance_request`; caller output is pending `Maintainer/Bifrost` with null acceptance coordinates.
+- Metrics source: Mind-admitted `repo.metrics_request`; caller output is pending `Bifrost/Maintainer` with null accounting coordinates.
+- Forbidden artifact writers: caller cannot provide artifact/proof/review/ledger/receipt/status/accepted-by results.
+- Forbidden metrics writers: caller cannot provide accepted artifact, model spend, review load, credit, proof, summary, receipt, or status results.
+- Negative proof: missing requests fail without receipt mutation and response-shaped arguments fail before lookup or write.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

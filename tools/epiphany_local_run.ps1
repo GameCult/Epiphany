@@ -1033,24 +1033,10 @@ if ($Mode -eq "bifrost-artifact-acceptance") {
     $receiptArgs = @(
         "bifrost-artifact-acceptance",
         "--store", $repoLocalVerseStore,
-        "--runtime-id", $RepoWorkRuntimeId,
-        "--artifact-ref", $BifrostArtifactRef,
-        "--ledger-entry-id", $BifrostLedgerEntryId,
-        "--review-receipt", $BifrostArtifactAcceptanceReviewReceipt,
-        "--source-agent-id", $BifrostArtifactAcceptedBy
+        "--runtime-id", $RepoWorkRuntimeId
     )
-    if ($BifrostArtifactAcceptanceReceiptId -ne "") {
-        $receiptArgs += @("--receipt-id", $BifrostArtifactAcceptanceReceiptId)
-    }
-    if ($BifrostPublicProofId -ne "") {
-        $receiptArgs += @("--public-proof-ref", $BifrostPublicProofId)
-    } elseif ($RepoWorkPublicProof -ne "") {
-        $receiptArgs += @("--public-proof-ref", $RepoWorkPublicProof)
-    } else {
-        $receiptArgs += @("--public-proof-ref", "repo-work-public-proof:latest")
-    }
     Invoke-Checked `
-        -Label "record Bifrost artifact acceptance receipt" `
+        -Label "submit artifact acceptance request to Bifrost" `
         -FilePath $verseQueryExe `
         -Arguments $receiptArgs `
         -WorkingDirectory $Root `
@@ -1066,27 +1052,10 @@ if ($Mode -eq "bifrost-metrics") {
     $receiptArgs = @(
         "bifrost-metrics",
         "--store", $repoLocalVerseStore,
-        "--runtime-id", $RepoWorkRuntimeId,
-        "--model-spend-receipt", $BifrostModelSpendReceipt,
-        "--review-load-receipt", $BifrostReviewLoadReceipt,
-        "--credit-receipt", $BifrostCreditReadbackReceipt,
-        "--metrics-summary", $BifrostMetricsSummary
+        "--runtime-id", $RepoWorkRuntimeId
     )
-    if ($BifrostMetricsReceiptId -ne "") {
-        $receiptArgs += @("--receipt-id", $BifrostMetricsReceiptId)
-    }
-    if ($BifrostArtifactAcceptanceReceiptId -ne "") {
-        $receiptArgs += @("--accepted-artifact-receipt-id", $BifrostArtifactAcceptanceReceiptId)
-    }
-    if ($BifrostPublicProofId -ne "") {
-        $receiptArgs += @("--public-proof-ref", $BifrostPublicProofId)
-    } elseif ($RepoWorkPublicProof -ne "") {
-        $receiptArgs += @("--public-proof-ref", $RepoWorkPublicProof)
-    } else {
-        $receiptArgs += @("--public-proof-ref", "repo-work-public-proof:latest")
-    }
     Invoke-Checked `
-        -Label "record Bifrost metrics receipt" `
+        -Label "submit metrics request to Bifrost and Maintainer" `
         -FilePath $verseQueryExe `
         -Arguments $receiptArgs `
         -WorkingDirectory $Root `
@@ -2823,7 +2792,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.reviewReceiptIds -and $result.reviewReceiptIds.Count -gt 0) {
                 $reviewReceipts = ($result.reviewReceiptIds -join ",")
             }
-            Write-Host "Bifrost artifact acceptance: status=$($result.status), item=$($result.item), receipt=$($result.receiptId), branch=$($result.sourceBranch), commit=$($result.commitSha), artifact=$($result.artifactRef), publicProof=$($result.publicProofRef), ledger=$($result.ledgerEntryId), acceptedBy=$($result.acceptedBy), review=$reviewReceipts, changedPaths=$changedPaths, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Artifact acceptance request: status=$($result.status), item=$($result.item), branch=$($result.sourceBranch), commit=$($result.commitSha), responseOwner=$($result.responseOwner), changedPaths=$changedPaths, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-metrics") {
             $modelSpend = "none"
             if ($null -ne $result.modelSpendReceiptIds -and $result.modelSpendReceiptIds.Count -gt 0) {
@@ -2837,7 +2806,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.creditReadbackReceiptIds -and $result.creditReadbackReceiptIds.Count -gt 0) {
                 $creditReadback = ($result.creditReadbackReceiptIds -join ",")
             }
-            Write-Host "Bifrost metrics: status=$($result.status), item=$($result.item), receipt=$($result.receiptId), branch=$($result.sourceBranch), artifactAcceptance=$($result.artifactAcceptanceReceiptId), publicProof=$($result.publicProofRef), modelSpend=$modelSpend, reviewLoad=$reviewLoad, creditReadback=$creditReadback, summary=$($result.metricsSummary), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Metrics request: status=$($result.status), item=$($result.item), branch=$($result.sourceBranch), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "daemon-survival-rehearsal") {
             Write-Host "Daemon survival rehearsal: status=$($result.status), daemon=$($result.daemonId), scheduler=$($result.schedulerId), policy=$($result.policyStatus), serve=$($result.serveStatus), iterations=$($result.serveIterations), schedulerReceipt=$($result.schedulerReceiptId), serviceManagerMutated=$($result.serviceManagerMutated), elevated=$($result.requiresElevatedAuthority), privateStateExposed=$($result.privateStateExposed), smokeDir=$($result.smokeDir)"
         } elseif ($Mode -eq "repo-swarm-mvp-gate") {
