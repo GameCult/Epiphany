@@ -2161,6 +2161,21 @@ typed route remains on generation one. The remaining proof is deliberately
 physical: run the same fixture non-dry with built consumer/supervisor binaries
 and verify the Idunn lifecycle receipt carries the projected request plus
 passing schema preflight fingerprints.
+That physical proof passed. Live fixture
+`C:\Users\Meta\AppData\Local\Temp\.tmpPoUbKg\repo` launched request
+`repo-work-close-process-retry-modeling-request-g1` as generation-scoped job
+`repo-work-modeling-process-retry-g1`. Idunn receipt
+`daemon-service-lifecycle-receipt-idunn-repo-work-modeling-process-retry-g1-launch`
+carried executable SHA-256
+`fe9f186705f8c9afb5b9424f3c38e7a8bc0e2370fdde47f92b8dac1bef63ca7e`,
+schema-catalog SHA-256
+`07e0d07bb0b0f2ba5310005cce9ede594c392f461bf1036d28a0b3023a329c31`,
+all four required typed document families, and
+`schemaPreflightPassed=true`. The real model runtime completed with a passing
+typed finding and empty stderr; the next scheduler dry-run returned
+`action=admit-modeling`. The generation-one campaign is complete. Next refresh
+the Perfect Machine audit against live source and cut stale roadmap claims
+before selecting the next organ boundary.
 
 ## Immediate Re-entry Instruction
 

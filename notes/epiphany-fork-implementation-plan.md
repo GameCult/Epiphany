@@ -204,8 +204,11 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Add a native end-to-end generation-one repo-work Modeling smoke. Begin with a
-non-passing runtime-authored generation-zero finding, exercise the explicit
-Mind-reviewed `revise-modeling` mouth, launch generation one through Idunn and
-runtime-schema preflight, admit only the generation-one finding, and prove
-generation zero cannot close or regain current authority.
+Refresh the Perfect Machine audit against current source and live proofs. The
+generation-one repo-work Modeling chain is complete from immutable
+generation-zero failure through Mind revision, scheduler selection, consumer
+schema preflight, Idunn lifecycle ownership, real runtime-authored
+generation-one finding, and canonical current-generation admission. Remove
+stale roadmap gaps that describe landed work, then select the next missing
+organ boundary from authoritative source instead of extending this campaign by
+inertia.

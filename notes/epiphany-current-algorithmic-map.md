@@ -314,6 +314,15 @@ revision mouth and scheduler and proves generation one is selected. The final
 process proof must compare this projection with a real preflighted Idunn launch
 receipt; it must not add a fake production runtime mode.
 
+The physical comparison passes. A real generation-one scheduler pulse matched
+the deterministic route/request/job projection, consumer preflight
+fingerprinted the executable and compiled schema catalog, Idunn persisted the
+launch lifecycle receipt, and the detached model runtime completed a passing
+typed finding with empty stderr. A later scheduler dry-run saw that finding as
+`admit-modeling`; it did not relaunch generation zero. This closes the
+generation-retry authority path. Re-enter through a source-grounded Perfect
+Machine audit rather than adding more closure machinery.
+
 ## Current Cut Line
 
 Keep:

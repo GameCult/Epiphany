@@ -17296,6 +17296,35 @@ mod authority_tests {
             .arg(&workspace)
             .status()?;
         assert!(git.success());
+        for args in [
+            ["-C", workspace.to_str().unwrap(), "config", "user.name", "Epiphany Smoke"],
+            ["-C", workspace.to_str().unwrap(), "config", "user.email", "smoke@epiphany.invalid"],
+        ] {
+            assert!(Command::new("git").args(args).status()?.success());
+        }
+        fs::write(workspace.join("README.md"), "# Process retry smoke\n")?;
+        assert!(
+            Command::new("git")
+                .args(["-C", workspace.to_str().unwrap(), "add", "README.md"])
+                .status()?
+                .success()
+        );
+        assert!(
+            Command::new("git")
+                .args([
+                    "-C",
+                    workspace.to_str().unwrap(),
+                    "commit",
+                    "--quiet",
+                    "-m",
+                    "Seed process retry smoke",
+                ])
+                .status()?
+                .success()
+        );
+        let commit_sha = git_output(&workspace, &["rev-parse", "HEAD"])?
+            .trim()
+            .to_string();
         let artifact_dir = workspace.join(".epiphany").join("work");
         fs::create_dir_all(&artifact_dir)?;
         let store = workspace.join("runtime.msgpack");
@@ -17314,7 +17343,7 @@ mod authority_tests {
             source_job_id: "process-retry-job".to_string(),
             verdict: "passed".to_string(),
             summary: "Verified consequence.".to_string(),
-            evidence_ids: vec!["commit-abc".to_string()],
+            evidence_ids: vec![commit_sha.clone()],
             risks: Vec::new(),
             emitted_at: "2026-07-12T00:00:00Z".to_string(),
             contract: "test".to_string(),
@@ -17326,7 +17355,7 @@ mod authority_tests {
             item: "process-retry".to_string(),
             requester: "self".to_string(),
             soul_verdict_receipt_id: soul.receipt_id.clone(),
-            commit_sha: "abc123".to_string(),
+            commit_sha,
             changed_paths: vec!["README.md".to_string()],
             instruction: "Model generation zero.".to_string(),
             requested_at: "2026-07-12T00:00:01Z".to_string(),
@@ -17427,6 +17456,61 @@ mod authority_tests {
                 .generation,
             1
         );
+        if env::var_os("EPIPHANY_RUN_LIVE_MODELING_LAUNCH").is_some() {
+            let live_tick = run_tick(TickArgs {
+                workspace: workspace.clone(),
+                epiphany_root: env::current_dir()?,
+                item: Some("process-retry".to_string()),
+                local_verse_store: Some(workspace.join(".epiphany").join("local-verse.ccmp")),
+                artifact_dir: Some(workspace.join(".epiphany").join("work")),
+                runtime_store: Some(store.clone()),
+                cooldown_seconds: 0,
+                active_timeout_seconds: 900,
+                dry_run: false,
+            })?;
+            let live_receipt =
+                read_json(Path::new(live_tick["receiptPath"].as_str().unwrap()))?;
+            assert_eq!(live_receipt["status"], "modeling-launched");
+            assert_eq!(live_receipt["action"], "launch-modeling");
+            assert_eq!(
+                live_receipt["advancedResult"]["requestId"],
+                tick_receipt["advancedResult"]["requestId"]
+            );
+            assert_eq!(
+                live_receipt["advancedResult"]["jobId"],
+                tick_receipt["advancedResult"]["jobId"]
+            );
+            assert_eq!(live_receipt["advancedResult"]["lifecycleOwner"], "Idunn");
+            assert_eq!(
+                live_receipt["advancedResult"]["schemaPreflightPassed"],
+                true
+            );
+            for field in [
+                "lifecycleReceiptId",
+                "serviceId",
+                "executableSha256",
+                "schemaCatalogSha256",
+                "preflightWitnessId",
+            ] {
+                assert!(
+                    live_receipt["advancedResult"][field]
+                        .as_str()
+                        .is_some_and(|value| !value.is_empty()),
+                    "live lifecycle projection omitted {field}"
+                );
+            }
+            assert_eq!(
+                live_receipt["advancedResult"]["requiredDocumentTypes"]
+                    .as_array()
+                    .map(Vec::len),
+                Some(4)
+            );
+            let preserved = temp.keep();
+            eprintln!(
+                "preserved live generation-one fixture at {}",
+                preserved.display()
+            );
+        }
         Ok(())
     }
 }
