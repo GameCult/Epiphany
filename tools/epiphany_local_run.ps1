@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "persona-bridge", "daemon-survival-rehearsal", "repo-swarm-mvp-gate", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "swarm-online-runbook", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "persona-bridge", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "swarm-online-runbook", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "cluster-service-runbook", "cluster-service-install-plan", "cluster-service-install-execute", "cluster-service-audit", "cluster-service-start-plan", "cluster-service-stop-plan", "cluster-service-start-execute", "cluster-service-stop-execute", "cluster-service-execution-readiness", "cluster-service-execution-runbook", "cluster-service-execution-audit", "service-execution-runbook", "service-install-plan", "service-install-execute", "service-tick", "service-status", "service-reconcile", "service-execution-readiness", "service-execution-audit", "service-start-plan", "service-stop-plan", "service-start-execute", "service-stop-execute")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -51,11 +51,6 @@ param(
     [string]$BifrostReviewLoadReceipt = "review-load-local-proof",
     [string]$BifrostCreditReadbackReceipt = "credit-readback-local-proof",
     [string]$BifrostMetricsSummary = "model spend, review load, accepted artifact, and credit readback recorded",
-    [string]$RepoSwarmMvpFreshRepoSummaryPath = "",
-    [string]$RepoSwarmMvpReadinessSummaryPath = "",
-    [string]$RepoSwarmMvpBifrostAccountingSummaryPath = "",
-    [string]$RepoSwarmMvpDeploymentHandoffSummaryPath = "",
-    [string]$RepoSwarmMvpDaemonSurvivalSummaryPath = "",
     [string]$ToolCapabilityId = "epiphany.cluster.hands.tool.repo-action",
     [string]$ToolRequestingAgentId = "epiphany.Persona",
     [string]$ToolRequestingClusterId = "epiphany.cluster.persona",
@@ -341,7 +336,6 @@ $operatorRunExe = Join-Path $TargetDir "debug\epiphany-operator-run.exe"
 $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
 $verseQueryExe = Join-Path $TargetDir "debug\epiphany-verse-query.exe"
 $daemonSurvivalRehearsalExe = Join-Path $TargetDir "debug\epiphany-daemon-survival-rehearsal-smoke.exe"
-$repoSwarmMvpGateExe = Join-Path $TargetDir "debug\epiphany-repo-swarm-mvp-gate-smoke.exe"
 $repoLivefireClosureSmokeExe = Join-Path $TargetDir "debug\epiphany-repo-livefire-closure-smoke.exe"
 $swarmExe = Join-Path $TargetDir "debug\epiphany-swarm.exe"
 $repoWorkExe = Join-Path $TargetDir "debug\epiphany-work.exe"
@@ -390,7 +384,7 @@ $runtimeStore = Join-Path $Workspace "state\runtime-spine.msgpack"
 $liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
-    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "persona-discord" -and $Mode -ne "persona-reddit" -and $Mode -ne "persona-other" -and $Mode -ne "persona-bridge" -and $Mode -ne "daemon-survival-rehearsal" -and $Mode -ne "repo-swarm-mvp-gate" -and $Mode -ne "repo-livefire-closure" -and $Mode -ne "repo-work-public-proof" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
+    if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "persona-discord" -and $Mode -ne "persona-reddit" -and $Mode -ne "persona-other" -and $Mode -ne "persona-bridge" -and $Mode -ne "daemon-survival-rehearsal" -and $Mode -ne "repo-livefire-closure" -and $Mode -ne "repo-work-public-proof" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
         Invoke-Checked `
             -Label "build Codex app-server compatibility organ" `
             -FilePath $cargoExe `
@@ -411,7 +405,6 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-operator-snapshot",
             "--bin", "epiphany-verse-query",
             "--bin", "epiphany-daemon-survival-rehearsal-smoke",
-            "--bin", "epiphany-repo-swarm-mvp-gate-smoke",
             "--bin", "epiphany-repo-livefire-closure-smoke",
             "--bin", "epiphany-swarm",
             "--bin", "epiphany-work",
@@ -457,16 +450,13 @@ $requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQ
 if ($Mode -eq "daemon-survival-rehearsal") {
     $requiredBinaries += @($daemonSurvivalRehearsalExe)
 }
-if ($Mode -eq "repo-swarm-mvp-gate") {
-    $requiredBinaries += @($repoSwarmMvpGateExe)
-}
 if ($Mode -eq "repo-livefire-closure") {
     $requiredBinaries += @($repoLivefireClosureSmokeExe)
 }
 if ($Mode -eq "persona-bridge") {
     $requiredBinaries += @($PersonaBridgeSmokeExe)
 }
-if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "persona-discord" -and $Mode -ne "persona-reddit" -and $Mode -ne "persona-other" -and $Mode -ne "persona-bridge" -and $Mode -ne "daemon-survival-rehearsal" -and $Mode -ne "repo-swarm-mvp-gate" -and $Mode -ne "repo-livefire-closure" -and $Mode -ne "repo-work-public-proof" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
+if ($Mode -ne "status" -and $Mode -ne "agent-state-soa" -and $Mode -ne "swarm-status" -and $Mode -ne "swarm-poke-down" -and $Mode -ne "swarm-triage" -and $Mode -ne "cluster-topology" -and $Mode -ne "eve-surfaces" -and $Mode -ne "eve-connect" -and $Mode -ne "collaboration-feedback" -and $Mode -ne "persona-discord" -and $Mode -ne "persona-reddit" -and $Mode -ne "persona-other" -and $Mode -ne "persona-bridge" -and $Mode -ne "daemon-survival-rehearsal" -and $Mode -ne "repo-livefire-closure" -and $Mode -ne "repo-work-public-proof" -and $Mode -ne "bifrost-publication" -and $Mode -ne "bifrost-public-proof" -and $Mode -ne "bifrost-artifact-acceptance" -and $Mode -ne "bifrost-metrics" -and $Mode -ne "bifrost-ledger" -and $Mode -ne "receipt-directory" -and $Mode -ne "tool-directory" -and $Mode -ne "tool-invoke" -and $Mode -ne "swarm-overview" -and $Mode -ne "repo-persona-intake" -and $Mode -ne "repo-swarm-run" -and $Mode -ne "repo-work-queue-run" -and $Mode -ne "repo-work-readiness" -and $Mode -ne "repo-deployment-config-audit" -and $Mode -ne "repo-deployment-runbook" -and $Mode -ne "repo-deployment-aftercare-audit" -and $Mode -ne "repo-work-service-plan" -and $Mode -ne "repo-work-service-runbook" -and $Mode -ne "repo-work-service-launch" -and $Mode -ne "repo-work-service-audit" -and $Mode -ne "swarm-online-runbook" -and $Mode -ne "service-policy-directory" -and $Mode -ne "service-plan" -and $Mode -ne "service-launch" -and $Mode -ne "service-runbook" -and $Mode -ne "cluster-service-runbook" -and $Mode -ne "cluster-service-install-plan" -and $Mode -ne "cluster-service-install-execute" -and $Mode -ne "cluster-service-audit" -and $Mode -ne "cluster-service-start-plan" -and $Mode -ne "cluster-service-stop-plan" -and $Mode -ne "cluster-service-start-execute" -and $Mode -ne "cluster-service-stop-execute" -and $Mode -ne "cluster-service-execution-readiness" -and $Mode -ne "cluster-service-execution-runbook" -and $Mode -ne "cluster-service-execution-audit" -and $Mode -ne "service-execution-runbook" -and $Mode -ne "service-install-plan" -and $Mode -ne "service-install-execute" -and $Mode -ne "service-tick" -and $Mode -ne "service-status" -and $Mode -ne "service-reconcile" -and $Mode -ne "service-execution-readiness" -and $Mode -ne "service-execution-audit" -and $Mode -ne "service-start-plan" -and $Mode -ne "service-stop-plan" -and $Mode -ne "service-start-execute" -and $Mode -ne "service-stop-execute") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
 }
 function Assert-SwarmBrakeAllowsLiveRun {
@@ -638,7 +628,7 @@ Invoke-Checked `
     -StdoutPath (Join-Path $artifactRoot "operator-run-intent.stdout.json") `
     -StderrPath (Join-Path $artifactRoot "operator-run-intent.stderr.log")
 
-$compactOperatorContextModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "repo-swarm-mvp-gate", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "swarm-online-runbook", "service-policy-directory")
+$compactOperatorContextModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "swarm-online-runbook", "service-policy-directory")
 $usesCompactOperatorContext = $compactOperatorContextModes -contains $Mode
 $shouldReadLocalVerse = $Mode -ne "smoke" -and -not $usesCompactOperatorContext
 if ($shouldReadLocalVerse -and $Mode -ne "status" -and $Mode -ne "mvp") {
@@ -1063,36 +1053,6 @@ if ($Mode -eq "daemon-survival-rehearsal") {
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
         -StderrPath (Join-Path $artifactRoot "daemon-survival-rehearsal.stderr.log")
-}
-
-if ($Mode -eq "repo-swarm-mvp-gate") {
-    $resultPath = Join-Path $artifactRoot "repo-swarm-mvp-gate.stdout.json"
-    $gateArgs = @(
-        "--root", $Root,
-        "--smoke-root", (Join-Path $Root ".epiphany-smoke")
-    )
-    if ($RepoSwarmMvpFreshRepoSummaryPath -ne "") {
-        $gateArgs += @("--fresh-repo-summary", $RepoSwarmMvpFreshRepoSummaryPath)
-    }
-    if ($RepoSwarmMvpReadinessSummaryPath -ne "") {
-        $gateArgs += @("--readiness-summary", $RepoSwarmMvpReadinessSummaryPath)
-    }
-    if ($RepoSwarmMvpBifrostAccountingSummaryPath -ne "") {
-        $gateArgs += @("--bifrost-accounting-summary", $RepoSwarmMvpBifrostAccountingSummaryPath)
-    }
-    if ($RepoSwarmMvpDeploymentHandoffSummaryPath -ne "") {
-        $gateArgs += @("--deployment-handoff-summary", $RepoSwarmMvpDeploymentHandoffSummaryPath)
-    }
-    if ($RepoSwarmMvpDaemonSurvivalSummaryPath -ne "") {
-        $gateArgs += @("--daemon-survival-summary", $RepoSwarmMvpDaemonSurvivalSummaryPath)
-    }
-    Invoke-Checked `
-        -Label "verify repo swarm MVP gate proof" `
-        -FilePath $repoSwarmMvpGateExe `
-        -Arguments $gateArgs `
-        -WorkingDirectory $Root `
-        -StdoutPath $resultPath `
-        -StderrPath (Join-Path $artifactRoot "repo-swarm-mvp-gate.stderr.log")
 }
 
 if ($Mode -eq "repo-livefire-closure") {
@@ -2746,12 +2706,6 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             Write-Host "Metrics request: status=$($result.status), item=$($result.item), branch=$($result.sourceBranch), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "daemon-survival-rehearsal") {
             Write-Host "Daemon survival rehearsal: status=$($result.status), daemon=$($result.daemonId), scheduler=$($result.schedulerId), policy=$($result.policyStatus), serve=$($result.serveStatus), iterations=$($result.serveIterations), schedulerReceipt=$($result.schedulerReceiptId), serviceManagerMutated=$($result.serviceManagerMutated), elevated=$($result.requiresElevatedAuthority), privateStateExposed=$($result.privateStateExposed), smokeDir=$($result.smokeDir)"
-        } elseif ($Mode -eq "repo-swarm-mvp-gate") {
-            $remaining = "none"
-            if ($null -ne $result.knownRemainingAuthorityGates -and $result.knownRemainingAuthorityGates.Count -gt 0) {
-                $remaining = ($result.knownRemainingAuthorityGates -join "; ")
-            }
-            Write-Host "Repo swarm MVP gate: status=$($result.status), demoReady=$($result.demoReady), mvpReady=$($result.mvpReady), green=$($result.greenGateCount), warnings=$($result.warningGateCount), blockers=$($result.blockerGateCount), remaining='$remaining', privateStateExposed=$($result.privateStateExposed), smokeDir=$($result.smokeDir)"
         } elseif ($Mode -eq "repo-livefire-closure") {
             $changedPaths = "none"
             if ($null -ne $result.changedPaths -and $result.changedPaths.Count -gt 0) {

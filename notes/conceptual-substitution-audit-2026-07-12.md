@@ -306,3 +306,16 @@ and both aggregate green gates are deleted. The readiness report remains sight
 only, and `repo.readiness_review_request` remains the correct request cargo.
 Typed review schemas/readers may ingest a future provider-authored result; four
 labels supplied by one caller are not four reviews.
+
+## Fixture aggregation as MVP readiness
+
+After the counterfeit Idunn, Bifrost accounting, and readiness-review inputs
+were removed, `epiphany-repo-swarm-mvp-gate-smoke` still read two prior smoke
+summaries, built local Weksa/memory fixtures, manually emitted eleven green
+rows, and hard-coded `demoReady=true`. It did not execute one live end-to-end
+organism or verify the external consequences named by several rows.
+
+The aggregate gate binary, wrapper mode, summary-path inputs, build target, and
+display projection are deleted. Focused contract tests remain useful, and live
+fire remains the proper whole-path evidence layer. A pile of green fixture
+summaries is not a system readiness owner.

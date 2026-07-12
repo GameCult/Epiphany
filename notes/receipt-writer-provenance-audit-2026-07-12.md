@@ -28,6 +28,10 @@ Inventory every production call to `write_*receipt`, then ask whether the execut
   and authored approval itself; its smoke, wrapper, and aggregate green gates
   are also deleted. Use the readiness-review request family until genuine
   reviewer evidence is resolved and ingested.
+- Aggregate repo-swarm MVP gate: deleted. After its provider-response inputs
+  were removed it still manually painted green rows and hard-coded
+  `demoReady=true` from prior smoke summaries and local fixtures; it was not a
+  live end-to-end verifier.
 - `epiphany-operator-run`: owner-aligned for operator-run receipts and coordinator receipts derived from the run it executes.
 - smoke binaries and the `epiphany-verse-query smoke` arm: fixtures, not runtime evidence. They remain a quarantine risk if permitted to target canonical stores.
 - `epiphany-work` Weksa lowering: a lowering projection receipt, explicitly non-publication authority; no substitution confirmed in this pass.
