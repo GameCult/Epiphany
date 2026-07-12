@@ -113,6 +113,13 @@ accepted interpretation is persisted as
 commit, and changed paths. Mind rereads that typed receipt and the admitted repo
 map plus CultMesh projection carry its receipt ID.
 
+The canonical repo-work map entry is `epiphany.repo_work.map_entry.v0` in the
+same runtime CultCache. `commit_repo_work_map_admission` validates it against
+the persisted Modeling finding, then publishes the map entry, Mind review, and
+Mind commit in one prepared batch. The former bespoke
+`.epiphany/state/repo-work-map.msgpack` owner is deleted. CultMesh remains a
+projection after admission and cannot repair or override the canonical entry.
+
 Manual edits and programmatic actions converge at the same receipt and Mind
 admission boundaries. A later action cannot retroactively make an unrecorded
 consequence valid.

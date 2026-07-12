@@ -3,6 +3,8 @@ use cultcache_rs::DatabaseEntry;
 pub const REPO_WORK_MODELING_FINDING_TYPE: &str = "epiphany.modeling.repo_work_finding";
 pub const REPO_WORK_MODELING_FINDING_SCHEMA_VERSION: &str =
     "epiphany.modeling.repo_work_finding.v0";
+pub const REPO_WORK_MAP_ENTRY_TYPE: &str = "epiphany.repo_work.map_entry";
+pub const REPO_WORK_MAP_ENTRY_SCHEMA_VERSION: &str = "epiphany.repo_work.map_entry.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -36,4 +38,47 @@ pub struct RepoWorkModelingFinding {
     pub private_state_exposed: bool,
     #[cultcache(key = 12)]
     pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(type = "epiphany.repo_work.map_entry", schema = "RepoWorkMapEntry")]
+pub struct RepoWorkMapEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub map_entry_id: String,
+    #[cultcache(key = 2)]
+    pub admitted_at: String,
+    #[cultcache(key = 3)]
+    pub item: String,
+    #[cultcache(key = 4)]
+    pub branch: String,
+    #[cultcache(key = 5)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 6)]
+    pub commit_sha: String,
+    #[cultcache(key = 7)]
+    pub safe_action_family: String,
+    #[cultcache(key = 8)]
+    pub modeling_summary: String,
+    #[cultcache(key = 9)]
+    pub modeling_finding_receipt_id: String,
+    #[cultcache(key = 10)]
+    pub soul_verdict_receipt_id: String,
+    #[cultcache(key = 11)]
+    pub mind_gateway_review_id: String,
+    #[cultcache(key = 12)]
+    pub mind_state_commit_receipt_id: String,
+    #[cultcache(key = 13)]
+    pub execute_receipt_path: String,
+    #[cultcache(key = 14)]
+    pub closure_review_path: String,
+    #[cultcache(key = 15)]
+    pub closure_receipt_path: String,
+    #[cultcache(key = 16)]
+    pub publication_gate: String,
+    #[cultcache(key = 17)]
+    pub durable_state_admitted: bool,
+    #[cultcache(key = 18)]
+    pub private_state_exposed: bool,
 }

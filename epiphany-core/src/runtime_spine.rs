@@ -40,8 +40,11 @@ use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
 use crate::mind_gateway::MindGatewayReview;
 use crate::mind_gateway::MindStateCommitReceipt;
+use crate::modeling_gateway::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
+use crate::modeling_gateway::REPO_WORK_MAP_ENTRY_TYPE;
 use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
 use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_TYPE;
+use crate::modeling_gateway::RepoWorkMapEntry;
 use crate::modeling_gateway::RepoWorkModelingFinding;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::soul_gateway::SoulVerdictReceipt;
@@ -727,6 +730,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<MindGatewayReview>()?;
     cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<RepoWorkModelingFinding>()?;
+    cache.register_entry_type::<RepoWorkMapEntry>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
     cache.register_entry_type::<HandsActionIntent>()?;
@@ -1770,6 +1774,67 @@ pub fn runtime_repo_work_modeling_finding(
     cache.get::<RepoWorkModelingFinding>(receipt_id)
 }
 
+pub fn commit_repo_work_map_admission(
+    store_path: impl AsRef<Path>,
+    entry: &RepoWorkMapEntry,
+    mind_review: &MindGatewayReview,
+    mind_commit: &MindStateCommitReceipt,
+) -> Result<RepoWorkMapEntry> {
+    if entry.schema_version != REPO_WORK_MAP_ENTRY_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported repo-work map entry schema"));
+    }
+    validate_non_empty(&entry.map_entry_id, "repo-work map entry id")?;
+    validate_non_empty(&entry.item, "repo-work map item")?;
+    validate_non_empty(
+        &entry.modeling_finding_receipt_id,
+        "repo-work map Modeling finding receipt id",
+    )?;
+    if !entry.durable_state_admitted || entry.private_state_exposed {
+        return Err(anyhow!(
+            "repo-work map admission requires admitted, private-state-sealed state"
+        ));
+    }
+    if entry.mind_gateway_review_id != mind_review.gateway_id
+        || entry.mind_state_commit_receipt_id != mind_commit.receipt_id
+        || mind_commit.gateway_id != mind_review.gateway_id
+    {
+        return Err(anyhow!(
+            "repo-work map entry and Mind witnesses do not share one identity"
+        ));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let modeling = cache
+        .get::<RepoWorkModelingFinding>(&entry.modeling_finding_receipt_id)?
+        .ok_or_else(|| anyhow!("repo-work map admission requires typed Modeling finding"))?;
+    if modeling.item != entry.item
+        || modeling.soul_verdict_receipt_id != entry.soul_verdict_receipt_id
+        || modeling.commit_sha != entry.commit_sha
+        || modeling.changed_paths != entry.changed_paths
+        || modeling.summary != entry.modeling_summary
+    {
+        return Err(anyhow!(
+            "repo-work map entry does not match its typed Modeling finding"
+        ));
+    }
+    let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
+    let (commit_envelope, _) = cache.prepare_entry(&mind_commit.receipt_id, mind_commit)?;
+    let (map_envelope, _) = cache.prepare_entry(&entry.map_entry_id, entry)?;
+    cache.put_prepared_batch(vec![review_envelope, commit_envelope, map_envelope])?;
+    Ok(entry.clone())
+}
+
+pub fn runtime_repo_work_map_entry(
+    store_path: impl AsRef<Path>,
+    map_entry_id: &str,
+) -> Result<Option<RepoWorkMapEntry>> {
+    validate_non_empty(map_entry_id, "repo-work map entry id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<RepoWorkMapEntry>(map_entry_id)
+}
+
 pub fn put_continuity_recovery_receipt(
     store_path: impl AsRef<Path>,
     receipt: &ContinuityRecoveryReceipt,
@@ -2369,6 +2434,21 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Modeling findings interpret a Soul-verified repo consequence before Mind admits a map update.",
                 "Schedulers and raw CLI fields cannot substitute for this persisted receipt.",
+            ],
+        ),
+        mutation_contract(
+            REPO_WORK_MAP_ENTRY_TYPE,
+            REPO_WORK_MAP_ENTRY_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Repo-work map entries are Mind-admitted durable state committed atomically with their Mind witnesses.",
+                "CultMesh rows are projections of this entry, not a second map owner.",
             ],
         ),
         mutation_contract(

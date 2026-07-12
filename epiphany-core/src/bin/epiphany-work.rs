@@ -27,7 +27,9 @@ use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
 use epiphany_core::MindGatewayDecision;
 use epiphany_core::MindGatewayReview;
 use epiphany_core::PersonaMemoryCacheConfig;
+use epiphany_core::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
+use epiphany_core::RepoWorkMapEntry;
 use epiphany_core::RepoWorkModelingFinding;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
@@ -38,6 +40,7 @@ use epiphany_core::WeksaInterlinguaInput;
 use epiphany_core::WeksaSpeakerContext;
 use epiphany_core::build_weksa_interlingua_packet;
 use epiphany_core::build_weksa_target_lowering_request;
+use epiphany_core::commit_repo_work_map_admission;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
@@ -63,8 +66,6 @@ use epiphany_core::put_hands_command_receipt;
 use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_hands_pr_receipt;
-use epiphany_core::put_mind_gateway_review;
-use epiphany_core::put_mind_state_commit_receipt;
 use epiphany_core::put_repo_work_modeling_finding;
 use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
@@ -74,6 +75,7 @@ use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
+use epiphany_core::runtime_repo_work_map_entry;
 use epiphany_core::runtime_repo_work_modeling_finding;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
@@ -83,8 +85,6 @@ use epiphany_core::write_epiphany_cultmesh_repo_work_readiness_review;
 use epiphany_core::write_epiphany_cultmesh_weksa_lowering_receipt;
 use epiphany_state_model::EpiphanyMemoryContextQuery;
 use epiphany_state_model::EpiphanyMemoryProfile;
-use serde::Deserialize;
-use serde::Serialize;
 use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
@@ -94,41 +94,6 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-
-const REPO_WORK_MAP_STORE_SCHEMA_VERSION: &str = "epiphany.repo_work_map_store.v0";
-const REPO_WORK_MAP_ENTRY_SCHEMA_VERSION: &str = "epiphany.repo_work_map_entry.v0";
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct RepoWorkMapStore {
-    schema_version: String,
-    updated_at: String,
-    entries: Vec<RepoWorkMapEntry>,
-    private_state_exposed: bool,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct RepoWorkMapEntry {
-    schema_version: String,
-    admitted_at: String,
-    item: String,
-    branch: String,
-    changed_paths: Vec<String>,
-    commit_sha: String,
-    safe_action_family: String,
-    modeling_summary: String,
-    modeling_finding_receipt_id: String,
-    soul_verdict_receipt_id: String,
-    mind_gateway_review_id: String,
-    mind_state_commit_receipt_id: String,
-    execute_receipt_path: String,
-    closure_review_path: String,
-    closure_receipt_path: String,
-    publication_gate: String,
-    durable_state_admitted: bool,
-    private_state_exposed: bool,
-}
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -9870,46 +9835,8 @@ fn closure_mind_adoption_review(execute_receipt: &Value) -> Result<(Value, bool)
     ))
 }
 
-fn repo_work_map_store_path(workspace: &Path) -> PathBuf {
-    workspace
-        .join(".epiphany")
-        .join("state")
-        .join("repo-work-map.msgpack")
-}
-
-fn load_repo_work_map_store(path: &Path) -> Result<RepoWorkMapStore> {
-    if !path.exists() {
-        return Ok(RepoWorkMapStore {
-            schema_version: REPO_WORK_MAP_STORE_SCHEMA_VERSION.to_string(),
-            updated_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-            entries: Vec::new(),
-            private_state_exposed: false,
-        });
-    }
-    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let store: RepoWorkMapStore = rmp_serde::from_slice(&bytes)
-        .with_context(|| format!("failed to decode {}", path.display()))?;
-    if store.schema_version != REPO_WORK_MAP_STORE_SCHEMA_VERSION {
-        return Err(anyhow!(
-            "unsupported repo work map schema {} in {}",
-            store.schema_version,
-            path.display()
-        ));
-    }
-    Ok(store)
-}
-
-fn write_repo_work_map_store(path: &Path, store: &RepoWorkMapStore) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-    let bytes = rmp_serde::to_vec_named(store).context("failed to encode repo work map store")?;
-    fs::write(path, bytes).with_context(|| format!("failed to write {}", path.display()))
-}
-
 fn record_repo_work_map_admission(
-    workspace: &Path,
+    runtime_store: &Path,
     item: &str,
     branch: &str,
     changed_paths: Vec<String>,
@@ -9923,15 +9850,16 @@ fn record_repo_work_map_admission(
     execute_receipt_path: &Path,
     closure_review_path: &Path,
     closure_receipt_path: &Path,
-) -> Result<(PathBuf, RepoWorkMapEntry)> {
-    let map_store_path = repo_work_map_store_path(workspace);
-    let mut store = load_repo_work_map_store(&map_store_path)?;
+    mind_review: &MindGatewayReview,
+    mind_commit: &epiphany_core::MindStateCommitReceipt,
+) -> Result<RepoWorkMapEntry> {
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let safe_action_family =
         string_from_json(closure_review, &["familyAssertions", "safeActionFamily"])
             .unwrap_or_else(|| "manual-or-unknown".to_string());
     let entry = RepoWorkMapEntry {
         schema_version: REPO_WORK_MAP_ENTRY_SCHEMA_VERSION.to_string(),
+        map_entry_id: format!("repo-work-map-{}", sanitize(item)),
         admitted_at: now.clone(),
         item: item.to_string(),
         branch: branch.to_string(),
@@ -9950,15 +9878,9 @@ fn record_repo_work_map_admission(
         durable_state_admitted: true,
         private_state_exposed: false,
     };
-    store.entries.retain(|existing| existing.item != item);
-    store.entries.push(entry.clone());
-    store
-        .entries
-        .sort_by(|left, right| left.item.cmp(&right.item));
-    store.updated_at = now;
-    store.private_state_exposed = false;
-    write_repo_work_map_store(&map_store_path, &store)?;
-    Ok((map_store_path, entry))
+    commit_repo_work_map_admission(runtime_store, &entry, mind_review, mind_commit)?;
+    runtime_repo_work_map_entry(runtime_store, &entry.map_entry_id)?
+        .ok_or_else(|| anyhow!("committed repo-work map entry could not be reread"))
 }
 
 fn resolve_local_verse_store_from_execute_receipt(
@@ -10056,6 +9978,30 @@ fn project_repo_work_map_entry_to_local_verse(
         ],
     };
     write_epiphany_cultmesh_repo_work_map_entry(local_verse_store, map_entry)
+}
+
+fn repo_work_map_entry_json(entry: &RepoWorkMapEntry) -> Value {
+    json!({
+        "schemaVersion": entry.schema_version,
+        "mapEntryId": entry.map_entry_id,
+        "admittedAt": entry.admitted_at,
+        "item": entry.item,
+        "branch": entry.branch,
+        "changedPaths": entry.changed_paths,
+        "commitSha": entry.commit_sha,
+        "safeActionFamily": entry.safe_action_family,
+        "modelingSummary": entry.modeling_summary,
+        "modelingFindingReceiptId": entry.modeling_finding_receipt_id,
+        "soulVerdictReceiptId": entry.soul_verdict_receipt_id,
+        "mindGatewayReviewId": entry.mind_gateway_review_id,
+        "mindStateCommitReceiptId": entry.mind_state_commit_receipt_id,
+        "executeReceiptPath": entry.execute_receipt_path,
+        "closureReviewPath": entry.closure_review_path,
+        "closureReceiptPath": entry.closure_receipt_path,
+        "publicationGate": entry.publication_gate,
+        "durableStateAdmitted": entry.durable_state_admitted,
+        "privateStateExposed": entry.private_state_exposed,
+    })
 }
 
 fn short_commit(commit_sha: &str) -> String {
@@ -11575,7 +11521,6 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         ],
         contract: "Mind review for repo-work closure; admits the verified Modeling summary and publication gate without granting merge or service authority.".to_string(),
     };
-    put_mind_gateway_review(&runtime_store, &mind_review)?;
     let mind_commit_id = format!("repo-work-close-{item_slug}-mind-commit");
     let mind_commit = mind_state_commit_receipt(
         mind_commit_id.clone(),
@@ -11588,11 +11533,9 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         ],
         Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
     );
-    put_mind_state_commit_receipt(&runtime_store, &mind_commit)?;
-
     let branch = git_output(&workspace, &["branch", "--show-current"])?;
-    let (repo_map_store_path, repo_map_entry) = record_repo_work_map_admission(
-        &workspace,
+    let repo_map_entry = record_repo_work_map_admission(
+        &runtime_store,
         &item,
         &branch,
         declared_changed_paths.clone(),
@@ -11606,6 +11549,8 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         &execute_receipt_path,
         &closure_review_path,
         &closure_receipt_path,
+        &mind_review,
+        &mind_commit,
     )?;
     let runtime_id = string_from_json(&execute_receipt, &["runtimeId"])
         .unwrap_or_else(|| "repo-swarm-local".to_string());
@@ -11618,7 +11563,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             local_verse_store,
             &runtime_id,
             &workspace,
-            &repo_map_store_path,
+            &runtime_store,
             &repo_map_entry,
         )?;
         json!({
@@ -11676,8 +11621,8 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             "stateCommitReceiptId": mind_commit.receipt_id,
             "stateRevision": mind_commit.state_revision,
             "changedFields": mind_commit.changed_fields,
-            "repoMapStorePath": normalize_path_for_receipt(&repo_map_store_path),
-            "repoMapEntry": repo_map_entry,
+            "repoMapStorePath": normalize_path_for_receipt(&runtime_store),
+            "repoMapEntry": repo_work_map_entry_json(&repo_map_entry),
             "repoMapLocalVerseProjection": repo_map_local_verse_projection
         },
         "authority": {
@@ -16240,6 +16185,8 @@ mod authority_tests {
         assert!(!tick.contains("run_close(CloseArgs"));
         assert!(tick.contains("await-modeling"));
         assert!(tick.contains("explicit model-authored Modeling finding"));
+        assert!(!source.contains(&["RepoWork", "MapStore"].concat()));
+        assert!(!source.contains(&["repo-work-map", ".msgpack"].concat()));
     }
 
     #[test]
@@ -16289,7 +16236,60 @@ mod authority_tests {
         put_repo_work_modeling_finding(&store, &finding)?;
         assert_eq!(
             runtime_repo_work_modeling_finding(&store, &finding.receipt_id)?,
-            Some(finding)
+            Some(finding.clone())
+        );
+
+        let review = MindGatewayReview {
+            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "mind-review-1".to_string(),
+            source_kind: "repo_work_closure".to_string(),
+            source_role_id: "modeling".to_string(),
+            decision: MindGatewayDecision::Accept,
+            allowed_effects: vec!["repoWork.map".to_string()],
+            refused_effects: Vec::new(),
+            reasons: vec!["typed Modeling finding reread".to_string()],
+            contract: "test".to_string(),
+        };
+        let commit = mind_state_commit_receipt(
+            "mind-commit-1".to_string(),
+            &review,
+            1,
+            vec!["repoWork.map".to_string()],
+            "2026-07-12T00:00:02Z".to_string(),
+        );
+        let mut map = RepoWorkMapEntry {
+            schema_version: REPO_WORK_MAP_ENTRY_SCHEMA_VERSION.to_string(),
+            map_entry_id: "repo-work-map-item-1".to_string(),
+            admitted_at: "2026-07-12T00:00:02Z".to_string(),
+            item: finding.item.clone(),
+            branch: "test".to_string(),
+            changed_paths: finding.changed_paths.clone(),
+            commit_sha: finding.commit_sha.clone(),
+            safe_action_family: "repo.status_section".to_string(),
+            modeling_summary: "counterfeit".to_string(),
+            modeling_finding_receipt_id: finding.receipt_id.clone(),
+            soul_verdict_receipt_id: finding.soul_verdict_receipt_id.clone(),
+            mind_gateway_review_id: review.gateway_id.clone(),
+            mind_state_commit_receipt_id: commit.receipt_id.clone(),
+            execute_receipt_path: "execute.json".to_string(),
+            closure_review_path: "review.json".to_string(),
+            closure_receipt_path: "close.json".to_string(),
+            publication_gate: "Bifrost".to_string(),
+            durable_state_admitted: true,
+            private_state_exposed: false,
+        };
+        assert!(commit_repo_work_map_admission(&store, &map, &review, &commit).is_err());
+        assert!(epiphany_core::runtime_mind_gateway_review(&store, &review.gateway_id)?.is_none());
+        assert!(
+            epiphany_core::runtime_mind_state_commit_receipt(&store, &commit.receipt_id)?.is_none()
+        );
+        assert!(runtime_repo_work_map_entry(&store, &map.map_entry_id)?.is_none());
+
+        map.modeling_summary = finding.summary.clone();
+        commit_repo_work_map_admission(&store, &map, &review, &commit)?;
+        assert_eq!(
+            runtime_repo_work_map_entry(&store, &map.map_entry_id)?,
+            Some(map)
         );
         Ok(())
     }

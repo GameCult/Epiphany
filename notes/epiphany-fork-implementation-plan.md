@@ -118,9 +118,10 @@ Status: active. The scheduler can no longer impersonate Modeling/Mind after
 Hands execution, and closure refuses deterministic fallback or a passing
 verdict without an explicit model-authored finding. That finding now persists
 as a typed runtime document backed by a passing Soul receipt; Mind rereads it,
-and repo-map/CultMesh admission carries its receipt ID. The remaining wound is
-atomicity: Mind receipts and the custom repo-map MessagePack store still commit
-through separate persistence paths.
+and repo-map/CultMesh admission carries its receipt ID. Repo-map admission is
+now atomic: the typed canonical map entry and both Mind witnesses publish in one
+CultCache batch, while CultMesh lowers the committed entry. The custom map
+MessagePack owner is deleted.
 
 - Prove Hands → Soul → Modeling → Mind → Self on a fresh repository without
   supervisor implementation or direct worker-thought inspection.

@@ -2021,6 +2021,15 @@ smoke at `.epiphany-smoke/closure-model-typed-rerun/stdout.json` passed explicit
 Modeling admission and refusal. Next collapse Mind receipts plus repo-map
 admission into one typed transaction; the custom repo-map MessagePack write is
 still a second persistence authority.
+That second authority is deleted. `RepoWorkMapEntry` is now a registered typed
+runtime document. `commit_repo_work_map_admission` verifies its persisted
+Modeling dependency and atomically publishes the map, Mind review, and Mind
+commit; failed validation leaves all three absent. The old
+`repo-work-map.msgpack` structs, reader, writer, and path are gone, guarded by a
+source test. CultMesh projects the reread canonical entry. Next inspect crash
+and retry semantics across the earlier Soul and Modeling phase receipts versus
+the final atomic Mind/map admission; do not add a repair loop to hide partial
+phase ownership.
 
 ## Immediate Re-entry Instruction
 
