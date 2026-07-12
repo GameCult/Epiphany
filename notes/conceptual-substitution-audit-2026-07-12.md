@@ -187,3 +187,17 @@ The remaining non-test seed callers are now limited to the explicit Verse seed
 commands and two named, path-confined smoke fixture initializers. No production
 provider, supervisor, requester, diagnostic, or launch path bootstraps shared
 state as a convenience side effect.
+
+## Bootstrap/operator observation split
+
+Generic local Verse bootstrap still wrote a generated default
+`epiphany.cultmesh.operator_status.v0`. Because the operator wrapper performs
+explicit bootstrap as a common preflight, nearly every run refreshed an
+operator observation that no observer had produced.
+
+Bootstrap now writes declaration/initialization state only and leaves operator
+status absent. `epiphany-cultmesh-status write` is the explicit owner of the
+positive operator-status path. The read loader returns `None` without opening
+or creating a missing store, and the `read` CLI therefore reports `missing`
+without filesystem mutation. Its smoke is fixed beneath `.epiphany-smoke` and
+rejects every store override before creation.

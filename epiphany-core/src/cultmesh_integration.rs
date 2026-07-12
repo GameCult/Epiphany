@@ -2721,6 +2721,10 @@ pub fn load_epiphany_cultmesh_operator_status(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshOperatorStatusEntry>> {
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(None);
+    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.get(EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY)
 }
@@ -5821,10 +5825,6 @@ pub fn seed_epiphany_local_verse_context(
     write_epiphany_cultmesh_soul_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_continuity_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_bifrost_contracts(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_operator_status(
-        store_path,
-        default_epiphany_cultmesh_operator_status(runtime_id, generated_at_utc),
-    )?;
     Ok(())
 }
 
@@ -9321,7 +9321,7 @@ mod tests {
         assert!(context.odin_advertisements.is_empty());
         assert!(context.eve_surface_states.is_empty());
         assert!(context.daemon_tool_capabilities.is_empty());
-        assert!(context.operator_status.is_some());
+        assert!(context.operator_status.is_none());
         assert!(
             context
                 .contract_summaries

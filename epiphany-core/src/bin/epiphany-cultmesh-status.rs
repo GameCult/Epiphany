@@ -72,12 +72,14 @@ impl Args {
         let mut values = env::args().skip(1);
         let command = values.next().unwrap_or_else(|| "read".to_string());
         let mut store = PathBuf::from(".epiphany-run/cultmesh/operator-status.ccmp");
+        let mut store_explicit = false;
         let mut runtime_id = "epiphany-local".to_string();
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
                 "--store" => {
                     store = PathBuf::from(values.next().context("missing --store value")?);
+                    store_explicit = true;
                 }
                 "--runtime-id" => {
                     runtime_id = values.next().context("missing --runtime-id value")?;
@@ -86,8 +88,13 @@ impl Args {
             }
         }
 
-        if let Some(parent) = store.parent() {
-            std::fs::create_dir_all(parent)?;
+        if command == "smoke" {
+            if store_explicit {
+                anyhow::bail!(
+                    "operator-status smoke accepts no store override and writes only beneath .epiphany-smoke"
+                );
+            }
+            store = PathBuf::from(".epiphany-smoke/cultmesh/operator-status.ccmp");
         }
 
         Ok(Self {

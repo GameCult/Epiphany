@@ -122,6 +122,10 @@
   are private contract templates, not public state APIs. External consumers see
   persisted loaders; only the daemon-ID-bounded publisher may lower templates
   into provider-owned documents.
+- Generic bootstrap owns declarations and initial control state, not operator
+  observation. Operator status remains absent until the dedicated status writer
+  publishes it. Missing reads do not create a CultCache store; status smoke is
+  fixed beneath `.epiphany-smoke`.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.
