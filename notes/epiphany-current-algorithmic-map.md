@@ -98,6 +98,10 @@
   context. They require persisted topology, read narrow liveness, then write
   only their bounded provider state and heartbeat. Explicit operator bootstrap
   owns policy/topology/contract initialization.
+- `epiphany-daemon-supervisor` also requires explicit persisted bootstrap for
+  every production lifecycle, policy, scheduler, runbook, audit, status, and
+  control path. Only its two synthetic audit-smoke commands may initialize
+  fixtures, and only beneath `.epiphany-smoke`.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

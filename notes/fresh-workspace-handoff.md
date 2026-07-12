@@ -24,6 +24,9 @@ The confirmed conceptual substitutions have been cut:
 - cluster daemons do not bootstrap or query the full Verse. Missing persisted
   topology is a pre-write refusal; explicit operator bootstrap owns shared
   policy, topology, contracts, brake initialization, and operator status.
+- daemon-supervisor production commands likewise require persisted bootstrap
+  and cannot create shared state. Its two audit-smoke fixture initializers are
+  hard-confined beneath `.epiphany-smoke`.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

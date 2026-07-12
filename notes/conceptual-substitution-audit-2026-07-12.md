@@ -138,3 +138,18 @@ owning daemon's provider state, and write only its heartbeat. An unbootstrapped
 daemon fails before creating the CultCache store and tells the operator to run
 explicit bootstrap. The wrapper already performs that bootstrap at the
 operator boundary.
+
+## Supervisor/bootstrap split
+
+`epiphany-daemon-supervisor` repeated the same authority collapse across twenty
+production lifecycle, policy, scheduler, runbook, audit, status, and control
+paths. Every command seeded shared policy, topology, contracts, brake, and
+operator status before performing Idunn work.
+
+Production supervisor paths now require persisted Epiphany status and cluster
+topology through a read-only prerequisite. Missing bootstrap fails before a
+CultCache store is created. The two synthetic execution-audit smoke commands
+retain explicit fixture initialization, but it is isolated behind
+`seed_supervisor_smoke_fixture`, which refuses every store outside an
+`.epiphany-smoke` path before writing. Idunn consumes shared initialization; it
+does not own or repair it.
