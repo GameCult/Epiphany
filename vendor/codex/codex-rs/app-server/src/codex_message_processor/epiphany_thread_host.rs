@@ -1,16 +1,12 @@
-use std::path::Path;
-
-use super::legacy_epiphany_rollout::latest_legacy_epiphany_state;
+pub(super) use super::legacy_epiphany_rollout::load_epiphany_state_from_rollout_path;
 use codex_core::CodexThread;
-use codex_core::RolloutRecorder;
-use epiphany_state_model::EpiphanyThreadState;
-use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::TokenUsageInfo;
 use epiphany_codex_bridge::mutation_service::EpiphanyMutationHost;
 use epiphany_codex_bridge::mutation_service::load_authoritative_accepted_state;
 use epiphany_codex_bridge::pressure::EpiphanyTokenUsageSnapshot;
 use epiphany_codex_bridge::state::client_visible_epiphany_state_for_paths;
 use epiphany_codex_bridge::state::thread_state_mirror_id_from_rollout_path;
+use epiphany_state_model::EpiphanyThreadState;
 
 pub(super) struct EpiphanyCodexThreadHost<'a> {
     thread: &'a CodexThread,
@@ -53,24 +49,6 @@ impl EpiphanyMutationHost for EpiphanyCodexThreadHost<'_> {
     ) -> EpiphanyThreadState {
         client_visible_live_thread_epiphany_state(self.thread, fallback).await
     }
-}
-
-pub(super) async fn load_epiphany_state_from_rollout_path(
-    rollout_path: &Path,
-) -> std::result::Result<Option<EpiphanyThreadState>, String> {
-    let items = match RolloutRecorder::get_rollout_history(rollout_path)
-        .await
-        .map_err(|err| {
-            format!(
-                "failed to load rollout `{}` for Epiphany state: {err}",
-                rollout_path.display()
-            )
-        })? {
-        InitialHistory::New | InitialHistory::Cleared => Vec::new(),
-        InitialHistory::Forked(items) => items,
-        InitialHistory::Resumed(resumed) => resumed.history,
-    };
-    latest_legacy_epiphany_state(&items)
 }
 
 pub(super) async fn live_thread_epiphany_state(

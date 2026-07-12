@@ -182,7 +182,6 @@ impl Session {
                         }
                     }
                 }
-                RolloutItem::LegacyEpiphanyState(_) => {}
                 RolloutItem::EventMsg(EventMsg::TurnStarted(event)) => {
                     // `TurnStarted` is the oldest boundary of the active reverse segment.
                     if active_segment.as_ref().is_some_and(|active_segment| {
@@ -275,7 +274,6 @@ impl Session {
                 }
                 RolloutItem::EventMsg(_)
                 | RolloutItem::TurnContext(_)
-                | RolloutItem::LegacyEpiphanyState(_)
                 | RolloutItem::SessionMeta(_) => {}
             }
         }

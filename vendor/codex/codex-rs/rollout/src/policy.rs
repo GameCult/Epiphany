@@ -18,7 +18,6 @@ pub fn is_persisted_response_item(item: &RolloutItem, mode: EventPersistenceMode
         // Persist Codex executive markers so we can analyze flows (e.g., compaction, API turns).
         RolloutItem::Compacted(_)
         | RolloutItem::TurnContext(_)
-        | RolloutItem::LegacyEpiphanyState(_)
         | RolloutItem::SessionMeta(_) => true,
     }
 }

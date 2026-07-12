@@ -73,7 +73,6 @@ pub fn builder_from_items(
         RolloutItem::ResponseItem(_)
         | RolloutItem::Compacted(_)
         | RolloutItem::TurnContext(_)
-        | RolloutItem::LegacyEpiphanyState(_)
         | RolloutItem::EventMsg(_) => None,
     }) && let Some(builder) = builder_from_session_meta(session_meta, rollout_path)
     {
@@ -128,7 +127,6 @@ pub async fn extract_metadata_from_rollout(
             RolloutItem::ResponseItem(_)
             | RolloutItem::Compacted(_)
             | RolloutItem::TurnContext(_)
-            | RolloutItem::LegacyEpiphanyState(_)
             | RolloutItem::EventMsg(_) => None,
         }),
         parse_errors,

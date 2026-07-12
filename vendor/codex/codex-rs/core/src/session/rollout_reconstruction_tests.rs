@@ -6,19 +6,11 @@ use codex_protocol::ThreadId;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::CompactedItem;
-use epiphany_state_model::EpiphanyStateItem;
-use epiphany_state_model::EpiphanyThreadState;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::InterAgentCommunication;
 use codex_protocol::protocol::ResumedHistory;
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
-
-fn legacy_epiphany_state(item: EpiphanyStateItem) -> RolloutItem {
-    RolloutItem::LegacyEpiphanyState(
-        serde_json::to_value(item).expect("serialize legacy Epiphany rollout payload"),
-    )
-}
 
 fn user_message(text: &str) -> ResponseItem {
     ResponseItem::Message {
@@ -41,16 +33,6 @@ fn assistant_message(text: &str) -> ResponseItem {
         }],
         end_turn: None,
         phase: None,
-    }
-}
-
-fn sample_epiphany_state(id: &str) -> EpiphanyThreadState {
-    EpiphanyThreadState {
-        revision: 1,
-        objective: Some(format!("Objective for {id}")),
-        active_subgoal_id: Some(format!("subgoal-{id}")),
-        last_updated_turn_id: Some(id.to_string()),
-        ..Default::default()
     }
 }
 
@@ -112,162 +94,6 @@ async fn record_initial_history_resumed_bare_turn_context_does_not_hydrate_previ
 
     assert_eq!(session.previous_turn_settings().await, None);
     assert!(session.reference_context_item().await.is_none());
-}
-
-#[tokio::test]
-async fn record_initial_history_resumed_accepts_legacy_epiphany_state_items() {
-    let (session, turn_context) = make_session_and_context().await;
-    let first_context_item = turn_context.to_turn_context_item();
-    let first_turn_id = first_context_item
-        .turn_id
-        .clone()
-        .expect("turn context should have turn_id");
-    let second_turn_id = "turn-2".to_string();
-    let first_epiphany = sample_epiphany_state("turn-1");
-    let second_epiphany = sample_epiphany_state("turn-2");
-
-    let rollout_items = vec![
-        RolloutItem::EventMsg(EventMsg::TurnStarted(
-            codex_protocol::protocol::TurnStartedEvent {
-                turn_id: first_turn_id.clone(),
-                started_at: None,
-                model_context_window: Some(128_000),
-                collaboration_mode_kind: ModeKind::Default,
-            },
-        )),
-        RolloutItem::EventMsg(EventMsg::UserMessage(
-            codex_protocol::protocol::UserMessageEvent {
-                message: "turn 1 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-            },
-        )),
-        RolloutItem::TurnContext(first_context_item),
-        legacy_epiphany_state(EpiphanyStateItem {
-            turn_id: Some(first_turn_id.clone()),
-            state: first_epiphany,
-        }),
-        RolloutItem::EventMsg(EventMsg::TurnComplete(
-            codex_protocol::protocol::TurnCompleteEvent {
-                turn_id: first_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            },
-        )),
-        RolloutItem::EventMsg(EventMsg::TurnStarted(
-            codex_protocol::protocol::TurnStartedEvent {
-                turn_id: second_turn_id.clone(),
-                started_at: None,
-                model_context_window: Some(128_000),
-                collaboration_mode_kind: ModeKind::Default,
-            },
-        )),
-        RolloutItem::EventMsg(EventMsg::UserMessage(
-            codex_protocol::protocol::UserMessageEvent {
-                message: "turn 2 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-            },
-        )),
-        legacy_epiphany_state(EpiphanyStateItem {
-            turn_id: Some(second_turn_id.clone()),
-            state: second_epiphany.clone(),
-        }),
-        RolloutItem::EventMsg(EventMsg::TurnComplete(
-            codex_protocol::protocol::TurnCompleteEvent {
-                turn_id: second_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            },
-        )),
-    ];
-
-    session
-        .record_initial_history(InitialHistory::Resumed(ResumedHistory {
-            conversation_id: ThreadId::default(),
-            history: rollout_items,
-            rollout_path: PathBuf::from("resumed.jsonl"),
-        }))
-        .await;
-
-    let _ = second_epiphany;
-}
-
-#[tokio::test]
-async fn record_initial_history_resumed_accepts_out_of_band_epiphany_state_before_first_turn() {
-    let (session, _turn_context) = make_session_and_context().await;
-    let epiphany_state = sample_epiphany_state("control-plane-update");
-
-    session
-        .record_initial_history(InitialHistory::Resumed(ResumedHistory {
-            conversation_id: ThreadId::default(),
-            history: vec![legacy_epiphany_state(EpiphanyStateItem {
-                turn_id: None,
-                state: epiphany_state.clone(),
-            })],
-            rollout_path: PathBuf::from("resumed.jsonl"),
-        }))
-        .await;
-
-    let _ = epiphany_state;
-}
-
-#[tokio::test]
-async fn record_initial_history_resumed_accepts_out_of_band_epiphany_state_after_completed_turn() {
-    let (session, _turn_context) = make_session_and_context().await;
-    let turn_id = "turn-before-control-plane-update".to_string();
-    let turn_state = sample_epiphany_state("turn-before-control-plane-update");
-    let control_plane_state = sample_epiphany_state("control-plane-update");
-
-    session
-        .record_initial_history(InitialHistory::Resumed(ResumedHistory {
-            conversation_id: ThreadId::default(),
-            history: vec![
-                RolloutItem::EventMsg(EventMsg::TurnStarted(
-                    codex_protocol::protocol::TurnStartedEvent {
-                        turn_id: turn_id.clone(),
-                        started_at: None,
-                        model_context_window: Some(128_000),
-                        collaboration_mode_kind: ModeKind::Default,
-                    },
-                )),
-                RolloutItem::EventMsg(EventMsg::UserMessage(
-                    codex_protocol::protocol::UserMessageEvent {
-                        message: "before control-plane update".to_string(),
-                        images: None,
-                        local_images: Vec::new(),
-                        text_elements: Vec::new(),
-                    },
-                )),
-                legacy_epiphany_state(EpiphanyStateItem {
-                    turn_id: Some(turn_id.clone()),
-                    state: turn_state,
-                }),
-                RolloutItem::EventMsg(EventMsg::TurnComplete(
-                    codex_protocol::protocol::TurnCompleteEvent {
-                        turn_id,
-                        last_agent_message: None,
-                        completed_at: None,
-                        duration_ms: None,
-                        time_to_first_token_ms: None,
-                    },
-                )),
-                legacy_epiphany_state(EpiphanyStateItem {
-                    turn_id: None,
-                    state: control_plane_state.clone(),
-                }),
-            ],
-            rollout_path: PathBuf::from("resumed.jsonl"),
-        }))
-        .await;
-
-    let _ = control_plane_state;
 }
 
 #[tokio::test]
@@ -452,88 +278,6 @@ async fn reconstruct_history_rollback_keeps_history_and_metadata_in_sync_for_com
         serde_json::to_value(Some(first_context_item))
             .expect("serialize expected reference context item")
     );
-}
-
-#[tokio::test]
-async fn reconstruct_history_ignores_legacy_epiphany_items_during_rollback() {
-    let (session, turn_context) = make_session_and_context().await;
-    let first_context_item = turn_context.to_turn_context_item();
-    let first_turn_id = first_context_item
-        .turn_id
-        .clone()
-        .expect("turn context should have turn_id");
-    let rolled_back_turn_id = "rolled-back-turn".to_string();
-
-    let rollout_items = vec![
-        RolloutItem::EventMsg(EventMsg::TurnStarted(
-            codex_protocol::protocol::TurnStartedEvent {
-                turn_id: first_turn_id.clone(),
-                started_at: None,
-                model_context_window: Some(128_000),
-                collaboration_mode_kind: ModeKind::Default,
-            },
-        )),
-        RolloutItem::EventMsg(EventMsg::UserMessage(
-            codex_protocol::protocol::UserMessageEvent {
-                message: "turn 1 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-            },
-        )),
-        RolloutItem::TurnContext(first_context_item),
-        legacy_epiphany_state(EpiphanyStateItem {
-            turn_id: Some(first_turn_id.clone()),
-            state: sample_epiphany_state("turn-1"),
-        }),
-        RolloutItem::EventMsg(EventMsg::TurnComplete(
-            codex_protocol::protocol::TurnCompleteEvent {
-                turn_id: first_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            },
-        )),
-        RolloutItem::EventMsg(EventMsg::TurnStarted(
-            codex_protocol::protocol::TurnStartedEvent {
-                turn_id: rolled_back_turn_id.clone(),
-                started_at: None,
-                model_context_window: Some(128_000),
-                collaboration_mode_kind: ModeKind::Default,
-            },
-        )),
-        RolloutItem::EventMsg(EventMsg::UserMessage(
-            codex_protocol::protocol::UserMessageEvent {
-                message: "turn 2 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-            },
-        )),
-        legacy_epiphany_state(EpiphanyStateItem {
-            turn_id: Some(rolled_back_turn_id.clone()),
-            state: sample_epiphany_state("turn-2"),
-        }),
-        RolloutItem::EventMsg(EventMsg::TurnComplete(
-            codex_protocol::protocol::TurnCompleteEvent {
-                turn_id: rolled_back_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            },
-        )),
-        RolloutItem::EventMsg(EventMsg::ThreadRolledBack(
-            codex_protocol::protocol::ThreadRolledBackEvent { num_turns: 1 },
-        )),
-    ];
-
-    let reconstructed = session
-        .reconstruct_history_from_rollout(&turn_context, &rollout_items)
-        .await;
-
-    assert!(reconstructed.previous_turn_settings.is_some());
 }
 
 #[tokio::test]
@@ -1268,63 +1012,6 @@ async fn record_initial_history_resumed_turn_context_after_compaction_reestablis
             truncation_policy: Some(turn_context.truncation_policy),
         }))
         .expect("serialize expected reference context item")
-    );
-}
-
-#[tokio::test]
-async fn reconstruct_history_ignores_legacy_epiphany_items_during_compaction() {
-    let (session, turn_context) = make_session_and_context().await;
-    let previous_context_item = turn_context.to_turn_context_item();
-    let previous_turn_id = previous_context_item
-        .turn_id
-        .clone()
-        .expect("turn context should have turn_id");
-    let epiphany_state = sample_epiphany_state("turn-before-compaction");
-
-    let rollout_items = vec![
-        RolloutItem::EventMsg(EventMsg::TurnStarted(
-            codex_protocol::protocol::TurnStartedEvent {
-                turn_id: previous_turn_id.clone(),
-                started_at: None,
-                model_context_window: Some(128_000),
-                collaboration_mode_kind: ModeKind::Default,
-            },
-        )),
-        RolloutItem::EventMsg(EventMsg::UserMessage(
-            codex_protocol::protocol::UserMessageEvent {
-                message: "seed".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-            },
-        )),
-        RolloutItem::TurnContext(previous_context_item),
-        legacy_epiphany_state(EpiphanyStateItem {
-            turn_id: Some(previous_turn_id.clone()),
-            state: epiphany_state.clone(),
-        }),
-        RolloutItem::EventMsg(EventMsg::TurnComplete(
-            codex_protocol::protocol::TurnCompleteEvent {
-                turn_id: previous_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            },
-        )),
-        RolloutItem::Compacted(CompactedItem {
-            message: "summary after compaction".to_string(),
-            replacement_history: Some(vec![assistant_message("summary after compaction")]),
-        }),
-    ];
-
-    let reconstructed = session
-        .reconstruct_history_from_rollout(&turn_context, &rollout_items)
-        .await;
-
-    assert_eq!(
-        reconstructed.history,
-        vec![assistant_message("summary after compaction")]
     );
 }
 

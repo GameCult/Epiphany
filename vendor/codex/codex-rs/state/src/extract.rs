@@ -22,7 +22,7 @@ pub fn apply_rollout_item(
         RolloutItem::TurnContext(turn_ctx) => apply_turn_context(metadata, turn_ctx),
         RolloutItem::EventMsg(event) => apply_event_msg(metadata, event),
         RolloutItem::ResponseItem(item) => apply_response_item(metadata, item),
-        RolloutItem::Compacted(_) | RolloutItem::LegacyEpiphanyState(_) => {}
+        RolloutItem::Compacted(_) => {}
     }
     if metadata.model_provider.is_empty() {
         metadata.model_provider = default_provider.to_string();
@@ -38,8 +38,7 @@ pub fn rollout_item_affects_thread_metadata(item: &RolloutItem) -> bool {
         ) => true,
         RolloutItem::EventMsg(_)
         | RolloutItem::ResponseItem(_)
-        | RolloutItem::Compacted(_)
-        | RolloutItem::LegacyEpiphanyState(_) => false,
+        | RolloutItem::Compacted(_) => false,
     }
 }
 

@@ -1931,6 +1931,13 @@ listing, state extraction, and agent control. Next remove the named variant
 entirely by making app-server's migration quarantine read raw rollout lines,
 recognize only `type=epiphany_state`, and strictly decode ordinary Codex
 lifecycle items needed for rollback-aware migration.
+That deletion is complete: Codex `RolloutItem` and every core consumer have no
+Epiphany legacy variant. App-server migration alone scans raw JSONL for the
+exact old tag, validates typed payloads fail-closed, and combines them with
+strictly decoded lifecycle items for rollback-aware recovery. Four migration
+tests pass; obsolete core fixtures and its state-model dev dependency are gone.
+Next audit app-server `epiphany_automation` and route dispatch for surviving
+Codex-owned coordinator or scheduler decisions.
 
 ## Immediate Re-entry Instruction
 

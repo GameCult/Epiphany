@@ -140,7 +140,6 @@ windows-sys = { version = "0.52", features = [
 codex-shell-escalation = { workspace = true }
 
 [dev-dependencies]
-epiphany-state-model = { path = "../../../../epiphany-state-model" }
 assert_cmd = { workspace = true }
 assert_matches = { workspace = true }
 codex-otel = { workspace = true }

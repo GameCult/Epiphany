@@ -94,8 +94,6 @@ pub const ENVIRONMENT_CONTEXT_OPEN_TAG: &str = "<environment_context>";
 pub const ENVIRONMENT_CONTEXT_CLOSE_TAG: &str = "</environment_context>";
 pub const COLLABORATION_MODE_OPEN_TAG: &str = "<collaboration_mode>";
 pub const COLLABORATION_MODE_CLOSE_TAG: &str = "</collaboration_mode>";
-pub const EPIPHANY_STATE_OPEN_TAG: &str = "<epiphany_state>";
-pub const EPIPHANY_STATE_CLOSE_TAG: &str = "</epiphany_state>";
 pub const REALTIME_CONVERSATION_OPEN_TAG: &str = "<realtime_conversation>";
 pub const REALTIME_CONVERSATION_CLOSE_TAG: &str = "</realtime_conversation>";
 pub const USER_MESSAGE_BEGIN: &str = "## My request for Codex:";
@@ -2943,8 +2941,6 @@ pub enum RolloutItem {
     ResponseItem(ResponseItem),
     Compacted(CompactedItem),
     TurnContext(TurnContextItem),
-    #[serde(rename = "epiphany_state")]
-    LegacyEpiphanyState(serde_json::Value),
     EventMsg(EventMsg),
 }
 
@@ -5103,27 +5099,6 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn legacy_epiphany_state_envelope_preserves_opaque_payload() -> Result<()> {
-        let payload = json!({
-            "turn_id": "turn-123",
-            "state": {
-                "revision": 7,
-                "objective": "historical compatibility only"
-            }
-        });
-        let item = RolloutItem::LegacyEpiphanyState(payload.clone());
-        let encoded = serde_json::to_value(&item)?;
-        assert_eq!(encoded["type"], "epiphany_state");
-        assert_eq!(encoded["payload"], payload);
-
-        let reparsed: RolloutItem = serde_json::from_value(encoded)?;
-        let RolloutItem::LegacyEpiphanyState(reparsed_payload) = reparsed else {
-            panic!("expected opaque legacy Epiphany rollout payload");
-        };
-        assert_eq!(reparsed_payload, payload);
-        Ok(())
-    }
     /// Serialize Event to verify that its JSON representation has the expected
     /// amount of nesting.
     #[test]

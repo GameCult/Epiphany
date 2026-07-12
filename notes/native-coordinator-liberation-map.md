@@ -342,3 +342,15 @@ The deletion path is narrower: app-server's migration quarantine should read
 raw rollout lines, recognize only `type=epiphany_state`, decode its payload,
 and combine those migration records with strictly decoded Codex lifecycle items.
 Then `LegacyEpiphanyState` can leave Codex protocol and all core consumers.
+
+That final deletion is complete. `RolloutItem` has no Epiphany variant, and
+protocol/core/rollout/state/app-server-protocol contain no legacy-state match.
+App-server's migration quarantine reads raw JSONL, recognizes only the exact
+historical `type=epiphany_state` tag, validates its payload into native
+`EpiphanyStateItem`, and strictly decodes ordinary `RolloutLine` items needed
+for turn and rollback semantics. Unknown ordinary lines remain parse failures
+for the normal Codex loader; the migration scan ignores them without teaching
+Codex global tolerance. Four quarantine tests prove raw-tag recognition,
+latest-surviving selection, rollback rejection, and malformed-payload refusal.
+Obsolete core legacy fixtures and the final core state-model dev dependency are
+deleted.

@@ -75,24 +75,6 @@ use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::CompactedItem;
 use codex_protocol::protocol::ConversationAudioParams;
 use codex_protocol::protocol::CreditsSnapshot;
-use epiphany_state_model::EpiphanyChurnState;
-use epiphany_state_model::EpiphanyCodeRef;
-use epiphany_state_model::EpiphanyEvidenceRecord;
-use epiphany_state_model::EpiphanyGraph;
-use epiphany_state_model::EpiphanyGraphCheckpoint;
-use epiphany_state_model::EpiphanyGraphEdge;
-use epiphany_state_model::EpiphanyGraphFrontier;
-use epiphany_state_model::EpiphanyGraphLink;
-use epiphany_state_model::EpiphanyGraphNode;
-use epiphany_state_model::EpiphanyGraphs;
-use epiphany_state_model::EpiphanyInvariant;
-use epiphany_state_model::EpiphanyModeKind;
-use epiphany_state_model::EpiphanyModeState;
-use epiphany_state_model::EpiphanyObservation;
-use epiphany_state_model::EpiphanyScratchPad;
-use epiphany_state_model::EpiphanyStateItem;
-use epiphany_state_model::EpiphanySubgoal;
-use epiphany_state_model::EpiphanyThreadState;
 use codex_protocol::protocol::GranularApprovalConfig;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::InterAgentCommunication;
@@ -147,12 +129,6 @@ use std::time::Duration as StdDuration;
 
 mod guardian_tests;
 
-fn legacy_epiphany_state(item: EpiphanyStateItem) -> RolloutItem {
-    RolloutItem::LegacyEpiphanyState(
-        serde_json::to_value(item).expect("serialize legacy Epiphany rollout payload"),
-    )
-}
-
 #[test]
 fn codex_session_has_no_epiphany_state_custody() {
     let session_state = include_str!("../state/session.rs");
@@ -169,260 +145,9 @@ fn codex_session_has_no_epiphany_state_custody() {
     assert!(!codex_thread.contains("pub async fn epiphany_"));
     assert!(!core_lib.contains("epiphany_rollout"));
     assert!(!protocol.contains("pub use epiphany_state_model::"));
-    assert!(protocol.contains("LegacyEpiphanyState(serde_json::Value)"));
-    assert!(protocol.contains("#[serde(rename = \"epiphany_state\")]"));
+    assert!(!protocol.contains("LegacyEpiphanyState"));
+    assert!(!protocol.contains("epiphany_state"));
     assert!(!protocol_manifest.contains("epiphany-state-model"));
-}
-
-fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {
-    EpiphanyThreadState {
-        revision: 7,
-        objective: Some("Keep the prompt path oriented around the real thread state.".to_string()),
-        active_subgoal_id: Some("phase2-prompt".to_string()),
-        subgoals: vec![
-            EpiphanySubgoal {
-                id: "phase2-prompt".to_string(),
-                title: "Inject the structured state into build_initial_context.".to_string(),
-                status: "in_progress".to_string(),
-                summary: Some("Wire a compact developer fragment into the initial prompt bundle.".to_string()),
-            },
-            EpiphanySubgoal {
-                id: "phase2-tests".to_string(),
-                title: "Add tests that catch prompt sludge.".to_string(),
-                status: "pending".to_string(),
-                summary: Some("Prove inclusion, omission, and bounded rendering.".to_string()),
-            },
-        ],
-        invariants: vec![
-            EpiphanyInvariant {
-                id: "canon".to_string(),
-                description: "Prompt text must not silently redefine the durable state.".to_string(),
-                status: "active".to_string(),
-                rationale: Some("We want the model reading state, not cosplaying authorship of it.".to_string()),
-            },
-            EpiphanyInvariant {
-                id: "bounded".to_string(),
-                description: "The injected summary must stay compact and deterministic.".to_string(),
-                status: "active".to_string(),
-                rationale: Some("The whole point is to avoid turning the prompt into another haunted attic.".to_string()),
-            },
-        ],
-        graphs: EpiphanyGraphs {
-            architecture: EpiphanyGraph {
-                nodes: vec![
-                    EpiphanyGraphNode {
-                        id: "arch-session".to_string(),
-                        title: "Session loop".to_string(),
-                        purpose: "Owns the turn setup and initial prompt bundle.".to_string(),
-                        mechanism: Some("Builds developer/contextual-user fragments before the first model request.".to_string()),
-                        metaphor: Some("The foreman lining tools up before the crew starts swinging.".to_string()),
-                        status: Some("verified".to_string()),
-                        code_refs: vec![EpiphanyCodeRef {
-                            path: PathBuf::from("core/src/session/mod.rs"),
-                            start_line: Some(2433),
-                            end_line: Some(2617),
-                            symbol: Some("build_initial_context".to_string()),
-                            note: Some("Phase 2 injection seam".to_string()),
-                        }],
-                    },
-                    EpiphanyGraphNode {
-                        id: "arch-context".to_string(),
-                        title: "Context fragments".to_string(),
-                        purpose: "Render marked developer and contextual-user fragments.".to_string(),
-                        mechanism: Some("Small typed renderers turn state into bounded prompt sections.".to_string()),
-                        metaphor: Some("The bins on the wall where the right parts live.".to_string()),
-                        status: Some("verified".to_string()),
-                        code_refs: vec![EpiphanyCodeRef {
-                            path: PathBuf::from("core/src/context/epiphany_state_instructions.rs"),
-                            start_line: Some(1),
-                            end_line: Some(220),
-                            symbol: Some("EpiphanyStateInstructions".to_string()),
-                            note: Some("New renderer".to_string()),
-                        }],
-                    },
-                ],
-                edges: vec![EpiphanyGraphEdge {
-                    source_id: "arch-session".to_string(),
-                    target_id: "arch-context".to_string(),
-                    kind: "renders".to_string(),
-                    id: Some("edge-session-context".to_string()),
-                    label: Some("injects".to_string()),
-                    mechanism: Some("Calls the Epiphany renderer when thread state exists.".to_string()),
-                    code_refs: vec![EpiphanyCodeRef {
-                        path: PathBuf::from("core/src/session/mod.rs"),
-                        start_line: Some(2502),
-                        end_line: Some(2510),
-                        symbol: Some("build_initial_context".to_string()),
-                        note: Some("Epiphany insertion slot".to_string()),
-                    }],
-                }],
-            },
-            dataflow: EpiphanyGraph {
-                nodes: vec![
-                    EpiphanyGraphNode {
-                        id: "flow-state".to_string(),
-                        title: "Epiphany state snapshot".to_string(),
-                        purpose: "Carries durable objective, graph, evidence, and churn state across turns.".to_string(),
-                        mechanism: Some("Lives on SessionState and comes back during resume.".to_string()),
-                        metaphor: Some("The map pinned to the workshop wall so nobody wanders off whistling.".to_string()),
-                        status: Some("verified".to_string()),
-                        code_refs: vec![EpiphanyCodeRef {
-                            path: PathBuf::from("core/src/state/session.rs"),
-                            start_line: Some(36),
-                            end_line: Some(121),
-                            symbol: Some("SessionState::epiphany_state".to_string()),
-                            note: Some("Stored thread state".to_string()),
-                        }],
-                    },
-                    EpiphanyGraphNode {
-                        id: "flow-prompt".to_string(),
-                        title: "Prompt fragment".to_string(),
-                        purpose: "Turns the durable state into a bounded developer instruction block.".to_string(),
-                        mechanism: Some("Summarizes only active and recent state with line-anchored refs.".to_string()),
-                        metaphor: Some("A folded field guide, not the entire filing cabinet.".to_string()),
-                        status: Some("in_progress".to_string()),
-                        code_refs: vec![EpiphanyCodeRef {
-                            path: PathBuf::from("core/src/context/epiphany_state_instructions.rs"),
-                            start_line: Some(1),
-                            end_line: Some(220),
-                            symbol: Some("render_epiphany_state".to_string()),
-                            note: Some("Summary shaping".to_string()),
-                        }],
-                    },
-                ],
-                edges: vec![EpiphanyGraphEdge {
-                    source_id: "flow-state".to_string(),
-                    target_id: "flow-prompt".to_string(),
-                    kind: "summarized-as".to_string(),
-                    id: Some("edge-state-prompt".to_string()),
-                    label: Some("bounded summary".to_string()),
-                    mechanism: Some("Keep frontier, evidence, and churn in view without dumping raw JSON.".to_string()),
-                    code_refs: vec![EpiphanyCodeRef {
-                        path: PathBuf::from("core/src/context/epiphany_state_instructions.rs"),
-                        start_line: Some(32),
-                        end_line: Some(220),
-                        symbol: Some("render_epiphany_state".to_string()),
-                        note: Some("Prompt shaping".to_string()),
-                    }],
-                }],
-            },
-            links: vec![EpiphanyGraphLink {
-                dataflow_node_id: "flow-prompt".to_string(),
-                architecture_node_id: "arch-context".to_string(),
-                relationship: Some("implemented-by".to_string()),
-                code_refs: vec![EpiphanyCodeRef {
-                    path: PathBuf::from("core/src/context/epiphany_state_instructions.rs"),
-                    start_line: Some(1),
-                    end_line: Some(220),
-                    symbol: Some("EpiphanyStateInstructions".to_string()),
-                    note: Some("Renderer implementation".to_string()),
-                }],
-            }],
-        },
-        graph_frontier: Some(EpiphanyGraphFrontier {
-            active_node_ids: vec!["arch-session".to_string(), "flow-prompt".to_string()],
-            active_edge_ids: vec!["edge-session-context".to_string()],
-            open_question_ids: vec!["q-boundary".to_string()],
-            open_gap_ids: vec!["gap-resume-proof".to_string()],
-            dirty_paths: vec![
-                PathBuf::from("core/src/session/mod.rs"),
-                PathBuf::from("core/src/context/epiphany_state_instructions.rs"),
-            ],
-        }),
-        graph_checkpoint: Some(EpiphanyGraphCheckpoint {
-            checkpoint_id: "phase2-checkpoint".to_string(),
-            graph_revision: 7,
-            summary: Some("Prompt integration is the current frontier; GUI and retrieval stay dark.".to_string()),
-            frontier_node_ids: vec!["arch-session".to_string(), "flow-prompt".to_string()],
-            open_question_ids: vec!["q-boundary".to_string()],
-            open_gap_ids: vec!["gap-resume-proof".to_string()],
-        }),
-        investigation_checkpoint: None,
-        job_bindings: Vec::new(),
-        acceptance_receipts: Vec::new(),
-        runtime_links: Vec::new(),
-        scratch: Some(EpiphanyScratchPad {
-            summary: Some("Inject the state as a developer fragment, not as a user message.".to_string()),
-            hypothesis: Some("Keeping the block bounded will help resume without making prompt sludge.".to_string()),
-            next_probe: Some("Verify resumed sessions still inject the latest surviving snapshot.".to_string()),
-            notes: vec![
-                "Do not dump raw JSON.".to_string(),
-                "Do not invent a public toggle yet.".to_string(),
-            ],
-        }),
-        observations: vec![
-            EpiphanyObservation {
-                id: "obs-session-seam".to_string(),
-                summary: "build_initial_context already composes developer fragments in one place.".to_string(),
-                source_kind: "code-read".to_string(),
-                status: "accepted".to_string(),
-                code_refs: vec![EpiphanyCodeRef {
-                    path: PathBuf::from("core/src/session/mod.rs"),
-                    start_line: Some(2433),
-                    end_line: Some(2617),
-                    symbol: Some("build_initial_context".to_string()),
-                    note: Some("Prompt assembly".to_string()),
-                }],
-                evidence_ids: vec!["ev-session-read".to_string()],
-            },
-            EpiphanyObservation {
-                id: "obs-state-seam".to_string(),
-                summary: "Phase 1 already restores Epiphany state before future turns build context.".to_string(),
-                source_kind: "test".to_string(),
-                status: "accepted".to_string(),
-                code_refs: vec![EpiphanyCodeRef {
-                    path: PathBuf::from("core/src/session/rollout_reconstruction.rs"),
-                    start_line: Some(1),
-                    end_line: Some(220),
-                    symbol: Some("RolloutReconstruction".to_string()),
-                    note: Some("Resume path".to_string()),
-                }],
-                evidence_ids: vec!["ev-resume-read".to_string()],
-            },
-        ],
-        recent_evidence: vec![
-            EpiphanyEvidenceRecord {
-                id: "ev-session-read".to_string(),
-                kind: "research".to_string(),
-                status: "ok".to_string(),
-                summary: "Confirmed the prompt builder already has a clean insertion point after collaboration-mode instructions.".to_string(),
-                code_refs: vec![EpiphanyCodeRef {
-                    path: PathBuf::from("core/src/session/mod.rs"),
-                    start_line: Some(2498),
-                    end_line: Some(2511),
-                    symbol: Some("build_initial_context".to_string()),
-                    note: Some("Insertion window".to_string()),
-                }],
-            },
-            EpiphanyEvidenceRecord {
-                id: "ev-resume-read".to_string(),
-                kind: "test".to_string(),
-                status: "ok".to_string(),
-                summary: "Phase 1 tests already prove the latest surviving Epiphany snapshot is restored on resume.".to_string(),
-                code_refs: vec![EpiphanyCodeRef {
-                    path: PathBuf::from("core/src/session/rollout_reconstruction_tests.rs"),
-                    start_line: Some(110),
-                    end_line: Some(191),
-                    symbol: Some("record_initial_history_resumed_hydrates_epiphany_state_from_latest_surviving_turn".to_string()),
-                    note: Some("Resume proof".to_string()),
-                }],
-            },
-        ],
-        churn: Some(EpiphanyChurnState {
-            understanding_status: "stable".to_string(),
-            diff_pressure: "low".to_string(),
-            graph_freshness: Some("fresh".to_string()),
-            warning: Some("Keep the fragment bounded; do not turn it into another transcript dump.".to_string()),
-            unexplained_writes: Some(0),
-        }),
-        retrieval: None,
-        mode: Some(EpiphanyModeState {
-            name: "epiphany".to_string(),
-            kind: Some(EpiphanyModeKind::Default),
-        }),
-        planning: Default::default(),
-        last_updated_turn_id: Some("phase2-turn".to_string()),
-    }
 }
 
 struct InstructionsTestCase {
@@ -575,10 +300,6 @@ fn developer_input_texts(items: &[ResponseItem]) -> Vec<&str> {
             _ => None,
         })
         .collect()
-}
-
-fn joined_developer_input_text(items: &[ResponseItem]) -> String {
-    developer_input_texts(items).join("\n\n")
 }
 
 fn user_input_texts(items: &[ResponseItem]) -> Vec<&str> {
@@ -5152,7 +4873,7 @@ async fn record_context_updates_and_set_reference_context_item_persists_baseline
 }
 
 #[tokio::test]
-async fn record_context_updates_does_not_persist_epiphany_state() {
+async fn record_context_updates_persists_turn_context() {
     let (session, turn_context) = make_session_and_context().await;
     let config = session.get_config().await;
     let recorder = RolloutRecorder::new(
@@ -5194,59 +4915,6 @@ async fn record_context_updates_does_not_persist_epiphany_state() {
             .history
             .iter()
             .any(|item| matches!(item, RolloutItem::TurnContext(_)))
-    );
-    assert!(
-        !resumed
-            .history
-            .iter()
-            .any(|item| matches!(item, RolloutItem::LegacyEpiphanyState(_)))
-    );
-}
-
-#[tokio::test]
-async fn record_context_updates_and_set_reference_context_item_skips_epiphany_state_when_none() {
-    let (session, turn_context) = make_session_and_context().await;
-    let config = session.get_config().await;
-    let recorder = RolloutRecorder::new(
-        config.as_ref(),
-        RolloutRecorderParams::new(
-            ThreadId::default(),
-            /*forked_from_id*/ None,
-            SessionSource::Exec,
-            BaseInstructions::default(),
-            Vec::new(),
-            EventPersistenceMode::Limited,
-        ),
-        /*state_db_ctx*/ None,
-        /*state_builder*/ None,
-    )
-    .await
-    .expect("create rollout recorder");
-    let rollout_path = recorder.rollout_path().to_path_buf();
-    {
-        let mut rollout = session.services.rollout.lock().await;
-        *rollout = Some(recorder);
-    }
-
-    session
-        .record_context_updates_and_set_reference_context_item(&turn_context)
-        .await;
-    session.ensure_rollout_materialized().await;
-    session.flush_rollout().await.expect("rollout should flush");
-
-    let InitialHistory::Resumed(resumed) = RolloutRecorder::get_rollout_history(&rollout_path)
-        .await
-        .expect("read rollout history")
-    else {
-        panic!("expected resumed rollout history");
-    };
-
-    assert!(
-        !resumed
-            .history
-            .iter()
-            .any(|item| matches!(item, RolloutItem::LegacyEpiphanyState(_))),
-        "epiphany state should not be persisted when session state is empty"
     );
 }
 
@@ -5321,59 +4989,6 @@ async fn build_initial_context_prepends_model_switch_message() {
         panic!("expected developer text");
     };
     assert!(text.contains("<model_switch>"));
-}
-
-#[tokio::test]
-async fn build_initial_context_omits_epiphany_state_block_when_absent() {
-    let (session, turn_context) = make_session_and_context().await;
-
-    let initial_context = session.build_initial_context(&turn_context).await;
-    let developer_text = joined_developer_input_text(&initial_context);
-
-    assert!(!developer_text.contains("<epiphany_state>"));
-}
-
-#[tokio::test]
-async fn build_initial_context_does_not_inject_resumed_epiphany_state() {
-    let (session, turn_context) = make_session_and_context().await;
-    let turn_context_item = turn_context.to_turn_context_item();
-    let turn_id = turn_context_item
-        .turn_id
-        .clone()
-        .expect("turn context should have turn_id");
-    let epiphany_state = sample_epiphany_state_for_prompt();
-
-    session
-        .record_initial_history(InitialHistory::Resumed(ResumedHistory {
-            conversation_id: ThreadId::default(),
-            history: vec![
-                RolloutItem::EventMsg(EventMsg::TurnStarted(TurnStartedEvent {
-                    turn_id: turn_id.clone(),
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                })),
-                RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
-                    message: "resume the thread".to_string(),
-                    images: None,
-                    local_images: Vec::new(),
-                    text_elements: Vec::new(),
-                })),
-                RolloutItem::TurnContext(turn_context_item),
-                legacy_epiphany_state(EpiphanyStateItem {
-                    turn_id: Some(turn_id),
-                    state: epiphany_state,
-                }),
-            ],
-            rollout_path: PathBuf::from("/tmp/phase2-resume.jsonl"),
-        }))
-        .await;
-
-    let initial_context = session.build_initial_context(&turn_context).await;
-    let developer_text = joined_developer_input_text(&initial_context);
-
-    assert!(!developer_text.contains("<epiphany_state>"));
-    assert!(!developer_text.contains("Checkpoint: `phase2-checkpoint` (graph revision 7)"));
 }
 
 #[tokio::test]
