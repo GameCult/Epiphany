@@ -420,3 +420,12 @@ matching runtime job, binding, role, authority scope, allowed operation, and
 path coverage. Patch, command, and commit receipts also require the matching
 approved Hands review. Missing grants, mismatched paths, and attempts to mutate
 under a read-only planning grant are negative-tested refusals.
+
+## Caller-selected daemon liveness
+
+`epiphany-cluster-daemon` accepted `--daemon-status ready|degraded|down` and
+wrote that caller choice as the owning daemon's liveness. It also accepted an
+unproven note for the status document. Both inputs are deleted. Reaching the
+heartbeat write derives `ready`; command failure writes no heartbeat, while
+degradation/down must come from timeout, failed restart, or supervisor
+observation rather than a caller describing the desired dashboard color.

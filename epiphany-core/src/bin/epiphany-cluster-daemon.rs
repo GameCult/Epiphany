@@ -81,7 +81,7 @@ fn write_heartbeat(args: &Args, iteration: u64) -> Result<EpiphanyCultMeshDaemon
             ],
         });
     let mut next = current.clone();
-    next.status = args.daemon_status.clone();
+    next.status = "ready".to_string();
     next.last_heartbeat_utc = Utc::now().to_rfc3339();
     next.operator_action = if next.status == "ready" {
         "none".to_string()
@@ -94,9 +94,6 @@ fn write_heartbeat(args: &Args, iteration: u64) -> Result<EpiphanyCultMeshDaemon
         format!("Daemon body domain: {}", current.body_domain),
         format!("Heartbeat iteration: {iteration}"),
     ];
-    if let Some(note) = args.note.as_ref() {
-        next.notes.push(note.clone());
-    }
     write_epiphany_cultmesh_daemon_status(&args.store, args.runtime_id.clone(), next)
 }
 
@@ -133,10 +130,8 @@ struct Args {
     store: PathBuf,
     runtime_id: String,
     daemon_id: String,
-    daemon_status: String,
     interval_seconds: u64,
     max_iterations: u64,
-    note: Option<String>,
 }
 
 impl Args {
@@ -146,10 +141,8 @@ impl Args {
         let mut store = PathBuf::from(".epiphany-run/cultmesh/local-verse.ccmp");
         let mut runtime_id = "epiphany-local".to_string();
         let mut daemon_id = None;
-        let mut daemon_status = "ready".to_string();
         let mut interval_seconds = 60_u64;
         let mut max_iterations = 1_u64;
-        let mut note = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -159,9 +152,6 @@ impl Args {
                 }
                 "--daemon-id" => {
                     daemon_id = Some(values.next().context("missing --daemon-id value")?)
-                }
-                "--daemon-status" => {
-                    daemon_status = values.next().context("missing --daemon-status value")?
                 }
                 "--interval-seconds" => {
                     interval_seconds = values
@@ -175,24 +165,18 @@ impl Args {
                         .context("missing --max-iterations value")?
                         .parse()?;
                 }
-                "--note" => note = Some(values.next().context("missing --note value")?),
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
 
         let daemon_id = daemon_id.context("cluster daemon requires --daemon-id")?;
-        if !matches!(daemon_status.as_str(), "ready" | "degraded" | "down") {
-            anyhow::bail!("--daemon-status must be ready, degraded, or down");
-        }
         Ok(Self {
             command,
             store,
             runtime_id,
             daemon_id,
-            daemon_status,
             interval_seconds,
             max_iterations,
-            note,
         })
     }
 }
