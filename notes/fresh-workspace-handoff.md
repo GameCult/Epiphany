@@ -9,6 +9,14 @@ exact control flow belongs in `notes/epiphany-current-algorithmic-map.md`;
 forward campaign planning belongs in `notes/epiphany-fork-implementation-plan.md`.
 Do not let this file become a second brain. That way lies holy-looking sludge.
 
+Authority boundary: the long record below contains historical campaign strata.
+Statements about deleted `thread/epiphany/*` routes, `ThreadEpiphany*` DTOs,
+Codex thread-state projection, rollout migration, or
+`epiphany-codex-bridge` describe past cuts only. They are not live mechanism or
+restoration guidance. For current ownership and flow, trust `state/map.yaml`,
+`notes/epiphany-current-algorithmic-map.md`,
+`notes/epiphany-fork-implementation-plan.md`, and source at HEAD.
+
 ## Rehydrate
 
 From the repo root:
