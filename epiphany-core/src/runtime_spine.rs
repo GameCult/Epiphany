@@ -1714,6 +1714,14 @@ pub fn put_soul_verdict_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    if let Some(existing) = cache.get::<SoulVerdictReceipt>(&receipt.receipt_id)? {
+        if existing == *receipt {
+            return Ok(());
+        }
+        return Err(anyhow!(
+            "Soul verdict receipt id already belongs to different immutable evidence"
+        ));
+    }
     cache.put(&receipt.receipt_id, receipt)?;
     Ok(())
 }
@@ -1758,6 +1766,14 @@ pub fn put_repo_work_modeling_finding(
     if soul.verdict.trim().to_ascii_lowercase() != "passed" {
         return Err(anyhow!(
             "Modeling finding requires a passing Soul verdict receipt"
+        ));
+    }
+    if let Some(existing) = cache.get::<RepoWorkModelingFinding>(&finding.receipt_id)? {
+        if existing == *finding {
+            return Ok(());
+        }
+        return Err(anyhow!(
+            "Modeling finding receipt id already belongs to different immutable evidence"
         ));
     }
     cache.put(&finding.receipt_id, finding)?;
@@ -1817,6 +1833,29 @@ pub fn commit_repo_work_map_admission(
         return Err(anyhow!(
             "repo-work map entry does not match its typed Modeling finding"
         ));
+    }
+    if let Some(existing) = cache.get::<RepoWorkMapEntry>(&entry.map_entry_id)? {
+        let mut candidate = entry.clone();
+        candidate.admitted_at = existing.admitted_at.clone();
+        if existing != candidate {
+            return Err(anyhow!(
+                "repo-work map entry id already belongs to different admitted state"
+            ));
+        }
+        let stored_review = cache
+            .get::<MindGatewayReview>(&existing.mind_gateway_review_id)?
+            .ok_or_else(|| anyhow!("admitted repo-work map is missing its Mind review"))?;
+        let stored_commit = cache
+            .get::<MindStateCommitReceipt>(&existing.mind_state_commit_receipt_id)?
+            .ok_or_else(|| anyhow!("admitted repo-work map is missing its Mind commit"))?;
+        if stored_review.gateway_id != existing.mind_gateway_review_id
+            || stored_commit.gateway_id != stored_review.gateway_id
+        {
+            return Err(anyhow!(
+                "admitted repo-work map has incoherent Mind witnesses"
+            ));
+        }
+        return Ok(existing);
     }
     let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
     let (commit_envelope, _) = cache.prepare_entry(&mind_commit.receipt_id, mind_commit)?;

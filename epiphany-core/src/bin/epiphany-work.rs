@@ -11366,7 +11366,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         normalize_path_for_receipt(&closure_review_path),
     ];
     evidence_ids.extend(declared_changed_paths.clone());
-    let soul_verdict = SoulVerdictReceipt {
+    let mut soul_verdict = SoulVerdictReceipt {
         schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id: soul_verdict_id.clone(),
         source_result_id: format!("repo-work-execute-{item_slug}"),
@@ -11411,7 +11411,19 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         emitted_at: now.clone(),
         contract: "Soul verdict for repo-work closure; verifies the Hands patch/command/commit consequence before Modeling/Mind closure and Bifrost publication.".to_string(),
     };
-    put_soul_verdict_receipt(&runtime_store, &soul_verdict)?;
+    if let Some(existing) =
+        epiphany_core::runtime_soul_verdict_receipt(&runtime_store, &soul_verdict.receipt_id)?
+    {
+        soul_verdict.emitted_at = existing.emitted_at.clone();
+        if soul_verdict != existing {
+            return Err(anyhow!(
+                "closure retry conflicts with immutable Soul verdict receipt"
+            ));
+        }
+        soul_verdict = existing;
+    } else {
+        put_soul_verdict_receipt(&runtime_store, &soul_verdict)?;
+    }
 
     let closure_receipt_path = artifact_dir.join(format!("work-close-{item_slug}.json"));
     if !verification_passed {
@@ -11464,7 +11476,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         )
     });
     let modeling_finding_receipt_id = format!("repo-work-close-{item_slug}-modeling-finding");
-    let modeling_finding = RepoWorkModelingFinding {
+    let mut modeling_finding = RepoWorkModelingFinding {
         schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
         receipt_id: modeling_finding_receipt_id.clone(),
         item: item.clone(),
@@ -11488,10 +11500,22 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         private_state_exposed: false,
         contract: "Modeling interpretation of Soul-verified repo consequence; Mind must reread this typed receipt before map admission.".to_string(),
     };
-    put_repo_work_modeling_finding(&runtime_store, &modeling_finding)?;
-    let modeling_finding =
+    if let Some(existing) =
         runtime_repo_work_modeling_finding(&runtime_store, &modeling_finding_receipt_id)?
-            .ok_or_else(|| anyhow!("persisted Modeling finding could not be reread"))?;
+    {
+        modeling_finding.emitted_at = existing.emitted_at.clone();
+        if modeling_finding != existing {
+            return Err(anyhow!(
+                "closure retry conflicts with immutable Modeling finding"
+            ));
+        }
+        modeling_finding = existing;
+    } else {
+        put_repo_work_modeling_finding(&runtime_store, &modeling_finding)?;
+        modeling_finding =
+            runtime_repo_work_modeling_finding(&runtime_store, &modeling_finding_receipt_id)?
+                .ok_or_else(|| anyhow!("persisted Modeling finding could not be reread"))?;
+    }
     if modeling_finding.soul_verdict_receipt_id != soul_verdict.receipt_id
         || modeling_finding.commit_sha != commit_sha
         || modeling_finding.changed_paths != declared_changed_paths
@@ -16234,6 +16258,9 @@ mod authority_tests {
         assert!(put_repo_work_modeling_finding(&store, &finding).is_err());
         finding.private_state_exposed = false;
         put_repo_work_modeling_finding(&store, &finding)?;
+        let mut conflicting_finding = finding.clone();
+        conflicting_finding.summary = "different meaning".to_string();
+        assert!(put_repo_work_modeling_finding(&store, &conflicting_finding).is_err());
         assert_eq!(
             runtime_repo_work_modeling_finding(&store, &finding.receipt_id)?,
             Some(finding.clone())
@@ -16287,6 +16314,16 @@ mod authority_tests {
 
         map.modeling_summary = finding.summary.clone();
         commit_repo_work_map_admission(&store, &map, &review, &commit)?;
+        let admitted = runtime_repo_work_map_entry(&store, &map.map_entry_id)?.unwrap();
+        assert_eq!(admitted, map);
+        let mut retry = map.clone();
+        retry.admitted_at = "2026-07-12T00:10:00Z".to_string();
+        assert_eq!(
+            commit_repo_work_map_admission(&store, &retry, &review, &commit)?,
+            admitted
+        );
+        retry.safe_action_family = "repo.task_card".to_string();
+        assert!(commit_repo_work_map_admission(&store, &retry, &review, &commit).is_err());
         assert_eq!(
             runtime_repo_work_map_entry(&store, &map.map_entry_id)?,
             Some(map)

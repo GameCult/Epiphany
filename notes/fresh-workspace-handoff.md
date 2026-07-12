@@ -2030,6 +2030,15 @@ source test. CultMesh projects the reread canonical entry. Next inspect crash
 and retry semantics across the earlier Soul and Modeling phase receipts versus
 the final atomic Mind/map admission; do not add a repair loop to hide partial
 phase ownership.
+Crash/retry semantics are now explicit. Soul verdicts and repo-work Modeling
+findings are immutable by receipt ID. An identical closure retry reuses them;
+the atomic Mind/map owner rereads an already-admitted matching entry instead of
+republishing it. Conflicting same-ID evidence or map meaning is refused. Real
+CLI replay with the rebuilt executable returned `closed` for identical cargo,
+returned exit 1 for a conflicting Modeling reinterpretation, and left the
+admitted map byte-for-byte equivalent at the operator projection. Next restore
+autonomous movement by having Self launch/await a real Modeling result at
+`await-modeling`; Self must not regain the ability to synthesize that finding.
 
 ## Immediate Re-entry Instruction
 

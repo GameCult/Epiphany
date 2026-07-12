@@ -120,6 +120,12 @@ Mind commit in one prepared batch. The former bespoke
 `.epiphany/state/repo-work-map.msgpack` owner is deleted. CultMesh remains a
 projection after admission and cannot repair or override the canonical entry.
 
+Closure phase documents are immutable by stable receipt ID. An identical retry
+reuses the existing Soul verdict and Modeling finding, rereads an already
+admitted Mind/map batch, and regenerates only operator/CultMesh projections.
+Conflicting same-ID Soul, Modeling, or map cargo is refused; no reconciliation
+loop may overwrite the earlier truth.
+
 Manual edits and programmatic actions converge at the same receipt and Mind
 admission boundaries. A later action cannot retroactively make an unrecorded
 consequence valid.
