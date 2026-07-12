@@ -30,6 +30,9 @@ The confirmed conceptual substitutions have been cut:
 - query-CLI requester/operator mutations also require persisted bootstrap.
   Only explicit seed commands and the fixed aggregate smoke may initialize the
   shared local Verse.
+- worker launch-context rendering requires the existing Verse and cannot seed
+  it. The prompt-context smoke accepts no destination and is fixed beneath
+  `.epiphany-smoke`.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

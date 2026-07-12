@@ -6,6 +6,8 @@ use crate::EpiphanyMemoryContextQuery;
 use crate::EpiphanyMemoryProfile;
 use crate::EpiphanyPromptContextInput;
 use crate::RuntimeHandsReceiptChainSummary;
+use crate::load_epiphany_cultmesh_cluster_topology;
+use crate::load_epiphany_cultmesh_status;
 use crate::load_latest_epiphany_cultmesh_work_loop_telemetry;
 use crate::load_memory_graph_snapshot;
 use crate::memory_graph_from_epiphany_graphs;
@@ -16,7 +18,6 @@ use crate::runtime_hands_command_receipt;
 use crate::runtime_hands_commit_receipt;
 use crate::runtime_hands_patch_receipt;
 use crate::runtime_latest_hands_receipt_chain_after;
-use crate::seed_epiphany_local_verse_context;
 use crate::write_epiphany_cultmesh_work_loop_telemetry;
 use crate::write_memory_graph_snapshot;
 use chrono::SecondsFormat;
@@ -72,17 +73,35 @@ pub fn render_launch_dynamic_prompt_context(
     focus: String,
 ) -> Result<String, String> {
     let local_verse_store = local_verse_store_path(runtime_store_path);
-    seed_epiphany_local_verse_context(
+    load_epiphany_cultmesh_status(&local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
+        .map_err(|error| {
+            format!(
+                "failed to inspect local Verse context store {}: {error}",
+                local_verse_store.display()
+            )
+        })?
+        .ok_or_else(|| {
+            format!(
+                "local Verse is not bootstrapped at {}; initialize it before building worker launch context",
+                local_verse_store.display()
+            )
+        })?;
+    let topology = load_epiphany_cultmesh_cluster_topology(
         &local_verse_store,
         EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
-        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
     )
     .map_err(|error| {
         format!(
-            "failed to seed local Verse context store {}: {error}",
+            "failed to inspect local Verse topology store {}: {error}",
             local_verse_store.display()
         )
     })?;
+    if topology.is_empty() {
+        return Err(format!(
+            "local Verse has no persisted cluster topology at {}; initialize it before building worker launch context",
+            local_verse_store.display()
+        ));
+    }
     let local_verse =
         query_epiphany_local_verse_context(&local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
             .map_err(|error| {
@@ -681,6 +700,7 @@ mod tests {
     use crate::put_hands_commit_receipt;
     use crate::put_hands_patch_receipt;
     use crate::runtime_worker_launch_request;
+    use crate::seed_epiphany_local_verse_context;
     use epiphany_state_model::EpiphanyAcceptanceReceipt;
     use std::fs;
     use uuid::Uuid;
@@ -713,6 +733,11 @@ mod tests {
             objective: Some("Test launch context.".to_string()),
             ..Default::default()
         };
+        seed_epiphany_local_verse_context(
+            local_verse_store_path(&runtime_store),
+            EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
+            "2026-07-12T00:00:00Z",
+        )?;
 
         let rendered = render_launch_dynamic_prompt_context(
             &runtime_store,
@@ -768,6 +793,33 @@ mod tests {
         assert!(stored_context.contains("Test launch context."));
 
         fs::remove_dir_all(&temp)?;
+        Ok(())
+    }
+
+    #[test]
+    fn launch_context_refuses_to_bootstrap_shared_state() -> anyhow::Result<()> {
+        let temp = std::env::temp_dir().join(format!(
+            "epiphany-launch-context-unbootstrapped-{}",
+            Uuid::new_v4()
+        ));
+        fs::create_dir_all(&temp)?;
+        let runtime_store = temp.join("runtime-spine.msgpack");
+        let local_verse_store = local_verse_store_path(&runtime_store);
+        let state = EpiphanyThreadState {
+            revision: 1,
+            objective: Some("Prove launch assembly cannot initialize shared state.".to_string()),
+            ..Default::default()
+        };
+
+        let error = render_launch_dynamic_prompt_context(
+            &runtime_store,
+            &state,
+            role_launch_context_focus(&state, "modeling"),
+        )
+        .expect_err("unbootstrapped launch context must fail closed");
+
+        assert!(error.contains("local Verse is not bootstrapped"));
+        assert!(!local_verse_store.exists());
         Ok(())
     }
 

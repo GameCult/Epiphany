@@ -106,6 +106,10 @@
   quarantined smoke initialize local Verse state. Every operator/requester
   mutation requires persisted status and topology before writing its bounded
   brake, poke, tool, Eve, Bifrost, metrics, artifact, or feedback document.
+- Coordinator launch-context assembly also requires persisted status and
+  topology. Rendering a worker prompt cannot initialize shared state. Its
+  standalone smoke accepts no path arguments and writes only beneath
+  `.epiphany-smoke`.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

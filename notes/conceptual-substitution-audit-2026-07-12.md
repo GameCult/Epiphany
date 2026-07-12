@@ -169,3 +169,21 @@ paths may initialize the local Verse. Every other mutating query command passes
 and refuses before store creation when either is absent. Requesters now write
 into an existing body; they cannot manufacture the body as a side effect of
 asking it for work.
+
+## Launch-context/bootstrap split
+
+The final implicit production caller was
+`render_launch_dynamic_prompt_context`. Building a worker launch packet seeded
+the sibling local Verse before reading it, so launch preparation owned shared
+policy, topology, contracts, brake initialization, and operator status.
+
+Launch-context assembly now requires persisted Epiphany status and topology and
+fails before creating the Verse store when they are absent. Tests and the
+prompt-context smoke initialize their fixtures explicitly. The smoke no longer
+accepts an arbitrary output path; it writes only
+`.epiphany-smoke/cultmesh/epiphany-prompt-context.ccmp`.
+
+The remaining non-test seed callers are now limited to the explicit Verse seed
+commands and two named, path-confined smoke fixture initializers. No production
+provider, supervisor, requester, diagnostic, or launch path bootstraps shared
+state as a convenience side effect.
