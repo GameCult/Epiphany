@@ -2241,6 +2241,17 @@ unique receipt
 The same heartbeat store survived and no child remains running. Next expose
 compact managed-service policy/lifecycle/process rows through Gjallar/Eve so
 operators can see Idunn physiology without invoking the supervisor CLI.
+The specialist Gjallar sight is landed. Native PID observation is shared from
+`epiphany-core::process_observation`; `epiphany-verse-query
+gjallar-managed-services` projects policy, latest lifecycle, live/dead/missing,
+PID, and compact last heartbeat pulse fields with no command args or routine
+payloads. In live root
+`C:\Users\Meta\AppData\Local\Temp\epiphany-idunn-unattended-3394ecfaa03f41d8935f9fb70411ca75`,
+PID `25236` first rendered READY/alive with pulse completed and later ATTN/dead
+after forced termination, using lifecycle receipt
+`daemon-service-lifecycle-receipt-idunn-managed-heartbeat-launch-1783859373793`.
+No child remains. Next lower this row family into the main Gjallar/Eve
+composition graph and its advertised command/readback surface.
 
 ## Immediate Re-entry Instruction
 

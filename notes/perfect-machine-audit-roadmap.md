@@ -171,6 +171,15 @@ Idunn pulse restarted it from the same store with a distinct PID and immutable
 lifecycle receipt. The next gap is inspectability: publish compact managed
 service desired/observed rows through Gjallar/Eve without opening command
 payloads or routine artifacts.
+The first sight organ is landed as `epiphany-verse-query
+gjallar-managed-services`. Native process observation now lives in a shared
+core module used by both Idunn reconciliation and Gjallar projection. Rows show
+desired enabled/restart mode, observed alive/dead/missing, PID, latest immutable
+lifecycle receipt, compact last heartbeat pulse status/iteration/artifact, and
+the private-state seal. Live proof transitioned the same row from READY/alive
+to ATTN/dead after a forced process death without exposing command args or
+routine payloads. Next lower this typed row family into the main Gjallar/Eve
+composition graph.
 
 ### Forbidden writers
 

@@ -20,6 +20,7 @@ use epiphany_core::EpiphanyCultMeshClusterTopologyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonPokeReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
+use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyCultMeshDaemonToolCapabilityEntry;
 use epiphany_core::EpiphanyCultMeshEveSurfaceStateEntry;
@@ -60,6 +61,7 @@ use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
+use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
 use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
 use epiphany_core::load_epiphany_cultmesh_repo_work_map_entries;
@@ -90,6 +92,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness_review;
 use epiphany_core::open_epiphany_cultmesh_node;
+use epiphany_core::observe_native_process;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_agent_state_soa_summary;
@@ -385,6 +388,21 @@ fn run_cli() -> Result<()> {
                     "tuiRows": report.tui_rows,
                 }))?
             );
+        }
+        "managed-services" | "gjallar-managed-services" | "idunn-services" => {
+            let report = managed_service_sight_report(&args.store, &args.runtime_id)?;
+            println!("{}", serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.cultmesh.managed_service_sight.v0",
+                "status": report.status,
+                "owner": "Gjallar",
+                "lifecycleOwner": "Idunn",
+                "serviceCount": report.rows.len(),
+                "aliveCount": report.alive_count,
+                "attentionCount": report.attention_count,
+                "rows": report.rows,
+                "tuiRows": report.tui_rows,
+                "privateStateExposed": false,
+            }))?);
         }
         "tools" | "tool-directory" => {
             seed_epiphany_local_verse_context(
@@ -4391,6 +4409,117 @@ struct DaemonToolDirectoryReport {
     tui_rows: Vec<String>,
     host_ready_count: usize,
     host_attention_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ManagedServiceSightReport {
+    status: String,
+    alive_count: usize,
+    attention_count: usize,
+    rows: Vec<ManagedServiceSightRow>,
+    tui_rows: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ManagedServiceSightRow {
+    service_id: String,
+    owner_daemon_id: String,
+    enabled: bool,
+    restart_mode: String,
+    process_observation: String,
+    process_id: Option<u32>,
+    lifecycle_receipt_id: Option<String>,
+    lifecycle_status: Option<String>,
+    last_pulse_status: Option<String>,
+    last_pulse_iteration: Option<u64>,
+    last_pulse_artifact: Option<String>,
+    private_state_exposed: bool,
+}
+
+fn managed_service_sight_report(
+    store: &std::path::Path,
+    runtime_id: &str,
+) -> Result<ManagedServiceSightReport> {
+    let policies = load_epiphany_cultmesh_managed_service_policies(store, runtime_id.to_string())?;
+    let lifecycle = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+        store,
+        runtime_id.to_string(),
+    )?;
+    let mut rows = Vec::new();
+    for policy in policies {
+        let latest = lifecycle
+            .iter()
+            .filter(|receipt| receipt.service_id == policy.service_id)
+            .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
+        let process_id = latest.and_then(|receipt| receipt.process_id);
+        let process_observation = process_id
+            .map(observe_native_process)
+            .transpose()?
+            .map(|observation| observation.label().to_string())
+            .unwrap_or_else(|| "missing".to_string());
+        let pulse = compact_last_service_pulse(&policy);
+        rows.push(ManagedServiceSightRow {
+            service_id: policy.service_id,
+            owner_daemon_id: policy.owner_daemon_id,
+            enabled: policy.enabled,
+            restart_mode: policy.restart_mode,
+            process_observation,
+            process_id,
+            lifecycle_receipt_id: latest.map(|receipt| receipt.receipt_id.clone()),
+            lifecycle_status: latest.map(|receipt| receipt.status.clone()),
+            last_pulse_status: pulse.as_ref().and_then(|value| value["status"].as_str()).map(str::to_string),
+            last_pulse_iteration: pulse.as_ref().and_then(|value| value["iteration"].as_u64()),
+            last_pulse_artifact: pulse
+                .as_ref()
+                .and_then(|value| value["routineArtifact"].as_str())
+                .map(str::to_string),
+            private_state_exposed: false,
+        });
+    }
+    rows.sort_by(|left, right| left.service_id.cmp(&right.service_id));
+    let alive_count = rows
+        .iter()
+        .filter(|row| row.process_observation == "alive")
+        .count();
+    let attention_count = rows
+        .iter()
+        .filter(|row| row.enabled && row.process_observation != "alive")
+        .count();
+    let tui_rows = rows
+        .iter()
+        .map(|row| {
+            format!(
+                "{} | service={} | owner={} | desired={} | restart={} | observed={} | pid={} | lifecycle={} | pulse={} | iteration={} | private=false",
+                if row.enabled && row.process_observation == "alive" { "READY" } else { "ATTN" },
+                row.service_id,
+                row.owner_daemon_id,
+                if row.enabled { "enabled" } else { "disabled" },
+                row.restart_mode,
+                row.process_observation,
+                row.process_id.map(|value| value.to_string()).unwrap_or_else(|| "none".to_string()),
+                row.lifecycle_receipt_id.as_deref().unwrap_or("none"),
+                row.last_pulse_status.as_deref().unwrap_or("none"),
+                row.last_pulse_iteration.map(|value| value.to_string()).unwrap_or_else(|| "none".to_string()),
+            )
+        })
+        .collect();
+    Ok(ManagedServiceSightReport {
+        status: if attention_count == 0 { "ready" } else { "attention" }.to_string(),
+        alive_count,
+        attention_count,
+        rows,
+        tui_rows,
+    })
+}
+
+fn compact_last_service_pulse(policy: &EpiphanyCultMeshManagedServicePolicyEntry) -> Option<serde_json::Value> {
+    let text = fs::read_to_string(&policy.stdout_artifact).ok()?;
+    text.lines()
+        .rev()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|value| value["schemaVersion"] == "epiphany.heartbeat.serve_pulse.v0")
 }
 
 struct DaemonRestartPolicyDirectoryReport {

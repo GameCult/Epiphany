@@ -14,6 +14,7 @@ use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
+use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
 use epiphany_core::EpiphanyServiceExecutionAuditReport;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
@@ -24,6 +25,7 @@ use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::observe_native_process as observe_process;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
@@ -571,66 +573,6 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
         observation.label()
     ));
     service_launch(args)
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ProcessObservation {
-    Alive,
-    Dead,
-    Missing,
-}
-
-impl ProcessObservation {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Alive => "alive",
-            Self::Dead => "dead",
-            Self::Missing => "missing",
-        }
-    }
-}
-
-#[cfg(windows)]
-fn observe_process(process_id: u32) -> Result<ProcessObservation> {
-    use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::System::Threading::{
-        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-    };
-    const STILL_ACTIVE: u32 = 259;
-    unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
-        if handle.is_null() {
-            return Ok(ProcessObservation::Dead);
-        }
-        let mut exit_code = 0_u32;
-        let read = GetExitCodeProcess(handle, &mut exit_code);
-        CloseHandle(handle);
-        if read == 0 {
-            anyhow::bail!("failed to inspect managed service process {process_id}");
-        }
-        Ok(if exit_code == STILL_ACTIVE {
-            ProcessObservation::Alive
-        } else {
-            ProcessObservation::Dead
-        })
-    }
-}
-
-#[cfg(unix)]
-fn observe_process(process_id: u32) -> Result<ProcessObservation> {
-    let result = unsafe { libc::kill(process_id as i32, 0) };
-    if result == 0 {
-        Ok(ProcessObservation::Alive)
-    } else {
-        let error = std::io::Error::last_os_error();
-        if error.raw_os_error() == Some(libc::ESRCH) {
-            Ok(ProcessObservation::Dead)
-        } else if error.raw_os_error() == Some(libc::EPERM) {
-            Ok(ProcessObservation::Alive)
-        } else {
-            Err(error.into())
-        }
-    }
 }
 
 fn service_runbook(args: Args) -> Result<()> {

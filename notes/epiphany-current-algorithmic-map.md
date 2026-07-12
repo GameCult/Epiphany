@@ -398,6 +398,16 @@ death the next pulse launched PID `40532` under unique receipt
 `daemon-service-lifecycle-receipt-idunn-managed-heartbeat-launch-1783859054234`.
 The next boundary is Gjallar/Eve sight over managed service desired/observed
 state.
+That first sight boundary is now implemented. `observe_native_process` moved
+from the supervisor binary into a shared narrow core organ. Query aliases
+`managed-services`, `gjallar-managed-services`, and `idunn-services` join typed
+service policy with latest lifecycle history and native observation, then read
+only the compact heartbeat serve pulse line from the sealed stdout artifact.
+Live row PID `25236` transitioned from `READY/alive` to `ATTN/dead` while
+retaining pulse `completed`, iteration `1`, and lifecycle receipt
+`daemon-service-lifecycle-receipt-idunn-managed-heartbeat-launch-1783859373793`.
+No command args or routine payloads are projected. Next merge these rows into
+the main Gjallar/Eve composition rather than keeping a specialist query only.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's proprioception.
