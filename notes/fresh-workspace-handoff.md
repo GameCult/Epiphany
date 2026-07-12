@@ -12,6 +12,10 @@ The conceptual-substitution audit found observation manufacturing the body it cl
 
 `invoke-tool` and wrapper mode `tool-invoke` now write only `epiphany.cultmesh.daemon_tool_invocation_intent`. They return `pending-provider`, name the host daemon as `responseOwner`, expose its observed status without promoting it, and leave receipt/result fields null. A request may queue while the host is `unknown`; readiness is daemon-authored state, not a prerequisite the requester may synthesize. Caller-supplied receipt ids/status, result refs, and result summaries are rejected. The former local service-health, runbook, policy, daemon-status, Eve, and authority readback execution was removed from the request path. Physical proof shows a persisted request accepted against an unknown host, no provider receipt, and rejection of counterfeit accepted/result fields.
 
+## 2026-07-12 Eve consumer/provider split
+
+`connect-eve` and wrapper mode `eve-connect` now persist only `epiphany.cultmesh.eve_connection_intent`, return `pending-provider`, name the target cluster as response owner, and leave receipt fields null. Consumer-supplied connection receipt id/status is rejected. The request path no longer projects repo-work queue data as if the provider had accepted and returned a surface. `collaboration-feedback` now requires the cited Eve connection receipt to exist in CultMesh, and the wrapper no longer invokes `connect-eve` then cites a receipt that the same command fabricated. Physical proof shows intent present, provider receipt absent, counterfeit receipt fields rejected, and feedback refused without a genuine provider receipt.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

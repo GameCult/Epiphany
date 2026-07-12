@@ -1445,6 +1445,20 @@ fn run_cli() -> Result<()> {
                 .eve_connection_receipt_id
                 .clone()
                 .context("collaboration-feedback requires --eve-connection-receipt-id")?;
+            let provider_connection_receipt =
+                load_latest_epiphany_cultmesh_eve_connection_receipt(
+                    &args.store,
+                    args.runtime_id.clone(),
+                )?
+                .filter(|receipt| receipt.receipt_id == eve_connection_receipt_id)
+                .with_context(|| {
+                    format!(
+                        "collaboration-feedback requires a persisted Eve provider receipt {eve_connection_receipt_id:?}; a consumer intent is not acceptance"
+                    )
+                })?;
+            if provider_connection_receipt.status.trim().is_empty() {
+                anyhow::bail!("persisted Eve provider receipt has no status");
+            }
             let collaboration_topic = args
                 .collaboration_topic
                 .clone()
@@ -1545,6 +1559,11 @@ fn run_cli() -> Result<()> {
             );
         }
         "connect-eve" | "eve-connection" => {
+            if args.receipt_id.is_some() || args.receipt_status.is_some() {
+                anyhow::bail!(
+                    "connect-eve accepts consumer intent fields only; the advertised Eve provider owns connection receipt id and status"
+                );
+            }
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -1552,7 +1571,7 @@ fn run_cli() -> Result<()> {
             )?;
             let directory =
                 load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-            let (target_cluster, target, _target_surface) = if let Some(advertisement_id) =
+            let (_target_cluster, target, _target_surface) = if let Some(advertisement_id) =
                 args.advertisement_id.as_deref()
             {
                 directory
@@ -1583,10 +1602,6 @@ fn run_cli() -> Result<()> {
                 .intent_id
                 .clone()
                 .unwrap_or_else(|| "eve-connection-intent".to_string());
-            let receipt_id = args
-                .receipt_id
-                .clone()
-                .unwrap_or_else(|| "eve-connection-receipt".to_string());
             let requesting_cluster_id = args
                 .source_cluster_id
                 .clone()
@@ -1613,25 +1628,7 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 intent.clone(),
             )?;
-            let receipt_status = args
-                .receipt_status
-                .clone()
-                .unwrap_or_else(|| "accepted-for-consensus-discovery".to_string());
-            let receipt = epiphany_cultmesh_eve_connection_receipt_for_intent(
-                receipt_id,
-                &intent,
-                receipt_status,
-            );
-            let written_receipt = write_epiphany_cultmesh_eve_connection_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                receipt,
-            )?;
             let latest_intent = load_latest_epiphany_cultmesh_eve_connection_intent(
-                &args.store,
-                args.runtime_id.clone(),
-            )?;
-            let latest_receipt = load_latest_epiphany_cultmesh_eve_connection_receipt(
                 &args.store,
                 args.runtime_id.clone(),
             )?;
@@ -1639,39 +1636,26 @@ fn run_cli() -> Result<()> {
                 .as_ref()
                 .map(|intent| intent.intent_id.as_str())
                 != Some(written_intent.intent_id.as_str())
-                || latest_receipt
-                    .as_ref()
-                    .map(|receipt| receipt.receipt_id.as_str())
-                    != Some(written_receipt.receipt_id.as_str())
             {
-                anyhow::bail!("local Verse query lost Eve connection intent/receipt after write");
+                anyhow::bail!("local Verse query lost Eve connection intent after write");
             }
-            let (_latest_repo_work_overview, repo_work_overviews) =
-                load_repo_work_overview_queue(&args)?;
-            let (repo_work_queue_rows, _) = repo_work_overview_rows(&repo_work_overviews);
-            let repo_work_queue_tui_rows = if target_cluster.public_persona_discussion_allowed {
-                repo_work_peer_tui_rows(&repo_work_queue_rows)
-            } else {
-                Vec::new()
-            };
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "status": "ok",
+                    "status": "pending-provider",
                     "store": args.store,
                     "runtimeId": args.runtime_id,
                     "intentId": written_intent.intent_id,
-                    "receiptId": written_receipt.receipt_id,
+                    "receiptId": null,
+                    "receiptStatus": null,
+                    "responseOwner": written_intent.target_cluster_id,
                     "targetAdvertisementId": written_intent.target_advertisement_id,
                     "targetClusterId": written_intent.target_cluster_id,
                     "targetEveSurfaceId": written_intent.target_eve_surface_id,
                     "requestedAction": written_intent.requested_action,
                     "feedbackRoute": written_intent.feedback_route,
-                    "repoWorkQueueCount": repo_work_queue_tui_rows.len(),
-                    "repoWorkQueueRows": if target_cluster.public_persona_discussion_allowed { repo_work_queue_rows } else { Vec::new() },
-                    "repoWorkQueueTuiRows": repo_work_queue_tui_rows,
                     "privateStateRequested": written_intent.private_state_requested,
-                    "privateStateExposed": written_receipt.private_state_exposed,
+                    "privateStateExposed": false,
                 }))?
             );
         }

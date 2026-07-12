@@ -825,7 +825,7 @@ if ($Mode -eq "eve-connect") {
         $connectArgs += @("--target-cluster-id", $EveTargetClusterId)
     }
     Invoke-Checked `
-        -Label "record compact Odin/Eve connection receipt" `
+        -Label "submit compact Odin/Eve connection intent" `
         -FilePath $verseQueryExe `
         -Arguments $connectArgs `
         -WorkingDirectory $Root `
@@ -834,19 +834,6 @@ if ($Mode -eq "eve-connect") {
 }
 
 if ($Mode -eq "collaboration-feedback") {
-    Invoke-Checked `
-        -Label "record prerequisite Odin/Eve connection receipt" `
-        -FilePath $verseQueryExe `
-        -Arguments @(
-            "connect-eve",
-            "--store", $localVerseStore,
-            "--runtime-id", $LocalVerseRuntimeId,
-            "--target-cluster-id", $EveTargetClusterId
-        ) `
-        -WorkingDirectory $Root `
-        -StdoutPath (Join-Path $artifactRoot "collaboration-eve-connect.stdout.json") `
-        -StderrPath (Join-Path $artifactRoot "collaboration-eve-connect.stderr.log")
-
     $resultPath = Join-Path $artifactRoot "collaboration-feedback.stdout.json"
     Invoke-Checked `
         -Label "record public collaboration feedback for Imagination consensus" `
@@ -2775,7 +2762,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.repoWorkQueueTuiRows -and $result.repoWorkQueueTuiRows.Count -gt 0) {
                 $repoWorkQueueRows = ($result.repoWorkQueueTuiRows -join "; ")
             }
-            Write-Host "Eve connect: status=$($result.status), target=$($result.targetClusterId), surface=$($result.targetEveSurfaceId), receipt=$($result.receiptId), repoWorkQueue=$($result.repoWorkQueueCount), repoWorkRows=$repoWorkQueueRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Eve connection request: status=$($result.status), target=$($result.targetClusterId), surface=$($result.targetEveSurfaceId), intent=$($result.intentId), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "collaboration-feedback") {
             $feedbackRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {

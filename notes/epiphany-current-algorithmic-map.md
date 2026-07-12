@@ -28,6 +28,15 @@
 - Forbidden writers: `invoke-tool` cannot accept or synthesize receipt id/status, result reference, or result summary; it no longer executes local readback functions and labels them daemon results.
 - Negative proof: request intent persists, latest provider receipt remains absent, and response-shaped CLI fields are refused.
 
+## Eve connection request path (2026-07-12)
+
+- Owner: the consumer owns `eve_connection_intent`; the advertised provider cluster owns `eve_connection_receipt`.
+- Input: persisted Odin advertisement, requesting cluster, reason, and requested action.
+- Output: one pending intent naming target advertisement, cluster, Eve surface, and feedback route.
+- Forbidden writers: `connect-eve` cannot accept or synthesize provider receipt id/status and cannot return provider-owned queue projection as a connection result.
+- Dependent invariant: collaboration feedback may cite only a persisted provider receipt; a consumer request is not acceptance.
+- Negative proof: provider receipt remains absent after request, response-shaped fields fail, and feedback without provider acceptance fails.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 
