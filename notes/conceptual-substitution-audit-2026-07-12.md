@@ -449,3 +449,14 @@ passed that check and escaped before synthetic lifecycle writes. Smoke seeding
 now rejects parent traversal and requires the absolute store path to be beneath
 the current workspace's `.epiphany-smoke` root. Negative execution proves both
 traversal and an external absolute store are refused before file creation.
+
+## Caller-selected recursive-delete roots
+
+Thirty-two repo-family and survival smoke binaries accepted an independent
+`--smoke-root`, created fixtures beneath it, and recursively deleted a computed
+child. That made a test-output convenience into caller-selected deletion
+authority. The default was also captured before `--root` parsing, so the chosen
+repo and quarantine could silently disagree. The option and field are deleted
+throughout the family. Each binary now canonicalizes the selected repo root and
+derives its only quarantine as `<root>/.epiphany-smoke`; the old flag is refused
+before its target can be created.

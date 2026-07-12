@@ -115,6 +115,9 @@ The confirmed conceptual substitutions have been cut:
 - daemon-supervisor smoke confinement is real containment, not component-name
   matching: parent traversal and stores outside workspace `.epiphany-smoke`
   are refused before fixture seeding.
+- Thirty-two repo-family and survival smokes no longer accept an independent
+  deletion root. They derive `.epiphany-smoke` only after canonicalizing the
+  selected repo root; `--smoke-root` is rejected before creating its target.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
@@ -151,4 +154,4 @@ Continue the modeling pass beyond receipt writers. Inventory production paths wh
 
 ## Verification baseline
 
-The last completed code pass had 249 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.
+The last completed code pass had 252 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.
