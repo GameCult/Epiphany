@@ -1,5 +1,14 @@
 # Epiphany Current Algorithmic Map
 
+## Observation and bootstrap authority correction (2026-07-12)
+
+- Owner: diagnostics only project persisted CultMesh state; they never initialize it.
+- Bootstrap owns static policy, topology, schema, advertisement, surface, and capability declarations. It does not own daemon liveness.
+- Daemons own heartbeat/status documents. Missing status is represented as `unknown`, never promoted to `ready` by a reader or seeder.
+- Provider directories contain only persisted provider advertisements, Eve surfaces, and tool capabilities. Missing provider state produces no synthetic row.
+- Forbidden writers removed in this pass: read-command calls to `seed_epiphany_local_verse_context`, loader fallback constructors, and bootstrap's default-ready daemon-status loop.
+- Next authority cut: requester commands may author intents, but Bifrost, GitHub, tool providers, Eve providers, and daemon lifecycle owners must author their own response receipts.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

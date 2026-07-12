@@ -1,5 +1,9 @@
 # Fresh Workspace Handoff
 
+## 2026-07-12 diagnostic authority cut
+
+The conceptual-substitution audit found observation manufacturing the body it claimed to inspect. The current local pass removes seeding from read-only Verse commands; persisted topology now bounds liveness, restart-policy, Eve-surface, and tool-directory loaders; absent documents remain empty or unknown; and explicit local bootstrap no longer counterfeits daemon-ready heartbeats. Negative proof covers a nonexistent CultCache path and all 249 library tests pass. Next cut the local CLI's requester/provider collapse: Bifrost/GitHub publication, tool invocation, Eve connection, and daemon poke commands must stop authoring both intent and accepted response receipt.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

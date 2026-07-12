@@ -293,11 +293,6 @@ fn run_cli() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&context)?);
         }
         "receipt-directory" | "receipts" | "evidence-directory" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let lifecycle_receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
                 &args.store,
@@ -351,11 +346,6 @@ fn run_cli() -> Result<()> {
             );
         }
         "restart-policy-directory" | "service-policy-directory" | "scheduler-coverage" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let policy_directory = load_epiphany_cultmesh_daemon_restart_policy_directory(
                 &args.store,
                 args.runtime_id.clone(),
@@ -404,16 +394,8 @@ fn run_cli() -> Result<()> {
             );
         }
         "tools" | "tool-directory" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let directory =
                 load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
-            if directory.is_empty() {
-                anyhow::bail!("daemon tool directory is empty");
-            }
             if !directory.iter().all(|(_, _, capability)| {
                 capability.available_to_all_agents
                     && capability.requires_receipt
@@ -428,7 +410,7 @@ fn run_cli() -> Result<()> {
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "schemaVersion": "epiphany.cultmesh.daemon_tool_directory.v0",
-                    "status": "ok",
+                    "status": if report.rows.is_empty() { "empty" } else { "ok" },
                     "runtimeId": args.runtime_id,
                     "store": args.store,
                     "toolCount": report.rows.len(),
@@ -437,6 +419,7 @@ fn run_cli() -> Result<()> {
                     "invocationCommand": DIRECT_INVOKE_TOOL_COMMAND,
                     "wrapperInvocationCommand": WRAPPER_INVOKE_TOOL_COMMAND,
                     "wrapperMode": "tools/epiphany_local_run.ps1 -Mode tool-directory",
+                    "privateStateExposed": false,
                     "invariants": {
                         "availableToAllAgents": true,
                         "requiresReceipt": true,
@@ -761,11 +744,6 @@ fn run_cli() -> Result<()> {
             );
         }
         "swarm-status" | "daemon-report" | "daemon-status-report" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let liveness =
                 load_epiphany_cultmesh_daemon_liveness(&args.store, args.runtime_id.clone())?;
             let report = daemon_liveness_report(&liveness);
@@ -773,7 +751,7 @@ fn run_cli() -> Result<()> {
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "schemaVersion": "epiphany.cultmesh.swarm_status_report.v0",
-                    "status": if report.non_ready_count == 0 { "ready" } else { "attention" },
+                    "status": if report.rows.is_empty() { "unknown" } else if report.non_ready_count == 0 { "ready" } else { "attention" },
                     "store": args.store,
                     "runtimeId": args.runtime_id,
                     "daemonCount": report.rows.len(),
@@ -787,23 +765,9 @@ fn run_cli() -> Result<()> {
             );
         }
         "cluster-topology" | "clusters" | "cluster-report" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let topology =
                 load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
             let report = cluster_topology_report(&topology);
-            if report.rows.len() != 7
-                || report.private_verse_count != 7
-                || report.daemon_count != 7
-                || report.public_discussion_count != 1
-            {
-                anyhow::bail!(
-                    "cluster topology report expected seven clusters, private verses, daemons, and one public Persona surface"
-                );
-            }
             if !report.rows.iter().all(|row| {
                 !row.private_state_exposed
                     && !row.private_verse_id.is_empty()
@@ -820,7 +784,7 @@ fn run_cli() -> Result<()> {
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "schemaVersion": "epiphany.cultmesh.cluster_topology_report.v0",
-                    "status": "ok",
+                    "status": if report.rows.is_empty() { "empty" } else { "ok" },
                     "store": args.store,
                     "runtimeId": args.runtime_id,
                     "clusterCount": report.rows.len(),
@@ -834,11 +798,6 @@ fn run_cli() -> Result<()> {
             );
         }
         "eve-surfaces" | "eve-directory" | "odin-eve-surfaces" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let directory =
                 load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
             let (_latest_repo_work_overview, repo_work_overviews) =
@@ -848,7 +807,7 @@ fn run_cli() -> Result<()> {
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "schemaVersion": "epiphany.cultmesh.eve_surface_directory_report.v0",
-                    "status": "ok",
+                    "status": if report.rows.is_empty() { "empty" } else { "ok" },
                     "store": args.store,
                     "runtimeId": args.runtime_id,
                     "surfaceCount": report.rows.len(),
@@ -864,11 +823,6 @@ fn run_cli() -> Result<()> {
             );
         }
         "swarm-overview" | "agent-overview" | "global-agents" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let overview = load_swarm_overview_report(&args)?;
             let commands = json!({
                 "topology": "epiphany-verse-query cluster-topology",
@@ -905,11 +859,6 @@ fn run_cli() -> Result<()> {
             );
         }
         "swarm-triage" | "triage-swarm" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let overview = load_swarm_overview_report(&args)?;
             let pokes = if overview.liveness_status == "ready" {
                 Vec::new()
@@ -1507,11 +1456,6 @@ fn run_cli() -> Result<()> {
             );
         }
         "bifrost-ledger" | "publication-ledger" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
             let report = load_bifrost_ledger_report(&args)?;
             println!(
                 "{}",
@@ -7317,7 +7261,9 @@ fn daemon_restart_policy_directory_report_from_rows(
         });
     }
 
-    let status = if private_state_exposed || missing_count > 0 || disabled_count > 0 {
+    let status = if rows.is_empty() {
+        "empty"
+    } else if private_state_exposed || missing_count > 0 || disabled_count > 0 {
         "attention"
     } else {
         "ok"
@@ -7615,13 +7561,16 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let service_online_runbook_available = service_execution_runbook_actions
         .iter()
         .any(|action| operator_artifact_status(&action.artifact_ref) == "present");
-    let liveness_status =
-        if daemon_report.non_ready_count == 0 && tool_report.host_attention_count == 0 {
-            "ready".to_string()
-        } else {
-            "attention".to_string()
-        };
-    let recovery_status = if policy_report.status == "ok"
+    let liveness_status = if daemon_report.rows.is_empty() {
+        "unknown".to_string()
+    } else if daemon_report.non_ready_count == 0 && tool_report.host_attention_count == 0 {
+        "ready".to_string()
+    } else {
+        "attention".to_string()
+    };
+    let recovery_status = if topology_report.rows.is_empty() {
+        "unknown".to_string()
+    } else if policy_report.status == "ok"
         && cluster_service_lifecycle_attention.is_none()
         && service_lifecycle_attention.is_none()
     {
@@ -7629,13 +7578,21 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     } else {
         "attention".to_string()
     };
-    let status = if liveness_status == "ready" && recovery_status == "ready" {
+    let status = if liveness_status == "unknown" || recovery_status == "unknown" {
+        "unknown".to_string()
+    } else if liveness_status == "ready" && recovery_status == "ready" {
         "ready".to_string()
     } else {
         "attention".to_string()
     };
     let (recommended_action, recommended_wrapper_mode, recommended_wrapper_command) =
-        if liveness_status != "ready" {
+        if liveness_status == "unknown" {
+            (
+                "none-observation-missing".to_string(),
+                "none".to_string(),
+                "none".to_string(),
+            )
+        } else if liveness_status != "ready" {
             (
                 "epiphany-verse-query poke-down-daemons".to_string(),
                 "swarm-poke-down".to_string(),
@@ -10611,11 +10568,6 @@ fn swarm_online_runbook_readback_from_idunn(args: &Args) -> Result<(serde_json::
 }
 
 fn service_policy_directory_readback_from_idunn(args: &Args) -> Result<(serde_json::Value, bool)> {
-    seed_epiphany_local_verse_context(
-        &args.store,
-        args.runtime_id.clone(),
-        Utc::now().to_rfc3339(),
-    )?;
     let policy_directory = load_epiphany_cultmesh_daemon_restart_policy_directory(
         &args.store,
         args.runtime_id.clone(),

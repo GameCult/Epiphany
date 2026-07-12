@@ -5,6 +5,7 @@ use crate::default_hands_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
+#[cfg(test)]
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -5801,14 +5802,6 @@ pub fn seed_epiphany_local_verse_context(
     write_epiphany_cultmesh_eve_surface_states(store_path, runtime_id.clone())?;
     {
         let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
-        for status in epiphany_cultmesh_daemon_statuses(generated_at_utc.clone()) {
-            if node
-                .get::<EpiphanyCultMeshDaemonStatusEntry>(status.daemon_id.as_str())?
-                .is_none()
-            {
-                write_epiphany_cultmesh_daemon_status(store_path, runtime_id.clone(), status)?;
-            }
-        }
         if node
             .get::<EpiphanyCultMeshSwarmBrakeEntry>(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?
             .is_none()
@@ -6025,32 +6018,10 @@ pub fn load_epiphany_cultmesh_daemon_liveness(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology() {
-        let cluster = node
-            .get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
-            .unwrap_or(cluster);
-        let default_status = EpiphanyCultMeshDaemonStatusEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
-            daemon_id: cluster.daemon_id.clone(),
-            cluster_id: cluster.cluster_id.clone(),
-            body_domain: cluster.body_domain.clone(),
-            daemon_surface_id: cluster.daemon_surface_id.clone(),
-            eve_surface_id: cluster.eve_surface_id.clone(),
-            status: "unknown".to_string(),
-            last_heartbeat_utc: "unknown".to_string(),
-            supported_actions: vec![
-                "inspectStatus".to_string(),
-                "pokeDaemon".to_string(),
-                "watchHeartbeat".to_string(),
-            ],
-            operator_action: "pokeDaemon".to_string(),
-            private_state_exposed: false,
-            notes: vec![
-                "No daemon status document was found; operator should inspect or poke through typed lifecycle receipts.".to_string(),
-            ],
-        };
+    for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
+        let default_status = unknown_daemon_status(&cluster);
         let status = node
             .get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)?
             .unwrap_or(default_status);
@@ -6071,32 +6042,10 @@ pub fn load_epiphany_cultmesh_daemon_restart_policy_directory(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology() {
-        let cluster = node
-            .get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
-            .unwrap_or(cluster);
-        let default_status = EpiphanyCultMeshDaemonStatusEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
-            daemon_id: cluster.daemon_id.clone(),
-            cluster_id: cluster.cluster_id.clone(),
-            body_domain: cluster.body_domain.clone(),
-            daemon_surface_id: cluster.daemon_surface_id.clone(),
-            eve_surface_id: cluster.eve_surface_id.clone(),
-            status: "unknown".to_string(),
-            last_heartbeat_utc: "unknown".to_string(),
-            supported_actions: vec![
-                "inspectStatus".to_string(),
-                "pokeDaemon".to_string(),
-                "watchHeartbeat".to_string(),
-            ],
-            operator_action: "pokeDaemon".to_string(),
-            private_state_exposed: false,
-            notes: vec![
-                "No daemon status document was found; operator should inspect or poke through typed lifecycle receipts.".to_string(),
-            ],
-        };
+    for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
+        let default_status = unknown_daemon_status(&cluster);
         let status = node
             .get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)?
             .unwrap_or(default_status);
@@ -6120,39 +6069,48 @@ pub fn load_epiphany_cultmesh_eve_surface_directory(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
-    for cluster in epiphany_cultmesh_cluster_topology() {
-        let cluster = node
-            .get::<EpiphanyCultMeshClusterTopologyEntry>(&cluster.cluster_id)?
-            .unwrap_or(cluster);
-        let default_advertisement = epiphany_cultmesh_odin_advertisements()
+    for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
+        let Some(advertisement) = epiphany_cultmesh_odin_advertisements()
             .into_iter()
             .find(|advertisement| advertisement.cluster_id == cluster.cluster_id)
-            .with_context(|| {
-                format!(
-                    "missing default Odin advertisement for cluster {}",
-                    cluster.cluster_id
-                )
-            })?;
-        let advertisement = node
-            .get::<EpiphanyCultMeshOdinAdvertisementEntry>(&default_advertisement.advertisement_id)?
-            .unwrap_or(default_advertisement);
-        let default_surface = epiphany_cultmesh_eve_surface_states()
-            .into_iter()
-            .find(|surface| surface.surface_id == cluster.eve_surface_id)
-            .with_context(|| {
-                format!(
-                    "missing default Eve surface state for cluster {}",
-                    cluster.cluster_id
-                )
-            })?;
-        let surface = node
-            .get::<EpiphanyCultMeshEveSurfaceStateEntry>(&default_surface.surface_id)?
-            .unwrap_or(default_surface);
-        rows.push((cluster, advertisement, surface));
+        else {
+            continue;
+        };
+        let advertisement =
+            node.get::<EpiphanyCultMeshOdinAdvertisementEntry>(&advertisement.advertisement_id)?;
+        let surface = node.get::<EpiphanyCultMeshEveSurfaceStateEntry>(&cluster.eve_surface_id)?;
+        if let (Some(advertisement), Some(surface)) = (advertisement, surface) {
+            rows.push((cluster, advertisement, surface));
+        }
     }
     Ok(rows)
+}
+
+fn unknown_daemon_status(
+    cluster: &EpiphanyCultMeshClusterTopologyEntry,
+) -> EpiphanyCultMeshDaemonStatusEntry {
+    EpiphanyCultMeshDaemonStatusEntry {
+        schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
+        daemon_id: cluster.daemon_id.clone(),
+        cluster_id: cluster.cluster_id.clone(),
+        body_domain: cluster.body_domain.clone(),
+        daemon_surface_id: cluster.daemon_surface_id.clone(),
+        eve_surface_id: cluster.eve_surface_id.clone(),
+        status: "unknown".to_string(),
+        last_heartbeat_utc: "unknown".to_string(),
+        supported_actions: vec![
+            "inspectStatus".to_string(),
+            "pokeDaemon".to_string(),
+            "watchHeartbeat".to_string(),
+        ],
+        operator_action: "pokeDaemon".to_string(),
+        private_state_exposed: false,
+        notes: vec![
+            "No daemon-authored status document was found; liveness remains unknown.".to_string(),
+        ],
+    }
 }
 
 pub fn load_epiphany_cultmesh_daemon_tool_directory(
@@ -6169,34 +6127,20 @@ pub fn load_epiphany_cultmesh_daemon_tool_directory(
     let runtime_id = runtime_id.into();
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let mut rows = Vec::new();
-    for capability in epiphany_cultmesh_daemon_tool_capabilities() {
-        let capability = node
-            .get::<EpiphanyCultMeshDaemonToolCapabilityEntry>(&capability.capability_id)?
-            .unwrap_or(capability);
-        let default_cluster = epiphany_cultmesh_cluster_topology()
-            .into_iter()
-            .find(|cluster| cluster.cluster_id == capability.host_cluster_id)
-            .with_context(|| {
-                format!(
-                    "missing default cluster topology for daemon tool {}",
-                    capability.capability_id
-                )
-            })?;
-        let cluster = node
-            .get::<EpiphanyCultMeshClusterTopologyEntry>(&default_cluster.cluster_id)?
-            .unwrap_or(default_cluster);
-        let default_status = epiphany_cultmesh_daemon_statuses("")
-            .into_iter()
-            .find(|status| status.daemon_id == capability.host_daemon_id)
-            .with_context(|| {
-                format!(
-                    "missing default daemon status for daemon tool {}",
-                    capability.capability_id
-                )
-            })?;
+    let capabilities = node
+        .get_all_with_keys::<EpiphanyCultMeshDaemonToolCapabilityEntry>()?
+        .into_iter()
+        .map(|(_, capability)| capability)
+        .collect::<Vec<_>>();
+    for capability in capabilities {
+        let Some(cluster) =
+            node.get::<EpiphanyCultMeshClusterTopologyEntry>(&capability.host_cluster_id)?
+        else {
+            continue;
+        };
         let status = node
-            .get::<EpiphanyCultMeshDaemonStatusEntry>(&default_status.daemon_id)?
-            .unwrap_or(default_status);
+            .get::<EpiphanyCultMeshDaemonStatusEntry>(&capability.host_daemon_id)?
+            .unwrap_or_else(|| unknown_daemon_status(&cluster));
         rows.push((cluster, status, capability));
     }
     Ok(rows)
@@ -8280,6 +8224,26 @@ mod tests {
         assert!(context.daemon_statuses.iter().all(|status| {
             !status.private_state_exposed && !status.last_heartbeat_utc.is_empty()
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn diagnostic_loaders_do_not_materialize_missing_body_state() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("missing-local-verse.ccmp");
+
+        assert!(load_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?.is_empty());
+        assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
+        assert!(
+            load_epiphany_cultmesh_daemon_restart_policy_directory(&store, "epiphany-test")?
+                .is_empty()
+        );
+        assert!(load_epiphany_cultmesh_eve_surface_directory(&store, "epiphany-test")?.is_empty());
+        assert!(load_epiphany_cultmesh_daemon_tool_directory(&store, "epiphany-test")?.is_empty());
+        assert!(
+            !store.exists(),
+            "read-only diagnostic loaders must not create a CultCache store"
+        );
         Ok(())
     }
 
