@@ -3,13 +3,26 @@ use anyhow::Result;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
+use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
+use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
+use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
+use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
+use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
+use epiphany_core::EpiphanyLocalVerseContext;
+use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
+use epiphany_core::EpiphanyServiceExecutionAuditReport;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_service_execution_audit_report;
+use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
-use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_status;
@@ -24,21 +37,8 @@ use epiphany_core::write_epiphany_cultmesh_daemon_scheduler_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
-use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
-use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
-use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
-use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
-use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
-use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
-use epiphany_core::EpiphanyLocalVerseContext;
-use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
-use epiphany_core::EpiphanyServiceExecutionAuditReport;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use sha2::Digest;
 use sha2::Sha256;
 use std::env;
@@ -144,8 +144,7 @@ fn require_supervisor_bootstrap(args: &Args) -> Result<()> {
                 args.store.display()
             )
         })?;
-    let topology =
-        load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
+    let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
     if topology.is_empty() {
         anyhow::bail!(
             "local Verse has no persisted cluster topology at {}; run explicit bootstrap before daemon-supervisor commands",
@@ -161,9 +160,7 @@ fn seed_supervisor_smoke_fixture(args: &Args) -> Result<()> {
         .components()
         .any(|component| component.as_os_str() == ".epiphany-smoke")
     {
-        anyhow::bail!(
-            "daemon-supervisor smoke fixtures may write only beneath .epiphany-smoke"
-        );
+        anyhow::bail!("daemon-supervisor smoke fixtures may write only beneath .epiphany-smoke");
     }
     seed_epiphany_local_verse_context(
         &args.store,
@@ -173,7 +170,6 @@ fn seed_supervisor_smoke_fixture(args: &Args) -> Result<()> {
 }
 
 fn reconcile(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -417,7 +413,6 @@ fn service_launch(args: Args) -> Result<()> {
 }
 
 fn managed_service_policy(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let command = service_command_path(&args)?;
@@ -648,7 +643,6 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
 }
 
 fn service_runbook(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -702,7 +696,6 @@ fn service_runbook(args: Args) -> Result<()> {
 }
 
 fn repo_work_service_audit(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -897,7 +890,6 @@ fn service_artifact_status(artifact_ref: &str) -> &'static str {
 }
 
 fn cluster_daemon_runbook(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -968,7 +960,6 @@ fn cluster_daemon_runbook(args: Args) -> Result<()> {
 }
 
 fn cluster_windows_service_install(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1098,7 +1089,6 @@ fn cluster_windows_service_install(args: Args) -> Result<()> {
 }
 
 fn cluster_windows_service_audit(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1206,7 +1196,6 @@ fn cluster_windows_service_audit(args: Args) -> Result<()> {
 }
 
 fn cluster_windows_service_control(args: Args, control: &str) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1345,7 +1334,6 @@ fn cluster_windows_service_control(args: Args, control: &str) -> Result<()> {
 }
 
 fn windows_service_install(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1441,7 +1429,6 @@ fn windows_service_install(args: Args) -> Result<()> {
 }
 
 fn windows_service_status(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1498,7 +1485,6 @@ fn windows_service_status(args: Args) -> Result<()> {
 }
 
 fn windows_service_execution_readiness(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1551,7 +1537,6 @@ fn windows_service_execution_readiness(args: Args) -> Result<()> {
 }
 
 fn cluster_windows_service_execution_readiness(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1618,7 +1603,6 @@ fn cluster_windows_service_execution_readiness(args: Args) -> Result<()> {
 }
 
 fn windows_service_execution_audit(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1680,7 +1664,6 @@ fn windows_service_execution_audit(args: Args) -> Result<()> {
 }
 
 fn windows_service_execution_audit_smoke(args: Args) -> Result<()> {
-
     seed_supervisor_smoke_fixture(&args)?;
 
     let started_at = Utc::now();
@@ -1771,7 +1754,6 @@ fn windows_service_execution_audit_smoke(args: Args) -> Result<()> {
 }
 
 fn cluster_windows_service_execution_runbook(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1862,7 +1844,6 @@ fn cluster_windows_service_execution_runbook(args: Args) -> Result<()> {
 }
 
 fn cluster_windows_service_execution_audit(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -1923,7 +1904,6 @@ fn cluster_windows_service_execution_audit(args: Args) -> Result<()> {
 }
 
 fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
-
     seed_supervisor_smoke_fixture(&args)?;
 
     let started_at = Utc::now();
@@ -2071,7 +2051,6 @@ fn elevated_powershell_runbook_command(path: &str) -> String {
 }
 
 fn windows_service_execution_runbook(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -2165,7 +2144,6 @@ fn windows_service_execution_runbook(args: Args) -> Result<()> {
 }
 
 fn windows_service_reconcile(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -2264,7 +2242,6 @@ fn windows_service_reconcile(args: Args) -> Result<()> {
 }
 
 fn windows_service_control(args: Args, control: &str) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -2509,7 +2486,6 @@ fn run_tick(args: &Args, iteration: u64, next_wake_utc: Option<String>) -> Resul
 }
 
 fn write_policy(args: Args) -> Result<()> {
-
     require_supervisor_bootstrap(&args)?;
 
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;

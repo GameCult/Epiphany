@@ -153,3 +153,19 @@ retain explicit fixture initialization, but it is isolated behind
 `seed_supervisor_smoke_fixture`, which refuses every store outside an
 `.epiphany-smoke` path before writing. Idunn consumes shared initialization; it
 does not own or repair it.
+
+## Query mutation/bootstrap split
+
+Ten requester/operator paths in `epiphany-verse-query` still invoked generic
+bootstrap: swarm brake, single/batch daemon poke, daemon tool intent, Bifrost
+body-change/public-proof/artifact/metrics requests, Persona collaboration
+feedback, and Eve connection intent. A bounded requester could therefore create
+shared policy, topology, contracts, brake defaults, and operator status merely
+by submitting its own document.
+
+Only the explicit `seed`, `seed-compact`/`seed-only`, and quarantined `smoke`
+paths may initialize the local Verse. Every other mutating query command passes
+`require_query_bootstrap`, which reads persisted Epiphany status and topology
+and refuses before store creation when either is absent. Requesters now write
+into an existing body; they cannot manufacture the body as a side effect of
+asking it for work.

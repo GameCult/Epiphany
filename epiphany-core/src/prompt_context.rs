@@ -397,6 +397,8 @@ mod tests {
     use crate::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
     use crate::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
     use crate::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
+    use crate::load_epiphany_cultmesh_cluster_topology;
+    use crate::publish_epiphany_cultmesh_provider_state;
     use crate::query_epiphany_local_verse_context;
     use crate::seed_epiphany_local_verse_context;
     use crate::write_epiphany_cultmesh_agent_state_soa_summary;
@@ -405,8 +407,6 @@ mod tests {
     use crate::write_epiphany_cultmesh_bifrost_github_publication_receipt;
     use crate::write_epiphany_cultmesh_daemon_tool_invocation_intent;
     use crate::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
-    use crate::load_epiphany_cultmesh_cluster_topology;
-    use crate::publish_epiphany_cultmesh_provider_state;
     use crate::write_epiphany_cultmesh_work_loop_telemetry;
     use epiphany_state_model::EpiphanyMemoryContextPacket;
     use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
@@ -418,11 +418,7 @@ mod tests {
         let store = temp.path().join("epiphany-local-verse.ccmp");
         seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-02T00:00:00Z")?;
         for cluster in load_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")? {
-            publish_epiphany_cultmesh_provider_state(
-                &store,
-                "epiphany-test",
-                &cluster.daemon_id,
-            )?;
+            publish_epiphany_cultmesh_provider_state(&store, "epiphany-test", &cluster.daemon_id)?;
         }
         let seeded_verse = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         let hands_action = seeded_verse

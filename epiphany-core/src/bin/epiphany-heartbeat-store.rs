@@ -1,8 +1,8 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
-use epiphany_core::GhostlightSceneParticipantSeed;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
+use epiphany_core::GhostlightSceneParticipantSeed;
 use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatHeatUpdateOptions;
 use epiphany_core::HeartbeatPumpOptions;
@@ -391,7 +391,9 @@ fn main() -> Result<()> {
         }
         "serve" => {
             if interval_seconds == 0 {
-                return Err(anyhow!("serve requires --interval-seconds greater than zero"));
+                return Err(anyhow!(
+                    "serve requires --interval-seconds greater than zero"
+                ));
             }
             let store_path = store_path.ok_or_else(|| anyhow!("serve requires --store"))?;
             let artifact_dir =
@@ -557,11 +559,10 @@ fn active_swarm_brake(
     if !local_verse_store.exists() {
         return Ok(None);
     }
-    Ok(load_epiphany_cultmesh_swarm_brake(
-        local_verse_store,
-        "epiphany-local",
-    )?
-    .filter(|brake| brake.status == "engaged"))
+    Ok(
+        load_epiphany_cultmesh_swarm_brake(local_verse_store, "epiphany-local")?
+            .filter(|brake| brake.status == "engaged"),
+    )
 }
 
 fn parse_scene_participant(raw: &str) -> Result<GhostlightSceneParticipantSeed> {

@@ -1,78 +1,10 @@
 use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
-use epiphany_core::default_epiphany_cultmesh_swarm_brake;
-use epiphany_core::epiphany_cluster_service_execution_audit_report;
-use epiphany_core::epiphany_cultmesh_agent_state_soa_summary_from_entry;
-use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
-use epiphany_core::epiphany_cultmesh_bifrost_collaboration_feedback;
-use epiphany_core::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
-use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
-use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
-use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
-use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
-use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
-use epiphany_core::epiphany_cultmesh_eve_connection_receipt_for_intent;
-use epiphany_core::epiphany_cultmesh_imagination_consensus_receipt_for_feedback;
-use epiphany_core::epiphany_service_execution_audit_report;
-use epiphany_core::load_agent_state_soa_entry;
-use epiphany_core::load_epiphany_cultmesh_cluster_topology;
-use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
-use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
-use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
-use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
-use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
-use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
-use epiphany_core::load_epiphany_cultmesh_repo_work_map_entries;
-use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
-use epiphany_core::load_epiphany_cultmesh_repo_work_public_proofs;
-use epiphany_core::load_epiphany_cultmesh_repo_work_readiness_reports;
-use epiphany_core::load_epiphany_cultmesh_repo_work_readiness_reviews;
-use epiphany_core::load_epiphany_cultmesh_swarm_brake;
-use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_metrics_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
-use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
-use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_repo_work_map_entry;
-use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
-use epiphany_core::load_latest_epiphany_cultmesh_repo_work_public_proof;
-use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness;
-use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness_review;
-use epiphany_core::observe_native_process;
-use epiphany_core::open_epiphany_cultmesh_node;
-use epiphany_core::query_epiphany_local_verse_context;
-use epiphany_core::seed_epiphany_local_verse_context;
-use epiphany_core::write_epiphany_cultmesh_agent_state_soa_summary;
-use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
-use epiphany_core::write_epiphany_cultmesh_bifrost_collaboration_feedback;
-use epiphany_core::write_epiphany_cultmesh_bifrost_github_publication_receipt;
-use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
-use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
-use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
-use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
-use epiphany_core::write_epiphany_cultmesh_daemon_status;
-use epiphany_core::write_epiphany_cultmesh_daemon_statuses;
-use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
-use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
-use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
-use epiphany_core::write_epiphany_cultmesh_eve_connection_receipt;
-use epiphany_core::write_epiphany_cultmesh_imagination_consensus_receipt;
-use epiphany_core::publish_epiphany_cultmesh_provider_state;
-use epiphany_core::write_epiphany_cultmesh_swarm_brake;
-use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
 use epiphany_core::EpiphanyAgentStateSoaEntry;
 use epiphany_core::EpiphanyCultMeshAgentStateSoaSummaryEntry;
 use epiphany_core::EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry;
@@ -103,10 +35,79 @@ use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyServiceExecutionAuditCheck;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
+use epiphany_core::default_epiphany_cultmesh_swarm_brake;
+use epiphany_core::epiphany_cluster_service_execution_audit_report;
+use epiphany_core::epiphany_cultmesh_agent_state_soa_summary_from_entry;
+use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_intent;
+use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
+use epiphany_core::epiphany_cultmesh_bifrost_collaboration_feedback;
+use epiphany_core::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
+use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
+use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
+use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
+use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
+use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
+use epiphany_core::epiphany_cultmesh_eve_connection_receipt_for_intent;
+use epiphany_core::epiphany_cultmesh_imagination_consensus_receipt_for_feedback;
+use epiphany_core::epiphany_service_execution_audit_report;
+use epiphany_core::load_agent_state_soa_entry;
+use epiphany_core::load_epiphany_cultmesh_cluster_topology;
+use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
+use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
+use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
+use epiphany_core::load_epiphany_cultmesh_daemon_tool_directory;
+use epiphany_core::load_epiphany_cultmesh_eve_surface_directory;
+use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
+use epiphany_core::load_epiphany_cultmesh_repo_work_map_entries;
+use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
+use epiphany_core::load_epiphany_cultmesh_repo_work_public_proofs;
+use epiphany_core::load_epiphany_cultmesh_repo_work_readiness_reports;
+use epiphany_core::load_epiphany_cultmesh_repo_work_readiness_reviews;
+use epiphany_core::load_epiphany_cultmesh_status;
+use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_metrics_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
+use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
+use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_map_entry;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_public_proof;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness;
+use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness_review;
+use epiphany_core::observe_native_process;
+use epiphany_core::open_epiphany_cultmesh_node;
+use epiphany_core::publish_epiphany_cultmesh_provider_state;
+use epiphany_core::query_epiphany_local_verse_context;
+use epiphany_core::seed_epiphany_local_verse_context;
+use epiphany_core::write_epiphany_cultmesh_agent_state_soa_summary;
+use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
+use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
+use epiphany_core::write_epiphany_cultmesh_bifrost_collaboration_feedback;
+use epiphany_core::write_epiphany_cultmesh_bifrost_github_publication_receipt;
+use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
+use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
+use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
+use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
+use epiphany_core::write_epiphany_cultmesh_daemon_status;
+use epiphany_core::write_epiphany_cultmesh_daemon_statuses;
+use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
+use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
+use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
+use epiphany_core::write_epiphany_cultmesh_eve_connection_receipt;
+use epiphany_core::write_epiphany_cultmesh_imagination_consensus_receipt;
+use epiphany_core::write_epiphany_cultmesh_swarm_brake;
+use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
 use serde::Serialize;
 use serde_json::json;
 use sha2::Digest;
@@ -184,6 +185,24 @@ fn main() -> Result<()> {
         Ok(result) => result,
         Err(payload) => std::panic::resume_unwind(payload),
     }
+}
+
+fn require_query_bootstrap(args: &Args) -> Result<()> {
+    load_epiphany_cultmesh_status(&args.store, args.runtime_id.clone())?
+        .with_context(|| {
+            format!(
+                "local Verse is not bootstrapped at {}; run epiphany-verse-query seed-compact before mutating query commands",
+                args.store.display()
+            )
+        })?;
+    let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
+    if topology.is_empty() {
+        anyhow::bail!(
+            "local Verse has no persisted cluster topology at {}; run epiphany-verse-query seed-compact before mutating query commands",
+            args.store.display()
+        );
+    }
+    Ok(())
 }
 
 fn run_cli() -> Result<()> {
@@ -361,11 +380,8 @@ fn run_cli() -> Result<()> {
             run_invoke_tool_command(&args)?;
         }
         "swarm-brake" | "brake" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+            require_query_bootstrap(&args)?;
+
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let created_at_utc = Utc::now().to_rfc3339();
             let status = args
@@ -564,11 +580,9 @@ fn run_cli() -> Result<()> {
         }
         "poke-daemon" | "daemon-poke" => {
             reject_daemon_poke_response_fields(&args)?;
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+
+            require_query_bootstrap(&args)?;
+
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let daemon_id = args
                 .daemon_id
@@ -595,13 +609,8 @@ fn run_cli() -> Result<()> {
                         .collect::<String>()
                 )
             });
-            let poke_result = write_daemon_poke_intent(
-                &args,
-                &context,
-                daemon_status,
-                intent_id,
-                reason,
-            )?;
+            let poke_result =
+                write_daemon_poke_intent(&args, &context, daemon_status, intent_id, reason)?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             if context.latest_daemon_poke_intent.is_none() {
                 anyhow::bail!("local Verse query lost daemon poke intent after write");
@@ -627,11 +636,9 @@ fn run_cli() -> Result<()> {
         }
         "poke-down-daemons" | "poke-unready-daemons" | "daemon-poke-down" => {
             reject_daemon_poke_response_fields(&args)?;
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+
+            require_query_bootstrap(&args)?;
+
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let pokes = write_poke_intents_for_non_ready_daemons(&args, &context)?;
             let poke_tui_rows = pokes.iter().map(poke_result_tui_row).collect::<Vec<_>>();
@@ -790,11 +797,9 @@ fn run_cli() -> Result<()> {
                     "bifrost-publication accepts requester intent fields only; Bifrost and the GitHub publication adapter own receipt, ledger, credit, and publication-result fields"
                 );
             }
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+
+            require_query_bootstrap(&args)?;
+
             let intent_id = args
                 .intent_id
                 .clone()
@@ -917,11 +922,9 @@ fn run_cli() -> Result<()> {
                     "bifrost-public-proof selects a pending public proof only; Bifrost owns ledger, review, credit, destination, publication, and receipt result fields"
                 );
             }
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+
+            require_query_bootstrap(&args)?;
+
             let (latest_public_proof, public_proofs) = load_repo_work_public_proofs(&args)?;
             let selected_public_proof = if let Some(public_proof_id) = args.public_proof_id.as_ref()
             {
@@ -980,11 +983,9 @@ fn run_cli() -> Result<()> {
                     "bifrost-artifact-acceptance inspects a pending repo request only; Maintainer/Bifrost owns artifact, proof, review, ledger, acceptance identity/status, and accepted-by result fields"
                 );
             }
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+
+            require_query_bootstrap(&args)?;
+
             let (_, map_entries) = load_repo_work_map_entries(&args)?;
             let map_entry = latest_repo_work_map_entry_for_family(
                 &map_entries,
@@ -1036,11 +1037,9 @@ fn run_cli() -> Result<()> {
                     "bifrost-metrics inspects a pending repo request only; Bifrost/Maintainer owns accepted artifact, spend, review load, credit, proof, summary, and receipt result fields"
                 );
             }
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+
+            require_query_bootstrap(&args)?;
+
             let (_, map_entries) = load_repo_work_map_entries(&args)?;
             let map_entry =
                 latest_repo_work_map_entry_for_family(&map_entries, "repo.metrics_request")
@@ -1127,11 +1126,9 @@ fn run_cli() -> Result<()> {
                     "collaboration-feedback accepts Persona feedback fields only; Imagination owns consensus receipt, participants, packet, status, and adoption gate"
                 );
             }
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+
+            require_query_bootstrap(&args)?;
+
             let feedback_id = args
                 .feedback_id
                 .clone()
@@ -1239,11 +1236,9 @@ fn run_cli() -> Result<()> {
                     "connect-eve accepts consumer intent fields only; the advertised Eve provider owns connection receipt id and status"
                 );
             }
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
+
+            require_query_bootstrap(&args)?;
+
             let directory =
                 load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
             let (_target_cluster, target, _target_surface) = if let Some(advertisement_id) =
@@ -1348,10 +1343,9 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 "2026-06-02T00:00:00Z",
             )?;
-            for cluster in load_epiphany_cultmesh_cluster_topology(
-                &args.store,
-                args.runtime_id.clone(),
-            )? {
+            for cluster in
+                load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?
+            {
                 publish_epiphany_cultmesh_provider_state(
                     &args.store,
                     args.runtime_id.clone(),
@@ -9361,11 +9355,7 @@ fn bifrost_accounting_status(closed: bool, present: bool, private_state_exposed:
 }
 
 fn present_word(present: bool) -> &'static str {
-    if present {
-        "present"
-    } else {
-        "missing"
-    }
+    if present { "present" } else { "missing" }
 }
 
 fn collaboration_feedback_tui_rows(
@@ -9524,11 +9514,9 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "invoke-tool accepts requester intent fields only; the host daemon owns receipt status, result references, and result summaries"
         );
     }
-    seed_epiphany_local_verse_context(
-        &args.store,
-        args.runtime_id.clone(),
-        Utc::now().to_rfc3339(),
-    )?;
+
+    require_query_bootstrap(args)?;
+
     let capability_id = args
         .capability_id
         .as_deref()

@@ -1,19 +1,19 @@
 use anyhow::Result;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshWeksaLoweringReceiptEntry;
+use epiphany_core::WEKSA_INTERLINGUA_PACKET_SCHEMA_VERSION;
+use epiphany_core::WEKSA_TARGET_LOWERING_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::WEKSA_TARGET_LOWERING_REQUEST_SCHEMA_VERSION;
+use epiphany_core::WeksaInterlinguaInput;
+use epiphany_core::WeksaSpeakerContext;
 use epiphany_core::build_weksa_interlingua_packet;
 use epiphany_core::build_weksa_lowering_prompt;
 use epiphany_core::build_weksa_target_lowering_request;
 use epiphany_core::load_latest_epiphany_cultmesh_weksa_lowering_receipt;
 use epiphany_core::record_weksa_target_lowering_receipt;
 use epiphany_core::write_epiphany_cultmesh_weksa_lowering_receipt;
-use epiphany_core::EpiphanyCultMeshWeksaLoweringReceiptEntry;
-use epiphany_core::WeksaInterlinguaInput;
-use epiphany_core::WeksaSpeakerContext;
-use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::WEKSA_INTERLINGUA_PACKET_SCHEMA_VERSION;
-use epiphany_core::WEKSA_TARGET_LOWERING_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::WEKSA_TARGET_LOWERING_REQUEST_SCHEMA_VERSION;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {

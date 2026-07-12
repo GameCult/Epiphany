@@ -7179,11 +7179,7 @@ mod tests {
 
     fn publish_all_test_provider_state(store: &Path) -> Result<()> {
         for cluster in epiphany_cultmesh_cluster_topology() {
-            publish_epiphany_cultmesh_provider_state(
-                store,
-                "epiphany-test",
-                &cluster.daemon_id,
-            )?;
+            publish_epiphany_cultmesh_provider_state(store, "epiphany-test", &cluster.daemon_id)?;
         }
         Ok(())
     }
@@ -8659,11 +8655,7 @@ mod tests {
     fn daemon_tool_invocation_intent_and_receipt_round_trip_for_any_agent() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-tool-invocation.ccmp");
-        publish_epiphany_cultmesh_provider_state(
-            &store,
-            "epiphany-test",
-            "epiphany-daemon-hands",
-        )?;
+        publish_epiphany_cultmesh_provider_state(&store, "epiphany-test", "epiphany-daemon-hands")?;
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let hands_action = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
@@ -9334,27 +9326,29 @@ mod tests {
         let store = temp.path().join("epiphany-provider-boundary.ccmp");
         seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-07-12T00:00:00Z")?;
 
-        publish_epiphany_cultmesh_provider_state(
-            &store,
-            "epiphany-test",
-            "epiphany-daemon-hands",
-        )?;
+        publish_epiphany_cultmesh_provider_state(&store, "epiphany-test", "epiphany-daemon-hands")?;
         let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         assert_eq!(context.odin_advertisements.len(), 1);
         assert_eq!(context.eve_surface_states.len(), 1);
         assert_eq!(context.daemon_tool_capabilities.len(), 3);
-        assert!(context
-            .odin_advertisements
-            .iter()
-            .all(|entry| entry.cluster_id == "epiphany.cluster.hands"));
-        assert!(context
-            .eve_surface_states
-            .iter()
-            .all(|entry| entry.cluster_id == "epiphany.cluster.hands"));
-        assert!(context
-            .daemon_tool_capabilities
-            .iter()
-            .all(|entry| entry.host_daemon_id == "epiphany-daemon-hands"));
+        assert!(
+            context
+                .odin_advertisements
+                .iter()
+                .all(|entry| entry.cluster_id == "epiphany.cluster.hands")
+        );
+        assert!(
+            context
+                .eve_surface_states
+                .iter()
+                .all(|entry| entry.cluster_id == "epiphany.cluster.hands")
+        );
+        assert!(
+            context
+                .daemon_tool_capabilities
+                .iter()
+                .all(|entry| entry.host_daemon_id == "epiphany-daemon-hands")
+        );
 
         let error = publish_epiphany_cultmesh_provider_state(
             &store,

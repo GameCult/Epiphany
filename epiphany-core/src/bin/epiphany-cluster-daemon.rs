@@ -1,12 +1,12 @@
 use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
 use epiphany_core::publish_epiphany_cultmesh_provider_state;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
-use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION;
 use serde_json::json;
 use std::env;
 use std::path::PathBuf;
@@ -75,7 +75,10 @@ fn write_heartbeat(args: &Args, iteration: u64) -> Result<EpiphanyCultMeshDaemon
             ],
             operator_action: "pokeDaemon".to_string(),
             private_state_exposed: false,
-            notes: vec!["Initial status constructed by the owning cluster daemon from persisted topology.".to_string()],
+            notes: vec![
+                "Initial status constructed by the owning cluster daemon from persisted topology."
+                    .to_string(),
+            ],
         });
     let mut next = current.clone();
     next.status = args.daemon_status.clone();

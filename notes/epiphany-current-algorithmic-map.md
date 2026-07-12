@@ -102,6 +102,10 @@
   every production lifecycle, policy, scheduler, runbook, audit, status, and
   control path. Only its two synthetic audit-smoke commands may initialize
   fixtures, and only beneath `.epiphany-smoke`.
+- In `epiphany-verse-query`, only explicit seed commands and the fixed
+  quarantined smoke initialize local Verse state. Every operator/requester
+  mutation requires persisted status and topology before writing its bounded
+  brake, poke, tool, Eve, Bifrost, metrics, artifact, or feedback document.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.
