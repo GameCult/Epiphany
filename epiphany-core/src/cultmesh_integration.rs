@@ -1566,7 +1566,10 @@ pub fn epiphany_service_execution_audit_report(
                 "windows-service-execution-readiness",
                 &["elevated-ready"][..],
             ),
-            ("windows-service-install", &["installed"][..]),
+            (
+                "windows-service-install",
+                &["install-command-succeeded"][..],
+            ),
             ("windows-service-start", &["start-requested"][..]),
             (
                 "windows-service-status",
@@ -1592,9 +1595,12 @@ pub fn epiphany_cluster_service_execution_audit_report(
                 "cluster-windows-service-execution-readiness",
                 &["elevated-ready"][..],
             ),
-            ("cluster-windows-service-install", &["installed"][..]),
+            (
+                "cluster-windows-service-install",
+                &["install-command-succeeded"][..],
+            ),
             ("cluster-windows-service-start", &["start-requested"][..]),
-            ("cluster-windows-service-execution-audit", &["complete"][..]),
+            ("cluster-windows-service-audit", &["complete"][..]),
             ("cluster-windows-service-stop", &["stop-requested"][..]),
         ],
     )

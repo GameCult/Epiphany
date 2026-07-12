@@ -474,3 +474,19 @@ passes, and reports that verifier output from the verifier call itself. Idunn's
 receipt now owns only the process consequence it can observe. A future shared
 preflight chain must resolve an immutable typed verifier receipt rather than
 carry testimony across argv.
+
+## Install command success presented as installed state
+
+The Windows service install paths promoted a successful PowerShell exit into
+the lifecycle status `installed`. That command result cannot prove the Service
+Control Manager contains the intended service, start mode, or binary path. Both
+single-service and cluster receipts now say `install-command-succeeded`.
+Installation truth comes from the subsequent SCM status/reconcile or cluster
+audit observations.
+
+The cluster execution audit also required a prior
+`cluster-windows-service-execution-audit: complete` receipt—its own conclusion—
+and its smoke manufactured that verdict. The requirement is now
+`cluster-windows-service-audit: complete`, emitted by actual SCM enumeration.
+The negative smoke corrupts that observed audit and proves the execution audit
+becomes incomplete; a copied prior conclusion has no authority.

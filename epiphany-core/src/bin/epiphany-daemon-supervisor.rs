@@ -1003,7 +1003,7 @@ fn cluster_windows_service_install(args: Args) -> Result<()> {
             stderr = String::from_utf8_lossy(&output.stderr).to_string();
             completed_at = Some(Utc::now());
             status = if output.status.success() {
-                "installed".to_string()
+                "install-command-succeeded".to_string()
             } else {
                 "failed".to_string()
             };
@@ -1364,7 +1364,7 @@ fn windows_service_install(args: Args) -> Result<()> {
             exit_code = output.status.code();
             completed_at = Some(Utc::now());
             status = if output.status.success() {
-                "installed".to_string()
+                "install-command-succeeded".to_string()
             } else {
                 "failed".to_string()
             };
@@ -1659,7 +1659,7 @@ fn windows_service_execution_audit_smoke(args: Args) -> Result<()> {
     for (action, status) in [
         ("windows-service-execution-runbook", "written"),
         ("windows-service-execution-readiness", "elevated-ready"),
-        ("windows-service-install", "installed"),
+        ("windows-service-install", "install-command-succeeded"),
         ("windows-service-start", "start-requested"),
         ("windows-service-status", "stopped"),
         ("windows-service-reconcile", "in-sync"),
@@ -1902,9 +1902,12 @@ fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
             "cluster-windows-service-execution-readiness",
             "elevated-ready",
         ),
-        ("cluster-windows-service-install", "installed"),
+        (
+            "cluster-windows-service-install",
+            "install-command-succeeded",
+        ),
         ("cluster-windows-service-start", "start-requested"),
-        ("cluster-windows-service-execution-audit", "complete"),
+        ("cluster-windows-service-audit", "complete"),
         ("cluster-windows-service-stop", "stop-requested"),
     ] {
         let receipt = service_lifecycle_receipt(
@@ -1944,10 +1947,10 @@ fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
     }
     let incomplete = service_lifecycle_receipt(
         &args,
-        "cluster-windows-service-execution-audit",
+        "cluster-windows-service-audit",
         "incomplete",
         "smoke".to_string(),
-        vec!["cluster-windows-service-execution-audit".to_string()],
+        vec!["cluster-windows-service-audit".to_string()],
         None,
         Some(0),
         started_at,
@@ -3133,7 +3136,7 @@ fn windows_service_install_script_content(
             "}}\n",
             "sc.exe create $serviceName binPath= $binaryPath start= $startType DisplayName= $displayName\n",
             "sc.exe description $serviceName $description\n",
-            "\"installed service=$serviceName start=$startType\"\n"
+            "\"install-command-succeeded service=$serviceName start=$startType\"\n"
         ),
         service_name = quote_powershell(service_name),
         display_name = quote_powershell(&display_name),
