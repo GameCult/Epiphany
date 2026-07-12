@@ -43,8 +43,9 @@ The confirmed conceptual substitutions have been cut:
   Consumers can load persisted provider documents but cannot request seven
   plausible advertisements/surfaces/tools from topology.
 - bootstrap no longer writes default operator status. Only the dedicated
-  operator-status writer publishes it; missing reads are filesystem-pure and
-  the status smoke is fixed beneath `.epiphany-smoke`.
+  operator-status writer was then found to be a dead `ready` template and
+  deleted. Its constructor/writer are test-only; production retains typed
+  reading for genuine observed ingest and source-derived operator snapshots.
 - agent-state SoA sync requires bootstrap; report preserves missing filesystem
   state. The wrapper explicitly composes sync then report rather than hiding a
   refresh inside readback.

@@ -196,11 +196,13 @@ explicit bootstrap as a common preflight, nearly every run refreshed an
 operator observation that no observer had produced.
 
 Bootstrap now writes declaration/initialization state only and leaves operator
-status absent. `epiphany-cultmesh-status write` is the explicit owner of the
-positive operator-status path. The read loader returns `None` without opening
-or creating a missing store, and the `read` CLI therefore reports `missing`
-without filesystem mutation. Its smoke is fixed beneath `.epiphany-smoke` and
-rejects every store override before creation.
+status absent. The follow-up audit showed `epiphany-cultmesh-status write` was
+not an observer: it had no production caller and hard-coded `status=ready` plus
+doctrine fields from a template. The shipped binary is deleted, and its default
+constructor/writer are test-only. The fixed CultMesh smoke no longer fabricates
+operator status; it retains its separate source-JSON-derived operator snapshot
+contract proof. Production keeps the typed operator-status schema and a
+filesystem-pure reader for future genuine observed ingest.
 
 ## Agent-state projection body boundary
 

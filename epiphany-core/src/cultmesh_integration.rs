@@ -2671,6 +2671,7 @@ pub fn load_epiphany_cultmesh_status(
     node.get(EPIPHANY_CULTMESH_STATUS_KEY)
 }
 
+#[cfg(test)]
 pub fn default_epiphany_cultmesh_operator_status(
     runtime_id: impl Into<String>,
     generated_at_utc: impl Into<String>,
@@ -2707,6 +2708,7 @@ pub fn default_epiphany_cultmesh_operator_status(
     }
 }
 
+#[cfg(test)]
 pub fn write_epiphany_cultmesh_operator_status(
     store_path: impl AsRef<Path>,
     status: EpiphanyCultMeshOperatorStatusEntry,

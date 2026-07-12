@@ -370,6 +370,7 @@ pub use cultmesh_integration::EpiphanyLocalVerseContractSummary;
 pub use cultmesh_integration::EpiphanyLocalVerseWorkLoopSummary;
 pub use cultmesh_integration::EpiphanyServiceExecutionAuditCheck;
 pub use cultmesh_integration::EpiphanyServiceExecutionAuditReport;
+#[cfg(test)]
 pub use cultmesh_integration::default_epiphany_cultmesh_operator_status;
 pub use cultmesh_integration::default_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::epiphany_cluster_service_execution_audit_report;
@@ -511,6 +512,7 @@ pub use cultmesh_integration::write_epiphany_cultmesh_mind_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_run_intent;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_run_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_snapshot;
+#[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_status;
 pub use cultmesh_integration::write_epiphany_cultmesh_persona_speech_audit;
 pub use cultmesh_integration::write_epiphany_cultmesh_repo_work_map_entry;

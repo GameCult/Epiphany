@@ -123,9 +123,10 @@
   persisted loaders; only the daemon-ID-bounded publisher may lower templates
   into provider-owned documents.
 - Generic bootstrap owns declarations and initial control state, not operator
-  observation. Operator status remains absent until the dedicated status writer
-  publishes it. Missing reads do not create a CultCache store; status smoke is
-  fixed beneath `.epiphany-smoke`.
+  observation. The template-based operator-status writer binary is deleted and
+  its constructor/writer are test-only. Production retains the typed schema and
+  a filesystem-pure reader for genuinely observed future ingest; operator
+  snapshots remain source-artifact-derived documents.
 - Agent-state SoA sync requires an existing bootstrapped Verse before mirroring
   the persisted agent store. SoA report is filesystem-pure on a missing store.
   Wrapper mode `agent-state-soa` explicitly composes sync then report; the
