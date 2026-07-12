@@ -29,8 +29,10 @@ use epiphany_core::MindGatewayReview;
 use epiphany_core::PersonaMemoryCacheConfig;
 use epiphany_core::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
+use epiphany_core::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION;
 use epiphany_core::RepoWorkMapEntry;
 use epiphany_core::RepoWorkModelingFinding;
+use epiphany_core::RepoWorkModelingRequest;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
@@ -67,6 +69,7 @@ use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_hands_pr_receipt;
 use epiphany_core::put_repo_work_modeling_finding;
+use epiphany_core::put_repo_work_modeling_request;
 use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::record_weksa_target_lowering_receipt;
@@ -77,6 +80,7 @@ use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::runtime_repo_work_map_entry;
 use epiphany_core::runtime_repo_work_modeling_finding;
+use epiphany_core::runtime_repo_work_modeling_request;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
@@ -11475,6 +11479,33 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             declared_changed_paths.join(", ")
         )
     });
+    let modeling_request_id = format!("repo-work-close-{item_slug}-modeling-request");
+    let mut modeling_request = RepoWorkModelingRequest {
+        schema_version: REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+        request_id: modeling_request_id.clone(),
+        item: item.clone(),
+        requester: "self".to_string(),
+        soul_verdict_receipt_id: soul_verdict.receipt_id.clone(),
+        commit_sha: commit_sha.clone(),
+        changed_paths: declared_changed_paths.clone(),
+        instruction: "Model the Soul-verified consequence and return a bounded repo-map finding; do not admit state or route the next action.".to_string(),
+        requested_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        private_state_exposed: false,
+        contract: "Self-to-Modeling request over a passing Soul verdict; Self may route but cannot author the result.".to_string(),
+    };
+    if let Some(existing) =
+        runtime_repo_work_modeling_request(&runtime_store, &modeling_request_id)?
+    {
+        modeling_request.requested_at = existing.requested_at.clone();
+        if modeling_request != existing {
+            return Err(anyhow!(
+                "closure retry conflicts with immutable Modeling request"
+            ));
+        }
+        modeling_request = existing;
+    } else {
+        put_repo_work_modeling_request(&runtime_store, &modeling_request)?;
+    }
     let modeling_finding_receipt_id = format!("repo-work-close-{item_slug}-modeling-finding");
     let mut modeling_finding = RepoWorkModelingFinding {
         schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
@@ -11499,6 +11530,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         emitted_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
         private_state_exposed: false,
         contract: "Modeling interpretation of Soul-verified repo consequence; Mind must reread this typed receipt before map admission.".to_string(),
+        request_id: modeling_request.request_id.clone(),
     };
     if let Some(existing) =
         runtime_repo_work_modeling_finding(&runtime_store, &modeling_finding_receipt_id)?
@@ -11633,6 +11665,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         },
         "closureReview": closure_review,
         "modeling": {
+            "requestId": modeling_request.request_id,
             "findingReceiptId": modeling_finding.receipt_id,
             "summary": modeling_finding.summary,
             "changedPaths": execute_receipt["changedPaths"],
@@ -16240,6 +16273,20 @@ mod authority_tests {
                 contract: "test".to_string(),
             },
         )?;
+        let request = RepoWorkModelingRequest {
+            schema_version: REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+            request_id: "modeling-request-1".to_string(),
+            item: "item-1".to_string(),
+            requester: "self".to_string(),
+            soul_verdict_receipt_id: "soul-1".to_string(),
+            commit_sha: "abc123".to_string(),
+            changed_paths: vec!["README.md".to_string()],
+            instruction: "Model verified consequence.".to_string(),
+            requested_at: "2026-07-12T00:00:01Z".to_string(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+        };
+        put_repo_work_modeling_request(&store, &request)?;
         let mut finding = RepoWorkModelingFinding {
             schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
             receipt_id: "modeling-finding-1".to_string(),
@@ -16254,7 +16301,13 @@ mod authority_tests {
             emitted_at: "2026-07-12T00:00:01Z".to_string(),
             private_state_exposed: true,
             contract: "test".to_string(),
+            request_id: request.request_id.clone(),
         };
+        let mut unsolicited_finding = finding.clone();
+        unsolicited_finding.receipt_id = "unsolicited-modeling-finding".to_string();
+        unsolicited_finding.request_id = "missing-modeling-request".to_string();
+        unsolicited_finding.private_state_exposed = false;
+        assert!(put_repo_work_modeling_finding(&store, &unsolicited_finding).is_err());
         assert!(put_repo_work_modeling_finding(&store, &finding).is_err());
         finding.private_state_exposed = false;
         put_repo_work_modeling_finding(&store, &finding)?;

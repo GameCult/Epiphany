@@ -108,6 +108,16 @@ receipt it stops at `await-modeling`; it cannot invoke closure or manufacture
 Modeling/Mind evidence. `epiphany-work close` requires explicit model
 authorship, model reference, verdict, and finding before it can admit a map.
 Deterministic checks remain Soul evidence, not a substitute for Modeling. The
+verified consequence now crosses an explicit
+`epiphany.modeling.repo_work_request.v0` boundary authored by Self. The request
+is immutable, references the passing Soul receipt, commit, and changed paths,
+and grants Modeling interpretation authority without granting Self authority to
+write the result. A Modeling finding is refused unless it answers that exact
+request and matches its verified consequence. The current close command writes
+both phase documents from explicit CLI cargo; scheduler launch and asynchronous
+result collection remain the next cut.
+
+The
 accepted interpretation is persisted as
 `epiphany.modeling.repo_work_finding.v0`; it references the passing Soul verdict,
 commit, and changed paths. Mind rereads that typed receipt and the admitted repo

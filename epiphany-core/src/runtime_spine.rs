@@ -44,8 +44,11 @@ use crate::modeling_gateway::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
 use crate::modeling_gateway::REPO_WORK_MAP_ENTRY_TYPE;
 use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
 use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_TYPE;
+use crate::modeling_gateway::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION;
+use crate::modeling_gateway::REPO_WORK_MODELING_REQUEST_TYPE;
 use crate::modeling_gateway::RepoWorkMapEntry;
 use crate::modeling_gateway::RepoWorkModelingFinding;
+use crate::modeling_gateway::RepoWorkModelingRequest;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
@@ -730,6 +733,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<MindGatewayReview>()?;
     cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<RepoWorkModelingFinding>()?;
+    cache.register_entry_type::<RepoWorkModelingRequest>()?;
     cache.register_entry_type::<RepoWorkMapEntry>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
@@ -1760,12 +1764,24 @@ pub fn put_repo_work_modeling_finding(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    let request = cache
+        .get::<RepoWorkModelingRequest>(&finding.request_id)?
+        .ok_or_else(|| anyhow!("Modeling finding requires its typed request"))?;
     let soul = cache
         .get::<SoulVerdictReceipt>(&finding.soul_verdict_receipt_id)?
         .ok_or_else(|| anyhow!("Modeling finding requires its Soul verdict receipt"))?;
     if soul.verdict.trim().to_ascii_lowercase() != "passed" {
         return Err(anyhow!(
             "Modeling finding requires a passing Soul verdict receipt"
+        ));
+    }
+    if request.item != finding.item
+        || request.soul_verdict_receipt_id != finding.soul_verdict_receipt_id
+        || request.commit_sha != finding.commit_sha
+        || request.changed_paths != finding.changed_paths
+    {
+        return Err(anyhow!(
+            "Modeling finding does not answer its typed request"
         ));
     }
     if let Some(existing) = cache.get::<RepoWorkModelingFinding>(&finding.receipt_id)? {
@@ -1778,6 +1794,59 @@ pub fn put_repo_work_modeling_finding(
     }
     cache.put(&finding.receipt_id, finding)?;
     Ok(())
+}
+
+pub fn put_repo_work_modeling_request(
+    store_path: impl AsRef<Path>,
+    request: &RepoWorkModelingRequest,
+) -> Result<()> {
+    if request.schema_version != REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported Modeling request schema"));
+    }
+    validate_non_empty(&request.request_id, "Modeling request id")?;
+    validate_non_empty(&request.item, "Modeling request item")?;
+    validate_non_empty(&request.requester, "Modeling request requester")?;
+    validate_non_empty(
+        &request.soul_verdict_receipt_id,
+        "Modeling request Soul verdict receipt id",
+    )?;
+    validate_non_empty(&request.commit_sha, "Modeling request commit sha")?;
+    validate_non_empty(&request.instruction, "Modeling request instruction")?;
+    validate_non_empty(&request.requested_at, "Modeling request timestamp")?;
+    if request.requester != "self" || request.private_state_exposed {
+        return Err(anyhow!(
+            "repo-work Modeling requests must be Self-routed and private-state sealed"
+        ));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let soul = cache
+        .get::<SoulVerdictReceipt>(&request.soul_verdict_receipt_id)?
+        .ok_or_else(|| anyhow!("Modeling request requires its Soul verdict receipt"))?;
+    if soul.verdict.trim().to_ascii_lowercase() != "passed" {
+        return Err(anyhow!("Modeling request requires a passing Soul verdict"));
+    }
+    if let Some(existing) = cache.get::<RepoWorkModelingRequest>(&request.request_id)? {
+        if existing == *request {
+            return Ok(());
+        }
+        return Err(anyhow!(
+            "Modeling request id already belongs to different immutable work"
+        ));
+    }
+    cache.put(&request.request_id, request)?;
+    Ok(())
+}
+
+pub fn runtime_repo_work_modeling_request(
+    store_path: impl AsRef<Path>,
+    request_id: &str,
+) -> Result<Option<RepoWorkModelingRequest>> {
+    validate_non_empty(request_id, "Modeling request id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<RepoWorkModelingRequest>(request_id)
 }
 
 pub fn runtime_repo_work_modeling_finding(
@@ -2458,6 +2527,22 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![
                 "Job results are evidence records; review and acceptance are separate typed flows.",
+            ],
+        ),
+        mutation_contract(
+            REPO_WORK_MODELING_REQUEST_TYPE,
+            REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![REPO_WORK_MODELING_REQUEST_TYPE],
+            vec![REPO_WORK_MODELING_FINDING_TYPE],
+            vec![
+                "Self routes Soul-verified repo consequence to Modeling through this request.",
+                "The request grants no authority to author the Modeling result.",
             ],
         ),
         mutation_contract(

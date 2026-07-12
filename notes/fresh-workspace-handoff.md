@@ -2039,6 +2039,14 @@ returned exit 1 for a conflicting Modeling reinterpretation, and left the
 admitted map byte-for-byte equivalent at the operator projection. Next restore
 autonomous movement by having Self launch/await a real Modeling result at
 `await-modeling`; Self must not regain the ability to synthesize that finding.
+The first nerve is now installed: `RepoWorkModelingRequest` is a typed,
+immutable Self request over the passing Soul receipt, commit, and changed paths,
+and a Modeling finding cannot persist unless it answers the matching request.
+The runtime CultNet contract advertises the request/finding handoff. Authority
+tests prove unsolicited findings are refused; all 248 library tests pass. The
+close command still creates both documents from explicit CLI cargo, so the next
+cut is to split Soul verification from close and let the scheduler route this
+request through the Modeling daemon before immutable closure admission.
 
 ## Immediate Re-entry Instruction
 

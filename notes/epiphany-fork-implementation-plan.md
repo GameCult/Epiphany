@@ -204,7 +204,9 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Audit the live Hands -> Soul -> Modeling -> Mind -> Self loop against the fresh
-repository exit evidence. Identify which required receipt, admission, and
-negative-bypass proofs are current and which are only historical claims; close
-the first missing proof rather than adding another route or summary.
+Split Soul verification from repo-work closure. Let Self emit the existing
+typed, immutable `epiphany.modeling.repo_work_request.v0`, route it to the
+Modeling daemon, and await the matching finding before the existing Mind/map
+admission runs. Prove the fresh-repository path reaches Bifrost while Self
+cannot synthesize Modeling evidence. The request/finding persistence boundary
+and unsolicited-finding refusal already exist; do not add a parallel route.
