@@ -370,9 +370,6 @@ pub use cultmesh_integration::EpiphanyLocalVerseContractSummary;
 pub use cultmesh_integration::EpiphanyLocalVerseWorkLoopSummary;
 pub use cultmesh_integration::EpiphanyServiceExecutionAuditCheck;
 pub use cultmesh_integration::EpiphanyServiceExecutionAuditReport;
-pub use cultmesh_integration::GAMECULT_EVE_PROVIDER_ADVERTISEMENT_SCHEMA_VERSION;
-pub use cultmesh_integration::GAMECULT_EVE_PROVIDER_ADVERTISEMENT_TYPE;
-pub use cultmesh_integration::GameCultEveProviderAdvertisementCompatEntry;
 pub use cultmesh_integration::default_epiphany_cultmesh_operator_status;
 pub use cultmesh_integration::default_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::epiphany_cluster_service_execution_audit_report;
@@ -409,7 +406,6 @@ pub use cultmesh_integration::epiphany_cultmesh_role_review_event_from_summary_j
 pub use cultmesh_integration::epiphany_cultmesh_soul_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_substrate_gate_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_verse_policies;
-pub use cultmesh_integration::epiphany_gamecult_eve_provider_advertisements;
 pub use cultmesh_integration::epiphany_local_verse_work_loop_summary;
 pub use cultmesh_integration::epiphany_service_execution_audit_report;
 pub use cultmesh_integration::load_epiphany_cultmesh_cluster_topology;

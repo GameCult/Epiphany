@@ -18,7 +18,6 @@ use cultmesh_rs::CultMeshNodeOptions;
 use cultmesh_rs::cultmesh_documents;
 use serde::Serialize;
 use serde_json::Value;
-use serde_json::json;
 use std::path::Path;
 
 pub const EPIPHANY_CULTMESH_STATUS_TYPE: &str = "epiphany.cultmesh.status";
@@ -113,9 +112,6 @@ pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION: &str =
 pub const EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE: &str = "epiphany.cultmesh.odin_advertisement";
 pub const EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.odin_advertisement.v0";
-pub const GAMECULT_EVE_PROVIDER_ADVERTISEMENT_TYPE: &str = "gamecult.eve.provider_advertisement";
-pub const GAMECULT_EVE_PROVIDER_ADVERTISEMENT_SCHEMA_VERSION: &str =
-    "gamecult.eve.provider_advertisement.v1";
 pub const EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE: &str =
     "epiphany.cultmesh.eve_connection_intent";
 pub const EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION: &str =
@@ -1146,16 +1142,6 @@ pub struct EpiphanyCultMeshOdinAdvertisementEntry {
     pub private_state_exposed: bool,
     #[cultcache(key = 12)]
     pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "gamecult.eve.provider_advertisement",
-    schema = "gamecult.eve.provider_advertisement.v1"
-)]
-pub struct GameCultEveProviderAdvertisementCompatEntry {
-    #[cultcache(key = 0)]
-    pub value: Value,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -2619,7 +2605,6 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
     EpiphanyCultMeshOdinAdvertisementEntry => EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION,
-    GameCultEveProviderAdvertisementCompatEntry => GAMECULT_EVE_PROVIDER_ADVERTISEMENT_SCHEMA_VERSION,
     EpiphanyCultMeshEveConnectionIntentEntry => EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshEveConnectionReceiptEntry => EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshEveSurfaceStateEntry => EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION,
@@ -6589,73 +6574,6 @@ pub fn epiphany_cultmesh_odin_advertisements() -> Vec<EpiphanyCultMeshOdinAdvert
                 "Peers may use the Eve surface hint to request collaboration through CultMesh contracts.".to_string(),
                 "Mind and Substrate Gate still review adoption, state mutation, and repo access.".to_string(),
             ],
-        })
-        .collect()
-}
-
-pub fn epiphany_gamecult_eve_provider_advertisements(
-    updated_at: impl Into<String>,
-) -> Vec<(String, GameCultEveProviderAdvertisementCompatEntry)> {
-    let updated_at = updated_at.into();
-    epiphany_cultmesh_odin_advertisements()
-        .into_iter()
-        .map(|advertisement| {
-            let provider_id = format!("epiphany.{}", advertisement.cluster_id);
-            let provider = GameCultEveProviderAdvertisementCompatEntry {
-                value: json!({
-                    "schema": GAMECULT_EVE_PROVIDER_ADVERTISEMENT_SCHEMA_VERSION,
-                    "providerId": provider_id,
-                    "serviceId": "epiphany.agent",
-                    "verseId": advertisement.advertised_verse_id,
-                    "title": format!("Epiphany {}", advertisement.body_kind),
-                    "description": advertisement.public_summary,
-                    "canonicalService": "gamecult.epiphany",
-                    "locatedService": format!("gamecult.epiphany.{}", advertisement.body_kind),
-                    "cultMeshAddress": advertisement.eve_surface_id,
-                    "status": "active",
-                    "mode": "daemon-live",
-                    "updatedAt": updated_at,
-                    "bodyDomain": advertisement.body_domain,
-                    "bodyKind": advertisement.body_kind,
-                    "clusterId": advertisement.cluster_id,
-                    "daemonSurfaceId": advertisement.daemon_surface_id,
-                    "surfaceId": advertisement.eve_surface_id,
-                    "privateStateExposed": advertisement.private_state_exposed,
-                    "capabilities": [
-                        "epiphany-agent-state",
-                        "cultmesh-local-verse",
-                        "eve-surface-target",
-                        "repo-work-coordination",
-                        "operator-safe-discovery"
-                    ],
-                    "endpoints": [
-                        {
-                            "transport": "cultmesh-local-verse",
-                            "address": ".epiphany-run/cultmesh/local-verse.ccmp"
-                        }
-                    ],
-                    "routes": [
-                        {
-                            "transport": "repo-cli",
-                            "address": "cargo run --manifest-path epiphany-core/Cargo.toml --bin epiphany-verse-query -- eve-surfaces",
-                            "role": "eve-surface-directory"
-                        },
-                        {
-                            "transport": "repo-cli",
-                            "address": "cargo run --manifest-path epiphany-core/Cargo.toml --bin epiphany-verse-query -- publish-odin --odin-cultmesh-rudp <host:port>",
-                            "role": "provider-advertisement"
-                        }
-                    ],
-                    "schemaCatalog": advertisement.advertised_document_types.iter().map(|schema_id| {
-                        json!({
-                            "schemaId": schema_id,
-                            "authority": "Epiphany"
-                        })
-                    }).collect::<Vec<_>>(),
-                    "notes": advertisement.notes,
-                }),
-            };
-            (provider_id, provider)
         })
         .collect()
 }

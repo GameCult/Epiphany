@@ -86,6 +86,10 @@
   organ contracts, and operator status only. It does not publish Odin provider
   advertisements, Eve surfaces, or daemon-hosted tools. Those families require
   provider publication; discovery preserves their absence.
+- The generic Verse query CLI has no provider-advertisement preview or Odin
+  publication command. Provider bodies must publish their own discovery state;
+  central declared topology cannot be lowered into `active`/`daemon-live`
+  compatibility presence.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

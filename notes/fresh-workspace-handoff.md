@@ -16,6 +16,8 @@ The confirmed conceptual substitutions have been cut:
 - synthetic receipt smokes are confined beneath `.epiphany-smoke`.
 - generic local Verse bootstrap no longer publishes provider advertisements,
   Eve surfaces, or hosted tools; provider absence survives bootstrap.
+- the central `provider-advertisements` / `publish-odin` compatibility mouth is
+  deleted; only provider-owned bodies may publish presence to Odin.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

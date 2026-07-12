@@ -94,3 +94,18 @@ publication path writes them. The quarantined `epiphany-verse-query smoke`
 fixture seeds those three families explicitly inside its fixed disposable body.
 Focused negative proof asserts that a clean bootstrap leaves all three provider
 families empty.
+
+## Central Odin publisher deletion
+
+The bootstrap split exposed a second surviving writer: the generic
+`epiphany-verse-query publish-odin` command generated seven compatibility
+advertisements from declared topology, hard-coded them as `active` and
+`daemon-live`, and published them to an arbitrary Odin RUDP catalog. No daemon
+or provider participated. The adjacent `provider-advertisements` preview
+presented the same invented presence without publishing it.
+
+Both commands and the compatibility schema/builder are deleted. The generic
+query CLI has no Odin network publication capability. Provider discovery must
+remain empty until provider-owned bodies publish evidence of their own
+presence; a future provider publisher must live at that provider boundary and
+derive status from its runtime, not from central topology.
