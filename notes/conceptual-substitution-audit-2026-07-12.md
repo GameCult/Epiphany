@@ -251,3 +251,16 @@ boundary owns them. The aggregate Verse smoke now proves the honest pending
 state: requester intent present, provider receipt absent. The typed response
 schema and reader remain as the wire/ingest contract; they grant no local
 response authorship.
+
+## Orphaned daemon-tool response authority
+
+Daemon-tool intents were requester-only in production, but the response
+constructor/writer remained publicly exported with no host-daemon caller. The
+aggregate smoke was the sole shipped writer and fabricated an accepted Hands
+result so receipt-directory presentation could look complete.
+
+Response construction, validation, persistence, and keying are now test-only.
+The smoke persists the requester intent, requires the host receipt to remain
+absent, and verifies the directory reports a missing response. The typed schema
+and reader remain the host-daemon/ingest contract; no shipped generic CLI can
+author the daemon's answer.

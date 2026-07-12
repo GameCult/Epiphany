@@ -4125,6 +4125,7 @@ pub fn epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
     }
 }
 
+#[cfg(test)]
 pub fn epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent(
     receipt_id: impl Into<String>,
     intent: &EpiphanyCultMeshDaemonToolInvocationIntentEntry,
@@ -4193,6 +4194,7 @@ fn validate_daemon_tool_invocation_intent(
     Ok(())
 }
 
+#[cfg(test)]
 fn validate_daemon_tool_invocation_receipt(
     receipt: &EpiphanyCultMeshDaemonToolInvocationReceiptEntry,
 ) -> Result<()> {
@@ -4245,6 +4247,7 @@ pub fn write_epiphany_cultmesh_daemon_tool_invocation_intent(
     Ok(written)
 }
 
+#[cfg(test)]
 pub fn write_epiphany_cultmesh_daemon_tool_invocation_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -6227,6 +6230,7 @@ fn epiphany_cultmesh_idunn_aftercare_audit_receipt_ref_key(receipt_ref: &str) ->
     }
 }
 
+#[cfg(test)]
 fn epiphany_cultmesh_daemon_tool_invocation_receipt_key(receipt_id: &str) -> String {
     format!("epiphany-local/daemon-tool-invocation-receipt/{receipt_id}")
 }

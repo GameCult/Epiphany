@@ -391,6 +391,7 @@ pub use cultmesh_integration::epiphany_cultmesh_daemon_statuses;
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_from_status_json;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
+#[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
 pub use cultmesh_integration::epiphany_cultmesh_eve_connection_intent_from_advertisement;
 #[cfg(test)]
@@ -490,6 +491,7 @@ pub use cultmesh_integration::write_epiphany_cultmesh_daemon_status;
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_statuses;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_intent;
+#[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_eve_connection_intent;
 #[cfg(test)]

@@ -43,7 +43,6 @@ use epiphany_core::epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
-use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
 use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_agent_state_soa_entry;
@@ -95,7 +94,6 @@ use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
-use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::write_epiphany_cultmesh_swarm_brake;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
@@ -1805,24 +1803,13 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 tool_intent.clone(),
             )?;
-            let tool_receipt = epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent(
-                "daemon-tool-receipt-smoke",
-                &tool_intent,
-                "accepted-for-hands-review",
-                hands_repo_action.receipt_contract_type.clone(),
-                "cultmesh://epiphany-local/hands-action-review/smoke",
-                "Hands accepted the globally discoverable tool invocation for typed review.",
-            );
-            write_epiphany_cultmesh_daemon_tool_invocation_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                tool_receipt,
-            )?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             if context.latest_daemon_tool_invocation_intent.is_none()
-                || context.latest_daemon_tool_invocation_receipt.is_none()
+                || context.latest_daemon_tool_invocation_receipt.is_some()
             {
-                anyhow::bail!("local Verse query smoke lost daemon tool invocation intent/receipt");
+                anyhow::bail!(
+                    "local Verse query smoke lost daemon tool intent or manufactured a host receipt"
+                );
             }
             let persona_cluster = cluster_topology_for_id(&context, "epiphany.cluster.persona")?;
             let hands_cluster = cluster_topology_for_id(&context, "epiphany.cluster.hands")?;
@@ -2677,7 +2664,8 @@ fn run_cli() -> Result<()> {
                 || receipt_directory.artifact_missing_count != 0
                 || !receipt_directory.rows.iter().any(|row| {
                     row.family == "daemon-tool"
-                        && row.latest_id == "daemon-tool-receipt-smoke"
+                        && !row.present
+                        && row.latest_id == "missing"
                         && row.follow_up_command == WRAPPER_INVOKE_TOOL_COMMAND
                 })
                 || !receipt_directory.rows.iter().any(|row| {

@@ -11,6 +11,10 @@ Inventory every production call to `write_*receipt`, then ask whether the execut
   `epiphany-eve-provider` accepted caller-supplied provider identity and status,
   so it was deleted; constructor/writer are test-only pending a real provider
   daemon or authenticated ingest boundary.
+- Daemon-tool invocation receipt: no production local writer. The aggregate
+  smoke was the only shipped caller and manufactured host acceptance; response
+  constructor/writer/validator/key are test-only pending a real host-daemon or
+  authenticated ingest boundary.
 - `epiphany-operator-run`: owner-aligned for operator-run receipts and coordinator receipts derived from the run it executes.
 - smoke binaries and the `epiphany-verse-query smoke` arm: fixtures, not runtime evidence. They remain a quarantine risk if permitted to target canonical stores.
 - `epiphany-work` Weksa lowering: a lowering projection receipt, explicitly non-publication authority; no substitution confirmed in this pass.

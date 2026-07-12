@@ -57,6 +57,9 @@ The confirmed conceptual substitutions have been cut:
   identity/status was not provider participation. Eve requests remain pending;
   local response construction/writing is test-only until a real target daemon
   or authenticated ingest boundary owns the receipt.
+- daemon-tool response construction/writing is also test-only. No shipped host
+  daemon currently responds; the aggregate smoke proves a pending intent and a
+  missing host receipt rather than fabricating Hands acceptance.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
