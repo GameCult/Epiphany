@@ -1903,7 +1903,11 @@ app-server's `legacy_epiphany_rollout` quarantine module owns historical parsing
 and its latest-surviving/rollback tests; `codex-core` has no parser module or
 export and treats the legacy rollout variant as inert. Next remove the two
 Epiphany-named `CodexThread` convenience methods by deriving compatibility paths
-and reference context at the app-server boundary.
+and reference context at the app-server boundary. That cut is complete:
+app-server derives runtime-spine paths from generic config snapshots and uses
+generic `reference_turn_id`; `CodexThread` exposes no `epiphany_*` async API.
+Next audit the broad Epiphany re-export slab in `codex-protocol` and make
+compatibility code import native state contracts directly where possible.
 
 ## Immediate Re-entry Instruction
 

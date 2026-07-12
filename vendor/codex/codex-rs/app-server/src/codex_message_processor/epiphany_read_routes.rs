@@ -3,6 +3,7 @@ use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use super::epiphany_thread_host::load_authoritative_epiphany_state;
+use super::epiphany_thread_host::runtime_spine_store_path;
 use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -126,7 +127,7 @@ impl CodexMessageProcessor {
         };
         let runtime_store_path = if core_epiphany_view_needs_runtime_store(&lenses) {
             if let Some(loaded_thread) = loaded_thread.as_ref() {
-                Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+                Some(runtime_spine_store_path(loaded_thread).await)
             } else {
                 None
             }
@@ -206,7 +207,7 @@ impl CodexMessageProcessor {
         }
 
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+            Some(runtime_spine_store_path(loaded_thread).await)
         } else {
             None
         };
@@ -398,7 +399,7 @@ impl CodexMessageProcessor {
             EpiphanySurfaceSource::Stored
         };
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+            Some(runtime_spine_store_path(loaded_thread).await)
         } else {
             None
         };

@@ -315,21 +315,12 @@ impl CodexThread {
         self.codex.thread_config_snapshot().await
     }
 
-    pub async fn epiphany_reference_turn_id(&self) -> Option<String> {
+    pub async fn reference_turn_id(&self) -> Option<String> {
         self.codex
             .session
             .reference_context_item()
             .await
             .and_then(|item| item.turn_id)
-    }
-
-    pub async fn epiphany_runtime_spine_store_path(&self) -> PathBuf {
-        self.config_snapshot()
-            .await
-            .cwd
-            .join("state")
-            .join("runtime-spine.msgpack")
-            .to_path_buf()
     }
 
     pub async fn codex_home(&self) -> PathBuf {

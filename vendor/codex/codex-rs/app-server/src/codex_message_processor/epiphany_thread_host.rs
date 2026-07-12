@@ -28,7 +28,7 @@ impl EpiphanyMutationHost for EpiphanyCodexThreadHost<'_> {
     }
 
     async fn epiphany_state(&self) -> Option<EpiphanyThreadState> {
-        let store = self.thread.epiphany_runtime_spine_store_path().await;
+        let store = runtime_spine_store_path(self.thread).await;
         match load_authoritative_accepted_state(&store) {
             Ok(Some(state)) => Some(state),
             Ok(None) => load_legacy_rollout_state(self.thread).await,
@@ -40,11 +40,11 @@ impl EpiphanyMutationHost for EpiphanyCodexThreadHost<'_> {
     }
 
     async fn epiphany_reference_turn_id(&self) -> Option<String> {
-        self.thread.epiphany_reference_turn_id().await
+        self.thread.reference_turn_id().await
     }
 
     async fn epiphany_runtime_spine_store_path(&self) -> std::path::PathBuf {
-        self.thread.epiphany_runtime_spine_store_path().await
+        runtime_spine_store_path(self.thread).await
     }
 
     async fn client_visible_epiphany_state(
@@ -95,7 +95,7 @@ pub(super) async fn live_thread_epiphany_state(
 pub(super) async fn load_authoritative_epiphany_state(
     thread: &CodexThread,
 ) -> Option<EpiphanyThreadState> {
-    let store = thread.epiphany_runtime_spine_store_path().await;
+    let store = runtime_spine_store_path(thread).await;
     match load_authoritative_accepted_state(&store) {
         Ok(Some(state)) => Some(state),
         Ok(None) => load_legacy_rollout_state(thread).await,
@@ -104,6 +104,16 @@ pub(super) async fn load_authoritative_epiphany_state(
             None
         }
     }
+}
+
+pub(super) async fn runtime_spine_store_path(thread: &CodexThread) -> std::path::PathBuf {
+    thread
+        .config_snapshot()
+        .await
+        .cwd
+        .join("state")
+        .join("runtime-spine.msgpack")
+        .to_path_buf()
 }
 
 async fn load_legacy_rollout_state(thread: &CodexThread) -> Option<EpiphanyThreadState> {

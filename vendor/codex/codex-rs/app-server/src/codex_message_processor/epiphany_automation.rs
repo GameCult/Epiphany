@@ -27,6 +27,7 @@ use super::epiphany_thread_host::EpiphanyCodexThreadHost;
 use super::epiphany_thread_host::client_visible_live_thread_epiphany_state;
 use super::epiphany_thread_host::epiphany_token_usage_snapshot;
 use super::epiphany_thread_host::load_authoritative_epiphany_state;
+use super::epiphany_thread_host::runtime_spine_store_path;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::thread_state::ThreadState;
 
@@ -54,7 +55,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         .await;
     let token_usage_info = thread.token_usage_info().await;
     let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
-    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+    let runtime_store_path = runtime_spine_store_path(&thread).await;
 
     let verdict = select_epiphany_coordinator_automation(EpiphanyCoordinatorAutomationInput {
         thread_id: &thread_id_text,

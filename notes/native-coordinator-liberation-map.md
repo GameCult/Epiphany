@@ -299,3 +299,9 @@ where two migration tests prove latest-surviving selection and rollback
 rejection. `codex-core` no longer declares or exports an Epiphany rollout
 parser. The legacy `RolloutItem` variant remains readable so old files do not
 become undecodable, but normal core reconstruction treats it as inert cargo.
+
+`CodexThread` is now generic again at the remaining host seam. Its
+Epiphany-named reference-turn and runtime-spine-path helpers are deleted;
+app-server derives the compatibility store path from the generic config
+snapshot and calls a generic `reference_turn_id` accessor. The core source guard
+rejects any `pub async fn epiphany_*` API on `CodexThread`.

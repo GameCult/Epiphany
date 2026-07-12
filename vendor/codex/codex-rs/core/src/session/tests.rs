@@ -158,6 +158,7 @@ fn codex_session_has_no_epiphany_state_custody() {
     assert!(!session.contains("set_epiphany_state"));
     assert!(!session.contains("async fn epiphany_state"));
     assert!(!codex_thread.contains("async fn epiphany_state"));
+    assert!(!codex_thread.contains("pub async fn epiphany_"));
     assert!(!core_lib.contains("epiphany_rollout"));
 }
 
