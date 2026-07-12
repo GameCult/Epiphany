@@ -45,7 +45,6 @@ use epiphany_core::load_latest_epiphany_cultmesh_bifrost_metrics_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
-use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
@@ -9894,6 +9893,15 @@ fn write_poke_receipts_for_non_ready_daemons(
 }
 
 fn run_invoke_tool_command(args: &Args) -> Result<()> {
+    if args.receipt_id.is_some()
+        || args.receipt_status.is_some()
+        || args.result_ref.is_some()
+        || args.receipt_summary.is_some()
+    {
+        anyhow::bail!(
+            "invoke-tool accepts requester intent fields only; the host daemon owns receipt status, result references, and result summaries"
+        );
+    }
     seed_epiphany_local_verse_context(
         &args.store,
         args.runtime_id.clone(),
@@ -9916,7 +9924,6 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         &capability.host_cluster_id,
         &capability.host_daemon_id,
     )?;
-    assert_daemon_ready_for_tool_invocation(daemon_status, capability)?;
     let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
     let requesting_agent_id = args
         .requesting_agent_id
@@ -9931,10 +9938,6 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         .intent_id
         .clone()
         .unwrap_or_else(|| format!("daemon-tool-intent-{}", capability.tool_name));
-    let receipt_id = args
-        .receipt_id
-        .clone()
-        .unwrap_or_else(|| format!("daemon-tool-receipt-{}", capability.tool_name));
     let payload_ref = args
         .invocation_ref
         .clone()
@@ -9958,46 +9961,14 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         args.runtime_id.clone(),
         intent.clone(),
     )?;
-    let receipt_status = args
-        .receipt_status
-        .clone()
-        .unwrap_or_else(|| default_daemon_tool_receipt_status(capability));
-    let result_ref = args
-        .result_ref
-        .clone()
-        .unwrap_or_else(|| default_daemon_tool_result_ref(capability, &receipt_id));
-    let result_summary = args
-        .receipt_summary
-        .clone()
-        .unwrap_or_else(|| default_daemon_tool_result_summary(capability, &requesting_agent_id));
-    let receipt = epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent(
-        receipt_id,
-        &intent,
-        receipt_status,
-        capability.receipt_contract_type.clone(),
-        result_ref,
-        result_summary,
-    );
-    let written_receipt = write_epiphany_cultmesh_daemon_tool_invocation_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
     let latest_intent = load_latest_epiphany_cultmesh_daemon_tool_invocation_intent(
         &args.store,
         args.runtime_id.clone(),
     )?
     .context("local Verse lost latest daemon tool invocation intent after write")?;
-    let latest_receipt = load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .context("local Verse lost latest daemon tool invocation receipt after write")?;
-    if latest_intent.intent_id != written_intent.intent_id
-        || latest_receipt.receipt_id != written_receipt.receipt_id
-    {
+    if latest_intent.intent_id != written_intent.intent_id {
         anyhow::bail!(
-            "local Verse latest daemon tool invocation does not match the just-written intent/receipt"
+            "local Verse latest daemon tool invocation does not match the just-written intent"
         );
     }
     let requesting_cluster =
@@ -10006,93 +9977,8 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
         .iter()
         .find(|cluster| cluster.cluster_id == written_intent.host_cluster_id)
         .unwrap_or(host_cluster_from_directory);
-    let (service_health_readback, service_health_readback_private_state_exposed) =
-        if is_service_health_capability(capability) {
-            service_health_readback_from_idunn(args)?
-        } else {
-            (serde_json::Value::Null, false)
-        };
-    let (swarm_online_runbook_readback, swarm_online_runbook_readback_private_state_exposed) =
-        if is_swarm_online_runbook_capability(capability) {
-            swarm_online_runbook_readback_from_idunn(args)?
-        } else {
-            (serde_json::Value::Null, false)
-        };
-    let (service_policy_directory_readback, service_policy_directory_private_state_exposed) =
-        if is_service_policy_directory_capability(capability) {
-            service_policy_directory_readback_from_idunn(args)?
-        } else {
-            (serde_json::Value::Null, false)
-        };
-    let (daemon_status_readback, daemon_status_readback_private_state_exposed) =
-        if is_daemon_status_capability(capability) {
-            let host_capabilities = tool_directory
-                .iter()
-                .map(|(_cluster, _status, capability)| capability.clone())
-                .collect::<Vec<_>>();
-            daemon_status_readback_from_host(host_cluster, daemon_status, &host_capabilities)
-        } else {
-            (serde_json::Value::Null, false)
-        };
-    let (eve_connection_readback, eve_connection_readback_private_state_exposed) =
-        if is_eve_connect_capability(capability) {
-            let surface_directory =
-                load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-            let (target_cluster, target_advertisement, target_surface) = surface_directory
-                .iter()
-                .find(|(cluster, _advertisement, _surface)| {
-                    cluster.cluster_id == capability.host_cluster_id
-                })
-                .context("local Verse lost Eve surface for eve-connect capability host")?;
-            let (_latest_repo_work_overview, repo_work_overviews) =
-                load_repo_work_overview_queue(args)?;
-            eve_connection_readback_from_host(
-                target_cluster,
-                target_advertisement,
-                target_surface,
-                capability,
-                &repo_work_overviews,
-            )
-        } else {
-            (serde_json::Value::Null, false)
-        };
-    let (authority_tool_readback, authority_tool_readback_private_state_exposed) =
-        if is_authority_tool_capability(capability) {
-            authority_tool_readback_from_capability(host_cluster, capability)
-        } else {
-            (serde_json::Value::Null, false)
-        };
-    let private_state_exposed = written_receipt.private_state_exposed
-        || service_health_readback_private_state_exposed
-        || swarm_online_runbook_readback_private_state_exposed
-        || service_policy_directory_private_state_exposed
-        || daemon_status_readback_private_state_exposed
-        || eve_connection_readback_private_state_exposed
-        || authority_tool_readback_private_state_exposed;
-    let invocation_tui_row = daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
-        requester: &requesting_cluster.display_name,
-        requesting_agent_id: &written_intent.requesting_agent_id,
-        requesting_private_verse: &requesting_cluster.private_verse_id,
-        requesting_surface: &requesting_cluster.eve_surface_id,
-        host: &host_cluster.display_name,
-        host_daemon_id: &written_intent.host_daemon_id,
-        host_private_verse: &host_cluster.private_verse_id,
-        host_surface: &host_cluster.eve_surface_id,
-        capability_id: &written_intent.capability_id,
-        tool_name: &written_intent.tool_name,
-        operation: &written_intent.operation,
-        intent_id: &written_intent.intent_id,
-        receipt_id: &written_receipt.receipt_id,
-        receipt_status: &written_receipt.status,
-        receipt_contract_type: &written_receipt.receipt_contract_type,
-        result_ref: &written_receipt.result_ref,
-        authority_gate: &written_intent.authority_gate,
-        all_agents: capability.available_to_all_agents,
-        requires_receipt: written_intent.requires_receipt,
-        private_state_exposed,
-    });
-    let mut output = json!({
-            "status": "ok",
+    let output = json!({
+            "status": "pending-provider",
             "store": args.store,
             "runtimeId": args.runtime_id,
             "capabilityId": written_intent.capability_id,
@@ -10111,61 +9997,19 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "toolName": written_intent.tool_name,
             "operation": written_intent.operation,
             "intentId": written_intent.intent_id,
-            "receiptId": written_receipt.receipt_id,
-            "receiptStatus": written_receipt.status,
-            "receiptContractType": written_receipt.receipt_contract_type,
-            "resultRef": written_receipt.result_ref,
-            "resultSummary": written_receipt.result_summary,
+            "receiptId": null,
+            "receiptStatus": null,
+            "receiptContractType": capability.receipt_contract_type,
+            "resultRef": null,
+            "resultSummary": null,
+            "responseOwner": written_intent.host_daemon_id,
+            "observedHostStatus": daemon_status.status,
             "availableToAllAgents": capability.available_to_all_agents,
             "requiresReceipt": written_intent.requires_receipt,
             "authorityGate": written_intent.authority_gate,
             "privateStateRequested": written_intent.private_state_requested,
-            "privateStateExposed": private_state_exposed,
+            "privateStateExposed": false,
     });
-    let output_map = output
-        .as_object_mut()
-        .context("daemon tool invocation output must be a JSON object")?;
-    output_map.insert("daemonStatusReadback".to_string(), daemon_status_readback);
-    output_map.insert(
-        "daemonStatusReadbackPrivateStateExposed".to_string(),
-        json!(daemon_status_readback_private_state_exposed),
-    );
-    output_map.insert("eveConnectionReadback".to_string(), eve_connection_readback);
-    output_map.insert(
-        "eveConnectionReadbackPrivateStateExposed".to_string(),
-        json!(eve_connection_readback_private_state_exposed),
-    );
-    output_map.insert("authorityToolReadback".to_string(), authority_tool_readback);
-    output_map.insert(
-        "authorityToolReadbackPrivateStateExposed".to_string(),
-        json!(authority_tool_readback_private_state_exposed),
-    );
-    output_map.insert("serviceHealthReadback".to_string(), service_health_readback);
-    output_map.insert(
-        "serviceHealthReadbackPrivateStateExposed".to_string(),
-        json!(service_health_readback_private_state_exposed),
-    );
-    output_map.insert(
-        "swarmOnlineRunbookReadback".to_string(),
-        swarm_online_runbook_readback,
-    );
-    output_map.insert(
-        "swarmOnlineRunbookReadbackPrivateStateExposed".to_string(),
-        json!(swarm_online_runbook_readback_private_state_exposed),
-    );
-    output_map.insert(
-        "servicePolicyDirectoryReadback".to_string(),
-        service_policy_directory_readback,
-    );
-    output_map.insert(
-        "servicePolicyDirectoryReadbackPrivateStateExposed".to_string(),
-        json!(service_policy_directory_private_state_exposed),
-    );
-    output_map.insert(
-        "invocationRows".to_string(),
-        json!([invocation_tui_row.clone()]),
-    );
-    output_map.insert("tuiRows".to_string(), json!([invocation_tui_row]));
     println!("{}", serde_json::to_string_pretty(&output)?);
     Ok(())
 }
@@ -10487,35 +10331,6 @@ fn swarm_online_runbook_readback_from_idunn(args: &Args) -> Result<(serde_json::
     ))
 }
 
-fn service_policy_directory_readback_from_idunn(args: &Args) -> Result<(serde_json::Value, bool)> {
-    let policy_directory = load_epiphany_cultmesh_daemon_restart_policy_directory(
-        &args.store,
-        args.runtime_id.clone(),
-    )?;
-    let report = daemon_restart_policy_directory_report_from_rows(&policy_directory);
-    Ok((
-        json!({
-            "status": report.status,
-            "lifecycleOwner": report.lifecycle_owner,
-            "hostedBody": report.hosted_body,
-            "daemonCount": report.rows.len(),
-            "coveredCount": report.covered_count,
-            "enabledCount": report.enabled_count,
-            "disabledCount": report.disabled_count,
-            "missingCount": report.missing_count,
-            "attentionCount": report.attention_count,
-            "policyCommand": "epiphany-daemon-supervisor policy --daemon-id <daemon> --restart-command <exe> [--restart-arg <arg>...]",
-            "wrapperPolicyDirectory": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
-            "tickCommand": "epiphany-daemon-supervisor tick",
-            "wrapperTick": WRAPPER_SERVICE_TICK_COMMAND,
-            "policyRows": report.rows,
-            "policyTuiRows": report.tui_rows,
-            "privateStateExposed": report.private_state_exposed,
-        }),
-        report.private_state_exposed,
-    ))
-}
-
 fn default_daemon_tool_result_ref(
     capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
     receipt_id: &str,
@@ -10543,48 +10358,6 @@ fn default_daemon_tool_result_ref(
         )
     } else {
         format!("cultmesh://epiphany-local/tool-receipt/{receipt_id}")
-    }
-}
-
-fn default_daemon_tool_result_summary(
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-    requesting_agent_id: &str,
-) -> String {
-    if is_service_health_capability(capability) {
-        format!(
-            "{requesting_agent_id} requested service health; {} accepted typed routing to daemon service lifecycle readback via epiphany-verse-query receipt-directory or {}.",
-            capability.host_daemon_id, WRAPPER_RECEIPT_DIRECTORY_COMMAND
-        )
-    } else if is_swarm_online_runbook_capability(capability) {
-        format!(
-            "{requesting_agent_id} requested Idunn swarm online runbook handoff; {} returned compact preflight/readback for {} without executing elevated service control.",
-            capability.host_daemon_id, WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND
-        )
-    } else if is_service_policy_directory_capability(capability) {
-        format!(
-            "{requesting_agent_id} requested Idunn scheduler policy coverage; {} returned compact restart-policy directory readback for {} without executing service control.",
-            capability.host_daemon_id, WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND
-        )
-    } else if is_daemon_status_capability(capability) {
-        format!(
-            "{requesting_agent_id} requested daemon status; {} returned compact topology/liveness/tool readback through the daemon tool bus.",
-            capability.host_daemon_id
-        )
-    } else if is_eve_connect_capability(capability) {
-        format!(
-            "{requesting_agent_id} requested Eve surface connection readback; {} returned compact CultMesh surface routing for {}.",
-            capability.host_daemon_id, capability.host_cluster_id
-        )
-    } else if is_authority_tool_capability(capability) {
-        format!(
-            "{requesting_agent_id} requested authority contract readback; {} returned the {} input/receipt contract for {}.",
-            capability.host_daemon_id, capability.authority_gate, capability.tool_name
-        )
-    } else {
-        format!(
-            "{} accepted typed invocation routing for {}.",
-            capability.host_daemon_id, capability.tool_name
-        )
     }
 }
 

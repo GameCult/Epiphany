@@ -8,6 +8,10 @@ The conceptual-substitution audit found observation manufacturing the body it cl
 
 `epiphany-verse-query bifrost-publication` and its wrapper now submit only `gamecult.bifrost.body_change_publication_intent`. The requester can describe the body change, evidence, review, authorship, and credit subjects; it can no longer supply a Bifrost ledger result, Hands PR receipt, GitHub receipt, commit, PR number, or publication URL and have the local CLI bless them. Output is `pending-bifrost` with null response receipt ids. A physical CultCache proof shows the intent row open while both Bifrost publication and GitHub publication receipts remain absent. Ledger intent rows name the requesting agent as author; Bifrost remains the response lane owner. Next apply this ownership split to tool invocation, Eve connection, daemon poke, and the remaining Bifrost accounting commands.
 
+## 2026-07-12 daemon tool requester/provider split
+
+`invoke-tool` and wrapper mode `tool-invoke` now write only `epiphany.cultmesh.daemon_tool_invocation_intent`. They return `pending-provider`, name the host daemon as `responseOwner`, expose its observed status without promoting it, and leave receipt/result fields null. A request may queue while the host is `unknown`; readiness is daemon-authored state, not a prerequisite the requester may synthesize. Caller-supplied receipt ids/status, result refs, and result summaries are rejected. The former local service-health, runbook, policy, daemon-status, Eve, and authority readback execution was removed from the request path. Physical proof shows a persisted request accepted against an unknown host, no provider receipt, and rejection of counterfeit accepted/result fields.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

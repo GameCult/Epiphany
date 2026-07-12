@@ -63,7 +63,6 @@ param(
     [string]$ToolRequestingClusterId = "epiphany.cluster.persona",
     [string]$ToolInvocationReason = "",
     [string]$ToolIntentId = "",
-    [string]$ToolReceiptId = "",
     [int]$RepoWorkMaxItems = 1,
     [int]$RepoSwarmMaxIterations = 8,
     [string]$RepoSwarmUntil = "blocked-or-published",
@@ -1262,11 +1261,8 @@ if ($Mode -eq "tool-invoke") {
     if ($ToolIntentId -ne "") {
         $toolInvokeArgs += @("--intent-id", $ToolIntentId)
     }
-    if ($ToolReceiptId -ne "") {
-        $toolInvokeArgs += @("--receipt-id", $ToolReceiptId)
-    }
     Invoke-Checked `
-        -Label "record daemon tool invocation receipt" `
+        -Label "submit daemon tool invocation intent" `
         -FilePath $verseQueryExe `
         -Arguments $toolInvokeArgs `
         -WorkingDirectory $Root `
@@ -2932,39 +2928,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             }
             Write-Host "Tool directory: status=$($result.status), tools=$($result.toolCount), hostReady=$($result.hostReadyCount), hostAttention=$($result.hostAttentionCount), availableToAllAgents=$($result.invariants.availableToAllAgents), requiresReceipt=$($result.invariants.requiresReceipt), toolRows=$toolRows, privateStateExposed=$($result.invariants.privateStateExposed)"
         } elseif ($Mode -eq "tool-invoke") {
-            $invocationRows = "none"
-            if ($null -ne $result.invocationRows -and $result.invocationRows.Count -gt 0) {
-                $invocationRows = ($result.invocationRows -join "; ")
-            }
-            $serviceHealth = "none"
-            if ($null -ne $result.serviceHealthReadback -and $null -ne $result.serviceHealthReadback.status) {
-                $serviceHealth = "status=$($result.serviceHealthReadback.status):owner=$($result.serviceHealthReadback.lifecycleOwner):hostedBody=$($result.serviceHealthReadback.hostedBody):preflight=$($result.serviceHealthReadback.onlinePreflightStatus):childRunbooks=$($result.serviceHealthReadback.onlinePreflightChildRunbookCount):present=$($result.serviceHealthReadback.onlinePreflightPresentCount):hashVerified=$($result.serviceHealthReadback.onlinePreflightHashVerifiedCount):missingArtifacts=$($result.serviceHealthReadback.onlinePreflightMissingArtifactCount):attentionRows=$(@($result.serviceHealthReadback.serviceLifecycleAttentionRows).Count):actionRows=$(@($result.serviceHealthReadback.serviceActionRows).Count):failedChecks=$($result.serviceHealthReadback.serviceExecutionFailedCheckCount):missingChecks=$($result.serviceHealthReadback.serviceExecutionMissingCheckCount):private=$($result.serviceHealthReadback.privateStateExposed)"
-            }
-            $swarmOnlineRunbook = "none"
-            if ($null -ne $result.swarmOnlineRunbookReadback -and $null -ne $result.swarmOnlineRunbookReadback.status) {
-                $swarmOnlineRunbook = "status=$($result.swarmOnlineRunbookReadback.status):owner=$($result.swarmOnlineRunbookReadback.lifecycleOwner):hostedBody=$($result.swarmOnlineRunbookReadback.hostedBody):childRunbooks=$($result.swarmOnlineRunbookReadback.childRunbookCount):present=$($result.swarmOnlineRunbookReadback.childArtifactPresentCount):hashVerified=$($result.swarmOnlineRunbookReadback.childArtifactHashVerifiedCount):missingArtifacts=$($result.swarmOnlineRunbookReadback.childArtifactMissingCount):failedChecks=$($result.swarmOnlineRunbookReadback.serviceExecutionFailedCheckCount):missingChecks=$($result.swarmOnlineRunbookReadback.serviceExecutionMissingCheckCount):operatorRequired=$($result.swarmOnlineRunbookReadback.elevatedExecutionRequiresOperator):private=$($result.swarmOnlineRunbookReadback.privateStateExposed)"
-            }
-            $servicePolicyDirectory = "none"
-            if ($null -ne $result.servicePolicyDirectoryReadback -and $null -ne $result.servicePolicyDirectoryReadback.status) {
-                $servicePolicyDirectory = "status=$($result.servicePolicyDirectoryReadback.status):owner=$($result.servicePolicyDirectoryReadback.lifecycleOwner):hostedBody=$($result.servicePolicyDirectoryReadback.hostedBody):daemons=$($result.servicePolicyDirectoryReadback.daemonCount):covered=$($result.servicePolicyDirectoryReadback.coveredCount):enabled=$($result.servicePolicyDirectoryReadback.enabledCount):disabled=$($result.servicePolicyDirectoryReadback.disabledCount):missing=$($result.servicePolicyDirectoryReadback.missingCount):attention=$($result.servicePolicyDirectoryReadback.attentionCount):tick=$($result.servicePolicyDirectoryReadback.wrapperTick):private=$($result.servicePolicyDirectoryReadback.privateStateExposed)"
-            }
-            $daemonStatus = "none"
-            if ($null -ne $result.daemonStatusReadback -and $null -ne $result.daemonStatusReadback.status) {
-                $daemonStatus = "status=$($result.daemonStatusReadback.status):cluster=$($result.daemonStatusReadback.clusterId):daemon=$($result.daemonStatusReadback.daemonId):surface=$($result.daemonStatusReadback.eveSurfaceId):tools=$($result.daemonStatusReadback.hostedToolCount):private=$($result.daemonStatusReadback.privateStateExposed)"
-            }
-            $eveConnection = "none"
-            if ($null -ne $result.eveConnectionReadback -and $null -ne $result.eveConnectionReadback.targetClusterId) {
-                $repoWorkQueueRows = "none"
-                if ($null -ne $result.eveConnectionReadback.repoWorkQueueTuiRows -and $result.eveConnectionReadback.repoWorkQueueTuiRows.Count -gt 0) {
-                    $repoWorkQueueRows = ($result.eveConnectionReadback.repoWorkQueueTuiRows -join "; ")
-                }
-                $eveConnection = "target=$($result.eveConnectionReadback.targetClusterId):surface=$($result.eveConnectionReadback.targetEveSurfaceId):publicDiscussion=$($result.eveConnectionReadback.publicPersonaDiscussionAllowed):actions=$(@($result.eveConnectionReadback.supportedActions).Count):repoWorkQueue=$($result.eveConnectionReadback.repoWorkQueueCount):repoWorkRows=$repoWorkQueueRows:private=$($result.eveConnectionReadback.privateStateExposed)"
-            }
-            $authorityTool = "none"
-            if ($null -ne $result.authorityToolReadback -and $null -ne $result.authorityToolReadback.authorityGate) {
-                $authorityTool = "gate=$($result.authorityToolReadback.authorityGate):input=$($result.authorityToolReadback.inputContractType):receipt=$($result.authorityToolReadback.receiptContractType):host=$($result.authorityToolReadback.hostClusterId):private=$($result.authorityToolReadback.privateStateExposed)"
-            }
-            Write-Host "Tool invoke: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), tool=$($result.toolName), receipt=$($result.receiptId), daemonStatus=$daemonStatus, eveConnection=$eveConnection, authorityTool=$authorityTool, serviceHealth=$serviceHealth, swarmOnlineRunbook=$swarmOnlineRunbook, servicePolicyDirectory=$servicePolicyDirectory, invocationRows=$invocationRows, privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Tool request: status=$($result.status), requester=$($result.requestingDisplayName), host=$($result.hostDisplayName), hostStatus=$($result.observedHostStatus), tool=$($result.toolName), intent=$($result.intentId), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "swarm-overview") {
             $attention = "none"
             if ($null -ne $result.attentionDaemonIds -and $result.attentionDaemonIds.Count -gt 0) {

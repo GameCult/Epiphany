@@ -19,6 +19,15 @@
 - Response owners: Bifrost may answer with its publication receipt; the GitHub publication adapter may answer only after real substrate evidence exists.
 - Negative proof: after request submission, latest intent is present while latest Bifrost publication and GitHub publication receipts are absent.
 
+## Daemon tool request path (2026-07-12)
+
+- Owner: the requesting agent owns the invocation intent; the advertised host daemon owns the response receipt.
+- Input: a persisted capability plus requester identity, requester cluster, payload reference, and bounded reason/summary.
+- Output: one `epiphany.cultmesh.daemon_tool_invocation_intent`, status `pending-provider`, and the host daemon id as `responseOwner`.
+- Unknown host status does not block request queuing and is never promoted by the requester.
+- Forbidden writers: `invoke-tool` cannot accept or synthesize receipt id/status, result reference, or result summary; it no longer executes local readback functions and labels them daemon results.
+- Negative proof: request intent persists, latest provider receipt remains absent, and response-shaped CLI fields are refused.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 
