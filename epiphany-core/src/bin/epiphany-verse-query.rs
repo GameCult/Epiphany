@@ -45,7 +45,6 @@ use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
 use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
-use epiphany_core::epiphany_cultmesh_eve_connection_receipt_for_intent;
 use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_agent_state_soa_entry;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
@@ -98,7 +97,6 @@ use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
-use epiphany_core::write_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::write_epiphany_cultmesh_swarm_brake;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
 use serde::Serialize;
@@ -1504,21 +1502,13 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 intent.clone(),
             )?;
-            let receipt = epiphany_cultmesh_eve_connection_receipt_for_intent(
-                "eve-receipt-smoke",
-                &intent,
-                "accepted-for-consensus-discovery",
-            );
-            write_epiphany_cultmesh_eve_connection_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                receipt,
-            )?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             if context.latest_eve_connection_intent.is_none()
-                || context.latest_eve_connection_receipt.is_none()
+                || context.latest_eve_connection_receipt.is_some()
             {
-                anyhow::bail!("local Verse query smoke lost Eve connection intent/receipt");
+                anyhow::bail!(
+                    "local Verse query smoke lost Eve intent or manufactured a provider receipt"
+                );
             }
             if context.daemon_tool_capabilities.len() < 19 {
                 anyhow::bail!("local Verse query smoke expected daemon tool capabilities");

@@ -7,7 +7,10 @@ Inventory every production call to `write_*receipt`, then ask whether the execut
 ## Classification
 
 - `epiphany-daemon-supervisor`: owner-aligned for scheduler, lifecycle, and daemon-poke receipts. It performs or observes the lifecycle operation it records.
-- `epiphany-eve-provider`: owner-aligned narrow provider receipt writer; verifies the pending intent targets its provider cluster.
+- Eve connection receipt: no production local writer. The former generic
+  `epiphany-eve-provider` accepted caller-supplied provider identity and status,
+  so it was deleted; constructor/writer are test-only pending a real provider
+  daemon or authenticated ingest boundary.
 - `epiphany-operator-run`: owner-aligned for operator-run receipts and coordinator receipts derived from the run it executes.
 - smoke binaries and the `epiphany-verse-query smoke` arm: fixtures, not runtime evidence. They remain a quarantine risk if permitted to target canonical stores.
 - `epiphany-work` Weksa lowering: a lowering projection receipt, explicitly non-publication authority; no substitution confirmed in this pass.

@@ -53,6 +53,10 @@ The confirmed conceptual substitutions have been cut:
   taking a lock when its file is absent, so all readers preserve filesystem
   absence without per-loader guards. Full context projection refuses a missing
   Verse; explicit bootstrap or a real writer owns CultMesh body creation.
+- the generic `epiphany-eve-provider` CLI is deleted: caller-supplied provider
+  identity/status was not provider participation. Eve requests remain pending;
+  local response construction/writing is test-only until a real target daemon
+  or authenticated ingest boundary owns the receipt.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

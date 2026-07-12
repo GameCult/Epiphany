@@ -75,7 +75,7 @@ the receipts and projections without first separating those writers.
 
 ## Resolution ledger
 
-All confirmed substitutions above have now been structurally cut from their caller-facing production paths. Diagnostics preserve absence; bootstrap does not seed liveness; cluster-daemon owns first heartbeat; discovery loaders do not synthesize providers; tool, Eve, poke, body-change, public-proof, artifact-acceptance, metrics, and Persona-feedback commands write or select requests only; provider/result fields are rejected. `epiphany-eve-provider` is the first narrow provider receipt mouth. Receipt constructors and writers remain available to owning provider binaries and focused contract tests; their mere existence is no longer caller authority.
+All confirmed substitutions above have now been structurally cut from their caller-facing production paths. Diagnostics preserve absence; bootstrap does not seed liveness; cluster-daemon owns first heartbeat; discovery loaders do not synthesize providers; tool, Eve, poke, body-change, public-proof, artifact-acceptance, metrics, and Persona-feedback commands write or select requests only; provider/result fields are rejected. Response constructors and writers without participating provider bodies are test-only.
 
 Remaining audit work is provenance rather than this original dual-writer cluster: identify every production call site of response-receipt writers, ensure it belongs to a named provider executable or ingest boundary, and distill contaminated historical claims from `state/map.yaml`.
 
@@ -236,3 +236,18 @@ The scattered loader compensators were removed. Full Verse context alone adds
 projection policy by refusing to describe a nonexistent body. Backing-store and
 nested diagnostic tests plus rebuilt CLI probes prove that reads and refused
 daemon/supervisor starts create neither store, lock, nor parent directory.
+
+## Executable-name/provider-participation split
+
+`epiphany-eve-provider` appeared to repair Eve receipt provenance by living in a
+separate executable and checking that a caller-supplied provider cluster matched
+the pending intent target. The alleged provider still did not participate: the
+same caller supplied provider identity, receipt ID, and acceptance status. A
+binary name and matching string had become substitutes for an executing body.
+
+The executable is deleted. Eve response construction, persistence, and keying
+are test-only until a real target provider daemon or authenticated ingest
+boundary owns them. The aggregate Verse smoke now proves the honest pending
+state: requester intent present, provider receipt absent. The typed response
+schema and reader remain as the wire/ingest contract; they grant no local
+response authorship.

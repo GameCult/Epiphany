@@ -3281,6 +3281,7 @@ pub fn epiphany_cultmesh_eve_connection_intent_from_advertisement(
     }
 }
 
+#[cfg(test)]
 pub fn epiphany_cultmesh_eve_connection_receipt_for_intent(
     receipt_id: impl Into<String>,
     intent: &EpiphanyCultMeshEveConnectionIntentEntry,
@@ -3321,6 +3322,7 @@ pub fn write_epiphany_cultmesh_eve_connection_intent(
     Ok(written)
 }
 
+#[cfg(test)]
 pub fn write_epiphany_cultmesh_eve_connection_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -6162,6 +6164,7 @@ fn epiphany_cultmesh_eve_connection_intent_key(intent_id: &str) -> String {
     format!("epiphany-local/eve-connection-intent/{intent_id}")
 }
 
+#[cfg(test)]
 fn epiphany_cultmesh_eve_connection_receipt_key(receipt_id: &str) -> String {
     format!("epiphany-local/eve-connection-receipt/{receipt_id}")
 }

@@ -47,7 +47,7 @@
 
 ## Persona feedback and Imagination consensus boundary (2026-07-12)
 
-- Eve provider: `epiphany-eve-provider accept` loads the pending connection intent, verifies `provider_cluster_id == target_cluster_id`, and writes the provider receipt.
+- Eve connection requests remain pending until a real target provider daemon or authenticated ingest boundary supplies the typed response. The former generic `epiphany-eve-provider` CLI is deleted because caller-supplied provider identity and status did not constitute provider participation; local response construction/writing is test-only.
 - Persona owner: `collaboration-feedback` writes public, bounded feedback only after that provider receipt exists.
 - Imagination owner: consensus participant selection, packet reference, receipt status/id, and adoption gate.
 - Persona output: `pending-imagination` with null consensus fields and `responseOwner=Imagination`.
