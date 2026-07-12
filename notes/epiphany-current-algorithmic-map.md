@@ -70,6 +70,14 @@
 - Forbidden metrics writers: caller cannot provide accepted artifact, model spend, review load, credit, proof, summary, receipt, or status results.
 - Negative proof: missing requests fail without receipt mutation and response-shaped arguments fail before lookup or write.
 
+## Operator snapshot authority boundary (2026-07-12)
+
+- Owner: operator snapshot adapter owns only a bounded summary of an edge status artifact.
+- Runtime spine owns daemon-tool execution intent and receipt truth.
+- Forbidden projection: `/tools/invocations` JSON cannot be promoted into canonical daemon-tool schemas by snapshot import.
+- Output explicitly returns null tool intent/receipt fields and `toolInvocationAuthority=runtime-spine-only`.
+- Negative proof: forged accepted tool JSON produced a snapshot but no canonical intent or receipt.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

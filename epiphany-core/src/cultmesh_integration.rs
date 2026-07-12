@@ -2788,6 +2788,7 @@ pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
     })
 }
 
+#[cfg(test)]
 pub fn epiphany_cultmesh_daemon_tool_invocation_from_status_json(
     requesting_cluster_id: impl Into<String>,
     status_path: impl Into<String>,

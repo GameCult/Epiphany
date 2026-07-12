@@ -32,6 +32,10 @@ Single poke, batch poke, and swarm triage now write only `epiphany.cultmesh.daem
 
 `bifrost-artifact-acceptance` and `bifrost-metrics`, plus their wrappers, now inspect the latest Mind-admitted `repo.artifact_acceptance_request` / `repo.metrics_request` map entry and report `pending-maintainer-bifrost` / `pending-bifrost-maintainer`. They write no provider receipts. Artifact/proof/review/ledger/accepted-by/status fields and accepted-artifact/spend/review-load/credit/proof/summary/status fields are rejected respectively. The canonical local Verse currently contains neither request family, so negative proof showed clean missing-request failure, no receipt mutation, and rejection of counterfeit result fields. The original conceptual-substitution audit now records all confirmed substitutions as structurally cut; next audit every remaining production receipt-writer call site for provider provenance.
 
+## 2026-07-12 receipt-writer provenance audit
+
+The first call-site audit found a new canonical-promotion substitution in `epiphany-operator-snapshot from-status`: arbitrary edge JSON under `/tools/invocations` could be converted into canonical daemon-tool intent and receipt documents. That promotion is removed. The adapter writes only `operator_snapshot`, returns null tool intent/receipt fields, and states `runtime-spine-only` authority; the conversion helper is compiled only for tests. Forgery proof imported an `accepted` fake receipt and confirmed both canonical latest tool intent and receipt remained absent. See `notes/receipt-writer-provenance-audit-2026-07-12.md`. Next quarantine smoke writers, then inspect operator-run and daemon-supervisor evidence binding.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

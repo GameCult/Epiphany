@@ -1,14 +1,11 @@
 use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
-use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_from_status_json;
 use epiphany_core::epiphany_cultmesh_operator_snapshot_from_status_json;
 use epiphany_core::load_latest_epiphany_cultmesh_operator_snapshot;
-use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
-use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::write_epiphany_cultmesh_operator_snapshot;
-use serde_json::Value;
 use serde_json::json;
+use serde_json::Value;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -31,34 +28,13 @@ fn main() -> Result<()> {
                 &status_json,
             )?;
             let written = write_epiphany_cultmesh_operator_snapshot(&args.store, snapshot)?;
-            let latest_tool_invocation = epiphany_cultmesh_daemon_tool_invocation_from_status_json(
-                args.runtime_id.clone(),
-                input.to_string_lossy(),
-                &status_json,
-            )?;
-            let mut written_tool_intent = None;
-            let mut written_tool_receipt = None;
-            if let Some((intent, receipt)) = latest_tool_invocation {
-                written_tool_intent = Some(write_epiphany_cultmesh_daemon_tool_invocation_intent(
-                    &args.store,
-                    args.runtime_id.clone(),
-                    intent,
-                )?);
-                if let Some(receipt) = receipt {
-                    written_tool_receipt =
-                        Some(write_epiphany_cultmesh_daemon_tool_invocation_receipt(
-                            &args.store,
-                            args.runtime_id.clone(),
-                            receipt,
-                        )?);
-                }
-            }
             print_json(json!({
                 "status": "written",
                 "store": args.store,
                 "snapshot": written,
-                "toolInvocationIntent": written_tool_intent,
-                "toolInvocationReceipt": written_tool_receipt,
+                "toolInvocationIntent": null,
+                "toolInvocationReceipt": null,
+                "toolInvocationAuthority": "runtime-spine-only",
             }))?;
         }
         "latest" => {
