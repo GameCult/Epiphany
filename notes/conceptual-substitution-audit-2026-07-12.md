@@ -279,3 +279,16 @@ MVP gate no longer accepts its summary or publishes a green deployment row.
 Deployment config audit and operator runbook commands remain requester/operator
 surfaces; typed Idunn schemas/readers remain ingest contracts. Only an actual
 Idunn body may make deployment or aftercare complete.
+
+## Stale Bifrost accounting closure
+
+The artifact-acceptance and metrics request-family smokes still invoked generic
+query commands as though they returned Bifrost response receipts, then asserted
+their accounting rows changed from open to closed. That behavior predates the
+requester/provider split. A bundle smoke aggregated those stale summaries, and
+the MVP gate counted the result as green Bifrost accounting.
+
+Both response-closing family smokes, their bundle verifier, its PowerShell mode,
+and the aggregate green gate are deleted. Request cargo and open ledger rows
+remain valid. Typed Bifrost/Maintainer response schemas remain ingest contracts,
+but accounting cannot close until their actual bodies author the receipts.

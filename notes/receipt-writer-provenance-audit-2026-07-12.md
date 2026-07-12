@@ -19,6 +19,10 @@ Inventory every production call to `write_*receipt`, then ask whether the execut
   deployment-config family smoke was their only caller and fabricated a closed
   deployment chain; the smoke, writers, and validators are deleted. Typed
   schemas/readers remain for genuine Idunn-authored ingest.
+- Bifrost artifact-acceptance and metrics closure smokes: deleted. Their request
+  family binaries still expected generic query commands to manufacture final
+  provider receipts, and the bundle/MVP gate promoted those stale summaries to
+  green accounting. Request documents remain; provider closure remains absent.
 - `epiphany-operator-run`: owner-aligned for operator-run receipts and coordinator receipts derived from the run it executes.
 - smoke binaries and the `epiphany-verse-query smoke` arm: fixtures, not runtime evidence. They remain a quarantine risk if permitted to target canonical stores.
 - `epiphany-work` Weksa lowering: a lowering projection receipt, explicitly non-publication authority; no substitution confirmed in this pass.

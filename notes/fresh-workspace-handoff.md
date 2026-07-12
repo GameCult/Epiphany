@@ -64,6 +64,9 @@ The confirmed conceptual substitutions have been cut:
   they fabricated Idunn `deployed`/`complete` receipts. Epiphany exposes config
   audit/runbook requests and typed Idunn readers, but no local deployment or
   aftercare response writer.
+- the artifact-acceptance/metrics response-closing smokes, Bifrost accounting
+  bundle, wrapper mode, and aggregate green gate are deleted. Their request
+  cargo remains open until genuine Bifrost/Maintainer response ingest.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

@@ -52,7 +52,6 @@ struct Args {
     smoke_root: PathBuf,
     fresh_repo_summary: Option<PathBuf>,
     readiness_summary: Option<PathBuf>,
-    bifrost_accounting_summary: Option<PathBuf>,
     daemon_survival_summary: Option<PathBuf>,
 }
 
@@ -62,7 +61,6 @@ impl Args {
         let mut smoke_root = root.join(".epiphany-smoke");
         let mut fresh_repo_summary = None;
         let mut readiness_summary = None;
-        let mut bifrost_accounting_summary = None;
         let mut daemon_survival_summary = None;
         let mut args = env::args().skip(1).peekable();
         while let Some(arg) = args.next() {
@@ -74,10 +72,6 @@ impl Args {
                 }
                 "--readiness-summary" => {
                     readiness_summary = Some(take_path(&mut args, "--readiness-summary")?)
-                }
-                "--bifrost-accounting-summary" => {
-                    bifrost_accounting_summary =
-                        Some(take_path(&mut args, "--bifrost-accounting-summary")?)
                 }
                 "--daemon-survival-summary" => {
                     daemon_survival_summary =
@@ -91,7 +85,6 @@ impl Args {
             smoke_root,
             fresh_repo_summary,
             readiness_summary,
-            bifrost_accounting_summary,
             daemon_survival_summary,
         })
     }
@@ -126,21 +119,16 @@ fn run_smoke(args: Args) -> Result<Value> {
     let readiness_summary = args
         .readiness_summary
         .unwrap_or_else(|| latest_summary(&args.smoke_root, "repo-work-readiness-"));
-    let bifrost_accounting_summary = args
-        .bifrost_accounting_summary
-        .unwrap_or_else(|| latest_summary(&args.smoke_root, "repo-bifrost-accounting-bundle-"));
     let daemon_survival_summary = args
         .daemon_survival_summary
         .unwrap_or_else(|| latest_summary(&args.smoke_root, "daemon-survival-rehearsal-"));
 
     let fresh = read_json(&fresh_repo_summary)?;
     let readiness = read_json(&readiness_summary)?;
-    let bifrost = read_json(&bifrost_accounting_summary)?;
     let daemon_survival = read_json(&daemon_survival_summary)?;
 
     verify_fresh_repo(&fresh)?;
     verify_readiness(&readiness)?;
-    verify_bifrost_accounting(&bifrost)?;
     verify_daemon_survival(&daemon_survival)?;
     let weksa_interlingua = verify_weksa_interlingua()?;
     let persona_memory_recall = verify_persona_memory_recall()?;
@@ -199,11 +187,6 @@ fn run_smoke(args: Args) -> Result<Value> {
             "readiness review is queryable through the receipt directory",
         ),
         green(
-            "bifrost-accounting",
-            "Bifrost",
-            "readiness, artifact acceptance, and metrics accounting rows are closed",
-        ),
-        green(
             "long-running-daemon-proof",
             "Idunn",
             "bounded serve rehearsal wrote two scheduler pulses and sealed scheduler receipt",
@@ -245,11 +228,9 @@ fn run_smoke(args: Args) -> Result<Value> {
         "smokeDir": smoke_dir,
         "freshRepoSummary": fresh_repo_summary,
         "readinessSummary": readiness_summary,
-        "bifrostAccountingSummary": bifrost_accounting_summary,
         "daemonSurvivalSummary": daemon_survival_summary,
         "freshRepoSmokeDir": fresh["smokeDir"],
         "readinessSmokeDir": readiness["smokeDir"],
-        "bifrostAccountingSmokeDir": bifrost["smokeDir"],
         "daemonSurvivalSmokeDir": daemon_survival["smokeDir"],
         "weksaInterlingua": weksa_interlingua,
         "personaMemoryRecall": persona_memory_recall,
@@ -329,36 +310,6 @@ fn verify_readiness(value: &Value) -> Result<()> {
         "repo-work-readiness-review",
         "closed",
         4,
-        1,
-    )
-}
-
-fn verify_bifrost_accounting(value: &Value) -> Result<()> {
-    require_eq(
-        value,
-        &["schemaVersion"],
-        "epiphany.repo_bifrost_accounting_bundle_smoke.v0",
-    )?;
-    require_eq(value, &["status"], "ok")?;
-    require_eq(value, &["artifactAcceptanceCloseStatus"], "closed")?;
-    require_eq(value, &["metricsCloseStatus"], "closed")?;
-    require_bool(value, &["operatorSafeProofBundle"], true)?;
-    require_bool(value, &["planningAuthorityOnly"], true)?;
-    require_bool(value, &["privateStateExposed"], false)?;
-    require_row(
-        value,
-        &["artifactAcceptanceClosedAccountingRow"],
-        "artifact-acceptance-request",
-        "closed",
-        1,
-        1,
-    )?;
-    require_row(
-        value,
-        &["metricsClosedAccountingRow"],
-        "metrics-request",
-        "closed",
-        2,
         1,
     )
 }
