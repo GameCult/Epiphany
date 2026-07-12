@@ -2139,6 +2139,17 @@ finding from entering durable Mind state. The authority suite includes the
 negative non-passing admission path and remains 4/4 green. The next move is
 still the native generation-one workflow smoke; it must exercise these gates,
 not recreate them in orchestration code.
+The deterministic model-runtime seam now crosses the complete typed authority
+chain without network inference: runtime-authored generation zero returns
+`needs-work`; Mind advances the immutable route to generation one; the runtime
+parses and persists a passing generation-one finding; canonical Mind/map
+admission accepts generation one and rejects an attempted generation-zero map;
+the route remains on generation one. The focused runtime test is
+`repo_work_modeling_generation_retry_admits_only_current_runtime_finding`.
+What remains is process composition, not another state abstraction: drive this
+same chain through the public `revise-modeling` command and scheduler so the
+generation-one launch carries a passing consumer preflight into an Idunn-owned
+lifecycle receipt.
 
 ## Immediate Re-entry Instruction
 

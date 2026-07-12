@@ -296,6 +296,15 @@ current request. CLI closure is a caller of this invariant, not its owner.
 Non-passing findings and stale generations therefore cannot become durable Mind
 state even through a forged-looking admission call.
 
+The model runtime has a deterministic generation-retry proof at
+`epiphany-openai-runtime/src/lib.rs`: both findings pass through the production
+assistant-result parser and runtime-owned finding writer. Generation zero is
+non-passing, Mind alone advances the route, generation one is passing and
+admitted, and a stale generation-zero admission is refused. This proves typed
+handoff and ownership without provider/network variance. The remaining smoke
+boundary is process composition through `epiphany-work revise-modeling`, the
+scheduler's consumer preflight, and Idunn's child lifecycle receipt.
+
 ## Current Cut Line
 
 Keep:

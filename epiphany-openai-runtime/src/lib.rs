@@ -1997,7 +1997,7 @@ mod tests {
     }
 
     #[test]
-    fn repo_work_modeling_worker_emits_the_typed_finding() -> Result<()> {
+    fn repo_work_modeling_generation_retry_admits_only_current_runtime_finding() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
         initialize_runtime_spine(
@@ -2036,7 +2036,20 @@ mod tests {
             private_state_exposed: false,
             contract: "test".to_string(),
         };
-        epiphany_core::put_repo_work_modeling_request(&store, &request)?;
+        let route0 = epiphany_core::RepoWorkModelingRoute {
+            schema_version: epiphany_core::REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION.to_string(),
+            route_id: "repo-route-1".to_string(),
+            item: request.item.clone(),
+            generation: 0,
+            request_id: request.request_id.clone(),
+            previous_finding_receipt_id: String::new(),
+            authority_owner: "soul".to_string(),
+            authority_witness_id: request.soul_verdict_receipt_id.clone(),
+            updated_at: now(),
+            private_state_exposed: false,
+            contract: "test initial route".to_string(),
+        };
+        epiphany_core::commit_initial_repo_work_modeling_route(&store, &request, &route0)?;
         open_runtime_spine_heartbeat_job(
             &store,
             RuntimeSpineHeartbeatJobOptions {
@@ -2101,15 +2114,168 @@ mod tests {
             &launch,
             &model_request.request_id,
             &openai_summary,
-            r#"{"verdict":"passed","finding":"The verified README change updates the repo map.","summary":"README consequence mapped.","nextSafeMove":"Let Mind review the finding.","evidenceIds":["soul-repo-1"],"artifactRefs":[]}"#,
+            r#"{"verdict":"needs-work","finding":"The verified README consequence needs reviewed context.","summary":"Context incomplete.","nextSafeMove":"Ask Mind to review a retry.","evidenceIds":["soul-repo-1"],"artifactRefs":[]}"#,
         )?;
-        let finding =
+        let finding0 =
             epiphany_core::runtime_repo_work_modeling_finding(&store, "repo-request-1-finding")?
                 .expect("typed repo-work Modeling finding");
-        assert_eq!(finding.request_id, request.request_id);
-        assert_eq!(finding.verdict, "passed");
-        assert_eq!(finding.commit_sha, "abc123");
-        assert!(!finding.private_state_exposed);
+        assert_eq!(finding0.request_id, request.request_id);
+        assert_eq!(finding0.verdict, "needs-work");
+        assert_eq!(finding0.commit_sha, "abc123");
+        assert!(!finding0.private_state_exposed);
+
+        let review = epiphany_core::MindGatewayReview {
+            schema_version: epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "repo-route-1-g1-review".to_string(),
+            source_kind: "repo_work_modeling_revision".to_string(),
+            source_role_id: "mind".to_string(),
+            decision: epiphany_core::MindGatewayDecision::Accept,
+            allowed_effects: vec!["repoWork.modelingRoute".to_string()],
+            refused_effects: vec!["repoWork.map".to_string()],
+            reasons: vec!["Reviewed the missing context.".to_string()],
+            contract: "test route review".to_string(),
+        };
+        let request1 = epiphany_core::RepoWorkModelingRequest {
+            request_id: "repo-request-2".to_string(),
+            requester: "mind".to_string(),
+            instruction: "Re-model with reviewed context.".to_string(),
+            requested_at: now(),
+            ..request.clone()
+        };
+        let route1 = epiphany_core::RepoWorkModelingRoute {
+            generation: 1,
+            request_id: request1.request_id.clone(),
+            previous_finding_receipt_id: finding0.receipt_id.clone(),
+            authority_owner: "mind".to_string(),
+            authority_witness_id: review.gateway_id.clone(),
+            updated_at: now(),
+            ..route0.clone()
+        };
+        epiphany_core::advance_repo_work_modeling_route(&store, &request1, &route1, &review)?;
+        open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "repo-work-test".to_string(),
+                display_name: "Repo Work Test".to_string(),
+                session_id: "repo-session-1".to_string(),
+                objective: "Map reviewed repo work.".to_string(),
+                coordinator_note: "Mind selected generation one; Modeling authors.".to_string(),
+                job_id: "repo-modeling-job-2".to_string(),
+                role: "modeling".to_string(),
+                binding_id: "repo-work-modeling-worker".to_string(),
+                authority_scope: "epiphany.role.modeling.repo-work".to_string(),
+                instruction: "Return the reviewed repo-work Modeling result.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::RepoWorkModeling(
+                    epiphany_core::EpiphanyRepoWorkModelingLaunchDocument {
+                        thread_id: "repo-thread-1".to_string(),
+                        request_id: request1.request_id.clone(),
+                        item: request1.item.clone(),
+                        soul_verdict_receipt_id: request1.soul_verdict_receipt_id.clone(),
+                        commit_sha: request1.commit_sha.clone(),
+                        changed_paths: request1.changed_paths.clone(),
+                        instruction: request1.instruction.clone(),
+                        dynamic_prompt_context: Some("Mind-reviewed generation one.".to_string()),
+                    },
+                ),
+                output_contract_id: epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID
+                    .to_string(),
+                organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                    "epiphany.role.modeling.repo-work",
+                    "repo-work-modeling",
+                    epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID,
+                ),
+                created_at: now(),
+            },
+        )?;
+        let launch1 = load_worker_launch_request(&store, "repo-modeling-job-2")?;
+        let model_request1 =
+            build_worker_model_request(&launch1, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
+        let openai_summary1 = EpiphanyOpenAiRuntimeRunSummary {
+            request_id: model_request1.request_id.clone(),
+            job_id: "openai-repo-job-2".to_string(),
+            result_id: "openai-repo-result-2".to_string(),
+            ..openai_summary
+        };
+        complete_worker_job_from_assistant_text(
+            &store,
+            &launch1,
+            &model_request1.request_id,
+            &openai_summary1,
+            r#"{"verdict":"passed","finding":"The reviewed README consequence updates the repo map.","summary":"README consequence mapped.","nextSafeMove":"Let Mind admit generation one.","evidenceIds":["soul-repo-1"],"artifactRefs":[]}"#,
+        )?;
+        let finding1 = epiphany_core::runtime_repo_work_modeling_finding(
+            &store,
+            "repo-request-2-finding",
+        )?
+        .expect("generation-one typed finding");
+        assert_eq!(finding1.verdict, "passed");
+
+        let map_review = epiphany_core::MindGatewayReview {
+            gateway_id: "repo-map-review".to_string(),
+            source_kind: "repo_work_closure".to_string(),
+            allowed_effects: vec!["repoWork.map".to_string()],
+            refused_effects: Vec::new(),
+            reasons: vec!["Admit current passing finding.".to_string()],
+            contract: "test map review".to_string(),
+            ..review.clone()
+        };
+        let map_commit = epiphany_core::mind_state_commit_receipt(
+            "repo-map-commit".to_string(),
+            &map_review,
+            1,
+            vec!["repoWork.map".to_string()],
+            now(),
+        );
+        let map = epiphany_core::RepoWorkMapEntry {
+            schema_version: epiphany_core::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION.to_string(),
+            map_entry_id: "repo-map-entry".to_string(),
+            admitted_at: now(),
+            item: request1.item.clone(),
+            branch: "test".to_string(),
+            changed_paths: request1.changed_paths.clone(),
+            commit_sha: request1.commit_sha.clone(),
+            safe_action_family: "repo.status_section".to_string(),
+            modeling_summary: finding1.summary.clone(),
+            modeling_finding_receipt_id: finding1.receipt_id.clone(),
+            soul_verdict_receipt_id: request1.soul_verdict_receipt_id.clone(),
+            mind_gateway_review_id: map_review.gateway_id.clone(),
+            mind_state_commit_receipt_id: map_commit.receipt_id.clone(),
+            execute_receipt_path: "execute.json".to_string(),
+            closure_review_path: "review.json".to_string(),
+            closure_receipt_path: "close.json".to_string(),
+            publication_gate: "Bifrost".to_string(),
+            durable_state_admitted: true,
+            private_state_exposed: false,
+            modeling_route_id: route1.route_id.clone(),
+            modeling_generation: 1,
+        };
+        epiphany_core::commit_repo_work_map_admission(
+            &store,
+            &map,
+            &map_review,
+            &map_commit,
+        )?;
+        let mut stale = map.clone();
+        stale.map_entry_id = "stale-generation-zero-map".to_string();
+        stale.modeling_finding_receipt_id = finding0.receipt_id.clone();
+        stale.modeling_summary = finding0.summary.clone();
+        stale.modeling_generation = 0;
+        assert!(
+            epiphany_core::commit_repo_work_map_admission(
+                &store,
+                &stale,
+                &map_review,
+                &map_commit,
+            )
+            .is_err()
+        );
+        let current_route = epiphany_core::runtime_repo_work_modeling_route(
+            &store,
+            &route1.route_id,
+        )?
+        .expect("current route");
+        assert_eq!(current_route.generation, 1);
+        assert_eq!(current_route.request_id, request1.request_id);
         Ok(())
     }
 
