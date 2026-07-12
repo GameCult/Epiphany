@@ -5183,11 +5183,97 @@ pub fn write_epiphany_cultmesh_work_loop_telemetry(
     store_path: impl AsRef<Path>,
     telemetry: EpiphanyCultMeshWorkLoopTelemetryEntry,
 ) -> Result<EpiphanyCultMeshWorkLoopTelemetryEntry> {
+    validate_work_loop_telemetry(&telemetry)?;
     let mut node = open_epiphany_cultmesh_node(&store_path, telemetry.runtime_id.clone())?;
     let written = node.put(telemetry.telemetry_id.clone(), &telemetry)?;
-    node.put(EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY, &written)?;
+    let current_latest = node.get::<EpiphanyCultMeshWorkLoopTelemetryEntry>(
+        EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY,
+    )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        work_loop_telemetry_event_key(&written) >= work_loop_telemetry_event_key(current)
+    }) {
+        node.put(EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY, &written)?;
+    }
     node.flush()?;
     Ok(written)
+}
+
+fn validate_work_loop_telemetry(telemetry: &EpiphanyCultMeshWorkLoopTelemetryEntry) -> Result<()> {
+    if telemetry.verse_id != EPIPHANY_CULTMESH_INTERNAL_VERSE_ID {
+        return Err(anyhow!(
+            "work-loop telemetry must remain in the internal Verse"
+        ));
+    }
+    for (label, value) in [
+        ("schema version", telemetry.schema_version.as_str()),
+        ("runtime id", telemetry.runtime_id.as_str()),
+        ("telemetry id", telemetry.telemetry_id.as_str()),
+        ("source stage", telemetry.source_stage.as_str()),
+        ("Hands intent id", telemetry.hands_intent_id.as_str()),
+        ("Hands review id", telemetry.hands_review_id.as_str()),
+        (
+            "Hands runtime job id",
+            telemetry.hands_runtime_job_id.as_str(),
+        ),
+        (
+            "Substrate Gate grant receipt id",
+            telemetry.substrate_gate_grant_receipt_id.as_str(),
+        ),
+        (
+            "Hands patch receipt id",
+            telemetry.hands_patch_receipt_id.as_str(),
+        ),
+        (
+            "Hands command receipt id",
+            telemetry.hands_command_receipt_id.as_str(),
+        ),
+        (
+            "Hands commit receipt id",
+            telemetry.hands_commit_receipt_id.as_str(),
+        ),
+        ("command", telemetry.command.as_str()),
+        ("commit SHA", telemetry.commit_sha.as_str()),
+        ("branch", telemetry.branch.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("work-loop telemetry missing {label}"));
+        }
+    }
+    if telemetry.target_stages.is_empty()
+        || telemetry
+            .target_stages
+            .iter()
+            .any(|stage| stage.trim().is_empty())
+        || telemetry.changed_paths.is_empty()
+        || telemetry
+            .changed_paths
+            .iter()
+            .any(|path| path.trim().is_empty())
+    {
+        return Err(anyhow!(
+            "work-loop telemetry requires nonempty target stages and changed paths"
+        ));
+    }
+    let produced_at = DateTime::parse_from_rfc3339(&telemetry.produced_at_utc)
+        .map_err(|error| anyhow!("work-loop telemetry has invalid produced at: {error}"))?;
+    let lower_bound = DateTime::parse_from_rfc3339(&telemetry.lower_bound_receipt_at)
+        .map_err(|error| anyhow!("work-loop telemetry has invalid receipt lower bound: {error}"))?;
+    if lower_bound > produced_at {
+        return Err(anyhow!(
+            "work-loop telemetry receipt lower bound occurs after packet production"
+        ));
+    }
+    Ok(())
+}
+
+fn work_loop_telemetry_event_key(
+    telemetry: &EpiphanyCultMeshWorkLoopTelemetryEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&telemetry.produced_at_utc)
+            .expect("validated work-loop telemetry timestamp"),
+        telemetry.telemetry_id.as_str(),
+    )
 }
 
 pub fn load_latest_epiphany_cultmesh_work_loop_telemetry(
@@ -7923,7 +8009,7 @@ mod tests {
             produced_at_utc: "2026-06-12T00:00:00Z".to_string(),
             source_stage: "hands".to_string(),
             target_stages: vec!["soul".to_string(), "Modeling".to_string()],
-            lower_bound_receipt_at: "2026-06-12T00:00:01Z".to_string(),
+            lower_bound_receipt_at: "2026-06-11T23:59:59Z".to_string(),
             hands_intent_id: "hands-intent-test".to_string(),
             hands_review_id: "hands-review-test".to_string(),
             hands_runtime_job_id: "hands-job-test".to_string(),
@@ -7976,6 +8062,35 @@ mod tests {
                 .binding(EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_TYPE)
                 .is_some()
         );
+
+        let mut newer = telemetry.clone();
+        newer.telemetry_id = "work-loop-telemetry-newer".to_string();
+        newer.produced_at_utc = "2026-06-12T01:00:00Z".to_string();
+        write_epiphany_cultmesh_work_loop_telemetry(&store, newer.clone())?;
+
+        let mut delayed = telemetry.clone();
+        delayed.telemetry_id = "work-loop-telemetry-delayed".to_string();
+        delayed.produced_at_utc = "2026-06-11T23:30:00Z".to_string();
+        delayed.lower_bound_receipt_at = "2026-06-11T23:00:00Z".to_string();
+        write_epiphany_cultmesh_work_loop_telemetry(&store, delayed)?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_work_loop_telemetry(&store, "epiphany-test")?,
+            Some(newer)
+        );
+
+        let mut future_bound = telemetry.clone();
+        future_bound.telemetry_id = "work-loop-telemetry-future-bound".to_string();
+        future_bound.lower_bound_receipt_at = "2026-06-12T00:00:01Z".to_string();
+        let err = write_epiphany_cultmesh_work_loop_telemetry(&store, future_bound)
+            .expect_err("future receipt lower bound must be refused");
+        assert!(err.to_string().contains("after packet production"));
+
+        let mut wrong_verse = telemetry;
+        wrong_verse.telemetry_id = "work-loop-telemetry-wrong-verse".to_string();
+        wrong_verse.verse_id = EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string();
+        let err = write_epiphany_cultmesh_work_loop_telemetry(&store, wrong_verse)
+            .expect_err("work-loop evidence outside internal Verse must be refused");
+        assert!(err.to_string().contains("internal Verse"));
         Ok(())
     }
 

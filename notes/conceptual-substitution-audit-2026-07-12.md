@@ -549,3 +549,16 @@ operator/Self discovery even though runtime-spine remains the lifecycle owner.
 Coordinator mirrors now require a valid RFC3339 creation time and advance
 `latest` only by `(creation time, receipt ID)`. Delayed runs remain immutable
 history without becoming the current outcome.
+
+## Unvalidated work-loop packet presented as current evidence
+
+Internal work-loop telemetry feeds Soul and Modeling with the Hands
+intent/review/grant/patch/command/commit consequence chain, but its writer had
+no validation and used arrival order for `latest`. An arbitrary or delayed
+packet could therefore become the selected verification body. Telemetry now
+must remain in the internal Verse, carry the complete named Hands chain plus
+nonempty command/commit/branch/path/stage evidence, and use valid RFC3339
+production/lower-bound times with the accepted-verification lower bound no
+later than packet production. `latest` advances by `(production time,
+telemetry ID)`. The old fixture's future lower bound was corrected rather than
+blessed as prophecy.

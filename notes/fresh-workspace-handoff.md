@@ -140,6 +140,9 @@ The confirmed conceptual substitutions have been cut:
   supersession readbacks cannot rewind Self/operator coordination context.
 - `coordinator-run-receipt/latest` is creation-time-owned. Delayed runs cannot
   replace the current final action or artifact projection.
+- Work-loop telemetry is now validated internal evidence and production-time
+  ordered. Delayed or wrong-Verse packets cannot replace Soul/Modeling's
+  current Hands consequence chain; future receipt lower bounds are refused.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
