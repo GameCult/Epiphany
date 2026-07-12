@@ -19,9 +19,9 @@ A forged operator-status artifact containing `intentId=forged-intent`, `receiptI
 
 ## Remaining scrutiny
 
-1. Inspect daemon-supervisor plan/rehearsal receipts separately from execution receipts so planning cannot masquerade as service mutation.
-2. Extend the same store quarantine invariant to standalone smoke binaries that accept output paths.
-3. Distill or remove dead public receipt constructors once every named provider executable exists.
+1. Extend the same store quarantine invariant to standalone smoke binaries that accept output paths.
+2. Distill or remove dead public receipt constructors once every named provider executable exists.
+3. Distill obsolete historical authority claims in `state/map.yaml`.
 
 ## Smoke quarantine update
 
@@ -30,3 +30,9 @@ A forged operator-status artifact containing `intentId=forged-intent`, `receiptI
 ## Operator-run evidence binding update
 
 The standalone `receipt` command previously accepted caller status and path strings, then wrote `completed` evidence without inspecting the run. It now requires the latest persisted intent to match run id and mode, derives status internally as `completed`, requires an existing valid JSON result contained by the canonical artifact root, and requires the result modification time to be no earlier than the intent request time. `--status` no longer exists. The PowerShell orchestrator supplies only the result coordinates after its checked subprocess completes.
+
+## Daemon-supervisor command authority update
+
+Lifecycle receipt status values already distinguished planned, refused, observed, and executed outcomes, but install command aliases allowed command names and the `--execute-install` flag to disagree. Dispatch now makes command identity authoritative: `service-install-plan` and `cluster-service-install-plan` forcibly disable execution; `service-install-execute` and `cluster-service-install-execute` force execution intent and reach the elevation gate without a side-channel flag. Ambiguous `install-service`, `windows-service-install`, `service-install-windows`, and `cluster-windows-service-install` aliases are removed. The wrapper invokes the exact plan/execute command and no longer appends `--execute-install`.
+
+Negative proof passed both directions: a plan command given hostile `--execute-install` remained `planned` with `executed=false`; an execute command without the flag reached `execution-refused-not-elevated` with `executed=false` in the non-elevated shell.

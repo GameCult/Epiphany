@@ -3,27 +3,14 @@ use anyhow::Result;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION;
-use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
-use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
-use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
-use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
-use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
-use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
-use epiphany_core::EpiphanyLocalVerseContext;
-use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
-use epiphany_core::EpiphanyServiceExecutionAuditReport;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
-use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
+use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::observe_native_process as observe_process;
 use epiphany_core::query_epiphany_local_verse_context;
@@ -33,10 +20,23 @@ use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_scheduler_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
-use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
-use serde_json::Value;
+use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
+use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
+use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
+use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
+use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
+use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
+use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
+use epiphany_core::EpiphanyLocalVerseContext;
+use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
+use epiphany_core::EpiphanyServiceExecutionAuditReport;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION;
 use serde_json::json;
+use serde_json::Value;
 use sha2::Digest;
 use sha2::Sha256;
 use std::env;
@@ -55,7 +55,7 @@ fn main() -> Result<()> {
         "tick" | "schedule" | "reconcile-all" => tick(args),
         "serve" | "loop" | "daemon" => serve(args),
         "managed-service-serve" | "service-desired-state-serve" => managed_service_serve(args),
-        "service-plan" | "install-service" => service_plan(args),
+        "service-plan" => service_plan(args),
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
         "managed-service-policy" | "service-desired-state" => managed_service_policy(args),
         "managed-service-read" | "service-desired-state-read" => managed_service_read(args),
@@ -67,10 +67,16 @@ fn main() -> Result<()> {
         | "repo-work-service-readiness"
         | "repo-work-queue-runner-audit" => repo_work_service_audit(args),
         "cluster-service-runbook" | "cluster-daemon-runbook" => cluster_daemon_runbook(args),
-        "cluster-windows-service-install"
-        | "cluster-service-install-plan"
-        | "cluster-service-install-execute"
-        | "cluster-daemon-install-plan" => cluster_windows_service_install(args),
+        "cluster-service-install-plan" | "cluster-daemon-install-plan" => {
+            let mut args = args;
+            args.execute_install = false;
+            cluster_windows_service_install(args)
+        }
+        "cluster-service-install-execute" => {
+            let mut args = args;
+            args.execute_install = true;
+            cluster_windows_service_install(args)
+        }
         "cluster-windows-service-audit" | "cluster-service-audit" | "cluster-service-readiness" => {
             cluster_windows_service_audit(args)
         }
@@ -93,7 +99,14 @@ fn main() -> Result<()> {
         | "cluster-service-execution-audit-smoke" => {
             cluster_windows_service_execution_audit_smoke(args)
         }
-        "windows-service-install" | "service-install-windows" | "service-install-plan" => {
+        "service-install-plan" => {
+            let mut args = args;
+            args.execute_install = false;
+            windows_service_install(args)
+        }
+        "service-install-execute" => {
+            let mut args = args;
+            args.execute_install = true;
             windows_service_install(args)
         }
         "windows-service-execution-readiness"
@@ -192,23 +205,24 @@ fn managed_service_serve(args: Args) -> Result<()> {
     let mut iteration = 0_u64;
     loop {
         iteration = iteration.saturating_add(1);
-        let policies = load_epiphany_cultmesh_managed_service_policies(
-            &args.store,
-            args.runtime_id.clone(),
-        )?;
+        let policies =
+            load_epiphany_cultmesh_managed_service_policies(&args.store, args.runtime_id.clone())?;
         for policy in &policies {
             let mut service_args = args.clone();
             service_args.service_id = policy.service_id.clone();
             managed_service_reconcile(service_args)?;
         }
-        println!("{}", serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.cultmesh.managed_service_scheduler_pulse.v0",
-            "status": "completed",
-            "owner": "Idunn",
-            "iteration": iteration,
-            "policyCount": policies.len(),
-            "privateStateExposed": false,
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.cultmesh.managed_service_scheduler_pulse.v0",
+                "status": "completed",
+                "owner": "Idunn",
+                "iteration": iteration,
+                "policyCount": policies.len(),
+                "privateStateExposed": false,
+            }))?
+        );
         if args.max_iterations != 0 && iteration >= args.max_iterations {
             break;
         }
@@ -374,10 +388,16 @@ fn managed_service_policy(args: Args) -> Result<()> {
     )?;
     let command = service_command_path(&args)?;
     let stdout_artifact = args.stdout_artifact.clone().unwrap_or_else(|| {
-        PathBuf::from(format!(".epiphany-run/services/{}.stdout.log", args.service_id))
+        PathBuf::from(format!(
+            ".epiphany-run/services/{}.stdout.log",
+            args.service_id
+        ))
     });
     let stderr_artifact = args.stderr_artifact.clone().unwrap_or_else(|| {
-        PathBuf::from(format!(".epiphany-run/services/{}.stderr.log", args.service_id))
+        PathBuf::from(format!(
+            ".epiphany-run/services/{}.stderr.log",
+            args.service_id
+        ))
     });
     let latest = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
         &args.store,
@@ -417,21 +437,24 @@ fn managed_service_policy(args: Args) -> Result<()> {
         args.runtime_id.clone(),
         policy,
     )?;
-    println!("{}", serde_json::to_string_pretty(&json!({
-        "schemaVersion": written.schema_version,
-        "status": "written",
-        "policyId": written.policy_id,
-        "serviceId": written.service_id,
-        "ownerDaemonId": written.owner_daemon_id,
-        "enabled": written.enabled,
-        "restartMode": written.restart_mode,
-        "command": written.command,
-        "args": written.args,
-        "stdoutArtifact": written.stdout_artifact,
-        "stderrArtifact": written.stderr_artifact,
-        "latestLifecycleReceiptId": latest.as_ref().map(|receipt| receipt.receipt_id.as_str()),
-        "privateStateExposed": written.private_state_exposed,
-    }))?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": written.schema_version,
+            "status": "written",
+            "policyId": written.policy_id,
+            "serviceId": written.service_id,
+            "ownerDaemonId": written.owner_daemon_id,
+            "enabled": written.enabled,
+            "restartMode": written.restart_mode,
+            "command": written.command,
+            "args": written.args,
+            "stdoutArtifact": written.stdout_artifact,
+            "stderrArtifact": written.stderr_artifact,
+            "latestLifecycleReceiptId": latest.as_ref().map(|receipt| receipt.receipt_id.as_str()),
+            "privateStateExposed": written.private_state_exposed,
+        }))?
+    );
     Ok(())
 }
 
@@ -455,31 +478,34 @@ fn managed_service_read(args: Args) -> Result<()> {
         .map(observe_process)
         .transpose()?
         .unwrap_or(ProcessObservation::Missing);
-    println!("{}", serde_json::to_string_pretty(&json!({
-        "schemaVersion": "epiphany.cultmesh.managed_service_readback.v0",
-        "status": "desired-state-ready",
-        "serviceId": policy.service_id,
-        "ownerDaemonId": policy.owner_daemon_id,
-        "desired": {
-            "enabled": policy.enabled,
-            "restartMode": policy.restart_mode,
-            "command": policy.command,
-            "args": policy.args,
-            "cwd": policy.cwd,
-            "stdoutArtifact": policy.stdout_artifact,
-            "stderrArtifact": policy.stderr_artifact,
-        },
-        "latestLifecycle": latest.as_ref().map(|receipt| json!({
-            "receiptId": receipt.receipt_id,
-            "status": receipt.status,
-            "action": receipt.action,
-            "processId": receipt.process_id,
-            "startedAtUtc": receipt.started_at_utc,
-            "completedAtUtc": receipt.completed_at_utc,
-        })),
-        "processObservation": process_observation.label(),
-        "privateStateExposed": false,
-    }))?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.cultmesh.managed_service_readback.v0",
+            "status": "desired-state-ready",
+            "serviceId": policy.service_id,
+            "ownerDaemonId": policy.owner_daemon_id,
+            "desired": {
+                "enabled": policy.enabled,
+                "restartMode": policy.restart_mode,
+                "command": policy.command,
+                "args": policy.args,
+                "cwd": policy.cwd,
+                "stdoutArtifact": policy.stdout_artifact,
+                "stderrArtifact": policy.stderr_artifact,
+            },
+            "latestLifecycle": latest.as_ref().map(|receipt| json!({
+                "receiptId": receipt.receipt_id,
+                "status": receipt.status,
+                "action": receipt.action,
+                "processId": receipt.process_id,
+                "startedAtUtc": receipt.started_at_utc,
+                "completedAtUtc": receipt.completed_at_utc,
+            })),
+            "processObservation": process_observation.label(),
+            "privateStateExposed": false,
+        }))?
+    );
     Ok(())
 }
 
@@ -504,26 +530,32 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
         .transpose()?
         .unwrap_or(ProcessObservation::Missing);
     if !policy.enabled || policy.restart_mode == "never" {
-        println!("{}", serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
-            "status": "disabled",
-            "serviceId": policy.service_id,
-            "processObservation": observation.label(),
-            "restarted": false,
-            "privateStateExposed": false,
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
+                "status": "disabled",
+                "serviceId": policy.service_id,
+                "processObservation": observation.label(),
+                "restarted": false,
+                "privateStateExposed": false,
+            }))?
+        );
         return Ok(());
     }
     if observation == ProcessObservation::Alive {
-        println!("{}", serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
-            "status": "observed-alive",
-            "serviceId": policy.service_id,
-            "processId": latest.as_ref().and_then(|receipt| receipt.process_id),
-            "processObservation": observation.label(),
-            "restarted": false,
-            "privateStateExposed": false,
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
+                "status": "observed-alive",
+                "serviceId": policy.service_id,
+                "processId": latest.as_ref().and_then(|receipt| receipt.process_id),
+                "processObservation": observation.label(),
+                "restarted": false,
+                "privateStateExposed": false,
+            }))?
+        );
         return Ok(());
     }
     if policy.restart_mode == "on-failure"
@@ -531,14 +563,17 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
             receipt.status == "completed" && receipt.exit_code.unwrap_or_default() == 0
         })
     {
-        println!("{}", serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
-            "status": "completed-no-restart",
-            "serviceId": policy.service_id,
-            "processObservation": observation.label(),
-            "restarted": false,
-            "privateStateExposed": false,
-        }))?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
+                "status": "completed-no-restart",
+                "serviceId": policy.service_id,
+                "processObservation": observation.label(),
+                "restarted": false,
+                "privateStateExposed": false,
+            }))?
+        );
         return Ok(());
     }
     if !args.force && policy.cooldown_seconds > 0 {
@@ -548,16 +583,19 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
         {
             let elapsed = Utc::now().signed_duration_since(started.with_timezone(&Utc));
             if elapsed < Duration::seconds(policy.cooldown_seconds) {
-                println!("{}", serde_json::to_string_pretty(&json!({
-                    "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
-                    "status": "cooling-down",
-                    "serviceId": policy.service_id,
-                    "processObservation": observation.label(),
-                    "cooldownSeconds": policy.cooldown_seconds,
-                    "elapsedSeconds": elapsed.num_seconds(),
-                    "restarted": false,
-                    "privateStateExposed": false,
-                }))?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
+                        "status": "cooling-down",
+                        "serviceId": policy.service_id,
+                        "processObservation": observation.label(),
+                        "cooldownSeconds": policy.cooldown_seconds,
+                        "elapsedSeconds": elapsed.num_seconds(),
+                        "restarted": false,
+                        "privateStateExposed": false,
+                    }))?
+                );
                 return Ok(());
             }
         }
@@ -3265,7 +3303,8 @@ fn service_lifecycle_receipt(
     let receipt_id = args.receipt_id.clone().unwrap_or_else(|| {
         let base = format!(
             "daemon-service-lifecycle-receipt-{}-{}",
-            sanitize_id(&args.service_id), sanitize_id(action)
+            sanitize_id(&args.service_id),
+            sanitize_id(action)
         );
         if action == "launch" {
             format!("{base}-{}", started_at.timestamp_millis())

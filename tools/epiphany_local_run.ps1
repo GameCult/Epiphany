@@ -1592,7 +1592,7 @@ if ($Mode -eq "cluster-service-install-plan" -or $Mode -eq "cluster-service-inst
         $clusterServiceId = "epiphany-cluster-daemon-services"
     }
     $installArgs = @(
-        "cluster-service-install-plan",
+        "cluster-service-install-$clusterInstallModeName",
         "--store", $localVerseStore,
         "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
@@ -1611,9 +1611,6 @@ if ($Mode -eq "cluster-service-install-plan" -or $Mode -eq "cluster-service-inst
     }
     if ($ServiceMaxIterations -gt 0) {
         $installArgs += @("--max-iterations", "$ServiceMaxIterations")
-    }
-    if ($Mode -eq "cluster-service-install-execute") {
-        $installArgs += @("--execute-install")
     }
     Invoke-Checked `
         -Label "write cluster daemon Windows service install $clusterInstallModeName" `
@@ -1982,7 +1979,7 @@ if ($Mode -eq "service-install-plan" -or $Mode -eq "service-install-execute") {
     $resultPath = Join-Path $artifactRoot "daemon-service-install-$installModeName.stdout.json"
     $installScriptPath = Join-Path $artifactRoot "epiphany-daemon-supervisor-install.ps1"
     $installArgs = @(
-        "windows-service-install",
+        "service-install-$installModeName",
         "--store", $localVerseStore,
         "--runtime-id", $LocalVerseRuntimeId,
         "--daemon-id", $DaemonId,
@@ -2000,9 +1997,6 @@ if ($Mode -eq "service-install-plan" -or $Mode -eq "service-install-execute") {
     }
     if ($ServiceMaxIterations -gt 0) {
         $installArgs += @("--max-iterations", "$ServiceMaxIterations")
-    }
-    if ($Mode -eq "service-install-execute") {
-        $installArgs += @("--execute-install")
     }
     Invoke-Checked `
         -Label "write daemon supervisor Windows service install $installModeName" `

@@ -44,6 +44,10 @@ The monolithic `epiphany-verse-query smoke` fixture writer can no longer accept 
 
 `epiphany-operator-run receipt` no longer accepts `--status`. It loads the latest operator intent and requires matching run id/mode, canonicalizes the result and artifact-root paths, requires the result to be a file contained under the artifact root, parses it as JSON, and rejects it if its modification time predates the intent. Only then does it derive `status=completed`. The wrapper no longer passes a completion assertion. Negative proof rejects caller status and out-of-root artifacts; positive proof uses a post-intent JSON artifact. Next audit daemon-supervisor planning/rehearsal receipts against actual service/process evidence.
 
+## 2026-07-12 daemon-supervisor plan/execute identity
+
+Install command names now determine execution authority. `service-install-plan` and `cluster-service-install-plan` force `execute_install=false` even if a hostile flag is supplied. `service-install-execute` and `cluster-service-install-execute` force `execute_install=true` without a separate flag. Ambiguous aliases were deleted, and the wrapper invokes exact command names instead of always invoking plan plus `--execute-install`. Proof in the non-elevated shell: hostile plan remained `planned` / `executed=false`; execute without a flag returned `execution-refused-not-elevated` / `executed=false`. Receipt status now follows an inspectable command boundary rather than hidden argument combination.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

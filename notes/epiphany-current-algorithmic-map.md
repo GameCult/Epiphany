@@ -93,6 +93,14 @@
 - Receipt status is derived as `completed`; callers cannot submit status.
 - Forbidden evidence: missing, non-JSON, pre-intent, out-of-root, or mismatched-run artifacts.
 
+## Daemon-supervisor install authority boundary (2026-07-12)
+
+- Plan commands force non-execution and may only write planned artifacts/receipts.
+- Execute commands force execution intent and must pass the existing elevation gate before service-manager mutation.
+- Wrapper command identity matches the Rust command exactly; no hidden `--execute-install` switch selects reality.
+- Ambiguous install aliases are not accepted.
+- Negative proof: hostile plan flag cannot mutate; execute without elevation produces an explicit refusal receipt.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 
