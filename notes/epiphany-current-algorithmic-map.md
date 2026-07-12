@@ -362,6 +362,12 @@ that store with empty stderr and lifecycle receipts. The attached PowerShell
 vigil is deleted. The remaining service boundary is durable Idunn policy and
 operator readback: advertise/configure the heartbeat service through typed
 daemon state so restart intent survives beyond one explicit `service-launch`.
+Source inspection corrected the proposed owner: standing daemon restart policy
+requires a topology daemon and liveness status, while heartbeat is an
+Idunn-managed child service. The durable owner must therefore be a typed
+managed-service desired-state document keyed by service id. It delegates all
+starts to the existing service lifecycle primitive and must not invent an
+`epiphany-daemon-heartbeat` topology identity.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's proprioception.

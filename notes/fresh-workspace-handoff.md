@@ -2202,6 +2202,12 @@ had empty stderr and compact clean closure receipts. Lifecycle receipt ids are
 The old `tools/epiphany_ruminate_until.ps1` attached loop is deleted. Next give
 Idunn a durable typed heartbeat service policy/readback so restart intent and
 current pulse status survive beyond an explicit operator `service-launch`.
+Do not reuse `epiphany.cultmesh.daemon_restart_policy` for this. Inspection of
+`epiphany-daemon-supervisor::write_policy` and scheduler reconciliation shows
+that family requires a standing topology daemon plus daemon liveness status.
+Heartbeat is an Idunn-managed child service. Add a typed managed-service
+desired-state policy keyed by service id, and have reconciliation delegate to
+the existing `service-launch` lifecycle owner.
 
 ## Immediate Re-entry Instruction
 

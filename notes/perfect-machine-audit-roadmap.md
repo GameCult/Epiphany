@@ -102,8 +102,12 @@ refusals, resumes from the same persisted store, and can be launched again by
 Idunn without duplicate pending turns. The heartbeat binary owns pulse timing
 and typed heartbeat receipts. Idunn owns child launch, stdout/stderr artifacts,
 and lifecycle receipts. Self remains only the routing organ consuming heartbeat
-pressure. The remaining step is durable Idunn restart policy and compact
-operator readback for the heartbeat service, not another explicit launch smoke.
+pressure. Existing `epiphany.cultmesh.daemon_restart_policy` is not the right
+owner for the remaining step: it is keyed to standing topology daemons and
+their liveness status. The heartbeat loop is an Idunn-managed child service.
+The missing owner is a typed managed-service desired-state policy keyed by
+service id, plus compact operator readback; do not forge an eighth standing
+daemon to reuse the daemon policy table.
 
 ### Owner
 
@@ -127,6 +131,15 @@ operator readback for the heartbeat service, not another explicit launch smoke.
 - compact status/telemetry projection;
 - Idunn service lifecycle receipt and sealed stdout/stderr artifacts;
 - explicit clean shutdown or failure status.
+
+### Durable service policy requirement
+
+Add one typed Idunn managed-service policy with owner `Idunn` and key
+`service_id`. It may read the desired command/args/cwd, enabled state, restart
+mode, cooldown/backoff, expected heartbeat store, stdout/stderr artifact refs,
+and latest lifecycle receipt. It emits desired-state readback and delegates
+every actual start/restart to the existing service lifecycle launch primitive.
+It does not own heartbeat scheduling state, daemon topology, or routine output.
 
 ### Forbidden writers
 
