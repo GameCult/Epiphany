@@ -429,3 +429,14 @@ unproven note for the status document. Both inputs are deleted. Reaching the
 heartbeat write derives `ready`; command failure writes no heartbeat, while
 degradation/down must come from timeout, failed restart, or supervisor
 observation rather than a caller describing the desired dashboard color.
+
+## Query smoke authoring Idunn lifecycle truth
+
+The monolithic `epiphany-verse-query smoke` wrote synthetic Windows service
+runbooks plus four daemon-service lifecycle receipts into its selected store,
+then used those documents to prove service overview, health, preflight, and
+action projections. Because the smoke accepts an explicit store, the query
+binary could contaminate live Verse state with its own Idunn fiction. The whole
+service-lifecycle fixture/readback segment and its now-dead helper functions
+are deleted. Lifecycle fixtures belong to focused daemon-supervisor smokes in
+quarantined stores; query smoke no longer authors service truth.

@@ -109,6 +109,9 @@ The confirmed conceptual substitutions have been cut:
 - cluster-daemon heartbeat no longer accepts caller liveness or note fields.
   A successful owning-body heartbeat derives `ready`; degraded/down require
   observed supervisor or timeout evidence.
+- verse-query's mega-smoke no longer writes synthetic Idunn service runbooks or
+  lifecycle receipts into its selected store and then verifies its own state.
+  Focused daemon-supervisor smokes own quarantined lifecycle fixtures.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
