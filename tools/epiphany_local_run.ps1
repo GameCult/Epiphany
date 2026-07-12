@@ -1011,24 +1011,14 @@ if ($Mode -eq "bifrost-public-proof") {
         }
         $publicProofId = $latestProof
     }
-    $publicationUrl = $BifrostPublicProofPublicationUrl
-    if ($publicationUrl -eq "") {
-        $publicationUrl = "cultmesh://$BifrostPublicProofRoomId/$publicProofId"
-    }
     Invoke-Checked `
-        -Label "publish redacted repo proof through Bifrost" `
+        -Label "submit redacted repo proof to Bifrost" `
         -FilePath $verseQueryExe `
         -Arguments @(
             "bifrost-public-proof",
             "--store", $repoLocalVerseStore,
             "--runtime-id", $RepoWorkRuntimeId,
-            "--public-proof-id", $publicProofId,
-            "--receipt-id", $BifrostPublicProofPublicationReceiptId,
-            "--ledger-entry-id", $BifrostLedgerEntryId,
-            "--review-receipt", $BifrostPublicProofReviewReceipt,
-            "--credit-receipt", $BifrostPublicProofCreditReceipt,
-            "--public-room-id", $BifrostPublicProofRoomId,
-            "--publication-url", $publicationUrl
+            "--public-proof-id", $publicProofId
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
@@ -2823,7 +2813,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.reviewReceiptIds -and $result.reviewReceiptIds.Count -gt 0) {
                 $reviewReceipts = ($result.reviewReceiptIds -join ",")
             }
-            Write-Host "Bifrost public proof: status=$($result.status), item=$($result.item), proof=$($result.publicProofId), receipt=$($result.receiptId), publicVerse=$($result.targetPublicVerseId), room=$($result.publicRoomId), sha256=$($result.publicProofSha256), ledger=$($result.ledgerEntryId), credit=$creditReceipts, review=$reviewReceipts, public=$($result.publicationUrl), privateStateExposed=$($result.privateStateExposed)"
+            Write-Host "Bifrost public proof request: status=$($result.status), item=$($result.item), proof=$($result.publicProofId), sha256=$($result.publicProofSha256), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-artifact-acceptance") {
             $changedPaths = "none"
             if ($null -ne $result.changedPaths -and $result.changedPaths.Count -gt 0) {

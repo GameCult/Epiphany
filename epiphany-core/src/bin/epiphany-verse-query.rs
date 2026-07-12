@@ -11,7 +11,6 @@ use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_receipt_for
 use epiphany_core::epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
 use epiphany_core::epiphany_cultmesh_bifrost_metrics_receipt_for_map_entry;
-use epiphany_core::epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
@@ -66,7 +65,6 @@ use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_recei
 use epiphany_core::write_epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::write_epiphany_cultmesh_bifrost_github_publication_receipt;
 use epiphany_core::write_epiphany_cultmesh_bifrost_metrics_receipt;
-use epiphany_core::write_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
@@ -111,7 +109,6 @@ use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyServiceExecutionAuditCheck;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_GLOBAL_VERSE_ID;
 use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
 use epiphany_core::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
 use serde::Serialize;
@@ -977,6 +974,18 @@ fn run_cli() -> Result<()> {
             );
         }
         "bifrost-public-proof" | "publish-public-proof" | "public-proof-publication" => {
+            if args.ledger_entry_id.is_some()
+                || args.review_receipts.is_some()
+                || args.credit_receipt_ids.is_some()
+                || args.public_room_id.is_some()
+                || args.publication_url.is_some()
+                || args.receipt_id.is_some()
+                || args.receipt_status.is_some()
+            {
+                anyhow::bail!(
+                    "bifrost-public-proof selects a pending public proof only; Bifrost owns ledger, review, credit, destination, publication, and receipt result fields"
+                );
+            }
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -996,91 +1005,33 @@ fn run_cli() -> Result<()> {
                 latest_public_proof
                     .context("bifrost-public-proof requires a repo work public proof in local Verse or --public-proof-id")?
             };
-            let ledger_entry_id = args
-                .ledger_entry_id
-                .clone()
-                .context("bifrost-public-proof requires --ledger-entry-id")?;
-            let review_receipts = required_list(
-                &args.review_receipts,
-                "bifrost-public-proof requires --review-receipt",
-            )?;
-            let credit_receipts = required_list(
-                &args.credit_receipt_ids,
-                "bifrost-public-proof requires --credit-receipt",
-            )?;
-            let public_room_id = args
-                .public_room_id
-                .clone()
-                .unwrap_or_else(|| "epiphany-global/repo-work/public-proofs".to_string());
-            let publication_url = args.publication_url.clone().unwrap_or_else(|| {
-                format!(
-                    "cultmesh://{public_room_id}/{}",
-                    selected_public_proof.public_proof_id
-                )
-            });
-            let receipt_id = args.receipt_id.clone().unwrap_or_else(|| {
-                format!(
-                    "bifrost-public-proof-publication-{}",
-                    selected_public_proof.public_proof_id
-                )
-            });
-            let receipt_status = args
-                .receipt_status
-                .clone()
-                .unwrap_or_else(|| "published-to-public-verse".to_string());
-            let receipt = epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
-                receipt_id,
-                &selected_public_proof,
-                receipt_status,
-                EPIPHANY_CULTMESH_GLOBAL_VERSE_ID,
-                public_room_id,
-                ledger_entry_id,
-                credit_receipts,
-                review_receipts,
-                publication_url,
-            );
-            let written = write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                receipt,
-            )?;
-            let latest = load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-            )?;
-            if latest.as_ref().map(|receipt| receipt.receipt_id.as_str())
-                != Some(written.receipt_id.as_str())
-            {
-                anyhow::bail!(
-                    "local Verse query lost Bifrost public proof publication receipt after write"
-                );
-            }
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "schemaVersion": "epiphany.local_verse_bifrost_public_proof_publication.v0",
-                    "status": "ok",
+                    "status": "pending-bifrost",
                     "store": args.store,
                     "runtimeId": args.runtime_id,
-                    "receiptId": written.receipt_id,
-                    "publicProofId": written.public_proof_id,
-                    "publicProofRef": written.public_proof_ref,
-                    "publicProofSha256": written.public_proof_sha256,
-                    "item": written.item,
-                    "sourceWorkspace": written.source_workspace,
-                    "sourceBranch": written.source_branch,
-                    "targetPublicVerseId": written.target_public_verse_id,
-                    "publicRoomId": written.public_room_id,
-                    "publicationUrl": written.publication_url,
-                    "ledgerEntryId": written.bifrost_ledger_entry_id,
-                    "creditReceiptIds": written.credit_receipt_ids,
-                    "reviewReceiptIds": written.reviewer_ids,
+                    "receiptId": null,
+                    "publicProofId": selected_public_proof.public_proof_id,
+                    "publicProofRef": selected_public_proof.public_proof_ref,
+                    "publicProofSha256": selected_public_proof.public_proof_sha256,
+                    "item": selected_public_proof.item,
+                    "sourceWorkspace": selected_public_proof.workspace,
+                    "sourceBranch": selected_public_proof.branch,
+                    "targetPublicVerseId": null,
+                    "publicRoomId": null,
+                    "publicationUrl": null,
+                    "ledgerEntryId": null,
+                    "creditReceiptIds": [],
+                    "reviewReceiptIds": [],
+                    "responseOwner": "Bifrost",
                     "commands": {
                         "swarmOverview": WRAPPER_OVERVIEW_COMMAND,
                         "bifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
                         "bifrostPublicProof": "epiphany-verse-query bifrost-public-proof --public-proof-id <id> --ledger-entry-id <id> --review-receipt <id> --credit-receipt <id>"
                     },
-                    "privateStateExposed": written.private_state_exposed,
+                    "privateStateExposed": false,
                 }))?
             );
         }

@@ -54,6 +54,14 @@
 - Forbidden writers: Persona cannot pass or synthesize Imagination response fields.
 - Negative proof: the full consumer-request/provider-accept/Persona-feedback chain persists no consensus receipt until Imagination answers.
 
+## Public-proof submission boundary (2026-07-12)
+
+- Request source: an existing redacted `repo_work_public_proof` document is the complete pending publication cargo.
+- Consumer command: `bifrost-public-proof` selects that proof and reports `pending-bifrost`; it writes no new receipt.
+- Bifrost owner: ledger attribution, review and credit receipt binding, public destination, publication URL, publication status, and final receipt.
+- Forbidden writers: the caller-facing command rejects all Bifrost result fields and leaves publication coordinates null.
+- Negative check: absence of a pending proof fails without writing a publication receipt; response-shaped fields are rejected before mutation.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

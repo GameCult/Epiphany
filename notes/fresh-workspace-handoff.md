@@ -24,6 +24,10 @@ Single poke, batch poke, and swarm triage now write only `epiphany.cultmesh.daem
 
 `collaboration-feedback` now writes only bounded Persona feedback after verifying the cited Eve provider receipt exists. It returns `pending-imagination`, leaves consensus receipt/packet/adoption gate null, and rejects caller-supplied consensus receipt id/status, participant ids, or packet reference. The new narrow `epiphany-eve-provider accept` executable owns Eve connection acceptance: it loads the pending intent, verifies the provider cluster owns the target, and writes the connection receipt. Physical proof ran consumer request -> provider acceptance -> Persona feedback and showed no persisted Imagination consensus receipt; counterfeit consensus status was rejected.
 
+## 2026-07-12 public-proof submission / Bifrost publication split
+
+`bifrost-public-proof` and its wrapper now select an already persisted redacted repo-work public proof and report `pending-bifrost`. They do not construct or write `gamecult.bifrost.public_proof_publication_receipt`. Caller-supplied ledger attribution, reviewers, credit receipts, public room/destination, publication URL, receipt id, and receipt status are rejected as Bifrost-owned result fields. Output publication and receipt coordinates remain null. The current canonical `state/local-verse.ccmp` contains no repo-work public proof fixture, so the physical negative proof covered refusal before any receipt mutation plus rejection of counterfeit result fields; full behavior remains covered by typed public-proof storage tests and compilation. Next split artifact acceptance and metrics the same way or move their receipt writers into a narrow Bifrost provider executable.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 
