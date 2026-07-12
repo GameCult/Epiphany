@@ -630,10 +630,10 @@ fn classify_run_stop(
                 };
                 let recommended = match selected_gate.as_str() {
                     "awaiting-publication" => {
-                        "epiphany-work publish --workspace <repo> --closure-receipt <receipt>"
+                        "submit a Bifrost publication intent through the owning integration"
                     }
                     "awaiting-sync" | "awaiting-upstream-sync" => {
-                        "epiphany-work sync --workspace <repo> --publish-receipt <receipt>"
+                        "inspect provider-authored publication and upstream Git ancestry evidence"
                     }
                     "awaiting-closure" => {
                         "epiphany-work close --workspace <repo> --execute-receipt <receipt>"

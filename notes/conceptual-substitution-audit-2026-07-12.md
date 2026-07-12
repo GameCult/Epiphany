@@ -328,3 +328,15 @@ and merge-receipt string. It then asserted Bifrost publication, Soul approval,
 and upstream publication as one integrated proof. Git can prove ancestry; it
 cannot impersonate the absent publisher, reviewer, or verification organ. The
 binary and its live-proof claims are deleted.
+
+## Caller-authored publication and merge authority
+
+The deleted smoke exposed a surviving production authority. `epiphany-work
+publish` accepted arbitrary verification/review/PR/ledger strings, rewrote a
+Hands review to add PR permission, invoked the now request-only Bifrost command
+with forbidden provider-result arguments, and wrote
+`publicationAuthorized=true`. `epiphany-work sync` accepted arbitrary merge
+strings and promoted Git ancestry into `mergeAuthorized=true`. Both commands
+and the whole-path stop-classification smoke that depended on them are deleted.
+The coherent split is Bifrost intent submission, provider-authored publication
+and review receipts, and read-only Git ancestry inspection.
