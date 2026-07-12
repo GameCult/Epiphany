@@ -108,6 +108,12 @@ their liveness status. The heartbeat loop is an Idunn-managed child service.
 The missing owner is a typed managed-service desired-state policy keyed by
 service id, plus compact operator readback; do not forge an eighth standing
 daemon to reuse the daemon policy table.
+That desired-state document is now landed as
+`epiphany.cultmesh.managed_service_policy.v0`. Idunn can write it from the same
+service command/args/cwd and sealed log refs used by lifecycle launch, and can
+read it beside the latest lifecycle receipt. Readback explicitly reports
+process observation as unknown until reconciliation probes reality; a past
+`launched` receipt is not allowed to impersonate a living process.
 
 ### Owner
 
@@ -140,6 +146,10 @@ mode, cooldown/backoff, expected heartbeat store, stdout/stderr artifact refs,
 and latest lifecycle receipt. It emits desired-state readback and delegates
 every actual start/restart to the existing service lifecycle launch primitive.
 It does not own heartbeat scheduling state, daemon topology, or routine output.
+The persistence/publication half is complete. Next add reconciliation that
+probes the policy's last PID or an equivalent platform process witness, applies
+enabled/restart-mode/cooldown intent, and delegates any restart to the existing
+service lifecycle launch primitive.
 
 ### Forbidden writers
 

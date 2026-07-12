@@ -6,9 +6,11 @@ use chrono::Utc;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION;
 use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
+use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyServiceExecutionAuditReport;
@@ -18,6 +20,7 @@ use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
+use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
@@ -25,6 +28,7 @@ use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_scheduler_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
+use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use serde_json::Value;
 use serde_json::json;
@@ -47,6 +51,8 @@ fn main() -> Result<()> {
         "serve" | "loop" | "daemon" => serve(args),
         "service-plan" | "install-service" => service_plan(args),
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
+        "managed-service-policy" | "service-desired-state" => managed_service_policy(args),
+        "managed-service-read" | "service-desired-state-read" => managed_service_read(args),
         "service-runbook" | "runbook-service" => service_runbook(args),
         "repo-work-service-audit"
         | "repo-work-service-readiness"
@@ -327,6 +333,121 @@ fn service_launch(args: Args) -> Result<()> {
             "privateStateExposed": written.private_state_exposed,
         }))?
     );
+    Ok(())
+}
+
+fn managed_service_policy(args: Args) -> Result<()> {
+    seed_epiphany_local_verse_context(
+        &args.store,
+        args.runtime_id.clone(),
+        Utc::now().to_rfc3339(),
+    )?;
+    let command = service_command_path(&args)?;
+    let stdout_artifact = args.stdout_artifact.clone().unwrap_or_else(|| {
+        PathBuf::from(format!(".epiphany-run/services/{}.stdout.log", args.service_id))
+    });
+    let stderr_artifact = args.stderr_artifact.clone().unwrap_or_else(|| {
+        PathBuf::from(format!(".epiphany-run/services/{}.stderr.log", args.service_id))
+    });
+    let latest = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+        &args.store,
+        args.runtime_id.clone(),
+    )?
+    .into_iter()
+    .filter(|receipt| receipt.service_id == args.service_id)
+    .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
+    let policy = EpiphanyCultMeshManagedServicePolicyEntry {
+        schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
+        policy_id: args
+            .policy_id
+            .clone()
+            .unwrap_or_else(|| format!("managed-service-policy-{}", sanitize_id(&args.service_id))),
+        service_id: args.service_id.clone(),
+        owner_daemon_id: "epiphany-daemon-supervisor".to_string(),
+        command: command.display().to_string(),
+        args: service_serve_args(&args),
+        cwd: args.cwd.as_ref().map(|path| path.display().to_string()),
+        enabled: !args.disabled,
+        restart_mode: args.restart_mode.clone(),
+        cooldown_seconds: args.cooldown_seconds,
+        backoff_multiplier: args.backoff_multiplier,
+        stdout_artifact: stdout_artifact.display().to_string(),
+        stderr_artifact: stderr_artifact.display().to_string(),
+        last_lifecycle_receipt_id: latest
+            .as_ref()
+            .map(|receipt| receipt.receipt_id.clone())
+            .unwrap_or_default(),
+        updated_at_utc: Utc::now().to_rfc3339(),
+        private_state_exposed: false,
+        notes: vec![
+            "Idunn owns desired child-service state; the service binary owns its domain state."
+                .to_string(),
+            "Every start or restart delegates to the existing typed service lifecycle primitive."
+                .to_string(),
+        ],
+    };
+    let written = write_epiphany_cultmesh_managed_service_policy(
+        &args.store,
+        args.runtime_id.clone(),
+        policy,
+    )?;
+    println!("{}", serde_json::to_string_pretty(&json!({
+        "schemaVersion": written.schema_version,
+        "status": "written",
+        "policyId": written.policy_id,
+        "serviceId": written.service_id,
+        "ownerDaemonId": written.owner_daemon_id,
+        "enabled": written.enabled,
+        "restartMode": written.restart_mode,
+        "command": written.command,
+        "args": written.args,
+        "stdoutArtifact": written.stdout_artifact,
+        "stderrArtifact": written.stderr_artifact,
+        "lastLifecycleReceiptId": written.last_lifecycle_receipt_id,
+        "privateStateExposed": written.private_state_exposed,
+    }))?);
+    Ok(())
+}
+
+fn managed_service_read(args: Args) -> Result<()> {
+    let policy = load_epiphany_cultmesh_managed_service_policy(
+        &args.store,
+        args.runtime_id.clone(),
+        &args.service_id,
+    )?
+    .with_context(|| format!("managed service policy missing for {}", args.service_id))?;
+    let latest = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+        &args.store,
+        args.runtime_id.clone(),
+    )?
+    .into_iter()
+    .filter(|receipt| receipt.service_id == args.service_id)
+    .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
+    println!("{}", serde_json::to_string_pretty(&json!({
+        "schemaVersion": "epiphany.cultmesh.managed_service_readback.v0",
+        "status": "desired-state-ready",
+        "serviceId": policy.service_id,
+        "ownerDaemonId": policy.owner_daemon_id,
+        "desired": {
+            "enabled": policy.enabled,
+            "restartMode": policy.restart_mode,
+            "command": policy.command,
+            "args": policy.args,
+            "cwd": policy.cwd,
+            "stdoutArtifact": policy.stdout_artifact,
+            "stderrArtifact": policy.stderr_artifact,
+        },
+        "latestLifecycle": latest.as_ref().map(|receipt| json!({
+            "receiptId": receipt.receipt_id,
+            "status": receipt.status,
+            "action": receipt.action,
+            "processId": receipt.process_id,
+            "startedAtUtc": receipt.started_at_utc,
+            "completedAtUtc": receipt.completed_at_utc,
+        })),
+        "processObservation": "unknown-until-managed-service-reconcile",
+        "privateStateExposed": false,
+    }))?);
     Ok(())
 }
 
@@ -3202,6 +3323,7 @@ struct Args {
     service_display_name: Option<String>,
     service_description: Option<String>,
     service_start_type: String,
+    restart_mode: String,
     service_command: Option<PathBuf>,
     service_args: Vec<String>,
     runbook_path: Option<PathBuf>,
@@ -3249,6 +3371,7 @@ impl Args {
         let mut service_display_name = None;
         let mut service_description = None;
         let mut service_start_type = "demand".to_string();
+        let mut restart_mode = "on-failure".to_string();
         let mut service_command = None;
         let mut service_args = Vec::new();
         let mut runbook_path = None;
@@ -3352,6 +3475,9 @@ impl Args {
                     service_start_type = values
                         .next()
                         .context("missing --service-start-type value")?;
+                }
+                "--restart-mode" => {
+                    restart_mode = values.next().context("missing --restart-mode value")?;
                 }
                 "--service-command" => {
                     service_command = Some(PathBuf::from(
@@ -3462,6 +3588,10 @@ impl Args {
                     | "service-launch"
                     | "launch-service"
                     | "start-service"
+                    | "managed-service-policy"
+                    | "service-desired-state"
+                    | "managed-service-read"
+                    | "service-desired-state-read"
                     | "service-runbook"
                     | "runbook-service"
                     | "repo-work-service-audit"
@@ -3521,6 +3651,9 @@ impl Args {
         if !matches!(service_start_type.as_str(), "auto" | "demand" | "disabled") {
             anyhow::bail!("--service-start-type must be auto, demand, or disabled");
         }
+        if !matches!(restart_mode.as_str(), "always" | "on-failure" | "never") {
+            anyhow::bail!("--restart-mode must be always, on-failure, or never");
+        }
 
         Ok(Self {
             command,
@@ -3544,6 +3677,7 @@ impl Args {
             service_display_name,
             service_description,
             service_start_type,
+            restart_mode,
             service_command,
             service_args,
             runbook_path,

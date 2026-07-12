@@ -368,6 +368,14 @@ Idunn-managed child service. The durable owner must therefore be a typed
 managed-service desired-state document keyed by service id. It delegates all
 starts to the existing service lifecycle primitive and must not invent an
 `epiphany-daemon-heartbeat` topology identity.
+The typed desired-state surface is now implemented as
+`epiphany.cultmesh.managed_service_policy.v0`, persisted at a service-id key.
+`epiphany-daemon-supervisor managed-service-policy` writes command, args, cwd,
+enabled/restart/backoff intent, sealed log refs, and the latest lifecycle
+witness; `managed-service-read` projects desired state plus
+`latestLifecycle`. It deliberately reports process observation as unknown
+until a real reconcile probe exists, so an old launch receipt cannot claim the
+service is alive.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's proprioception.

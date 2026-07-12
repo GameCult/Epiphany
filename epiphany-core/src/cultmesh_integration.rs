@@ -160,6 +160,10 @@ pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION: &st
     "epiphany.cultmesh.daemon_service_lifecycle_receipt.v0";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY: &str =
     "epiphany-local/daemon-service-lifecycle-receipt/latest";
+pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE: &str =
+    "epiphany.cultmesh.managed_service_policy";
+pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.managed_service_policy.v0";
 pub const EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.idunn.deployment_receipt.v0";
 pub const EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY: &str =
@@ -1477,6 +1481,48 @@ pub struct EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
+    type = "epiphany.cultmesh.managed_service_policy",
+    schema = "EpiphanyCultMeshManagedServicePolicyEntry"
+)]
+pub struct EpiphanyCultMeshManagedServicePolicyEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub policy_id: String,
+    #[cultcache(key = 2)]
+    pub service_id: String,
+    #[cultcache(key = 3)]
+    pub owner_daemon_id: String,
+    #[cultcache(key = 4)]
+    pub command: String,
+    #[cultcache(key = 5)]
+    pub args: Vec<String>,
+    #[cultcache(key = 6)]
+    pub cwd: Option<String>,
+    #[cultcache(key = 7)]
+    pub enabled: bool,
+    #[cultcache(key = 8)]
+    pub restart_mode: String,
+    #[cultcache(key = 9)]
+    pub cooldown_seconds: i64,
+    #[cultcache(key = 10)]
+    pub backoff_multiplier: u32,
+    #[cultcache(key = 11)]
+    pub stdout_artifact: String,
+    #[cultcache(key = 12)]
+    pub stderr_artifact: String,
+    #[cultcache(key = 13)]
+    pub last_lifecycle_receipt_id: String,
+    #[cultcache(key = 14)]
+    pub updated_at_utc: String,
+    #[cultcache(key = 15)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 16)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
     type = "gamecult.idunn.deployment_receipt",
     schema = "EpiphanyCultMeshIdunnDeploymentReceiptEntry"
 )]
@@ -2584,6 +2630,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshDaemonRestartPolicyEntry => EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonSchedulerReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshManagedServicePolicyEntry => EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnDeploymentReceiptEntry => EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnAftercareAuditReceiptEntry => EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshSwarmBrakeEntry => EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,
@@ -3598,6 +3645,28 @@ pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
         .collect())
 }
 
+pub fn write_epiphany_cultmesh_managed_service_policy(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    policy: EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<EpiphanyCultMeshManagedServicePolicyEntry> {
+    validate_managed_service_policy(&policy)?;
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let key = epiphany_cultmesh_managed_service_policy_key(&policy.service_id);
+    let written = node.put(key.as_str(), &policy)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_epiphany_cultmesh_managed_service_policy(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    service_id: &str,
+) -> Result<Option<EpiphanyCultMeshManagedServicePolicyEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(&epiphany_cultmesh_managed_service_policy_key(service_id))
+}
+
 pub fn write_epiphany_cultmesh_idunn_deployment_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -3947,6 +4016,33 @@ fn validate_daemon_restart_policy(policy: &EpiphanyCultMeshDaemonRestartPolicyEn
         return Err(anyhow!(
             "daemon restart policy heartbeat_stale_seconds must be non-negative"
         ));
+    }
+    Ok(())
+}
+
+fn validate_managed_service_policy(policy: &EpiphanyCultMeshManagedServicePolicyEntry) -> Result<()> {
+    if policy.private_state_exposed {
+        return Err(anyhow!("managed service policies must not expose private state"));
+    }
+    for (label, value) in [
+        ("policy id", policy.policy_id.as_str()),
+        ("service id", policy.service_id.as_str()),
+        ("owner daemon id", policy.owner_daemon_id.as_str()),
+        ("command", policy.command.as_str()),
+        ("restart mode", policy.restart_mode.as_str()),
+        ("stdout artifact", policy.stdout_artifact.as_str()),
+        ("stderr artifact", policy.stderr_artifact.as_str()),
+        ("updated timestamp", policy.updated_at_utc.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("managed service policy missing {label}"));
+        }
+    }
+    if !matches!(policy.restart_mode.as_str(), "always" | "on-failure" | "never") {
+        return Err(anyhow!("managed service policy restart_mode must be always, on-failure, or never"));
+    }
+    if policy.cooldown_seconds < 0 || policy.backoff_multiplier == 0 {
+        return Err(anyhow!("managed service policy requires non-negative cooldown and positive backoff"));
     }
     Ok(())
 }
@@ -6217,6 +6313,10 @@ fn epiphany_cultmesh_daemon_scheduler_receipt_key(receipt_id: &str) -> String {
 
 fn epiphany_cultmesh_daemon_service_lifecycle_receipt_key(receipt_id: &str) -> String {
     format!("epiphany-local/daemon-service-lifecycle-receipt/{receipt_id}")
+}
+
+fn epiphany_cultmesh_managed_service_policy_key(service_id: &str) -> String {
+    format!("epiphany-local/managed-service-policy/{service_id}")
 }
 
 fn epiphany_cultmesh_idunn_deployment_receipt_key(receipt_id: &str) -> String {

@@ -2208,6 +2208,15 @@ that family requires a standing topology daemon plus daemon liveness status.
 Heartbeat is an Idunn-managed child service. Add a typed managed-service
 desired-state policy keyed by service id, and have reconciliation delegate to
 the existing `service-launch` lifecycle owner.
+The persistence/readback half is landed. New typed document
+`epiphany.cultmesh.managed_service_policy.v0` is registered in CultMesh and
+keyed by service id. Supervisor commands `managed-service-policy` and
+`managed-service-read` round-tripped live service `idunn-epiphany-heartbeat` in
+the existing heartbeat fixture, preserving the prior lifecycle receipt and
+showing desired command/args/cwd/restart mode/log refs without routine payloads.
+Readback calls the historical evidence `latestLifecycle`, not `actual`, and
+reports `processObservation=unknown-until-managed-service-reconcile`. Next add
+that reconcile probe and delegate restarts to the existing lifecycle primitive.
 
 ## Immediate Re-entry Instruction
 
