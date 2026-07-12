@@ -80,6 +80,10 @@ The confirmed conceptual substitutions have been cut:
   receipt strings into publication authority; the second promoted arbitrary
   merge strings plus Git ancestry into merge authority. Bifrost intent,
   provider receipts, and read-only ancestry are separate paths.
+- legacy `work-publish-*.json` and `work-sync-*.json` are no longer read by
+  overview, readiness, scheduling, receipt-chain, or proof-bundle paths. Dead
+  writer artifacts cannot remain living authority; closed work waits at
+  `awaiting-publication` until an owner-aligned provider projection exists.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

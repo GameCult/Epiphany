@@ -59,8 +59,6 @@ use epiphany_core::load_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 use epiphany_core::load_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
@@ -11694,8 +11692,6 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
     let close_receipt_path = work_receipt_path(&workspace, "close", &item);
     let close_review_receipt_path =
         artifact_dir.join(format!("work-close-{item_slug}-review.json"));
-    let publish_receipt_path = work_receipt_path(&workspace, "publish", &item);
-    let sync_receipt_path = work_receipt_path(&workspace, "sync", &item);
     let overview_receipt_path = artifact_dir.join(format!("work-overview-{item_slug}.json"));
 
     let plan_receipt = read_json_if_exists(&plan_receipt_path)?;
@@ -11703,8 +11699,6 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
     let adopt_receipt = read_json_if_exists(&adopt_receipt_path)?;
     let execute_receipt = read_json_if_exists(&execute_receipt_path)?;
     let close_receipt = read_json_if_exists(&close_receipt_path)?;
-    let publish_receipt = read_json_if_exists(&publish_receipt_path)?;
-    let sync_receipt = read_json_if_exists(&sync_receipt_path)?;
 
     let branch = git_output(&workspace, &["rev-parse", "--abbrev-ref", "HEAD"])?;
     let commit_sha = execute_receipt
@@ -11727,27 +11721,14 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         .as_ref()
         .and_then(|receipt| string_from_json(receipt, &["soul", "verdict"]))
         .unwrap_or_else(|| "missing".to_string());
-    let publication_status = publish_receipt
-        .as_ref()
-        .and_then(|receipt| receipt.get("publicationStatus").and_then(Value::as_str))
-        .or_else(|| {
-            publish_receipt
-                .as_ref()
-                .and_then(|receipt| receipt.get("status").and_then(Value::as_str))
-        })
-        .unwrap_or("missing");
-    let sync_status = sync_receipt
-        .as_ref()
-        .and_then(|receipt| receipt.get("status").and_then(Value::as_str))
-        .unwrap_or("missing");
+    let publication_status = "provider-evidence-not-resolved";
+    let sync_status = "provider-evidence-not-resolved";
     let (gate, blocker, next_safe_move) = repo_work_overview_gate(
         plan_receipt.as_ref(),
         run_receipt.as_ref(),
         adopt_receipt.as_ref(),
         execute_receipt.as_ref(),
         close_receipt.as_ref(),
-        publish_receipt.as_ref(),
-        sync_receipt.as_ref(),
     );
     let public_discussion_refs =
         string_array_from_json(&accept_receipt, &["feedback", "publicDiscussionRefs"]);
@@ -11847,8 +11828,6 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         ("execute", &execute_receipt_path),
         ("close-review", &close_review_receipt_path),
         ("close", &close_receipt_path),
-        ("publish", &publish_receipt_path),
-        ("sync", &sync_receipt_path),
     ]);
     let changed_paths_for_entry = changed_paths.clone();
     let commit_sha_for_entry = commit_sha.clone().unwrap_or_default();
@@ -11860,8 +11839,6 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         &adopt_receipt_path,
         &execute_receipt_path,
         &close_receipt_path,
-        &publish_receipt_path,
-        &sync_receipt_path,
     );
     let proof_artifacts = repo_work_proof_artifact_rows(&[
         ("accept", &accept_receipt_path),
@@ -11871,11 +11848,8 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         ("execute", &execute_receipt_path),
         ("close-review", &close_review_receipt_path),
         ("close", &close_receipt_path),
-        ("publish", &publish_receipt_path),
-        ("sync", &sync_receipt_path),
     ])?;
-    let proof_publication_rows =
-        repo_work_proof_publication_rows(publish_receipt.as_ref(), sync_receipt.as_ref());
+    let proof_publication_rows = Vec::<Value>::new();
     let proof_bundle_tui_rows = repo_work_proof_bundle_tui_rows(
         &item,
         &branch,
@@ -11908,16 +11882,14 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         "executeReceiptPath": existing_path_value(&execute_receipt_path),
         "closeReviewReceiptPath": existing_path_value(&close_review_receipt_path),
         "closeReceiptPath": existing_path_value(&close_receipt_path),
-        "publishReceiptPath": existing_path_value(&publish_receipt_path),
-        "syncReceiptPath": existing_path_value(&sync_receipt_path),
         "changedPaths": changed_paths,
         "commitSha": commit_sha,
         "intakeConsensus": intake_consensus_readback,
         "soulVerdict": soul_verdict,
         "mindStateCommitReceiptId": close_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["mind", "stateCommitReceiptId"])),
-        "bifrostPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["bifrost", "publicationReceiptId"])),
-        "githubPublicationReceiptId": publish_receipt.as_ref().and_then(|receipt| string_from_json(receipt, &["github", "publicationReceiptId"])),
-        "upstreamMainSynced": sync_receipt.as_ref().and_then(sync_receipt_upstream_main_synced).unwrap_or(false),
+        "bifrostPublicationReceiptId": null,
+        "githubPublicationReceiptId": null,
+        "upstreamMainSynced": false,
         "artifactRows": proof_artifacts,
         "publicationRows": proof_publication_rows,
         "tuiRows": proof_bundle_tui_rows,
@@ -12053,8 +12025,6 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
     let execute_receipt_path = work_receipt_path(&workspace, "execute", &item);
     let close_receipt_path = work_receipt_path(&workspace, "close", &item);
     let queue_run_receipt_path = artifact_dir.join("work-queue-run.json");
-    let publish_receipt_path = work_receipt_path(&workspace, "publish", &item);
-    let sync_receipt_path = work_receipt_path(&workspace, "sync", &item);
     let init_receipt_path = workspace
         .join(".epiphany")
         .join("repo-init")
@@ -12094,8 +12064,6 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             .as_ref()
             .and_then(|receipt| string_from_json(receipt, &["mind", "stateCommitReceiptId"]))
             .is_some();
-    let publish_receipt = read_json_if_exists(&publish_receipt_path)?;
-    let sync_receipt = read_json_if_exists(&sync_receipt_path)?;
 
     let mut rows = vec![
         readiness_path_row(
@@ -12171,13 +12139,18 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
             public_proof_path.exists(),
             "Redacted public proof bundle exists.",
         )?,
-        bifrost_publication_readiness_row(&publish_receipt_path, publish_receipt.as_ref())?,
-        upstream_main_sync_readiness_row(
-            &workspace,
-            &sync_receipt_path,
-            sync_receipt.as_ref(),
-            publish_receipt.as_ref(),
-        )?,
+        readiness_missing_row(
+            "bifrost-publication",
+            "Bifrost/GitHub",
+            "provider-authored publication receipts",
+            "Wait for Bifrost and the GitHub publication adapter; legacy local publish aggregates are not authority.",
+        ),
+        readiness_missing_row(
+            "upstream-main-sync",
+            "Bifrost/GitHub/Maintainer",
+            "provider-authored merge evidence + Git ancestry",
+            "Wait for provider-authored merge evidence, then inspect upstream ancestry; legacy local sync aggregates are not authority.",
+        ),
     ];
     let default_idunn_lifecycle_receipt = artifact_dir.join("repo-work-service-audit.json");
     let idunn_lifecycle_path = args.idunn_lifecycle_receipt.as_ref().or_else(|| {
@@ -13716,8 +13689,6 @@ fn run_tick(args: TickArgs) -> Result<Value> {
     let adopt_receipt_path = work_receipt_path(&workspace, "adopt", &item);
     let execute_receipt_path = work_receipt_path(&workspace, "execute", &item);
     let close_receipt_path = work_receipt_path(&workspace, "close", &item);
-    let publish_receipt_path = work_receipt_path(&workspace, "publish", &item);
-    let sync_receipt_path = work_receipt_path(&workspace, "sync", &item);
 
     let before_receipts = repo_work_receipt_state(
         &accept_receipt_path,
@@ -13726,8 +13697,6 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         &adopt_receipt_path,
         &execute_receipt_path,
         &close_receipt_path,
-        &publish_receipt_path,
-        &sync_receipt_path,
     );
 
     if let Some(brake_store) = local_verse_store.as_ref() {
@@ -13742,8 +13711,6 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                         &adopt_receipt_path,
                         &execute_receipt_path,
                         &close_receipt_path,
-                        &publish_receipt_path,
-                        &sync_receipt_path,
                     );
                     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
                     let receipt = json!({
@@ -13830,8 +13797,6 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 &adopt_receipt_path,
                 &execute_receipt_path,
                 &close_receipt_path,
-                &publish_receipt_path,
-                &sync_receipt_path,
             );
             let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
             let receipt = json!({
@@ -13915,8 +13880,6 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                     &adopt_receipt_path,
                     &execute_receipt_path,
                     &close_receipt_path,
-                    &publish_receipt_path,
-                    &sync_receipt_path,
                 );
                 let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
                 let receipt = json!({
@@ -14010,20 +13973,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
     let next_safe_move;
     let mut advanced_result = Value::Null;
 
-    if sync_receipt_path.exists() {
-        action = "none".to_string();
-        status = "noop".to_string();
-        reason = "work item already has an upstream sync receipt".to_string();
-        next_safe_move = "No branch-local scheduler action remains for this item.".to_string();
-    } else if publish_receipt_path.exists() {
-        action = "none".to_string();
-        status = "noop".to_string();
-        reason =
-            "publication receipt exists; scheduler stops before merge/sync authority".to_string();
-        next_safe_move =
-            "Wait for provider-authored merge evidence, then inspect upstream Git ancestry."
-                .to_string();
-    } else if close_receipt_path.exists()
+    if close_receipt_path.exists()
         && read_json(&close_receipt_path)?
             .get("status")
             .and_then(Value::as_str)
@@ -14317,8 +14267,6 @@ fn run_tick(args: TickArgs) -> Result<Value> {
         &adopt_receipt_path,
         &execute_receipt_path,
         &close_receipt_path,
-        &publish_receipt_path,
-        &sync_receipt_path,
     );
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let receipt = json!({
@@ -14486,8 +14434,6 @@ fn repo_work_receipt_state(
     adopt: &Path,
     execute: &Path,
     close: &Path,
-    publish: &Path,
-    sync: &Path,
 ) -> Value {
     json!({
         "accept": receipt_path_state(accept),
@@ -14496,8 +14442,6 @@ fn repo_work_receipt_state(
         "adopt": receipt_path_state(adopt),
         "execute": receipt_path_state(execute),
         "close": receipt_path_state(close),
-        "publish": receipt_path_state(publish),
-        "sync": receipt_path_state(sync),
     })
 }
 
@@ -14562,292 +14506,6 @@ fn readiness_missing_row(kind: &str, owner: &str, required_schema: &str, note: &
         "note": note,
         "privateStateExposed": false
     })
-}
-
-fn bifrost_publication_readiness_row(path: &Path, receipt: Option<&Value>) -> Result<Value> {
-    let Some(receipt) = receipt else {
-        return Ok(readiness_missing_row(
-            "bifrost-publication",
-            "Bifrost/GitHub",
-            "epiphany.repo_work_publish_receipt.v0 + gamecult.bifrost.body_change_publication_receipt.v0 + gamecult.bifrost.github_publication_receipt.v0",
-            "Wait for Bifrost and the GitHub adapter to publish their receipts before readiness review.",
-        ));
-    };
-
-    let schema_ok = string_from_json(receipt, &["schemaVersion"]).as_deref()
-        == Some("epiphany.repo_work_publish_receipt.v0");
-    let status_ok =
-        string_from_json(receipt, &["status"]).as_deref() == Some("publication-receipts-recorded");
-    let publication_authorized =
-        bool_from_json(receipt, &["authority", "publicationAuthorized"]) == Some(true);
-    let upstream_not_claimed =
-        bool_from_json(receipt, &["authority", "upstreamMainSynced"]) == Some(false);
-    let merge_not_claimed =
-        bool_from_json(receipt, &["authority", "mergeAuthorized"]) == Some(false);
-    let private_sealed = bool_from_json(receipt, &["authority", "privateStateExposed"])
-        == Some(false)
-        && bool_from_json(receipt, &["privateStateExposed"]).unwrap_or(false) == false;
-    let local_verse_store = path_from_json(receipt, &["localVerseStore"]);
-    let runtime_id =
-        string_from_json(receipt, &["runtimeId"]).unwrap_or_else(|| "repo-swarm-local".to_string());
-    let bifrost_publication_receipt_id =
-        string_from_json(receipt, &["bifrost", "publicationReceiptId"]);
-    let github_publication_receipt_id =
-        string_from_json(receipt, &["bifrost", "githubPublicationReceiptId"]);
-    let ledger_entry_id = string_from_json(receipt, &["bifrost", "ledgerEntryId"]);
-    let pull_request_url = string_from_json(receipt, &["bifrost", "pullRequestUrl"]);
-    let credit_receipt_count = receipt
-        .get("bifrost")
-        .and_then(|bifrost| bifrost.get("creditReceiptIds"))
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or(0);
-    let changed_path_count = receipt
-        .get("changedPaths")
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or(0);
-
-    let mut bifrost_latest_matches = false;
-    let mut github_latest_matches = false;
-    let mut bifrost_private_sealed = false;
-    let mut github_private_sealed = false;
-    let mut github_links_bifrost = false;
-    let mut publication_status = "missing".to_string();
-    let mut github_publication_status = "missing".to_string();
-
-    if let (Some(store), Some(bifrost_id), Some(github_id)) = (
-        local_verse_store.as_ref(),
-        bifrost_publication_receipt_id.as_ref(),
-        github_publication_receipt_id.as_ref(),
-    ) {
-        let latest_bifrost = load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
-            store,
-            runtime_id.clone(),
-        )?;
-        let latest_github = load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
-            store,
-            runtime_id.clone(),
-        )?;
-        if let Some(latest) = latest_bifrost.as_ref() {
-            bifrost_latest_matches = latest.receipt_id == *bifrost_id
-                && latest.github_publication_receipt_id == *github_id
-                && latest.bifrost_ledger_entry_id == ledger_entry_id.clone().unwrap_or_default()
-                && !latest.accepted_changed_paths.is_empty()
-                && !latest.credit_receipt_ids.is_empty();
-            bifrost_private_sealed = !latest.private_state_exposed;
-            publication_status = latest.status.clone();
-        }
-        if let Some(latest) = latest_github.as_ref() {
-            github_latest_matches = latest.receipt_id == *github_id
-                && latest.bifrost_publication_receipt_id == *bifrost_id
-                && latest.hands_pr_receipt_id
-                    == string_from_json(receipt, &["handsReceipts", "prReceiptId"])
-                        .unwrap_or_default()
-                && latest.pull_request_url == pull_request_url.clone().unwrap_or_default()
-                && !latest.changed_paths.is_empty()
-                && !latest.ledger_entry_id.trim().is_empty();
-            github_links_bifrost = latest.bifrost_publication_receipt_id == *bifrost_id;
-            github_private_sealed = !latest.private_state_exposed;
-            github_publication_status = latest.publication_status.clone();
-        }
-    }
-
-    let satisfied = schema_ok
-        && status_ok
-        && publication_authorized
-        && upstream_not_claimed
-        && merge_not_claimed
-        && private_sealed
-        && local_verse_store.is_some()
-        && bifrost_latest_matches
-        && github_latest_matches
-        && bifrost_private_sealed
-        && github_private_sealed
-        && github_links_bifrost
-        && credit_receipt_count > 0
-        && changed_path_count > 0
-        && ledger_entry_id
-            .as_ref()
-            .is_some_and(|id| !id.trim().is_empty())
-        && pull_request_url
-            .as_ref()
-            .is_some_and(|url| !url.trim().is_empty());
-
-    Ok(json!({
-        "kind": "bifrost-publication",
-        "owner": "Bifrost/GitHub",
-        "requiredSchema": "epiphany.repo_work_publish_receipt.v0 + gamecult.bifrost.body_change_publication_receipt.v0 + gamecult.bifrost.github_publication_receipt.v0",
-        "evidenceRef": existing_path_value(path),
-        "artifactStatus": if path.exists() { "present" } else { "missing" },
-        "schemaVersion": string_from_json(receipt, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
-        "documentStatus": string_from_json(receipt, &["status"]).unwrap_or_else(|| "missing".to_string()),
-        "bifrostPublicationReceiptId": bifrost_publication_receipt_id.unwrap_or_else(|| "missing".to_string()),
-        "githubPublicationReceiptId": github_publication_receipt_id.unwrap_or_else(|| "missing".to_string()),
-        "ledgerEntryId": ledger_entry_id.unwrap_or_else(|| "missing".to_string()),
-        "creditReceiptCount": credit_receipt_count,
-        "changedPathCount": changed_path_count,
-        "publicationStatus": publication_status,
-        "githubPublicationStatus": github_publication_status,
-        "bifrostLatestMatches": bifrost_latest_matches,
-        "githubLatestMatches": github_latest_matches,
-        "githubLinksBifrost": github_links_bifrost,
-        "publicationAuthorized": publication_authorized,
-        "upstreamMainSynced": !upstream_not_claimed,
-        "mergeAuthorized": !merge_not_claimed,
-        "privateStateExposed": !(private_sealed && bifrost_private_sealed && github_private_sealed),
-        "satisfied": satisfied,
-        "status": if satisfied { "satisfied" } else { "missing" },
-        "note": "Bifrost and GitHub publication receipts are present in repo-local CultMesh and match the repo publish artifact without claiming upstream-main sync.",
-        "readinessApprovalAuthorized": false,
-        "serviceLifecycleAuthority": false,
-        "handsActionAuthorized": false
-    }))
-}
-
-fn upstream_main_sync_readiness_row(
-    workspace: &Path,
-    path: &Path,
-    receipt: Option<&Value>,
-    publish_receipt: Option<&Value>,
-) -> Result<Value> {
-    let Some(receipt) = receipt else {
-        return Ok(readiness_missing_row(
-            "upstream-main-sync",
-            "Bifrost/GitHub",
-            "epiphany.repo_work_sync_receipt.v0 + git merge-base ancestry proof",
-            "Inspect provider-authored merge evidence and upstream Git ancestry.",
-        ));
-    };
-
-    let schema_ok = string_from_json(receipt, &["schemaVersion"]).as_deref()
-        == Some("epiphany.repo_work_sync_receipt.v0");
-    let status_synced =
-        string_from_json(receipt, &["status"]).as_deref() == Some("upstream-main-synced");
-    let upstream_main_synced = bool_from_json(receipt, &["authority", "upstreamMainSynced"])
-        == Some(true)
-        || bool_from_json(receipt, &["upstreamMainSynced"]) == Some(true);
-    let publication_authorized =
-        bool_from_json(receipt, &["authority", "publicationAuthorized"]) == Some(true);
-    let merge_authorized = bool_from_json(receipt, &["authority", "mergeAuthorized"]) == Some(true);
-    let private_sealed = bool_from_json(receipt, &["authority", "privateStateExposed"])
-        == Some(false)
-        && bool_from_json(receipt, &["privateStateExposed"]).unwrap_or(false) == false;
-    let upstream_ref = string_from_json(receipt, &["upstreamRef"]);
-    let upstream_commit_sha = string_from_json(receipt, &["upstreamCommitSha"]);
-    let published_commit_sha = string_from_json(receipt, &["publishedCommitSha"]);
-    let merge_receipt_count = receipt
-        .get("mergeReceipts")
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or(0);
-    let commit_receipt_id = string_from_json(receipt, &["handsReceipts", "commitReceiptId"]);
-    let pr_receipt_id = string_from_json(receipt, &["handsReceipts", "prReceiptId"]);
-    let bifrost_publication_receipt_id =
-        string_from_json(receipt, &["bifrost", "publicationReceiptId"]);
-    let github_publication_receipt_id =
-        string_from_json(receipt, &["bifrost", "githubPublicationReceiptId"]);
-    let ledger_entry_id = string_from_json(receipt, &["bifrost", "ledgerEntryId"]);
-
-    let mut upstream_ref_resolved = false;
-    let mut upstream_ref_matches_receipt = false;
-    let mut published_commit_resolved = false;
-    let mut ancestry_proved = false;
-    if let (Some(upstream_ref), Some(upstream_commit_sha), Some(published_commit_sha)) = (
-        upstream_ref.as_ref(),
-        upstream_commit_sha.as_ref(),
-        published_commit_sha.as_ref(),
-    ) {
-        let resolved_upstream = git_output(workspace, &["rev-parse", "--verify", upstream_ref]);
-        if let Ok(resolved) = resolved_upstream {
-            upstream_ref_resolved = true;
-            upstream_ref_matches_receipt = resolved == *upstream_commit_sha;
-        }
-        published_commit_resolved =
-            git_status_success(workspace, &["cat-file", "-e", published_commit_sha])?;
-        ancestry_proved = git_status_success(
-            workspace,
-            &[
-                "merge-base",
-                "--is-ancestor",
-                published_commit_sha,
-                upstream_ref,
-            ],
-        )?;
-    }
-
-    let publish_receipt_matches = publish_receipt.is_some_and(|publish| {
-        string_from_json(publish, &["handsReceipts", "commitSha"]) == published_commit_sha
-            && string_from_json(publish, &["handsReceipts", "commitReceiptId"]) == commit_receipt_id
-            && string_from_json(publish, &["handsReceipts", "prReceiptId"]) == pr_receipt_id
-            && string_from_json(publish, &["bifrost", "publicationReceiptId"])
-                == bifrost_publication_receipt_id
-            && string_from_json(publish, &["bifrost", "githubPublicationReceiptId"])
-                == github_publication_receipt_id
-            && string_from_json(publish, &["bifrost", "ledgerEntryId"]) == ledger_entry_id
-    });
-
-    let satisfied = schema_ok
-        && status_synced
-        && upstream_main_synced
-        && publication_authorized
-        && merge_authorized
-        && private_sealed
-        && merge_receipt_count > 0
-        && upstream_ref_resolved
-        && upstream_ref_matches_receipt
-        && published_commit_resolved
-        && ancestry_proved
-        && publish_receipt_matches
-        && commit_receipt_id
-            .as_ref()
-            .is_some_and(|id| !id.trim().is_empty())
-        && pr_receipt_id
-            .as_ref()
-            .is_some_and(|id| !id.trim().is_empty())
-        && bifrost_publication_receipt_id
-            .as_ref()
-            .is_some_and(|id| !id.trim().is_empty())
-        && github_publication_receipt_id
-            .as_ref()
-            .is_some_and(|id| !id.trim().is_empty())
-        && ledger_entry_id
-            .as_ref()
-            .is_some_and(|id| !id.trim().is_empty());
-
-    Ok(json!({
-        "kind": "upstream-main-sync",
-        "owner": "Bifrost/GitHub",
-        "requiredSchema": "epiphany.repo_work_sync_receipt.v0 + git merge-base ancestry proof",
-        "evidenceRef": existing_path_value(path),
-        "artifactStatus": if path.exists() { "present" } else { "missing" },
-        "schemaVersion": string_from_json(receipt, &["schemaVersion"]).unwrap_or_else(|| "missing".to_string()),
-        "documentStatus": string_from_json(receipt, &["status"]).unwrap_or_else(|| "missing".to_string()),
-        "upstreamRef": upstream_ref.unwrap_or_else(|| "missing".to_string()),
-        "upstreamCommitSha": upstream_commit_sha.unwrap_or_else(|| "missing".to_string()),
-        "publishedCommitSha": published_commit_sha.unwrap_or_else(|| "missing".to_string()),
-        "mergeReceiptCount": merge_receipt_count,
-        "commitReceiptId": commit_receipt_id.unwrap_or_else(|| "missing".to_string()),
-        "prReceiptId": pr_receipt_id.unwrap_or_else(|| "missing".to_string()),
-        "bifrostPublicationReceiptId": bifrost_publication_receipt_id.unwrap_or_else(|| "missing".to_string()),
-        "githubPublicationReceiptId": github_publication_receipt_id.unwrap_or_else(|| "missing".to_string()),
-        "ledgerEntryId": ledger_entry_id.unwrap_or_else(|| "missing".to_string()),
-        "upstreamMainSynced": upstream_main_synced,
-        "publicationAuthorized": publication_authorized,
-        "mergeAuthorized": merge_authorized,
-        "upstreamRefResolved": upstream_ref_resolved,
-        "upstreamRefMatchesReceipt": upstream_ref_matches_receipt,
-        "publishedCommitResolved": published_commit_resolved,
-        "ancestryProved": ancestry_proved,
-        "publishReceiptMatches": publish_receipt_matches,
-        "privateStateExposed": !private_sealed,
-        "satisfied": satisfied,
-        "status": if satisfied { "satisfied" } else { "missing" },
-        "note": "Sync receipt proves the published commit is contained by the named upstream ref after maintainer/Bifrost merge authority.",
-        "readinessApprovalAuthorized": false,
-        "serviceLifecycleAuthority": false,
-        "handsActionAuthorized": false
-    }))
 }
 
 fn idunn_lifecycle_readiness_row(path: &Path) -> Result<Value> {
@@ -15172,50 +14830,6 @@ fn repo_work_proof_artifact_rows(receipts: &[(&str, &Path)]) -> Result<Vec<Value
         .collect()
 }
 
-fn repo_work_proof_publication_rows(publish: Option<&Value>, sync: Option<&Value>) -> Vec<Value> {
-    let mut rows = Vec::new();
-    if let Some(receipt) = publish {
-        rows.push(json!({
-            "kind": "bifrost",
-            "status": receipt.get("status").and_then(Value::as_str).unwrap_or("unknown"),
-            "intentId": string_from_json(receipt, &["bifrost", "intentId"]),
-            "publicationReceiptId": string_from_json(receipt, &["bifrost", "publicationReceiptId"]),
-            "githubPublicationReceiptId": string_from_json(receipt, &["bifrost", "githubPublicationReceiptId"]),
-            "ledgerEntryId": string_from_json(receipt, &["bifrost", "ledgerEntryId"]),
-            "creditReceiptIds": receipt.get("bifrost").and_then(|bifrost| bifrost.get("creditReceiptIds")).cloned().unwrap_or(Value::Array(Vec::new())),
-            "pullRequestUrl": string_from_json(receipt, &["bifrost", "pullRequestUrl"]),
-            "privateStateExposed": false
-        }));
-        rows.push(json!({
-            "kind": "github",
-            "status": receipt.get("status").and_then(Value::as_str).unwrap_or("unknown"),
-            "commitReceiptId": string_from_json(receipt, &["handsReceipts", "commitReceiptId"]),
-            "commitSha": string_from_json(receipt, &["handsReceipts", "commitSha"]),
-            "prReceiptId": string_from_json(receipt, &["handsReceipts", "prReceiptId"]),
-            "pullRequestUrl": string_from_json(receipt, &["handsReceipts", "pullRequestUrl"]),
-            "pullRequestNumber": receipt
-                .get("handsReceipts")
-                .and_then(|hands| hands.get("pullRequestNumber"))
-                .cloned()
-                .unwrap_or(Value::Null),
-            "pullRequestTitle": string_from_json(receipt, &["handsReceipts", "pullRequestTitle"]),
-            "privateStateExposed": false
-        }));
-    }
-    if let Some(receipt) = sync {
-        rows.push(json!({
-            "kind": "upstream-main",
-            "status": receipt.get("status").and_then(Value::as_str).unwrap_or("unknown"),
-            "upstreamRef": string_from_json(receipt, &["upstreamRef"]),
-            "publishedCommitSha": string_from_json(receipt, &["publishedCommitSha"]),
-            "upstreamCommitSha": string_from_json(receipt, &["upstreamCommitSha"]),
-            "upstreamMainSynced": sync_receipt_upstream_main_synced(receipt).unwrap_or(false),
-            "privateStateExposed": false
-        }));
-    }
-    rows
-}
-
 fn repo_work_public_proof_bundle(overview: &Value) -> Result<Value> {
     let proof = overview
         .get("proofBundle")
@@ -15308,18 +14922,6 @@ fn repo_work_public_proof_tui_rows(
     )]
 }
 
-fn sync_receipt_upstream_main_synced(receipt: &Value) -> Option<bool> {
-    receipt
-        .get("upstreamMainSynced")
-        .and_then(Value::as_bool)
-        .or_else(|| {
-            receipt
-                .get("authority")
-                .and_then(|authority| authority.get("upstreamMainSynced"))
-                .and_then(Value::as_bool)
-        })
-}
-
 fn repo_work_proof_bundle_tui_rows(
     item: &str,
     branch: &str,
@@ -15344,22 +14946,8 @@ fn repo_work_overview_gate(
     adopt: Option<&Value>,
     execute: Option<&Value>,
     close: Option<&Value>,
-    publish: Option<&Value>,
-    sync: Option<&Value>,
 ) -> (&'static str, &'static str, &'static str) {
-    if sync.is_some() {
-        (
-            "complete-or-awaiting-new-work",
-            "none",
-            "No local branch-work action remains for this item.",
-        )
-    } else if publish.is_some() {
-        (
-            "awaiting-upstream-sync",
-            "merge-or-sync-receipt-missing",
-            "After provider-authored merge evidence arrives, inspect upstream Git ancestry.",
-        )
-    } else if close
+    if close
         .and_then(|receipt| receipt.get("status"))
         .and_then(Value::as_str)
         == Some("closed")
@@ -15777,16 +15365,6 @@ fn git_output(workspace: &Path, args: &[&str]) -> Result<String> {
         ));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-fn git_status_success(workspace: &Path, args: &[&str]) -> Result<bool> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(workspace)
-        .args(args)
-        .output()
-        .with_context(|| format!("failed to run git {}", args.join(" ")))?;
-    Ok(output.status.success())
 }
 
 fn git_add_paths(workspace: &Path, paths: &[String]) -> Result<()> {

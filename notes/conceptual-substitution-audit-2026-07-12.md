@@ -340,3 +340,14 @@ strings and promoted Git ancestry into `mergeAuthorized=true`. Both commands
 and the whole-path stop-classification smoke that depended on them are deleted.
 The coherent split is Bifrost intent submission, provider-authored publication
 and review receipts, and read-only Git ancestry inspection.
+
+## Dead-writer artifacts as living readiness authority
+
+Overview, readiness, scheduler, and public-proof assembly still read legacy
+`work-publish-*.json` and `work-sync-*.json` aggregates after their writers were
+deleted. A preexisting or forged file could therefore advance gates, populate
+publication rows, satisfy readiness, or stop scheduling. Those readers,
+receipt-chain slots, artifact rows, gate parameters, and readiness functions
+are deleted. Repo work now stops honestly at `awaiting-publication`; provider
+publication and merge evidence need a new owner-aligned ingest/projection path
+before readiness can advance.
