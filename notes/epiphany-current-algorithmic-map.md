@@ -305,6 +305,15 @@ handoff and ownership without provider/network variance. The remaining smoke
 boundary is process composition through `epiphany-work revise-modeling`, the
 scheduler's consumer preflight, and Idunn's child lifecycle receipt.
 
+Scheduler dry-run is now an authority projection rather than a vague promise.
+When a current typed Modeling request has no finding or job, its
+`advancedResult` names the current route, generation, request, generation-bound
+job id, required preflight, and Idunn lifecycle ownership without opening a job
+or spawning a process. A disposable authority test drives the production
+revision mouth and scheduler and proves generation one is selected. The final
+process proof must compare this projection with a real preflighted Idunn launch
+receipt; it must not add a fake production runtime mode.
+
 ## Current Cut Line
 
 Keep:

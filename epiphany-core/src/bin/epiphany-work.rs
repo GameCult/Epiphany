@@ -15075,6 +15075,17 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                     status = "would-advance".to_string();
                     reason = "typed Modeling request is ready for the existing worker runtime"
                         .to_string();
+                    advanced_result = json!({
+                        "schemaVersion": "epiphany.repo_work_modeling_launch_projection.v0",
+                        "status": "launch-ready",
+                        "routeId": route.route_id,
+                        "generation": route.generation,
+                        "requestId": request.request_id,
+                        "jobId": job_id,
+                        "preflightRequired": true,
+                        "lifecycleOwner": "Idunn",
+                        "privateStateExposed": false
+                    });
                     next_safe_move =
                         "Rerun without --dry-run to launch the repo-work Modeling worker."
                             .to_string();
@@ -17271,6 +17282,151 @@ mod authority_tests {
             Some(finding0)
         );
         assert!(advance_repo_work_modeling_route(&store, &request1, &route1, &review).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn public_revision_mouth_routes_scheduler_to_generation_one() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let workspace = temp.path().join("repo");
+        fs::create_dir_all(&workspace)?;
+        let git = Command::new("git")
+            .arg("init")
+            .arg("--quiet")
+            .arg(&workspace)
+            .status()?;
+        assert!(git.success());
+        let artifact_dir = workspace.join(".epiphany").join("work");
+        fs::create_dir_all(&artifact_dir)?;
+        let store = workspace.join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "process-retry-smoke".to_string(),
+                display_name: "Process Retry Smoke".to_string(),
+                created_at: "2026-07-12T00:00:00Z".to_string(),
+            },
+        )?;
+        let soul = SoulVerdictReceipt {
+            schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "process-retry-soul".to_string(),
+            source_result_id: "process-retry-result".to_string(),
+            source_job_id: "process-retry-job".to_string(),
+            verdict: "passed".to_string(),
+            summary: "Verified consequence.".to_string(),
+            evidence_ids: vec!["commit-abc".to_string()],
+            risks: Vec::new(),
+            emitted_at: "2026-07-12T00:00:00Z".to_string(),
+            contract: "test".to_string(),
+        };
+        put_soul_verdict_receipt(&store, &soul)?;
+        let request0 = RepoWorkModelingRequest {
+            schema_version: REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+            request_id: "repo-work-close-process-retry-modeling-request-g0".to_string(),
+            item: "process-retry".to_string(),
+            requester: "self".to_string(),
+            soul_verdict_receipt_id: soul.receipt_id.clone(),
+            commit_sha: "abc123".to_string(),
+            changed_paths: vec!["README.md".to_string()],
+            instruction: "Model generation zero.".to_string(),
+            requested_at: "2026-07-12T00:00:01Z".to_string(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+        };
+        let route0 = RepoWorkModelingRoute {
+            schema_version: REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION.to_string(),
+            route_id: "repo-work-modeling-route-process-retry".to_string(),
+            item: request0.item.clone(),
+            generation: 0,
+            request_id: request0.request_id.clone(),
+            previous_finding_receipt_id: String::new(),
+            authority_owner: "soul".to_string(),
+            authority_witness_id: soul.receipt_id.clone(),
+            updated_at: "2026-07-12T00:00:01Z".to_string(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+        };
+        commit_initial_repo_work_modeling_route(&store, &request0, &route0)?;
+        let finding0 = RepoWorkModelingFinding {
+            schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
+            receipt_id: format!("{}-finding", request0.request_id),
+            item: request0.item.clone(),
+            model_ref: "runtime-generation-zero".to_string(),
+            soul_verdict_receipt_id: soul.receipt_id.clone(),
+            verdict: "needs-work".to_string(),
+            finding: "Reviewed context is required.".to_string(),
+            summary: "Generation zero incomplete.".to_string(),
+            changed_paths: request0.changed_paths.clone(),
+            commit_sha: request0.commit_sha.clone(),
+            emitted_at: "2026-07-12T00:00:02Z".to_string(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+            request_id: request0.request_id.clone(),
+        };
+        put_repo_work_modeling_finding(&store, &finding0)?;
+        write_json(
+            &artifact_dir.join("work-accept-process-retry.json"),
+            &json!({
+                "schemaVersion": "epiphany.repo_work_accept.v0",
+                "status": "accepted",
+                "item": "process-retry",
+                "privateStateExposed": false
+            }),
+        )?;
+        write_json(
+            &artifact_dir.join("work-close-process-retry.json"),
+            &json!({
+                "schemaVersion": "epiphany.repo_work_closure_receipt.v0",
+                "status": "awaiting-modeling",
+                "item": "process-retry",
+                "runtimeStore": store,
+                "privateStateExposed": false
+            }),
+        )?;
+
+        let revised = run_revise_modeling(ReviseModelingArgs {
+            workspace: workspace.clone(),
+            item: "process-retry".to_string(),
+            runtime_store: Some(store.clone()),
+            rationale: "The operator reviewed the missing context.".to_string(),
+            review_ref: "review://process-retry/g1".to_string(),
+        })?;
+        assert_eq!(revised["generation"], 1);
+        assert_eq!(
+            revised["requestId"],
+            "repo-work-close-process-retry-modeling-request-g1"
+        );
+
+        let tick = run_tick(TickArgs {
+            workspace: workspace.clone(),
+            epiphany_root: env::current_dir()?,
+            item: Some("process-retry".to_string()),
+            local_verse_store: None,
+            artifact_dir: Some(artifact_dir),
+            runtime_store: Some(store.clone()),
+            cooldown_seconds: 0,
+            active_timeout_seconds: 900,
+            dry_run: true,
+        })?;
+        let tick_receipt = read_json(Path::new(tick["receiptPath"].as_str().unwrap()))?;
+        assert_eq!(tick_receipt["action"], "launch-modeling");
+        assert_eq!(tick_receipt["advancedResult"]["generation"], 1);
+        assert_eq!(
+            tick_receipt["advancedResult"]["requestId"],
+            "repo-work-close-process-retry-modeling-request-g1"
+        );
+        assert_eq!(
+            tick_receipt["advancedResult"]["jobId"],
+            "repo-work-modeling-process-retry-g1"
+        );
+        assert_eq!(tick_receipt["advancedResult"]["preflightRequired"], true);
+        assert_eq!(tick_receipt["advancedResult"]["lifecycleOwner"], "Idunn");
+        assert_eq!(
+            runtime_repo_work_modeling_route(&store, &route0.route_id)?
+                .expect("current route")
+                .generation,
+            1
+        );
         Ok(())
     }
 }

@@ -2150,6 +2150,17 @@ What remains is process composition, not another state abstraction: drive this
 same chain through the public `revise-modeling` command and scheduler so the
 generation-one launch carries a passing consumer preflight into an Idunn-owned
 lifecycle receipt.
+The public-command/scheduler selection half is now deterministic too.
+`public_revision_mouth_routes_scheduler_to_generation_one` builds a disposable
+repo and runtime store, invokes the production `run_revise_modeling` mouth over
+a non-passing generation-zero finding, then pulses the production scheduler in
+dry-run mode. The scheduler's launch projection now names route id, generation,
+request id, generation-scoped job id, `preflightRequired=true`, and
+`lifecycleOwner=Idunn`; the proof requires generation one throughout and the
+typed route remains on generation one. The remaining proof is deliberately
+physical: run the same fixture non-dry with built consumer/supervisor binaries
+and verify the Idunn lifecycle receipt carries the projected request plus
+passing schema preflight fingerprints.
 
 ## Immediate Re-entry Instruction
 
