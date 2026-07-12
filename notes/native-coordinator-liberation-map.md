@@ -374,3 +374,13 @@ prompt-steering, compaction, or scheduler symbol. Migration, read projection,
 notification projection, and explicit delegated actuation are the only allowed
 categories. The deleted event-loop reflex also left dead bridge automation and
 checkpoint-pressure wrappers; those zero-caller exports and imports are gone.
+
+Executable-client discovery is recorded in
+`notes/epiphany-app-server-client-matrix.md`. Only eight routes have named
+in-repo consumers, all explicit phase-6 smokes or
+`epiphany-mvp-status --codex` fallbacks. Ten routes are advertised but
+unconsumed: role/reorientation launch and accept, index, distill, propose,
+promote, job launch, and retrieve. Definitions, generated bindings, README
+claims, and serialization tests do not count as clients. Those ten request
+registrations, dispatch arms, handlers, tests, and docs are the next deletion
+line.

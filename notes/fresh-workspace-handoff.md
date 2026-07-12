@@ -1948,7 +1948,12 @@ nine named delegates and forbid local state/scheduler/prompt authority; read
 handlers forbid every actuator family; implicit event triggers remain absent.
 Dead bridge automation and checkpoint-pressure wrappers were deleted too. Next
 audit real client consumers of each `ThreadEpiphany*` route and delete any
-compatibility API with no named living client.
+compatibility API with no named living client. The client matrix now lives at
+`notes/epiphany-app-server-client-matrix.md`: eight routes have named phase-6
+smoke or `epiphany-mvp-status --codex` consumers; ten advertised routes have no
+executable caller beyond definitions/tests/docs and are marked for deletion.
+Cut those ten request registrations, dispatch arms, handlers, tests, and README
+claims next; do not let generated bindings count as clients.
 
 ## Immediate Re-entry Instruction
 
