@@ -440,3 +440,12 @@ binary could contaminate live Verse state with its own Idunn fiction. The whole
 service-lifecycle fixture/readback segment and its now-dead helper functions
 are deleted. Lifecycle fixtures belong to focused daemon-supervisor smokes in
 quarantined stores; query smoke no longer authors service truth.
+
+## Lexical smoke quarantine escape
+
+Daemon-supervisor audit smokes checked only whether some store-path component
+was named `.epiphany-smoke`. A path such as `.epiphany-smoke/../live.ccmp`
+passed that check and escaped before synthetic lifecycle writes. Smoke seeding
+now rejects parent traversal and requires the absolute store path to be beneath
+the current workspace's `.epiphany-smoke` root. Negative execution proves both
+traversal and an external absolute store are refused before file creation.

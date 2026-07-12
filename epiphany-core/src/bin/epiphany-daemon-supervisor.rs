@@ -155,11 +155,21 @@ fn require_supervisor_bootstrap(args: &Args) -> Result<()> {
 }
 
 fn seed_supervisor_smoke_fixture(args: &Args) -> Result<()> {
-    if !args
+    if args
         .store
         .components()
-        .any(|component| component.as_os_str() == ".epiphany-smoke")
+        .any(|component| matches!(component, std::path::Component::ParentDir))
     {
+        anyhow::bail!("daemon-supervisor smoke store may not contain parent traversal");
+    }
+    let workspace = env::current_dir()?.canonicalize()?;
+    let smoke_root = workspace.join(".epiphany-smoke");
+    let store = if args.store.is_absolute() {
+        args.store.clone()
+    } else {
+        workspace.join(&args.store)
+    };
+    if !store.starts_with(&smoke_root) {
         anyhow::bail!("daemon-supervisor smoke fixtures may write only beneath .epiphany-smoke");
     }
     seed_epiphany_local_verse_context(
