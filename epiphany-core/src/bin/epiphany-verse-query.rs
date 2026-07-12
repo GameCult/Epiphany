@@ -66,6 +66,7 @@ use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
+use epiphany_core::write_epiphany_cultmesh_daemon_statuses;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
@@ -1400,12 +1401,20 @@ fn run_cli() -> Result<()> {
             );
         }
         "smoke" => {
-            if args.smoke_default_store {
-                if let Some(parent) = args.store.parent() {
-                    fs::remove_dir_all(parent).ok();
-                }
+            if !args.smoke_default_store {
+                anyhow::bail!(
+                    "verse-query smoke fixtures may use only the built-in .epiphany-smoke quarantine store; --store and --runtime-id overrides are forbidden"
+                );
+            }
+            if let Some(parent) = args.store.parent() {
+                fs::remove_dir_all(parent).ok();
             }
             seed_epiphany_local_verse_context(
+                &args.store,
+                args.runtime_id.clone(),
+                "2026-06-02T00:00:00Z",
+            )?;
+            write_epiphany_cultmesh_daemon_statuses(
                 &args.store,
                 args.runtime_id.clone(),
                 "2026-06-02T00:00:00Z",
@@ -2376,30 +2385,13 @@ fn run_cli() -> Result<()> {
                 || !batch_poke_tui_row.contains("epiphany-daemon-hands")
                 || !batch_poke_tui_row.contains("privateVerse=epiphany.cluster.hands.private")
                 || !batch_poke_tui_row.contains("surface=eve://epiphany/hands")
-                || !batch_poke_tui_row.contains("receipt=daemon-poke-receipt-")
+                || !batch_poke_tui_row.contains("receipt=unknown")
+                || !batch_poke_tui_row.contains("receiptStatus=unknown")
+                || !batch_poke_tui_row.contains("result=unknown")
                 || !batch_poke_tui_row.contains("private=false")
             {
                 anyhow::bail!(
                     "local Verse query smoke batch daemon poke lost compact row topology/receipt/private-state fields"
-                );
-            }
-            let degraded_receipt_directory_context =
-                query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            let degraded_receipt_directory = receipt_directory_report(
-                &degraded_receipt_directory_context,
-                &load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-                    &args.store,
-                    args.runtime_id.clone(),
-                )?,
-                None,
-            );
-            if !degraded_receipt_directory.rows.iter().any(|row| {
-                row.family == "daemon-poke"
-                    && row.route == "epiphany-daemon-hands"
-                    && row.status == "degraded"
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke daemon-poke receipt row stopped reflecting current degraded liveness before heartbeat recovery"
                 );
             }
             let triage_overview = load_swarm_overview_report(&args)?;
@@ -2464,25 +2456,6 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 restored_hands,
             )?;
-            let restored_receipt_directory_context =
-                query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            let restored_receipt_directory = receipt_directory_report(
-                &restored_receipt_directory_context,
-                &load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-                    &args.store,
-                    args.runtime_id.clone(),
-                )?,
-                None,
-            );
-            if !restored_receipt_directory.rows.iter().any(|row| {
-                row.family == "daemon-poke"
-                    && row.route == "epiphany-daemon-hands"
-                    && row.status == "resolved"
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke daemon-poke receipt row did not resolve after current liveness returned ready"
-                );
-            }
             let bifrost_intent = epiphany_cultmesh_bifrost_body_change_publication_intent(
                 "bifrost-publication-intent-smoke",
                 "epiphany.cluster.hands",
@@ -10650,7 +10623,7 @@ impl Args {
             }
         }
 
-        let smoke_default_store = command == "smoke" && !store_overridden;
+        let smoke_default_store = command == "smoke" && !store_overridden && !runtime_id_overridden;
         if smoke_default_store {
             store = PathBuf::from(".epiphany-smoke/verse-query-default/local-verse.ccmp");
             if !runtime_id_overridden {

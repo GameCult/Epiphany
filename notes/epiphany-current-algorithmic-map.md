@@ -78,6 +78,14 @@
 - Output explicitly returns null tool intent/receipt fields and `toolInvocationAuthority=runtime-spine-only`.
 - Negative proof: forged accepted tool JSON produced a snapshot but no canonical intent or receipt.
 
+## Fixture store quarantine (2026-07-12)
+
+- `epiphany-verse-query smoke` owns synthetic contract fixtures only.
+- Its only writable body is `.epiphany-smoke/verse-query-default/local-verse.ccmp` with runtime `verse-query-default-smoke`.
+- Store/runtime overrides fail before fixture seeding or receipt construction.
+- Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
+- Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

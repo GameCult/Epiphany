@@ -36,6 +36,10 @@ Single poke, batch poke, and swarm triage now write only `epiphany.cultmesh.daem
 
 The first call-site audit found a new canonical-promotion substitution in `epiphany-operator-snapshot from-status`: arbitrary edge JSON under `/tools/invocations` could be converted into canonical daemon-tool intent and receipt documents. That promotion is removed. The adapter writes only `operator_snapshot`, returns null tool intent/receipt fields, and states `runtime-spine-only` authority; the conversion helper is compiled only for tests. Forgery proof imported an `accepted` fake receipt and confirmed both canonical latest tool intent and receipt remained absent. See `notes/receipt-writer-provenance-audit-2026-07-12.md`. Next quarantine smoke writers, then inspect operator-run and daemon-supervisor evidence binding.
 
+## 2026-07-12 verse-query smoke quarantine
+
+The monolithic `epiphany-verse-query smoke` fixture writer can no longer accept `--store` or `--runtime-id`; it is hard-bound to `.epiphany-smoke/verse-query-default/local-verse.ccmp` and `verse-query-default-smoke`. A direct canonical-store attempt was rejected before mutation and `state/local-verse.ccmp` retained the same SHA-256. The quarantined smoke now explicitly seeds fixture daemon statuses, expects intent-only batch poke rows, and completes `status=ok` within quarantine. Next inspect operator-run/supervisor provenance and quarantine standalone smoke binaries that accept arbitrary roots.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 
