@@ -789,7 +789,7 @@ pub fn initialize_runtime_spine(
         runtime_kind: "epiphany.native".to_string(),
         created_at,
         updated_at: options.created_at,
-        supported_document_types: supported_runtime_document_types(),
+        supported_document_types: runtime_registered_document_types(),
         metadata: BTreeMap::from([("codexEvacuationBridge".to_string(), "temporary".to_string())]),
     };
     cache.put(RUNTIME_IDENTITY_KEY, &identity)?;
@@ -1117,7 +1117,7 @@ pub fn prepare_runtime_spine_heartbeat_job(
             .map(|value| value.created_at.clone())
             .unwrap_or_else(|| options.created_at.clone()),
         updated_at: options.created_at.clone(),
-        supported_document_types: supported_runtime_document_types(),
+        supported_document_types: runtime_registered_document_types(),
         metadata: BTreeMap::from([("codexEvacuationBridge".to_string(), "temporary".to_string())]),
     };
     let session = match cache.get::<EpiphanyRuntimeSession>(&options.session_id)? {
@@ -2544,7 +2544,7 @@ fn require_identity(cache: &CultCache) -> Result<EpiphanyRuntimeIdentity> {
         .ok_or_else(|| anyhow!("runtime spine is missing identity; run init first"))
 }
 
-fn supported_runtime_document_types() -> Vec<String> {
+pub fn runtime_registered_document_types() -> Vec<String> {
     let mut document_types = Vec::new();
     for contract in epiphany_mutation_contracts() {
         if !document_types.contains(&contract.document_type) {

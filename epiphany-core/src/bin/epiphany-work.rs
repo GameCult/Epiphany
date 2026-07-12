@@ -14454,6 +14454,53 @@ fn launch_repo_work_modeling_worker(
             )),
         },
     );
+    let runtime_bin = resolve_repo_work_model_runtime(epiphany_root)?;
+    let supervisor_bin = resolve_daemon_supervisor(epiphany_root)?;
+    let required_document_types = [
+        epiphany_core::REPO_WORK_MODELING_ROUTE_TYPE,
+        epiphany_core::REPO_WORK_MODELING_REQUEST_TYPE,
+        epiphany_core::REPO_WORK_MODELING_FINDING_TYPE,
+        epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_TYPE,
+    ];
+    let mut preflight_command = Command::new(&runtime_bin);
+    preflight_command
+        .arg("preflight")
+        .arg("--store")
+        .arg(runtime_store);
+    for document_type in required_document_types {
+        preflight_command
+            .arg("--require-document-type")
+            .arg(document_type);
+    }
+    let preflight_output = preflight_command.output().with_context(|| {
+        format!(
+            "failed to preflight Modeling runtime {}",
+            runtime_bin.display()
+        )
+    })?;
+    if !preflight_output.status.success() {
+        return Err(anyhow!(
+            "Modeling runtime preflight refused launch before opening a job: {}",
+            String::from_utf8_lossy(&preflight_output.stderr)
+        ));
+    }
+    let preflight: Value = serde_json::from_slice(&preflight_output.stdout)
+        .context("Modeling runtime preflight did not emit JSON")?;
+    if preflight["schemaPreflightPassed"].as_bool() != Some(true) {
+        return Err(anyhow!("Modeling runtime schema preflight did not pass"));
+    }
+    let executable_sha256 = preflight["executableSha256"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted executable SHA-256"))?;
+    let schema_catalog_sha256 = preflight["schemaCatalogSha256"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted schema catalog SHA-256"))?;
+    let preflight_witness_id = preflight["preflightWitnessId"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted witness identity"))?;
     let created_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     open_runtime_spine_heartbeat_job(
         runtime_store,
@@ -14480,8 +14527,6 @@ fn launch_repo_work_modeling_worker(
             created_at,
         },
     )?;
-    let runtime_bin = resolve_repo_work_model_runtime(epiphany_root)?;
-    let supervisor_bin = resolve_daemon_supervisor(epiphany_root)?;
     let stdout_path = artifact_dir.join(format!("{job_id}.stdout.log"));
     let stderr_path = artifact_dir.join(format!("{job_id}.stderr.log"));
     let service_id = format!("idunn-{job_id}");
@@ -14521,6 +14566,21 @@ fn launch_repo_work_modeling_worker(
         .arg(&stdout_path)
         .arg("--stderr-artifact")
         .arg(&stderr_path)
+        .arg("--executable-sha256")
+        .arg(executable_sha256)
+        .arg("--schema-catalog-sha256")
+        .arg(schema_catalog_sha256)
+        .arg("--preflight-witness-id")
+        .arg(preflight_witness_id)
+        .arg("--required-document-type")
+        .arg(epiphany_core::REPO_WORK_MODELING_ROUTE_TYPE)
+        .arg("--required-document-type")
+        .arg(epiphany_core::REPO_WORK_MODELING_REQUEST_TYPE)
+        .arg("--required-document-type")
+        .arg(epiphany_core::REPO_WORK_MODELING_FINDING_TYPE)
+        .arg("--required-document-type")
+        .arg(epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_TYPE)
+        .arg("--schema-preflight-passed")
         .arg("--reason")
         .arg(format!(
             "Idunn launches typed repo-work Modeling job {job_id}."
@@ -14548,6 +14608,11 @@ fn launch_repo_work_modeling_worker(
         "lifecycleOwner": "Idunn",
         "lifecycleReceiptId": lifecycle["receiptId"],
         "serviceId": lifecycle["serviceId"],
+        "executableSha256": lifecycle["executableSha256"],
+        "schemaCatalogSha256": lifecycle["schemaCatalogSha256"],
+        "preflightWitnessId": lifecycle["preflightWitnessId"],
+        "requiredDocumentTypes": lifecycle["requiredDocumentTypes"],
+        "schemaPreflightPassed": lifecycle["schemaPreflightPassed"],
         "stdoutArtifact": stdout_path,
         "stderrArtifact": stderr_path,
         "requestId": request.request_id,
@@ -16867,6 +16932,11 @@ mod authority_tests {
         assert!(!production.contains(".spawn()"));
         assert!(production.contains("epiphany-daemon-supervisor"));
         assert!(production.contains("\"lifecycleOwner\": \"Idunn\""));
+        assert!(
+            production.find("preflight_command.output()")
+                < production.find("open_runtime_spine_heartbeat_job(")
+        );
+        assert!(production.contains("schemaPreflightPassed"));
         assert!(!source.contains(&["RepoWork", "MapStore"].concat()));
         assert!(!source.contains(&["repo-work-map", ".msgpack"].concat()));
     }

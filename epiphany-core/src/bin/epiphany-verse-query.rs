@@ -3372,6 +3372,11 @@ fn run_cli() -> Result<()> {
                             "Synthetic verse-query smoke receipt for service lifecycle action rows."
                                 .to_string(),
                         ],
+                        executable_sha256: String::new(),
+                        preflight_witness_id: String::new(),
+                        required_document_types: Vec::new(),
+                        schema_preflight_passed: false,
+                        schema_catalog_sha256: String::new(),
                     },
                 )?;
             }
@@ -3402,6 +3407,11 @@ fn run_cli() -> Result<()> {
                         "Synthetic verse-query smoke receipt for single-service execution runbook action row."
                             .to_string(),
                     ],
+                    executable_sha256: String::new(),
+                    preflight_witness_id: String::new(),
+                    required_document_types: Vec::new(),
+                    schema_preflight_passed: false,
+                    schema_catalog_sha256: String::new(),
                 },
             )?;
             write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
@@ -3432,6 +3442,11 @@ fn run_cli() -> Result<()> {
                         "Synthetic verse-query smoke receipt for single-service lifecycle action rows."
                             .to_string(),
                     ],
+                    executable_sha256: String::new(),
+                    preflight_witness_id: String::new(),
+                    required_document_types: Vec::new(),
+                    schema_preflight_passed: false,
+                    schema_catalog_sha256: String::new(),
                 },
             )?;
             let service_overview = load_swarm_overview_report(&args)?;
@@ -3848,6 +3863,11 @@ fn run_cli() -> Result<()> {
                     "Synthetic verse-query smoke receipt for lifecycle follow-up routing."
                         .to_string(),
                 ],
+                executable_sha256: String::new(),
+                preflight_witness_id: String::new(),
+                required_document_types: Vec::new(),
+                schema_preflight_passed: false,
+                schema_catalog_sha256: String::new(),
             };
             let readiness_follow_up_row = receipt_directory_service_lifecycle_row(
                 "cluster-service-lifecycle",

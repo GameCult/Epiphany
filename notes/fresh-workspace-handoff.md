@@ -2115,6 +2115,21 @@ runtime lacked the new route schema; rebuilding the consumer made v2 pass.
 Next expose executable build/schema fingerprint in the Idunn lifecycle receipt
 and refuse launch before work when the consumer cannot register required typed
 documents.
+That preflight is now live. `epiphany-openai-runtime preflight` reads the actual
+store with the consumer's own registry, requires named document types, and
+hashes both the executable and ordered supported schema catalog. An impossible
+required type returned exit 1. The scheduler runs preflight before opening a
+runtime job. Idunn's typed lifecycle receipt persists `executableSha256`,
+`schemaCatalogSha256`, `preflightWitnessId`, `requiredDocumentTypes`, and
+`schemaPreflightPassed`; the supervisor refuses incomplete typed launch cargo.
+Authenticated live item `runtime-preflight-witness` carried executable SHA-256
+`dd36334e993c64290a0e3ffcf76965fdd2ac1819e84fb37e4be65735ce47f64b`,
+returned a passing runtime finding, and closed through Mind/map admission.
+Authority tests pass 4/4, core library 248/248, runtime 8/8, and all core bins
+type-check. Next add a native end-to-end generation-one smoke that begins with
+a non-passing runtime finding, exercises `revise-modeling`, launches `g1`
+through Idunn/preflight, and proves generation zero cannot close or regain
+current authority.
 
 ## Immediate Re-entry Instruction
 

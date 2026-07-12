@@ -165,6 +165,16 @@ review mouth. Scheduler job IDs include the route generation and derive the
 stable route key from the item, so neither close JSON nor an old completed job
 can select current work.
 
+Before any Modeling runtime job is opened, the exact consumer executable runs
+`preflight` against the actual runtime store. Its own schema registry must read
+the store and advertise the required route, request, finding, and worker-launch
+types. Preflight hashes both executable bytes and the ordered supported schema
+catalog. Idunn refuses a typed launch without the passing schema flag,
+executable SHA-256, schema-catalog SHA-256, witness ID, and required document
+list; all are persisted in the daemon service lifecycle receipt. The preflight
+ID is correctly a witness, not a fake independent receipt. Preflight precedes
+`open_runtime_spine_heartbeat_job`, so stale consumers leave no queued corpse.
+
 The
 accepted interpretation is persisted as
 `epiphany.modeling.repo_work_finding.v0`; it references the passing Soul verdict,

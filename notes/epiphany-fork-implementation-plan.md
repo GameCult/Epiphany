@@ -204,9 +204,8 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Expose the launched worker executable's build/schema fingerprint in Idunn's
-lifecycle receipt and preflight required runtime document registration before
-launch. A stale `epiphany-openai-runtime` binary already proved it can otherwise
-impersonate a Modeling failure after the producer adds a schema. Keep the new
-typed route owner and reviewed generation transition intact; do not repair
-stale consumers by mutating requests or findings.
+Add a native end-to-end generation-one repo-work Modeling smoke. Begin with a
+non-passing runtime-authored generation-zero finding, exercise the explicit
+Mind-reviewed `revise-modeling` mouth, launch generation one through Idunn and
+runtime-schema preflight, admit only the generation-one finding, and prove
+generation zero cannot close or regain current authority.

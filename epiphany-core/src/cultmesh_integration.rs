@@ -1459,6 +1459,16 @@ pub struct EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
     pub private_state_exposed: bool,
     #[cultcache(key = 17)]
     pub notes: Vec<String>,
+    #[cultcache(key = 18, default)]
+    pub executable_sha256: String,
+    #[cultcache(key = 19, default)]
+    pub preflight_witness_id: String,
+    #[cultcache(key = 20, default)]
+    pub required_document_types: Vec<String>,
+    #[cultcache(key = 21, default)]
+    pub schema_preflight_passed: bool,
+    #[cultcache(key = 22, default)]
+    pub schema_catalog_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -3987,6 +3997,16 @@ fn validate_daemon_service_lifecycle_receipt(
         if value.trim().is_empty() {
             return Err(anyhow!("daemon service lifecycle receipt missing {label}"));
         }
+    }
+    if !receipt.required_document_types.is_empty()
+        && (!receipt.schema_preflight_passed
+            || receipt.executable_sha256.trim().is_empty()
+            || receipt.schema_catalog_sha256.trim().is_empty()
+            || receipt.preflight_witness_id.trim().is_empty())
+    {
+        return Err(anyhow!(
+            "typed daemon service lifecycle receipt requires passing schema preflight, executable fingerprint, and preflight witness"
+        ));
     }
     Ok(())
 }
@@ -7313,6 +7333,11 @@ mod tests {
             operator_artifact_ref: "artifact://service-lifecycle/first".to_string(),
             private_state_exposed: false,
             notes: Vec::new(),
+            executable_sha256: String::new(),
+            preflight_witness_id: String::new(),
+            required_document_types: Vec::new(),
+            schema_preflight_passed: false,
+            schema_catalog_sha256: String::new(),
         };
         let mut second = first.clone();
         second.receipt_id = "service-lifecycle-second".to_string();
@@ -7378,6 +7403,11 @@ mod tests {
                     .to_string(),
                 private_state_exposed: false,
                 notes: Vec::new(),
+                executable_sha256: String::new(),
+                preflight_witness_id: String::new(),
+                required_document_types: Vec::new(),
+                schema_preflight_passed: false,
+                schema_catalog_sha256: String::new(),
             },
         ]);
         let runbook_check = report
