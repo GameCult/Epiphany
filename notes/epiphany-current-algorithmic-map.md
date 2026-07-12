@@ -118,6 +118,10 @@
   loaders enumerate topology keys without manufacturing status; only narrow
   single-daemon heartbeat/observation writers remain. Aggregate synthetic
   readiness exists solely inside the fixed Verse smoke body.
+- Topology-derived Odin advertisement, Eve surface, and tool-capability builders
+  are private contract templates, not public state APIs. External consumers see
+  persisted loaders; only the daemon-ID-bounded publisher may lower templates
+  into provider-owned documents.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

@@ -393,14 +393,12 @@ pub use cultmesh_integration::epiphany_cultmesh_daemon_poke_intent_from_status;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_daemon_statuses;
-pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_capabilities;
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_from_status_json;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
 pub use cultmesh_integration::epiphany_cultmesh_eve_connection_intent_from_advertisement;
 pub use cultmesh_integration::epiphany_cultmesh_eve_connection_receipt_for_intent;
-pub use cultmesh_integration::epiphany_cultmesh_eve_surface_states;
 pub use cultmesh_integration::epiphany_cultmesh_eyes_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_global_room_policies;
 pub use cultmesh_integration::epiphany_cultmesh_hands_action_gate_from_summary_json;

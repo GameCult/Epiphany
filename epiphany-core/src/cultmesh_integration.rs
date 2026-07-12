@@ -5859,7 +5859,7 @@ pub fn query_epiphany_local_verse_context(
     }
 
     let mut odin_advertisements = Vec::new();
-    for advertisement in epiphany_cultmesh_odin_advertisements() {
+    for advertisement in epiphany_cultmesh_odin_advertisement_templates() {
         if let Some(loaded) =
             node.get::<EpiphanyCultMeshOdinAdvertisementEntry>(&advertisement.advertisement_id)?
         {
@@ -5867,7 +5867,7 @@ pub fn query_epiphany_local_verse_context(
         }
     }
     let mut eve_surface_states = Vec::new();
-    for surface in epiphany_cultmesh_eve_surface_states() {
+    for surface in epiphany_cultmesh_eve_surface_templates() {
         if let Some(loaded) =
             node.get::<EpiphanyCultMeshEveSurfaceStateEntry>(&surface.surface_id)?
         {
@@ -5889,7 +5889,7 @@ pub fn query_epiphany_local_verse_context(
     }
 
     let mut daemon_tool_capabilities = Vec::new();
-    for capability in epiphany_cultmesh_daemon_tool_capabilities() {
+    for capability in epiphany_cultmesh_daemon_tool_capability_templates() {
         if let Some(loaded) =
             node.get::<EpiphanyCultMeshDaemonToolCapabilityEntry>(&capability.capability_id)?
         {
@@ -6072,7 +6072,7 @@ pub fn load_epiphany_cultmesh_eve_surface_directory(
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
-        let Some(advertisement) = epiphany_cultmesh_odin_advertisements()
+        let Some(advertisement) = epiphany_cultmesh_odin_advertisement_templates()
             .into_iter()
             .find(|advertisement| advertisement.cluster_id == cluster.cluster_id)
         else {
@@ -6566,7 +6566,7 @@ pub fn load_epiphany_cultmesh_cluster_topology(
     Ok(topology)
 }
 
-pub fn epiphany_cultmesh_odin_advertisements() -> Vec<EpiphanyCultMeshOdinAdvertisementEntry> {
+fn epiphany_cultmesh_odin_advertisement_templates() -> Vec<EpiphanyCultMeshOdinAdvertisementEntry> {
     epiphany_cultmesh_cluster_topology()
         .into_iter()
         .filter(|cluster| cluster.odin_advertised)
@@ -6601,7 +6601,7 @@ pub fn epiphany_cultmesh_odin_advertisements() -> Vec<EpiphanyCultMeshOdinAdvert
         .collect()
 }
 
-pub fn epiphany_cultmesh_eve_surface_states() -> Vec<EpiphanyCultMeshEveSurfaceStateEntry> {
+fn epiphany_cultmesh_eve_surface_templates() -> Vec<EpiphanyCultMeshEveSurfaceStateEntry> {
     epiphany_cultmesh_cluster_topology()
         .into_iter()
         .map(|cluster| {
@@ -6759,8 +6759,8 @@ fn validate_daemon_status(status: &EpiphanyCultMeshDaemonStatusEntry) -> Result<
     Ok(())
 }
 
-pub fn epiphany_cultmesh_daemon_tool_capabilities() -> Vec<EpiphanyCultMeshDaemonToolCapabilityEntry>
-{
+fn epiphany_cultmesh_daemon_tool_capability_templates()
+-> Vec<EpiphanyCultMeshDaemonToolCapabilityEntry> {
     let mut capabilities = Vec::new();
     for cluster in epiphany_cultmesh_cluster_topology() {
         capabilities.push(epiphany_cultmesh_daemon_tool_capability(
@@ -6880,11 +6880,11 @@ pub fn publish_epiphany_cultmesh_provider_state(
         .into_iter()
         .find(|cluster| cluster.daemon_id == daemon_id)
         .with_context(|| format!("no declared provider topology for daemon {daemon_id:?}"))?;
-    let advertisement = epiphany_cultmesh_odin_advertisements()
+    let advertisement = epiphany_cultmesh_odin_advertisement_templates()
         .into_iter()
         .find(|advertisement| advertisement.cluster_id == cluster.cluster_id)
         .with_context(|| format!("daemon {daemon_id:?} has no Odin advertisement contract"))?;
-    let surface = epiphany_cultmesh_eve_surface_states()
+    let surface = epiphany_cultmesh_eve_surface_templates()
         .into_iter()
         .find(|surface| surface.cluster_id == cluster.cluster_id)
         .with_context(|| format!("daemon {daemon_id:?} has no Eve surface contract"))?;
@@ -6893,7 +6893,7 @@ pub fn publish_epiphany_cultmesh_provider_state(
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.put(advertisement.advertisement_id.clone(), &advertisement)?;
     node.put(surface.surface_id.clone(), &surface)?;
-    for capability in epiphany_cultmesh_daemon_tool_capabilities()
+    for capability in epiphany_cultmesh_daemon_tool_capability_templates()
         .into_iter()
         .filter(|capability| capability.host_daemon_id == daemon_id)
     {
@@ -8069,8 +8069,8 @@ mod tests {
         let store = temp.path().join("epiphany-eve-surface-states.ccmp");
         write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
         publish_all_test_provider_state(&store)?;
-        let advertisements = epiphany_cultmesh_odin_advertisements();
-        let surfaces = epiphany_cultmesh_eve_surface_states();
+        let advertisements = epiphany_cultmesh_odin_advertisement_templates();
+        let surfaces = epiphany_cultmesh_eve_surface_templates();
 
         assert_eq!(surfaces.len(), advertisements.len());
         for advertisement in advertisements {
@@ -8108,7 +8108,7 @@ mod tests {
     fn eve_surface_state_refuses_private_state_exposure() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-eve-surface-private.ccmp");
-        let mut surface = epiphany_cultmesh_eve_surface_states()
+        let mut surface = epiphany_cultmesh_eve_surface_templates()
             .into_iter()
             .find(|surface| surface.surface_id == "eve://epiphany/persona")
             .expect("persona surface exists");
@@ -8556,7 +8556,7 @@ mod tests {
     fn eve_connection_refuses_private_state_requests() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-eve-private-refusal.ccmp");
-        let target = epiphany_cultmesh_odin_advertisements()
+        let target = epiphany_cultmesh_odin_advertisement_templates()
             .into_iter()
             .find(|advertisement| advertisement.cluster_id == "epiphany.cluster.persona")
             .expect("persona advertisement exists");
@@ -8742,7 +8742,7 @@ mod tests {
         let store = temp
             .path()
             .join("epiphany-daemon-tool-private-refusal.ccmp");
-        let capability = epiphany_cultmesh_daemon_tool_capabilities()
+        let capability = epiphany_cultmesh_daemon_tool_capability_templates()
             .into_iter()
             .find(|capability| capability.capability_id == "epiphany.cluster.persona.tool.status")
             .expect("persona status capability exists");

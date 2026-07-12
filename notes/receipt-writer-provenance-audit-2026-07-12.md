@@ -71,3 +71,15 @@ constructor and writer are test-only. The aggregate smoke constructs its
 fixture statuses locally behind `smoke_default_store`; the helper refuses every
 non-default store. Production exposes only the single-status writer used by the
 owning cluster daemon and Idunn observation paths.
+
+## Provider template encapsulation
+
+Topology-derived Odin advertisements, Eve surfaces, and daemon tool catalogs
+also remained publicly callable as state-shaped builders after their bulk
+writers were removed. No external production caller required them.
+
+They are now private CultMesh contract templates with names that state their
+role: advertisement templates, surface templates, and capability templates.
+Only the narrow daemon-ID provider publisher and internal persisted-state key
+readers may use them. The crate exports persisted loaders and typed entries, not
+functions that hand consumers seven plausible provider bodies from topology.
