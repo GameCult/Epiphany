@@ -13347,15 +13347,18 @@ fn launch_repo_work_modeling_worker(
     let executable_sha256 = preflight["executableSha256"]
         .as_str()
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted executable SHA-256"))?;
+        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted executable SHA-256"))?
+        .to_string();
     let schema_catalog_sha256 = preflight["schemaCatalogSha256"]
         .as_str()
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted schema catalog SHA-256"))?;
+        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted schema catalog SHA-256"))?
+        .to_string();
     let preflight_witness_id = preflight["preflightWitnessId"]
         .as_str()
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted witness identity"))?;
+        .ok_or_else(|| anyhow!("Modeling runtime preflight omitted witness identity"))?
+        .to_string();
     let created_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     open_runtime_spine_heartbeat_job(
         runtime_store,
@@ -13421,21 +13424,6 @@ fn launch_repo_work_modeling_worker(
         .arg(&stdout_path)
         .arg("--stderr-artifact")
         .arg(&stderr_path)
-        .arg("--executable-sha256")
-        .arg(executable_sha256)
-        .arg("--schema-catalog-sha256")
-        .arg(schema_catalog_sha256)
-        .arg("--preflight-witness-id")
-        .arg(preflight_witness_id)
-        .arg("--required-document-type")
-        .arg(epiphany_core::REPO_WORK_MODELING_ROUTE_TYPE)
-        .arg("--required-document-type")
-        .arg(epiphany_core::REPO_WORK_MODELING_REQUEST_TYPE)
-        .arg("--required-document-type")
-        .arg(epiphany_core::REPO_WORK_MODELING_FINDING_TYPE)
-        .arg("--required-document-type")
-        .arg(epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_TYPE)
-        .arg("--schema-preflight-passed")
         .arg("--reason")
         .arg(format!(
             "Idunn launches typed repo-work Modeling job {job_id}."
@@ -13463,11 +13451,11 @@ fn launch_repo_work_modeling_worker(
         "lifecycleOwner": "Idunn",
         "lifecycleReceiptId": lifecycle["receiptId"],
         "serviceId": lifecycle["serviceId"],
-        "executableSha256": lifecycle["executableSha256"],
-        "schemaCatalogSha256": lifecycle["schemaCatalogSha256"],
-        "preflightWitnessId": lifecycle["preflightWitnessId"],
-        "requiredDocumentTypes": lifecycle["requiredDocumentTypes"],
-        "schemaPreflightPassed": lifecycle["schemaPreflightPassed"],
+        "executableSha256": executable_sha256,
+        "schemaCatalogSha256": schema_catalog_sha256,
+        "preflightWitnessId": preflight_witness_id,
+        "requiredDocumentTypes": required_document_types,
+        "schemaPreflightPassed": true,
         "stdoutArtifact": stdout_path,
         "stderrArtifact": stderr_path,
         "requestId": request.request_id,

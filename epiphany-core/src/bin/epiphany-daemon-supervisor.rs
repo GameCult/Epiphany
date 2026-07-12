@@ -317,22 +317,6 @@ fn service_plan(args: Args) -> Result<()> {
 fn service_launch(args: Args) -> Result<()> {
     let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
     assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
-    if !args.required_document_types.is_empty()
-        && (!args.schema_preflight_passed
-            || args.executable_sha256.as_deref().is_none_or(str::is_empty)
-            || args
-                .schema_catalog_sha256
-                .as_deref()
-                .is_none_or(str::is_empty)
-            || args
-                .preflight_witness_id
-                .as_deref()
-                .is_none_or(str::is_empty))
-    {
-        anyhow::bail!(
-            "typed service launch requires passing schema preflight, executable and schema SHA-256 fingerprints, and preflight witness identity"
-        );
-    }
     let started_at = Utc::now();
     let command_path = service_command_path(&args)?;
     let service_args = service_serve_args(&args);
@@ -411,11 +395,6 @@ fn service_launch(args: Args) -> Result<()> {
             "exitCode": written.exit_code,
             "stdoutArtifact": args.stdout_artifact,
             "stderrArtifact": args.stderr_artifact,
-            "executableSha256": written.executable_sha256,
-            "schemaCatalogSha256": written.schema_catalog_sha256,
-            "preflightWitnessId": written.preflight_witness_id,
-            "requiredDocumentTypes": written.required_document_types,
-            "schemaPreflightPassed": written.schema_preflight_passed,
             "privateStateExposed": written.private_state_exposed,
         }))?
     );
@@ -3325,11 +3304,11 @@ fn service_lifecycle_receipt(
             "The service command may run the supervisor serve loop, but scheduler decisions remain typed local Verse receipts."
                 .to_string(),
         ],
-        executable_sha256: args.executable_sha256.clone().unwrap_or_default(),
-        schema_catalog_sha256: args.schema_catalog_sha256.clone().unwrap_or_default(),
-        preflight_witness_id: args.preflight_witness_id.clone().unwrap_or_default(),
-        required_document_types: args.required_document_types.clone(),
-        schema_preflight_passed: args.schema_preflight_passed,
+        executable_sha256: String::new(),
+        schema_catalog_sha256: String::new(),
+        preflight_witness_id: String::new(),
+        required_document_types: Vec::new(),
+        schema_preflight_passed: false,
     }
 }
 
@@ -3493,11 +3472,6 @@ struct Args {
     artifact_ref: Option<String>,
     stdout_artifact: Option<PathBuf>,
     stderr_artifact: Option<PathBuf>,
-    executable_sha256: Option<String>,
-    schema_catalog_sha256: Option<String>,
-    preflight_witness_id: Option<String>,
-    required_document_types: Vec<String>,
-    schema_preflight_passed: bool,
 }
 
 impl Args {
@@ -3541,11 +3515,6 @@ impl Args {
         let mut artifact_ref = None;
         let mut stdout_artifact = None;
         let mut stderr_artifact = None;
-        let mut executable_sha256 = None;
-        let mut schema_catalog_sha256 = None;
-        let mut preflight_witness_id = None;
-        let mut required_document_types = Vec::new();
-        let mut schema_preflight_passed = false;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -3688,30 +3657,6 @@ impl Args {
                         values.next().context("missing --stderr-artifact value")?,
                     ));
                 }
-                "--executable-sha256" => {
-                    executable_sha256 =
-                        Some(values.next().context("missing --executable-sha256 value")?);
-                }
-                "--schema-catalog-sha256" => {
-                    schema_catalog_sha256 = Some(
-                        values
-                            .next()
-                            .context("missing --schema-catalog-sha256 value")?,
-                    );
-                }
-                "--preflight-witness-id" => {
-                    preflight_witness_id = Some(
-                        values
-                            .next()
-                            .context("missing --preflight-witness-id value")?,
-                    );
-                }
-                "--required-document-type" => required_document_types.push(
-                    values
-                        .next()
-                        .context("missing --required-document-type value")?,
-                ),
-                "--schema-preflight-passed" => schema_preflight_passed = true,
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -3847,11 +3792,6 @@ impl Args {
             artifact_ref,
             stdout_artifact,
             stderr_artifact,
-            executable_sha256,
-            schema_catalog_sha256,
-            preflight_witness_id,
-            required_document_types,
-            schema_preflight_passed,
         })
     }
 }

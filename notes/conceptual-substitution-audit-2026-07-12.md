@@ -460,3 +460,17 @@ repo and quarantine could silently disagree. The option and field are deleted
 throughout the family. Each binary now canonicalizes the selected repo root and
 derives its only quarantine as `<root>/.epiphany-smoke`; the old flag is refused
 before its target can be created.
+
+## Caller-transcribed schema preflight proof
+
+`epiphany-work` ran the model runtime's real schema preflight, then copied its
+hashes, witness ID, required document types, and pass bit through five command
+line arguments to `epiphany-daemon-supervisor`. Idunn accepted those strings and
+republished them inside its lifecycle receipt. That changed a caller's
+transcription into Idunn-observed launch proof; any direct caller could award
+itself the same badge. The five arguments and lifecycle projection are deleted.
+Repo work still blocks before launch unless the runtime's actual preflight
+passes, and reports that verifier output from the verifier call itself. Idunn's
+receipt now owns only the process consequence it can observe. A future shared
+preflight chain must resolve an immutable typed verifier receipt rather than
+carry testimony across argv.

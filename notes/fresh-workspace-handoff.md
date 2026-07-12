@@ -118,6 +118,9 @@ The confirmed conceptual substitutions have been cut:
 - Thirty-two repo-family and survival smokes no longer accept an independent
   deletion root. They derive `.epiphany-smoke` only after canonicalizing the
   selected repo root; `--smoke-root` is rejected before creating its target.
+- Idunn lifecycle receipts no longer accept caller-transcribed executable/schema
+  hashes, witness identity, required types, or a preflight-pass bit. Repo work
+  consumes the runtime's real preflight directly; Idunn reports process facts.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
