@@ -3,19 +3,15 @@ use std::path::Path;
 use codex_app_server_protocol::*;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_core::EpiphanyContextParams;
-use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyGraphQuery;
-use epiphany_core::EpiphanyMapProposalInput;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::EpiphanyViewLens;
 use epiphany_core::derive_scene;
-use epiphany_core::distill_observation;
 use epiphany_core::epiphany_view_needs_jobs;
 use epiphany_core::epiphany_view_needs_pressure;
 use epiphany_core::epiphany_view_needs_reorientation_inputs;
-use epiphany_core::propose_map_update;
 use epiphany_core::reorient_finding_already_accepted;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
@@ -65,7 +61,6 @@ pub struct EpiphanyFreshnessResponseInput<'a> {
     pub retrieval_override: Option<&'a EpiphanyRetrievalState>,
     pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
 }
-
 pub fn derive_epiphany_freshness_surface(
     input: EpiphanyFreshnessResponseInput<'_>,
 ) -> EpiphanyFreshnessSurface {
@@ -552,44 +547,4 @@ pub async fn map_epiphany_reorient_result_response(
         finding: result.finding.map(protocol_reorient_finding),
         note: result.note,
     }
-}
-
-pub fn map_epiphany_distill_response(
-    expected_revision: u64,
-    input: EpiphanyDistillInput,
-) -> std::result::Result<ThreadEpiphanyDistillResponse, String> {
-    let proposal = distill_observation(input).map_err(|err| err.to_string())?;
-
-    Ok(ThreadEpiphanyDistillResponse {
-        expected_revision,
-        patch: ThreadEpiphanyUpdatePatch {
-            observations: vec![proposal.observation],
-            evidence: vec![proposal.evidence],
-            ..Default::default()
-        },
-    })
-}
-
-pub fn map_epiphany_propose_response(
-    state: EpiphanyThreadState,
-    observation_ids: Vec<String>,
-) -> std::result::Result<ThreadEpiphanyProposeResponse, String> {
-    let expected_revision = state.revision;
-    let proposal = propose_map_update(EpiphanyMapProposalInput {
-        state,
-        observation_ids,
-    })
-    .map_err(|err| err.to_string())?;
-
-    Ok(ThreadEpiphanyProposeResponse {
-        expected_revision,
-        patch: ThreadEpiphanyUpdatePatch {
-            observations: vec![proposal.observation],
-            evidence: vec![proposal.evidence],
-            graphs: Some(proposal.graphs),
-            graph_frontier: Some(proposal.graph_frontier),
-            churn: Some(proposal.churn),
-            ..Default::default()
-        },
-    })
 }

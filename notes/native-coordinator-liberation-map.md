@@ -384,3 +384,10 @@ claims, and serialization tests do not count as clients. Those ten request
 registrations, dispatch arms, handlers, tests, and README claims are deleted.
 The registration guard now fixes the compatibility surface at the eight named
 client routes and rejects restoration of the unconsumed methods.
+
+The orphan audit then removed the deleted methods' request/response DTOs from
+app-server protocol, including the duplicate generic job-launch worker document
+hierarchy and retrieval result/index projection shapes. Bridge-only distill,
+propose, job-document, index, and retrieve conversions plus the entire
+`retrieve_protocol` module are deleted. Regenerated JSON/TypeScript fixtures
+contain none of those types; their in-memory fixture comparison passes.

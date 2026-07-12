@@ -14,7 +14,6 @@ use crate::cultnet::EpiphanyReorientStateStatus;
 use crate::cultnet::EpiphanyRetrievalFreshnessStatus;
 use crate::cultnet::EpiphanySurfaceSource;
 use codex_app_server_protocol::ThreadEpiphanyContextParams;
-use codex_app_server_protocol::ThreadEpiphanyDistillParams;
 use codex_app_server_protocol::ThreadEpiphanyFreshnessResponse;
 use codex_app_server_protocol::ThreadEpiphanyFreshnessSource;
 use codex_app_server_protocol::ThreadEpiphanyGraphFreshness;
@@ -39,7 +38,6 @@ use codex_app_server_protocol::ThreadEpiphanyReorientReason;
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
-use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
@@ -47,18 +45,15 @@ use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
-use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyViewLens;
-use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
 use epiphany_core::EpiphanyContextParams;
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus;
 use epiphany_core::EpiphanyCrrcResultStatus;
-use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyGraphQuery;
 use epiphany_core::EpiphanyGraphQueryDirection;
 use epiphany_core::EpiphanyGraphQueryKind;
@@ -67,16 +62,13 @@ use epiphany_core::EpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel;
 use epiphany_core::EpiphanyPressureStatus;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
-use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleSelfPersistenceReview;
 use epiphany_core::EpiphanyRoleSelfPersistenceStatus;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
-use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyViewLens;
-use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::default_epiphany_view_lenses;
 use epiphany_core::epiphany_view_needs_jobs;
 use epiphany_core::epiphany_view_needs_pressure;
@@ -134,28 +126,6 @@ pub fn protocol_context_params_to_core(
     }
 }
 
-pub fn protocol_distill_params_to_core(
-    params: ThreadEpiphanyDistillParams,
-) -> EpiphanyDistillInput {
-    let ThreadEpiphanyDistillParams {
-        source_kind,
-        status,
-        text,
-        subject,
-        evidence_kind,
-        code_refs,
-        ..
-    } = params;
-    EpiphanyDistillInput {
-        source_kind,
-        status,
-        text,
-        subject,
-        evidence_kind,
-        code_refs,
-    }
-}
-
 pub fn protocol_graph_query_to_core(query: &ThreadEpiphanyGraphQuery) -> EpiphanyGraphQuery {
     EpiphanyGraphQuery {
         kind: protocol_graph_query_kind_to_core(query.kind),
@@ -167,21 +137,6 @@ pub fn protocol_graph_query_to_core(query: &ThreadEpiphanyGraphQuery) -> Epiphan
         direction: query.direction.map(protocol_graph_query_direction_to_core),
         depth: query.depth,
         include_links: query.include_links,
-    }
-}
-
-pub fn protocol_worker_launch_document_to_core(
-    document: ThreadEpiphanyWorkerLaunchDocument,
-) -> EpiphanyWorkerLaunchDocument {
-    match document {
-        ThreadEpiphanyWorkerLaunchDocument::Role(document) => EpiphanyWorkerLaunchDocument::Role(
-            protocol_role_worker_launch_document_to_core(document),
-        ),
-        ThreadEpiphanyWorkerLaunchDocument::Reorient(document) => {
-            EpiphanyWorkerLaunchDocument::Reorient(
-                protocol_reorient_worker_launch_document_to_core(document),
-            )
-        }
     }
 }
 
@@ -654,65 +609,6 @@ fn protocol_graph_query_direction_to_core(
         ThreadEpiphanyGraphQueryDirection::Incoming => EpiphanyGraphQueryDirection::Incoming,
         ThreadEpiphanyGraphQueryDirection::Outgoing => EpiphanyGraphQueryDirection::Outgoing,
         ThreadEpiphanyGraphQueryDirection::Both => EpiphanyGraphQueryDirection::Both,
-    }
-}
-
-fn protocol_role_worker_launch_document_to_core(
-    document: ThreadEpiphanyRoleWorkerLaunchDocument,
-) -> EpiphanyRoleWorkerLaunchDocument {
-    EpiphanyRoleWorkerLaunchDocument {
-        thread_id: document.thread_id,
-        role_id: document.role_id,
-        state_revision: document.state_revision,
-        objective: document.objective,
-        dynamic_prompt_context: None,
-        active_subgoal_id: document.active_subgoal_id,
-        active_subgoals: document.active_subgoals,
-        active_graph_node_ids: document.active_graph_node_ids,
-        investigation_checkpoint: document.investigation_checkpoint,
-        scratch: document.scratch,
-        invariants: document.invariants,
-        graphs: document.graphs,
-        recent_evidence: document.recent_evidence,
-        recent_observations: document.recent_observations,
-        graph_frontier: document.graph_frontier,
-        graph_checkpoint: document.graph_checkpoint,
-        planning: document.planning,
-        churn: document.churn,
-    }
-}
-
-fn protocol_reorient_worker_launch_document_to_core(
-    document: ThreadEpiphanyReorientWorkerLaunchDocument,
-) -> EpiphanyReorientWorkerLaunchDocument {
-    EpiphanyReorientWorkerLaunchDocument {
-        thread_id: document.thread_id,
-        mode: document.mode,
-        checkpoint_id: document.checkpoint_id,
-        checkpoint_kind: document.checkpoint_kind,
-        checkpoint_disposition: document.checkpoint_disposition,
-        dynamic_prompt_context: None,
-        checkpoint_focus: document.checkpoint_focus,
-        checkpoint_summary: document.checkpoint_summary,
-        checkpoint_next_action: document.checkpoint_next_action,
-        checkpoint_open_questions: document.checkpoint_open_questions,
-        checkpoint_evidence_ids: document.checkpoint_evidence_ids,
-        checkpoint_code_refs: document.checkpoint_code_refs,
-        decision_reasons: document.decision_reasons,
-        decision_note: document.decision_note,
-        pressure_level: document.pressure_level,
-        retrieval_status: document.retrieval_status,
-        graph_status: document.graph_status,
-        watcher_status: document.watcher_status,
-        checkpoint_dirty_paths: document.checkpoint_dirty_paths,
-        checkpoint_changed_paths: document.checkpoint_changed_paths,
-        scratch: document.scratch,
-        graphs: document.graphs,
-        recent_evidence: document.recent_evidence,
-        recent_observations: document.recent_observations,
-        active_frontier_node_ids: document.active_frontier_node_ids,
-        linked_subgoal_ids: document.linked_subgoal_ids,
-        linked_graph_node_ids: document.linked_graph_node_ids,
     }
 }
 

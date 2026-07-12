@@ -1956,8 +1956,13 @@ Those ten request registrations, dispatch arms, handlers, protocol tests, and
 README claims are now deleted. A source guard fixes registration to the eight
 named-client routes and explicitly rejects the removed names. Protocol compile,
 app-server compile, and four compatibility-architecture tests pass. Next audit
-zero-caller protocol DTOs and bridge conversion helpers left by this cut, then
-migrate or retire the phase-6 smoke and `epiphany-mvp-status --codex` clients.
+The zero-caller DTO audit is complete too: deleted-method params/responses,
+generic job-launch worker-document DTOs, retrieval DTOs, bridge distill/propose/
+job-document conversions, and `retrieve_protocol.rs` are gone. Generated JSON
+and TypeScript fixtures were regenerated; their two fixture-equivalence tests,
+protocol/bridge compilation, and full app-server compilation pass. Next map the
+real invariant behind each phase-6 smoke and `epiphany-mvp-status --codex`, then
+migrate or retire those clients rather than preserving JSON-RPC for its own tests.
 
 ## Immediate Re-entry Instruction
 

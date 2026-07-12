@@ -37,9 +37,10 @@ clients.
 | `jobLaunch` | no executable caller | request surface deleted |
 | `retrieve` | no executable caller | request surface deleted |
 
-Protocol DTOs may remain temporarily only when retained response projections or
-bridge conversion tests still compile against them. A DTO is not authority and
-must not keep an unconsumed request method registered.
+The deleted methods' protocol DTOs, duplicate worker-launch document hierarchy,
+retrieve projection module, bridge conversions, and generated schema exports
+are gone. A DTO is not authority and does not survive merely because codegen can
+describe it.
 
 ## Evidence rule
 
