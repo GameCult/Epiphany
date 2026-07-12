@@ -370,3 +370,14 @@ acceptance and metrics closure, and Imagination consensus. No production owner
 called them; their remaining uses were unit fixtures. All sixteen constructor/
 writer exports are now `cfg(test)`. Types, validation exercised by tests, and
 production readers remain available for genuine provider-authored ingest.
+
+## Caller echo as Modeling truth
+
+Repo closure already had a typed Modeling request/finding route, but the
+`close` CLI also required callers to repeat model ref, verdict, finding prose,
+authorship, and summary flags. Closure reviewed that echo before rereading the
+persisted finding, while the scheduler quietly copied the real finding into
+the caller fields. The echo fields, review helper, scheduler transcription,
+and usage surface are deleted. Full closure now loads the current immutable
+Modeling finding directly and refuses absence; caller text cannot stand in for
+the Modeling organ even temporarily.

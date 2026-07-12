@@ -27,12 +27,10 @@ use epiphany_core::MindGatewayDecision;
 use epiphany_core::MindGatewayReview;
 use epiphany_core::PersonaMemoryCacheConfig;
 use epiphany_core::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
-use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID;
 use epiphany_core::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION;
 use epiphany_core::RepoWorkMapEntry;
-use epiphany_core::RepoWorkModelingFinding;
 use epiphany_core::RepoWorkModelingRequest;
 use epiphany_core::RepoWorkModelingRoute;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
@@ -281,12 +279,7 @@ struct CloseArgs {
     artifact_dir: Option<PathBuf>,
     verification_command: Option<String>,
     verification_summary: Option<String>,
-    modeling_summary: Option<String>,
-    closure_model_ref: Option<String>,
-    closure_model_verdict: Option<String>,
-    closure_model_finding: Option<String>,
     require_source_grounding: bool,
-    model_authored: bool,
     state_revision: u64,
 }
 
@@ -850,12 +843,7 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
     let mut artifact_dir = None;
     let mut verification_command = None;
     let mut verification_summary = None;
-    let mut modeling_summary = None;
-    let mut closure_model_ref = None;
-    let mut closure_model_verdict = None;
-    let mut closure_model_finding = None;
     let mut require_source_grounding = false;
-    let mut model_authored = false;
     let mut state_revision = 0_u64;
 
     let mut args = args.peekable();
@@ -874,20 +862,7 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
             "--verification-summary" => {
                 verification_summary = Some(take_string(&mut args, "--verification-summary")?);
             }
-            "--modeling-summary" => {
-                modeling_summary = Some(take_string(&mut args, "--modeling-summary")?);
-            }
-            "--closure-model-ref" | "--model-ref" => {
-                closure_model_ref = Some(take_string(&mut args, "--closure-model-ref")?);
-            }
-            "--closure-model-verdict" | "--model-verdict" => {
-                closure_model_verdict = Some(take_string(&mut args, "--closure-model-verdict")?);
-            }
-            "--closure-model-finding" | "--model-finding" => {
-                closure_model_finding = Some(take_string(&mut args, "--closure-model-finding")?);
-            }
             "--require-source-grounding" => require_source_grounding = true,
-            "--model-authored" => model_authored = true,
             "--state-revision" => state_revision = take_u64(&mut args, "--state-revision")?,
             other => return Err(anyhow!("unexpected close argument {other:?}")),
         }
@@ -900,12 +875,7 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
         artifact_dir,
         verification_command,
         verification_summary,
-        modeling_summary,
-        closure_model_ref,
-        closure_model_verdict,
-        closure_model_finding,
         require_source_grounding,
-        model_authored,
         state_revision,
     })
 }
@@ -9772,82 +9742,6 @@ fn short_commit(commit_sha: &str) -> String {
     commit_sha.chars().take(12).collect::<String>()
 }
 
-fn closure_model_review(
-    model_authored: bool,
-    model_ref: Option<&str>,
-    verdict: Option<&str>,
-    finding: Option<&str>,
-) -> Result<(Value, bool)> {
-    let normalized_verdict = verdict
-        .map(|value| value.trim().to_ascii_lowercase())
-        .filter(|value| !value.is_empty());
-    if let Some(verdict) = normalized_verdict.as_deref() {
-        match verdict {
-            "passed" | "failed" | "needs-work" | "blocked" => {}
-            other => {
-                return Err(anyhow!(
-                    "unsupported closure model verdict {other:?}; expected passed, failed, needs-work, or blocked"
-                ));
-            }
-        }
-    }
-
-    let has_typed_modeling_finding = model_authored
-        && model_ref.is_some_and(|value| !value.trim().is_empty())
-        && finding.is_some_and(|value| !value.trim().is_empty());
-    let gate_enforced = true;
-    let passed = match normalized_verdict.as_deref() {
-        Some("passed") => has_typed_modeling_finding,
-        Some("failed" | "needs-work" | "blocked") => false,
-        Some(_) => unreachable!(),
-        None => false,
-    };
-    let status = match normalized_verdict.as_deref() {
-        Some("passed") if has_typed_modeling_finding => "passed",
-        Some("passed") => "missing-modeling-finding",
-        Some("failed" | "needs-work" | "blocked") => "failed",
-        Some(_) => unreachable!(),
-        None => "missing-required-verdict",
-    };
-    let reason = match status {
-        "passed" => "model-authored closure verdict passed",
-        "failed" => "model-authored closure verdict refused closure",
-        "missing-required-verdict" => {
-            "closure required a model-authored verdict but none was supplied"
-        }
-        "missing-modeling-finding" => {
-            "a passing verdict lacked explicit model authorship, model reference, or finding"
-        }
-        _ => "model-authored Modeling finding refused closure",
-    };
-
-    Ok((
-        json!({
-            "schemaVersion": "epiphany.repo_work_model_closure_review.v0",
-            "status": status,
-            "passed": passed,
-            "required": true,
-            "gateEnforced": gate_enforced,
-            "modelAuthored": model_authored,
-            "typedFindingPresent": has_typed_modeling_finding,
-            "modelRef": model_ref,
-            "verdict": normalized_verdict,
-            "finding": finding.map(compact_line),
-            "reason": reason,
-            "reviewedInputs": [
-                "Hands commit receipt matched execute receipt",
-                "Verification command result",
-                "Declared versus actual git changed paths",
-                "Safe-family committed-content assertions",
-                "Authority seal and private-state exposure flag"
-            ],
-            "operatorAuthoredShellDetails": false,
-            "privateStateExposed": false
-        }),
-        passed,
-    ))
-}
-
 fn closure_verification_source_grounding_review(
     declared_changed_paths: &[String],
     verification_stdout: &[u8],
@@ -11140,13 +11034,15 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
         closure_family_assertions(&workspace, &commit_sha, &execute_receipt, &item)?;
     let (mind_adoption_review, mind_adoption_passed) =
         closure_mind_adoption_review(&execute_receipt)?;
-    let closure_model_authored = args.model_authored || args.closure_model_ref.is_some();
-    let (model_closure_review, model_closure_passed) = closure_model_review(
-        closure_model_authored,
-        args.closure_model_ref.as_deref(),
-        args.closure_model_verdict.as_deref(),
-        args.closure_model_finding.as_deref(),
-    )?;
+    let model_closure_review = json!({
+        "schemaVersion": "epiphany.repo_work_model_closure_review.v0",
+        "status": "deferred-to-typed-modeling",
+        "passed": false,
+        "required": true,
+        "source": "runtime-spine Modeling finding",
+        "callerEchoAccepted": false,
+        "privateStateExposed": false
+    });
     let closure_review_id = format!("repo-work-close-{item_slug}-closure-review");
     let closure_review_path = artifact_dir.join(format!("work-close-{item_slug}-review.json"));
     let closure_review = json!({
@@ -11182,17 +11078,19 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
             "sourceGroundingRequired": args.require_source_grounding,
             "mindAdoptionPassed": mind_adoption_passed,
             "familyAssertionsPassed": family_assertions_passed,
-            "modelClosurePassed": model_closure_passed
+            "modelClosurePassed": false
         },
         "verificationSourceGrounding": verification_source_grounding,
         "mindAdoptionReview": mind_adoption_review,
         "familyAssertions": family_assertions,
         "modelingReview": {
-            "modelAuthored": closure_model_authored,
-            "modelRef": args.closure_model_ref.clone(),
-            "deterministicFallback": !closure_model_authored,
+            "modelAuthored": false,
+            "modelRef": Value::Null,
+            "deterministicFallback": false,
+            "source": "runtime-spine Modeling finding",
+            "callerEchoAccepted": false,
             "operatorAuthoredShellDetails": false,
-            "summary": args.modeling_summary.clone(),
+            "summary": "Modeling truth is resolved from the runtime-spine finding, not caller text.",
             "closureReview": model_closure_review
         },
         "authoritySeal": {
@@ -11343,12 +11241,6 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
         }));
     }
 
-    let modeling_summary = args.modeling_summary.unwrap_or_else(|| {
-        format!(
-            "Modeling records repo work item {item} changed [{}] at commit {commit_sha}; scheduler should stop implementation until publication review.",
-            declared_changed_paths.join(", ")
-        )
-    });
     let modeling_route_id = format!("repo-work-modeling-route-{item_slug}");
     let (modeling_request, modeling_route) = if phase == ClosurePhase::Full {
         let route = runtime_repo_work_modeling_route(&runtime_store, &modeling_route_id)?
@@ -11404,7 +11296,7 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
         let route = commit_initial_repo_work_modeling_route(&runtime_store, &request, &route)?;
         (request, route)
     };
-    if phase == ClosurePhase::SoulOnly || !model_closure_passed {
+    if phase == ClosurePhase::SoulOnly {
         let awaiting_receipt = json!({
             "schemaVersion": "epiphany.repo_work_closure_receipt.v0",
             "createdAt": now,
@@ -11443,54 +11335,14 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
         return Ok(awaiting_receipt);
     }
     let modeling_finding_receipt_id = format!("{}-finding", modeling_request.request_id);
-    let mut modeling_finding = RepoWorkModelingFinding {
-        schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
-        receipt_id: modeling_finding_receipt_id.clone(),
-        item: item.clone(),
-        model_ref: args
-            .closure_model_ref
-            .clone()
-            .expect("passed Modeling gate requires model ref"),
-        soul_verdict_receipt_id: soul_verdict.receipt_id.clone(),
-        verdict: args
-            .closure_model_verdict
-            .clone()
-            .expect("passed Modeling gate requires verdict"),
-        finding: args
-            .closure_model_finding
-            .clone()
-            .expect("passed Modeling gate requires finding"),
-        summary: modeling_summary,
-        changed_paths: declared_changed_paths.clone(),
-        commit_sha: commit_sha.clone(),
-        emitted_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        private_state_exposed: false,
-        contract: "Modeling interpretation of Soul-verified repo consequence; Mind must reread this typed receipt before map admission.".to_string(),
-        request_id: modeling_request.request_id.clone(),
-    };
-    if let Some(existing) =
+    let modeling_finding =
         runtime_repo_work_modeling_finding(&runtime_store, &modeling_finding_receipt_id)?
-    {
-        if existing.item != modeling_finding.item
-            || existing.model_ref != modeling_finding.model_ref
-            || existing.soul_verdict_receipt_id != modeling_finding.soul_verdict_receipt_id
-            || existing.verdict != modeling_finding.verdict
-            || existing.finding != modeling_finding.finding
-            || existing.summary != modeling_finding.summary
-            || existing.changed_paths != modeling_finding.changed_paths
-            || existing.commit_sha != modeling_finding.commit_sha
-            || existing.request_id != modeling_finding.request_id
-        {
-            return Err(anyhow!(
-                "closure retry conflicts with immutable Modeling finding"
-            ));
-        }
-        modeling_finding = existing;
-    } else {
-        return Err(anyhow!(
-            "closure cannot author a Modeling finding; route the typed request through the Modeling runtime first"
-        ));
-    }
+            .ok_or_else(|| {
+                anyhow!(
+                    "closure requires the persisted Modeling finding {}; caller-authored echoes are not accepted",
+                    modeling_finding_receipt_id
+                )
+            })?;
     if modeling_finding.soul_verdict_receipt_id != soul_verdict.receipt_id
         || modeling_finding.commit_sha != commit_sha
         || modeling_finding.changed_paths != declared_changed_paths
@@ -11615,8 +11467,8 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
             "summary": modeling_finding.summary,
             "changedPaths": execute_receipt["changedPaths"],
             "commitSha": execute_receipt["handsReceipts"]["commitSha"],
-            "source": "epiphany.repo_work_closure_review.v0",
-            "modelAuthored": closure_model_authored
+            "source": "runtime-spine Modeling finding",
+            "modelAuthored": true
         },
         "mind": {
             "gatewayReviewId": mind_review.gateway_id,
@@ -14016,12 +13868,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                         artifact_dir: Some(artifact_dir.clone()),
                         verification_command: None,
                         verification_summary: None,
-                        modeling_summary: Some(finding.summary.clone()),
-                        closure_model_ref: Some(finding.model_ref.clone()),
-                        closure_model_verdict: Some(finding.verdict.clone()),
-                        closure_model_finding: Some(finding.finding.clone()),
                         require_source_grounding: false,
-                        model_authored: true,
                         state_revision: 0,
                     })?;
                     status = advanced_result["status"]
@@ -14129,12 +13976,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 artifact_dir: Some(artifact_dir.clone()),
                 verification_command: None,
                 verification_summary: None,
-                modeling_summary: None,
-                closure_model_ref: None,
-                closure_model_verdict: None,
-                closure_model_finding: None,
                 require_source_grounding: false,
-                model_authored: false,
                 state_revision: 0,
             })?;
             status = advanced_result
@@ -15514,27 +15356,23 @@ fn default_if_empty(values: Vec<String>, defaults: Vec<String>) -> Vec<String> {
 #[cfg(test)]
 mod authority_tests {
     use super::*;
+    use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
+    use epiphany_core::RepoWorkModelingFinding;
     use epiphany_core::put_repo_work_modeling_finding;
 
     #[test]
-    fn modeling_finding_is_mandatory_for_closure_admission() -> Result<()> {
-        let (_, missing) = closure_model_review(false, None, None, None)?;
-        assert!(!missing);
-
-        let (counterfeit, passed) =
-            closure_model_review(true, Some("modeling-job-1"), Some("passed"), None)?;
-        assert!(!passed);
-        assert_eq!(counterfeit["status"], "missing-modeling-finding");
-
-        let (review, passed) = closure_model_review(
-            true,
-            Some("modeling-job-1"),
-            Some("passed"),
-            Some("Modeling grounded the map update in Soul-verified consequence."),
-        )?;
-        assert!(passed);
-        assert_eq!(review["status"], "passed");
-        assert_eq!(review["typedFindingPresent"], true);
+    fn close_rejects_caller_authored_modeling_echoes() -> Result<()> {
+        for flag in [
+            "--closure-model-ref",
+            "--closure-model-verdict",
+            "--closure-model-finding",
+            "--model-authored",
+            "--modeling-summary",
+        ] {
+            let error = parse_close_args([flag.to_string(), "counterfeit".to_string()].into_iter())
+                .expect_err("legacy Modeling echo must be refused");
+            assert!(error.to_string().contains("unexpected close argument"));
+        }
         Ok(())
     }
 
@@ -16370,7 +16208,7 @@ fn print_usage() {
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
-         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] --closure-model-ref <ref> --model-authored --closure-model-verdict passed|failed|needs-work|blocked --closure-model-finding <text> [--require-source-grounding]\n\
+         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] [--require-source-grounding]\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
          readiness --workspace <repo> [--item <id>] [--accept-receipt <path>] [--public-proof <path>] [--idunn-lifecycle-receipt <path>] [--deployment-aftercare-audit-receipt <path>|--deployment-aftercare-audit-receipt-ref <ref>] [--tool-directory-receipt <path>] [--no-write]\n\
          deployment-config-audit --workspace <repo> [--artifact-dir <path>] [--no-write]\n\

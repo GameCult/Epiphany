@@ -91,6 +91,9 @@ The confirmed conceptual substitutions have been cut:
   Eve/daemon-tool acceptance, Bifrost publication/GitHub/public-proof/artifact/
   metrics results, and Imagination consensus constructors/writers are
   `cfg(test)`; production retains their typed readers for real ingest.
+- repo closure no longer accepts caller echoes of Modeling model ref, verdict,
+  finding, authorship, or summary. The scheduler no longer transcribes them.
+  Full closure reads the immutable runtime-spine Modeling finding directly.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
