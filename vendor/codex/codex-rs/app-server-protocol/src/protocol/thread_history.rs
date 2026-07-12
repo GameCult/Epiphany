@@ -233,7 +233,7 @@ impl ThreadHistoryBuilder {
             RolloutItem::Compacted(payload) => self.handle_compacted(payload),
             RolloutItem::ResponseItem(item) => self.handle_response_item(item),
             RolloutItem::TurnContext(_)
-            | RolloutItem::EpiphanyState(_)
+            | RolloutItem::LegacyEpiphanyState(_)
             | RolloutItem::SessionMeta(_) => {}
         }
     }

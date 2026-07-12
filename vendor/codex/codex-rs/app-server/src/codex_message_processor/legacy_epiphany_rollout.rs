@@ -68,7 +68,7 @@ pub(super) fn latest_legacy_epiphany_state(
             RolloutItem::ResponseItem(ResponseItem::Message { role, .. }) if role == "user" => {
                 segment.get_or_insert_with(LegacySegment::default).user_turn = true;
             }
-            RolloutItem::EpiphanyState(payload) => {
+            RolloutItem::LegacyEpiphanyState(payload) => {
                 let item: epiphany_state_model::EpiphanyStateItem =
                     serde_json::from_value(payload.clone()).map_err(|error| {
                         format!("invalid legacy Epiphany rollout payload: {error}")
@@ -137,7 +137,7 @@ mod tests {
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
             })),
-            RolloutItem::EpiphanyState(
+            RolloutItem::LegacyEpiphanyState(
                 serde_json::to_value(EpiphanyStateItem {
                     turn_id: Some(id.to_string()),
                     state,
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn rejects_malformed_legacy_state_payload() {
-        let items = vec![RolloutItem::EpiphanyState(serde_json::json!({
+        let items = vec![RolloutItem::LegacyEpiphanyState(serde_json::json!({
             "turn_id": "not-the-legacy-shape"
         }))];
 

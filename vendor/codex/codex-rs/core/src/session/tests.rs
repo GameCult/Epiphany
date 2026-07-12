@@ -148,7 +148,7 @@ use std::time::Duration as StdDuration;
 mod guardian_tests;
 
 fn legacy_epiphany_state(item: EpiphanyStateItem) -> RolloutItem {
-    RolloutItem::EpiphanyState(
+    RolloutItem::LegacyEpiphanyState(
         serde_json::to_value(item).expect("serialize legacy Epiphany rollout payload"),
     )
 }
@@ -169,7 +169,8 @@ fn codex_session_has_no_epiphany_state_custody() {
     assert!(!codex_thread.contains("pub async fn epiphany_"));
     assert!(!core_lib.contains("epiphany_rollout"));
     assert!(!protocol.contains("pub use epiphany_state_model::"));
-    assert!(protocol.contains("EpiphanyState(serde_json::Value)"));
+    assert!(protocol.contains("LegacyEpiphanyState(serde_json::Value)"));
+    assert!(protocol.contains("#[serde(rename = \"epiphany_state\")]"));
     assert!(!protocol_manifest.contains("epiphany-state-model"));
 }
 
@@ -5198,7 +5199,7 @@ async fn record_context_updates_does_not_persist_epiphany_state() {
         !resumed
             .history
             .iter()
-            .any(|item| matches!(item, RolloutItem::EpiphanyState(_)))
+            .any(|item| matches!(item, RolloutItem::LegacyEpiphanyState(_)))
     );
 }
 
@@ -5244,7 +5245,7 @@ async fn record_context_updates_and_set_reference_context_item_skips_epiphany_st
         !resumed
             .history
             .iter()
-            .any(|item| matches!(item, RolloutItem::EpiphanyState(_))),
+            .any(|item| matches!(item, RolloutItem::LegacyEpiphanyState(_))),
         "epiphany state should not be persisted when session state is empty"
     );
 }

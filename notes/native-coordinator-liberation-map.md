@@ -326,3 +326,9 @@ giant `EpiphanyThreadState` fixture and native round-trip tests are replaced by
 one minimal opaque-envelope preservation test. `codex-protocol` has no
 `epiphany-state-model` dependency in production or dev configuration; native
 state serialization is tested by its actual owner.
+
+The opaque Rust variant is now named `LegacyEpiphanyState`, with an explicit
+`#[serde(rename = "epiphany_state")]` preserving the historical wire/file tag.
+Every remaining Codex match therefore declares that it handles quarantine
+cargo rather than live Epiphany authority. Protocol shape and app-server
+migration tests prove the rename did not change old-file compatibility.

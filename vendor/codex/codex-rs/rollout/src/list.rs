@@ -1127,7 +1127,7 @@ async fn read_head_summary(path: &Path, head_limit: usize) -> io::Result<HeadTai
             RolloutItem::TurnContext(_) => {
                 // Not included in `head`; skip.
             }
-            RolloutItem::EpiphanyState(_) => {
+            RolloutItem::LegacyEpiphanyState(_) => {
                 // Not included in `head`; skip.
             }
             RolloutItem::Compacted(_) => {
@@ -1186,7 +1186,7 @@ pub async fn read_head_for_summary(path: &Path) -> io::Result<Vec<serde_json::Va
                 }
                 RolloutItem::Compacted(_)
                 | RolloutItem::TurnContext(_)
-                | RolloutItem::EpiphanyState(_)
+                | RolloutItem::LegacyEpiphanyState(_)
                 | RolloutItem::EventMsg(_) => {}
             }
         }

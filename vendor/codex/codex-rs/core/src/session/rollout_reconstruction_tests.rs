@@ -15,7 +15,7 @@ use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 
 fn legacy_epiphany_state(item: EpiphanyStateItem) -> RolloutItem {
-    RolloutItem::EpiphanyState(
+    RolloutItem::LegacyEpiphanyState(
         serde_json::to_value(item).expect("serialize legacy Epiphany rollout payload"),
     )
 }

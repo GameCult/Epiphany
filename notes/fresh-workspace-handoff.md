@@ -1922,6 +1922,10 @@ native-state dependency in any dependency class, its giant state fixture is
 gone, and a minimal opaque historical-envelope test remains. Next rename the
 variant `LegacyEpiphanyState` while preserving serde tag `epiphany_state`, then
 judge whether generic unknown-rollout cargo can remove its final named trace.
+The rename is complete and tested: all Rust matches say
+`LegacyEpiphanyState`, serde still emits/reads `epiphany_state`, and migration
+behavior is unchanged. Next audit a generic unknown historical rollout carrier,
+but reject it if it weakens strict decoding of live Codex history.
 
 ## Immediate Re-entry Instruction
 
