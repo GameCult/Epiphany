@@ -94,6 +94,11 @@ Exit evidence:
 
 ### 2. Normalize Native Operator Contracts
 
+Status: complete for the canonical coordinator/status boundary. The two-path
+service constructor and status flags are deleted, native JSON emits `state`,
+and the wrapper supplies the live unified store. Source guards reject the old
+field and flags.
+
 - Audit native JSON artifacts for compatibility-shaped field names and nested
   Codex response assumptions.
 - Rename only when no external contract depends on the old shape; otherwise
@@ -188,7 +193,7 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Normalize native operator contracts. Begin with an inventory of
-compatibility-shaped `epiphanyState` JSON and misleading `runtime_spine_store`
-path names, identify each living consumer, and either rename the native
-contract or record a bounded migration with an expiry.
+Audit the live Hands -> Soul -> Modeling -> Mind -> Self loop against the fresh
+repository exit evidence. Identify which required receipt, admission, and
+negative-bypass proofs are current and which are only historical claims; close
+the first missing proof rather than adding another route or summary.

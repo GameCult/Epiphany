@@ -1992,6 +1992,14 @@ impersonation. The full core library passes 248 tests. That sweep also repaired
 mixed-case `Persona`/`Modeling` dependency ids that made the renamed organs
 depend on themselves. Next inventory native compatibility-shaped operator JSON
 and the misleading `runtime_spine_store` name before renaming either.
+That operator-boundary cut is complete. `EpiphanyCoordinatorService` now takes
+one `store`; status takes one `--store`; the local wrapper passes its live
+coordinator store; and native coordinator/status JSON emits `state` rather than
+the extinct Codex-shaped `epiphanyState`. Guards reject the old field and split
+flags. The actual status executable ran successfully against
+`state/runtime-spine.msgpack`. Next audit current proof of the full Hands ->
+Soul -> Modeling -> Mind -> Self loop instead of trusting historical victory
+prose.
 
 ## Immediate Re-entry Instruction
 

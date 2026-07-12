@@ -51,8 +51,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const DEFAULT_CARGO_TARGET_DIR: &str = r"C:\Users\Meta\.cargo-target-codex";
-const DEFAULT_THREAD_STATE_STORE: &str = "state/thread-state.msgpack";
-const DEFAULT_RUNTIME_STORE: &str = "state/runtime-spine.msgpack";
+const DEFAULT_COORDINATOR_STORE: &str = "state/runtime-spine.msgpack";
 const REORIENT_BINDING_ID: &str = "reorient-worker";
 const IMAGINATION_BINDING_ID: &str = "imagination-synthesis-worker";
 const RESEARCH_BINDING_ID: &str = "research-source-gather-worker";
@@ -94,8 +93,7 @@ fn main() -> Result<()> {
 struct Args {
     thread_id: Option<String>,
     cwd: PathBuf,
-    thread_state_store: PathBuf,
-    runtime_store: PathBuf,
+    store: PathBuf,
     ephemeral: bool,
     json: bool,
     result: Option<PathBuf>,
@@ -112,8 +110,7 @@ impl Args {
         let mut parsed = Args {
             thread_id: None,
             cwd: root.clone(),
-            thread_state_store: PathBuf::from(DEFAULT_THREAD_STATE_STORE),
-            runtime_store: PathBuf::from(DEFAULT_RUNTIME_STORE),
+            store: PathBuf::from(DEFAULT_COORDINATOR_STORE),
             ephemeral: true,
             json: false,
             result: None,
@@ -130,12 +127,7 @@ impl Args {
             match arg.as_str() {
                 "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
-                "--thread-state-store" => {
-                    parsed.thread_state_store = take_path(&mut args, "--thread-state-store")?
-                }
-                "--runtime-store" => {
-                    parsed.runtime_store = take_path(&mut args, "--runtime-store")?
-                }
+                "--store" => parsed.store = take_path(&mut args, "--store")?,
                 "--ephemeral" => parsed.ephemeral = true,
                 "--no-ephemeral" => parsed.ephemeral = false,
                 "--json" => parsed.json = true,
@@ -171,14 +163,8 @@ fn run_native_interrupt(args: &Args) -> Result<Value> {
         .interrupt_binding
         .as_ref()
         .ok_or_else(|| anyhow!("--interrupt-binding requires a binding id"))?;
-    let store = absolute_path(&args.thread_state_store)?;
-    let runtime_store = absolute_path(&args.runtime_store)?;
-    if store != runtime_store {
-        return Err(anyhow!(
-            "native interruption requires one unified thread/runtime store"
-        ));
-    }
-    let service = epiphany_core::EpiphanyCoordinatorService::new(&store, &runtime_store);
+    let store = absolute_path(&args.store)?;
+    let service = epiphany_core::EpiphanyCoordinatorService::new(&store);
     let state = service
         .state()?
         .ok_or_else(|| anyhow!("cannot interrupt without native coordinator state"))?;
@@ -198,14 +184,14 @@ fn run_native_interrupt(args: &Args) -> Result<Value> {
         "revision": result.epiphany_state.revision,
         "cancelRequested": result.cancel_requested,
         "interruptedThreadIds": result.interrupted_thread_ids,
-        "epiphanyState": result.epiphany_state,
+        "state": result.epiphany_state,
     }))
 }
 
 fn run_native_status(args: &Args) -> Result<Value> {
     let cwd = absolute_path(&args.cwd)?;
-    let store_path = absolute_path(&args.thread_state_store)?;
-    let runtime_store_path = absolute_path(&args.runtime_store)?;
+    let store_path = absolute_path(&args.store)?;
+    let runtime_store_path = store_path.clone();
     let state = if store_path.exists() {
         read_accepted_coordinator_state(&store_path)
             .with_context(|| format!("failed to load {}", store_path.display()))?
@@ -1416,10 +1402,21 @@ mod native_interrupt_tests {
     use epiphany_state_model::{EpiphanyJobBinding, EpiphanyJobKind};
 
     #[test]
+    fn native_operator_contract_has_one_store_and_no_codex_state_field() {
+        let source = include_str!("epiphany-mvp-status.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap_or(source);
+        let compatibility_field = ["epiphany", "State"].concat();
+        assert!(!production.contains(&compatibility_field));
+        assert!(!production.contains("--thread-state-store"));
+        assert!(!production.contains("--runtime-store"));
+        assert!(production.contains("--store"));
+    }
+
+    #[test]
     fn default_status_interrupt_uses_native_coordinator_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("status-interrupt.cc");
-        let service = epiphany_core::EpiphanyCoordinatorService::new(&store, &store);
+        let service = epiphany_core::EpiphanyCoordinatorService::new(&store);
         service.apply_state_update(
             "thread-1",
             epiphany_core::EpiphanyStateUpdate {
@@ -1441,8 +1438,7 @@ mod native_interrupt_tests {
         let args = Args {
             thread_id: Some("thread-1".to_string()),
             cwd: temp.path().to_path_buf(),
-            thread_state_store: store.clone(),
-            runtime_store: store,
+            store,
             ephemeral: true,
             json: true,
             result: None,
@@ -1455,7 +1451,7 @@ mod native_interrupt_tests {
         assert_eq!(result["source"], "native");
         assert_eq!(result["cancelRequested"], false);
         assert_eq!(
-            result["epiphanyState"]["job_bindings"][0]["blocking_reason"],
+            result["state"]["job_bindings"][0]["blocking_reason"],
             "native status proof"
         );
         Ok(())

@@ -679,7 +679,7 @@ if ($Mode -eq "status" -or $Mode -eq "mvp") {
         $statusArgs = @(
             "--source", "native",
             "--cwd", $Workspace,
-            "--thread-state-store", (Join-Path $Root "state\thread-state.msgpack"),
+            "--store", $runtimeStore,
             "--json",
             "--result", $statusJson
         )

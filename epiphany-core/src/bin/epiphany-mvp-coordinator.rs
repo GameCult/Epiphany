@@ -751,9 +751,7 @@ fn collect_coordinator_status(runtime_store: &Path, thread_id: &str) -> Result<V
             "--json",
             "--thread-id",
             thread_id,
-            "--thread-state-store",
-            &store,
-            "--runtime-store",
+            "--store",
             &store,
         ],
     )
@@ -762,7 +760,7 @@ fn collect_coordinator_status(runtime_store: &Path, thread_id: &str) -> Result<V
 fn apply_bootstrap_patch(runtime_store: &Path, thread_id: &str, patch: Value) -> Result<Value> {
     let patch: epiphany_core::EpiphanyRoleStatePatchDocument =
         serde_json::from_value(patch).context("failed to decode typed bootstrap state patch")?;
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
     let applied = service.apply_state_update(
         thread_id,
         epiphany_core::state_update_from_role_patch(Some(0), patch),
@@ -771,7 +769,7 @@ fn apply_bootstrap_patch(runtime_store: &Path, thread_id: &str, patch: Value) ->
     Ok(json!({
         "revision": applied.revision,
         "changedFields": applied.changed_fields.iter().map(|field| format!("{field:?}")).collect::<Vec<_>>(),
-        "epiphanyState": applied.state,
+        "state": applied.state,
     }))
 }
 fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> {
@@ -971,7 +969,7 @@ fn launch_role(
     expected_revision: Option<i64>,
     max_runtime_seconds: u64,
 ) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
     let state = service
         .state()?
         .ok_or_else(|| anyhow!("cannot launch role without native coordinator state"))?;
@@ -1020,7 +1018,7 @@ fn launch_role(
         "launcherJobId": launched.launcher_job_id,
         "backendJobId": launched.backend_job_id,
         "revision": launched.epiphany_state.revision,
-        "epiphanyState": launched.epiphany_state,
+        "state": launched.epiphany_state,
     }))
 }
 
@@ -1030,7 +1028,7 @@ fn accept_role(
     role_id: &str,
     expected_revision: Option<u64>,
 ) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
     let state = service
         .state()?
         .ok_or_else(|| anyhow!("cannot accept role without native coordinator state"))?;
@@ -1048,7 +1046,7 @@ fn accept_role(
     Ok(json!({
         "roleId": role,
         "revision": accepted.state.revision,
-        "epiphanyState": accepted.state,
+        "state": accepted.state,
         "acceptedReceiptId": accepted.update.accepted_receipt_id,
         "acceptedObservationId": accepted.update.accepted_observation_id,
         "acceptedEvidenceId": accepted.update.accepted_evidence_id,
@@ -1156,7 +1154,7 @@ fn supersede_role_result(
         accepted_evidence_id: None,
         summary: Some(summary),
     };
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
     let applied = service.apply_state_update(
         thread_id,
         epiphany_core::EpiphanyStateUpdate {
@@ -1169,7 +1167,7 @@ fn supersede_role_result(
     Ok(json!({
         "revision": applied.revision,
         "changedFields": applied.changed_fields.iter().map(|field| format!("{field:?}")).collect::<Vec<_>>(),
-        "epiphanyState": applied.state,
+        "state": applied.state,
         "receipt": receipt,
     }))
 }
@@ -1190,7 +1188,7 @@ fn launch_reorient(
     expected_revision: Option<i64>,
     max_runtime_seconds: u64,
 ) -> Result<Value> {
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store, runtime_store);
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
     let state = service
         .state()?
         .ok_or_else(|| anyhow!("cannot launch reorientation without native coordinator state"))?;
@@ -1231,7 +1229,7 @@ fn launch_reorient(
         "launcherJobId": launched.launcher_job_id,
         "backendJobId": launched.backend_job_id,
         "revision": launched.epiphany_state.revision,
-        "epiphanyState": launched.epiphany_state,
+        "state": launched.epiphany_state,
         "decision": decision,
     }))
 }
@@ -1784,6 +1782,9 @@ mod tests {
                 "native coordinator regrew host dependency {forbidden:?}"
             );
         }
+        let compatibility_field = ["epiphany", "State"].concat();
+        assert!(!production.contains(&compatibility_field));
+        assert!(!production.contains("--thread-state-store"));
     }
 
     #[test]

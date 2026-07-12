@@ -85,12 +85,11 @@ flowchart LR
 `runtime_spine.rs` registers and persists worker launch requests, worker
 results, Mind reviews, Mind commit receipts, Eyes packets, Substrate Gate
 grants, Hands consequence receipts, Soul verdicts, Continuity receipts, and
-coordinator run receipts. Conceptually, the runtime store is lifecycle/evidence
-truth and the thread-state store is admitted Mind truth. Current launch and
-acceptance code, however, receive `runtime_spine_store` and write
-`THREAD_STATE_KEY` into that cache. Production often aliases the paths, but the
-API names conceal that requirement. The boundary must be repaired before the
-two-store invariant can be claimed.
+coordinator run receipts. `EpiphanyCoordinatorService` now accepts one `store`
+path for canonical state and its atomic runtime/witness companions. The native
+status mouth exposes the same boundary as one `--store` argument. Document
+families remain typed and separately owned inside the cache; filesystem path
+plurality no longer pretends to be an authority boundary.
 
 ## Hands → Soul → Modeling Loop
 
@@ -110,7 +109,7 @@ consequence valid.
 
 ## Read And Recommendation Flow
 
-`epiphany-mvp-status` reads the native thread-state and runtime-spine stores.
+`epiphany-mvp-status` reads the unified native coordinator store.
 It derives:
 
 - scene via `surfaces/scene.rs`;
@@ -178,10 +177,9 @@ The following are structurally absent:
 - Codex-backed MVP status/interruption;
 - `epiphany-codex-bridge`.
 
-Native operator projections may still emit a compatibility-shaped
-`epiphanyState` field. That field belongs to Epiphany's native projection and is
-an active cleanup target; it is not the deleted Codex `Thread.epiphanyState`
-contract returning through a side door.
+Native coordinator/status projections emit `state`, not the deleted Codex
+`Thread.epiphanyState` spelling. Source guards reject that compatibility field
+and reject the old two-store status flags.
 
 Codex app-server protocol has no dependency on `epiphany-state-model`.
 App-server has no Epiphany state-model/core/bridge dependency. Negative source

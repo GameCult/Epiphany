@@ -25,29 +25,21 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct EpiphanyCoordinatorService {
-    thread_state_store: PathBuf,
-    runtime_spine_store: PathBuf,
+    store: PathBuf,
 }
 
 impl EpiphanyCoordinatorService {
-    pub fn new(
-        thread_state_store: impl Into<PathBuf>,
-        runtime_spine_store: impl Into<PathBuf>,
-    ) -> Self {
+    pub fn new(store: impl Into<PathBuf>) -> Self {
         Self {
-            thread_state_store: thread_state_store.into(),
-            runtime_spine_store: runtime_spine_store.into(),
+            store: store.into(),
         }
     }
 
-    pub fn thread_state_store(&self) -> &Path {
-        &self.thread_state_store
-    }
-    pub fn runtime_spine_store(&self) -> &Path {
-        &self.runtime_spine_store
+    pub fn store(&self) -> &Path {
+        &self.store
     }
     pub fn state(&self) -> Result<Option<EpiphanyThreadState>> {
-        read_coordinator_state(&self.thread_state_store)
+        read_coordinator_state(&self.store)
     }
 
     pub fn role_result(
@@ -58,7 +50,7 @@ impl EpiphanyCoordinatorService {
         let state = self.state()?;
         Ok(read_role_result_snapshot(
             state.as_ref(),
-            Some(&self.runtime_spine_store),
+            Some(&self.store),
             role_id,
             binding_id,
         ))
@@ -71,7 +63,7 @@ impl EpiphanyCoordinatorService {
         let state = self.state()?;
         Ok(read_reorient_result_snapshot(
             state.as_ref(),
-            Some(&self.runtime_spine_store),
+            Some(&self.store),
             binding_id,
         ))
     }
@@ -82,12 +74,7 @@ impl EpiphanyCoordinatorService {
         update: EpiphanyStateUpdate,
         reference_turn_id: Option<String>,
     ) -> Result<EpiphanyCoordinatorStateApplied> {
-        apply_coordinator_state_update(
-            &self.thread_state_store,
-            thread_id,
-            update,
-            reference_turn_id,
-        )
+        apply_coordinator_state_update(&self.store, thread_id, update, reference_turn_id)
     }
 
     pub fn apply_state_update_from(
@@ -98,7 +85,7 @@ impl EpiphanyCoordinatorService {
         reference_turn_id: Option<String>,
     ) -> Result<EpiphanyCoordinatorStateApplied> {
         apply_coordinator_state_update_from_state(
-            &self.thread_state_store,
+            &self.store,
             thread_id,
             current_state,
             update,
@@ -118,18 +105,11 @@ impl EpiphanyCoordinatorService {
         let plan = plan_coordinator_job_launch(
             state,
             request,
-            &self.runtime_spine_store,
+            &self.store,
             launcher_job_id,
             backend_job_id,
         )?;
-        commit_coordinator_job_launch(
-            &self.runtime_spine_store,
-            thread_id,
-            state,
-            request,
-            &plan,
-            created_at,
-        )
+        commit_coordinator_job_launch(&self.store, thread_id, state, request, &plan, created_at)
     }
 
     pub fn accept_role(
@@ -144,7 +124,7 @@ impl EpiphanyCoordinatorService {
         nonce: &str,
     ) -> Result<EpiphanyNativeRoleAcceptance> {
         accept_coordinator_role_finding(
-            &self.runtime_spine_store,
+            &self.store,
             thread_id,
             state,
             role_id,
@@ -169,7 +149,7 @@ impl EpiphanyCoordinatorService {
         update_investigation_checkpoint: bool,
     ) -> Result<EpiphanyNativeReorientAcceptance> {
         accept_coordinator_reorient_finding(
-            &self.runtime_spine_store,
+            &self.store,
             thread_id,
             state,
             binding_id,
@@ -188,7 +168,7 @@ impl EpiphanyCoordinatorService {
         state: &EpiphanyThreadState,
         request: EpiphanyJobInterruptRequest,
     ) -> Result<EpiphanyJobInterruptResult> {
-        interrupt_coordinator_job(&self.thread_state_store, thread_id, state, request)
+        interrupt_coordinator_job(&self.store, thread_id, state, request)
     }
 }
 
@@ -209,6 +189,8 @@ mod tests {
             "build_role_acceptance_bundle",
             "serde_json",
             "thread/epiphany/",
+            "thread_state_store",
+            "runtime_spine_store",
         ] {
             assert!(
                 !production.contains(forbidden),
