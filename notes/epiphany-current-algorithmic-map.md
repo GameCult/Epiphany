@@ -126,6 +126,10 @@
   observation. Operator status remains absent until the dedicated status writer
   publishes it. Missing reads do not create a CultCache store; status smoke is
   fixed beneath `.epiphany-smoke`.
+- Agent-state SoA sync requires an existing bootstrapped Verse before mirroring
+  the persisted agent store. SoA report is filesystem-pure on a missing store.
+  Wrapper mode `agent-state-soa` explicitly composes sync then report; the
+  report itself never refreshes canonical state.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

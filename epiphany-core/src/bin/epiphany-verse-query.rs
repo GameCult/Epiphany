@@ -511,6 +511,7 @@ fn run_cli() -> Result<()> {
             );
         }
         "agent-state" | "agent-state-soa" => {
+            require_query_bootstrap(&args)?;
             let agent_store = args
                 .agent_store
                 .as_ref()
@@ -549,6 +550,12 @@ fn run_cli() -> Result<()> {
             );
         }
         "agent-state-report" | "agent-state-soa-report" => {
+            if !args.store.exists() {
+                anyhow::bail!(
+                    "local Verse has no agent state SoA summary at {}; report is read-only and will not create the store",
+                    args.store.display()
+                );
+            }
             let summary = load_latest_epiphany_cultmesh_agent_state_soa_summary(
                 &args.store,
                 args.runtime_id.clone(),

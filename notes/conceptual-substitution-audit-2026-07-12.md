@@ -201,3 +201,17 @@ positive operator-status path. The read loader returns `None` without opening
 or creating a missing store, and the `read` CLI therefore reports `missing`
 without filesystem mutation. Its smoke is fixed beneath `.epiphany-smoke` and
 rejects every store override before creation.
+
+## Agent-state projection body boundary
+
+The SoA command split already distinguished `agent-state` sync from
+`agent-state-report` readback, but the sync could write its summary into an
+unbootstrapped path and thereby create a fragmentary local Verse. The report
+also opened a missing CultCache store before reporting the summary absent.
+
+SoA sync now passes the same persisted-status/topology bootstrap prerequisite
+as every other query mutation. SoA report checks filesystem existence before
+opening CultMesh and refuses without creation. After explicit bootstrap, sync
+still mirrors the seven persisted agent rows and report reads them without
+mutation. The wrapper's `agent-state-soa` mode is an explicit sync-then-report
+composition, not evidence that the report command owns refresh.

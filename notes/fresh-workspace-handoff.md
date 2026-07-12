@@ -45,6 +45,9 @@ The confirmed conceptual substitutions have been cut:
 - bootstrap no longer writes default operator status. Only the dedicated
   operator-status writer publishes it; missing reads are filesystem-pure and
   the status smoke is fixed beneath `.epiphany-smoke`.
+- agent-state SoA sync requires bootstrap; report preserves missing filesystem
+  state. The wrapper explicitly composes sync then report rather than hiding a
+  refresh inside readback.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
