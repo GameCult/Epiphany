@@ -312,3 +312,11 @@ app-server compatibility code, and legacy-focused core tests import
 `EpiphanyStateItem` import solely to decode the historical rollout variant; its
 two round-trip tests and app-server's two migration tests pass. A source guard
 forbids `pub use epiphany_state_model::*` from returning.
+
+The historical rollout payload is now opaque inside Codex protocol:
+`RolloutItem::EpiphanyState(serde_json::Value)`. App-server's legacy quarantine
+alone decodes that value into `EpiphanyStateItem`, returns a typed state only
+after validation, and rejects malformed payloads. The old tagged JSON shape,
+latest-surviving selection, and rollback semantics remain covered. Codex
+protocol no longer has a production dependency on `epiphany-state-model`; a
+source guard proves both the opaque variant and dependency boundary.

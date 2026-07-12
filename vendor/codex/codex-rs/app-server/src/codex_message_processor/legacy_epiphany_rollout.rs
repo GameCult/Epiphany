@@ -28,7 +28,9 @@ fn is_out_of_band(segment: &LegacySegment) -> bool {
     segment.turn_id.is_none() && !segment.user_turn && segment.state.is_some()
 }
 
-pub(super) fn latest_legacy_epiphany_state(items: &[RolloutItem]) -> Option<EpiphanyThreadState> {
+pub(super) fn latest_legacy_epiphany_state(
+    items: &[RolloutItem],
+) -> Result<Option<EpiphanyThreadState>, String> {
     let mut state = None;
     let mut rollbacks = 0usize;
     let mut segment: Option<LegacySegment> = None;
@@ -66,7 +68,11 @@ pub(super) fn latest_legacy_epiphany_state(items: &[RolloutItem]) -> Option<Epip
             RolloutItem::ResponseItem(ResponseItem::Message { role, .. }) if role == "user" => {
                 segment.get_or_insert_with(LegacySegment::default).user_turn = true;
             }
-            RolloutItem::EpiphanyState(item) => {
+            RolloutItem::EpiphanyState(payload) => {
+                let item: epiphany_state_model::EpiphanyStateItem =
+                    serde_json::from_value(payload.clone()).map_err(|error| {
+                        format!("invalid legacy Epiphany rollout payload: {error}")
+                    })?;
                 let segment = segment.get_or_insert_with(LegacySegment::default);
                 if segment.turn_id.is_none() {
                     segment.turn_id = item.turn_id.clone();
@@ -96,7 +102,7 @@ pub(super) fn latest_legacy_epiphany_state(items: &[RolloutItem]) -> Option<Epip
     if let Some(segment) = segment {
         finish(segment, &mut state, &mut rollbacks);
     }
-    state
+    Ok(state)
 }
 
 #[cfg(test)]
@@ -131,10 +137,13 @@ mod tests {
                 local_images: Vec::new(),
                 text_elements: Vec::new(),
             })),
-            RolloutItem::EpiphanyState(EpiphanyStateItem {
-                turn_id: Some(id.to_string()),
-                state,
-            }),
+            RolloutItem::EpiphanyState(
+                serde_json::to_value(EpiphanyStateItem {
+                    turn_id: Some(id.to_string()),
+                    state,
+                })
+                .expect("serialize legacy Epiphany payload"),
+            ),
             RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: id.to_string(),
                 last_agent_message: None,
@@ -151,7 +160,7 @@ mod tests {
         let second = state("two");
         let mut items = turn("one", first);
         items.extend(turn("two", second.clone()));
-        assert_eq!(latest_legacy_epiphany_state(&items), Some(second));
+        assert_eq!(latest_legacy_epiphany_state(&items), Ok(Some(second)));
     }
 
     #[test]
@@ -162,6 +171,15 @@ mod tests {
         items.push(RolloutItem::EventMsg(EventMsg::ThreadRolledBack(
             ThreadRolledBackEvent { num_turns: 1 },
         )));
-        assert_eq!(latest_legacy_epiphany_state(&items), Some(first));
+        assert_eq!(latest_legacy_epiphany_state(&items), Ok(Some(first)));
+    }
+
+    #[test]
+    fn rejects_malformed_legacy_state_payload() {
+        let items = vec![RolloutItem::EpiphanyState(serde_json::json!({
+            "turn_id": "not-the-legacy-shape"
+        }))];
+
+        assert!(latest_legacy_epiphany_state(&items).is_err());
     }
 }

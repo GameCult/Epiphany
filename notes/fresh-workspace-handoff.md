@@ -1912,7 +1912,12 @@ slab is deleted: app-server-protocol, app-server, and core legacy tests import
 the native model directly; Codex protocol keeps only a private state-item import
 for historical rollout decoding. Next make that legacy payload opaque in Codex
 protocol and decode it only in the app-server quarantine, removing
-`epiphany-state-model` from Codex protocol's production dependency graph.
+`epiphany-state-model` from Codex protocol's production dependency graph. That
+cut is complete: the rollout variant carries opaque JSON, app-server alone
+performs typed validation, malformed payloads fail closed, and production
+Codex protocol has no native-state dependency. Next delete its obsolete
+native-state test fixture and dev-dependency, leaving only an opaque historical
+envelope preservation test.
 
 ## Immediate Re-entry Instruction
 

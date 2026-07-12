@@ -52,8 +52,6 @@ use crate::request_user_input::RequestUserInputResponse;
 use crate::user_input::UserInput;
 #[cfg(test)]
 use epiphany_state_model::*;
-#[cfg(not(test))]
-use epiphany_state_model::EpiphanyStateItem;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -2947,7 +2945,7 @@ pub enum RolloutItem {
     ResponseItem(ResponseItem),
     Compacted(CompactedItem),
     TurnContext(TurnContextItem),
-    EpiphanyState(EpiphanyStateItem),
+    EpiphanyState(serde_json::Value),
     EventMsg(EventMsg),
 }
 
@@ -5284,8 +5282,14 @@ mod tests {
             turn_id: Some("turn-123".to_string()),
             state: sample_epiphany_thread_state(),
         };
-        let value = serde_json::to_value(&original)?;
-        let reparsed: EpiphanyStateItem = serde_json::from_value(value)?;
+        let rollout_item = RolloutItem::EpiphanyState(serde_json::to_value(&original)?);
+        let value = serde_json::to_value(&rollout_item)?;
+        assert_eq!(value["type"], "epiphany_state");
+        let reparsed: RolloutItem = serde_json::from_value(value)?;
+        let RolloutItem::EpiphanyState(payload) = reparsed else {
+            panic!("expected opaque legacy Epiphany rollout payload");
+        };
+        let reparsed: EpiphanyStateItem = serde_json::from_value(payload)?;
         assert_eq!(reparsed, original);
         Ok(())
     }

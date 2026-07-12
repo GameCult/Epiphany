@@ -70,7 +70,7 @@ pub(super) async fn load_epiphany_state_from_rollout_path(
         InitialHistory::Forked(items) => items,
         InitialHistory::Resumed(resumed) => resumed.history,
     };
-    Ok(latest_legacy_epiphany_state(&items))
+    latest_legacy_epiphany_state(&items)
 }
 
 pub(super) async fn live_thread_epiphany_state(

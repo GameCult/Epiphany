@@ -147,6 +147,12 @@ use std::time::Duration as StdDuration;
 
 mod guardian_tests;
 
+fn legacy_epiphany_state(item: EpiphanyStateItem) -> RolloutItem {
+    RolloutItem::EpiphanyState(
+        serde_json::to_value(item).expect("serialize legacy Epiphany rollout payload"),
+    )
+}
+
 #[test]
 fn codex_session_has_no_epiphany_state_custody() {
     let session_state = include_str!("../state/session.rs");
@@ -154,6 +160,7 @@ fn codex_session_has_no_epiphany_state_custody() {
     let codex_thread = include_str!("../codex_thread.rs");
     let core_lib = include_str!("../lib.rs");
     let protocol = include_str!("../../../protocol/src/protocol.rs");
+    let protocol_manifest = include_str!("../../../protocol/Cargo.toml");
 
     assert!(!session_state.contains("epiphany_state"));
     assert!(!session.contains("set_epiphany_state"));
@@ -162,6 +169,12 @@ fn codex_session_has_no_epiphany_state_custody() {
     assert!(!codex_thread.contains("pub async fn epiphany_"));
     assert!(!core_lib.contains("epiphany_rollout"));
     assert!(!protocol.contains("pub use epiphany_state_model::"));
+    assert!(protocol.contains("EpiphanyState(serde_json::Value)"));
+    let production_dependencies = protocol_manifest
+        .split("[dev-dependencies]")
+        .next()
+        .expect("protocol manifest should declare dependencies");
+    assert!(!production_dependencies.contains("epiphany-state-model"));
 }
 
 fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {
@@ -5350,7 +5363,7 @@ async fn build_initial_context_does_not_inject_resumed_epiphany_state() {
                     text_elements: Vec::new(),
                 })),
                 RolloutItem::TurnContext(turn_context_item),
-                RolloutItem::EpiphanyState(EpiphanyStateItem {
+                legacy_epiphany_state(EpiphanyStateItem {
                     turn_id: Some(turn_id),
                     state: epiphany_state,
                 }),

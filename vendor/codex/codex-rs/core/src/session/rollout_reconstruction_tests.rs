@@ -14,6 +14,12 @@ use codex_protocol::protocol::ResumedHistory;
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 
+fn legacy_epiphany_state(item: EpiphanyStateItem) -> RolloutItem {
+    RolloutItem::EpiphanyState(
+        serde_json::to_value(item).expect("serialize legacy Epiphany rollout payload"),
+    )
+}
+
 fn user_message(text: &str) -> ResponseItem {
     ResponseItem::Message {
         id: None,
@@ -138,7 +144,7 @@ async fn record_initial_history_resumed_accepts_legacy_epiphany_state_items() {
             },
         )),
         RolloutItem::TurnContext(first_context_item),
-        RolloutItem::EpiphanyState(EpiphanyStateItem {
+        legacy_epiphany_state(EpiphanyStateItem {
             turn_id: Some(first_turn_id.clone()),
             state: first_epiphany,
         }),
@@ -167,7 +173,7 @@ async fn record_initial_history_resumed_accepts_legacy_epiphany_state_items() {
                 text_elements: Vec::new(),
             },
         )),
-        RolloutItem::EpiphanyState(EpiphanyStateItem {
+        legacy_epiphany_state(EpiphanyStateItem {
             turn_id: Some(second_turn_id.clone()),
             state: second_epiphany.clone(),
         }),
@@ -201,7 +207,7 @@ async fn record_initial_history_resumed_accepts_out_of_band_epiphany_state_befor
     session
         .record_initial_history(InitialHistory::Resumed(ResumedHistory {
             conversation_id: ThreadId::default(),
-            history: vec![RolloutItem::EpiphanyState(EpiphanyStateItem {
+            history: vec![legacy_epiphany_state(EpiphanyStateItem {
                 turn_id: None,
                 state: epiphany_state.clone(),
             })],
@@ -239,7 +245,7 @@ async fn record_initial_history_resumed_accepts_out_of_band_epiphany_state_after
                         text_elements: Vec::new(),
                     },
                 )),
-                RolloutItem::EpiphanyState(EpiphanyStateItem {
+                legacy_epiphany_state(EpiphanyStateItem {
                     turn_id: Some(turn_id.clone()),
                     state: turn_state,
                 }),
@@ -252,7 +258,7 @@ async fn record_initial_history_resumed_accepts_out_of_band_epiphany_state_after
                         time_to_first_token_ms: None,
                     },
                 )),
-                RolloutItem::EpiphanyState(EpiphanyStateItem {
+                legacy_epiphany_state(EpiphanyStateItem {
                     turn_id: None,
                     state: control_plane_state.clone(),
                 }),
@@ -476,7 +482,7 @@ async fn reconstruct_history_ignores_legacy_epiphany_items_during_rollback() {
             },
         )),
         RolloutItem::TurnContext(first_context_item),
-        RolloutItem::EpiphanyState(EpiphanyStateItem {
+        legacy_epiphany_state(EpiphanyStateItem {
             turn_id: Some(first_turn_id.clone()),
             state: sample_epiphany_state("turn-1"),
         }),
@@ -505,7 +511,7 @@ async fn reconstruct_history_ignores_legacy_epiphany_items_during_rollback() {
                 text_elements: Vec::new(),
             },
         )),
-        RolloutItem::EpiphanyState(EpiphanyStateItem {
+        legacy_epiphany_state(EpiphanyStateItem {
             turn_id: Some(rolled_back_turn_id.clone()),
             state: sample_epiphany_state("turn-2"),
         }),
@@ -1293,7 +1299,7 @@ async fn reconstruct_history_ignores_legacy_epiphany_items_during_compaction() {
             },
         )),
         RolloutItem::TurnContext(previous_context_item),
-        RolloutItem::EpiphanyState(EpiphanyStateItem {
+        legacy_epiphany_state(EpiphanyStateItem {
             turn_id: Some(previous_turn_id.clone()),
             state: epiphany_state.clone(),
         }),
