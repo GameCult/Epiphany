@@ -3119,7 +3119,15 @@ pub fn write_epiphany_cultmesh_role_review_event(
     let mut node = open_epiphany_cultmesh_node(&store_path, event.runtime_id.clone())?;
     let event_key = epiphany_cultmesh_role_review_event_key(&event.event_id);
     let written = node.put(event_key.as_str(), &event)?;
-    node.put(EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_LATEST_KEY, &written)?;
+    let current_latest = node.get::<EpiphanyCultMeshRoleReviewEventEntry>(
+        EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_LATEST_KEY,
+    )?;
+    if current_latest
+        .as_ref()
+        .is_none_or(|current| role_review_event_key(&written) >= role_review_event_key(current))
+    {
+        node.put(EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_LATEST_KEY, &written)?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -3260,7 +3268,19 @@ fn validate_role_review_event(event: &EpiphanyCultMeshRoleReviewEventEntry) -> R
             return Err(anyhow!("role review CultMesh mirror missing {label}"));
         }
     }
+    DateTime::parse_from_rfc3339(&event.created_at_utc)
+        .map_err(|error| anyhow!("role review CultMesh mirror has invalid created at: {error}"))?;
     Ok(())
+}
+
+fn role_review_event_key(
+    event: &EpiphanyCultMeshRoleReviewEventEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&event.created_at_utc)
+            .expect("validated role review event timestamp"),
+        event.event_id.as_str(),
+    )
 }
 
 fn latest_role_review_event_json(summary_json: &Value) -> Option<&Value> {
@@ -7803,6 +7823,36 @@ mod tests {
                 .binding(EPIPHANY_CULTMESH_ROLE_REVIEW_EVENT_TYPE)
                 .is_some()
         );
+
+        let mut newer = event.clone();
+        newer.event_id = "roleAccept:modeling:accepted".to_string();
+        newer.surface = "roleAccept".to_string();
+        newer.role_id = "modeling".to_string();
+        newer.review_status = "accepted".to_string();
+        newer.created_at_utc = "2026-06-18T01:00:00Z".to_string();
+        write_epiphany_cultmesh_role_review_event(&store, newer.clone())?;
+
+        let mut delayed = event.clone();
+        delayed.event_id = "roleAccept:research:accepted".to_string();
+        delayed.surface = "roleAccept".to_string();
+        delayed.role_id = "research".to_string();
+        delayed.review_status = "accepted".to_string();
+        delayed.created_at_utc = "2026-06-17T23:00:00Z".to_string();
+        write_epiphany_cultmesh_role_review_event(&store, delayed)?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_role_review_event(&store, "epiphany-test")?,
+            Some(newer)
+        );
+
+        let mut invalid_time = event.clone();
+        invalid_time.event_id = "roleAccept:invalid:accepted".to_string();
+        invalid_time.surface = "roleAccept".to_string();
+        invalid_time.role_id = "invalid".to_string();
+        invalid_time.review_status = "accepted".to_string();
+        invalid_time.created_at_utc = "not-a-time".to_string();
+        let err = write_epiphany_cultmesh_role_review_event(&store, invalid_time)
+            .expect_err("invalid role review time must be refused");
+        assert!(err.to_string().contains("invalid created at"));
 
         let mut leaked = event;
         leaked.private_state_exposed = true;

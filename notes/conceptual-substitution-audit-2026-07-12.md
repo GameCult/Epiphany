@@ -531,3 +531,12 @@ command as the current actuator route. Hands gate mirrors now require a valid
 RFC3339 creation time and advance `latest` only by `(creation time, gate ID)`.
 Tests prove delayed older gates remain historical and malformed gate time is
 refused.
+
+## Last writer presented as latest role review
+
+The role-review mirror also used arrival order. A delayed older acceptance or
+supersession could replace the current operator/Self readback even though
+thread-state acceptance receipts remain canonical. Role review mirrors now
+require a valid RFC3339 creation time and advance `latest` only by `(creation
+time, event ID)`. Delayed review projections remain non-current and malformed
+time is refused.
