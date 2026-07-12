@@ -611,7 +611,6 @@ impl CodexMessageProcessor {
                             thread_outgoing,
                             thread_state.clone(),
                             thread_watch_manager.clone(),
-                            epiphany_invalidation_manager.clone(),
                             api_version,
                             fallback_model_provider.clone(),
                             codex_home.as_path(),

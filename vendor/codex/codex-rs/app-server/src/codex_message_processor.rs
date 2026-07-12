@@ -1,7 +1,6 @@
 mod auth_routes;
 mod catalog_routes;
 mod command_routes;
-mod epiphany_automation;
 mod epiphany_mutation_routes;
 mod epiphany_read_routes;
 mod epiphany_thread_host;
@@ -25,8 +24,6 @@ mod thread_turn_routes;
 mod turn_routes;
 
 use self::auth_routes::ActiveLogin;
-pub(crate) use self::epiphany_automation::maybe_run_epiphany_coordinator_automation_for_turn_boundary;
-pub(crate) use self::epiphany_automation::maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count;
 use self::epiphany_thread_host::live_thread_epiphany_state;
 use self::epiphany_thread_host::load_epiphany_state_from_rollout_path;
 pub(super) use self::listener_lifecycle::{EnsureConversationListenerResult, ListenerTaskContext};

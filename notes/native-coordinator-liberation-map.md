@@ -354,3 +354,12 @@ Codex global tolerance. Four quarantine tests prove raw-tag recognition,
 latest-surviving selection, rollback rejection, and malformed-payload refusal.
 Obsolete core legacy fixtures and the final core state-model dev dependency are
 deleted.
+
+Codex-owned Epiphany reflexes are deleted too. The app-server event loop no
+longer auto-compacts on Epiphany pressure, launches reorientation workers at
+turn boundaries, or steers pre-compaction checkpoint instructions into active
+turns. `epiphany_automation.rs` and its per-thread checkpoint intervention
+state are gone. Native coordinator/heartbeat/Continuity organs own scheduling,
+launch, pressure, and recovery; app-server retains explicit compatibility
+routes, notifications, and read projection only. A source guard rejects renewed
+automation authority in the event loop, processor module list, or thread state.

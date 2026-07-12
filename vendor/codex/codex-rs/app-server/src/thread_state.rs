@@ -9,7 +9,6 @@ use codex_core::ThreadConfigSnapshot;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EventMsg;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use epiphany_codex_bridge::checkpoint::EpiphanyCheckpointInterventionState;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -66,7 +65,6 @@ pub(crate) struct ThreadState {
     pub(crate) listener_generation: u64,
     listener_command_tx: Option<mpsc::UnboundedSender<ThreadListenerCommand>>,
     current_turn_history: ThreadHistoryBuilder,
-    epiphany_checkpoint_intervention: EpiphanyCheckpointInterventionState,
     listener_thread: Option<Weak<CodexThread>>,
 }
 
@@ -99,8 +97,6 @@ impl ThreadState {
         }
         self.listener_command_tx = None;
         self.current_turn_history.reset();
-        self.epiphany_checkpoint_intervention
-            .clear_pending_compaction();
         self.listener_thread = None;
     }
 
@@ -130,31 +126,6 @@ impl ThreadState {
         }
     }
 
-    pub(crate) fn record_epiphany_checkpoint_intervention(&mut self, turn_id: &str) -> bool {
-        self.epiphany_checkpoint_intervention
-            .record_intervention(turn_id)
-    }
-
-    pub(crate) fn mark_epiphany_checkpoint_intervention_pending_compaction(
-        &mut self,
-        turn_id: &str,
-    ) {
-        self.epiphany_checkpoint_intervention
-            .mark_pending_compaction(turn_id);
-    }
-
-    pub(crate) fn take_epiphany_checkpoint_intervention_pending_compaction(
-        &mut self,
-        turn_id: &str,
-    ) -> bool {
-        self.epiphany_checkpoint_intervention
-            .take_pending_compaction(turn_id)
-    }
-
-    pub(crate) fn clear_epiphany_checkpoint_intervention_pending_compaction(&mut self) {
-        self.epiphany_checkpoint_intervention
-            .clear_pending_compaction();
-    }
 }
 
 pub(crate) async fn resolve_server_request_on_thread_listener(

@@ -1937,7 +1937,12 @@ exact old tag, validates typed payloads fail-closed, and combines them with
 strictly decoded lifecycle items for rollback-aware recovery. Four migration
 tests pass; obsolete core fixtures and its state-model dev dependency are gone.
 Next audit app-server `epiphany_automation` and route dispatch for surviving
-Codex-owned coordinator or scheduler decisions.
+Codex-owned coordinator or scheduler decisions. The automation authority is
+gone: Codex no longer auto-compacts, launches reorientation workers, or steers
+checkpoint prompts from turn/token events, and its per-thread checkpoint state
+is deleted. Native physiology owns those decisions. Next classify each
+remaining Epiphany app-server route/module and cut any route-local policy or
+implicit trigger while preserving explicit delegated client compatibility.
 
 ## Immediate Re-entry Instruction
 

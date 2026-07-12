@@ -1,6 +1,4 @@
 use crate::codex_message_processor::ApiVersion;
-use crate::codex_message_processor::maybe_run_epiphany_coordinator_automation_for_turn_boundary;
-use crate::codex_message_processor::maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count;
 use crate::codex_message_processor::read_rollout_items_from_rollout;
 use crate::codex_message_processor::read_summary_from_rollout;
 use crate::codex_message_processor::summary_to_thread;
@@ -146,7 +144,6 @@ use codex_protocol::request_user_input::RequestUserInputResponse as CoreRequestU
 use codex_sandboxing::policy_transforms::intersect_permission_profiles;
 use codex_shell_command::parse_command::shlex_join;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -179,7 +176,6 @@ pub(crate) async fn apply_bespoke_event_handling(
     outgoing: ThreadScopedOutgoingMessageSender,
     thread_state: Arc<tokio::sync::Mutex<ThreadState>>,
     thread_watch_manager: ThreadWatchManager,
-    epiphany_invalidation_manager: EpiphanyInvalidationManager,
     api_version: ApiVersion,
     fallback_model_provider: String,
     codex_home: &Path,
@@ -224,13 +220,9 @@ pub(crate) async fn apply_bespoke_event_handling(
         EventMsg::TurnComplete(turn_complete_event) => {
             // All per-thread requests are bound to a turn, so abort them.
             outgoing.abort_pending_server_requests().await;
-            let (turn_failed, turn_was_context_compaction, force_checkpoint_compaction) = {
-                let mut state = thread_state.lock().await;
-                (
-                    state.turn_summary.last_error.is_some(),
-                    state.turn_summary.context_compaction_started,
-                    state.take_epiphany_checkpoint_intervention_pending_compaction(&event_turn_id),
-                )
+            let turn_failed = {
+                let state = thread_state.lock().await;
+                state.turn_summary.last_error.is_some()
             };
             thread_watch_manager
                 .note_turn_completed(&conversation_id.to_string(), turn_failed)
@@ -244,16 +236,6 @@ pub(crate) async fn apply_bespoke_event_handling(
                 &thread_state,
             )
             .await;
-            if !turn_failed && !turn_was_context_compaction {
-                maybe_run_epiphany_coordinator_automation_for_turn_boundary(
-                    conversation_id,
-                    conversation,
-                    epiphany_invalidation_manager,
-                    &outgoing,
-                    force_checkpoint_compaction,
-                )
-                .await;
-            }
         }
         EventMsg::McpStartupUpdate(update) => {
             if let ApiVersion::V2 = api_version {
@@ -1453,20 +1435,11 @@ pub(crate) async fn apply_bespoke_event_handling(
                 .await;
         }
         EventMsg::TokenCount(token_count_event) => {
-            let token_usage_info = token_count_event.info.clone();
             handle_token_count_event(
                 conversation_id,
                 event_turn_id.clone(),
                 token_count_event,
                 &outgoing,
-            )
-            .await;
-            maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count(
-                conversation_id,
-                event_turn_id,
-                conversation,
-                token_usage_info,
-                &thread_state,
             )
             .await;
         }
@@ -1867,7 +1840,6 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing.abort_pending_server_requests().await;
             let pending = {
                 let mut state = thread_state.lock().await;
-                state.clear_epiphany_checkpoint_intervention_pending_compaction();
                 std::mem::take(&mut state.pending_interrupts)
             };
             if !pending.is_empty() {
@@ -3251,7 +3223,6 @@ mod tests {
         outgoing: ThreadScopedOutgoingMessageSender,
         thread_state: Arc<Mutex<ThreadState>>,
         thread_watch_manager: ThreadWatchManager,
-        epiphany_invalidation_manager: EpiphanyInvalidationManager,
         analytics_events_client: AnalyticsEventsClient,
         codex_home: PathBuf,
     }
@@ -3271,7 +3242,6 @@ mod tests {
                 self.outgoing.clone(),
                 self.thread_state.clone(),
                 self.thread_watch_manager.clone(),
-                self.epiphany_invalidation_manager.clone(),
                 ApiVersion::V2,
                 "test-provider".to_string(),
                 &self.codex_home,
@@ -3593,7 +3563,6 @@ mod tests {
             outgoing: outgoing.clone(),
             thread_state: thread_state.clone(),
             thread_watch_manager: thread_watch_manager.clone(),
-            epiphany_invalidation_manager: EpiphanyInvalidationManager::new(),
             analytics_events_client: AnalyticsEventsClient::new(
                 AuthManager::from_auth_for_testing(
                     CodexAuth::create_dummy_chatgpt_auth_for_testing(),

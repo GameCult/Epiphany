@@ -151,6 +151,17 @@ mod tests {
     use codex_protocol::protocol::TurnCompleteEvent;
     use codex_protocol::protocol::TurnStartedEvent;
     use codex_protocol::protocol::UserMessageEvent;
+
+    #[test]
+    fn codex_event_loop_has_no_epiphany_automation_authority() {
+        let event_loop = include_str!("../bespoke_event_handling.rs");
+        let processor = include_str!("../codex_message_processor.rs");
+        let thread_state = include_str!("../thread_state.rs");
+
+        assert!(!event_loop.contains("maybe_run_epiphany"));
+        assert!(!processor.contains("mod epiphany_automation"));
+        assert!(!thread_state.contains("epiphany_checkpoint_intervention"));
+    }
     use epiphany_state_model::EpiphanyStateItem;
 
     fn state(id: &str) -> EpiphanyThreadState {
