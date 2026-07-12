@@ -1,31 +1,28 @@
 use anyhow::Result;
 use chrono::Utc;
-use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EpiphanyCultMeshWeksaLoweringReceiptEntry;
-use epiphany_core::WEKSA_INTERLINGUA_PACKET_SCHEMA_VERSION;
-use epiphany_core::WEKSA_TARGET_LOWERING_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::WEKSA_TARGET_LOWERING_REQUEST_SCHEMA_VERSION;
-use epiphany_core::WeksaInterlinguaInput;
-use epiphany_core::WeksaSpeakerContext;
 use epiphany_core::build_weksa_interlingua_packet;
 use epiphany_core::build_weksa_lowering_prompt;
 use epiphany_core::build_weksa_target_lowering_request;
 use epiphany_core::load_latest_epiphany_cultmesh_weksa_lowering_receipt;
 use epiphany_core::record_weksa_target_lowering_receipt;
 use epiphany_core::write_epiphany_cultmesh_weksa_lowering_receipt;
-use std::env;
+use epiphany_core::EpiphanyCultMeshWeksaLoweringReceiptEntry;
+use epiphany_core::WeksaInterlinguaInput;
+use epiphany_core::WeksaSpeakerContext;
+use epiphany_core::EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::WEKSA_INTERLINGUA_PACKET_SCHEMA_VERSION;
+use epiphany_core::WEKSA_TARGET_LOWERING_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::WEKSA_TARGET_LOWERING_REQUEST_SCHEMA_VERSION;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    let cultmesh_store = env::args()
-        .skip(1)
-        .find_map(|arg| arg.strip_prefix("--cultmesh-store=").map(PathBuf::from))
-        .unwrap_or_else(|| {
-            PathBuf::from(".epiphany-smoke")
-                .join("weksa-interlingua")
-                .join("local-verse.ccmp")
-        });
+    if let Some(arg) = std::env::args().nth(1) {
+        anyhow::bail!("Weksa smoke accepts no arguments; unexpected {arg:?}");
+    }
+    let cultmesh_store = PathBuf::from(".epiphany-smoke")
+        .join("weksa-interlingua")
+        .join("local-verse.ccmp");
     let runtime_id = "weksa-interlingua-smoke";
     let packet = build_weksa_interlingua_packet(WeksaInterlinguaInput {
         packet_id: "weksa-packet-persona-smoke".to_string(),

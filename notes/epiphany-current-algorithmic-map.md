@@ -101,6 +101,13 @@
 - Ambiguous install aliases are not accepted.
 - Negative proof: hostile plan flag cannot mutate; execute without elevation produces an explicit refusal receipt.
 
+## Standalone receipt fixture boundaries (2026-07-12)
+
+- Deployment-family fixture receipts live only in a disposable repo under `<root>/.epiphany-smoke`.
+- Weksa fixture receipts live only at `.epiphany-smoke/weksa-interlingua/local-verse.ccmp`.
+- Neither smoke accepts a caller-selected receipt store.
+- Redirect arguments fail before synthetic receipt construction.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

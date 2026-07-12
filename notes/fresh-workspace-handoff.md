@@ -48,6 +48,10 @@ The monolithic `epiphany-verse-query smoke` fixture writer can no longer accept 
 
 Install command names now determine execution authority. `service-install-plan` and `cluster-service-install-plan` force `execute_install=false` even if a hostile flag is supplied. `service-install-execute` and `cluster-service-install-execute` force `execute_install=true` without a separate flag. Ambiguous aliases were deleted, and the wrapper invokes exact command names instead of always invoking plan plus `--execute-install`. Proof in the non-elevated shell: hostile plan remained `planned` / `executed=false`; execute without a flag returned `execution-refused-not-elevated` / `executed=false`. Receipt status now follows an inspectable command boundary rather than hidden argument combination.
 
+## 2026-07-12 standalone receipt-smoke quarantine
+
+The production writer inventory found only two standalone `*-smoke` binaries that directly write canonical receipt schemas. `epiphany-repo-deployment-config-family-smoke` no longer accepts `--smoke-root`; it accepts only a repository `--root` and derives disposable state under `<root>/.epiphany-smoke`. `epiphany-weksa-interlingua-smoke` now accepts no arguments and writes only `.epiphany-smoke/weksa-interlingua/local-verse.ccmp`. Redirect attempts toward live state are rejected before writes. Remaining smoke audit scope is filesystem destruction/escape, not canonical receipt authority.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

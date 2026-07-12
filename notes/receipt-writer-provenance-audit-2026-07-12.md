@@ -19,9 +19,9 @@ A forged operator-status artifact containing `intentId=forged-intent`, `receiptI
 
 ## Remaining scrutiny
 
-1. Extend the same store quarantine invariant to standalone smoke binaries that accept output paths.
-2. Distill or remove dead public receipt constructors once every named provider executable exists.
-3. Distill obsolete historical authority claims in `state/map.yaml`.
+1. Distill or remove dead public receipt constructors once every named provider executable exists.
+2. Distill obsolete historical authority claims in `state/map.yaml`.
+3. Audit non-receipt smoke binaries for destructive path escape even when they do not touch canonical schemas.
 
 ## Smoke quarantine update
 
@@ -36,3 +36,7 @@ The standalone `receipt` command previously accepted caller status and path stri
 Lifecycle receipt status values already distinguished planned, refused, observed, and executed outcomes, but install command aliases allowed command names and the `--execute-install` flag to disagree. Dispatch now makes command identity authoritative: `service-install-plan` and `cluster-service-install-plan` forcibly disable execution; `service-install-execute` and `cluster-service-install-execute` force execution intent and reach the elevation gate without a side-channel flag. Ambiguous `install-service`, `windows-service-install`, `service-install-windows`, and `cluster-windows-service-install` aliases are removed. The wrapper invokes the exact plan/execute command and no longer appends `--execute-install`.
 
 Negative proof passed both directions: a plan command given hostile `--execute-install` remained `planned` with `executed=false`; an execute command without the flag reached `execution-refused-not-elevated` with `executed=false` in the non-elevated shell.
+
+## Standalone receipt-smoke quarantine update
+
+The two standalone smoke binaries found writing canonical receipt schemas no longer accept receipt-store destinations. `epiphany-repo-deployment-config-family-smoke` accepts only `--root` and derives its entire disposable repo/Verse body under `<root>/.epiphany-smoke`; `--smoke-root` is rejected. `epiphany-weksa-interlingua-smoke` accepts no arguments and writes only `.epiphany-smoke/weksa-interlingua/local-verse.ccmp`. Attempts to redirect either at live state fail before fixture construction.

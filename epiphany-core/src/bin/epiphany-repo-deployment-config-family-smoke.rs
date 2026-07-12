@@ -1,13 +1,13 @@
+use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use chrono::Utc;
-use epiphany_core::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
-use epiphany_core::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
 use epiphany_core::write_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 use epiphany_core::write_epiphany_cultmesh_idunn_deployment_receipt;
-use serde_json::Value;
+use epiphany_core::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
+use epiphany_core::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
 use serde_json::json;
+use serde_json::Value;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -24,22 +24,19 @@ fn main() -> Result<()> {
 #[derive(Clone, Debug)]
 struct Args {
     root: PathBuf,
-    smoke_root: PathBuf,
 }
 
 impl Args {
     fn parse() -> Result<Self> {
         let mut root = env::current_dir().context("failed to resolve current directory")?;
-        let mut smoke_root = root.join(".epiphany-smoke");
         let mut args = env::args().skip(1).peekable();
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--root" => root = take_path(&mut args, "--root")?,
-                "--smoke-root" => smoke_root = take_path(&mut args, "--smoke-root")?,
                 other => return Err(anyhow!("unexpected argument {other:?}")),
             }
         }
-        Ok(Self { root, smoke_root })
+        Ok(Self { root })
     }
 }
 
@@ -55,12 +52,11 @@ fn run_smoke(args: Args) -> Result<Value> {
             manifest.display()
         ));
     }
-    fs::create_dir_all(&args.smoke_root)
-        .with_context(|| format!("failed to create {}", args.smoke_root.display()))?;
+    let smoke_root = root.join(".epiphany-smoke");
+    fs::create_dir_all(&smoke_root)
+        .with_context(|| format!("failed to create {}", smoke_root.display()))?;
     let stamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
-    let smoke_dir = args
-        .smoke_root
-        .join(format!("repo-deployment-config-family-{stamp}"));
+    let smoke_dir = smoke_root.join(format!("repo-deployment-config-family-{stamp}"));
     if smoke_dir.exists() {
         fs::remove_dir_all(&smoke_dir)
             .with_context(|| format!("failed to clear {}", smoke_dir.display()))?;
