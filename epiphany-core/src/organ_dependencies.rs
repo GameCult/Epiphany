@@ -26,10 +26,10 @@ pub const EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION: &str = "epiphany.launch
 
 pub const EPIPHANY_STANDING_ORGANS: [&str; 7] = [
     "self",
-    "Persona",
+    "persona",
     "imagination",
     "eyes",
-    "Modeling",
+    "modeling",
     "hands",
     "soul",
 ];

@@ -139,6 +139,7 @@ pub fn accept_coordinator_reorient_finding(
     commit_state_with_mind_witness(
         store,
         thread_id,
+        state,
         &next_state,
         &update.mind_review,
         &commit,
@@ -238,6 +239,7 @@ pub fn accept_coordinator_role_finding(
     commit_state_with_mind_witness(
         store,
         thread_id,
+        state,
         &next_state,
         &update.mind_review,
         &commit,
@@ -486,9 +488,10 @@ pub enum EpiphanyAcceptancePrerequisite {
     Continuity(ContinuityRecoveryReceipt),
 }
 
-pub fn commit_state_with_mind_witness(
+fn commit_state_with_mind_witness(
     store_path: &Path,
     thread_id: &str,
+    expected_state: &EpiphanyThreadState,
     state: &EpiphanyThreadState,
     mind_review: &MindGatewayReview,
     commit_receipt: &MindStateCommitReceipt,
@@ -508,12 +511,13 @@ pub fn commit_state_with_mind_witness(
             state.revision
         ));
     }
-    let mut cache = coordinator_acceptance_cache(store_path)?;
-    let state_entry = EpiphanyThreadStateEntry::from_state(thread_id, state)?;
-    let (state_envelope, _) = cache.prepare_entry(THREAD_STATE_KEY, &state_entry)?;
+    let mut cache = coordinator_state_transaction::open_coordinator_state_transaction(
+        store_path,
+        expected_state,
+    )?;
     let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
     let (commit_envelope, _) = cache.prepare_entry(&commit_receipt.receipt_id, commit_receipt)?;
-    let mut batch = vec![state_envelope, review_envelope, commit_envelope];
+    let mut batch = vec![review_envelope, commit_envelope];
     for prerequisite in prerequisites {
         batch.push(match prerequisite {
             EpiphanyAcceptancePrerequisite::Eyes(document) => {
@@ -530,8 +534,9 @@ pub fn commit_state_with_mind_witness(
             }
         });
     }
-    cache.put_prepared_batch(batch)?;
-    Ok(state.clone())
+    coordinator_state_transaction::commit_coordinator_state_transaction(
+        &mut cache, thread_id, state, batch,
+    )
 }
 
 pub fn build_native_role_acceptance_update(
@@ -777,7 +782,7 @@ mod tests {
             vec!["Objective".to_string()],
             "2026-07-11T00:00:00Z".to_string(),
         );
-        commit_state_with_mind_witness(&store, "thread-7", &state, &review, &receipt, &[])?;
+        commit_state_with_mind_witness(&store, "thread-7", &state, &state, &review, &receipt, &[])?;
 
         let cache = coordinator_acceptance_cache(&store)?;
         assert_eq!(
@@ -826,8 +831,16 @@ mod tests {
             "2026-07-11T00:00:00Z".to_string(),
         );
         assert!(
-            commit_state_with_mind_witness(&store, "thread-3", &state, &review, &receipt, &[])
-                .is_err()
+            commit_state_with_mind_witness(
+                &store,
+                "thread-3",
+                &state,
+                &state,
+                &review,
+                &receipt,
+                &[],
+            )
+            .is_err()
         );
         assert!(!store.exists());
         Ok(())
@@ -876,6 +889,7 @@ mod tests {
         commit_state_with_mind_witness(
             &store,
             "thread-9",
+            &state,
             &state,
             &review,
             &commit,

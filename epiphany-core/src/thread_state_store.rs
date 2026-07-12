@@ -60,24 +60,6 @@ pub fn load_thread_state(store_path: impl AsRef<Path>) -> Result<Option<Epiphany
     Ok(Some(entry.state()?))
 }
 
-pub fn write_thread_state_entry(
-    store_path: impl AsRef<Path>,
-    entry: &EpiphanyThreadStateEntry,
-) -> Result<EpiphanyThreadStateEntry> {
-    validate_thread_state_entry(entry)?;
-    let mut cache = thread_state_cache(store_path)?;
-    cache.put(THREAD_STATE_KEY, entry)
-}
-
-pub fn write_thread_state(
-    store_path: impl AsRef<Path>,
-    thread_id: impl Into<String>,
-    state: &EpiphanyThreadState,
-) -> Result<EpiphanyThreadStateEntry> {
-    let entry = EpiphanyThreadStateEntry::from_state(thread_id, state)?;
-    write_thread_state_entry(store_path, &entry)
-}
-
 pub fn validate_thread_state_entry(entry: &EpiphanyThreadStateEntry) -> Result<()> {
     if entry.schema_version != THREAD_STATE_SCHEMA_VERSION {
         return Err(anyhow!(
@@ -120,7 +102,8 @@ mod tests {
             ..Default::default()
         };
 
-        write_thread_state(&store, "thread-1", &state)?;
+        let entry = EpiphanyThreadStateEntry::from_state("thread-1", &state)?;
+        thread_state_cache(&store)?.put(THREAD_STATE_KEY, &entry)?;
         let loaded = load_thread_state(&store)?.expect("thread state should load");
 
         assert_eq!(loaded.revision, 7);

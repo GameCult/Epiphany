@@ -56,6 +56,11 @@ earned OpenAI-compatible authentication or model-transport capability.
 
 ### 0. Unify Canonical State Transactions
 
+Status: complete. `coordinator_state_transaction.rs` is the sole production
+writer of `THREAD_STATE_KEY`; ordinary updates, launches, and Mind acceptance
+share it, raw storage writers are deleted, and negative source guards prevent a
+second owner.
+
 - Define one transaction owner for canonical state revision changes.
 - Make ordinary update, launch, and Mind-witness acceptance call that owner.
 - Preserve operation-specific atomic companions: launch runtime envelopes and
@@ -183,8 +188,7 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Map and unify the three canonical state transaction writers:
-`coordinator_state`, `commit_coordinator_job_launch_in_cache`, and
-`commit_state_with_mind_witness`. Decide the explicit store contract before
-editing: one unified cache is currently suggested by atomic launch/acceptance
-requirements, but the owner and invariant must be named first.
+Normalize native operator contracts. Begin with an inventory of
+compatibility-shaped `epiphanyState` JSON and misleading `runtime_spine_store`
+path names, identify each living consumer, and either rename the native
+contract or record a bounded migration with an expiry.

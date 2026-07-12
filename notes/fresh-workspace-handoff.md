@@ -1983,6 +1983,15 @@ deleted instead of moved. The `epiphany-codex-bridge` crate and Codex dependency
 edges are now gone. Native coordinator path selection also no longer reads
 `/read/thread/epiphanyState`; scene/native state is the sole source. Next rewrite
 the stale canonical algorithmic map around the live native pipeline.
+The canonical map rewrite exposed three durable state writers. That split is now
+cut: `coordinator_state_transaction.rs` alone writes `THREAD_STATE_KEY`, while
+ordinary updates, launch, and Mind acceptance submit typed state plus atomic
+companions. Raw store writers and the public acceptance commit surface are
+deleted; negative tests reject a second writer and companion-state
+impersonation. The full core library passes 248 tests. That sweep also repaired
+mixed-case `Persona`/`Modeling` dependency ids that made the renamed organs
+depend on themselves. Next inventory native compatibility-shaped operator JSON
+and the misleading `runtime_spine_store` name before renaming either.
 
 ## Immediate Re-entry Instruction
 

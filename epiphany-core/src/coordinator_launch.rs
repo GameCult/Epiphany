@@ -21,14 +21,8 @@ pub fn commit_coordinator_job_launch(
     plan: &EpiphanyCoordinatorJobLaunchPlan,
     created_at: String,
 ) -> Result<EpiphanyJobLaunchResult> {
-    if let Some(persisted) = read_accepted_coordinator_state(store)?
-        && persisted != *current_state
-    {
-        return Err(anyhow!(
-            "authoritative coordinator state changed before launch commit"
-        ));
-    }
-    let mut cache = coordinator_acceptance_cache(store)?;
+    let mut cache =
+        coordinator_state_transaction::open_coordinator_state_transaction(store, current_state)?;
     commit_coordinator_job_launch_in_cache(
         &mut cache,
         thread_id,
@@ -86,10 +80,13 @@ fn commit_coordinator_job_launch_in_cache(
         );
         batch.push(cache.prepare_entry(&grant.receipt_id, &grant)?.0);
     }
-    let state_entry = EpiphanyThreadStateEntry::from_state(thread_id, &next_state)?;
-    batch.push(cache.prepare_entry(THREAD_STATE_KEY, &state_entry)?.0);
     batch.extend(injected_envelopes);
-    cache.put_prepared_batch(batch)?;
+    coordinator_state_transaction::commit_coordinator_state_transaction(
+        cache,
+        thread_id,
+        &next_state,
+        batch,
+    )?;
     Ok(EpiphanyJobLaunchResult {
         epiphany_state: next_state,
         binding_id: request.binding_id.clone(),

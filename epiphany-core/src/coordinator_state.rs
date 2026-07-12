@@ -1,9 +1,8 @@
 use crate::EpiphanyStateUpdate;
 use crate::EpiphanyStateUpdatedField;
-use crate::EpiphanyThreadStateEntry;
-use crate::THREAD_STATE_KEY;
 use crate::apply_epiphany_state_update;
-use crate::coordinator_acceptance_cache;
+use crate::coordinator_state_transaction::commit_coordinator_state_transaction;
+use crate::coordinator_state_transaction::open_coordinator_state_transaction;
 use crate::epiphany_state_update_validation_errors;
 use crate::read_accepted_coordinator_state;
 use anyhow::Result;
@@ -39,18 +38,10 @@ pub fn apply_coordinator_state_update_from_state(
     update: EpiphanyStateUpdate,
     reference_turn_id: Option<String>,
 ) -> Result<EpiphanyCoordinatorStateApplied> {
-    if let Some(persisted) = read_coordinator_state(store)?
-        && persisted != *current_state
-    {
-        return Err(anyhow!(
-            "authoritative coordinator state changed before update commit"
-        ));
-    }
+    let mut cache = open_coordinator_state_transaction(store, current_state)?;
     let changed_fields = changed_fields(&update);
     let state = apply_coordinator_state_update_to_state(current_state, update, reference_turn_id)?;
-    let mut cache = coordinator_acceptance_cache(store)?;
-    let entry = EpiphanyThreadStateEntry::from_state(thread_id, &state)?;
-    cache.put(THREAD_STATE_KEY, &entry)?;
+    commit_coordinator_state_transaction(&mut cache, thread_id, &state, Vec::new())?;
     Ok(EpiphanyCoordinatorStateApplied {
         revision: state.revision,
         changed_fields,

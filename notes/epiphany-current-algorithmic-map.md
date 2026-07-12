@@ -17,10 +17,11 @@ scheduler, route, notification, or interface contract.
 | Owner | Inputs | Outputs | Invariant |
 |---|---|---|---|
 | `epiphany-state-model` | typed state fields | `EpiphanyThreadState` and prompt projection | State is typed; rendering is not authority. |
-| `coordinator_state.rs` | current state plus validated ordinary update | durable native thread state | Owns the ordinary update transaction, but not all state commits. |
-| `coordinator_launch.rs` | validated launch plan, state, runtime envelopes | atomic state-plus-launch transaction | Launch writes `THREAD_STATE_KEY` beside runtime records. |
-| `coordinator_acceptance.rs` | reviewed finding, Mind review, commit receipt | atomic state-plus-Mind-witness transaction | Acceptance and its witnesses land together. |
-| `thread_state_store.rs` | raw typed state entry | low-level CultCache read/write | Substrate, not policy; its public writers are a current authority wound. |
+| `coordinator_state_transaction.rs` | expected state, next state, typed companion envelopes | one atomic canonical-state transaction | Sole production writer of `THREAD_STATE_KEY`; companions cannot impersonate state. |
+| `coordinator_state.rs` | current state plus validated ordinary update | proposed next state and transaction request | Owns update meaning, not persistence. |
+| `coordinator_launch.rs` | validated launch plan, state, runtime envelopes | state-plus-launch transaction request | Launch constructs runtime companions; the transaction owner commits them. |
+| `coordinator_acceptance.rs` | reviewed finding, Mind review, commit receipt | state-plus-Mind-witness transaction request | Acceptance owns admission meaning; the transaction owner commits its witnesses. |
+| `thread_state_store.rs` | typed state entry | low-level CultCache codec/read access | Substrate, not policy; it exposes no production writer. |
 | `coordinator_service.rs` | state/runtime store paths and typed commands | state update, launch, accept, interrupt results | Facade routes typed work; it contains no policy or protocol mapping. |
 | `surfaces/*` | native state, runtime snapshots, pressure/freshness inputs | scene, jobs, roles, planning, context, graph, CRRC, coordinator recommendations | Read surfaces derive; they do not mutate. |
 | `runtime_spine.rs` | typed launch/result/receipt documents | CultCache runtime records | Runtime lifecycle and evidence are durable typed documents. |
@@ -48,21 +49,16 @@ flowchart LR
     P --> O["Coordinator / operator / Eve projections"]
 ```
 
-There are currently three state transaction authorities:
-
-1. ordinary updates through
-   `coordinator_state::{apply_coordinator_state_update,
-   apply_coordinator_state_update_from_state,
-   apply_coordinator_state_update_to_state}`;
-2. launch transactions through
-   `coordinator_launch::commit_coordinator_job_launch_in_cache`;
-3. acceptance transactions through
-   `coordinator_acceptance::commit_state_with_mind_witness`.
-
-They share typed state and validation primitives, but not one commit primitive.
-`thread_state_store::{write_thread_state_entry, write_thread_state}` are public
-raw writers underneath them. This is a live authority defect, not an intended
-invariant. `EpiphanyCoordinatorService` is the narrow caller-facing facade.
+`coordinator_state_transaction::{open_coordinator_state_transaction,
+commit_coordinator_state_transaction}` is the single persistence owner.
+Ordinary updates, launch transactions, and accepted findings construct their
+domain-specific next state or companion documents, then submit them to that
+owner. It rejects stale expected state, refuses companion envelopes that target
+the canonical key, and commits state plus companions in one prepared batch.
+`thread_state_store.rs` retains typed codec/read access only; its production raw
+writers and their public exports are deleted. A source guard rejects any second
+production `THREAD_STATE_KEY` writer. `EpiphanyCoordinatorService` is the narrow
+caller-facing facade.
 
 Forbidden writers:
 
@@ -221,10 +217,7 @@ Cut or correct next:
 - wrapper arguments named for Codex when they no longer cross a Codex boundary;
 - compatibility-shaped JSON field names inside native-only operator artifacts
   when no external contract requires them;
-- split canonical-state transaction authority and misleading state/runtime
-  store path names;
-- public raw thread-state writers that bypass the intended coordinator/Mind
-  transaction boundary;
+- misleading state/runtime store path names;
 - any remaining full-context serializer or summary that duplicates typed owner
   state instead of projecting it narrowly.
 
