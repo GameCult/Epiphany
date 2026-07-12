@@ -277,8 +277,6 @@ struct CloseArgs {
     execute_receipt: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
-    verification_summary: Option<String>,
-    state_revision: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -839,8 +837,6 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
     let mut execute_receipt = None;
     let mut runtime_store = None;
     let mut artifact_dir = None;
-    let mut verification_summary = None;
-    let mut state_revision = 0_u64;
 
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
@@ -852,10 +848,6 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
             }
             "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
-            "--verification-summary" => {
-                verification_summary = Some(take_string(&mut args, "--verification-summary")?);
-            }
-            "--state-revision" => state_revision = take_u64(&mut args, "--state-revision")?,
             other => return Err(anyhow!("unexpected close argument {other:?}")),
         }
     }
@@ -865,8 +857,6 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
         execute_receipt,
         runtime_store,
         artifact_dir,
-        verification_summary,
-        state_revision,
     })
 }
 
@@ -11099,29 +11089,27 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
         && mind_adoption_passed
         && family_assertions_passed;
     let soul_verdict_id = format!("repo-work-close-{item_slug}-soul-verdict");
-    let soul_summary = args.verification_summary.unwrap_or_else(|| {
-        if soul_verification_passed {
-            format!("Soul verified branch-local commit {commit_sha} for repo work item {item}.")
-        } else if !path_scope_matched {
-            format!(
-                "Soul verification failed for branch-local commit {commit_sha}: actual changed paths did not match declared Hands path scope."
-            )
-        } else if !verification_source_grounded {
-            format!(
-                "Soul verification failed for branch-local commit {commit_sha}: verification output did not cite every declared changed path."
-            )
-        } else if !mind_adoption_passed {
-            format!(
-                "Soul verification failed for branch-local commit {commit_sha}: Mind adoption proof did not pass."
-            )
-        } else if !family_assertions_passed {
-            format!(
-                "Soul verification failed for branch-local commit {commit_sha}: safe-family assertions did not pass."
-            )
-        } else {
-            format!("Soul verification failed for branch-local commit {commit_sha}.")
-        }
-    });
+    let soul_summary = if soul_verification_passed {
+        format!("Soul verified branch-local commit {commit_sha} for repo work item {item}.")
+    } else if !path_scope_matched {
+        format!(
+            "Soul verification failed for branch-local commit {commit_sha}: actual changed paths did not match declared Hands path scope."
+        )
+    } else if !verification_source_grounded {
+        format!(
+            "Soul verification failed for branch-local commit {commit_sha}: verification output did not cite every declared changed path."
+        )
+    } else if !mind_adoption_passed {
+        format!(
+            "Soul verification failed for branch-local commit {commit_sha}: Mind adoption proof did not pass."
+        )
+    } else if !family_assertions_passed {
+        format!(
+            "Soul verification failed for branch-local commit {commit_sha}: safe-family assertions did not pass."
+        )
+    } else {
+        format!("Soul verification failed for branch-local commit {commit_sha}.")
+    };
     let mut evidence_ids = vec![
         patch_receipt_id.clone(),
         command_receipt_id.clone(),
@@ -11364,7 +11352,7 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
     let mind_commit = mind_state_commit_receipt(
         mind_commit_id.clone(),
         &mind_review,
-        args.state_revision,
+        0,
         vec![
             "repoWork.closure".to_string(),
             "repoWork.modelingFinding".to_string(),
@@ -13854,8 +13842,6 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                         execute_receipt: Some(execute_receipt_path.clone()),
                         runtime_store: Some(runtime_store.clone()),
                         artifact_dir: Some(artifact_dir.clone()),
-                        verification_summary: None,
-                        state_revision: 0,
                     })?;
                     status = advanced_result["status"]
                         .as_str()
@@ -13960,8 +13946,6 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 execute_receipt: Some(execute_receipt_path.clone()),
                 runtime_store: args.runtime_store.clone(),
                 artifact_dir: Some(artifact_dir.clone()),
-                verification_summary: None,
-                state_revision: 0,
             })?;
             status = advanced_result
                 .get("status")
@@ -15354,6 +15338,8 @@ mod authority_tests {
             "--modeling-summary",
             "--verification-command",
             "--require-source-grounding",
+            "--verification-summary",
+            "--state-revision",
         ] {
             let error = parse_close_args([flag.to_string(), "counterfeit".to_string()].into_iter())
                 .expect_err("legacy Modeling echo must be refused");

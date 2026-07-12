@@ -97,6 +97,9 @@ The confirmed conceptual substitutions have been cut:
 - repo closure no longer accepts caller-selected verification commands or an
   optional source-grounding flag. Soul uses fixed Git consequence inspection,
   mandatory grounding, and fails when typed plan/family evidence is absent.
+- callers cannot overwrite Soul verdict narration or choose Mind's immutable
+  admission revision. Soul derives the explanation; initial map admission is
+  revision zero and later evolution uses typed Modeling route generations.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

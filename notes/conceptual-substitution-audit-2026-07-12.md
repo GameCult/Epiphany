@@ -391,3 +391,13 @@ command and grounding flags are deleted. Soul now performs a fixed Git
 consequence inspection, requires source grounding, and fails closure when the
 typed plan or its family evidence is missing. Callers may no longer redefine
 verification as `exit 0` or obtain a pardon by omitting the plan.
+
+## Caller-authored Soul narration and Mind revision
+
+Even after pass/fail became Soul-owned, `--verification-summary` let callers
+write Soul's explanation into the verdict receipt. `--state-revision` likewise
+let callers choose a revision number for an immutable, single-admission repo
+map entry. Both flags and fields are deleted. Soul derives its summary from the
+actual failed/passed invariant, and initial Mind admission deterministically
+uses revision zero; subsequent evolution is represented by the typed Modeling
+route generation rather than a decorative caller number.
