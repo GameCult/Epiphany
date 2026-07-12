@@ -3496,10 +3496,17 @@ pub fn write_epiphany_cultmesh_daemon_scheduler_receipt(
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let receipt_key = epiphany_cultmesh_daemon_scheduler_receipt_key(&receipt.receipt_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(
+    let current_latest = node.get::<EpiphanyCultMeshDaemonSchedulerReceiptEntry>(
         EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY,
-        &written,
     )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        daemon_scheduler_event_key(&written) >= daemon_scheduler_event_key(current)
+    }) {
+        node.put(
+            EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY,
+            &written,
+        )?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -3969,7 +3976,33 @@ fn validate_daemon_scheduler_receipt(
             return Err(anyhow!("daemon scheduler receipt missing {label}"));
         }
     }
+    let started_at = DateTime::parse_from_rfc3339(&receipt.tick_started_utc)
+        .map_err(|error| anyhow!("daemon scheduler receipt has invalid tick start: {error}"))?;
+    let completed_at =
+        DateTime::parse_from_rfc3339(&receipt.tick_completed_utc).map_err(|error| {
+            anyhow!("daemon scheduler receipt has invalid tick completion: {error}")
+        })?;
+    if completed_at < started_at {
+        return Err(anyhow!(
+            "daemon scheduler receipt tick completed before it started"
+        ));
+    }
+    if let Some(next_wake) = receipt.next_wake_utc.as_deref() {
+        DateTime::parse_from_rfc3339(next_wake)
+            .map_err(|error| anyhow!("daemon scheduler receipt has invalid next wake: {error}"))?;
+    }
     Ok(())
+}
+
+fn daemon_scheduler_event_key(
+    receipt: &EpiphanyCultMeshDaemonSchedulerReceiptEntry,
+) -> (DateTime<FixedOffset>, u64, &str) {
+    (
+        DateTime::parse_from_rfc3339(&receipt.tick_completed_utc)
+            .expect("validated scheduler completion timestamp"),
+        receipt.iteration,
+        receipt.receipt_id.as_str(),
+    )
 }
 
 fn validate_daemon_service_lifecycle_receipt(
@@ -7191,6 +7224,77 @@ mod tests {
                 "epiphany-test"
             )?,
             Some(second)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn scheduler_latest_mirror_refuses_delayed_replay() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-scheduler-order.ccmp");
+        let older = EpiphanyCultMeshDaemonSchedulerReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "scheduler-older".to_string(),
+            scheduler_id: "epiphany-daemon-supervisor".to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            daemon_selector: "*".to_string(),
+            iteration: 1,
+            status: "completed".to_string(),
+            tick_started_utc: "2026-07-13T01:00:00Z".to_string(),
+            tick_completed_utc: "2026-07-13T01:00:01Z".to_string(),
+            next_wake_utc: Some("2026-07-13T01:01:01Z".to_string()),
+            outcome_count: 1,
+            restarted_count: 0,
+            refused_count: 0,
+            skipped_count: 1,
+            private_state_exposed: false,
+            notes: Vec::new(),
+        };
+        let mut newer = older.clone();
+        newer.receipt_id = "scheduler-newer".to_string();
+        newer.iteration = 2;
+        newer.tick_started_utc = "2026-07-13T02:00:00Z".to_string();
+        newer.tick_completed_utc = "2026-07-13T02:00:01Z".to_string();
+        newer.next_wake_utc = Some("2026-07-13T02:01:01Z".to_string());
+
+        write_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test", newer.clone())?;
+        write_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test", older)?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test")?,
+            Some(newer)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn scheduler_receipt_refuses_impossible_time_order() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-scheduler-invalid-time.ccmp");
+        let receipt = EpiphanyCultMeshDaemonSchedulerReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "scheduler-invalid".to_string(),
+            scheduler_id: "epiphany-daemon-supervisor".to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            daemon_selector: "*".to_string(),
+            iteration: 1,
+            status: "completed".to_string(),
+            tick_started_utc: "2026-07-13T02:00:00Z".to_string(),
+            tick_completed_utc: "2026-07-13T01:00:00Z".to_string(),
+            next_wake_utc: Some("2026-07-13T00:00:00Z".to_string()),
+            outcome_count: 0,
+            restarted_count: 0,
+            refused_count: 0,
+            skipped_count: 0,
+            private_state_exposed: false,
+            notes: Vec::new(),
+        };
+        assert!(
+            write_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test", receipt,)
+                .is_err()
+        );
+        assert!(
+            load_latest_epiphany_cultmesh_daemon_scheduler_receipt(&store, "epiphany-test")?
+                .is_none()
         );
         Ok(())
     }

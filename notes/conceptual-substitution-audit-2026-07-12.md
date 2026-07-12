@@ -511,3 +511,13 @@ now validate RFC3339 start/completion timestamps, reject completion before
 start, and update the mirror only when `(event time, receipt ID)` is not older
 than the current mirror. A delayed old receipt remains in history without
 becoming current.
+
+## Last writer presented as latest scheduler tick
+
+The daemon scheduler used the same arrival-order mirror as lifecycle receipts.
+A delayed tick replay could replace newer scheduler state, and tick timestamps
+were accepted as arbitrary strings. Scheduler writes now validate RFC3339
+start/completion/next-wake values, reject completion before start, and order the
+latest mirror by `(completion time, iteration, receipt ID)`. A planned wake may
+be overdue when a long tick completes; lateness remains observable rather than
+being rejected as impossible.
