@@ -1,9 +1,8 @@
 # Epiphany App-Server Client Matrix
 
-This map classifies the remaining experimental `thread/epiphany/*` JSON-RPC
-surface by executable consumers in this repository. Definitions, generated
-bindings, README prose, protocol serialization tests, archived notes, and the
-handler itself do not count as clients.
+This map records the deletion audit for the former experimental
+`thread/epiphany/*` JSON-RPC surface. No such surface or executable client
+remains.
 
 ## Living explicit compatibility clients
 

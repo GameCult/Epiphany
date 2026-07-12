@@ -924,14 +924,8 @@ fn hands_record_pass_command(runtime_store: &Path, artifact_dir: &Path) -> Value
 fn implementation_requested_paths(status: &Value) -> Vec<String> {
     let mut paths = Vec::new();
     for pointer in [
-        "/read/thread/epiphanyState/investigationCheckpoint/codeRefs",
-        "/read/thread/epiphanyState/investigationCheckpoint/code_refs",
-        "/read/thread/epiphanyState/investigation_checkpoint/code_refs",
         "/scene/scene/investigationCheckpoint/codeRefs",
         "/scene/scene/investigationCheckpoint/code_refs",
-        "/read/thread/epiphanyState/graphFrontier/dirtyPaths",
-        "/read/thread/epiphanyState/graphFrontier/dirty_paths",
-        "/read/thread/epiphanyState/graph_frontier/dirty_paths",
         "/scene/scene/graphFrontier/dirtyPaths",
         "/scene/scene/graphFrontier/dirty_paths",
     ] {
@@ -1709,13 +1703,8 @@ fn reset_artifact_dir(path: &Path) -> Result<()> {
 
 fn state_revision(status: &Value) -> Option<i64> {
     status
-        .pointer("/read/thread/epiphanyState/revision")
+        .pointer("/scene/scene/revision")
         .and_then(Value::as_i64)
-        .or_else(|| {
-            status
-                .pointer("/scene/scene/revision")
-                .and_then(Value::as_i64)
-        })
 }
 
 fn push_event(step: &mut Value, event: Value) {
@@ -1917,19 +1906,17 @@ mod tests {
     #[test]
     fn implementation_requested_paths_use_checkpoint_and_frontier_scope() {
         let status = json!({
-            "read": {
-                "thread": {
-                    "epiphanyState": {
-                        "investigationCheckpoint": {
-                            "codeRefs": [
-                                {"path": "src\\main.rs"},
-                                {"path": "src/main.rs"},
-                                {"path": " notes/demo.md "}
-                            ]
-                        },
-                        "graphFrontier": {
-                            "dirtyPaths": ["tests/demo.rs"]
-                        }
+            "scene": {
+                "scene": {
+                    "investigationCheckpoint": {
+                        "codeRefs": [
+                            {"path": "src\\main.rs"},
+                            {"path": "src/main.rs"},
+                            {"path": " notes/demo.md "}
+                        ]
+                    },
+                    "graphFrontier": {
+                        "dirtyPaths": ["tests/demo.rs"]
                     }
                 }
             }

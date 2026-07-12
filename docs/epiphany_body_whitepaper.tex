@@ -48,7 +48,7 @@ The practical definition in this repository is:
 
 \begin{itemize}
   \item the root checkout at \code{E:\Projects\EpiphanyAgent};
-  \item Epiphany Rust crates such as \code{epiphany-core}, \code{epiphany-state-model}, \code{epiphany-codex-bridge}, model/tool adapters, and OpenAI transport crates;
+  \item Epiphany Rust crates such as \code{epiphany-core}, \code{epiphany-state-model}, model/tool adapters, and OpenAI transport crates;
   \item vendored substrate in \code{vendor/codex}, \code{vendor/cultcache-rs}, \code{vendor/cultnet-rs}, and \code{vendor/cultmesh-rs};
   \item typed state stores under \code{state/};
   \item schemas under \code{schemas/cultnet/};
@@ -70,7 +70,6 @@ auth and model transport.
 \hline
 Durable thread state & \code{epiphany-state-model}, \code{epiphany-core} & State shape is typed; prompt rendering is a projection, not authority. \\
 Domain policy & \code{epiphany-core} & Verdicts, launch policy, acceptance rules, runtime lifecycle, and mutation law live here, not in bridge DTOs. \\
-Compatibility bridge & \code{epiphany-codex-bridge} & Translate Codex edge shapes; never become a second policy throne. \\
 Vendored Codex & \code{vendor/codex} & Retain host/app-server/auth/model compatibility where useful; do not let Codex own Epiphany prompts, scheduler, or state. \\
 Runtime spine & \code{epiphany-core/src/runtime_spine.rs} and \code{state/runtime-spine.cc} & Runtime identity, jobs, events, receipts, tool/model documents are typed CultCache records. \\
 Organ memory & \code{state/agents.cc}; agent-memory CLI & Resident work organs use lean work-organ state; Persona uses portable Persona state. \\
@@ -82,7 +81,7 @@ Operator artifacts & \code{.epiphany-*}, \code{tools/epiphany_local_run.ps1} & A
 
 \section{Repository Body}
 
-The checkout has ten primary Epiphany Rust crates:
+The checkout has nine primary Epiphany Rust crates:
 
 \begin{itemize}
   \item \code{epiphany-core}: the main domain organ. It owns state-update
@@ -92,9 +91,6 @@ The checkout has ten primary Epiphany Rust crates:
   \item \code{epiphany-state-model}: the durable \code{EpiphanyThreadState}
   type plus \code{render_epiphany_state}. This is the typed Mind surface that
   prompt fragments and views read.
-  \item \code{epiphany-codex-bridge}: the translation layer between typed
-  Epiphany documents and vendored Codex JSON-RPC/app-server shapes. Its own
-  crate header states that it is a bridge, not an authority organ.
   \item \code{epiphany-model-adapter}: provider-neutral model request, stream
   event, receipt, and status documents.
   \item \code{epiphany-openai-adapter}: OpenAI-shaped request/event/receipt and
@@ -233,14 +229,12 @@ move through Substrate-Gate-scoped facts, Mind state, social stimulus, organ
 dependencies, Imagination as Projector, Persona as natural-language actor, and
 Mind as Interpreter. None of those steps grants Persona hidden state authority.
 
-\section{Bridge And Codex Reliquary}
+\section{Codex Reliquary}
 
-\code{epiphany-codex-bridge} states its boundary plainly: it translates Codex
-\code{ThreadEpiphany*} DTOs into Epiphany core documents, projects typed
-Epiphany surfaces back into legacy Codex responses, and calls narrow host traits
-while Codex still owns some thread persistence. It must not own verdicts,
-launch policy, reorientation policy, acceptance rules, runtime-spine lifecycle,
-or durable invariants.
+Epiphany publishes no app-server JSON-RPC state surface. Vendored Codex owns
+only Codex concerns and the retained OpenAI-compatible auth/model transport
+machinery. Epiphany state, prompts, scheduling, interfaces, and durable
+invariants remain native typed organs.
 
 The retained Codex body currently matters for:
 

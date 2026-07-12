@@ -60,8 +60,6 @@ codex-utils-absolute-path = { workspace = true }
 codex-utils-json-to-toml = { workspace = true }
 codex-utils-rustls-provider = { workspace = true }
 chrono = { workspace = true }
-epiphany-codex-bridge = { path = "../../../../epiphany-codex-bridge" }
-epiphany-state-model = { path = "../../../../epiphany-state-model" }
 clap = { workspace = true, features = ["derive"] }
 constant_time_eq = { workspace = true }
 futures = { workspace = true }

@@ -17,7 +17,6 @@ pub(crate) struct ListenerTaskContext {
     pub(crate) analytics_events_client: AnalyticsEventsClient,
     pub(crate) general_analytics_enabled: bool,
     pub(crate) thread_watch_manager: ThreadWatchManager,
-    pub(crate) epiphany_invalidation_manager: EpiphanyInvalidationManager,
     pub(crate) fallback_model_provider: String,
     pub(crate) codex_home: PathBuf,
 }
@@ -210,9 +209,6 @@ impl CodexMessageProcessor {
         self.thread_state_manager
             .remove_thread_state(thread_id)
             .await;
-        self.epiphany_invalidation_manager
-            .remove_thread(&thread_id.to_string())
-            .await;
         self.thread_watch_manager
             .remove_thread(&thread_id.to_string())
             .await;
@@ -224,7 +220,6 @@ impl CodexMessageProcessor {
         pending_thread_unloads: Arc<Mutex<HashSet<ThreadId>>>,
         thread_state_manager: ThreadStateManager,
         thread_watch_manager: ThreadWatchManager,
-        epiphany_invalidation_manager: EpiphanyInvalidationManager,
         thread_id: ThreadId,
         thread: Arc<CodexThread>,
     ) {
@@ -236,27 +231,18 @@ impl CodexMessageProcessor {
             .cancel_requests_for_thread(thread_id, /*error*/ None)
             .await;
         thread_state_manager.remove_thread_state(thread_id).await;
-        epiphany_invalidation_manager
-            .remove_thread(&thread_id.to_string())
-            .await;
 
         tokio::spawn(async move {
             match Self::wait_for_thread_shutdown(&thread).await {
                 ThreadShutdownResult::Complete => {
                     if thread_manager.remove_thread(&thread_id).await.is_none() {
                         info!("thread {thread_id} was already removed before teardown finalized");
-                        epiphany_invalidation_manager
-                            .remove_thread(&thread_id.to_string())
-                            .await;
                         thread_watch_manager
                             .remove_thread(&thread_id.to_string())
                             .await;
                         pending_thread_unloads.lock().await.remove(&thread_id);
                         return;
                     }
-                    epiphany_invalidation_manager
-                        .remove_thread(&thread_id.to_string())
-                        .await;
                     thread_watch_manager
                         .remove_thread(&thread_id.to_string())
                         .await;
@@ -361,7 +347,6 @@ impl CodexMessageProcessor {
                 analytics_events_client: self.analytics_events_client.clone(),
                 general_analytics_enabled: self.config.features.enabled(Feature::GeneralAnalytics),
                 thread_watch_manager: self.thread_watch_manager.clone(),
-                epiphany_invalidation_manager: self.epiphany_invalidation_manager.clone(),
                 fallback_model_provider: self.config.model_provider_id.clone(),
                 codex_home: self.config.codex_home.to_path_buf(),
             },
@@ -480,7 +465,6 @@ impl CodexMessageProcessor {
                 analytics_events_client: self.analytics_events_client.clone(),
                 general_analytics_enabled: self.config.features.enabled(Feature::GeneralAnalytics),
                 thread_watch_manager: self.thread_watch_manager.clone(),
-                epiphany_invalidation_manager: self.epiphany_invalidation_manager.clone(),
                 fallback_model_provider: self.config.model_provider_id.clone(),
                 codex_home: self.config.codex_home.to_path_buf(),
             },
@@ -530,7 +514,6 @@ impl CodexMessageProcessor {
             analytics_events_client: _,
             general_analytics_enabled: _,
             thread_watch_manager,
-            epiphany_invalidation_manager,
             fallback_model_provider,
             codex_home,
         } = listener_task_context;
@@ -644,7 +627,6 @@ impl CodexMessageProcessor {
                             pending_thread_unloads.clone(),
                             thread_state_manager.clone(),
                             thread_watch_manager.clone(),
-                            epiphany_invalidation_manager.clone(),
                             conversation_id,
                             conversation.clone(),
                         )

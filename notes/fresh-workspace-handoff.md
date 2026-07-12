@@ -1969,8 +1969,12 @@ eight request methods, two notifications, dispatch/handlers, `ThreadEpiphany*`
 DTO slab, generated exports, Codex thread-state projection, and legacy rollout
 migration are gone. Schema fixture equivalence, full app-server compilation,
 and native status interruption tests pass. `epiphany-codex-bridge` now contains
-only the file-watcher invalidation manager; move that host-owned organ into
-app-server and delete the bridge crate next.
+only the file-watcher invalidation manager. Its audit found no watch creator or
+snapshot reader, only teardown calls, so the adapter and listener plumbing were
+deleted instead of moved. The `epiphany-codex-bridge` crate and Codex dependency
+edges are now gone. Native coordinator path selection also no longer reads
+`/read/thread/epiphanyState`; scene/native state is the sole source. Next rewrite
+the stale canonical algorithmic map around the live native pipeline.
 
 ## Immediate Re-entry Instruction
 

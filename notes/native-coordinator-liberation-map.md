@@ -399,5 +399,7 @@ Codex transport client. App-server request/notification registrations,
 dispatch, route modules, all `ThreadEpiphany*` DTOs, generated exports, generic
 Codex `Thread.epiphanyState`, and legacy rollout-state migration are deleted.
 `codex-app-server-protocol` no longer depends on `epiphany-state-model`.
-`epiphany-codex-bridge` has collapsed to its only living consumer surface: the
-Codex-hosted file-watcher invalidation manager.
+The apparent final bridge consumer, the Codex-hosted file-watcher invalidation
+manager, had no watch creator or snapshot reader after route deletion; only
+no-op teardown calls survived. It and that listener plumbing were deleted.
+`epiphany-codex-bridge` and both remaining Codex dependency edges are gone.

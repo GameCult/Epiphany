@@ -1872,8 +1872,6 @@ dependencies = [
  "codex-utils-rustls-provider",
  "constant_time_eq 0.3.1",
  "core_test_support",
- "epiphany-codex-bridge",
- "epiphany-state-model",
  "futures",
  "gethostname",
  "hmac",
@@ -4937,25 +4935,6 @@ dependencies = [
  "env_filter",
  "jiff",
  "log",
-]
-
-[[package]]
-name = "epiphany-codex-bridge"
-version = "0.1.0"
-dependencies = [
- "codex-utils-absolute-path",
- "notify",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "epiphany-state-model"
-version = "0.1.0"
-dependencies = [
- "schemars 0.8.22",
- "serde",
- "ts-rs",
 ]
 
 [[package]]
