@@ -40,6 +40,9 @@ use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
 use crate::mind_gateway::MindGatewayReview;
 use crate::mind_gateway::MindStateCommitReceipt;
+use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
+use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_TYPE;
+use crate::modeling_gateway::RepoWorkModelingFinding;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
@@ -723,6 +726,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
     cache.register_entry_type::<MindGatewayReview>()?;
     cache.register_entry_type::<MindStateCommitReceipt>()?;
+    cache.register_entry_type::<RepoWorkModelingFinding>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
     cache.register_entry_type::<HandsActionIntent>()?;
@@ -1720,6 +1724,52 @@ pub fn runtime_soul_verdict_receipt(
     cache.get::<SoulVerdictReceipt>(receipt_id)
 }
 
+pub fn put_repo_work_modeling_finding(
+    store_path: impl AsRef<Path>,
+    finding: &RepoWorkModelingFinding,
+) -> Result<()> {
+    validate_non_empty(&finding.receipt_id, "Modeling finding receipt id")?;
+    validate_non_empty(&finding.item, "Modeling finding item")?;
+    validate_non_empty(&finding.model_ref, "Modeling finding model ref")?;
+    validate_non_empty(
+        &finding.soul_verdict_receipt_id,
+        "Modeling finding Soul verdict receipt id",
+    )?;
+    validate_non_empty(&finding.verdict, "Modeling finding verdict")?;
+    validate_non_empty(&finding.finding, "Modeling finding text")?;
+    validate_non_empty(&finding.commit_sha, "Modeling finding commit sha")?;
+    validate_non_empty(&finding.emitted_at, "Modeling finding timestamp")?;
+    if finding.schema_version != REPO_WORK_MODELING_FINDING_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported Modeling finding schema"));
+    }
+    if finding.private_state_exposed {
+        return Err(anyhow!("Modeling finding cannot expose private state"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let soul = cache
+        .get::<SoulVerdictReceipt>(&finding.soul_verdict_receipt_id)?
+        .ok_or_else(|| anyhow!("Modeling finding requires its Soul verdict receipt"))?;
+    if soul.verdict.trim().to_ascii_lowercase() != "passed" {
+        return Err(anyhow!(
+            "Modeling finding requires a passing Soul verdict receipt"
+        ));
+    }
+    cache.put(&finding.receipt_id, finding)?;
+    Ok(())
+}
+
+pub fn runtime_repo_work_modeling_finding(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<RepoWorkModelingFinding>> {
+    validate_non_empty(receipt_id, "Modeling finding receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<RepoWorkModelingFinding>(receipt_id)
+}
+
 pub fn put_continuity_recovery_receipt(
     store_path: impl AsRef<Path>,
     receipt: &ContinuityRecoveryReceipt,
@@ -2304,6 +2354,21 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![
                 "Job results are evidence records; review and acceptance are separate typed flows.",
+            ],
+        ),
+        mutation_contract(
+            REPO_WORK_MODELING_FINDING_TYPE,
+            REPO_WORK_MODELING_FINDING_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Modeling findings interpret a Soul-verified repo consequence before Mind admits a map update.",
+                "Schedulers and raw CLI fields cannot substitute for this persisted receipt.",
             ],
         ),
         mutation_contract(

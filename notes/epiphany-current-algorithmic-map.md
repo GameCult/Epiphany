@@ -107,7 +107,11 @@ The repo-work scheduler obeys the same order. After a branch-local execute
 receipt it stops at `await-modeling`; it cannot invoke closure or manufacture
 Modeling/Mind evidence. `epiphany-work close` requires explicit model
 authorship, model reference, verdict, and finding before it can admit a map.
-Deterministic checks remain Soul evidence, not a substitute for Modeling.
+Deterministic checks remain Soul evidence, not a substitute for Modeling. The
+accepted interpretation is persisted as
+`epiphany.modeling.repo_work_finding.v0`; it references the passing Soul verdict,
+commit, and changed paths. Mind rereads that typed receipt and the admitted repo
+map plus CultMesh projection carry its receipt ID.
 
 Manual edits and programmatic actions converge at the same receipt and Mind
 admission boundaries. A later action cannot retroactively make an unrecorded

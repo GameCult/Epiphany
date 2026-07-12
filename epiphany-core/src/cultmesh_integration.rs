@@ -963,6 +963,8 @@ pub struct EpiphanyCultMeshRepoWorkMapEntry {
     pub private_state_exposed: bool,
     #[cultcache(key = 21)]
     pub notes: Vec<String>,
+    #[cultcache(key = 22)]
+    pub modeling_finding_receipt_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -5565,6 +5567,11 @@ fn validate_repo_work_map_entry(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> Res
     if entry.map_entry_id.trim().is_empty() || entry.item.trim().is_empty() {
         return Err(anyhow!(
             "repo work map entry requires map_entry_id and item"
+        ));
+    }
+    if entry.modeling_finding_receipt_id.trim().is_empty() {
+        return Err(anyhow!(
+            "repo work map entry requires a Modeling finding receipt"
         ));
     }
     if !entry.durable_state_admitted {

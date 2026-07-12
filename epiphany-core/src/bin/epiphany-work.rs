@@ -27,6 +27,8 @@ use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
 use epiphany_core::MindGatewayDecision;
 use epiphany_core::MindGatewayReview;
 use epiphany_core::PersonaMemoryCacheConfig;
+use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
+use epiphany_core::RepoWorkModelingFinding;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
@@ -63,6 +65,7 @@ use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_hands_pr_receipt;
 use epiphany_core::put_mind_gateway_review;
 use epiphany_core::put_mind_state_commit_receipt;
+use epiphany_core::put_repo_work_modeling_finding;
 use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::record_weksa_target_lowering_receipt;
@@ -71,6 +74,7 @@ use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
+use epiphany_core::runtime_repo_work_modeling_finding;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
@@ -114,6 +118,7 @@ struct RepoWorkMapEntry {
     commit_sha: String,
     safe_action_family: String,
     modeling_summary: String,
+    modeling_finding_receipt_id: String,
     soul_verdict_receipt_id: String,
     mind_gateway_review_id: String,
     mind_state_commit_receipt_id: String,
@@ -9911,6 +9916,7 @@ fn record_repo_work_map_admission(
     commit_sha: &str,
     closure_review: &Value,
     modeling_summary: &str,
+    modeling_finding_receipt_id: &str,
     soul_verdict_receipt_id: &str,
     mind_gateway_review_id: &str,
     mind_state_commit_receipt_id: &str,
@@ -9933,6 +9939,7 @@ fn record_repo_work_map_admission(
         commit_sha: commit_sha.to_string(),
         safe_action_family,
         modeling_summary: modeling_summary.to_string(),
+        modeling_finding_receipt_id: modeling_finding_receipt_id.to_string(),
         soul_verdict_receipt_id: soul_verdict_receipt_id.to_string(),
         mind_gateway_review_id: mind_gateway_review_id.to_string(),
         mind_state_commit_receipt_id: mind_state_commit_receipt_id.to_string(),
@@ -10004,6 +10011,7 @@ fn project_repo_work_map_entry_to_local_verse(
         format!("branch {}", entry.branch),
         format!("commit {}", entry.commit_sha),
         format!("family {}", entry.safe_action_family),
+        format!("modeling {}", entry.modeling_finding_receipt_id),
         format!("mind {}", entry.mind_state_commit_receipt_id),
         format!("publicationGate {}", entry.publication_gate),
         "private false".to_string(),
@@ -10022,6 +10030,7 @@ fn project_repo_work_map_entry_to_local_verse(
         commit_sha: entry.commit_sha.clone(),
         safe_action_family: entry.safe_action_family.clone(),
         modeling_summary: entry.modeling_summary.clone(),
+        modeling_finding_receipt_id: entry.modeling_finding_receipt_id.clone(),
         soul_verdict_receipt_id: entry.soul_verdict_receipt_id.clone(),
         mind_gateway_review_id: entry.mind_gateway_review_id.clone(),
         mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
@@ -11508,6 +11517,44 @@ fn run_close(args: CloseArgs) -> Result<Value> {
             declared_changed_paths.join(", ")
         )
     });
+    let modeling_finding_receipt_id = format!("repo-work-close-{item_slug}-modeling-finding");
+    let modeling_finding = RepoWorkModelingFinding {
+        schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
+        receipt_id: modeling_finding_receipt_id.clone(),
+        item: item.clone(),
+        model_ref: args
+            .closure_model_ref
+            .clone()
+            .expect("passed Modeling gate requires model ref"),
+        soul_verdict_receipt_id: soul_verdict.receipt_id.clone(),
+        verdict: args
+            .closure_model_verdict
+            .clone()
+            .expect("passed Modeling gate requires verdict"),
+        finding: args
+            .closure_model_finding
+            .clone()
+            .expect("passed Modeling gate requires finding"),
+        summary: modeling_summary,
+        changed_paths: declared_changed_paths.clone(),
+        commit_sha: commit_sha.clone(),
+        emitted_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        private_state_exposed: false,
+        contract: "Modeling interpretation of Soul-verified repo consequence; Mind must reread this typed receipt before map admission.".to_string(),
+    };
+    put_repo_work_modeling_finding(&runtime_store, &modeling_finding)?;
+    let modeling_finding =
+        runtime_repo_work_modeling_finding(&runtime_store, &modeling_finding_receipt_id)?
+            .ok_or_else(|| anyhow!("persisted Modeling finding could not be reread"))?;
+    if modeling_finding.soul_verdict_receipt_id != soul_verdict.receipt_id
+        || modeling_finding.commit_sha != commit_sha
+        || modeling_finding.changed_paths != declared_changed_paths
+        || modeling_finding.verdict.trim().to_ascii_lowercase() != "passed"
+    {
+        return Err(anyhow!(
+            "persisted Modeling finding does not match Soul-verified consequence"
+        ));
+    }
     let gateway_id = format!("repo-work-close-{item_slug}-mind-review");
     let mind_review = MindGatewayReview {
         schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
@@ -11517,13 +11564,13 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         decision: MindGatewayDecision::Accept,
         allowed_effects: vec![
             "repoWorkClosure".to_string(),
-            "modelingSummary".to_string(),
+            "modelingFinding".to_string(),
             "publicationGate".to_string(),
         ],
         refused_effects: Vec::new(),
         reasons: vec![
             "Soul passed the branch-local Hands consequence.".to_string(),
-            "Modeling summary is source-grounded in execute receipt, closure review, and commit proof.".to_string(),
+            format!("Mind reread typed Modeling finding {}.", modeling_finding.receipt_id),
             "Mind admits closure metadata only; Bifrost still gates publication and merge.".to_string(),
         ],
         contract: "Mind review for repo-work closure; admits the verified Modeling summary and publication gate without granting merge or service authority.".to_string(),
@@ -11536,7 +11583,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         args.state_revision,
         vec![
             "repoWork.closure".to_string(),
-            "repoWork.modelingSummary".to_string(),
+            "repoWork.modelingFinding".to_string(),
             "repoWork.map".to_string(),
         ],
         Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
@@ -11551,7 +11598,8 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         declared_changed_paths.clone(),
         &commit_sha,
         &closure_review,
-        &modeling_summary,
+        &modeling_finding.summary,
+        &modeling_finding.receipt_id,
         &soul_verdict.receipt_id,
         &mind_review.gateway_id,
         &mind_commit.receipt_id,
@@ -11616,7 +11664,8 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         },
         "closureReview": closure_review,
         "modeling": {
-            "summary": modeling_summary,
+            "findingReceiptId": modeling_finding.receipt_id,
+            "summary": modeling_finding.summary,
             "changedPaths": execute_receipt["changedPaths"],
             "commitSha": execute_receipt["handsReceipts"]["commitSha"],
             "source": "epiphany.repo_work_closure_review.v0",
@@ -16191,6 +16240,58 @@ mod authority_tests {
         assert!(!tick.contains("run_close(CloseArgs"));
         assert!(tick.contains("await-modeling"));
         assert!(tick.contains("explicit model-authored Modeling finding"));
+    }
+
+    #[test]
+    fn modeling_finding_round_trips_and_refuses_private_state() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "modeling-test".to_string(),
+                display_name: "Modeling Test".to_string(),
+                created_at: "2026-07-12T00:00:00Z".to_string(),
+            },
+        )?;
+        put_soul_verdict_receipt(
+            &store,
+            &SoulVerdictReceipt {
+                schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+                receipt_id: "soul-1".to_string(),
+                source_result_id: "result-1".to_string(),
+                source_job_id: "job-1".to_string(),
+                verdict: "passed".to_string(),
+                summary: "verified".to_string(),
+                evidence_ids: Vec::new(),
+                risks: Vec::new(),
+                emitted_at: "2026-07-12T00:00:00Z".to_string(),
+                contract: "test".to_string(),
+            },
+        )?;
+        let mut finding = RepoWorkModelingFinding {
+            schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
+            receipt_id: "modeling-finding-1".to_string(),
+            item: "item-1".to_string(),
+            model_ref: "model-job-1".to_string(),
+            soul_verdict_receipt_id: "soul-1".to_string(),
+            verdict: "passed".to_string(),
+            finding: "Verified consequence updates the repo map.".to_string(),
+            summary: "Map updated.".to_string(),
+            changed_paths: vec!["README.md".to_string()],
+            commit_sha: "abc123".to_string(),
+            emitted_at: "2026-07-12T00:00:01Z".to_string(),
+            private_state_exposed: true,
+            contract: "test".to_string(),
+        };
+        assert!(put_repo_work_modeling_finding(&store, &finding).is_err());
+        finding.private_state_exposed = false;
+        put_repo_work_modeling_finding(&store, &finding)?;
+        assert_eq!(
+            runtime_repo_work_modeling_finding(&store, &finding.receipt_id)?,
+            Some(finding)
+        );
+        Ok(())
     }
 }
 

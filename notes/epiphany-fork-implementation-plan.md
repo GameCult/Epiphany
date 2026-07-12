@@ -116,9 +116,11 @@ Exit evidence:
 
 Status: active. The scheduler can no longer impersonate Modeling/Mind after
 Hands execution, and closure refuses deterministic fallback or a passing
-verdict without an explicit model-authored finding. The remaining cut is to
-persist that Modeling finding as its own typed runtime document and make Mind
-admission consume it rather than accepting CLI fields directly.
+verdict without an explicit model-authored finding. That finding now persists
+as a typed runtime document backed by a passing Soul receipt; Mind rereads it,
+and repo-map/CultMesh admission carries its receipt ID. The remaining wound is
+atomicity: Mind receipts and the custom repo-map MessagePack store still commit
+through separate persistence paths.
 
 - Prove Hands → Soul → Modeling → Mind → Self on a fresh repository without
   supervisor implementation or direct worker-thought inspection.

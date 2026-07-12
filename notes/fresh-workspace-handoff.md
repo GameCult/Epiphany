@@ -2011,6 +2011,16 @@ detached disposable-repo smoke under
 Modeling admission and Modeling refusal paths. Next persist the Modeling
 finding as a first-class typed runtime document so Mind consumes a receipt, not
 CLI-shaped evidence.
+That typed boundary is now live. `RepoWorkModelingFinding` is a registered
+CultCache/CultNet runtime document requiring a passing Soul receipt, explicit
+model provenance, finding text, commit, changed paths, and a private-state seal.
+Closure persists and rereads it before Mind review; the repo-map entry and
+CultMesh row carry `modelingFindingReceiptId`. Three authority tests pass, all
+248 core library tests pass, and the uncontaminated detached disposable-repo
+smoke at `.epiphany-smoke/closure-model-typed-rerun/stdout.json` passed explicit
+Modeling admission and refusal. Next collapse Mind receipts plus repo-map
+admission into one typed transaction; the custom repo-map MessagePack write is
+still a second persistence authority.
 
 ## Immediate Re-entry Instruction
 
