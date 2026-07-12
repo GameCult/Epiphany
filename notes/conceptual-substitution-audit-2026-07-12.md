@@ -521,3 +521,13 @@ start/completion/next-wake values, reject completion before start, and order the
 latest mirror by `(completion time, iteration, receipt ID)`. A planned wake may
 be overdue when a long tick completes; lateness remains observable rather than
 being rejected as impossible.
+
+## Last writer presented as current Hands gate
+
+The operator-safe `hands-action-gate/latest` mirror was overwritten by arrival
+order. Although runtime-spine receipts remain the real action authority, a
+delayed older mirror could advertise obsolete paths and a stale record-pass
+command as the current actuator route. Hands gate mirrors now require a valid
+RFC3339 creation time and advance `latest` only by `(creation time, gate ID)`.
+Tests prove delayed older gates remain historical and malformed gate time is
+refused.

@@ -2986,7 +2986,14 @@ pub fn write_epiphany_cultmesh_hands_action_gate(
     let mut node = open_epiphany_cultmesh_node(&store_path, gate.runtime_id.clone())?;
     let gate_key = epiphany_cultmesh_hands_action_gate_key(&gate.gate_id);
     let written = node.put(gate_key.as_str(), &gate)?;
-    node.put(EPIPHANY_CULTMESH_HANDS_ACTION_GATE_LATEST_KEY, &written)?;
+    let current_latest = node.get::<EpiphanyCultMeshHandsActionGateEntry>(
+        EPIPHANY_CULTMESH_HANDS_ACTION_GATE_LATEST_KEY,
+    )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        hands_action_gate_event_key(&written) >= hands_action_gate_event_key(current)
+    }) {
+        node.put(EPIPHANY_CULTMESH_HANDS_ACTION_GATE_LATEST_KEY, &written)?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -3208,7 +3215,20 @@ fn validate_hands_action_gate(gate: &EpiphanyCultMeshHandsActionGateEntry) -> Re
             "Hands action gate CultMesh mirror has an empty path, receipt, or command argument"
         ));
     }
+    DateTime::parse_from_rfc3339(&gate.created_at_utc).map_err(|error| {
+        anyhow!("Hands action gate CultMesh mirror has invalid created at: {error}")
+    })?;
     Ok(())
+}
+
+fn hands_action_gate_event_key(
+    gate: &EpiphanyCultMeshHandsActionGateEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&gate.created_at_utc)
+            .expect("validated Hands action gate timestamp"),
+        gate.gate_id.as_str(),
+    )
 }
 
 fn validate_role_review_event(event: &EpiphanyCultMeshRoleReviewEventEntry) -> Result<()> {
@@ -7681,6 +7701,33 @@ mod tests {
                 .binding(EPIPHANY_CULTMESH_HANDS_ACTION_GATE_TYPE)
                 .is_some()
         );
+
+        let mut newer = gate.clone();
+        newer.gate_id = "hands-intent-newer:hands-review-newer".to_string();
+        newer.hands_intent_id = "hands-intent-newer".to_string();
+        newer.hands_review_id = "hands-review-newer".to_string();
+        newer.created_at_utc = "2026-06-18T01:00:00Z".to_string();
+        write_epiphany_cultmesh_hands_action_gate(&store, newer.clone())?;
+
+        let mut delayed = gate.clone();
+        delayed.gate_id = "hands-intent-delayed:hands-review-delayed".to_string();
+        delayed.hands_intent_id = "hands-intent-delayed".to_string();
+        delayed.hands_review_id = "hands-review-delayed".to_string();
+        delayed.created_at_utc = "2026-06-17T23:00:00Z".to_string();
+        write_epiphany_cultmesh_hands_action_gate(&store, delayed)?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_hands_action_gate(&store, "epiphany-test")?,
+            Some(newer)
+        );
+
+        let mut invalid_time = gate.clone();
+        invalid_time.gate_id = "hands-intent-invalid:hands-review-invalid".to_string();
+        invalid_time.hands_intent_id = "hands-intent-invalid".to_string();
+        invalid_time.hands_review_id = "hands-review-invalid".to_string();
+        invalid_time.created_at_utc = "not-a-time".to_string();
+        let err = write_epiphany_cultmesh_hands_action_gate(&store, invalid_time)
+            .expect_err("invalid Hands gate time must be refused");
+        assert!(err.to_string().contains("invalid created at"));
 
         let mut leaked = gate;
         leaked.private_state_exposed = true;
