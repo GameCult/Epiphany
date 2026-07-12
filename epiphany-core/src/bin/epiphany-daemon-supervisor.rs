@@ -230,7 +230,22 @@ fn service_launch(args: Args) -> Result<()> {
     let service_args = service_serve_args(&args);
     let mut command = Command::new(&command_path);
     command.args(&service_args);
-    command.stdout(Stdio::null()).stderr(Stdio::null());
+    if let Some(stdout_path) = &args.stdout_artifact {
+        if let Some(parent) = stdout_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        command.stdout(Stdio::from(fs::File::create(stdout_path)?));
+    } else {
+        command.stdout(Stdio::null());
+    }
+    if let Some(stderr_path) = &args.stderr_artifact {
+        if let Some(parent) = stderr_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        command.stderr(Stdio::from(fs::File::create(stderr_path)?));
+    } else {
+        command.stderr(Stdio::null());
+    }
     if let Some(cwd) = &args.cwd {
         command.current_dir(cwd);
     }
@@ -267,7 +282,9 @@ fn service_launch(args: Args) -> Result<()> {
         exit_code,
         started_at,
         completed_at,
-        None,
+        args.stdout_artifact
+            .as_ref()
+            .map(|path| path.display().to_string()),
     );
     let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
         &args.store,
@@ -284,6 +301,8 @@ fn service_launch(args: Args) -> Result<()> {
             "receiptId": written.receipt_id,
             "processId": written.process_id,
             "exitCode": written.exit_code,
+            "stdoutArtifact": args.stdout_artifact,
+            "stderrArtifact": args.stderr_artifact,
             "privateStateExposed": written.private_state_exposed,
         }))?
     );
@@ -3170,6 +3189,8 @@ struct Args {
     intent_id: Option<String>,
     receipt_id: Option<String>,
     artifact_ref: Option<String>,
+    stdout_artifact: Option<PathBuf>,
+    stderr_artifact: Option<PathBuf>,
 }
 
 impl Args {
@@ -3210,6 +3231,8 @@ impl Args {
         let mut intent_id = None;
         let mut receipt_id = None;
         let mut artifact_ref = None;
+        let mut stdout_artifact = None;
+        let mut stderr_artifact = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -3339,6 +3362,16 @@ impl Args {
                 "--artifact-ref" => {
                     artifact_ref = Some(values.next().context("missing --artifact-ref value")?);
                 }
+                "--stdout-artifact" => {
+                    stdout_artifact = Some(PathBuf::from(
+                        values.next().context("missing --stdout-artifact value")?,
+                    ));
+                }
+                "--stderr-artifact" => {
+                    stderr_artifact = Some(PathBuf::from(
+                        values.next().context("missing --stderr-artifact value")?,
+                    ));
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -3464,6 +3497,8 @@ impl Args {
             intent_id,
             receipt_id,
             artifact_ref,
+            stdout_artifact,
+            stderr_artifact,
         })
     }
 }

@@ -104,7 +104,6 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-use std::process::Stdio;
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -14208,11 +14207,36 @@ fn resolve_repo_work_model_runtime(epiphany_root: &Path) -> Result<PathBuf> {
         .ok_or_else(|| anyhow!("epiphany-openai-runtime binary is not built"))
 }
 
+fn resolve_daemon_supervisor(epiphany_root: &Path) -> Result<PathBuf> {
+    let exe_name = if cfg!(windows) {
+        "epiphany-daemon-supervisor.exe"
+    } else {
+        "epiphany-daemon-supervisor"
+    };
+    let mut candidates = Vec::new();
+    if let Some(target) = env::var_os("CARGO_TARGET_DIR") {
+        candidates.push(PathBuf::from(target).join("debug").join(exe_name));
+    }
+    candidates.push(
+        epiphany_root
+            .join("epiphany-core")
+            .join("target")
+            .join("debug")
+            .join(exe_name),
+    );
+    candidates.push(epiphany_root.join("target").join("debug").join(exe_name));
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.is_file())
+        .ok_or_else(|| anyhow!("epiphany-daemon-supervisor binary is not built"))
+}
+
 fn launch_repo_work_modeling_worker(
     epiphany_root: &Path,
     workspace: &Path,
     artifact_dir: &Path,
     runtime_store: &Path,
+    local_verse_store: &Path,
     request: &RepoWorkModelingRequest,
     item_slug: &str,
 ) -> Result<Value> {
@@ -14272,28 +14296,73 @@ fn launch_repo_work_modeling_worker(
         },
     )?;
     let runtime_bin = resolve_repo_work_model_runtime(epiphany_root)?;
+    let supervisor_bin = resolve_daemon_supervisor(epiphany_root)?;
     let stdout_path = artifact_dir.join(format!("{job_id}.stdout.log"));
     let stderr_path = artifact_dir.join(format!("{job_id}.stderr.log"));
-    let stdout = fs::File::create(&stdout_path)?;
-    let stderr = fs::File::create(&stderr_path)?;
-    let child = Command::new(&runtime_bin)
-        .arg("run-worker")
+    let service_id = format!("idunn-{job_id}");
+    let output = Command::new(&supervisor_bin)
+        .arg("service-launch")
         .arg("--store")
+        .arg(local_verse_store)
+        .arg("--runtime-id")
+        .arg("repo-work-local")
+        .arg("--daemon-id")
+        .arg("epiphany-daemon-modeling")
+        .arg("--service-id")
+        .arg(&service_id)
+        .arg("--service-command")
+        .arg(&runtime_bin)
+        .arg("--service-arg")
+        .arg("run-worker")
+        .arg("--service-arg")
+        .arg("--store")
+        .arg("--service-arg")
         .arg(runtime_store)
+        .arg("--service-arg")
         .arg("--job-id")
+        .arg("--service-arg")
         .arg(&job_id)
+        .arg("--service-arg")
+        .arg("--cwd")
+        .arg("--service-arg")
+        .arg(workspace)
+        .arg("--service-arg")
+        .arg("--max-runtime-seconds")
+        .arg("--service-arg")
+        .arg("300")
         .arg("--cwd")
         .arg(workspace)
-        .arg("--max-runtime-seconds")
-        .arg("300")
-        .stdout(Stdio::from(stdout))
-        .stderr(Stdio::from(stderr))
-        .spawn()
-        .with_context(|| format!("failed to launch {}", runtime_bin.display()))?;
+        .arg("--stdout-artifact")
+        .arg(&stdout_path)
+        .arg("--stderr-artifact")
+        .arg(&stderr_path)
+        .arg("--reason")
+        .arg(format!(
+            "Idunn launches typed repo-work Modeling job {job_id}."
+        ))
+        .output()
+        .with_context(|| {
+            format!(
+                "failed to invoke Idunn supervisor {}",
+                supervisor_bin.display()
+            )
+        })?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "Idunn supervisor refused repo-work Modeling launch: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let lifecycle: Value = serde_json::from_slice(&output.stdout)
+        .context("Idunn supervisor did not emit its lifecycle receipt JSON")?;
     Ok(json!({
         "jobId": job_id,
-        "processId": child.id(),
+        "processId": lifecycle["processId"],
         "runtimeBin": runtime_bin,
+        "supervisorBin": supervisor_bin,
+        "lifecycleOwner": "Idunn",
+        "lifecycleReceiptId": lifecycle["receiptId"],
+        "serviceId": lifecycle["serviceId"],
         "stdoutArtifact": stdout_path,
         "stderrArtifact": stderr_path,
         "requestId": request.request_id,
@@ -14749,11 +14818,15 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 }
                 None => {
                     action = "launch-modeling".to_string();
+                    let lifecycle_store = local_verse_store
+                        .clone()
+                        .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"));
                     advanced_result = launch_repo_work_modeling_worker(
                         &epiphany_root,
                         &workspace,
                         &artifact_dir,
                         &runtime_store,
+                        &lifecycle_store,
                         &request,
                         &item_slug,
                     )?;
@@ -16604,6 +16677,9 @@ mod authority_tests {
             .next()
             .expect("production source before authority tests");
         assert!(!production.contains("put_repo_work_modeling_finding("));
+        assert!(!production.contains(".spawn()"));
+        assert!(production.contains("epiphany-daemon-supervisor"));
+        assert!(production.contains("\"lifecycleOwner\": \"Idunn\""));
         assert!(!source.contains(&["RepoWork", "MapStore"].concat()));
         assert!(!source.contains(&["repo-work-map", ".msgpack"].concat()));
     }

@@ -2085,6 +2085,18 @@ Live negative item `cli-modeling-authority-refusal` returned exit 1 when
 `close --model-authored` supplied a forged passing finding; the error names the
 required Modeling runtime route. The old CLI path is structurally unable to
 publish the canonical finding.
+Idunn now owns the detached worker launch itself. The repo-work scheduler no
+longer calls `Command::spawn`; it invokes the existing daemon supervisor's
+generic `service-launch` mouth. That mouth now accepts explicit stdout/stderr
+artifact paths, owns hidden child creation, and writes its standard typed
+CultMesh lifecycle receipt. Authenticated live item `idunn-owned-modeling`
+returned lifecycle receipt
+`daemon-service-lifecycle-receipt-idunn-repo-work-modeling-idunn-owned-modeling-launch`,
+process id `45012`, a passing runtime-authored finding, closed Mind/map
+admission, and overview gate `awaiting-publication` with
+`bifrost-publication-missing`. Next design the typed Mind-reviewed generation
+pointer for a non-passing immutable finding; do not mutate the old request or
+let a filesystem close artifact become the new routing authority.
 
 ## Immediate Re-entry Instruction
 

@@ -143,6 +143,15 @@ runtime document. The obsolete direct-CLI closure smoke was deleted. A live
 negative probe returned exit 1 for forged passing CLI cargo while leaving the
 typed request awaiting its real Modeling worker.
 
+Detached worker physiology is now Idunn-owned. `epiphany-work` opens the typed
+runtime job and invokes `epiphany-daemon-supervisor service-launch`; it contains
+no child-process `spawn`. The supervisor launches the existing model runtime,
+owns Windows hidden-process behavior, redirects stdout/stderr to explicit
+artifacts, and publishes an
+`epiphany.cultmesh.daemon_service_lifecycle_receipt.v0` containing service and
+process identity. Self receives that receipt ID as routing evidence only. Live
+item `idunn-owned-modeling` crossed this boundary and reached the Bifrost gate.
+
 The
 accepted interpretation is persisted as
 `epiphany.modeling.repo_work_finding.v0`; it references the passing Soul verdict,

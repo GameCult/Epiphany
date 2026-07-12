@@ -204,9 +204,9 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Move repo-work Modeling process stewardship under Idunn and add a reviewed
-request generation for non-passing immutable findings. The scheduler now routes
-passing requests through the existing model runtime and reaches Bifrost without
-Self-authored Modeling evidence; preserve that authority path. Do not overwrite
-a blocked finding, launch duplicate jobs, or grow a scheduler-owned process
-manager.
+Design and implement a typed Mind-reviewed request-generation pointer for
+non-passing immutable repo-work Modeling findings. Idunn now owns detached
+worker launch through its existing lifecycle receipt mouth. Preserve the old
+request/finding as immutable evidence, make one typed owner select the current
+generation, and keep filesystem closure artifacts and Self from becoming
+mutable routing authorities.
