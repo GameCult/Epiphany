@@ -110,6 +110,10 @@
   topology. Rendering a worker prompt cannot initialize shared state. Its
   standalone smoke accepts no path arguments and writes only beneath
   `.epiphany-smoke`.
+- Bifrost publication/GitHub/public-proof/artifact/metrics response constructors
+  and Imagination consensus response construction are test-only. Production
+  retains typed schemas and readers for provider-authored ingest, but no local
+  shipped binary owns or writes those response documents.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

@@ -39,16 +39,13 @@ use epiphany_core::default_epiphany_cultmesh_swarm_brake;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_agent_state_soa_summary_from_entry;
 use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_bifrost_collaboration_feedback;
-use epiphany_core::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
 use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
 use epiphany_core::epiphany_cultmesh_eve_connection_receipt_for_intent;
-use epiphany_core::epiphany_cultmesh_imagination_consensus_receipt_for_feedback;
 use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_agent_state_soa_entry;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
@@ -92,9 +89,7 @@ use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_agent_state_soa_summary;
 use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
 use epiphany_core::write_epiphany_cultmesh_bifrost_collaboration_feedback;
-use epiphany_core::write_epiphany_cultmesh_bifrost_github_publication_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
@@ -105,7 +100,6 @@ use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::write_epiphany_cultmesh_eve_connection_receipt;
-use epiphany_core::write_epiphany_cultmesh_imagination_consensus_receipt;
 use epiphany_core::write_epiphany_cultmesh_swarm_brake;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
 use serde::Serialize;
@@ -2414,38 +2408,6 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 bifrost_intent.clone(),
             )?;
-            let bifrost_receipt =
-                epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent(
-                    "bifrost-publication-receipt-smoke",
-                    &bifrost_intent,
-                    "accepted-for-github-publication",
-                    "bifrost-ledger-smoke",
-                    "github-publication-smoke",
-                    vec!["credit-receipt-smoke".to_string()],
-                    vec!["maintainer-review-smoke".to_string()],
-                    "https://github.com/GameCult/EpiphanyAgent/pull/smoke",
-                );
-            write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                bifrost_receipt.clone(),
-            )?;
-            let github_receipt =
-                epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
-                    "github-publication-smoke",
-                    &bifrost_receipt,
-                    "hands-pr-smoke",
-                    "E:/Projects/EpiphanyAgent",
-                    "codex/perfect-machine-cultmesh",
-                    "smoke",
-                    "dry-run-no-commit",
-                    "epiphany.Hands",
-                );
-            write_epiphany_cultmesh_bifrost_github_publication_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                github_receipt,
-            )?;
             let feedback = epiphany_cultmesh_bifrost_collaboration_feedback(
                 "collaboration-feedback-smoke",
                 "epiphany.Persona",
@@ -2463,38 +2425,7 @@ fn run_cli() -> Result<()> {
             write_epiphany_cultmesh_bifrost_collaboration_feedback(
                 &args.store,
                 args.runtime_id.clone(),
-                feedback.clone(),
-            )?;
-            let consensus = epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
-                "imagination-consensus-smoke",
-                &feedback,
-                "queued-for-consensus-discovery",
-                vec!["epiphany.Imagination".to_string()],
-                "gamecult-local/imagination/consensus-packets/smoke",
-            );
-            let collaboration_tui_rows = collaboration_feedback_tui_rows(&feedback, &consensus);
-            if !collaboration_tui_rows.iter().any(|row| {
-                row.contains("collaboration-feedback")
-                    && row.contains("owner=Persona->Imagination")
-                    && row.contains(
-                        "public=https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm",
-                    )
-                    && row.contains("candidates=candidate-action:open-collaboration-thread")
-                    && row.contains("private=false")
-            }) || !collaboration_tui_rows.iter().any(|row| {
-                row.contains("imagination-consensus")
-                    && row.contains("owner=Imagination")
-                    && row.contains("adoptionGate=mind.review_then_bifrost_adoption")
-                    && row.contains("private=false")
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact collaboration feedback routing rows"
-                );
-            }
-            write_epiphany_cultmesh_imagination_consensus_receipt(
-                &args.store,
-                args.runtime_id.clone(),
-                consensus,
+                feedback,
             )?;
             if !WRAPPER_COLLABORATION_FEEDBACK_COMMAND.contains("-Mode collaboration-feedback")
                 || !WRAPPER_BIFROST_PUBLICATION_COMMAND.contains("-Mode bifrost-publication")
@@ -2507,72 +2438,18 @@ fn run_cli() -> Result<()> {
                 );
             }
             let bifrost_ledger_report = load_bifrost_ledger_report(&args)?;
-            if bifrost_ledger_report.status != "ok"
-                || bifrost_ledger_report.publication_chain_count != 3
-                || bifrost_ledger_report.collaboration_chain_count != 2
-                || bifrost_ledger_report.accounting_rows.len() != 6
-                || bifrost_ledger_report.closed_accounting_row_count != 2
-                || bifrost_ledger_report.attention_accounting_row_count != 0
-                || bifrost_ledger_report.repo_work_accounting_request_count != 0
-                || bifrost_ledger_report.rows.len() != 5
+            if bifrost_ledger_report.latest_publication_intent_id.is_none()
+                || bifrost_ledger_report
+                    .latest_publication_receipt_id
+                    .is_some()
+                || bifrost_ledger_report.latest_github_receipt_id.is_some()
+                || bifrost_ledger_report.latest_feedback_id.is_none()
+                || bifrost_ledger_report.latest_consensus_receipt_id.is_some()
                 || bifrost_ledger_report.private_state_exposed
-                || !bifrost_ledger_report.tui_rows.iter().any(|row| {
-                    row.contains("github-publication-receipt")
-                        && row.contains("owner=Bifrost/GitHub")
-                        && row.contains(
-                            "public=https://github.com/GameCult/EpiphanyAgent/pull/smoke",
-                        )
-                        && row.contains("private=false")
-                })
-                || !bifrost_ledger_report.tui_rows.iter().any(|row| {
-                    row.contains("imagination-consensus-receipt")
-                        && row.contains("owner=Imagination")
-                        && row.contains(
-                            "public=https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm",
-                        )
-                        && row.contains("private=false")
-                })
-                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
-                    row.contains("BIFROST-ACCOUNTING | body-change-publication")
-                        && row.contains("status=closed")
-                        && row.contains("intent=present publication=present github=present")
-                        && row.contains("review=1")
-                        && row.contains("credit=1")
-                        && row.contains("private=false")
-                })
-                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
-                    row.contains("BIFROST-ACCOUNTING | public-proof-publication")
-                        && row.contains("status=missing")
-                        && row.contains("proof=missing")
-                        && row.contains("private=false")
-                })
-                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
-                    row.contains("BIFROST-ACCOUNTING | repo-work-readiness-review")
-                        && row.contains("status=missing")
-                        && row.contains("review=0")
-                        && row.contains("approval=missing")
-                        && row.contains("private=false")
-                })
-                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
-                    row.contains("BIFROST-ACCOUNTING | artifact-acceptance-request")
-                        && row.contains("status=missing")
-                        && row.contains("request=missing")
-                        && row.contains("private=false")
-                })
-                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
-                    row.contains("BIFROST-ACCOUNTING | metrics-request")
-                        && row.contains("status=missing")
-                        && row.contains("request=missing")
-                        && row.contains("private=false")
-                })
-                || !bifrost_ledger_report.accounting_tui_rows.iter().any(|row| {
-                    row.contains("BIFROST-ACCOUNTING | collaboration-consensus")
-                        && row.contains("status=closed")
-                        && row.contains("feedback=present consensus=present")
-                        && row.contains("private=false")
-                })
             {
-                anyhow::bail!("local Verse query smoke lost compact Bifrost ledger readback");
+                anyhow::bail!(
+                    "local Verse query smoke must preserve pending requester state without manufacturing Bifrost, GitHub, or Imagination responses"
+                );
             }
             write_epiphany_cultmesh_work_loop_telemetry(
                 &args.store,
@@ -2694,15 +2571,15 @@ fn run_cli() -> Result<()> {
                     .is_some_and(|brake| brake.private_state_exposed)
                 || context
                     .latest_bifrost_body_change_publication_receipt
-                    .is_none()
-                || context.latest_bifrost_github_publication_receipt.is_none()
+                    .is_some()
+                || context.latest_bifrost_github_publication_receipt.is_some()
                 || context.latest_bifrost_collaboration_feedback.is_none()
-                || context.latest_imagination_consensus_receipt.is_none()
+                || context.latest_imagination_consensus_receipt.is_some()
                 || context.latest_work_loop_summary.is_none()
                 || context.latest_agent_state_soa_summary.is_none()
             {
                 anyhow::bail!(
-                    "local Verse query smoke lost daemon statuses, Eve surfaces, Bifrost publication, collaboration feedback, work-loop receipts, or agent state SoA summary"
+                    "local Verse query smoke lost requester state, manufactured provider responses, or lost work-loop/agent-state summaries"
                 );
             }
             let agent_summary = context
@@ -2764,10 +2641,8 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
             )?;
             let receipt_directory = receipt_directory_report(&context, &lifecycle_receipts, None);
-            if receipt_directory.status != "ok"
-                || receipt_directory.private_state_exposed
+            if receipt_directory.private_state_exposed
                 || !receipt_directory.attention_route_rows.is_empty()
-                || receipt_directory.ready_row_count < 7
                 || receipt_directory.artifact_none_count != receipt_directory.rows.len()
                 || receipt_directory.artifact_external_ref_count != 0
                 || receipt_directory.artifact_present_count != 0
@@ -2779,13 +2654,13 @@ fn run_cli() -> Result<()> {
                 })
                 || !receipt_directory.rows.iter().any(|row| {
                     row.family == "bifrost-publication"
-                        && row.latest_id == "github-publication-smoke"
+                        && !row.present
                         && row.follow_up_command == WRAPPER_BIFROST_LEDGER_COMMAND
                 })
-                || !receipt_directory.rows.iter().any(|row| {
-                    row.family == "imagination-consensus"
-                        && row.latest_id == "imagination-consensus-smoke"
-                })
+                || !receipt_directory
+                    .rows
+                    .iter()
+                    .any(|row| row.family == "imagination-consensus" && !row.present)
                 || !receipt_directory.rows.iter().any(|row| {
                     row.family == "work-loop" && row.latest_id == "work-loop-telemetry-smoke"
                 })
@@ -9356,41 +9231,6 @@ fn bifrost_accounting_status(closed: bool, present: bool, private_state_exposed:
 
 fn present_word(present: bool) -> &'static str {
     if present { "present" } else { "missing" }
-}
-
-fn collaboration_feedback_tui_rows(
-    feedback: &EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
-    consensus: &EpiphanyCultMeshImaginationConsensusReceiptEntry,
-) -> Vec<String> {
-    let public_refs = compact_tui_list(&feedback.public_discussion_refs);
-    let candidate_refs = compact_tui_list(&feedback.candidate_action_refs);
-    let private_feedback = if feedback.private_state_included {
-        "private=true"
-    } else {
-        "private=false"
-    };
-    let private_consensus = if consensus.private_state_exposed {
-        "private=true"
-    } else {
-        "private=false"
-    };
-    vec![
-        format!(
-            "OK | collaboration-feedback | owner=Persona->Imagination | {} | topic={} | public={} | candidates={} | route={} | {private_feedback}",
-            feedback.feedback_id,
-            feedback.collaboration_topic,
-            public_refs,
-            candidate_refs,
-            feedback.requested_consensus_route
-        ),
-        format!(
-            "OK | imagination-consensus | owner=Imagination | {} | packet={} | adoptionGate={} | public={} | {private_consensus}",
-            consensus.receipt_id,
-            consensus.consensus_packet_ref,
-            consensus.adoption_gate,
-            compact_tui_list(&consensus.public_feedback_refs)
-        ),
-    ]
 }
 
 fn compact_tui_list(values: &[String]) -> String {

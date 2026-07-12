@@ -40,3 +40,19 @@ Negative proof passed both directions: a plan command given hostile `--execute-i
 ## Standalone receipt-smoke quarantine update
 
 The two standalone smoke binaries found writing canonical receipt schemas no longer accept receipt-store destinations. `epiphany-repo-deployment-config-family-smoke` accepts only `--root` and derives its entire disposable repo/Verse body under `<root>/.epiphany-smoke`; `--smoke-root` is rejected. `epiphany-weksa-interlingua-smoke` accepts no arguments and writes only `.epiphany-smoke/weksa-interlingua/local-verse.ccmp`. Attempts to redirect either at live state fail before fixture construction.
+
+## Orphaned provider response API quarantine
+
+The aggregate `epiphany-verse-query smoke` was the only shipped caller of local
+Bifrost publication/GitHub response constructors and Imagination consensus
+response construction. It fabricated closed provider chains so its own ledger
+projection could report success. Public-proof, artifact-acceptance, and metrics
+response writers had no shipped callers but remained publicly exported.
+
+The aggregate smoke now proves the opposite invariant: requester intent and
+Persona feedback are present while Bifrost publication, GitHub publication,
+and Imagination consensus responses remain absent. All six orphaned response
+constructors, six writers, their validators, and event-key helpers are compiled
+only under `cfg(test)`. Typed response schemas and read loaders remain in
+production for ingesting documents authored by external owning providers; no
+shipped Epiphany binary can construct or persist those responses.
