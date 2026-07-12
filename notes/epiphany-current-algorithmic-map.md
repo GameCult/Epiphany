@@ -344,5 +344,17 @@ Cut or correct next:
 - any remaining full-context serializer or summary that duplicates typed owner
   state instead of projecting it narrowly.
 
+## Native Heartbeat Service Boundary
+
+The refreshed Perfect Machine audit selects runtime physiology as the next
+organ boundary. `epiphany-heartbeat-store serve` now owns a native interval
+loop around the existing `run_void_routine_store` primitive. It writes one
+iteration directory per pulse, emits only a compact pulse receipt containing
+artifact identity and success, supports bounded clean shutdown through
+`--max-iterations`, and contains no child-process spawn or second state writer.
+Heartbeat owns pulse timing; the next cut is to launch this binary through
+Idunn and prove restart/resume, swarm-brake observability, and lifecycle
+readback before demoting the PowerShell rumination vigil.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's proprioception.

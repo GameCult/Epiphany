@@ -2176,6 +2176,20 @@ typed finding and empty stderr; the next scheduler dry-run returned
 `action=admit-modeling`. The generation-one campaign is complete. Next refresh
 the Perfect Machine audit against live source and cut stale roadmap claims
 before selecting the next organ boundary.
+That audit is now refreshed in `notes/perfect-machine-audit-roadmap.md`. It cuts
+obsolete claims that Hands/Soul/Continuity lack contracts or that the typed
+chain is merely descriptive, records the current authority/evidence matrix,
+and selects native heartbeat service physiology as the highest-priority gap.
+The first slice is implemented: `epiphany-heartbeat-store serve` loops over the
+existing typed routine owner, supports an unbounded service mode or bounded
+`--max-iterations`, refuses a zero interval, writes per-pulse artifact
+directories, emits compact sealed pulse/closure receipts, and never spawns a
+child. Bounded smoke root
+`C:\Users\Meta\AppData\Local\Temp\epiphany-heartbeat-serve-dc20936d26a84e68be92ca33bb5ee2f3`
+completed two one-second pulses and stopped cleanly. Next launch the native
+serve loop through Idunn, prove persisted-state restart without duplicate
+pending turns, and make an engaged swarm brake observable without killing the
+service.
 
 ## Immediate Re-entry Instruction
 

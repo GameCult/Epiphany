@@ -1,427 +1,195 @@
 # Perfect Machine Audit Roadmap
 
-Date: 2026-05-27
-
-Updated: 2026-05-30
-
-Objective: audit Epiphany's current organ shape and map the path from named
-contracts to the Perfect Machine: a coherent organism where repository access,
-evidence, projection, public speech, action, verification, continuity, and
-persistent state are separately owned but mutually aware.
-
-## Current Shape
-
-Epiphany has the first typed skeleton for the organ boundaries:
-
-- `Mind`: persistent state guardian. `epiphany-core::mind_gateway` names
-  thought, state-effect proposal, gateway-review, commit/rejection, and Verse
-  adoption contracts.
-- `Substrate Gate`: repository/substrate access protocol. `epiphany-core::substrate_gate`
-  names repo access requests, reviews, grant/refusal receipts, snapshots, and
-  mutation receipts.
-- `Eyes`: evidence ingress guardian. `epiphany-core::eyes_gateway` names
-  evidence requests, reviews, source lookup receipts, evidence packets, and
-  refusals.
-- `Imagination`: projection/future-shape organ. For Persona, it now owns the
-  Projector prompt boundary in `epiphany-core::persona_turn`.
-- `Persona`: public person-shaped surface. It receives projected context and writes
-  natural prose only.
-- `Hands`: action organ by doctrine, but not yet backed by a dedicated CultNet
-  contract family parallel to Substrate Gate/Eyes/Mind.
-- `Soul`: verification organ by doctrine, but not yet backed by a dedicated
-  CultNet contract family parallel to Eyes.
-- `Continuity`: continuity organ by doctrine, heartbeat, reorientation, and handoff
-  surfaces, but not yet a single typed contract family for sleep/compaction and
-  recovery.
-- `Self`: coordinator/routing organ exists through coordinator policy, role
-  board, CRRC, and view surfaces, but it is still partly embedded in bridge and
-  Codex-compatible routes.
-
-The dependency matrix is explicit in `epiphany-core::organ_dependencies`: every
-standing sub-agent depends on every other standing sub-agent. This is correct, but it
-is currently descriptive. It does not yet force every launch packet, prompt, or
-runtime receipt to carry dependency context.
-
-## Void Persona Lessons
-
-Void's current Persona work is the best reference implementation for the Persona
-organ. The important lesson is not "make the prompt longer." The lesson is
-parent-organ ownership:
-
-- Parent `Imagination` projects typed state into lived character-facing prose
-  before the Persona sees it.
-- The Persona reads raw room/context evidence directly and writes natural prose as
-  a person.
-- Parent `Mind` interprets the Persona output into memory, affect, social reads,
-  mood, agency pressure, speech, retry, or drop.
-- The deterministic assembler creates compact packets, raw transcripts, repo
-  activity, pronoun guidance, channel policy, and media awareness. It must not
-  turn those into character prose itself.
-
-Relevant Void references:
-
-- `VoidBot:prompts/repo-Persona-state-projector.prompt.md`: names the projector as
-  the Persona's parent Imagination organ and forbids schema slurry.
-- `VoidBot:prompts/repo-Persona-turn.prompt.md`: keeps the Persona turn as the
-  speaking surface, with recent repo activity before conversation transcript and
-  deterministic policy sections outside projected state.
-- `VoidBot:prompts/repo-Persona-turn-interpreter.prompt.md`: names the
-  Interpreter as parent Mind and requires route/retry/drop plus structured
-  side effects.
-- `VoidBot:scripts/run-repo-Persona-heartbeats.ts`: runs projection as
-  `organ: "imagination"` in read-only mode, rejects leaky memory surfaces, keeps
-  raw transcript evidence oldest-to-newest, includes visible chronology, exports
-  recent repo activity read-only, and keeps pronoun guidance deterministic so
-  Imagination cannot accidentally omit it.
-
-Audit implication for Epiphany: `persona_turn.rs` has the right first boundary but
-is still too thin. It lacks deterministic human pronoun guidance, channel label
-resolution, visible chronology, media attachment awareness, retry/drop
-semantics, projection model receipts, and explicit leakage rejection as strong
-as Void's `rejectLeakyMemorySurface`.
-
-## Audit Findings
-
-### 1. Contract Names Exist Before Contract Execution
-
-Mind, Substrate Gate, and Eyes have type constants, CultMesh policy documents, and
-runtime-spine advertisement. They are not yet the mandatory runtime path.
-Workers can still be launched and accepted through older bridge/service flows
-without every substrate touch, evidence claim, or state mutation passing through
-a real receipt chain.
-
-Required correction: turn contract families into executable gates.
-
-### 2. Substrate Gate/Eyes/Mind Are Correctly Split But Not Yet Chained
-
-The desired chain is:
-
-```text
-Need fact or action
-  -> Self routes
-  -> Substrate Gate grants scoped substrate access
-  -> Eyes packages inspected evidence when truth is needed
-  -> Imagination projects options or scenes when future/personhood is needed
-  -> Hands executes bounded action when mutation is needed
-  -> Soul verifies result/invariant
-  -> Mind admits durable state
-  -> Continuity preserves continuity
-```
-
-Today the chain is documented, not structurally unavoidable.
-
-### 3. Hands, Soul, and Continuity Have First-Class Contract Catalogs
-
-The contract set now names the gates around action, verification, and
-continuity:
-
-- Hands has action intent/review plus command, patch, commit, PR, rollback, and
-  refusal receipts.
-- Soul has verification request plus invariant check, verdict, regression,
-  review, and refusal receipts.
-- Continuity has continuity packet plus compaction checkpoint, sleep distillation,
-  recovery, stale-turn repair, and continuity refusal receipts.
-
-Runtime-spine advertises those contracts and CultMesh persists Verse-scoped
-policy documents for each. The first executable pressure slice is landed:
-worker launch packets now carry an `EpiphanyLaunchOrganContract` derived from
-authority scope, launch document kind, and output contract id. That contract
-carries the full standing sub-agent dependency matrix, a receipt document
-catalogue, and effect-specific proof profiles for state admission, evidence
-promotion, repo action, verification, and continuity recovery. Role/reorient
-acceptance now refuses completed runtime-spine findings if the original launch
-request is missing, document-kind mismatched, or lacks a state-admission proof
-profile requiring Mind review. Acceptance now evaluates claimed effects through
-those profiles, rereads the persisted Mind gateway review from runtime-spine,
-and enforces that available proof. Mind's first executable proof chain is now
-persisted: acceptance writes `epiphany.mind.gateway_review` before state
-admission and `epiphany.mind.state_commit_receipt` after admission with the
-resulting state revision. Research acceptance also emits a typed
-`epiphany.eyes.evidence_packet` from its accepted Eyes-shaped statePatch,
-persists it in runtime-spine, rereads it, and enforces Eyes packet proof for the
-evidence-promotion profile. Research launches now also persist a typed
-Substrate Gate read/snapshot access grant, and Research acceptance enforces that
-grant before admitting evidence-shaped state. Verification acceptance emits a
-typed `epiphany.soul.verdict_receipt`, persists/rereads it through
-runtime-spine, and enforces Soul verdict proof before Mind admits
-verification-shaped state. Reorient acceptance emits a typed
-`epiphany.continuity.recovery_receipt`, persists/rereads it through
-runtime-spine, and enforces Continuity recovery proof before Mind admits
-recovery-shaped state. Hands now has a first executable runtime-spine proof
-chain for action documents: `HandsActionIntent` -> `HandsActionReview` ->
-`HandsPatchReceipt` plus typed command and commit receipts can be persisted and
-reread from the runtime store, and `epiphany-hands-action-smoke` proves the
-chain without executing a patch, command, or commit. The repo-action proof
-profile now requires the full Hands intent/review/patch chain before promotion,
-not only a patch receipt.
-Remaining weakness: live implementation edits, commands, commits, and PRs still
-do not have to pass through that Hands chain before action promotion, and the
-current Mind state mutation plus post-commit receipt is not a single transaction
-yet.
-
-### 4. Self Still Shares A Throne With Compatibility Plumbing
-
-Coordinator policy is much cleaner, but Codex-compatible route edges still
-shape parts of the living workflow. The Perfect Machine needs Self as a typed
-router over CultNet/CultMesh contracts, not a half-native coordinator behind a
-JSON-RPC organ.
-
-### 5. CultMesh/CultLib Local Dependency Was Broken
-
-`epiphany-core` previously pointed at:
-
-```toml
-cultcache-rs = { path = "../../CultLib/crates/cultcache-rs" }
-cultmesh-rs = { path = "../../CultLib/crates/cultmesh-rs" }
-cultnet-rs = { path = "../../CultLib/crates/cultnet-rs" }
-```
-
-This checkout has `E:\Projects\CultLib` but no `crates` directory, so cargo
-checks failed before reaching the new code. This was a Body-level substrate
-wound: the Rust dependency body described by the map did not exist at the path
-the machine used.
-
-Correction landed: Epiphany now compiles against repo-contained vendored crates:
-
-```toml
-cultcache-rs = { path = "../vendor/cultcache-rs" }
-cultmesh-rs = { path = "../vendor/cultmesh-rs" }
-cultnet-rs = { path = "../vendor/cultnet-rs" }
-```
-
-`vendor/cultmesh-rs` is a small Rust facade over vendored CultCache and CultNet.
-It owns document-set registration plus local typed node operations
-(`put`/`get`/`get_required`/`delete`/`flush`) for now. Vendored CultCache also
-reads and writes the `cultcache.store.v1` snapshot format used by the current
-state ledgers. This keeps Epiphany's body self-contained while preserving
-CultMesh as the ergonomic local store surface.
-
-### 6. Persona Prompting Is Directionally Correct But Behind Void
-
-Epiphany's Persona loop now says `Imagination Projector -> Persona -> Mind
-Interpreter`, but Void has the stronger living practice:
-
-- state projector is model-owned, not deterministic prose assembly
-- projection runs read-only with model/output receipts
-- leaked schema/prompt construction language is rejected
-- raw transcript and chronology stay raw and oldest-to-newest
-- deterministic pronoun guidance sits outside projection
-- channel labels are resolved through Persona permissions before posting
-- interpreter can retry one Persona pass when correction uptake or doctrine fails
-
-Epiphany should port that shape, not the exact TypeScript machinery.
-
-## Path To The Perfect Machine
-
-### Phase 0: Repair The Rust Body
-
-Goal: make the existing contracts buildable again. Status: landed for the local
-repo-contained dependency body.
-
-- Audited the CultLib/CultCache/CultNet/CultMesh repo layout.
-- Chose the repo-contained vendored Rust dependency source.
-- Updated dependency paths away from the dead `CultLib/crates` layout.
-- Added `vendor/cultmesh-rs` as the local CultMesh facade.
-- Ran the previously blocked focused surface through:
-  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib persona_turn`
-  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib mind_gateway`
-  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib substrate_gate`
-  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib eyes_gateway`
-  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib cultmesh_integration`
-  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib runtime_spine::tests::runtime_spine_emits_cultnet_hello_frame`
-
-Definition of done: contract code compiles against the intended Rust substrate
-without local path superstition. Verification: `cargo test --manifest-path
-.\vendor\cultmesh-rs\Cargo.toml` and `cargo test --manifest-path
-.\epiphany-core\Cargo.toml --lib` pass.
-
-### Phase 1: Make The Gates Executable
-
-Goal: no worker output, repo touch, or evidence claim bypasses the appropriate
-organ.
-
-- Implement Substrate Gate access request/review/grant/refusal documents in CultCache.
-- Route retrieval, indexing, file edit, shell command, Rider, and Unity bridge
-  operations through Substrate Gate access receipts.
-- Implement Eyes evidence request/review/packet/refusal documents in CultCache.
-- Require Eyes packets for claims promoted into Mind state proposals when the
-  claim depends on inspected source.
-- Landed first slice: role/reorient acceptance persists Mind gateway reviews
-  before state mutation and Mind state-commit receipts after state mutation.
-  This is proof, not yet a single transactional admission primitive.
-- Convert existing role/reorient acceptance to one Mind-owned state-admission
-  primitive when the storage layer can atomically pair mutation and commit
-  receipt.
-
-Definition of done: the old direct paths cannot produce repo mutation,
-evidence promotion, or durable state mutation without the corresponding typed
-receipt.
-
-### Phase 2: Give Hands, Soul, And Continuity Their Own Contracts
-
-Goal: action, verification, and continuity stop hiding behind neighbors.
-Status: first contract catalog slice landed.
-
-- Hands contracts landed:
-  - `epiphany.hands.action_intent`
-  - `epiphany.hands.command_receipt`
-  - `epiphany.hands.patch_receipt`
-  - `epiphany.hands.commit_receipt`
-  - `epiphany.hands.pr_receipt`
-  - `epiphany.hands.rollback_receipt`
-- Soul contracts landed:
-  - `epiphany.soul.verification_request`
-  - `epiphany.soul.invariant_check`
-  - `epiphany.soul.verdict_receipt`
-  - `epiphany.soul.regression_receipt`
-  - `epiphany.soul.review_receipt`
-- Continuity contracts landed:
-  - `epiphany.continuity.packet`
-  - `epiphany.continuity.compaction_checkpoint`
-  - `epiphany.continuity.sleep_distillation`
-  - `epiphany.continuity.recovery_receipt`
-  - `epiphany.continuity.stale_turn_repair`
-
-Definition of done: action, verification, and continuity have the same typed
-contract dignity as Mind/Substrate Gate/Eyes, and every worker launch carries the
-organ-dependency/receipt contract that later gates can enforce. Verification:
-`cargo test --manifest-path .\epiphany-core\Cargo.toml --lib` and `cargo run
---manifest-path .\epiphany-core\Cargo.toml --bin epiphany-cultmesh-smoke` pass
-for the catalog slice; the launch-contract slice is verified by `cargo test
---manifest-path .\epiphany-core\Cargo.toml --lib`. The attempted bridge crate
-verification is currently blocked before local code by an upstream
-`starlark_map`/`hashbrown` `Allocative` dependency conflict.
-
-Next step: make the launch-carried receipt expectations executable in the live
-worker/action/verification and compaction paths.
-
-### Phase 3: Port Void's Persona Prompting Shape Properly
-
-Goal: Persona becomes a living public organ without stealing authority.
-
-- Replace `PersonaProjectorInput` with an Imagination projector packet that carries
-  typed state, affect, memory, social topology, repo activity, semantic
-  attractors, curiosity hints, and dependency pressure.
-- Add deterministic sections outside projected state:
-  - raw transcript, oldest-to-newest
-  - visible chronology across rooms/surfaces
-  - human pronoun guidance
-  - channel label/permission policy
-  - media attachment awareness
-  - recent home-repo activity from Substrate-Gate-scoped reads
-- Make projection model-owned and read-only, with model output receipts.
-- Strengthen projection leakage rejection: no schema words, repo paths, prompt
-  construction language, grants/jurisdictions slurry, or direct action syntax.
-- Upgrade Mind Interpreter output from simple effect blocks to:
-  - correction check
-  - doctrine/coherence check
-  - decision: route/retry/drop
-  - structured memory/affect/social/speech effects
-  - retry limit
-- Ensure public speech resolves Persona-local channel labels through permissions
-  before delivery.
-
-Definition of done: Persona can be prompted by Aquarium/Discord/CultNet and the
-public result is natural, contextual, permission-aware, retryable, and unable to
-mutate state or post without parent routing.
-
-### Phase 4: Move Self Fully Onto CultNet/CultMesh
-
-Goal: Self routes organ work through typed contracts, not legacy JSON-RPC
-comfort tunnels.
-
-- Add Self routing contracts for choosing next organ, required dependencies,
-  and allowed authority.
-- Landed: role, generic, and reorient worker launch packets declare authority
-  scope, launch document kind, output contract id, owner organ, full organ
-  dependency matrix, and required Substrate Gate/Eyes/Hands/Soul/Continuity/Mind receipts.
-- Landed: role/reorient acceptance refuses completed runtime-spine findings
-  when the original worker launch request is missing, mismatched by document
-  kind, or lacks a state-admission proof profile requiring Mind review.
-- Landed: role/reorient acceptance persists Mind review/commit receipts around
-  durable state admission.
-- Landed: launch contracts split the broad receipt catalogue from effect-specific
-  proof profiles, so the machine does not demand every organ receipt for every
-  result.
-- Landed: acceptance evaluates claimed effect types against runtime-spine
-  receipt availability, enforces the currently live Mind gateway-review proof,
-  and defers unavailable non-Mind producer gaps instead of using them as false
-  blockers.
-- Landed: accepted Research findings produce and enforce typed Eyes evidence
-  packets for the evidence-promotion proof profile.
-- Landed: Research launches produce and enforce typed Substrate Gate
-  read/snapshot grants, closing the Research evidence-promotion chain through
-  Substrate Gate -> Eyes -> Mind.
-- Landed: Verification acceptance produces and enforces typed Soul verdict
-  receipts before Mind admission.
-- Landed: Reorient acceptance produces and enforces typed Continuity recovery
-  receipts before Mind admission.
-- Landed: first Hands action receipt spine. `HandsActionIntent`,
-  `HandsActionReview`, `HandsPatchReceipt`, `HandsCommandReceipt`, and
-  `HandsCommitReceipt` are typed runtime-spine documents with put/get helpers
-  and `epiphany-hands-action-smoke` coverage; the repo-action proof profile
-  requires intent, review, and patch receipt before promotion.
-- Next: connect live implementation edits/commands/commits to the Hands action
-  chain, or collapse Mind review/state mutation/commit into one storage-owner
-  admission primitive.
-- Make Aquarium read the contract catalog and available receipts instead of
-  hard-coding the route zoo.
-- Starve `codex_message_processor` down to Codex auth/model transport and
-  compatibility emission only.
-
-Definition of done: a local run can be inspected as a chain of CultNet/CultMesh
-documents from operator request to final response.
-
-### Phase 5: Runtime Physiology
-
-Goal: the machine runs as an organism.
-
-- Heartbeat scheduler wakes organs by initiative, pending pressure, and
-  completion-gated cooldown.
-- Active turns freeze initiative until receipt completion.
-- Sleep distills rumination through Continuity and Mind.
-- Stale active turns get Continuity recovery receipts.
-- Public/global Verse material enters as thought weather, then Eyes/Mind review
-  before adoption.
-
-Definition of done: unattended operation can pause, recover, explain current
-pressure, and preserve memory without transcript worship or hidden loops.
-
-### Phase 6: Aquarium As Inspectable Nervous System
-
-Goal: make the organism visible without making the UI a second truth.
-
-- Display organ dependency graph.
-- Display contract catalog by organ.
-- Display receipt chains per turn.
-- Display Persona prompt packet boundaries: deterministic evidence, Imagination
-  projection, Persona natural turn, Mind interpretation.
-- Display Substrate Gate grants, Eyes packets, Hands actions, Soul verdicts,
-  Continuity receipts, and Mind state commits.
-
-Definition of done: a human can ask "why did you touch that file / say that /
-remember that?" and see the typed path.
+Updated: 2026-07-12
+
+## Objective
+
+Prepare Epiphany as a coherent organism whose repository access, evidence,
+projection, public speech, action, verification, continuity, durable state,
+runtime physiology, and inspection surfaces have one visible owner each.
+
+This is a live authority audit. Historical implementation scars belong in git,
+distilled evidence, or archived notes. A green local test proves only the seam
+it actually observes.
+
+## Authority Map
+
+| Faculty | Owner | Inputs | Outputs | Current proof | Live gap |
+|---|---|---|---|---|---|
+| Self | native coordinator and repo-work scheduler | typed state, job/result receipts, current route pressure | bounded launch/routing decisions | coordinator acceptance tests; repo-work scheduler authority tests | heartbeat is not yet an always-on Idunn-owned process |
+| Substrate Gate | `substrate_gate` | scoped read/mutation request | access grant, refusal, snapshot, mutation receipt | Research launch/acceptance and Hands gate proofs | audit remaining utility/bridge substrate touches for bypasses |
+| Eyes | `eyes_gateway` | inspected source under a Substrate Gate grant | evidence packet or refusal | Research acceptance proof profile | public/foreign Verse adoption still needs a full live Eyes-to-Mind proof |
+| Imagination | planning and Persona projector boundaries | typed project/person state and candidate futures | plans, projections, consensus candidates | planning/consensus smokes and Persona projector tests | Persona projector/interpreter parity with the current Void reference needs a fresh audit |
+| Persona | Persona turn and public mouth edges | projected context plus visible conversation | natural speech candidate and speech audit | Persona Discord/Reddit/Bifrost smokes | Aquarium-native conversational inspection remains incomplete |
+| Hands | `hands_gateway` and repo-work execution | approved intent, path scope, Substrate Gate grant | patch, command, commit, PR, rollback receipts | real repo-work execution/closure and Hands receipt-chain smokes | search for non-repo-work actuators that still bypass the chain |
+| Soul | `soul_gateway` and verification phase | Hands consequence receipts and changed body | verdict/invariant/regression receipts | live repo-work Soul phase and acceptance tests | unify remaining verifier-specific projections under narrow receipt queries |
+| Modeling | typed repo-work Modeling route and model runtime | immutable Soul-verified request selected by current generation | immutable finding | generation-zero/generation-one runtime, Mind revision, Idunn launch, and admission proofs | no known authority split in the repo-work path |
+| Mind | canonical state transaction and gateway reviews | bounded effect proposal plus required organ proofs | durable state and commit receipt | one canonical writer/store; atomic coordinator and repo-map admission proofs | audit other state families for pre-transaction legacy writers |
+| Continuity | continuity contracts plus CRRC/stale-turn repair | pressure, checkpoint, sleep, and stale active state | checkpoint, recovery, sleep-distillation, stale-turn receipts | reorient acceptance and heartbeat stale-repair tests | sleep consolidation is callable, not continuously supervised physiology |
+| Nervous system | heartbeat state, runtime spine, Idunn, CultMesh/CultNet | pressure, pending turns, daemon/runtime state | scheduling, lifecycle, telemetry, interrupts | typed heartbeat pump/routine, runtime-spine jobs, Idunn service receipts | the heartbeat loop is still an attached PowerShell vigil rather than a native supervised daemon |
+| Body | repository, Rust binaries, CultCache/CultMesh stores, model transport | typed commands and granted external authority | real effects and inspectable artifacts | focused smokes and live repo work | continue cutting whole-context queries and compatibility-shaped native artifacts |
+
+## Structural Invariants
+
+1. Self routes; it does not author specialist findings or admit durable state.
+2. Substrate Gate owns substrate permission. Eyes owns evidence promotion.
+3. Hands alone changes the repository; Soul alone calls the consequence
+   verified; Modeling updates the machine model after Soul.
+4. Mind is the only durable-state admission owner. Reviews, state mutation, and
+   commit witnesses share the canonical transaction boundary where atomicity is
+   required.
+5. Immutable Modeling findings never change. Mind may advance one stable typed
+   route to a new generation; stale generations cannot close or regain current
+   authority.
+6. Idunn owns process and daemon lifecycle. Self may request a launch but may
+   not spawn, repair, or silently replace the child.
+7. CultCache documents are state, CultMesh is the local state/discovery
+   substrate, CultNet is the wire, and Eve/CultUI is the interface projection.
+   JSON is display or xenos-boundary cargo, not internal authority.
+8. Aquarium and other renderers inspect typed owners. They do not rebuild a
+   second route graph or dashboard-shaped truth.
+9. Pending turns freeze repeat scheduling. Cooldown begins after completion.
+   Stale turns require Continuity evidence, not timer-shaped amnesia.
+10. Public connection preserves consent, identity, permission, provenance, and
+    private-state seals at the actual mouth edge.
+
+## Evidence Ledger
+
+### Proven executable chains
+
+- Research: Substrate Gate grant -> Eyes packet -> Mind admission.
+- Implementation: scoped Hands intent/review -> patch/command/commit receipts.
+- Verification: Hands consequence -> Soul verdict -> Modeling request.
+- Repo map: immutable Modeling finding -> current typed route -> Mind/map
+  transaction -> Bifrost publication gate.
+- Retry: runtime-authored non-passing generation zero -> explicit Mind review ->
+  generation-one route -> consumer schema preflight -> Idunn lifecycle receipt
+  -> runtime-authored passing finding -> current-generation admission.
+- Recovery: reorient launch -> Continuity recovery receipt -> Mind admission.
+- Public crossing: Persona speech audit -> Bifrost/Heimdall authority checks ->
+  governed receipt or sealed refusal.
+
+### Proven negative boundaries
+
+- Scheduler cannot author Modeling findings or impersonate Mind admission.
+- CLI cannot counterfeit a runtime-authored Modeling finding.
+- Non-passing and stale-generation findings cannot enter the repo map.
+- Passing findings cannot be revised into retries.
+- `epiphany-work` cannot spawn the model child; Idunn owns process launch.
+- Consumer schema preflight happens before the runtime job is opened.
+- Extinct Codex Epiphany DTO/route/bridge paths cannot write native state.
+
+## Current Highest-Priority Gap: Native Heartbeat Daemon
+
+### Current mechanism
+
+`epiphany-heartbeat-store` owns typed `tick`, `pump`, `complete`,
+`repair-stale`, `routine`, and `status` operations. It already enforces pending
+turn freeze, completion-gated cooldown, adaptive pacing, swarm brakes, stale
+turn repair, rumination, sleep, memory resonance, and dream maintenance.
+
+The first native loop is landed as `epiphany-heartbeat-store serve`. It reuses
+the existing routine state owner, writes per-pulse artifact directories, emits
+compact sealed pulse/closure receipts, refuses a zero interval, and supports
+bounded clean shutdown for verification. It does not spawn or own child
+lifecycle. `tools/epiphany_ruminate_until.ps1` still owns the old attached
+operator vigil and must be demoted after Idunn proves the native service path.
+
+### Intended change
+
+Launch the native `serve` loop through the existing Idunn service lifecycle
+path. The heartbeat binary owns
+pulse timing and typed heartbeat receipts. Idunn owns child survival, restart,
+stdout/stderr artifacts, and lifecycle receipts. Self remains only the routing
+organ consuming heartbeat pressure.
+
+### Owner
+
+- Heartbeat scheduler: when a pulse is due and which bounded routine/pump action
+  runs.
+- Idunn: whether the heartbeat process is running and how it restarts.
+- Continuity: repair of stale active turns and sleep/compaction evidence.
+- Mind: admission of durable self/memory changes proposed by heartbeat work.
+
+### Inputs
+
+- heartbeat CultCache store;
+- agent-memory store;
+- local Verse store and swarm brake;
+- bounded interval, maximum iterations, and shutdown signal;
+- current pressure and pending-turn state.
+
+### Outputs
+
+- typed heartbeat selection/completion/routine receipts;
+- compact status/telemetry projection;
+- Idunn service lifecycle receipt and sealed stdout/stderr artifacts;
+- explicit clean shutdown or failure status.
+
+### Forbidden writers
+
+- PowerShell wall-clock loops deciding heartbeat truth;
+- Self spawning or restarting the heartbeat process;
+- a renderer owning scheduling state;
+- sleep directly mutating durable identity without Continuity/Mind review;
+- overlapping pulses while a previous pulse remains active.
+
+### Shared paths
+
+Manual `tick`/`pump`/`routine`, daemon pulses, recovery after restart, swarm
+brake refusal, and shutdown must call the same existing store primitives. The
+daemon is orchestration around those owners, not a second scheduler.
+
+### Cut line
+
+Demote `tools/epiphany_ruminate_until.ps1` to a historical/operator probe after
+the native loop and Idunn launch proof exist. Do not preserve its timing,
+status, or cycle-directory conventions as runtime authority.
+
+### Verification
+
+- unit test: `serve` refuses zero/unsafe interval and overlapping active work;
+- bounded smoke: two iterations use the same typed routine/pump primitives and
+  stop cleanly;
+- restart smoke: Idunn lifecycle receipt proves child ownership and a second
+  process resumes from persisted heartbeat state without duplicate pending
+  turns;
+- brake smoke: an engaged swarm brake prevents mutation while the daemon stays
+  observable;
+- negative source check: the native heartbeat binary contains no child spawn or
+  second state writer;
+- operator readback: status names heartbeat owner, Idunn lifecycle owner, last
+  completed pulse, next due pulse, active turn, and private-state seal.
+
+## Subsequent Audits
+
+1. Narrow the remaining `query_epiphany_local_verse_context` consumers. Daemon
+   and operator commands should load only the typed families they own or
+   project.
+2. Re-audit Persona Projector -> Persona -> Mind Interpreter against current
+   Void behavior and public permission boundaries.
+3. Make Aquarium lower the organ graph, contract catalog, and per-turn receipt
+   chains from CultMesh/Eve instead of hard-coded routes.
+4. Audit non-repo-work actuators and legacy state families for bypasses around
+   Substrate Gate, Hands, Soul, or the canonical Mind transaction.
+5. Finish Codex starvation: retain only authenticated model transport and
+   explicitly quarantined compatibility edges.
 
 ## Perfect Machine Target
-
-The Perfect Machine is not more prompts and not more bureaucracy. It is a
-coherent authority graph:
 
 ```text
 Self routes.
 Substrate Gate grants substrate access.
-Eyes certifies looked-at evidence.
-Imagination projects possible scenes and futures.
+Eyes certifies inspected evidence.
+Imagination projects possible futures and lived context.
 Persona speaks as a person.
 Hands changes the world.
-Soul verifies promises and invariants.
-Continuity preserves continuity across rupture.
+Soul verifies consequence and invariant.
+Modeling updates the machine model from verified consequence.
+Continuity preserves coherence across sleep, interruption, and rupture.
 Mind admits durable state.
-CultMesh carries the local typed Verse surfaces.
-CultNet carries wire contracts.
-CultCache preserves the typed documents.
-Codex remains only model/auth transport until it can be replaced or minimized.
+Idunn keeps the body alive.
+CultMesh/CultNet carry typed signal.
+CultCache preserves typed memory.
+Eve/Aquarium make the organism inspectable without becoming its truth.
 ```
-
-When this is real, no organ can steal the throne. The machine can act, speak,
-remember, doubt, recover, and be inspected without turning connection into mush.

@@ -27,6 +27,8 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::thread;
+use std::time::Duration;
 use uuid::Uuid;
 
 fn main() -> Result<()> {
@@ -79,6 +81,8 @@ fn main() -> Result<()> {
     let mut mention_id: Option<String> = None;
     let mut max_age_seconds = 1800_i64;
     let mut now_utc: Option<String> = None;
+    let mut interval_seconds = 120_u64;
+    let mut max_iterations = 0_u64;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -151,6 +155,12 @@ fn main() -> Result<()> {
                 max_age_seconds = next_value(&mut args, "--max-age-seconds")?.parse()?
             }
             "--now-utc" => now_utc = Some(next_value(&mut args, "--now-utc")?),
+            "--interval-seconds" => {
+                interval_seconds = next_value(&mut args, "--interval-seconds")?.parse()?
+            }
+            "--max-iterations" => {
+                max_iterations = next_value(&mut args, "--max-iterations")?.parse()?
+            }
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
     }
@@ -377,6 +387,81 @@ fn main() -> Result<()> {
                 },
             )?;
             println!("{}", result);
+        }
+        "serve" => {
+            if interval_seconds == 0 {
+                return Err(anyhow!("serve requires --interval-seconds greater than zero"));
+            }
+            let store_path = store_path.ok_or_else(|| anyhow!("serve requires --store"))?;
+            let artifact_dir =
+                artifact_dir.ok_or_else(|| anyhow!("serve requires --artifact-dir"))?;
+            if let Some(agent_store) = &agent_store {
+                let errors = validate_agent_memory_store(agent_store)?;
+                if !errors.is_empty() {
+                    return Err(anyhow!(
+                        "agent memory validation failed: {}",
+                        errors.join("; ")
+                    ));
+                }
+            }
+            fs::create_dir_all(&artifact_dir).with_context(|| {
+                format!(
+                    "failed to create heartbeat serve artifact directory {}",
+                    artifact_dir.display()
+                )
+            })?;
+            let mut completed_iterations = 0_u64;
+            loop {
+                if max_iterations > 0 && completed_iterations >= max_iterations {
+                    break;
+                }
+                assert_swarm_brake_allows_heartbeat(&local_verse_store, "serve")?;
+                let iteration = completed_iterations + 1;
+                let iteration_dir = artifact_dir.join(format!("pulse-{iteration:06}"));
+                let result = run_void_routine_store(
+                    &store_path,
+                    &iteration_dir,
+                    VoidRoutineOptions {
+                        agent_store: agent_store.clone(),
+                        source: source.clone(),
+                        allow_dream: !no_dream,
+                    },
+                )?;
+                completed_iterations = iteration;
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "schemaVersion": "epiphany.heartbeat.serve_pulse.v0",
+                        "status": "completed",
+                        "owner": "heartbeat",
+                        "lifecycleOwner": "Idunn",
+                        "iteration": iteration,
+                        "artifactDir": iteration_dir,
+                        "routineOk": result["ok"],
+                        "routineArtifact": result["artifactPath"],
+                        "privateStateExposed": false
+                    })
+                );
+                if max_iterations > 0 && completed_iterations >= max_iterations {
+                    break;
+                }
+                thread::sleep(Duration::from_secs(interval_seconds));
+            }
+            println!(
+                "{}",
+                serde_json::json!({
+                    "schemaVersion": "epiphany.heartbeat.serve_receipt.v0",
+                    "status": "stopped-cleanly",
+                    "owner": "heartbeat",
+                    "lifecycleOwner": "Idunn",
+                    "store": store_path,
+                    "artifactDir": artifact_dir,
+                    "intervalSeconds": interval_seconds,
+                    "completedIterations": completed_iterations,
+                    "bounded": max_iterations > 0,
+                    "privateStateExposed": false
+                })
+            );
         }
         "smoke" => {
             let agent_store = agent_store.unwrap_or_else(|| PathBuf::from("state/agents.msgpack"));
