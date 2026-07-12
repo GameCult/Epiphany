@@ -128,6 +128,9 @@ The confirmed conceptual substitutions have been cut:
 - Service lifecycle projection selects the actual latest family event. An old
   attention receipt no longer masquerades as current state after recovery;
   newer failures still surface immediately.
+- The lifecycle `latest` mirror is event-time-owned, not last-writer-wins.
+  Invalid/reversed timestamps are refused and delayed old receipts cannot move
+  the mirror backward.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

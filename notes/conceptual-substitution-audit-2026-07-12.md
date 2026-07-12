@@ -501,3 +501,13 @@ for each service family; attention is derived from that event. History retains
 older failures without letting them impersonate current state. Adversarial
 tests prove a newer recovery supersedes an old failure and a newer failure is
 not hidden by an old recovery.
+
+## Last writer presented as latest lifecycle event
+
+The lifecycle `latest` mirror was overwritten on every write. A delayed retry
+or replay of an older receipt could therefore move the stored present backward
+even though immutable history contained the correct ordering. Lifecycle writes
+now validate RFC3339 start/completion timestamps, reject completion before
+start, and update the mirror only when `(event time, receipt ID)` is not older
+than the current mirror. A delayed old receipt remains in history without
+becoming current.

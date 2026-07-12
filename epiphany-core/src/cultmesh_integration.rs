@@ -8,6 +8,8 @@ use crate::default_substrate_gate_cultnet_contracts;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use chrono::DateTime;
+use chrono::FixedOffset;
 use cultcache_rs::CultSoaColumnValues;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SoaDocument;
@@ -3519,10 +3521,17 @@ pub fn write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let receipt_key = epiphany_cultmesh_daemon_service_lifecycle_receipt_key(&receipt.receipt_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(
+    let current_latest = node.get::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(
         EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
-        &written,
     )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        daemon_service_lifecycle_event_key(&written) >= daemon_service_lifecycle_event_key(current)
+    }) {
+        node.put(
+            EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
+            &written,
+        )?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -3990,6 +3999,19 @@ fn validate_daemon_service_lifecycle_receipt(
             return Err(anyhow!("daemon service lifecycle receipt missing {label}"));
         }
     }
+    let started_at = DateTime::parse_from_rfc3339(&receipt.started_at_utc).map_err(|error| {
+        anyhow!("daemon service lifecycle receipt has invalid started at: {error}")
+    })?;
+    if let Some(completed_at) = receipt.completed_at_utc.as_deref() {
+        let completed_at = DateTime::parse_from_rfc3339(completed_at).map_err(|error| {
+            anyhow!("daemon service lifecycle receipt has invalid completed at: {error}")
+        })?;
+        if completed_at < started_at {
+            return Err(anyhow!(
+                "daemon service lifecycle receipt completed before it started"
+            ));
+        }
+    }
     if !receipt.required_document_types.is_empty()
         && (!receipt.schema_preflight_passed
             || receipt.executable_sha256.trim().is_empty()
@@ -4001,6 +4023,22 @@ fn validate_daemon_service_lifecycle_receipt(
         ));
     }
     Ok(())
+}
+
+fn daemon_service_lifecycle_event_key(
+    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    let event_time = receipt
+        .completed_at_utc
+        .as_deref()
+        .map(DateTime::parse_from_rfc3339)
+        .transpose()
+        .expect("validated lifecycle completion timestamp")
+        .unwrap_or_else(|| {
+            DateTime::parse_from_rfc3339(&receipt.started_at_utc)
+                .expect("validated lifecycle start timestamp")
+        });
+    (event_time, receipt.receipt_id.as_str())
 }
 
 pub fn epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
@@ -7137,7 +7175,82 @@ mod tests {
                 &store,
                 "epiphany-test"
             )?,
+            Some(second.clone())
+        );
+
+        let mut delayed_first = first.clone();
+        delayed_first.receipt_id = "service-lifecycle-delayed-first".to_string();
+        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            &store,
+            "epiphany-test",
+            delayed_first,
+        )?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &store,
+                "epiphany-test"
+            )?,
             Some(second)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn service_lifecycle_receipt_refuses_invalid_or_reversed_time() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp
+            .path()
+            .join("epiphany-service-lifecycle-invalid-time.ccmp");
+        let mut receipt = EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                .to_string(),
+            receipt_id: "service-lifecycle-invalid-time".to_string(),
+            service_id: "epiphany-daemon-supervisor-service".to_string(),
+            scheduler_id: "epiphany-daemon-supervisor".to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            daemon_selector: "epiphany-daemon-supervisor".to_string(),
+            action: "windows-service-status".to_string(),
+            status: "running".to_string(),
+            command: "powershell.exe".to_string(),
+            args: Vec::new(),
+            cwd: None,
+            process_id: None,
+            exit_code: Some(0),
+            started_at_utc: "not-a-time".to_string(),
+            completed_at_utc: None,
+            operator_artifact_ref: "test://invalid-time".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+            executable_sha256: String::new(),
+            preflight_witness_id: String::new(),
+            required_document_types: Vec::new(),
+            schema_preflight_passed: false,
+            schema_catalog_sha256: String::new(),
+        };
+        assert!(
+            write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &store,
+                "epiphany-test",
+                receipt.clone(),
+            )
+            .is_err()
+        );
+        receipt.started_at_utc = "2026-07-13T02:00:00Z".to_string();
+        receipt.completed_at_utc = Some("2026-07-13T01:00:00Z".to_string());
+        assert!(
+            write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &store,
+                "epiphany-test",
+                receipt,
+            )
+            .is_err()
+        );
+        assert!(
+            load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &store,
+                "epiphany-test"
+            )?
+            .is_none()
         );
         Ok(())
     }
