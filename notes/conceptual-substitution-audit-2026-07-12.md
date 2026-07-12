@@ -381,3 +381,13 @@ the caller fields. The echo fields, review helper, scheduler transcription,
 and usage surface are deleted. Full closure now loads the current immutable
 Modeling finding directly and refuses absence; caller text cannot stand in for
 the Modeling organ even temporarily.
+
+## Caller-selected shell as Soul verification
+
+`close --verification-command` let the caller choose the shell command whose
+zero exit status contributed to Soul's verdict; source grounding was optional,
+and a missing plan receipt made family assertions `skipped` but passing. The
+command and grounding flags are deleted. Soul now performs a fixed Git
+consequence inspection, requires source grounding, and fails closure when the
+typed plan or its family evidence is missing. Callers may no longer redefine
+verification as `exit 0` or obtain a pardon by omitting the plan.

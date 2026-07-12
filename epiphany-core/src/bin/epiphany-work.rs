@@ -277,9 +277,7 @@ struct CloseArgs {
     execute_receipt: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
-    verification_command: Option<String>,
     verification_summary: Option<String>,
-    require_source_grounding: bool,
     state_revision: u64,
 }
 
@@ -841,9 +839,7 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
     let mut execute_receipt = None;
     let mut runtime_store = None;
     let mut artifact_dir = None;
-    let mut verification_command = None;
     let mut verification_summary = None;
-    let mut require_source_grounding = false;
     let mut state_revision = 0_u64;
 
     let mut args = args.peekable();
@@ -856,13 +852,9 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
             }
             "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
-            "--verification-command" => {
-                verification_command = Some(take_string(&mut args, "--verification-command")?);
-            }
             "--verification-summary" => {
                 verification_summary = Some(take_string(&mut args, "--verification-summary")?);
             }
-            "--require-source-grounding" => require_source_grounding = true,
             "--state-revision" => state_revision = take_u64(&mut args, "--state-revision")?,
             other => return Err(anyhow!("unexpected close argument {other:?}")),
         }
@@ -873,9 +865,7 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
         execute_receipt,
         runtime_store,
         artifact_dir,
-        verification_command,
         verification_summary,
-        require_source_grounding,
         state_revision,
     })
 }
@@ -6320,23 +6310,23 @@ fn closure_family_assertions(
     let Some(plan_receipt_path) = path_from_json(execute_receipt, &["planReceiptPath"]) else {
         return Ok((
             json!({
-                "status": "skipped",
+                "status": "failed",
                 "reason": "execute receipt has no planReceiptPath",
                 "assertions": []
             }),
-            true,
+            false,
         ));
     };
     let plan_receipt = read_json_if_exists(&plan_receipt_path)?.unwrap_or(Value::Null);
     if plan_receipt.is_null() {
         return Ok((
             json!({
-                "status": "skipped",
+                "status": "failed",
                 "reason": "plan receipt path is missing",
                 "planReceiptPath": plan_receipt_path,
                 "assertions": []
             }),
-            true,
+            false,
         ));
     }
     let safe_family = string_from_json(&plan_receipt, &["derivation", "safeActionFamily"])
@@ -10976,9 +10966,7 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
             "execute receipt commit sha does not match runtime Hands commit receipt"
         ));
     }
-    let verification_command = args
-        .verification_command
-        .unwrap_or_else(|| format!("git show --stat --oneline {commit_sha}"));
+    let verification_command = format!("git show --stat --oneline {commit_sha}");
     let stdout_artifact = artifact_dir.join(format!("work-close-{item_slug}.stdout.log"));
     let stderr_artifact = artifact_dir.join(format!("work-close-{item_slug}.stderr.log"));
     let verification = Command::new("powershell")
@@ -11023,7 +11011,7 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
             &verification.stdout,
             &verification.stderr,
             &commit_stat,
-            args.require_source_grounding,
+            true,
         );
     let verification_output_mentions_changed_paths = bool_from_json(
         &verification_source_grounding,
@@ -11075,7 +11063,7 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
             "commitStat": compact_multiline(&commit_stat),
             "commitReceiptMatchedExecuteReceipt": true,
             "verificationOutputMentionsChangedPaths": verification_output_mentions_changed_paths,
-            "sourceGroundingRequired": args.require_source_grounding,
+            "sourceGroundingRequired": true,
             "mindAdoptionPassed": mind_adoption_passed,
             "familyAssertionsPassed": family_assertions_passed,
             "modelClosurePassed": false
@@ -13866,9 +13854,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                         execute_receipt: Some(execute_receipt_path.clone()),
                         runtime_store: Some(runtime_store.clone()),
                         artifact_dir: Some(artifact_dir.clone()),
-                        verification_command: None,
                         verification_summary: None,
-                        require_source_grounding: false,
                         state_revision: 0,
                     })?;
                     status = advanced_result["status"]
@@ -13974,9 +13960,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                 execute_receipt: Some(execute_receipt_path.clone()),
                 runtime_store: args.runtime_store.clone(),
                 artifact_dir: Some(artifact_dir.clone()),
-                verification_command: None,
                 verification_summary: None,
-                require_source_grounding: false,
                 state_revision: 0,
             })?;
             status = advanced_result
@@ -15361,13 +15345,15 @@ mod authority_tests {
     use epiphany_core::put_repo_work_modeling_finding;
 
     #[test]
-    fn close_rejects_caller_authored_modeling_echoes() -> Result<()> {
+    fn close_rejects_caller_authored_verification_and_modeling_authority() -> Result<()> {
         for flag in [
             "--closure-model-ref",
             "--closure-model-verdict",
             "--closure-model-finding",
             "--model-authored",
             "--modeling-summary",
+            "--verification-command",
+            "--require-source-grounding",
         ] {
             let error = parse_close_args([flag.to_string(), "counterfeit".to_string()].into_iter())
                 .expect_err("legacy Modeling echo must be refused");
@@ -16208,7 +16194,7 @@ fn print_usage() {
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
-         close --workspace <repo> [--item <id>] [--execute-receipt <path>] [--verification-command <command>] [--require-source-grounding]\n\
+         close --workspace <repo> [--item <id>] [--execute-receipt <path>]\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\
          readiness --workspace <repo> [--item <id>] [--accept-receipt <path>] [--public-proof <path>] [--idunn-lifecycle-receipt <path>] [--deployment-aftercare-audit-receipt <path>|--deployment-aftercare-audit-receipt-ref <ref>] [--tool-directory-receipt <path>] [--no-write]\n\
          deployment-config-audit --workspace <repo> [--artifact-dir <path>] [--no-write]\n\
