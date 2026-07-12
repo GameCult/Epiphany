@@ -1893,6 +1893,12 @@ automation prefer unified CultCache and fail closed on corrupt native state,
 while `stateUpdated` notifications carry the native commit result directly.
 Historical rollout reconstruction remains migration-only. Next audit whether
 the remaining session fallback and compatibility routes can be narrowed further.
+That audit removed Codex session custody entirely: `SessionState`, `Session`, and
+`CodexThread` no longer cache or expose Epiphany state, and normal Codex rollout
+reconstruction ignores legacy Epiphany items. The app-server reads unified
+CultCache first and invokes the legacy rollout parser directly only when native
+state is absent. Next move that parser out of `codex-core` into the compatibility
+boundary if the protocol seam permits it.
 
 ## Immediate Re-entry Instruction
 

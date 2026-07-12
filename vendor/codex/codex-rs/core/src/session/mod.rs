@@ -86,7 +86,6 @@ use codex_protocol::models::format_allow_prefixes;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::permissions::FileSystemSandboxPolicy;
 use codex_protocol::permissions::NetworkSandboxPolicy;
-use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::FileChange;
 use codex_protocol::protocol::HasLegacyEvent;
 use codex_protocol::protocol::InterAgentCommunication;
@@ -1111,8 +1110,6 @@ impl Session {
             reconstructed_rollout.reference_context_item,
         )
         .await;
-        self.set_epiphany_state(reconstructed_rollout.epiphany_state)
-            .await;
         self.set_previous_turn_settings(previous_turn_settings.clone())
             .await;
         previous_turn_settings
@@ -1136,16 +1133,6 @@ impl Session {
     ) {
         let mut state = self.state.lock().await;
         state.set_previous_turn_settings(previous_turn_settings);
-    }
-
-    pub(crate) async fn epiphany_state(&self) -> Option<EpiphanyThreadState> {
-        let state = self.state.lock().await;
-        state.epiphany_state()
-    }
-
-    pub(crate) async fn set_epiphany_state(&self, epiphany_state: Option<EpiphanyThreadState>) {
-        let mut state = self.state.lock().await;
-        state.set_epiphany_state(epiphany_state);
     }
 
     fn maybe_refresh_shell_snapshot_for_cwd(

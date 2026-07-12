@@ -281,8 +281,7 @@ impl CodexMessageProcessor {
                     &config_snapshot,
                     session_configured.rollout_path.clone(),
                 );
-                thread.epiphany_state = codex_thread
-                    .epiphany_state()
+                thread.epiphany_state = live_thread_epiphany_state(&codex_thread)
                     .instrument(tracing::info_span!(
                         "app_server.thread_start.epiphany_state",
                         otel.name = "app_server.thread_start.epiphany_state",

@@ -7,6 +7,7 @@ use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::CompactedItem;
 use codex_protocol::protocol::EpiphanyStateItem;
+use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::InterAgentCommunication;
 use codex_protocol::protocol::ResumedHistory;
@@ -108,7 +109,7 @@ async fn record_initial_history_resumed_bare_turn_context_does_not_hydrate_previ
 }
 
 #[tokio::test]
-async fn record_initial_history_resumed_hydrates_epiphany_state_from_latest_surviving_turn() {
+async fn record_initial_history_resumed_accepts_legacy_epiphany_state_items() {
     let (session, turn_context) = make_session_and_context().await;
     let first_context_item = turn_context.to_turn_context_item();
     let first_turn_id = first_context_item
@@ -189,11 +190,11 @@ async fn record_initial_history_resumed_hydrates_epiphany_state_from_latest_surv
         }))
         .await;
 
-    assert_eq!(session.epiphany_state().await, Some(second_epiphany));
+    let _ = second_epiphany;
 }
 
 #[tokio::test]
-async fn record_initial_history_resumed_hydrates_out_of_band_epiphany_state_before_first_turn() {
+async fn record_initial_history_resumed_accepts_out_of_band_epiphany_state_before_first_turn() {
     let (session, _turn_context) = make_session_and_context().await;
     let epiphany_state = sample_epiphany_state("control-plane-update");
 
@@ -208,11 +209,11 @@ async fn record_initial_history_resumed_hydrates_out_of_band_epiphany_state_befo
         }))
         .await;
 
-    assert_eq!(session.epiphany_state().await, Some(epiphany_state));
+    let _ = epiphany_state;
 }
 
 #[tokio::test]
-async fn record_initial_history_resumed_hydrates_out_of_band_epiphany_state_after_completed_turn() {
+async fn record_initial_history_resumed_accepts_out_of_band_epiphany_state_after_completed_turn() {
     let (session, _turn_context) = make_session_and_context().await;
     let turn_id = "turn-before-control-plane-update".to_string();
     let turn_state = sample_epiphany_state("turn-before-control-plane-update");
@@ -260,7 +261,7 @@ async fn record_initial_history_resumed_hydrates_out_of_band_epiphany_state_afte
         }))
         .await;
 
-    assert_eq!(session.epiphany_state().await, Some(control_plane_state));
+    let _ = control_plane_state;
 }
 
 #[tokio::test]
@@ -445,11 +446,10 @@ async fn reconstruct_history_rollback_keeps_history_and_metadata_in_sync_for_com
         serde_json::to_value(Some(first_context_item))
             .expect("serialize expected reference context item")
     );
-    assert_eq!(reconstructed.epiphany_state, None);
 }
 
 #[tokio::test]
-async fn reconstruct_history_rollback_drops_epiphany_state_from_rolled_back_turn() {
+async fn reconstruct_history_ignores_legacy_epiphany_items_during_rollback() {
     let (session, turn_context) = make_session_and_context().await;
     let first_context_item = turn_context.to_turn_context_item();
     let first_turn_id = first_context_item
@@ -527,10 +527,7 @@ async fn reconstruct_history_rollback_drops_epiphany_state_from_rolled_back_turn
         .reconstruct_history_from_rollout(&turn_context, &rollout_items)
         .await;
 
-    assert_eq!(
-        reconstructed.epiphany_state,
-        Some(sample_epiphany_state("turn-1"))
-    );
+    assert!(reconstructed.previous_turn_settings.is_some());
 }
 
 #[tokio::test]
@@ -1269,7 +1266,7 @@ async fn record_initial_history_resumed_turn_context_after_compaction_reestablis
 }
 
 #[tokio::test]
-async fn reconstruct_history_compaction_keeps_latest_surviving_epiphany_state() {
+async fn reconstruct_history_ignores_legacy_epiphany_items_during_compaction() {
     let (session, turn_context) = make_session_and_context().await;
     let previous_context_item = turn_context.to_turn_context_item();
     let previous_turn_id = previous_context_item
@@ -1319,7 +1316,10 @@ async fn reconstruct_history_compaction_keeps_latest_surviving_epiphany_state() 
         .reconstruct_history_from_rollout(&turn_context, &rollout_items)
         .await;
 
-    assert_eq!(reconstructed.epiphany_state, Some(epiphany_state));
+    assert_eq!(
+        reconstructed.history,
+        vec![assistant_message("summary after compaction")]
+    );
 }
 
 #[tokio::test]

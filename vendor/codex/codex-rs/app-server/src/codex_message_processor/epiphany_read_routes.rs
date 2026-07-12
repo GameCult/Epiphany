@@ -2,6 +2,7 @@ use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
+use super::epiphany_thread_host::load_authoritative_epiphany_state;
 use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -504,8 +505,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let expected_revision = thread
-            .epiphany_state()
+        let expected_revision = load_authoritative_epiphany_state(&thread)
             .await
             .map(|state| state.revision)
             .unwrap_or(0);
@@ -554,7 +554,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let state = match thread.epiphany_state().await {
+        let state = match load_authoritative_epiphany_state(&thread).await {
             Some(state) => state,
             None => {
                 self.send_invalid_request_error(

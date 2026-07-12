@@ -9,7 +9,6 @@ use crate::context_manager::ContextManager;
 use crate::session::PreviousTurnSettings;
 use crate::session::session::SessionConfiguration;
 use crate::session_startup_prewarm::SessionStartupPrewarmHandle;
-use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::RateLimitSnapshot;
 use codex_protocol::protocol::TokenUsage;
 use codex_protocol::protocol::TokenUsageInfo;
@@ -30,7 +29,6 @@ pub(crate) struct SessionState {
     /// Startup prewarmed session prepared during session initialization.
     pub(crate) startup_prewarm: Option<SessionStartupPrewarmHandle>,
     pub(crate) pending_session_start_source: Option<codex_hooks::SessionStartSource>,
-    epiphany_state: Option<EpiphanyThreadState>,
     granted_permissions: Option<PermissionProfile>,
     next_turn_is_first: bool,
 }
@@ -48,7 +46,6 @@ impl SessionState {
             previous_turn_settings: None,
             startup_prewarm: None,
             pending_session_start_source: None,
-            epiphany_state: None,
             granted_permissions: None,
             next_turn_is_first: true,
         }
@@ -107,14 +104,6 @@ impl SessionState {
 
     pub(crate) fn reference_context_item(&self) -> Option<TurnContextItem> {
         self.history.reference_context_item()
-    }
-
-    pub(crate) fn epiphany_state(&self) -> Option<EpiphanyThreadState> {
-        self.epiphany_state.clone()
-    }
-
-    pub(crate) fn set_epiphany_state(&mut self, epiphany_state: Option<EpiphanyThreadState>) {
-        self.epiphany_state = epiphany_state;
     }
 
     // Token/rate limit helpers

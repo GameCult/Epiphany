@@ -285,3 +285,10 @@ document is corrupt; session state is only an empty-store migration seed.
 `stateUpdated` notifications carry the exact native commit result directly.
 Historical rollout reconstruction remains a compatibility reader, not an owner
 or a writer.
+
+Codex session custody is deleted as well. `SessionState`, `Session`, and
+`CodexThread` carry no Epiphany state cache or accessor; normal Codex rollout
+reconstruction ignores historical Epiphany items. The app-server compatibility
+host reads unified CultCache first and, only when it is empty, invokes the
+legacy rollout reader directly at the boundary. A source guard rejects renewed
+session custody.

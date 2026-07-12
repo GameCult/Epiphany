@@ -147,14 +147,16 @@ use std::time::Duration as StdDuration;
 
 mod guardian_tests;
 
-fn sample_epiphany_state_for_persistence() -> EpiphanyThreadState {
-    EpiphanyThreadState {
-        revision: 1,
-        objective: Some("Persist the epiphany baseline".to_string()),
-        active_subgoal_id: Some("phase1".to_string()),
-        last_updated_turn_id: Some("phase1-turn".to_string()),
-        ..Default::default()
-    }
+#[test]
+fn codex_session_has_no_epiphany_state_custody() {
+    let session_state = include_str!("../state/session.rs");
+    let session = include_str!("mod.rs");
+    let codex_thread = include_str!("../codex_thread.rs");
+
+    assert!(!session_state.contains("epiphany_state"));
+    assert!(!session.contains("set_epiphany_state"));
+    assert!(!session.contains("async fn epiphany_state"));
+    assert!(!codex_thread.contains("async fn epiphany_state"));
 }
 
 fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {
@@ -5137,9 +5139,6 @@ async fn record_context_updates_and_set_reference_context_item_persists_baseline
 #[tokio::test]
 async fn record_context_updates_does_not_persist_epiphany_state() {
     let (session, turn_context) = make_session_and_context().await;
-    session
-        .set_epiphany_state(Some(sample_epiphany_state_for_persistence()))
-        .await;
     let config = session.get_config().await;
     let recorder = RolloutRecorder::new(
         config.as_ref(),
@@ -5310,20 +5309,6 @@ async fn build_initial_context_prepends_model_switch_message() {
 }
 
 #[tokio::test]
-async fn build_initial_context_does_not_inject_epiphany_state_when_present() {
-    let (session, turn_context) = make_session_and_context().await;
-    session
-        .set_epiphany_state(Some(sample_epiphany_state_for_prompt()))
-        .await;
-
-    let initial_context = session.build_initial_context(&turn_context).await;
-    let developer_text = joined_developer_input_text(&initial_context);
-
-    assert!(!developer_text.contains("<epiphany_state>"));
-    assert!(!developer_text.contains("## Epiphany State"));
-}
-
-#[tokio::test]
 async fn build_initial_context_omits_epiphany_state_block_when_absent() {
     let (session, turn_context) = make_session_and_context().await;
 
@@ -5374,19 +5359,6 @@ async fn build_initial_context_does_not_inject_resumed_epiphany_state() {
 
     assert!(!developer_text.contains("<epiphany_state>"));
     assert!(!developer_text.contains("Checkpoint: `phase2-checkpoint` (graph revision 7)"));
-}
-
-#[tokio::test]
-async fn build_initial_context_epiphany_state_has_no_prompt_projection() {
-    let (session, turn_context) = make_session_and_context().await;
-    session
-        .set_epiphany_state(Some(sample_epiphany_state_for_prompt()))
-        .await;
-
-    let initial_context = session.build_initial_context(&turn_context).await;
-    let developer_text = joined_developer_input_text(&initial_context);
-
-    assert!(!developer_text.contains("<epiphany_state>"));
 }
 
 #[tokio::test]

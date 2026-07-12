@@ -8,7 +8,6 @@ pub(super) struct RolloutReconstruction {
     pub(super) history: Vec<ResponseItem>,
     pub(super) previous_turn_settings: Option<PreviousTurnSettings>,
     pub(super) reference_context_item: Option<TurnContextItem>,
-    pub(super) epiphany_state: Option<EpiphanyThreadState>,
 }
 
 #[derive(Debug, Default)]
@@ -33,7 +32,6 @@ struct ActiveReplaySegment<'a> {
     counts_as_user_turn: bool,
     previous_turn_settings: Option<PreviousTurnSettings>,
     reference_context_item: TurnReferenceContextItem,
-    epiphany_state: Option<EpiphanyThreadState>,
     base_replacement_history: Option<&'a [ResponseItem]>,
 }
 
@@ -47,7 +45,6 @@ fn finalize_active_segment<'a>(
     base_replacement_history: &mut Option<&'a [ResponseItem]>,
     previous_turn_settings: &mut Option<PreviousTurnSettings>,
     reference_context_item: &mut TurnReferenceContextItem,
-    epiphany_state: &mut Option<EpiphanyThreadState>,
     pending_rollback_turns: &mut usize,
 ) {
     // Thread rollback drops the newest surviving real user-message boundaries. In replay, that
@@ -71,13 +68,6 @@ fn finalize_active_segment<'a>(
         *previous_turn_settings = active_segment.previous_turn_settings;
     }
 
-    if epiphany_state.is_none()
-        && (active_segment.counts_as_user_turn
-            || (active_segment.turn_id.is_none() && active_segment.epiphany_state.is_some()))
-    {
-        *epiphany_state = active_segment.epiphany_state;
-    }
-
     // `reference_context_item` comes from the newest surviving user turn baseline, or
     // from a surviving compaction that explicitly cleared that baseline.
     if matches!(reference_context_item, TurnReferenceContextItem::NeverSet)
@@ -89,18 +79,6 @@ fn finalize_active_segment<'a>(
     {
         *reference_context_item = active_segment.reference_context_item;
     }
-}
-
-fn is_out_of_band_epiphany_segment(active_segment: &ActiveReplaySegment<'_>) -> bool {
-    active_segment.turn_id.is_none()
-        && !active_segment.counts_as_user_turn
-        && active_segment.epiphany_state.is_some()
-        && active_segment.previous_turn_settings.is_none()
-        && active_segment.base_replacement_history.is_none()
-        && matches!(
-            active_segment.reference_context_item,
-            TurnReferenceContextItem::NeverSet
-        )
 }
 
 impl Session {
@@ -117,7 +95,6 @@ impl Session {
         let mut base_replacement_history: Option<&[ResponseItem]> = None;
         let mut previous_turn_settings = None;
         let mut reference_context_item = TurnReferenceContextItem::NeverSet;
-        let mut epiphany_state = None;
         // Rollback is "drop the newest N user turns". While scanning in reverse, that becomes
         // "skip the next N user-turn segments we finalize".
         let mut pending_rollback_turns = 0usize;
@@ -129,24 +106,6 @@ impl Session {
         let mut active_segment: Option<ActiveReplaySegment<'_>> = None;
 
         for (index, item) in rollout_items.iter().enumerate().rev() {
-            if active_segment
-                .as_ref()
-                .is_some_and(is_out_of_band_epiphany_segment)
-                && let Some(active_segment) = active_segment.take()
-            {
-                finalize_active_segment(
-                    active_segment,
-                    &mut base_replacement_history,
-                    &mut previous_turn_settings,
-                    &mut reference_context_item,
-                    &mut epiphany_state,
-                    &mut pending_rollback_turns,
-                );
-            }
-            if epiphany_state.is_some() {
-                break;
-            }
-
             match item {
                 RolloutItem::Compacted(compacted) => {
                     let active_segment =
@@ -223,20 +182,7 @@ impl Session {
                         }
                     }
                 }
-                RolloutItem::EpiphanyState(item) => {
-                    let active_segment =
-                        active_segment.get_or_insert_with(ActiveReplaySegment::default);
-                    if active_segment.turn_id.is_none() {
-                        active_segment.turn_id = item.turn_id.clone();
-                    }
-                    if turn_ids_are_compatible(
-                        active_segment.turn_id.as_deref(),
-                        item.turn_id.as_deref(),
-                    ) && active_segment.epiphany_state.is_none()
-                    {
-                        active_segment.epiphany_state = Some(item.state.clone());
-                    }
-                }
+                RolloutItem::EpiphanyState(_) => {}
                 RolloutItem::EventMsg(EventMsg::TurnStarted(event)) => {
                     // `TurnStarted` is the oldest boundary of the active reverse segment.
                     if active_segment.as_ref().is_some_and(|active_segment| {
@@ -251,7 +197,6 @@ impl Session {
                             &mut base_replacement_history,
                             &mut previous_turn_settings,
                             &mut reference_context_item,
-                            &mut epiphany_state,
                             &mut pending_rollback_turns,
                         );
                     }
@@ -267,7 +212,6 @@ impl Session {
             if base_replacement_history.is_some()
                 && previous_turn_settings.is_some()
                 && !matches!(reference_context_item, TurnReferenceContextItem::NeverSet)
-                && epiphany_state.is_some()
             {
                 // At this point we have both eager resume metadata values and the replacement-
                 // history base for the surviving tail, so older rollout items cannot affect this
@@ -282,7 +226,6 @@ impl Session {
                 &mut base_replacement_history,
                 &mut previous_turn_settings,
                 &mut reference_context_item,
-                &mut epiphany_state,
                 &mut pending_rollback_turns,
             );
         }
@@ -353,7 +296,6 @@ impl Session {
             history: history.raw_items().to_vec(),
             previous_turn_settings,
             reference_context_item,
-            epiphany_state,
         }
     }
 }

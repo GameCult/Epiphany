@@ -31,7 +31,7 @@ impl EpiphanyMutationHost for EpiphanyCodexThreadHost<'_> {
         let store = self.thread.epiphany_runtime_spine_store_path().await;
         match load_authoritative_accepted_state(&store) {
             Ok(Some(state)) => Some(state),
-            Ok(None) => self.thread.epiphany_state().await,
+            Ok(None) => load_legacy_rollout_state(self.thread).await,
             Err(error) => {
                 tracing::error!(%error, store = %store.display(), "failed to read authoritative unified Epiphany acceptance state");
                 None
@@ -98,9 +98,20 @@ pub(super) async fn load_authoritative_epiphany_state(
     let store = thread.epiphany_runtime_spine_store_path().await;
     match load_authoritative_accepted_state(&store) {
         Ok(Some(state)) => Some(state),
-        Ok(None) => thread.epiphany_state().await,
+        Ok(None) => load_legacy_rollout_state(thread).await,
         Err(error) => {
             tracing::error!(%error, store = %store.display(), "failed to read unified Epiphany state");
+            None
+        }
+    }
+}
+
+async fn load_legacy_rollout_state(thread: &CodexThread) -> Option<EpiphanyThreadState> {
+    let rollout_path = thread.rollout_path()?;
+    match load_epiphany_state_from_rollout_path(&rollout_path).await {
+        Ok(state) => state,
+        Err(error) => {
+            tracing::error!(%error, rollout = %rollout_path.display(), "failed to read legacy Epiphany rollout state");
             None
         }
     }
