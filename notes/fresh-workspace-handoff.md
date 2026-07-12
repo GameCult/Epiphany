@@ -1942,7 +1942,13 @@ gone: Codex no longer auto-compacts, launches reorientation workers, or steers
 checkpoint prompts from turn/token events, and its per-thread checkpoint state
 is deleted. Native physiology owns those decisions. Next classify each
 remaining Epiphany app-server route/module and cut any route-local policy or
-implicit trigger while preserving explicit delegated client compatibility.
+implicit trigger while preserving explicit delegated client compatibility. The
+classification is now a source-enforced architecture: mutation handlers require
+nine named delegates and forbid local state/scheduler/prompt authority; read
+handlers forbid every actuator family; implicit event triggers remain absent.
+Dead bridge automation and checkpoint-pressure wrappers were deleted too. Next
+audit real client consumers of each `ThreadEpiphany*` route and delete any
+compatibility API with no named living client.
 
 ## Immediate Re-entry Instruction
 

@@ -34,5 +34,4 @@ pub use epiphany_core::epiphany_role_owner;
 pub use epiphany_core::epiphany_specialist_prompt_config;
 pub use epiphany_core::epiphany_worker_prompt;
 pub use epiphany_core::render_epiphany_coordinator_note;
-pub use epiphany_core::render_epiphany_pre_compaction_checkpoint_intervention;
 pub use epiphany_core::unique_strings;

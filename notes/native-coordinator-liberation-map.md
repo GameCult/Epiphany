@@ -363,3 +363,14 @@ state are gone. Native coordinator/heartbeat/Continuity organs own scheduling,
 launch, pressure, and recovery; app-server retains explicit compatibility
 routes, notifications, and read projection only. A source guard rejects renewed
 automation authority in the event loop, processor module list, or thread state.
+
+The remaining app-server surface is now mechanically classified and guarded.
+Mutation routes must call one of nine explicit bridge delegates for role launch,
+role acceptance, reorientation launch/acceptance, indexing, promotion, update,
+job launch, or interruption; forbidden local receipt/binding/runtime writes,
+prompt steering, compaction submission, and automation selection fail the
+source test. Read routes reject every mutation, launch, interruption, indexing,
+prompt-steering, compaction, or scheduler symbol. Migration, read projection,
+notification projection, and explicit delegated actuation are the only allowed
+categories. The deleted event-loop reflex also left dead bridge automation and
+checkpoint-pressure wrappers; those zero-caller exports and imports are gone.

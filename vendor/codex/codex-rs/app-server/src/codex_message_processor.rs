@@ -4,6 +4,8 @@ mod command_routes;
 mod epiphany_mutation_routes;
 mod epiphany_read_routes;
 mod epiphany_thread_host;
+#[cfg(test)]
+mod epiphany_compatibility_architecture;
 mod listener_lifecycle;
 mod legacy_epiphany_rollout;
 mod mcp_routes;
