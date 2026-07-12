@@ -152,6 +152,19 @@ artifacts, and publishes an
 process identity. Self receives that receipt ID as routing evidence only. Live
 item `idunn-owned-modeling` crossed this boundary and reached the Bifrost gate.
 
+The current Modeling request is owned by
+`epiphany.modeling.repo_work_route.v0`, not the filesystem closure projection.
+Generation zero lands atomically with its Soul-backed request. A later
+generation can advance only through `advance_repo_work_modeling_route`: the
+current finding must exist and be non-passing, the new request must preserve
+item/Soul/commit/paths, and a Mind acceptance must grant only
+`repoWork.modelingRoute`. Request, Mind review, and stable route pointer commit
+in one CultCache batch; old request/finding documents remain immutable.
+`epiphany-work revise-modeling --review-ref ... --rationale ...` is the explicit
+review mouth. Scheduler job IDs include the route generation and derive the
+stable route key from the item, so neither close JSON nor an old completed job
+can select current work.
+
 The
 accepted interpretation is persisted as
 `epiphany.modeling.repo_work_finding.v0`; it references the passing Soul verdict,

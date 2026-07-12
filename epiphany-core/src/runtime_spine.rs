@@ -38,6 +38,7 @@ use crate::mind_gateway::MIND_THOUGHT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_THOUGHT_TYPE;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
+use crate::mind_gateway::MindGatewayDecision;
 use crate::mind_gateway::MindGatewayReview;
 use crate::mind_gateway::MindStateCommitReceipt;
 use crate::modeling_gateway::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
@@ -46,9 +47,12 @@ use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
 use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_TYPE;
 use crate::modeling_gateway::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION;
 use crate::modeling_gateway::REPO_WORK_MODELING_REQUEST_TYPE;
+use crate::modeling_gateway::REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION;
+use crate::modeling_gateway::REPO_WORK_MODELING_ROUTE_TYPE;
 use crate::modeling_gateway::RepoWorkMapEntry;
 use crate::modeling_gateway::RepoWorkModelingFinding;
 use crate::modeling_gateway::RepoWorkModelingRequest;
+use crate::modeling_gateway::RepoWorkModelingRoute;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
@@ -734,6 +738,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<RepoWorkModelingFinding>()?;
     cache.register_entry_type::<RepoWorkModelingRequest>()?;
+    cache.register_entry_type::<RepoWorkModelingRoute>()?;
     cache.register_entry_type::<RepoWorkMapEntry>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
@@ -1849,6 +1854,183 @@ pub fn runtime_repo_work_modeling_request(
     cache.get::<RepoWorkModelingRequest>(request_id)
 }
 
+pub fn commit_initial_repo_work_modeling_route(
+    store_path: impl AsRef<Path>,
+    request: &RepoWorkModelingRequest,
+    route: &RepoWorkModelingRoute,
+) -> Result<RepoWorkModelingRoute> {
+    if request.schema_version != REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported Modeling request schema"));
+    }
+    validate_non_empty(&request.request_id, "Modeling request id")?;
+    validate_non_empty(&request.item, "Modeling request item")?;
+    validate_non_empty(
+        &request.soul_verdict_receipt_id,
+        "Modeling request Soul verdict receipt id",
+    )?;
+    validate_non_empty(&request.commit_sha, "Modeling request commit sha")?;
+    validate_non_empty(&request.instruction, "Modeling request instruction")?;
+    validate_non_empty(&request.requested_at, "Modeling request timestamp")?;
+    if request.requester != "self" || request.private_state_exposed {
+        return Err(anyhow!(
+            "initial Modeling request must be Self-routed and private-state sealed"
+        ));
+    }
+    if route.schema_version != REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported Modeling route schema"));
+    }
+    validate_non_empty(&route.route_id, "Modeling route id")?;
+    validate_non_empty(&route.item, "Modeling route item")?;
+    validate_non_empty(&route.request_id, "Modeling route request id")?;
+    validate_non_empty(&route.authority_owner, "Modeling route authority owner")?;
+    validate_non_empty(
+        &route.authority_witness_id,
+        "Modeling route authority witness",
+    )?;
+    validate_non_empty(&route.updated_at, "Modeling route timestamp")?;
+    if route.generation != 0
+        || !route.previous_finding_receipt_id.is_empty()
+        || route.authority_owner != "soul"
+        || route.authority_witness_id != request.soul_verdict_receipt_id
+        || route.item != request.item
+        || route.request_id != request.request_id
+        || route.private_state_exposed
+    {
+        return Err(anyhow!(
+            "initial Modeling route must be generation zero, Soul-backed, request-matched, and private-state sealed"
+        ));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let soul = cache
+        .get::<SoulVerdictReceipt>(&request.soul_verdict_receipt_id)?
+        .ok_or_else(|| anyhow!("initial Modeling route requires its Soul verdict"))?;
+    if soul.verdict.trim().to_ascii_lowercase() != "passed" {
+        return Err(anyhow!(
+            "initial Modeling route requires passing Soul truth"
+        ));
+    }
+    if let Some(existing) = cache.get::<RepoWorkModelingRoute>(&route.route_id)? {
+        let stored_request = cache
+            .get::<RepoWorkModelingRequest>(&existing.request_id)?
+            .ok_or_else(|| anyhow!("existing Modeling route lost its request"))?;
+        if existing == *route && stored_request == *request {
+            return Ok(existing);
+        }
+        return Err(anyhow!(
+            "initial Modeling route already belongs to different routing truth"
+        ));
+    }
+    if cache
+        .get::<RepoWorkModelingRequest>(&request.request_id)?
+        .is_some()
+    {
+        return Err(anyhow!(
+            "Modeling request exists without its atomic initial route"
+        ));
+    }
+    let (request_envelope, _) = cache.prepare_entry(&request.request_id, request)?;
+    let (route_envelope, _) = cache.prepare_entry(&route.route_id, route)?;
+    cache.put_prepared_batch(vec![request_envelope, route_envelope])?;
+    Ok(route.clone())
+}
+
+pub fn runtime_repo_work_modeling_route(
+    store_path: impl AsRef<Path>,
+    route_id: &str,
+) -> Result<Option<RepoWorkModelingRoute>> {
+    validate_non_empty(route_id, "Modeling route id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<RepoWorkModelingRoute>(route_id)
+}
+
+pub fn advance_repo_work_modeling_route(
+    store_path: impl AsRef<Path>,
+    request: &RepoWorkModelingRequest,
+    route: &RepoWorkModelingRoute,
+    mind_review: &MindGatewayReview,
+) -> Result<RepoWorkModelingRoute> {
+    if request.schema_version != REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION
+        || route.schema_version != REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION
+    {
+        return Err(anyhow!("unsupported Modeling route generation schema"));
+    }
+    validate_non_empty(&request.request_id, "next Modeling request id")?;
+    validate_non_empty(&request.item, "next Modeling request item")?;
+    validate_non_empty(
+        &request.soul_verdict_receipt_id,
+        "next Modeling request Soul verdict",
+    )?;
+    validate_non_empty(&request.commit_sha, "next Modeling request commit")?;
+    validate_non_empty(&request.instruction, "next Modeling request instruction")?;
+    validate_non_empty(&request.requested_at, "next Modeling request timestamp")?;
+    validate_non_empty(&route.route_id, "Modeling route id")?;
+    validate_non_empty(
+        &route.previous_finding_receipt_id,
+        "previous Modeling finding receipt id",
+    )?;
+    validate_non_empty(&route.updated_at, "next Modeling route timestamp")?;
+    if request.requester != "mind"
+        || request.private_state_exposed
+        || route.private_state_exposed
+        || route.authority_owner != "mind"
+        || route.authority_witness_id != mind_review.gateway_id
+        || route.request_id != request.request_id
+        || route.item != request.item
+        || mind_review.decision != MindGatewayDecision::Accept
+        || mind_review.source_kind != "repo_work_modeling_revision"
+        || !mind_review
+            .allowed_effects
+            .iter()
+            .any(|effect| effect == "repoWork.modelingRoute")
+    {
+        return Err(anyhow!(
+            "next Modeling generation requires a private-state-sealed Mind acceptance that owns only the route transition"
+        ));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let current = cache
+        .get::<RepoWorkModelingRoute>(&route.route_id)?
+        .ok_or_else(|| anyhow!("cannot advance a missing Modeling route"))?;
+    let current_request = cache
+        .get::<RepoWorkModelingRequest>(&current.request_id)?
+        .ok_or_else(|| anyhow!("current Modeling route lost its request"))?;
+    let previous_finding = cache
+        .get::<RepoWorkModelingFinding>(&route.previous_finding_receipt_id)?
+        .ok_or_else(|| anyhow!("next Modeling generation requires the previous finding"))?;
+    if route.generation != current.generation.saturating_add(1)
+        || previous_finding.request_id != current.request_id
+        || previous_finding.item != current.item
+        || previous_finding
+            .verdict
+            .trim()
+            .eq_ignore_ascii_case("passed")
+        || request.item != current_request.item
+        || request.soul_verdict_receipt_id != current_request.soul_verdict_receipt_id
+        || request.commit_sha != current_request.commit_sha
+        || request.changed_paths != current_request.changed_paths
+    {
+        return Err(anyhow!(
+            "next Modeling generation must follow one non-passing current finding and preserve the Soul-verified consequence"
+        ));
+    }
+    if cache
+        .get::<RepoWorkModelingRequest>(&request.request_id)?
+        .is_some()
+    {
+        return Err(anyhow!("next Modeling request id already exists"));
+    }
+    let (request_envelope, _) = cache.prepare_entry(&request.request_id, request)?;
+    let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
+    let (route_envelope, _) = cache.prepare_entry(&route.route_id, route)?;
+    cache.put_prepared_batch(vec![request_envelope, review_envelope, route_envelope])?;
+    Ok(route.clone())
+}
+
 pub fn runtime_repo_work_modeling_finding(
     store_path: impl AsRef<Path>,
     receipt_id: &str,
@@ -2558,6 +2740,23 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Modeling findings interpret a Soul-verified repo consequence before Mind admits a map update.",
                 "Schedulers and raw CLI fields cannot substitute for this persisted receipt.",
+            ],
+        ),
+        mutation_contract(
+            REPO_WORK_MODELING_ROUTE_TYPE,
+            REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![REPO_WORK_MODELING_REQUEST_TYPE, MIND_GATEWAY_REVIEW_TYPE],
+            vec![REPO_WORK_MODELING_ROUTE_TYPE],
+            vec![
+                "The route is the sole current-generation owner for repo-work Modeling requests.",
+                "Generation zero is Soul-backed; later generations require a Mind review and preserve the previous finding.",
+                "Filesystem closure artifacts and Self are projections/routers, not route writers.",
             ],
         ),
         mutation_contract(

@@ -204,9 +204,9 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Design and implement a typed Mind-reviewed request-generation pointer for
-non-passing immutable repo-work Modeling findings. Idunn now owns detached
-worker launch through its existing lifecycle receipt mouth. Preserve the old
-request/finding as immutable evidence, make one typed owner select the current
-generation, and keep filesystem closure artifacts and Self from becoming
-mutable routing authorities.
+Expose the launched worker executable's build/schema fingerprint in Idunn's
+lifecycle receipt and preflight required runtime document registration before
+launch. A stale `epiphany-openai-runtime` binary already proved it can otherwise
+impersonate a Modeling failure after the producer adds a schema. Keep the new
+typed route owner and reviewed generation transition intact; do not repair
+stale consumers by mutating requests or findings.

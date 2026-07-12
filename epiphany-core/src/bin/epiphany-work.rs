@@ -33,9 +33,11 @@ use epiphany_core::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID;
 use epiphany_core::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION;
+use epiphany_core::REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION;
 use epiphany_core::RepoWorkMapEntry;
 use epiphany_core::RepoWorkModelingFinding;
 use epiphany_core::RepoWorkModelingRequest;
+use epiphany_core::RepoWorkModelingRoute;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
@@ -44,8 +46,10 @@ use epiphany_core::SoulVerdictReceipt;
 use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::WeksaInterlinguaInput;
 use epiphany_core::WeksaSpeakerContext;
+use epiphany_core::advance_repo_work_modeling_route;
 use epiphany_core::build_weksa_interlingua_packet;
 use epiphany_core::build_weksa_target_lowering_request;
+use epiphany_core::commit_initial_repo_work_modeling_route;
 use epiphany_core::commit_repo_work_map_admission;
 use epiphany_core::default_launch_organ_contract;
 use epiphany_core::hands_action_review_for_intent;
@@ -74,7 +78,6 @@ use epiphany_core::put_hands_command_receipt;
 use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_hands_pr_receipt;
-use epiphany_core::put_repo_work_modeling_request;
 use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::record_weksa_target_lowering_receipt;
@@ -87,6 +90,7 @@ use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::runtime_repo_work_map_entry;
 use epiphany_core::runtime_repo_work_modeling_finding;
 use epiphany_core::runtime_repo_work_modeling_request;
+use epiphany_core::runtime_repo_work_modeling_route;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
@@ -125,6 +129,9 @@ fn main() -> Result<()> {
         "execute" | "exec" => run_execute(parse_execute_args(args)?),
         "verify" | "soul-verify" => run_verify(parse_close_args(args)?),
         "close" | "closure" | "verify-close" => run_close(parse_close_args(args)?),
+        "revise-modeling" | "modeling-retry" => {
+            run_revise_modeling(parse_revise_modeling_args(args)?)
+        }
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
         "overview" | "proof-bundle" | "status" => run_overview(parse_overview_args(args)?),
@@ -295,6 +302,15 @@ struct CloseArgs {
     require_source_grounding: bool,
     model_authored: bool,
     state_revision: u64,
+}
+
+#[derive(Clone, Debug)]
+struct ReviseModelingArgs {
+    workspace: PathBuf,
+    item: String,
+    runtime_store: Option<PathBuf>,
+    rationale: String,
+    review_ref: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -955,6 +971,32 @@ fn parse_close_args(args: impl Iterator<Item = String>) -> Result<CloseArgs> {
         require_source_grounding,
         model_authored,
         state_revision,
+    })
+}
+
+fn parse_revise_modeling_args(args: impl Iterator<Item = String>) -> Result<ReviseModelingArgs> {
+    let mut workspace = None;
+    let mut item = None;
+    let mut runtime_store = None;
+    let mut rationale = None;
+    let mut review_ref = None;
+    let mut args = args.peekable();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
+            "--item" => item = Some(take_string(&mut args, "--item")?),
+            "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
+            "--rationale" => rationale = Some(take_string(&mut args, "--rationale")?),
+            "--review-ref" => review_ref = Some(take_string(&mut args, "--review-ref")?),
+            other => return Err(anyhow!("unexpected revise-modeling argument {other:?}")),
+        }
+    }
+    Ok(ReviseModelingArgs {
+        workspace: workspace.context("missing --workspace")?,
+        item: item.context("missing --item")?,
+        runtime_store,
+        rationale: rationale.context("missing --rationale")?,
+        review_ref: review_ref.context("missing --review-ref")?,
     })
 }
 
@@ -11168,6 +11210,118 @@ fn run_verify(args: CloseArgs) -> Result<Value> {
     run_closure_pipeline(args, ClosurePhase::SoulOnly)
 }
 
+fn run_revise_modeling(args: ReviseModelingArgs) -> Result<Value> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    ensure_git_repo(&workspace)?;
+    let item_slug = sanitize(&args.item);
+    let close_path = work_receipt_path(&workspace, "close", &args.item);
+    let close = read_json(&close_path)?;
+    if close.get("status").and_then(Value::as_str) != Some("awaiting-modeling") {
+        return Err(anyhow!(
+            "revise-modeling requires an awaiting-modeling closure projection"
+        ));
+    }
+    let runtime_store = args
+        .runtime_store
+        .or_else(|| path_from_json(&close, &["runtimeStore"]))
+        .ok_or_else(|| anyhow!("awaiting-modeling closure has no runtime store"))?;
+    let route_id = format!("repo-work-modeling-route-{item_slug}");
+    let current = runtime_repo_work_modeling_route(&runtime_store, &route_id)?
+        .ok_or_else(|| anyhow!("typed Modeling route {route_id:?} is missing"))?;
+    let current_request = runtime_repo_work_modeling_request(&runtime_store, &current.request_id)?
+        .ok_or_else(|| anyhow!("current Modeling request is missing"))?;
+    let previous_finding_id = format!("{}-finding", current.request_id);
+    let previous_finding =
+        runtime_repo_work_modeling_finding(&runtime_store, &previous_finding_id)?
+            .ok_or_else(|| anyhow!("revise-modeling requires the current typed finding"))?;
+    if previous_finding
+        .verdict
+        .trim()
+        .eq_ignore_ascii_case("passed")
+    {
+        return Err(anyhow!(
+            "passing Modeling truth cannot be revised into a retry"
+        ));
+    }
+    let generation = current.generation.saturating_add(1);
+    let request_id = format!("repo-work-close-{item_slug}-modeling-request-g{generation}");
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let request = RepoWorkModelingRequest {
+        schema_version: REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+        request_id: request_id.clone(),
+        item: current.item.clone(),
+        requester: "mind".to_string(),
+        soul_verdict_receipt_id: current_request.soul_verdict_receipt_id.clone(),
+        commit_sha: current_request.commit_sha.clone(),
+        changed_paths: current_request.changed_paths.clone(),
+        instruction: format!(
+            "Re-model the same Soul-verified consequence after reviewed correction {}. Previous finding {} said: {}. Review rationale: {}",
+            args.review_ref,
+            previous_finding.receipt_id,
+            compact_line(&previous_finding.finding),
+            compact_line(&args.rationale)
+        ),
+        requested_at: now.clone(),
+        private_state_exposed: false,
+        contract: "Mind-reviewed next generation of one immutable repo-work Modeling route; preserves the Soul-verified consequence and previous finding."
+            .to_string(),
+    };
+    let gateway_id = format!("repo-work-modeling-route-{item_slug}-g{generation}-mind-review");
+    let review = MindGatewayReview {
+        schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+        gateway_id: gateway_id.clone(),
+        source_kind: "repo_work_modeling_revision".to_string(),
+        source_role_id: "mind".to_string(),
+        decision: MindGatewayDecision::Accept,
+        allowed_effects: vec!["repoWork.modelingRoute".to_string()],
+        refused_effects: vec![
+            "repoWork.map".to_string(),
+            "publication".to_string(),
+            "merge".to_string(),
+            "handsAction".to_string(),
+        ],
+        reasons: vec![
+            format!("Reviewed correction reference: {}.", args.review_ref),
+            format!("Previous immutable verdict: {}.", previous_finding.verdict),
+            args.rationale.clone(),
+        ],
+        contract: "Mind review advances only the current Modeling request generation; it admits no map, publication, merge, or Hands effect."
+            .to_string(),
+    };
+    let route = RepoWorkModelingRoute {
+        schema_version: REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION.to_string(),
+        route_id: current.route_id.clone(),
+        item: current.item.clone(),
+        generation,
+        request_id: request.request_id.clone(),
+        previous_finding_receipt_id: previous_finding.receipt_id.clone(),
+        authority_owner: "mind".to_string(),
+        authority_witness_id: review.gateway_id.clone(),
+        updated_at: now,
+        private_state_exposed: false,
+        contract: "Sole current-generation pointer for repo-work Modeling; older requests and findings remain immutable evidence."
+            .to_string(),
+    };
+    let route = advance_repo_work_modeling_route(&runtime_store, &request, &route, &review)?;
+    Ok(json!({
+        "schemaVersion": REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION,
+        "status": "modeling-route-advanced",
+        "workspace": workspace,
+        "item": route.item,
+        "routeId": route.route_id,
+        "generation": route.generation,
+        "requestId": route.request_id,
+        "previousFindingReceiptId": route.previous_finding_receipt_id,
+        "mindReviewId": route.authority_witness_id,
+        "reviewRef": args.review_ref,
+        "privateStateExposed": false,
+        "nextSafeMove": "Pulse the scheduler to launch the reviewed Modeling generation through Idunn."
+    }))
+}
+
 fn run_close(args: CloseArgs) -> Result<Value> {
     run_closure_pipeline(args, ClosurePhase::Full)
 }
@@ -11490,33 +11644,61 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
             declared_changed_paths.join(", ")
         )
     });
-    let modeling_request_id = format!("repo-work-close-{item_slug}-modeling-request");
-    let mut modeling_request = RepoWorkModelingRequest {
-        schema_version: REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
-        request_id: modeling_request_id.clone(),
-        item: item.clone(),
-        requester: "self".to_string(),
-        soul_verdict_receipt_id: soul_verdict.receipt_id.clone(),
-        commit_sha: commit_sha.clone(),
-        changed_paths: declared_changed_paths.clone(),
-        instruction: "Model the Soul-verified consequence and return a bounded repo-map finding; do not admit state or route the next action.".to_string(),
-        requested_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        private_state_exposed: false,
-        contract: "Self-to-Modeling request over a passing Soul verdict; Self may route but cannot author the result.".to_string(),
-    };
-    if let Some(existing) =
-        runtime_repo_work_modeling_request(&runtime_store, &modeling_request_id)?
-    {
-        modeling_request.requested_at = existing.requested_at.clone();
-        if modeling_request != existing {
-            return Err(anyhow!(
-                "closure retry conflicts with immutable Modeling request"
-            ));
-        }
-        modeling_request = existing;
+    let modeling_route_id = format!("repo-work-modeling-route-{item_slug}");
+    let (modeling_request, modeling_route) = if phase == ClosurePhase::Full {
+        let route = runtime_repo_work_modeling_route(&runtime_store, &modeling_route_id)?
+            .ok_or_else(|| anyhow!("closure requires the typed Modeling route"))?;
+        let request = runtime_repo_work_modeling_request(&runtime_store, &route.request_id)?
+            .ok_or_else(|| anyhow!("closure requires the current typed Modeling request"))?;
+        (request, route)
     } else {
-        put_repo_work_modeling_request(&runtime_store, &modeling_request)?;
-    }
+        let modeling_request_id = format!("repo-work-close-{item_slug}-modeling-request");
+        let mut request = RepoWorkModelingRequest {
+            schema_version: REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+            request_id: modeling_request_id.clone(),
+            item: item.clone(),
+            requester: "self".to_string(),
+            soul_verdict_receipt_id: soul_verdict.receipt_id.clone(),
+            commit_sha: commit_sha.clone(),
+            changed_paths: declared_changed_paths.clone(),
+            instruction: "Model the Soul-verified consequence and return a bounded repo-map finding; do not admit state or route the next action.".to_string(),
+            requested_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            private_state_exposed: false,
+            contract: "Self-to-Modeling request over a passing Soul verdict; Self may route but cannot author the result.".to_string(),
+        };
+        if let Some(existing) =
+            runtime_repo_work_modeling_request(&runtime_store, &modeling_request_id)?
+        {
+            request.requested_at = existing.requested_at.clone();
+            if request != existing {
+                return Err(anyhow!(
+                    "closure retry conflicts with immutable Modeling request"
+                ));
+            }
+            request = existing;
+        }
+        let mut route = RepoWorkModelingRoute {
+            schema_version: REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION.to_string(),
+            route_id: modeling_route_id.clone(),
+            item: item.clone(),
+            generation: 0,
+            request_id: request.request_id.clone(),
+            previous_finding_receipt_id: String::new(),
+            authority_owner: "soul".to_string(),
+            authority_witness_id: soul_verdict.receipt_id.clone(),
+            updated_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            private_state_exposed: false,
+            contract: "Current repo-work Modeling generation; generation zero is established atomically with its Soul-backed request, and later movement requires Mind review."
+                .to_string(),
+        };
+        if let Some(existing) =
+            runtime_repo_work_modeling_route(&runtime_store, &modeling_route_id)?
+        {
+            route.updated_at = existing.updated_at.clone();
+        }
+        let route = commit_initial_repo_work_modeling_route(&runtime_store, &request, &route)?;
+        (request, route)
+    };
     if phase == ClosurePhase::SoulOnly || !model_closure_passed {
         let awaiting_receipt = json!({
             "schemaVersion": "epiphany.repo_work_closure_receipt.v0",
@@ -11536,6 +11718,8 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
             "closureReview": closure_review,
             "modeling": {
                 "requestId": modeling_request.request_id,
+                "routeId": modeling_route.route_id,
+                "generation": modeling_route.generation,
                 "requester": modeling_request.requester,
                 "findingReceiptId": Value::Null
             },
@@ -14170,8 +14354,8 @@ fn run_queue(args: QueueArgs) -> Result<Value> {
     }))
 }
 
-fn repo_work_modeling_job_id(item_slug: &str) -> String {
-    format!("repo-work-modeling-{item_slug}")
+fn repo_work_modeling_job_id(item_slug: &str, generation: u64) -> String {
+    format!("repo-work-modeling-{item_slug}-g{generation}")
 }
 
 fn resolve_repo_work_model_runtime(epiphany_root: &Path) -> Result<PathBuf> {
@@ -14239,8 +14423,9 @@ fn launch_repo_work_modeling_worker(
     local_verse_store: &Path,
     request: &RepoWorkModelingRequest,
     item_slug: &str,
+    generation: u64,
 ) -> Result<Value> {
-    let job_id = repo_work_modeling_job_id(item_slug);
+    let job_id = repo_work_modeling_job_id(item_slug, generation);
     let verified_diff = git_output(
         workspace,
         &[
@@ -14730,10 +14915,11 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             .clone()
             .or_else(|| path_from_json(&partial_close, &["runtimeStore"]))
             .ok_or_else(|| anyhow!("awaiting-modeling closure has no runtime store"))?;
-        let request_id = string_from_json(&partial_close, &["modeling", "requestId"])
-            .ok_or_else(|| anyhow!("awaiting-modeling closure has no typed request id"))?;
-        let request = runtime_repo_work_modeling_request(&runtime_store, &request_id)?
-            .ok_or_else(|| anyhow!("typed Modeling request {request_id:?} is missing"))?;
+        let route_id = format!("repo-work-modeling-route-{item_slug}");
+        let route = runtime_repo_work_modeling_route(&runtime_store, &route_id)?
+            .ok_or_else(|| anyhow!("typed Modeling route {route_id:?} is missing"))?;
+        let request = runtime_repo_work_modeling_request(&runtime_store, &route.request_id)?
+            .ok_or_else(|| anyhow!("current Modeling request {:?} is missing", route.request_id))?;
         let finding_id = format!("{}-finding", request.request_id);
         if let Some(finding) = runtime_repo_work_modeling_finding(&runtime_store, &finding_id)? {
             if finding.verdict.trim().eq_ignore_ascii_case("passed") {
@@ -14781,7 +14967,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                     .to_string();
             }
         } else {
-            let job_id = repo_work_modeling_job_id(&item_slug);
+            let job_id = repo_work_modeling_job_id(&item_slug, route.generation);
             match runtime_job_snapshot(&runtime_store, &job_id)? {
                 Some(snapshot)
                     if matches!(
@@ -14829,6 +15015,7 @@ fn run_tick(args: TickArgs) -> Result<Value> {
                         &lifecycle_store,
                         &request,
                         &item_slug,
+                        route.generation,
                     )?;
                     status = "modeling-launched".to_string();
                     reason =
@@ -16724,7 +16911,24 @@ mod authority_tests {
             private_state_exposed: false,
             contract: "test".to_string(),
         };
-        put_repo_work_modeling_request(&store, &request)?;
+        let route = RepoWorkModelingRoute {
+            schema_version: REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION.to_string(),
+            route_id: "modeling-route-1".to_string(),
+            item: request.item.clone(),
+            generation: 0,
+            request_id: request.request_id.clone(),
+            previous_finding_receipt_id: String::new(),
+            authority_owner: "soul".to_string(),
+            authority_witness_id: request.soul_verdict_receipt_id.clone(),
+            updated_at: "2026-07-12T00:00:01Z".to_string(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+        };
+        commit_initial_repo_work_modeling_route(&store, &request, &route)?;
+        assert_eq!(
+            runtime_repo_work_modeling_route(&store, &route.route_id)?,
+            Some(route.clone())
+        );
         let mut finding = RepoWorkModelingFinding {
             schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
             receipt_id: "modeling-finding-1".to_string(),
@@ -16819,6 +17023,120 @@ mod authority_tests {
             runtime_repo_work_map_entry(&store, &map.map_entry_id)?,
             Some(map)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn modeling_route_generation_requires_mind_and_preserves_previous() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "modeling-route-test".to_string(),
+                display_name: "Modeling Route Test".to_string(),
+                created_at: "2026-07-12T00:00:00Z".to_string(),
+            },
+        )?;
+        let soul = SoulVerdictReceipt {
+            schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "route-soul-1".to_string(),
+            source_result_id: "result-1".to_string(),
+            source_job_id: "job-1".to_string(),
+            verdict: "passed".to_string(),
+            summary: "verified".to_string(),
+            evidence_ids: Vec::new(),
+            risks: Vec::new(),
+            emitted_at: "2026-07-12T00:00:00Z".to_string(),
+            contract: "test".to_string(),
+        };
+        put_soul_verdict_receipt(&store, &soul)?;
+        let request0 = RepoWorkModelingRequest {
+            schema_version: REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+            request_id: "route-request-g0".to_string(),
+            item: "route-item".to_string(),
+            requester: "self".to_string(),
+            soul_verdict_receipt_id: soul.receipt_id.clone(),
+            commit_sha: "abc123".to_string(),
+            changed_paths: vec!["README.md".to_string()],
+            instruction: "Model consequence.".to_string(),
+            requested_at: "2026-07-12T00:00:01Z".to_string(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+        };
+        let route0 = RepoWorkModelingRoute {
+            schema_version: REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION.to_string(),
+            route_id: "route-item-current".to_string(),
+            item: request0.item.clone(),
+            generation: 0,
+            request_id: request0.request_id.clone(),
+            previous_finding_receipt_id: String::new(),
+            authority_owner: "soul".to_string(),
+            authority_witness_id: soul.receipt_id.clone(),
+            updated_at: "2026-07-12T00:00:01Z".to_string(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+        };
+        commit_initial_repo_work_modeling_route(&store, &request0, &route0)?;
+        let finding0 = RepoWorkModelingFinding {
+            schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
+            receipt_id: "route-request-g0-finding".to_string(),
+            item: request0.item.clone(),
+            model_ref: "model-1".to_string(),
+            soul_verdict_receipt_id: soul.receipt_id.clone(),
+            verdict: "needs-work".to_string(),
+            finding: "Need the verified diff.".to_string(),
+            summary: "Context incomplete.".to_string(),
+            changed_paths: request0.changed_paths.clone(),
+            commit_sha: request0.commit_sha.clone(),
+            emitted_at: "2026-07-12T00:00:02Z".to_string(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+            request_id: request0.request_id.clone(),
+        };
+        put_repo_work_modeling_finding(&store, &finding0)?;
+        let review = MindGatewayReview {
+            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "route-g1-mind-review".to_string(),
+            source_kind: "repo_work_modeling_revision".to_string(),
+            source_role_id: "mind".to_string(),
+            decision: MindGatewayDecision::Accept,
+            allowed_effects: vec!["repoWork.modelingRoute".to_string()],
+            refused_effects: vec!["repoWork.map".to_string()],
+            reasons: vec!["Reviewed missing context.".to_string()],
+            contract: "test".to_string(),
+        };
+        let request1 = RepoWorkModelingRequest {
+            request_id: "route-request-g1".to_string(),
+            requester: "mind".to_string(),
+            instruction: "Re-model with reviewed context.".to_string(),
+            requested_at: "2026-07-12T00:00:03Z".to_string(),
+            ..request0.clone()
+        };
+        let route1 = RepoWorkModelingRoute {
+            generation: 1,
+            request_id: request1.request_id.clone(),
+            previous_finding_receipt_id: finding0.receipt_id.clone(),
+            authority_owner: "mind".to_string(),
+            authority_witness_id: review.gateway_id.clone(),
+            updated_at: "2026-07-12T00:00:03Z".to_string(),
+            contract: "test generation one".to_string(),
+            ..route0.clone()
+        };
+        advance_repo_work_modeling_route(&store, &request1, &route1, &review)?;
+        assert_eq!(
+            runtime_repo_work_modeling_route(&store, &route0.route_id)?,
+            Some(route1.clone())
+        );
+        assert_eq!(
+            runtime_repo_work_modeling_request(&store, &request0.request_id)?,
+            Some(request0)
+        );
+        assert_eq!(
+            runtime_repo_work_modeling_finding(&store, &finding0.receipt_id)?,
+            Some(finding0)
+        );
+        assert!(advance_repo_work_modeling_route(&store, &request1, &route1, &review).is_err());
         Ok(())
     }
 }

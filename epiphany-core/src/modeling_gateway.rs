@@ -6,6 +6,8 @@ pub const REPO_WORK_MODELING_FINDING_SCHEMA_VERSION: &str =
 pub const REPO_WORK_MODELING_REQUEST_TYPE: &str = "epiphany.modeling.repo_work_request";
 pub const REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.modeling.repo_work_request.v0";
+pub const REPO_WORK_MODELING_ROUTE_TYPE: &str = "epiphany.modeling.repo_work_route";
+pub const REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION: &str = "epiphany.modeling.repo_work_route.v0";
 pub const REPO_WORK_MAP_ENTRY_TYPE: &str = "epiphany.repo_work.map_entry";
 pub const REPO_WORK_MAP_ENTRY_SCHEMA_VERSION: &str = "epiphany.repo_work.map_entry.v0";
 
@@ -69,6 +71,36 @@ pub struct RepoWorkModelingRequest {
     pub instruction: String,
     #[cultcache(key = 8)]
     pub requested_at: String,
+    #[cultcache(key = 9)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 10)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.modeling.repo_work_route",
+    schema = "RepoWorkModelingRoute"
+)]
+pub struct RepoWorkModelingRoute {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub route_id: String,
+    #[cultcache(key = 2)]
+    pub item: String,
+    #[cultcache(key = 3)]
+    pub generation: u64,
+    #[cultcache(key = 4)]
+    pub request_id: String,
+    #[cultcache(key = 5)]
+    pub previous_finding_receipt_id: String,
+    #[cultcache(key = 6)]
+    pub authority_owner: String,
+    #[cultcache(key = 7)]
+    pub authority_witness_id: String,
+    #[cultcache(key = 8)]
+    pub updated_at: String,
     #[cultcache(key = 9)]
     pub private_state_exposed: bool,
     #[cultcache(key = 10)]

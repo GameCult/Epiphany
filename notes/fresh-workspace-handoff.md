@@ -2097,6 +2097,24 @@ admission, and overview gate `awaiting-publication` with
 `bifrost-publication-missing`. Next design the typed Mind-reviewed generation
 pointer for a non-passing immutable finding; do not mutate the old request or
 let a filesystem close artifact become the new routing authority.
+That typed owner is now implemented. `RepoWorkModelingRoute` is registered in
+runtime CultCache/CultNet. Generation zero is atomically committed with the
+Soul-backed request. `revise-modeling` requires explicit review reference and
+rationale, reads the current non-passing finding, creates a Mind acceptance
+whose only allowed effect is `repoWork.modelingRoute`, and atomically commits
+the next request, review, and stable route pointer. The transition preserves
+item, Soul receipt, commit, and changed paths; passing findings cannot retry;
+stale repeat advancement is refused; prior requests/findings remain readable.
+Scheduler job IDs are generation-scoped and scheduler reads the stable typed
+route rather than `work-close-*.json` request cargo. Authority tests pass 4/4,
+core library 248/248, and model runtime 8/8. Authenticated live item
+`typed-modeling-route-v2` proved generation zero through Idunn, model-authored
+finding, Mind/map admission, and closure. The preceding
+`typed-modeling-route` probe correctly failed because the already-built model
+runtime lacked the new route schema; rebuilding the consumer made v2 pass.
+Next expose executable build/schema fingerprint in the Idunn lifecycle receipt
+and refuse launch before work when the consumer cannot register required typed
+documents.
 
 ## Immediate Re-entry Instruction
 
