@@ -1952,8 +1952,12 @@ compatibility API with no named living client. The client matrix now lives at
 `notes/epiphany-app-server-client-matrix.md`: eight routes have named phase-6
 smoke or `epiphany-mvp-status --codex` consumers; ten advertised routes have no
 executable caller beyond definitions/tests/docs and are marked for deletion.
-Cut those ten request registrations, dispatch arms, handlers, tests, and README
-claims next; do not let generated bindings count as clients.
+Those ten request registrations, dispatch arms, handlers, protocol tests, and
+README claims are now deleted. A source guard fixes registration to the eight
+named-client routes and explicitly rejects the removed names. Protocol compile,
+app-server compile, and four compatibility-architecture tests pass. Next audit
+zero-caller protocol DTOs and bridge conversion helpers left by this cut, then
+migrate or retire the phase-6 smoke and `epiphany-mvp-status --codex` clients.
 
 ## Immediate Re-entry Instruction
 

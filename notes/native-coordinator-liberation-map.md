@@ -365,9 +365,8 @@ routes, notifications, and read projection only. A source guard rejects renewed
 automation authority in the event loop, processor module list, or thread state.
 
 The remaining app-server surface is now mechanically classified and guarded.
-Mutation routes must call one of nine explicit bridge delegates for role launch,
-role acceptance, reorientation launch/acceptance, indexing, promotion, update,
-job launch, or interruption; forbidden local receipt/binding/runtime writes,
+Mutation routes may call only the explicit update or interruption bridge
+delegate; forbidden local receipt/binding/runtime writes,
 prompt steering, compaction submission, and automation selection fail the
 source test. Read routes reject every mutation, launch, interruption, indexing,
 prompt-steering, compaction, or scheduler symbol. Migration, read projection,
@@ -382,5 +381,6 @@ in-repo consumers, all explicit phase-6 smokes or
 unconsumed: role/reorientation launch and accept, index, distill, propose,
 promote, job launch, and retrieve. Definitions, generated bindings, README
 claims, and serialization tests do not count as clients. Those ten request
-registrations, dispatch arms, handlers, tests, and docs are the next deletion
-line.
+registrations, dispatch arms, handlers, tests, and README claims are deleted.
+The registration guard now fixes the compatibility surface at the eight named
+client routes and rejects restoration of the unconsumed methods.

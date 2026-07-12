@@ -22,20 +22,20 @@ These are retained only while the named compatibility binaries remain. They do
 not justify route-local policy, implicit triggers, Codex state ownership, or new
 clients.
 
-## Unconsumed advertised routes
+## Removed unconsumed routes
 
-| Route | Finding | Deletion owner |
+| Route | Finding | Result |
 |---|---|---|
-| `roleLaunch` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `roleAccept` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `reorientLaunch` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `reorientAccept` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `index` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `distill` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `propose` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `promote` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `jobLaunch` | no executable caller | remove request registration, dispatch, handler, tests/docs |
-| `retrieve` | no executable caller | remove request registration, dispatch, handler, tests/docs |
+| `roleLaunch` | no executable caller | request surface deleted |
+| `roleAccept` | no executable caller | request surface deleted |
+| `reorientLaunch` | no executable caller | request surface deleted |
+| `reorientAccept` | no executable caller | request surface deleted |
+| `index` | no executable caller | request surface deleted |
+| `distill` | no executable caller | request surface deleted |
+| `propose` | no executable caller | request surface deleted |
+| `promote` | no executable caller | request surface deleted |
+| `jobLaunch` | no executable caller | request surface deleted |
+| `retrieve` | no executable caller | request surface deleted |
 
 Protocol DTOs may remain temporarily only when retained response projections or
 bridge conversion tests still compile against them. A DTO is not authority and

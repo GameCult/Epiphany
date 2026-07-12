@@ -2,7 +2,6 @@ use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use epiphany_state_model::EpiphanyRetrievalState;
-use super::epiphany_thread_host::load_authoritative_epiphany_state;
 use super::epiphany_thread_host::runtime_spine_store_path;
 use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
@@ -14,24 +13,18 @@ use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_reorientation
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::protocol_edge::default_core_epiphany_view_lenses;
 use epiphany_codex_bridge::protocol_edge::protocol_context_params_to_core;
-use epiphany_codex_bridge::protocol_edge::protocol_distill_params_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_freshness_response_from_surface;
 use epiphany_codex_bridge::protocol_edge::protocol_graph_query_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
-use epiphany_codex_bridge::retrieve::normalize_thread_epiphany_retrieve_query;
-use epiphany_codex_bridge::retrieve::retrieve_epiphany_for_paths;
-use epiphany_codex_bridge::retrieve_protocol::protocol_retrieve_response;
 use epiphany_codex_bridge::view_protocol::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view_protocol::derive_epiphany_freshness_surface;
 use epiphany_codex_bridge::view_protocol::map_epiphany_context_response;
-use epiphany_codex_bridge::view_protocol::map_epiphany_distill_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_graph_query_response;
-use epiphany_codex_bridge::view_protocol::map_epiphany_propose_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_view_response;
@@ -415,171 +408,7 @@ impl CodexMessageProcessor {
         self.outgoing.send_response(request_id, response).await;
     }
 
-    pub(super) async fn thread_epiphany_retrieve(
-        &self,
-        request_id: ConnectionRequestId,
-        params: ThreadEpiphanyRetrieveParams,
-    ) {
-        let ThreadEpiphanyRetrieveParams {
-            thread_id,
-            query,
-            limit,
-            path_prefixes,
-        } = params;
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let query = match normalize_thread_epiphany_retrieve_query(query, limit, path_prefixes) {
-            Ok(query) => query,
-            Err(message) => {
-                self.send_invalid_request_error(request_id, message.to_string())
-                    .await;
-                return;
-            }
-        };
-
-        let thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        let config = thread.config_snapshot().await;
-        let codex_home = thread.codex_home().await;
-        let response =
-            match retrieve_epiphany_for_paths(config.cwd.to_path_buf(), codex_home, query)
-                .await
-                .and_then(protocol_retrieve_response)
-            {
-                Ok(response) => response,
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
-                    )
-                    .await;
-                    return;
-                }
-            };
-
-        self.outgoing.send_response(request_id, response).await;
-    }
-
-    pub(super) async fn thread_epiphany_distill(
-        &self,
-        request_id: ConnectionRequestId,
-        params: ThreadEpiphanyDistillParams,
-    ) {
-        let thread_id = params.thread_id.clone();
-
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        let expected_revision = load_authoritative_epiphany_state(&thread)
-            .await
-            .map(|state| state.revision)
-            .unwrap_or(0);
-        let input = protocol_distill_params_to_core(params);
-        let response = match map_epiphany_distill_response(expected_revision, input) {
-            Ok(response) => response,
-            Err(err) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("failed to distill Epiphany observation: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        self.outgoing.send_response(request_id, response).await;
-    }
-
-    pub(super) async fn thread_epiphany_propose(
-        &self,
-        request_id: ConnectionRequestId,
-        params: ThreadEpiphanyProposeParams,
-    ) {
-        let ThreadEpiphanyProposeParams { thread_id, .. } = &params;
-        let thread_id = thread_id.clone();
-
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        let state = match load_authoritative_epiphany_state(&thread).await {
-            Some(state) => state,
-            None => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread has no Epiphany state: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
-        let response = match map_epiphany_propose_response(state, params.observation_ids) {
-            Ok(response) => response,
-            Err(err) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("failed to propose Epiphany map update: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        self.outgoing.send_response(request_id, response).await;
-    }
 }
 
 async fn thread_epiphany_retrieval_state(thread: &CodexThread) -> EpiphanyRetrievalState {

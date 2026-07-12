@@ -2,14 +2,7 @@
 fn mutation_routes_are_explicit_compatibility_delegates() {
     let source = include_str!("epiphany_mutation_routes.rs");
     for delegate in [
-        "launch_thread_epiphany_role(",
-        "apply_thread_epiphany_role_accept(",
-        "launch_thread_epiphany_reorient(",
-        "apply_thread_epiphany_reorient_accept(",
-        "index_epiphany_retrieval_for_paths(",
-        "apply_thread_epiphany_promote(",
         "apply_thread_epiphany_update(",
-        "launch_thread_epiphany_job(",
         "interrupt_thread_epiphany_job(",
     ] {
         assert!(source.contains(delegate), "missing compatibility delegate {delegate}");
@@ -27,6 +20,41 @@ fn mutation_routes_are_explicit_compatibility_delegates() {
             !source.contains(forbidden),
             "compatibility route regained local authority through {forbidden}"
         );
+    }
+}
+
+#[test]
+fn only_named_client_routes_remain_registered() {
+    let protocol = include_str!("../../../app-server-protocol/src/protocol/common.rs");
+    let registrations = protocol
+        .split("ThreadTurnsList =>")
+        .next()
+        .expect("client request registration section");
+    for retained in [
+        "thread/epiphany/view",
+        "thread/epiphany/roleResult",
+        "thread/epiphany/freshness",
+        "thread/epiphany/context",
+        "thread/epiphany/graphQuery",
+        "thread/epiphany/reorientResult",
+        "thread/epiphany/jobInterrupt",
+        "thread/epiphany/update",
+    ] {
+        assert!(registrations.contains(retained), "missing retained client route {retained}");
+    }
+    for removed in [
+        "thread/epiphany/roleLaunch",
+        "thread/epiphany/roleAccept",
+        "thread/epiphany/reorientLaunch",
+        "thread/epiphany/reorientAccept",
+        "thread/epiphany/index",
+        "thread/epiphany/distill",
+        "thread/epiphany/propose",
+        "thread/epiphany/promote",
+        "thread/epiphany/jobLaunch",
+        "thread/epiphany/retrieve",
+    ] {
+        assert!(!registrations.contains(removed), "unconsumed route remains registered: {removed}");
     }
 }
 
