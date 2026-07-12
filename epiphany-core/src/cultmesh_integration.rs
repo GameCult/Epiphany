@@ -5468,7 +5468,14 @@ pub fn write_epiphany_cultmesh_repo_work_readiness(
     validate_repo_work_readiness(&readiness)?;
     let mut node = open_epiphany_cultmesh_node(&store_path, readiness.runtime_id.clone())?;
     let written = node.put(readiness.readiness_id.clone(), &readiness)?;
-    node.put(EPIPHANY_CULTMESH_REPO_WORK_READINESS_LATEST_KEY, &written)?;
+    let current_latest = node.get::<EpiphanyCultMeshRepoWorkReadinessEntry>(
+        EPIPHANY_CULTMESH_REPO_WORK_READINESS_LATEST_KEY,
+    )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        repo_work_readiness_generation_key(&written) >= repo_work_readiness_generation_key(current)
+    }) {
+        node.put(EPIPHANY_CULTMESH_REPO_WORK_READINESS_LATEST_KEY, &written)?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -5682,6 +5689,8 @@ fn validate_repo_work_readiness(readiness: &EpiphanyCultMeshRepoWorkReadinessEnt
             "repo work readiness requires readiness_id and item"
         ));
     }
+    DateTime::parse_from_rfc3339(&readiness.generated_at)
+        .map_err(|error| anyhow!("repo work readiness has invalid generated_at: {error}"))?;
     if !readiness.sight_only
         || readiness.readiness_approval_authorized
         || readiness.publication_authorized
@@ -5704,6 +5713,16 @@ fn validate_repo_work_readiness(readiness: &EpiphanyCultMeshRepoWorkReadinessEnt
         ));
     }
     Ok(())
+}
+
+fn repo_work_readiness_generation_key(
+    readiness: &EpiphanyCultMeshRepoWorkReadinessEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&readiness.generated_at)
+            .expect("validated repo work readiness generation timestamp"),
+        readiness.readiness_id.as_str(),
+    )
 }
 
 fn validate_repo_work_map_entry(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> Result<()> {
@@ -7520,6 +7539,59 @@ mod tests {
         invalid.generated_at = "not-a-time".to_string();
         let err = write_epiphany_cultmesh_repo_work_overview(&store, invalid)
             .expect_err("invalid overview generation time must be refused");
+        assert!(err.to_string().contains("invalid generated_at"));
+        Ok(())
+    }
+
+    #[test]
+    fn repo_work_readiness_latest_follows_generation_not_arrival() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("repo-work-readiness-order.ccmp");
+        let older = EpiphanyCultMeshRepoWorkReadinessEntry {
+            schema_version: EPIPHANY_CULTMESH_REPO_WORK_READINESS_SCHEMA_VERSION.to_string(),
+            runtime_id: "repo-work-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            readiness_id: "repo-work-readiness-older".to_string(),
+            generated_at: "2026-07-13T01:00:00Z".to_string(),
+            workspace: "E:/Projects/test".to_string(),
+            item: "older-item".to_string(),
+            status: "incomplete".to_string(),
+            missing_required_count: 1,
+            satisfied_required_count: 2,
+            readiness_receipt_ref: "receipt://older".to_string(),
+            overview_receipt_ref: "overview://older".to_string(),
+            proof_bundle_id: "proof-older".to_string(),
+            missing_kinds: vec!["maintainer-review".to_string()],
+            tui_rows: vec!["READINESS older-item incomplete".to_string()],
+            sight_only: true,
+            readiness_approval_authorized: false,
+            publication_authorized: false,
+            service_lifecycle_authority: false,
+            hands_action_authorized: false,
+            private_state_exposed: false,
+            notes: Vec::new(),
+        };
+        let mut newer = older.clone();
+        newer.readiness_id = "repo-work-readiness-newer".to_string();
+        newer.item = "newer-item".to_string();
+        newer.generated_at = "2026-07-13T02:00:00Z".to_string();
+        newer.status = "ready".to_string();
+        newer.missing_required_count = 0;
+        newer.satisfied_required_count = 3;
+        newer.missing_kinds.clear();
+
+        write_epiphany_cultmesh_repo_work_readiness(&store, newer.clone())?;
+        write_epiphany_cultmesh_repo_work_readiness(&store, older.clone())?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_repo_work_readiness(&store, "repo-work-test")?,
+            Some(newer)
+        );
+
+        let mut invalid = older;
+        invalid.readiness_id = "repo-work-readiness-invalid".to_string();
+        invalid.generated_at = "not-a-time".to_string();
+        let err = write_epiphany_cultmesh_repo_work_readiness(&store, invalid)
+            .expect_err("invalid readiness generation time must be refused");
         assert!(err.to_string().contains("invalid generated_at"));
         Ok(())
     }

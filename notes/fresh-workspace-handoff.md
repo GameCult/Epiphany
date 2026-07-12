@@ -147,6 +147,8 @@ The confirmed conceptual substitutions have been cut:
   cannot rewind the queue map, and mirroring before admission is refused.
 - Repo-work overview global `latest` is generation-time-owned. Delayed overview
   transport cannot make an obsolete queue gate or next move current.
+- Repo-work readiness global `latest` is generation-time-owned. Delayed
+  sight-only reports cannot replace current proof visibility.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

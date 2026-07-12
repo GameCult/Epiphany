@@ -583,3 +583,12 @@ valid RFC3339 generation time and advance the global `latest` key by
 `(generation time, overview ID)`. Per-item overwrite remains intentional: that
 key owns the current projection for one item, while the global key identifies
 the newest generated item state.
+
+## Mirror arrival presented as current repo-work readiness
+
+Repo-work readiness is sight-only, but its global `latest` mirror was still
+arrival-owned. Delayed reports could preserve obsolete readiness or obsolete
+missing-proof pressure in operator and Persona readback. Readiness writes now
+require valid RFC3339 generation time and advance `latest` by `(generation
+time, readiness ID)`. The authority denials remain intact: this projection
+still cannot approve readiness, publish, run Hands, or own service lifecycle.
