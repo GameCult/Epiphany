@@ -400,6 +400,7 @@ pub fn hands_commit_receipt_for_review(
     }
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub fn hands_pr_receipt_for_review(
     receipt_id: String,

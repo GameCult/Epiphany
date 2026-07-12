@@ -351,3 +351,12 @@ receipt-chain slots, artifact rows, gate parameters, and readiness functions
 are deleted. Repo work now stops honestly at `awaiting-publication`; provider
 publication and merge evidence need a new owner-aligned ingest/projection path
 before readiness can advance.
+
+## Caller-transcribed PR publication proof
+
+`epiphany-hands-action record-pr` accepted a PR URL/number/title and Bifrost
+publication receipt ID from one caller, resolved none of them, and persisted a
+Hands PR receipt. The command and its tests are deleted. The PR constructor and
+runtime writer are test-only; the typed record remains an ingest/read contract
+until an authenticated GitHub/Bifrost adapter owns publication evidence. The
+Hands smoke now proves only patch, command, and commit consequences.

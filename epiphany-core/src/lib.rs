@@ -805,6 +805,7 @@ pub use runtime_spine::put_hands_action_review;
 pub use runtime_spine::put_hands_command_receipt;
 pub use runtime_spine::put_hands_commit_receipt;
 pub use runtime_spine::put_hands_patch_receipt;
+#[cfg(test)]
 pub use runtime_spine::put_hands_pr_receipt;
 pub use runtime_spine::put_mind_gateway_review;
 pub use runtime_spine::put_mind_state_commit_receipt;

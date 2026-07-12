@@ -84,6 +84,9 @@ The confirmed conceptual substitutions have been cut:
   overview, readiness, scheduling, receipt-chain, or proof-bundle paths. Dead
   writer artifacts cannot remain living authority; closed work waits at
   `awaiting-publication` until an owner-aligned provider projection exists.
+- `epiphany-hands-action record-pr` is deleted. Caller-transcribed PR and
+  Bifrost fields cannot create Hands publication proof; PR construction and
+  persistence are test-only pending an authenticated adapter owner.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

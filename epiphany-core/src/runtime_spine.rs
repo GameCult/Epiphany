@@ -1573,6 +1573,7 @@ pub fn runtime_hands_commit_receipt(
     cache.get::<HandsCommitReceipt>(receipt_id)
 }
 
+#[cfg(test)]
 pub fn put_hands_pr_receipt(store_path: impl AsRef<Path>, receipt: &HandsPrReceipt) -> Result<()> {
     validate_non_empty(&receipt.receipt_id, "Hands PR receipt id")?;
     validate_non_empty(&receipt.intent_id, "Hands PR intent")?;
