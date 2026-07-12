@@ -152,11 +152,13 @@ fn codex_session_has_no_epiphany_state_custody() {
     let session_state = include_str!("../state/session.rs");
     let session = include_str!("mod.rs");
     let codex_thread = include_str!("../codex_thread.rs");
+    let core_lib = include_str!("../lib.rs");
 
     assert!(!session_state.contains("epiphany_state"));
     assert!(!session.contains("set_epiphany_state"));
     assert!(!session.contains("async fn epiphany_state"));
     assert!(!codex_thread.contains("async fn epiphany_state"));
+    assert!(!core_lib.contains("epiphany_rollout"));
 }
 
 fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {

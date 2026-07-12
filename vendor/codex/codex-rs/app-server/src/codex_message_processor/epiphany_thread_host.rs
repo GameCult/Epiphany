@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use super::legacy_epiphany_rollout::latest_legacy_epiphany_state;
 use codex_core::CodexThread;
 use codex_core::RolloutRecorder;
-use codex_core::latest_epiphany_state_from_rollout_items;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::TokenUsageInfo;
@@ -70,7 +70,7 @@ pub(super) async fn load_epiphany_state_from_rollout_path(
         InitialHistory::Forked(items) => items,
         InitialHistory::Resumed(resumed) => resumed.history,
     };
-    Ok(latest_epiphany_state_from_rollout_items(&items))
+    Ok(latest_legacy_epiphany_state(&items))
 }
 
 pub(super) async fn live_thread_epiphany_state(

@@ -292,3 +292,10 @@ reconstruction ignores historical Epiphany items. The app-server compatibility
 host reads unified CultCache first and, only when it is empty, invokes the
 legacy rollout reader directly at the boundary. A source guard rejects renewed
 session custody.
+
+The historical rollout parser has now moved out of `codex-core` as well. It
+lives in app-server's explicitly quarantined `legacy_epiphany_rollout` module,
+where two migration tests prove latest-surviving selection and rollback
+rejection. `codex-core` no longer declares or exports an Epiphany rollout
+parser. The legacy `RolloutItem` variant remains readable so old files do not
+become undecodable, but normal core reconstruction treats it as inert cargo.

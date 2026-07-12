@@ -1898,7 +1898,12 @@ That audit removed Codex session custody entirely: `SessionState`, `Session`, an
 reconstruction ignores legacy Epiphany items. The app-server reads unified
 CultCache first and invokes the legacy rollout parser directly only when native
 state is absent. Next move that parser out of `codex-core` into the compatibility
-boundary if the protocol seam permits it.
+boundary if the protocol seam permits it. That transplant is complete:
+app-server's `legacy_epiphany_rollout` quarantine module owns historical parsing
+and its latest-surviving/rollback tests; `codex-core` has no parser module or
+export and treats the legacy rollout variant as inert. Next remove the two
+Epiphany-named `CodexThread` convenience methods by deriving compatibility paths
+and reference context at the app-server boundary.
 
 ## Immediate Re-entry Instruction
 

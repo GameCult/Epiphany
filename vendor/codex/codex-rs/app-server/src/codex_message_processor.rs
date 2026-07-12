@@ -6,6 +6,7 @@ mod epiphany_mutation_routes;
 mod epiphany_read_routes;
 mod epiphany_thread_host;
 mod listener_lifecycle;
+mod legacy_epiphany_rollout;
 mod mcp_routes;
 mod realtime_routes;
 mod review_routes;
