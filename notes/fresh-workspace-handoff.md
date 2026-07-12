@@ -2217,6 +2217,18 @@ showing desired command/args/cwd/restart mode/log refs without routine payloads.
 Readback calls the historical evidence `latestLifecycle`, not `actual`, and
 reports `processObservation=unknown-until-managed-service-reconcile`. Next add
 that reconcile probe and delegate restarts to the existing lifecycle primitive.
+The probe/reconcile path is now landed. It uses native platform process
+observation, refuses duplicate launch while alive, honors policy disable/
+restart/cooldown, and restarts dead or missing services only through the typed
+`service_launch` owner. Launch receipt ids now include attempt timestamps and
+therefore remain immutable across restarts. Live heartbeat restart root
+`C:\Users\Meta\AppData\Local\Temp\epiphany-managed-reconcile-8e3d7cc5fe0b4c5fa38b18b3d00cea0c`
+proved the replacement PID `19736` alive under receipt
+`daemon-service-lifecycle-receipt-idunn-managed-heartbeat-launch-1783858125893`;
+the test harness then killed it deliberately. The first combined smoke exceeded
+its harness window because `service_launch` loads the entire local Verse merely
+to inspect the swarm brake. Next use the narrow brake loader and integrate
+managed-service reconcile into Idunn's native serve scheduler.
 
 ## Immediate Re-entry Instruction
 

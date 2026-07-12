@@ -376,6 +376,17 @@ witness; `managed-service-read` projects desired state plus
 `latestLifecycle`. It deliberately reports process observation as unknown
 until a real reconcile probe exists, so an old launch receipt cannot claim the
 service is alive.
+That probe now exists. `managed-service-reconcile` reads only the service policy
+and lifecycle history, observes the latest PID through the native platform
+process API, applies enabled/restart-mode/cooldown decisions, and delegates a
+restart to `service_launch`. Launch receipt ids now carry attempt time, so
+restarts preserve history. Live root
+`C:\Users\Meta\AppData\Local\Temp\epiphany-managed-reconcile-8e3d7cc5fe0b4c5fa38b18b3d00cea0c`
+proved restart receipt
+`daemon-service-lifecycle-receipt-idunn-managed-heartbeat-launch-1783858125893`
+and PID `19736` were observed alive after the prior process was killed. Next
+fold this reconcile into Idunn's own serve loop and cut the full-context Verse
+load from service launch.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's proprioception.

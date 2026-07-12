@@ -114,6 +114,14 @@ service command/args/cwd and sealed log refs used by lifecycle launch, and can
 read it beside the latest lifecycle receipt. Readback explicitly reports
 process observation as unknown until reconciliation probes reality; a past
 `launched` receipt is not allowed to impersonate a living process.
+Managed-service reconciliation is now implemented with a native platform PID
+probe (`OpenProcess`/`GetExitCodeProcess` on Windows and `kill(pid, 0)` on
+Unix). It honors enabled/restart mode/cooldown, observes alive services without
+duplicating them, and delegates dead/missing restarts to `service-launch`.
+Launch receipts now include an attempt timestamp so restart history is
+immutable instead of overwriting one service/action key. Live heartbeat proof
+launched, observed alive, simulated a crash, relaunched with a distinct PID and
+receipt, then observed the replacement alive on the same heartbeat store.
 
 ### Owner
 
@@ -150,6 +158,10 @@ The persistence/publication half is complete. Next add reconciliation that
 probes the policy's last PID or an equivalent platform process witness, applies
 enabled/restart-mode/cooldown intent, and delegates any restart to the existing
 service lifecycle launch primitive.
+Reconciliation is complete as an explicit Idunn command. The remaining
+unattended boundary is to include managed-service reconciliation in Idunn's
+native `serve` scheduler and replace `service-launch`'s full local-Verse context
+load with the narrow swarm-brake query it actually needs.
 
 ### Forbidden writers
 

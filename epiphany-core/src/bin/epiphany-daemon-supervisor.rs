@@ -53,6 +53,9 @@ fn main() -> Result<()> {
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
         "managed-service-policy" | "service-desired-state" => managed_service_policy(args),
         "managed-service-read" | "service-desired-state-read" => managed_service_read(args),
+        "managed-service-reconcile" | "service-desired-state-reconcile" => {
+            managed_service_reconcile(args)
+        }
         "service-runbook" | "runbook-service" => service_runbook(args),
         "repo-work-service-audit"
         | "repo-work-service-readiness"
@@ -373,10 +376,6 @@ fn managed_service_policy(args: Args) -> Result<()> {
         backoff_multiplier: args.backoff_multiplier,
         stdout_artifact: stdout_artifact.display().to_string(),
         stderr_artifact: stderr_artifact.display().to_string(),
-        last_lifecycle_receipt_id: latest
-            .as_ref()
-            .map(|receipt| receipt.receipt_id.clone())
-            .unwrap_or_default(),
         updated_at_utc: Utc::now().to_rfc3339(),
         private_state_exposed: false,
         notes: vec![
@@ -403,7 +402,7 @@ fn managed_service_policy(args: Args) -> Result<()> {
         "args": written.args,
         "stdoutArtifact": written.stdout_artifact,
         "stderrArtifact": written.stderr_artifact,
-        "lastLifecycleReceiptId": written.last_lifecycle_receipt_id,
+        "latestLifecycleReceiptId": latest.as_ref().map(|receipt| receipt.receipt_id.as_str()),
         "privateStateExposed": written.private_state_exposed,
     }))?);
     Ok(())
@@ -423,6 +422,12 @@ fn managed_service_read(args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
+    let process_observation = latest
+        .as_ref()
+        .and_then(|receipt| receipt.process_id)
+        .map(observe_process)
+        .transpose()?
+        .unwrap_or(ProcessObservation::Missing);
     println!("{}", serde_json::to_string_pretty(&json!({
         "schemaVersion": "epiphany.cultmesh.managed_service_readback.v0",
         "status": "desired-state-ready",
@@ -445,10 +450,162 @@ fn managed_service_read(args: Args) -> Result<()> {
             "startedAtUtc": receipt.started_at_utc,
             "completedAtUtc": receipt.completed_at_utc,
         })),
-        "processObservation": "unknown-until-managed-service-reconcile",
+        "processObservation": process_observation.label(),
         "privateStateExposed": false,
     }))?);
     Ok(())
+}
+
+fn managed_service_reconcile(mut args: Args) -> Result<()> {
+    let policy = load_epiphany_cultmesh_managed_service_policy(
+        &args.store,
+        args.runtime_id.clone(),
+        &args.service_id,
+    )?
+    .with_context(|| format!("managed service policy missing for {}", args.service_id))?;
+    let latest = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
+        &args.store,
+        args.runtime_id.clone(),
+    )?
+    .into_iter()
+    .filter(|receipt| receipt.service_id == args.service_id)
+    .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
+    let observation = latest
+        .as_ref()
+        .and_then(|receipt| receipt.process_id)
+        .map(observe_process)
+        .transpose()?
+        .unwrap_or(ProcessObservation::Missing);
+    if !policy.enabled || policy.restart_mode == "never" {
+        println!("{}", serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
+            "status": "disabled",
+            "serviceId": policy.service_id,
+            "processObservation": observation.label(),
+            "restarted": false,
+            "privateStateExposed": false,
+        }))?);
+        return Ok(());
+    }
+    if observation == ProcessObservation::Alive {
+        println!("{}", serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
+            "status": "observed-alive",
+            "serviceId": policy.service_id,
+            "processId": latest.as_ref().and_then(|receipt| receipt.process_id),
+            "processObservation": observation.label(),
+            "restarted": false,
+            "privateStateExposed": false,
+        }))?);
+        return Ok(());
+    }
+    if policy.restart_mode == "on-failure"
+        && latest.as_ref().is_some_and(|receipt| {
+            receipt.status == "completed" && receipt.exit_code.unwrap_or_default() == 0
+        })
+    {
+        println!("{}", serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
+            "status": "completed-no-restart",
+            "serviceId": policy.service_id,
+            "processObservation": observation.label(),
+            "restarted": false,
+            "privateStateExposed": false,
+        }))?);
+        return Ok(());
+    }
+    if !args.force && policy.cooldown_seconds > 0 {
+        if let Some(started) = latest
+            .as_ref()
+            .and_then(|receipt| DateTime::parse_from_rfc3339(&receipt.started_at_utc).ok())
+        {
+            let elapsed = Utc::now().signed_duration_since(started.with_timezone(&Utc));
+            if elapsed < Duration::seconds(policy.cooldown_seconds) {
+                println!("{}", serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.cultmesh.managed_service_reconcile.v0",
+                    "status": "cooling-down",
+                    "serviceId": policy.service_id,
+                    "processObservation": observation.label(),
+                    "cooldownSeconds": policy.cooldown_seconds,
+                    "elapsedSeconds": elapsed.num_seconds(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?);
+                return Ok(());
+            }
+        }
+    }
+    args.service_command = Some(PathBuf::from(&policy.command));
+    args.service_args = policy.args.clone();
+    args.cwd = policy.cwd.as_ref().map(PathBuf::from);
+    args.stdout_artifact = Some(PathBuf::from(&policy.stdout_artifact));
+    args.stderr_artifact = Some(PathBuf::from(&policy.stderr_artifact));
+    args.reason = Some(format!(
+        "Idunn reconciled managed service {} after observing {}.",
+        policy.service_id,
+        observation.label()
+    ));
+    service_launch(args)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProcessObservation {
+    Alive,
+    Dead,
+    Missing,
+}
+
+impl ProcessObservation {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Alive => "alive",
+            Self::Dead => "dead",
+            Self::Missing => "missing",
+        }
+    }
+}
+
+#[cfg(windows)]
+fn observe_process(process_id: u32) -> Result<ProcessObservation> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    const STILL_ACTIVE: u32 = 259;
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
+        if handle.is_null() {
+            return Ok(ProcessObservation::Dead);
+        }
+        let mut exit_code = 0_u32;
+        let read = GetExitCodeProcess(handle, &mut exit_code);
+        CloseHandle(handle);
+        if read == 0 {
+            anyhow::bail!("failed to inspect managed service process {process_id}");
+        }
+        Ok(if exit_code == STILL_ACTIVE {
+            ProcessObservation::Alive
+        } else {
+            ProcessObservation::Dead
+        })
+    }
+}
+
+#[cfg(unix)]
+fn observe_process(process_id: u32) -> Result<ProcessObservation> {
+    let result = unsafe { libc::kill(process_id as i32, 0) };
+    if result == 0 {
+        Ok(ProcessObservation::Alive)
+    } else {
+        let error = std::io::Error::last_os_error();
+        if error.raw_os_error() == Some(libc::ESRCH) {
+            Ok(ProcessObservation::Dead)
+        } else if error.raw_os_error() == Some(libc::EPERM) {
+            Ok(ProcessObservation::Alive)
+        } else {
+            Err(error.into())
+        }
+    }
 }
 
 fn service_runbook(args: Args) -> Result<()> {
@@ -3139,11 +3296,15 @@ fn service_lifecycle_receipt(
     operator_artifact_ref: Option<String>,
 ) -> EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
     let receipt_id = args.receipt_id.clone().unwrap_or_else(|| {
-        format!(
+        let base = format!(
             "daemon-service-lifecycle-receipt-{}-{}",
-            sanitize_id(&args.service_id),
-            sanitize_id(action)
-        )
+            sanitize_id(&args.service_id), sanitize_id(action)
+        );
+        if action == "launch" {
+            format!("{base}-{}", started_at.timestamp_millis())
+        } else {
+            base
+        }
     });
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
         schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
@@ -3592,6 +3753,8 @@ impl Args {
                     | "service-desired-state"
                     | "managed-service-read"
                     | "service-desired-state-read"
+                    | "managed-service-reconcile"
+                    | "service-desired-state-reconcile"
                     | "service-runbook"
                     | "runbook-service"
                     | "repo-work-service-audit"

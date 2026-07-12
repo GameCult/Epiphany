@@ -1511,8 +1511,6 @@ pub struct EpiphanyCultMeshManagedServicePolicyEntry {
     pub stdout_artifact: String,
     #[cultcache(key = 12)]
     pub stderr_artifact: String,
-    #[cultcache(key = 13)]
-    pub last_lifecycle_receipt_id: String,
     #[cultcache(key = 14)]
     pub updated_at_utc: String,
     #[cultcache(key = 15)]
