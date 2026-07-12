@@ -103,6 +103,9 @@ The confirmed conceptual substitutions have been cut:
 - Hands binaries no longer construct Substrate Gate grant structs inline.
   Grants are non-exhaustive externally and come from narrow fixed-policy
   constructors owned by the `substrate_gate` module.
+- Hands persistence resolves its grant rather than trusting an ID label. Grant
+  identity/scope/operations/paths and approved review must match each intent
+  and patch/command/commit consequence; grants are immutable.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

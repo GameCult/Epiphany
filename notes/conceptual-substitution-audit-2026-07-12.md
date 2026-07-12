@@ -411,3 +411,12 @@ module owns narrow fixed-policy constructors for repo-work planning and
 coordinator-approved implementation. Production binaries no longer choose the
 binding, role, authority scope, operation set, schema, or contract prose field
 by field.
+
+## Hands carrying an unresolved grant label
+
+Hands intent and consequence writers previously validated only that a grant ID
+string was nonempty. They now resolve the immutable persisted grant and require
+matching runtime job, binding, role, authority scope, allowed operation, and
+path coverage. Patch, command, and commit receipts also require the matching
+approved Hands review. Missing grants, mismatched paths, and attempts to mutate
+under a read-only planning grant are negative-tested refusals.

@@ -1398,6 +1398,14 @@ pub fn put_substrate_gate_repo_access_grant_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    if let Some(existing) = cache.get::<SubstrateGateRepoAccessGrantReceipt>(&receipt.receipt_id)? {
+        if existing != *receipt {
+            return Err(anyhow!(
+                "Substrate Gate grant id already belongs to different immutable authority"
+            ));
+        }
+        return Ok(());
+    }
     cache.put(&receipt.receipt_id, receipt)?;
     Ok(())
 }
@@ -1433,6 +1441,31 @@ pub fn put_hands_action_intent(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
+    let grant = cache
+        .get::<SubstrateGateRepoAccessGrantReceipt>(&intent.substrate_gate_grant_receipt_id)?
+        .ok_or_else(|| {
+            anyhow!("Hands action intent requires its persisted Substrate Gate grant")
+        })?;
+    if grant.runtime_job_id != intent.runtime_job_id
+        || grant.binding_id != intent.binding_id
+        || grant.role != intent.role
+        || grant.authority_scope != intent.authority_scope
+        || !grant
+            .granted_operations
+            .iter()
+            .any(|operation| operation == "read")
+        || !intent.requested_paths.iter().all(|path| {
+            grant.granted_paths.iter().any(|granted| {
+                granted == "."
+                    || path == granted
+                    || path.starts_with(&format!("{}/", granted.trim_end_matches(['/', '\\'])))
+            })
+        })
+    {
+        return Err(anyhow!(
+            "Hands action intent does not match its Substrate Gate grant scope"
+        ));
+    }
     cache.put(&intent.intent_id, intent)?;
     Ok(())
 }
@@ -1475,6 +1508,59 @@ pub fn runtime_hands_action_review(
     cache.get::<HandsActionReview>(review_id)
 }
 
+fn validate_hands_consequence_grant(
+    store_path: &Path,
+    intent_id: &str,
+    review_id: &str,
+    runtime_job_id: &str,
+    operation: &str,
+    changed_paths: &[String],
+    stated_grant_id: Option<&str>,
+) -> Result<()> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let intent = cache
+        .get::<HandsActionIntent>(intent_id)?
+        .ok_or_else(|| anyhow!("Hands consequence requires its persisted intent"))?;
+    let review = cache
+        .get::<HandsActionReview>(review_id)?
+        .ok_or_else(|| anyhow!("Hands consequence requires its persisted review"))?;
+    let grant = cache
+        .get::<SubstrateGateRepoAccessGrantReceipt>(&intent.substrate_gate_grant_receipt_id)?
+        .ok_or_else(|| anyhow!("Hands consequence requires its persisted Substrate Gate grant"))?;
+    let paths_covered = changed_paths.iter().all(|path| {
+        grant.granted_paths.iter().any(|granted| {
+            granted == "."
+                || path == granted
+                || path.starts_with(&format!("{}/", granted.trim_end_matches(['/', '\\'])))
+        })
+    });
+    if intent.runtime_job_id != runtime_job_id
+        || review.intent_id != intent.intent_id
+        || review.decision != "approved"
+        || !review
+            .allowed_operations
+            .iter()
+            .any(|allowed| allowed == operation)
+        || grant.runtime_job_id != intent.runtime_job_id
+        || grant.binding_id != intent.binding_id
+        || grant.role != intent.role
+        || grant.authority_scope != intent.authority_scope
+        || !grant
+            .granted_operations
+            .iter()
+            .any(|allowed| allowed == operation)
+        || stated_grant_id.is_some_and(|id| id != grant.receipt_id)
+        || !paths_covered
+    {
+        return Err(anyhow!(
+            "Hands consequence does not match its approved review and Substrate Gate grant"
+        ));
+    }
+    Ok(())
+}
+
 pub fn put_hands_patch_receipt(
     store_path: impl AsRef<Path>,
     receipt: &HandsPatchReceipt,
@@ -1492,6 +1578,15 @@ pub fn put_hands_patch_receipt(
     if receipt.changed_paths.is_empty() {
         return Err(anyhow!("Hands patch receipt must name changed paths"));
     }
+    validate_hands_consequence_grant(
+        store_path.as_ref(),
+        &receipt.intent_id,
+        &receipt.review_id,
+        &receipt.runtime_job_id,
+        "patch",
+        &receipt.changed_paths,
+        Some(&receipt.substrate_gate_grant_receipt_id),
+    )?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
@@ -1524,6 +1619,15 @@ pub fn put_hands_command_receipt(
     validate_non_empty(&receipt.command, "Hands command")?;
     validate_non_empty(&receipt.exit_code, "Hands command exit code")?;
     validate_non_empty(&receipt.emitted_at, "Hands command timestamp")?;
+    validate_hands_consequence_grant(
+        store_path.as_ref(),
+        &receipt.intent_id,
+        &receipt.review_id,
+        &receipt.runtime_job_id,
+        "command",
+        &[],
+        Some(&receipt.substrate_gate_grant_receipt_id),
+    )?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
@@ -1556,6 +1660,15 @@ pub fn put_hands_commit_receipt(
     if receipt.changed_paths.is_empty() {
         return Err(anyhow!("Hands commit receipt must name changed paths"));
     }
+    validate_hands_consequence_grant(
+        store_path.as_ref(),
+        &receipt.intent_id,
+        &receipt.review_id,
+        &receipt.runtime_job_id,
+        "commit",
+        &receipt.changed_paths,
+        None,
+    )?;
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
@@ -4242,6 +4355,13 @@ mod tests {
             runtime_substrate_gate_repo_access_grant_receipt(&store, "substrate-grant-1")?
                 .expect("Substrate Gate grant should persist");
         assert_eq!(stored_grant, substrate_grant);
+        let hands_grant = crate::substrate_gate_coordinator_implementation_grant(
+            "substrate-grant-hands-1".to_string(),
+            "job-implementation-1".to_string(),
+            vec!["src".to_string()],
+            "2026-05-06T00:06:20Z".to_string(),
+        );
+        put_substrate_gate_repo_access_grant_receipt(&store, &hands_grant)?;
         let hands_intent = HandsActionIntent {
             schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
             intent_id: "hands-intent-1".to_string(),
@@ -4251,7 +4371,7 @@ mod tests {
             authority_scope: "epiphany.role.implementation".to_string(),
             requested_action: "patch".to_string(),
             requested_paths: vec!["src/lib.rs".to_string()],
-            substrate_gate_grant_receipt_id: "substrate-grant-1".to_string(),
+            substrate_gate_grant_receipt_id: "substrate-grant-hands-1".to_string(),
             requested_at: "2026-05-06T00:06:30Z".to_string(),
             contract: "Hands action intent persists as runtime-spine proof.".to_string(),
         };
@@ -4260,7 +4380,11 @@ mod tests {
             "hands-review-1".to_string(),
             &hands_intent,
             "approved".to_string(),
-            vec!["patch".to_string()],
+            vec![
+                "patch".to_string(),
+                "command".to_string(),
+                "commit".to_string(),
+            ],
             vec!["Substrate Gate grant is present.".to_string()],
             "2026-05-06T00:06:40Z".to_string(),
         );
@@ -4352,6 +4476,66 @@ mod tests {
     }
 
     #[test]
+    fn hands_persistence_requires_resolved_matching_grant_authority() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-07-12T00:00:00Z".to_string(),
+            },
+        )?;
+        let mut intent = HandsActionIntent {
+            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "hands-intent-grant-check".to_string(),
+            runtime_job_id: "hands-job-grant-check".to_string(),
+            binding_id: "repo-work-runner".to_string(),
+            role: "epiphany-hands".to_string(),
+            authority_scope: "repo.branch_local_work".to_string(),
+            requested_action: "runAcceptedWorkItem".to_string(),
+            requested_paths: vec!["README.md".to_string()],
+            substrate_gate_grant_receipt_id: "missing-grant".to_string(),
+            requested_at: "2026-07-12T00:00:01Z".to_string(),
+            contract: "Negative grant resolution proof.".to_string(),
+        };
+        assert!(put_hands_action_intent(&store, &intent).is_err());
+
+        let grant = crate::substrate_gate_repo_work_planning_grant(
+            "planning-grant".to_string(),
+            intent.runtime_job_id.clone(),
+            vec!["notes".to_string()],
+            "2026-07-12T00:00:00Z".to_string(),
+        );
+        put_substrate_gate_repo_access_grant_receipt(&store, &grant)?;
+        intent.substrate_gate_grant_receipt_id = grant.receipt_id.clone();
+        assert!(put_hands_action_intent(&store, &intent).is_err());
+
+        intent.requested_paths = vec!["notes/a.md".to_string()];
+        put_hands_action_intent(&store, &intent)?;
+        let review = crate::hands_action_review_for_intent(
+            "hands-review-grant-check".to_string(),
+            &intent,
+            "approved".to_string(),
+            vec!["patch".to_string()],
+            vec!["test".to_string()],
+            "2026-07-12T00:00:02Z".to_string(),
+        );
+        put_hands_action_review(&store, &review)?;
+        let patch = crate::hands_patch_receipt_for_review(
+            "hands-patch-grant-check".to_string(),
+            &intent,
+            &review,
+            vec!["notes/a.md".to_string()],
+            "test".to_string(),
+            "2026-07-12T00:00:03Z".to_string(),
+        );
+        assert!(put_hands_patch_receipt(&store, &patch).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn latest_hands_chain_uses_latest_same_gate_receipts_before_commit() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
@@ -4376,6 +4560,15 @@ mod tests {
             requested_at: "2026-06-13T00:00:01Z".to_string(),
             contract: "Test reused Hands gate.".to_string(),
         };
+        put_substrate_gate_repo_access_grant_receipt(
+            &store,
+            &crate::substrate_gate_coordinator_implementation_grant(
+                "substrate-grant-reused".to_string(),
+                "hands-job-reused".to_string(),
+                vec![".".to_string()],
+                "2026-06-13T00:00:00Z".to_string(),
+            ),
+        )?;
         put_hands_action_intent(&store, &intent)?;
         let review = crate::hands_action_review_for_intent(
             "hands-review-reused".to_string(),

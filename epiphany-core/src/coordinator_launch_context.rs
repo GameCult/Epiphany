@@ -853,6 +853,15 @@ mod tests {
             requested_at: "2026-06-12T00:00:01Z".to_string(),
             contract: "Test Hands intent.".to_string(),
         };
+        crate::put_substrate_gate_repo_access_grant_receipt(
+            &runtime_store,
+            &crate::substrate_gate_coordinator_implementation_grant(
+                "substrate-grant-context".to_string(),
+                "hands-job-context".to_string(),
+                vec![".".to_string()],
+                "2026-06-12T00:00:00Z".to_string(),
+            ),
+        )?;
         put_hands_action_intent(&runtime_store, &intent)?;
         let review = hands_action_review_for_intent(
             "hands-review-context".to_string(),
