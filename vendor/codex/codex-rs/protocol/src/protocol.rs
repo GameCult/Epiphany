@@ -50,6 +50,10 @@ use crate::request_permissions::RequestPermissionsEvent;
 use crate::request_permissions::RequestPermissionsResponse;
 use crate::request_user_input::RequestUserInputResponse;
 use crate::user_input::UserInput;
+#[cfg(test)]
+use epiphany_state_model::*;
+#[cfg(not(test))]
+use epiphany_state_model::EpiphanyStateItem;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -2946,44 +2950,6 @@ pub enum RolloutItem {
     EpiphanyState(EpiphanyStateItem),
     EventMsg(EventMsg),
 }
-
-pub use epiphany_state_model::EpiphanyAcceptanceReceipt;
-pub use epiphany_state_model::EpiphanyBacklogItem;
-pub use epiphany_state_model::EpiphanyChurnState;
-pub use epiphany_state_model::EpiphanyCodeRef;
-pub use epiphany_state_model::EpiphanyEvidenceRecord;
-pub use epiphany_state_model::EpiphanyGraph;
-pub use epiphany_state_model::EpiphanyGraphCheckpoint;
-pub use epiphany_state_model::EpiphanyGraphEdge;
-pub use epiphany_state_model::EpiphanyGraphFrontier;
-pub use epiphany_state_model::EpiphanyGraphLink;
-pub use epiphany_state_model::EpiphanyGraphNode;
-pub use epiphany_state_model::EpiphanyGraphs;
-pub use epiphany_state_model::EpiphanyInvariant;
-pub use epiphany_state_model::EpiphanyInvestigationCheckpoint;
-pub use epiphany_state_model::EpiphanyInvestigationDisposition;
-pub use epiphany_state_model::EpiphanyJobBinding;
-pub use epiphany_state_model::EpiphanyJobKind;
-pub use epiphany_state_model::EpiphanyModeKind;
-pub use epiphany_state_model::EpiphanyModeState;
-pub use epiphany_state_model::EpiphanyObjectiveDraft;
-pub use epiphany_state_model::EpiphanyObjectiveDraftLanePlan;
-pub use epiphany_state_model::EpiphanyObjectiveDraftScope;
-pub use epiphany_state_model::EpiphanyObservation;
-pub use epiphany_state_model::EpiphanyPlanningCapture;
-pub use epiphany_state_model::EpiphanyPlanningPriority;
-pub use epiphany_state_model::EpiphanyPlanningSourceRef;
-pub use epiphany_state_model::EpiphanyPlanningState;
-pub use epiphany_state_model::EpiphanyRetrievalShardSummary;
-pub use epiphany_state_model::EpiphanyRetrievalState;
-pub use epiphany_state_model::EpiphanyRetrievalStatus;
-pub use epiphany_state_model::EpiphanyRoadmapStream;
-pub use epiphany_state_model::EpiphanyRuntimeLink;
-pub use epiphany_state_model::EpiphanyScratchPad;
-pub use epiphany_state_model::EpiphanyStateItem;
-pub use epiphany_state_model::EpiphanySubgoal;
-pub use epiphany_state_model::EpiphanyThreadState;
-pub use epiphany_state_model::render_epiphany_state;
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]
 pub struct CompactedItem {

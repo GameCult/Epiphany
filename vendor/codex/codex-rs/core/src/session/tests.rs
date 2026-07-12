@@ -75,24 +75,24 @@ use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::CompactedItem;
 use codex_protocol::protocol::ConversationAudioParams;
 use codex_protocol::protocol::CreditsSnapshot;
-use codex_protocol::protocol::EpiphanyChurnState;
-use codex_protocol::protocol::EpiphanyCodeRef;
-use codex_protocol::protocol::EpiphanyEvidenceRecord;
-use codex_protocol::protocol::EpiphanyGraph;
-use codex_protocol::protocol::EpiphanyGraphCheckpoint;
-use codex_protocol::protocol::EpiphanyGraphEdge;
-use codex_protocol::protocol::EpiphanyGraphFrontier;
-use codex_protocol::protocol::EpiphanyGraphLink;
-use codex_protocol::protocol::EpiphanyGraphNode;
-use codex_protocol::protocol::EpiphanyGraphs;
-use codex_protocol::protocol::EpiphanyInvariant;
-use codex_protocol::protocol::EpiphanyModeKind;
-use codex_protocol::protocol::EpiphanyModeState;
-use codex_protocol::protocol::EpiphanyObservation;
-use codex_protocol::protocol::EpiphanyScratchPad;
-use codex_protocol::protocol::EpiphanyStateItem;
-use codex_protocol::protocol::EpiphanySubgoal;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyChurnState;
+use epiphany_state_model::EpiphanyCodeRef;
+use epiphany_state_model::EpiphanyEvidenceRecord;
+use epiphany_state_model::EpiphanyGraph;
+use epiphany_state_model::EpiphanyGraphCheckpoint;
+use epiphany_state_model::EpiphanyGraphEdge;
+use epiphany_state_model::EpiphanyGraphFrontier;
+use epiphany_state_model::EpiphanyGraphLink;
+use epiphany_state_model::EpiphanyGraphNode;
+use epiphany_state_model::EpiphanyGraphs;
+use epiphany_state_model::EpiphanyInvariant;
+use epiphany_state_model::EpiphanyModeKind;
+use epiphany_state_model::EpiphanyModeState;
+use epiphany_state_model::EpiphanyObservation;
+use epiphany_state_model::EpiphanyScratchPad;
+use epiphany_state_model::EpiphanyStateItem;
+use epiphany_state_model::EpiphanySubgoal;
+use epiphany_state_model::EpiphanyThreadState;
 use codex_protocol::protocol::GranularApprovalConfig;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::InterAgentCommunication;
@@ -153,6 +153,7 @@ fn codex_session_has_no_epiphany_state_custody() {
     let session = include_str!("mod.rs");
     let codex_thread = include_str!("../codex_thread.rs");
     let core_lib = include_str!("../lib.rs");
+    let protocol = include_str!("../../../protocol/src/protocol.rs");
 
     assert!(!session_state.contains("epiphany_state"));
     assert!(!session.contains("set_epiphany_state"));
@@ -160,6 +161,7 @@ fn codex_session_has_no_epiphany_state_custody() {
     assert!(!codex_thread.contains("async fn epiphany_state"));
     assert!(!codex_thread.contains("pub async fn epiphany_"));
     assert!(!core_lib.contains("epiphany_rollout"));
+    assert!(!protocol.contains("pub use epiphany_state_model::"));
 }
 
 fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {

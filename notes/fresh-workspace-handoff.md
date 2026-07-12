@@ -1907,7 +1907,12 @@ and reference context at the app-server boundary. That cut is complete:
 app-server derives runtime-spine paths from generic config snapshots and uses
 generic `reference_turn_id`; `CodexThread` exposes no `epiphany_*` async API.
 Next audit the broad Epiphany re-export slab in `codex-protocol` and make
-compatibility code import native state contracts directly where possible.
+compatibility code import native state contracts directly where possible. That
+slab is deleted: app-server-protocol, app-server, and core legacy tests import
+the native model directly; Codex protocol keeps only a private state-item import
+for historical rollout decoding. Next make that legacy payload opaque in Codex
+protocol and decode it only in the app-server quarantine, removing
+`epiphany-state-model` from Codex protocol's production dependency graph.
 
 ## Immediate Re-entry Instruction
 

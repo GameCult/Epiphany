@@ -1,8 +1,8 @@
 use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
-use codex_protocol::protocol::EpiphanyRetrievalState;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyThreadState;
 use epiphany_codex_bridge::cultnet::EpiphanyStateUpdatedField;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;

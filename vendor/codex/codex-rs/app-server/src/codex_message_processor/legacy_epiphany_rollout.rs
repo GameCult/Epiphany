@@ -1,5 +1,5 @@
 use codex_protocol::models::ResponseItem;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyThreadState;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::RolloutItem;
 
@@ -103,7 +103,7 @@ pub(super) fn latest_legacy_epiphany_state(items: &[RolloutItem]) -> Option<Epip
 mod tests {
     use super::*;
     use codex_protocol::config_types::ModeKind;
-    use codex_protocol::protocol::EpiphanyStateItem;
+    use epiphany_state_model::EpiphanyStateItem;
     use codex_protocol::protocol::ThreadRolledBackEvent;
     use codex_protocol::protocol::TurnCompleteEvent;
     use codex_protocol::protocol::TurnStartedEvent;

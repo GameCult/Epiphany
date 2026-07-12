@@ -1,7 +1,7 @@
 use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
-use codex_protocol::protocol::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyRetrievalState;
 use super::epiphany_thread_host::load_authoritative_epiphany_state;
 use super::epiphany_thread_host::runtime_spine_store_path;
 use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;

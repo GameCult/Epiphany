@@ -3,7 +3,7 @@ use std::path::Path;
 use super::legacy_epiphany_rollout::latest_legacy_epiphany_state;
 use codex_core::CodexThread;
 use codex_core::RolloutRecorder;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyThreadState;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::TokenUsageInfo;
 use epiphany_codex_bridge::mutation_service::EpiphanyMutationHost;

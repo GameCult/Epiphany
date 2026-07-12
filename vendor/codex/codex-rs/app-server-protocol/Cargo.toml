@@ -12,6 +12,7 @@ path = "src/lib.rs"
 workspace = true
 
 [dependencies]
+epiphany-state-model = { path = "../../../../epiphany-state-model" }
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 codex-experimental-api-macros = { workspace = true }

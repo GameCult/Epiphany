@@ -1670,11 +1670,11 @@ mod tests {
                 role_id: v2::ThreadEpiphanyRoleId::Modeling,
                 revision: 4,
                 changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 4,
-                    job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                    job_bindings: vec![epiphany_state_model::EpiphanyJobBinding {
                         id: "modeling-checkpoint-worker".to_string(),
-                        kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                        kind: epiphany_state_model::EpiphanyJobKind::Specialist,
                         scope: "role-scoped modeling/checkpoint maintenance".to_string(),
                         owner_role: "epiphany-modeler".to_string(),
                         authority_scope: Some("epiphany.role.modeling".to_string()),
@@ -1859,7 +1859,7 @@ mod tests {
     #[test]
     fn serialize_thread_epiphany_role_accept_response() -> Result<()> {
         let patch = v2::ThreadEpiphanyUpdatePatch {
-            graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+            graph_frontier: Some(epiphany_state_model::EpiphanyGraphFrontier {
                 active_node_ids: vec!["state-spine".to_string()],
                 ..Default::default()
             }),
@@ -1897,7 +1897,7 @@ mod tests {
                     v2::ThreadEpiphanyStateUpdatedField::Observations,
                     v2::ThreadEpiphanyStateUpdatedField::Evidence,
                 ],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 5,
                     ..Default::default()
                 },
@@ -2055,13 +2055,13 @@ mod tests {
                 state_revision: Some(3),
                 context: v2::ThreadEpiphanyContext {
                     graph: v2::ThreadEpiphanyGraphContext {
-                        architecture_nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                        architecture_nodes: vec![epiphany_state_model::EpiphanyGraphNode {
                             id: "state-spine".to_string(),
                             title: "State spine".to_string(),
                             purpose: "Keep understanding typed".to_string(),
                             ..Default::default()
                         }],
-                        architecture_edges: vec![codex_protocol::protocol::EpiphanyGraphEdge {
+                        architecture_edges: vec![epiphany_state_model::EpiphanyGraphEdge {
                             id: Some("edge-state-read".to_string()),
                             source_id: "state-spine".to_string(),
                             target_id: "client-read".to_string(),
@@ -2070,13 +2070,13 @@ mod tests {
                         }],
                         ..Default::default()
                     },
-                    frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                    frontier: Some(epiphany_state_model::EpiphanyGraphFrontier {
                         active_node_ids: vec!["state-spine".to_string()],
                         ..Default::default()
                     }),
                     checkpoint: None,
                     investigation_checkpoint: Some(
-                        codex_protocol::protocol::EpiphanyInvestigationCheckpoint {
+                        epiphany_state_model::EpiphanyInvestigationCheckpoint {
                             checkpoint_id: "ix-1".to_string(),
                             kind: "source_gathering".to_string(),
                             focus: "Audit the compaction seam.".to_string(),
@@ -2086,7 +2086,7 @@ mod tests {
                             ..Default::default()
                         },
                     ),
-                    observations: vec![codex_protocol::protocol::EpiphanyObservation {
+                    observations: vec![epiphany_state_model::EpiphanyObservation {
                         id: "obs-1".to_string(),
                         summary: "Context shard is read-only.".to_string(),
                         source_kind: "smoke".to_string(),
@@ -2094,7 +2094,7 @@ mod tests {
                         evidence_ids: vec!["ev-1".to_string()],
                         ..Default::default()
                     }],
-                    evidence: vec![codex_protocol::protocol::EpiphanyEvidenceRecord {
+                    evidence: vec![epiphany_state_model::EpiphanyEvidenceRecord {
                         id: "ev-1".to_string(),
                         kind: "test".to_string(),
                         status: "ok".to_string(),
@@ -2225,7 +2225,7 @@ mod tests {
                 state_status: v2::ThreadEpiphanyContextStateStatus::Ready,
                 state_revision: Some(2),
                 graph: v2::ThreadEpiphanyGraphContext {
-                    architecture_nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                    architecture_nodes: vec![epiphany_state_model::EpiphanyGraphNode {
                         id: "state-spine".to_string(),
                         title: "State spine".to_string(),
                         purpose: "Persist Epiphany state.".to_string(),
@@ -2304,11 +2304,11 @@ mod tests {
                 },
                 revision: 5,
                 changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 5,
-                    job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                    job_bindings: vec![epiphany_state_model::EpiphanyJobBinding {
                         id: "reorient-worker".to_string(),
-                        kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                        kind: epiphany_state_model::EpiphanyJobKind::Specialist,
                         scope: "reorient-guided checkpoint regather".to_string(),
                         owner_role: "epiphany-reorient".to_string(),
                         authority_scope: Some("epiphany.reorient.regather".to_string()),
@@ -2514,9 +2514,9 @@ mod tests {
                     v2::ThreadEpiphanyStateUpdatedField::Evidence,
                     v2::ThreadEpiphanyStateUpdatedField::Scratch,
                 ],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 6,
-                    observations: vec![codex_protocol::protocol::EpiphanyObservation {
+                    observations: vec![epiphany_state_model::EpiphanyObservation {
                         id: "obs-reorient-1".to_string(),
                         summary: "Accepted resume reorientation result.".to_string(),
                         source_kind: "reorient_result".to_string(),
@@ -2524,7 +2524,7 @@ mod tests {
                         evidence_ids: vec!["ev-reorient-1".to_string()],
                         ..Default::default()
                     }],
-                    recent_evidence: vec![codex_protocol::protocol::EpiphanyEvidenceRecord {
+                    recent_evidence: vec![epiphany_state_model::EpiphanyEvidenceRecord {
                         id: "ev-reorient-1".to_string(),
                         kind: "reorient_result".to_string(),
                         status: "accepted".to_string(),
@@ -2607,7 +2607,7 @@ mod tests {
                 index_summary: v2::ThreadEpiphanyRetrieveIndexSummary {
                     workspace_root: absolute_path("/workspace"),
                     index_revision: Some("query-time-bm25-v1".to_string()),
-                    status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                    status: epiphany_state_model::EpiphanyRetrievalStatus::Ready,
                     semantic_available: true,
                     last_indexed_at_unix_seconds: Some(1_744_500_000),
                     indexed_file_count: Some(12),
@@ -2617,7 +2617,7 @@ mod tests {
                         path_prefix: PathBuf::from("."),
                         indexed_file_count: Some(12),
                         indexed_chunk_count: Some(34),
-                        status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                        status: epiphany_state_model::EpiphanyRetrievalStatus::Ready,
                         exact_available: true,
                         semantic_available: true,
                     }],
@@ -2688,7 +2688,7 @@ mod tests {
                 index_summary: v2::ThreadEpiphanyRetrieveIndexSummary {
                     workspace_root: absolute_path("/workspace"),
                     index_revision: Some("qdrant-ollama-v1:qwen3-embedding:0.6b".to_string()),
-                    status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                    status: epiphany_state_model::EpiphanyRetrievalStatus::Ready,
                     semantic_available: true,
                     last_indexed_at_unix_seconds: Some(1_744_500_100),
                     indexed_file_count: Some(12),
@@ -2698,7 +2698,7 @@ mod tests {
                         path_prefix: PathBuf::from("."),
                         indexed_file_count: Some(12),
                         indexed_chunk_count: Some(34),
-                        status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                        status: epiphany_state_model::EpiphanyRetrievalStatus::Ready,
                         exact_available: true,
                         semantic_available: true,
                     }],
@@ -2749,7 +2749,7 @@ mod tests {
             response: v2::ThreadEpiphanyDistillResponse {
                 expected_revision: 7,
                 patch: v2::ThreadEpiphanyUpdatePatch {
-                    observations: vec![codex_protocol::protocol::EpiphanyObservation {
+                    observations: vec![epiphany_state_model::EpiphanyObservation {
                         id: "obs-123".to_string(),
                         summary: "Smoke passed".to_string(),
                         source_kind: "smoke".to_string(),
@@ -2757,7 +2757,7 @@ mod tests {
                         code_refs: Vec::new(),
                         evidence_ids: vec!["ev-123".to_string()],
                     }],
-                    evidence: vec![codex_protocol::protocol::EpiphanyEvidenceRecord {
+                    evidence: vec![epiphany_state_model::EpiphanyEvidenceRecord {
                         id: "ev-123".to_string(),
                         kind: "verification".to_string(),
                         status: "ok".to_string(),
@@ -2810,7 +2810,7 @@ mod tests {
             response: v2::ThreadEpiphanyProposeResponse {
                 expected_revision: 7,
                 patch: v2::ThreadEpiphanyUpdatePatch {
-                    churn: Some(codex_protocol::protocol::EpiphanyChurnState {
+                    churn: Some(epiphany_state_model::EpiphanyChurnState {
                         understanding_status: "proposal_ready".to_string(),
                         diff_pressure: "low".to_string(),
                         graph_freshness: Some("proposal".to_string()),
@@ -2883,11 +2883,11 @@ mod tests {
                     v2::ThreadEpiphanyStateUpdatedField::JobBindings,
                     v2::ThreadEpiphanyStateUpdatedField::RuntimeLinks,
                 ],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 3,
-                    job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                    job_bindings: vec![epiphany_state_model::EpiphanyJobBinding {
                         id: "specialist-work".to_string(),
-                        kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                        kind: epiphany_state_model::EpiphanyJobKind::Specialist,
                         scope: "role-scoped specialist work".to_string(),
                         owner_role: "epiphany-harness".to_string(),
                         authority_scope: Some("epiphany.specialist".to_string()),
@@ -2895,7 +2895,7 @@ mod tests {
                         linked_graph_node_ids: Vec::new(),
                         blocking_reason: None,
                     }],
-                    runtime_links: vec![codex_protocol::protocol::EpiphanyRuntimeLink {
+                    runtime_links: vec![epiphany_state_model::EpiphanyRuntimeLink {
                         id: "runtime-link-specialist-work-job-123".to_string(),
                         binding_id: "specialist-work".to_string(),
                         surface: "jobLaunch".to_string(),
@@ -2982,11 +2982,11 @@ mod tests {
                 interrupted_thread_ids: vec!["worker-thread-1".to_string()],
                 revision: 4,
                 changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 4,
-                    job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                    job_bindings: vec![epiphany_state_model::EpiphanyJobBinding {
                         id: "specialist-work".to_string(),
-                        kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                        kind: epiphany_state_model::EpiphanyJobKind::Specialist,
                         scope: "role-scoped specialist work".to_string(),
                         owner_role: "epiphany-harness".to_string(),
                         authority_scope: Some("epiphany.specialist".to_string()),
@@ -3066,7 +3066,7 @@ mod tests {
             response: v2::ThreadEpiphanyUpdateResponse {
                 revision: 2,
                 changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::Objective],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 2,
                     objective: Some("Keep the map honest".to_string()),
                     ..Default::default()
@@ -3105,7 +3105,7 @@ mod tests {
                     v2::ThreadEpiphanyStateUpdatedField::Objective,
                     v2::ThreadEpiphanyStateUpdatedField::Evidence,
                 ],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 7,
                     objective: Some("Keep the map live".to_string()),
                     ..Default::default()
@@ -3139,7 +3139,7 @@ mod tests {
                 source: v2::ThreadEpiphanyStateUpdatedSource::JobLaunch,
                 revision: 8,
                 changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                epiphany_state: epiphany_state_model::EpiphanyThreadState {
                     revision: 8,
                     ..Default::default()
                 },
@@ -3883,7 +3883,7 @@ mod tests {
                     objective: Some("Keep the map honest".to_string()),
                     ..Default::default()
                 },
-                verifier_evidence: codex_protocol::protocol::EpiphanyEvidenceRecord {
+                verifier_evidence: epiphany_state_model::EpiphanyEvidenceRecord {
                     id: "ev-verifier".to_string(),
                     kind: "verification".to_string(),
                     status: "ok".to_string(),
@@ -3904,7 +3904,7 @@ mod tests {
                 thread_id: "thr_123".to_string(),
                 expected_revision: Some(2),
                 binding_id: "specialist-work".to_string(),
-                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                kind: epiphany_state_model::EpiphanyJobKind::Specialist,
                 scope: "role-scoped specialist work".to_string(),
                 owner_role: "epiphany-harness".to_string(),
                 authority_scope: "epiphany.specialist".to_string(),
@@ -3980,7 +3980,7 @@ mod tests {
                 source: v2::ThreadEpiphanyStateUpdatedSource::Promote,
                 revision: 0,
                 changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::Churn],
-                epiphany_state: codex_protocol::protocol::EpiphanyThreadState::default(),
+                epiphany_state: epiphany_state_model::EpiphanyThreadState::default(),
             },
         );
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&notification);

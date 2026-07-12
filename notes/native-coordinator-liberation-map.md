@@ -305,3 +305,10 @@ Epiphany-named reference-turn and runtime-spine-path helpers are deleted;
 app-server derives the compatibility store path from the generic config
 snapshot and calls a generic `reference_turn_id` accessor. The core source guard
 rejects any `pub async fn epiphany_*` API on `CodexThread`.
+
+`codex-protocol` no longer republishes Epiphany's anatomy. App-server-protocol,
+app-server compatibility code, and legacy-focused core tests import
+`epiphany-state-model` directly. Protocol retains a private
+`EpiphanyStateItem` import solely to decode the historical rollout variant; its
+two round-trip tests and app-server's two migration tests pass. A source guard
+forbids `pub use epiphany_state_model::*` from returning.
