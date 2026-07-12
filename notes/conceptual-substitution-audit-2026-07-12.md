@@ -562,3 +562,13 @@ production/lower-bound times with the accepted-verification lower bound no
 later than packet production. `latest` advances by `(production time,
 telemetry ID)`. The old fixture's future lower bound was corrected rather than
 blessed as prophecy.
+
+## Mirror arrival presented as latest Mind-admitted repo map
+
+The repo-work map is a projection of Mind-admitted durable state and drives
+queue visibility, but its `latest` mirror was overwritten by arrival order and
+its admission/mirror timestamps were unchecked strings. A delayed projection
+of an older admission could therefore become the queue's current map. Map
+entries now require valid RFC3339 admission/mirror times, reject projection
+before Mind admission, and advance `latest` by `(admission time, map entry ID)`.
+Mirror latency is metadata; it does not own state progression.

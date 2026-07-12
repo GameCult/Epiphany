@@ -5527,7 +5527,14 @@ pub fn write_epiphany_cultmesh_repo_work_map_entry(
     validate_repo_work_map_entry(&map_entry)?;
     let mut node = open_epiphany_cultmesh_node(&store_path, map_entry.runtime_id.clone())?;
     let written = node.put(map_entry.map_entry_id.clone(), &map_entry)?;
-    node.put(EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY, &written)?;
+    let current_latest = node.get::<EpiphanyCultMeshRepoWorkMapEntry>(
+        EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY,
+    )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        repo_work_map_admission_key(&written) >= repo_work_map_admission_key(current)
+    }) {
+        node.put(EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY, &written)?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -5711,6 +5718,15 @@ fn validate_repo_work_map_entry(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> Res
             "repo work map entry projection requires admitted durable state"
         ));
     }
+    let admitted_at = DateTime::parse_from_rfc3339(&entry.admitted_at)
+        .map_err(|error| anyhow!("repo work map entry has invalid admitted_at: {error}"))?;
+    let mirrored_at = DateTime::parse_from_rfc3339(&entry.mirrored_at)
+        .map_err(|error| anyhow!("repo work map entry has invalid mirrored_at: {error}"))?;
+    if mirrored_at < admitted_at {
+        return Err(anyhow!(
+            "repo work map entry was mirrored before Mind admission"
+        ));
+    }
     if entry.tui_rows.is_empty() {
         return Err(anyhow!("repo work map entry requires compact TUI rows"));
     }
@@ -5724,6 +5740,16 @@ fn validate_repo_work_map_entry(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> Res
         ));
     }
     Ok(())
+}
+
+fn repo_work_map_admission_key(
+    entry: &EpiphanyCultMeshRepoWorkMapEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&entry.admitted_at)
+            .expect("validated repo work map admission timestamp"),
+        entry.map_entry_id.as_str(),
+    )
 }
 
 fn validate_repo_work_public_proof(proof: &EpiphanyCultMeshRepoWorkPublicProofEntry) -> Result<()> {
@@ -7371,6 +7397,60 @@ mod tests {
             )?,
             Some(second)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn repo_work_map_latest_follows_mind_admission_not_mirror_arrival() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("repo-work-map-order.ccmp");
+        let older = EpiphanyCultMeshRepoWorkMapEntry {
+            schema_version: EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION.to_string(),
+            runtime_id: "repo-work-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+            map_entry_id: "repo-work-map-older".to_string(),
+            admitted_at: "2026-07-13T01:00:00Z".to_string(),
+            mirrored_at: "2026-07-13T01:00:01Z".to_string(),
+            workspace: "E:/Projects/test".to_string(),
+            item: "test-item".to_string(),
+            branch: "main".to_string(),
+            changed_paths: vec!["src/lib.rs".to_string()],
+            commit_sha: "older".to_string(),
+            safe_action_family: "planning-note".to_string(),
+            modeling_summary: "Older admitted map.".to_string(),
+            soul_verdict_receipt_id: "soul-older".to_string(),
+            mind_gateway_review_id: "mind-review-older".to_string(),
+            mind_state_commit_receipt_id: "mind-commit-older".to_string(),
+            publication_gate: "bifrost".to_string(),
+            durable_state_admitted: true,
+            source_store_path: "state/runtime.cc".to_string(),
+            tui_rows: vec!["MAP test-item older".to_string()],
+            private_state_exposed: false,
+            notes: Vec::new(),
+            modeling_finding_receipt_id: "modeling-finding-older".to_string(),
+            modeling_route_id: "modeling-route-older".to_string(),
+            modeling_generation: 1,
+        };
+        let mut newer = older.clone();
+        newer.map_entry_id = "repo-work-map-newer".to_string();
+        newer.admitted_at = "2026-07-13T02:00:00Z".to_string();
+        newer.mirrored_at = "2026-07-13T02:00:01Z".to_string();
+        newer.commit_sha = "newer".to_string();
+        newer.modeling_generation = 2;
+
+        write_epiphany_cultmesh_repo_work_map_entry(&store, newer.clone())?;
+        write_epiphany_cultmesh_repo_work_map_entry(&store, older.clone())?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_repo_work_map_entry(&store, "repo-work-test")?,
+            Some(newer)
+        );
+
+        let mut impossible = older;
+        impossible.map_entry_id = "repo-work-map-impossible".to_string();
+        impossible.mirrored_at = "2026-07-13T00:59:59Z".to_string();
+        let err = write_epiphany_cultmesh_repo_work_map_entry(&store, impossible)
+            .expect_err("map projection before Mind admission must be refused");
+        assert!(err.to_string().contains("before Mind admission"));
         Ok(())
     }
 
