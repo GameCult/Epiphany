@@ -90,6 +90,10 @@
   publication command. Provider bodies must publish their own discovery state;
   central declared topology cannot be lowered into `active`/`daemon-live`
   compatibility presence.
+- `epiphany-cluster-daemon` owns provider presence beside heartbeat liveness.
+  Each heartbeat/serve lane publishes only its daemon's Odin advertisement,
+  Eve surface, and hosted tools through a daemon-ID-bounded primitive. There is
+  no all-provider writer; an unknown daemon publishes nothing.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

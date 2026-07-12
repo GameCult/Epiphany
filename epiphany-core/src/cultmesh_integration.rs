@@ -5,7 +5,6 @@ use crate::default_hands_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
-#[cfg(test)]
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -6578,19 +6577,6 @@ pub fn epiphany_cultmesh_odin_advertisements() -> Vec<EpiphanyCultMeshOdinAdvert
         .collect()
 }
 
-pub fn write_epiphany_cultmesh_odin_advertisements(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshOdinAdvertisementEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for advertisement in epiphany_cultmesh_odin_advertisements() {
-        written.push(node.put(advertisement.advertisement_id.clone(), &advertisement)?);
-    }
-    node.flush()?;
-    Ok(written)
-}
-
 pub fn epiphany_cultmesh_eve_surface_states() -> Vec<EpiphanyCultMeshEveSurfaceStateEntry> {
     epiphany_cultmesh_cluster_topology()
         .into_iter()
@@ -6647,20 +6633,6 @@ pub fn epiphany_cultmesh_eve_surface_states() -> Vec<EpiphanyCultMeshEveSurfaceS
             }
         })
         .collect()
-}
-
-pub fn write_epiphany_cultmesh_eve_surface_states(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshEveSurfaceStateEntry>> {
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for surface in epiphany_cultmesh_eve_surface_states() {
-        validate_eve_surface_state(&surface)?;
-        written.push(node.put(surface.surface_id.clone(), &surface)?);
-    }
-    node.flush()?;
-    Ok(written)
 }
 
 fn validate_eve_surface_state(surface: &EpiphanyCultMeshEveSurfaceStateEntry) -> Result<()> {
@@ -6873,17 +6845,36 @@ fn epiphany_cultmesh_daemon_tool_capability(
     }
 }
 
-pub fn write_epiphany_cultmesh_daemon_tool_capabilities(
+pub fn publish_epiphany_cultmesh_provider_state(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshDaemonToolCapabilityEntry>> {
+    daemon_id: &str,
+) -> Result<()> {
+    let cluster = epiphany_cultmesh_cluster_topology()
+        .into_iter()
+        .find(|cluster| cluster.daemon_id == daemon_id)
+        .with_context(|| format!("no declared provider topology for daemon {daemon_id:?}"))?;
+    let advertisement = epiphany_cultmesh_odin_advertisements()
+        .into_iter()
+        .find(|advertisement| advertisement.cluster_id == cluster.cluster_id)
+        .with_context(|| format!("daemon {daemon_id:?} has no Odin advertisement contract"))?;
+    let surface = epiphany_cultmesh_eve_surface_states()
+        .into_iter()
+        .find(|surface| surface.cluster_id == cluster.cluster_id)
+        .with_context(|| format!("daemon {daemon_id:?} has no Eve surface contract"))?;
+    validate_eve_surface_state(&surface)?;
+
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut written = Vec::new();
-    for capability in epiphany_cultmesh_daemon_tool_capabilities() {
-        written.push(node.put(capability.capability_id.clone(), &capability)?);
+    node.put(advertisement.advertisement_id.clone(), &advertisement)?;
+    node.put(surface.surface_id.clone(), &surface)?;
+    for capability in epiphany_cultmesh_daemon_tool_capabilities()
+        .into_iter()
+        .filter(|capability| capability.host_daemon_id == daemon_id)
+    {
+        node.put(capability.capability_id.clone(), &capability)?;
     }
     node.flush()?;
-    Ok(written)
+    Ok(())
 }
 
 pub fn epiphany_cultmesh_mind_contracts() -> Vec<EpiphanyCultMeshMindContractEntry> {
@@ -7185,6 +7176,17 @@ pub fn write_epiphany_cultmesh_bifrost_contracts(
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    fn publish_all_test_provider_state(store: &Path) -> Result<()> {
+        for cluster in epiphany_cultmesh_cluster_topology() {
+            publish_epiphany_cultmesh_provider_state(
+                store,
+                "epiphany-test",
+                &cluster.daemon_id,
+            )?;
+        }
+        Ok(())
+    }
 
     #[test]
     fn epiphany_status_round_trips_through_cultmesh() -> Result<()> {
@@ -8010,8 +8012,7 @@ mod tests {
     fn odin_advertisements_expose_eve_metadata_without_private_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-odin-advertisements.ccmp");
-        let written = write_epiphany_cultmesh_odin_advertisements(&store, "epiphany-test")?;
-        assert_eq!(written.len(), 7);
+        publish_all_test_provider_state(&store)?;
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let persona = node.get_required::<EpiphanyCultMeshOdinAdvertisementEntry>(
@@ -8045,8 +8046,9 @@ mod tests {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-eve-surface-states.ccmp");
         write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
-        let advertisements = write_epiphany_cultmesh_odin_advertisements(&store, "epiphany-test")?;
-        let surfaces = write_epiphany_cultmesh_eve_surface_states(&store, "epiphany-test")?;
+        publish_all_test_provider_state(&store)?;
+        let advertisements = epiphany_cultmesh_odin_advertisements();
+        let surfaces = epiphany_cultmesh_eve_surface_states();
 
         assert_eq!(surfaces.len(), advertisements.len());
         for advertisement in advertisements {
@@ -8487,7 +8489,11 @@ mod tests {
     fn eve_connection_intent_and_receipt_route_feedback_without_private_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-eve-connection.ccmp");
-        write_epiphany_cultmesh_odin_advertisements(&store, "epiphany-test")?;
+        publish_epiphany_cultmesh_provider_state(
+            &store,
+            "epiphany-test",
+            "epiphany-daemon-persona",
+        )?;
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let persona = node.get_required::<EpiphanyCultMeshOdinAdvertisementEntry>(
@@ -8556,8 +8562,7 @@ mod tests {
     fn daemon_tool_capabilities_make_every_local_tool_available_to_all_agents() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-tools.ccmp");
-        let written = write_epiphany_cultmesh_daemon_tool_capabilities(&store, "epiphany-test")?;
-        assert!(written.len() >= 19);
+        publish_all_test_provider_state(&store)?;
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let persona_status = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
@@ -8654,7 +8659,11 @@ mod tests {
     fn daemon_tool_invocation_intent_and_receipt_round_trip_for_any_agent() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-tool-invocation.ccmp");
-        write_epiphany_cultmesh_daemon_tool_capabilities(&store, "epiphany-test")?;
+        publish_epiphany_cultmesh_provider_state(
+            &store,
+            "epiphany-test",
+            "epiphany-daemon-hands",
+        )?;
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let hands_action = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
@@ -9316,6 +9325,48 @@ mod tests {
         assert!(context.odin_scope.contains("all-seer"));
         assert!(context.yggdrasil_scope.contains("Bifrost"));
         assert!(context.prompt_assembly_note.contains("bounded context"));
+        Ok(())
+    }
+
+    #[test]
+    fn provider_publication_is_bounded_to_the_owning_daemon() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-provider-boundary.ccmp");
+        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-07-12T00:00:00Z")?;
+
+        publish_epiphany_cultmesh_provider_state(
+            &store,
+            "epiphany-test",
+            "epiphany-daemon-hands",
+        )?;
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(context.odin_advertisements.len(), 1);
+        assert_eq!(context.eve_surface_states.len(), 1);
+        assert_eq!(context.daemon_tool_capabilities.len(), 3);
+        assert!(context
+            .odin_advertisements
+            .iter()
+            .all(|entry| entry.cluster_id == "epiphany.cluster.hands"));
+        assert!(context
+            .eve_surface_states
+            .iter()
+            .all(|entry| entry.cluster_id == "epiphany.cluster.hands"));
+        assert!(context
+            .daemon_tool_capabilities
+            .iter()
+            .all(|entry| entry.host_daemon_id == "epiphany-daemon-hands"));
+
+        let error = publish_epiphany_cultmesh_provider_state(
+            &store,
+            "epiphany-test",
+            "epiphany-daemon-counterfeit",
+        )
+        .expect_err("unknown daemons must not publish provider state");
+        assert!(error.to_string().contains("no declared provider topology"));
+        let unchanged = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+        assert_eq!(unchanged.odin_advertisements.len(), 1);
+        assert_eq!(unchanged.eve_surface_states.len(), 1);
+        assert_eq!(unchanged.daemon_tool_capabilities.len(), 3);
         Ok(())
     }
 

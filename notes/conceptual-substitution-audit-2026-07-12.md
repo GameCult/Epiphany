@@ -109,3 +109,18 @@ query CLI has no Odin network publication capability. Provider discovery must
 remain empty until provider-owned bodies publish evidence of their own
 presence; a future provider publisher must live at that provider boundary and
 derive status from its runtime, not from central topology.
+
+## Provider publication ownership transfer
+
+The network command was not the final obsolete authority. The library still
+exported three bulk writers able to stamp every Odin advertisement, Eve
+surface, and daemon-hosted tool in one call. Those all-provider writers are
+deleted.
+
+`publish_epiphany_cultmesh_provider_state` accepts one persisted daemon ID,
+validates that it names a declared cluster, and writes exactly that cluster's
+advertisement, Eve surface, and hosted capabilities. `epiphany-cluster-daemon`
+calls this primitive on the shared heartbeat/serve path before writing its own
+liveness. An unknown daemon is refused before any provider document is written.
+The quarantined aggregate smoke iterates the same one-daemon primitive rather
+than using a privileged fixture shortcut.

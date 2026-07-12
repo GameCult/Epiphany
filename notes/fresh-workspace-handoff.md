@@ -18,6 +18,9 @@ The confirmed conceptual substitutions have been cut:
   Eve surfaces, or hosted tools; provider absence survives bootstrap.
 - the central `provider-advertisements` / `publish-odin` compatibility mouth is
   deleted; only provider-owned bodies may publish presence to Odin.
+- bulk provider-state writers are deleted. Each `epiphany-cluster-daemon`
+  heartbeat publishes only its own advertisement, Eve surface, and hosted
+  tools; unknown daemon identities are refused before writes.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

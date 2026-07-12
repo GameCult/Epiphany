@@ -2,6 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
+use epiphany_core::publish_epiphany_cultmesh_provider_state;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
@@ -44,6 +45,11 @@ fn write_heartbeat(args: &Args, iteration: u64) -> Result<EpiphanyCultMeshDaemon
         &args.store,
         args.runtime_id.clone(),
         Utc::now().to_rfc3339(),
+    )?;
+    publish_epiphany_cultmesh_provider_state(
+        &args.store,
+        args.runtime_id.clone(),
+        &args.daemon_id,
     )?;
     let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
     let current = context
