@@ -126,6 +126,23 @@ no longer make Soul report failure. The partial closure artifact is
 gate rather than mistaking file existence for Mind admission. The scheduler
 source contains neither the Modeling finding writer nor map admission.
 
+Repo work now has a native third worker launch kind beside generic role and
+reorientation work: `repo-work-modeling`. It runs through the existing
+`epiphany-openai-runtime`, carries the immutable request plus the bounded
+Soul-verified commit diff, and requires
+`epiphany.worker.repo_work_modeling_result.v0`. The runtime—not Self—converts
+model output directly into the canonical `RepoWorkModelingFinding`. Scheduler
+pulses launch one detached runtime job, wait without duplication, consume only
+the typed finding, and then resume the existing immutable Mind/map admission.
+A non-passing finding is immutable and stops for reviewed revision rather than
+being overwritten or silently retried.
+
+The former direct CLI writer is cut. `epiphany-work close --model-authored ...`
+may no longer create a Modeling finding; closure can only reread the canonical
+runtime document. The obsolete direct-CLI closure smoke was deleted. A live
+negative probe returned exit 1 for forged passing CLI cargo while leaving the
+typed request awaiting its real Modeling worker.
+
 The
 accepted interpretation is persisted as
 `epiphany.modeling.repo_work_finding.v0`; it references the passing Soul verdict,

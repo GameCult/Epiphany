@@ -26,12 +26,15 @@ use crate::EpiphanyReorientReason;
 
 pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v0";
 pub const REORIENT_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.reorient_result.v0";
+pub const REPO_WORK_MODELING_OUTPUT_CONTRACT_ID: &str =
+    "epiphany.worker.repo_work_modeling_result.v0";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "documentKind")]
 pub enum EpiphanyWorkerLaunchDocument {
     Role(EpiphanyRoleWorkerLaunchDocument),
     Reorient(EpiphanyReorientWorkerLaunchDocument),
+    RepoWorkModeling(EpiphanyRepoWorkModelingLaunchDocument),
 }
 
 impl EpiphanyWorkerLaunchDocument {
@@ -39,6 +42,7 @@ impl EpiphanyWorkerLaunchDocument {
         match self {
             Self::Role(_) => ROLE_WORKER_OUTPUT_CONTRACT_ID,
             Self::Reorient(_) => REORIENT_WORKER_OUTPUT_CONTRACT_ID,
+            Self::RepoWorkModeling(_) => REPO_WORK_MODELING_OUTPUT_CONTRACT_ID,
         }
     }
 
@@ -46,6 +50,7 @@ impl EpiphanyWorkerLaunchDocument {
         match self {
             Self::Role(_) => "role",
             Self::Reorient(_) => "reorient",
+            Self::RepoWorkModeling(_) => "repo-work-modeling",
         }
     }
 
@@ -53,6 +58,7 @@ impl EpiphanyWorkerLaunchDocument {
         match self {
             Self::Role(document) => &document.thread_id,
             Self::Reorient(document) => &document.thread_id,
+            Self::RepoWorkModeling(document) => &document.thread_id,
         }
     }
 
@@ -60,10 +66,26 @@ impl EpiphanyWorkerLaunchDocument {
         match self {
             Self::Role(document) => document.dynamic_prompt_context.as_deref(),
             Self::Reorient(document) => document.dynamic_prompt_context.as_deref(),
+            Self::RepoWorkModeling(document) => document.dynamic_prompt_context.as_deref(),
         }
         .map(str::trim)
         .filter(|context| !context.is_empty())
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyRepoWorkModelingLaunchDocument {
+    pub thread_id: String,
+    pub request_id: String,
+    pub item: String,
+    pub soul_verdict_receipt_id: String,
+    pub commit_sha: String,
+    #[serde(default)]
+    pub changed_paths: Vec<String>,
+    pub instruction: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dynamic_prompt_context: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

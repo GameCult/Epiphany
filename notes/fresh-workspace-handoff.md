@@ -2061,6 +2061,30 @@ family/path checks passed and no private-state exposure. Authority tests pass
 3/3 and all 248 library tests pass. Next route the persisted request through a
 real Modeling worker/daemon and consume its typed result without CLI-supplied
 finding cargo.
+That artery is now live. `EpiphanyWorkerLaunchDocument` has a dedicated
+`RepoWorkModeling` kind and output contract rather than fabricating a whole
+`EpiphanyThreadState` for the generic coordinator Modeling lane. The scheduler
+opens one runtime-spine Modeling job, launches the existing
+`epiphany-openai-runtime` detached with sealed stdout/stderr artifacts, waits on
+later pulses, and resumes closure only after the runtime has persisted the
+matching typed finding. The first authenticated live attempt correctly returned
+`blocked`: the request named a commit but did not carry its diff. The coherent
+repair feeds the bounded Soul-verified `git show --stat --patch` consequence to
+Modeling. Live item `live-modeling-with-diff` in disposable repo
+`.epiphany-smoke/closure-model-gate-20260712-094208/repo-body` then returned a
+model-authored `passed` finding, a later pulse performed Mind/map admission, and
+overview reported `awaiting-publication` / `bifrost-publication-missing` with
+Soul passed and private state sealed. Runtime tests pass 8/8, authority tests
+3/3, and core library tests 248/248. The old direct-CLI closure-model smoke was
+deleted because its successful path required `close` to author Modeling cargo;
+closure now refuses when the runtime-authored typed finding is absent. Next make reviewed
+non-passing Modeling revisions a first-class new request/job generation and
+move detached worker process stewardship under Idunn rather than leaving launch
+physiology embedded in the scheduler.
+Live negative item `cli-modeling-authority-refusal` returned exit 1 when
+`close --model-authored` supplied a forged passing finding; the error names the
+required Modeling runtime route. The old CLI path is structurally unable to
+publish the canonical finding.
 
 ## Immediate Re-entry Instruction
 

@@ -659,6 +659,34 @@ pub fn complete_worker_job_from_assistant_text(
                 );
                 put_runtime_reorient_worker_result(store_path.as_ref(), &typed_result)?;
             }
+            (
+                EpiphanyWorkerLaunchDocument::RepoWorkModeling(document),
+                WorkerResultIngress::RepoWorkModeling(parsed),
+            ) => {
+                let typed_result = epiphany_core::RepoWorkModelingFinding {
+                    schema_version: epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION
+                        .to_string(),
+                    receipt_id: format!("{}-finding", document.request_id),
+                    item: document.item.clone(),
+                    model_ref: openai_request_id.to_string(),
+                    soul_verdict_receipt_id: document.soul_verdict_receipt_id.clone(),
+                    verdict: clean_optional_string(parsed.verdict.as_deref())
+                        .unwrap_or_else(|| "failed".to_string()),
+                    finding: clean_optional_string(parsed.finding.as_deref()).unwrap_or_else(|| {
+                        "Modeling returned no bounded repo-work finding.".to_string()
+                    }),
+                    summary: clean_optional_string(parsed.summary.as_deref()).unwrap_or_else(|| {
+                        "Modeling returned no repo-work summary.".to_string()
+                    }),
+                    changed_paths: document.changed_paths.clone(),
+                    commit_sha: document.commit_sha.clone(),
+                    emitted_at: now(),
+                    private_state_exposed: false,
+                    contract: "Model-authored interpretation of one typed Self request over a Soul-verified repo consequence.".to_string(),
+                    request_id: document.request_id.clone(),
+                };
+                epiphany_core::put_repo_work_modeling_finding(store_path.as_ref(), &typed_result)?;
+            }
             _ => {
                 return Err(anyhow!(
                     "worker launch document and parsed result kind diverged"
@@ -1303,6 +1331,19 @@ fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             epiphany_core::epiphany_reorient_launch_output_schema()
         }
+        EpiphanyWorkerLaunchDocument::RepoWorkModeling(_) => serde_json::json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["verdict", "finding", "summary", "nextSafeMove", "evidenceIds"],
+            "properties": {
+                "verdict": { "type": "string", "enum": ["passed", "failed", "needs-work", "blocked"] },
+                "finding": { "type": "string", "minLength": 1 },
+                "summary": { "type": "string", "minLength": 1 },
+                "nextSafeMove": { "type": "string", "minLength": 1 },
+                "evidenceIds": { "type": "array", "items": { "type": "string" } },
+                "artifactRefs": { "type": "array", "items": { "type": "string" } }
+            }
+        }),
     };
     serde_json::to_string_pretty(&schema).context("failed to render worker output schema")
 }
@@ -1328,6 +1369,9 @@ fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'sta
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
+        }
+        EpiphanyWorkerLaunchDocument::RepoWorkModeling(_) => {
+            "Required repo-work Modeling fields: verdict, finding, summary, nextSafeMove, evidenceIds. Interpret only the Soul-verified consequence named by the request. Do not claim Mind admission, publication, merge, or further Hands authority."
         }
     }
 }
@@ -1367,10 +1411,22 @@ struct ReorientWorkerResultIngress {
     continuity_risks: Vec<String>,
 }
 
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct RepoWorkModelingResultIngress {
+    verdict: Option<String>,
+    finding: Option<String>,
+    summary: Option<String>,
+    next_safe_move: Option<String>,
+    evidence_ids: Vec<String>,
+    artifact_refs: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 enum WorkerResultIngress {
     Role(RoleWorkerResultIngress),
     Reorient(ReorientWorkerResultIngress),
+    RepoWorkModeling(RepoWorkModelingResultIngress),
 }
 
 impl WorkerResultIngress {
@@ -1378,6 +1434,9 @@ impl WorkerResultIngress {
         match self {
             WorkerResultIngress::Role(result) => clean_optional_string(result.verdict.as_deref()),
             WorkerResultIngress::Reorient(result) => clean_optional_string(result.mode.as_deref()),
+            WorkerResultIngress::RepoWorkModeling(result) => {
+                clean_optional_string(result.verdict.as_deref())
+            }
         }
     }
 
@@ -1385,6 +1444,9 @@ impl WorkerResultIngress {
         match self {
             WorkerResultIngress::Role(result) => clean_optional_string(result.summary.as_deref()),
             WorkerResultIngress::Reorient(result) => {
+                clean_optional_string(result.summary.as_deref())
+            }
+            WorkerResultIngress::RepoWorkModeling(result) => {
                 clean_optional_string(result.summary.as_deref())
             }
         }
@@ -1398,6 +1460,9 @@ impl WorkerResultIngress {
             WorkerResultIngress::Reorient(result) => {
                 clean_optional_string(result.next_safe_move.as_deref())
             }
+            WorkerResultIngress::RepoWorkModeling(result) => {
+                clean_optional_string(result.next_safe_move.as_deref())
+            }
         }
     }
 
@@ -1405,6 +1470,7 @@ impl WorkerResultIngress {
         match self {
             WorkerResultIngress::Role(result) => clean_string_vec(&result.evidence_ids),
             WorkerResultIngress::Reorient(result) => clean_string_vec(&result.evidence_ids),
+            WorkerResultIngress::RepoWorkModeling(result) => clean_string_vec(&result.evidence_ids),
         }
     }
 
@@ -1412,6 +1478,9 @@ impl WorkerResultIngress {
         match self {
             WorkerResultIngress::Role(result) => clean_string_vec(&result.artifact_refs),
             WorkerResultIngress::Reorient(result) => clean_string_vec(&result.artifact_refs),
+            WorkerResultIngress::RepoWorkModeling(result) => {
+                clean_string_vec(&result.artifact_refs)
+            }
         }
     }
 }
@@ -1428,6 +1497,10 @@ fn parse_worker_result_ingress(
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             parse_assistant_json::<ReorientWorkerResultIngress>(assistant_text)
                 .map(WorkerResultIngress::Reorient)
+        }
+        EpiphanyWorkerLaunchDocument::RepoWorkModeling(_) => {
+            parse_assistant_json::<RepoWorkModelingResultIngress>(assistant_text)
+                .map(WorkerResultIngress::RepoWorkModeling)
         }
     }
 }
@@ -1920,6 +1993,123 @@ mod tests {
                 .instructions
                 .contains("mcp__epiphany_source__read_file")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn repo_work_modeling_worker_emits_the_typed_finding() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "repo-work-test".to_string(),
+                display_name: "Repo Work Test".to_string(),
+                created_at: now(),
+            },
+        )?;
+        epiphany_core::put_soul_verdict_receipt(
+            &store,
+            &epiphany_core::SoulVerdictReceipt {
+                schema_version: epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+                receipt_id: "soul-repo-1".to_string(),
+                source_result_id: "hands-result-1".to_string(),
+                source_job_id: "hands-job-1".to_string(),
+                verdict: "passed".to_string(),
+                summary: "Soul passed.".to_string(),
+                evidence_ids: vec!["commit-abc".to_string()],
+                risks: Vec::new(),
+                emitted_at: now(),
+                contract: "test".to_string(),
+            },
+        )?;
+        let request = epiphany_core::RepoWorkModelingRequest {
+            schema_version: epiphany_core::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+            request_id: "repo-request-1".to_string(),
+            item: "map-repo".to_string(),
+            requester: "self".to_string(),
+            soul_verdict_receipt_id: "soul-repo-1".to_string(),
+            commit_sha: "abc123".to_string(),
+            changed_paths: vec!["README.md".to_string()],
+            instruction: "Model the verified consequence.".to_string(),
+            requested_at: now(),
+            private_state_exposed: false,
+            contract: "test".to_string(),
+        };
+        epiphany_core::put_repo_work_modeling_request(&store, &request)?;
+        open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "repo-work-test".to_string(),
+                display_name: "Repo Work Test".to_string(),
+                session_id: "repo-session-1".to_string(),
+                objective: "Map repo work.".to_string(),
+                coordinator_note: "Self routes; Modeling authors.".to_string(),
+                job_id: "repo-modeling-job-1".to_string(),
+                role: "modeling".to_string(),
+                binding_id: "repo-work-modeling-worker".to_string(),
+                authority_scope: "epiphany.role.modeling.repo-work".to_string(),
+                instruction: "Return the required repo-work Modeling result.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::RepoWorkModeling(
+                    epiphany_core::EpiphanyRepoWorkModelingLaunchDocument {
+                        thread_id: "repo-thread-1".to_string(),
+                        request_id: request.request_id.clone(),
+                        item: request.item.clone(),
+                        soul_verdict_receipt_id: request.soul_verdict_receipt_id.clone(),
+                        commit_sha: request.commit_sha.clone(),
+                        changed_paths: request.changed_paths.clone(),
+                        instruction: request.instruction.clone(),
+                        dynamic_prompt_context: None,
+                    },
+                ),
+                output_contract_id: epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID
+                    .to_string(),
+                organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                    "epiphany.role.modeling.repo-work",
+                    "repo-work-modeling",
+                    epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID,
+                ),
+                created_at: now(),
+            },
+        )?;
+        let launch = load_worker_launch_request(&store, "repo-modeling-job-1")?;
+        let model_request = build_worker_model_request(&launch, DEFAULT_MODEL_PROVIDER, "gpt-5.4")?;
+        assert_eq!(
+            model_request.output_contract_id.as_deref(),
+            Some(epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID)
+        );
+        assert!(
+            model_request
+                .output_schema_json
+                .as_deref()
+                .is_some_and(|schema| schema.contains("\"finding\""))
+        );
+        let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
+            store: store.display().to_string(),
+            session_id: "openai-repo-session".to_string(),
+            job_id: "openai-repo-job".to_string(),
+            request_id: model_request.request_id.clone(),
+            event_count: 1,
+            verdict: "pass".to_string(),
+            summary: "completed".to_string(),
+            result_id: "openai-repo-result".to_string(),
+            receipt_id: Some(model_request.request_id.clone()),
+            tool_intent_ids: Vec::new(),
+        };
+        complete_worker_job_from_assistant_text(
+            &store,
+            &launch,
+            &model_request.request_id,
+            &openai_summary,
+            r#"{"verdict":"passed","finding":"The verified README change updates the repo map.","summary":"README consequence mapped.","nextSafeMove":"Let Mind review the finding.","evidenceIds":["soul-repo-1"],"artifactRefs":[]}"#,
+        )?;
+        let finding =
+            epiphany_core::runtime_repo_work_modeling_finding(&store, "repo-request-1-finding")?
+                .expect("typed repo-work Modeling finding");
+        assert_eq!(finding.request_id, request.request_id);
+        assert_eq!(finding.verdict, "passed");
+        assert_eq!(finding.commit_sha, "abc123");
+        assert!(!finding.private_state_exposed);
         Ok(())
     }
 

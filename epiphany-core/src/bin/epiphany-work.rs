@@ -17,6 +17,8 @@ use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkReadinessEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkReadinessReviewEntry;
 use epiphany_core::EpiphanyCultMeshWeksaLoweringReceiptEntry;
+use epiphany_core::EpiphanyRepoWorkModelingLaunchDocument;
+use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
 use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
 use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
@@ -29,10 +31,12 @@ use epiphany_core::MindGatewayReview;
 use epiphany_core::PersonaMemoryCacheConfig;
 use epiphany_core::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
+use epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID;
 use epiphany_core::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION;
 use epiphany_core::RepoWorkMapEntry;
 use epiphany_core::RepoWorkModelingFinding;
 use epiphany_core::RepoWorkModelingRequest;
+use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
@@ -43,6 +47,7 @@ use epiphany_core::WeksaSpeakerContext;
 use epiphany_core::build_weksa_interlingua_packet;
 use epiphany_core::build_weksa_target_lowering_request;
 use epiphany_core::commit_repo_work_map_admission;
+use epiphany_core::default_launch_organ_contract;
 use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
@@ -61,6 +66,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::memory_graph_from_agent_memories;
 use epiphany_core::mind_state_commit_receipt;
+use epiphany_core::open_runtime_spine_heartbeat_job;
 use epiphany_core::plan_memory_graph_context_cut;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
@@ -68,7 +74,6 @@ use epiphany_core::put_hands_command_receipt;
 use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_hands_pr_receipt;
-use epiphany_core::put_repo_work_modeling_finding;
 use epiphany_core::put_repo_work_modeling_request;
 use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
@@ -77,6 +82,7 @@ use epiphany_core::render_persona_memory_recall_with_cache;
 use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
+use epiphany_core::runtime_job_snapshot;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::runtime_repo_work_map_entry;
 use epiphany_core::runtime_repo_work_modeling_finding;
@@ -98,6 +104,7 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Stdio;
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -11547,7 +11554,7 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
         write_json(&closure_receipt_path, &awaiting_receipt)?;
         return Ok(awaiting_receipt);
     }
-    let modeling_finding_receipt_id = format!("repo-work-close-{item_slug}-modeling-finding");
+    let modeling_finding_receipt_id = format!("{}-finding", modeling_request.request_id);
     let mut modeling_finding = RepoWorkModelingFinding {
         schema_version: REPO_WORK_MODELING_FINDING_SCHEMA_VERSION.to_string(),
         receipt_id: modeling_finding_receipt_id.clone(),
@@ -11576,18 +11583,25 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
     if let Some(existing) =
         runtime_repo_work_modeling_finding(&runtime_store, &modeling_finding_receipt_id)?
     {
-        modeling_finding.emitted_at = existing.emitted_at.clone();
-        if modeling_finding != existing {
+        if existing.item != modeling_finding.item
+            || existing.model_ref != modeling_finding.model_ref
+            || existing.soul_verdict_receipt_id != modeling_finding.soul_verdict_receipt_id
+            || existing.verdict != modeling_finding.verdict
+            || existing.finding != modeling_finding.finding
+            || existing.summary != modeling_finding.summary
+            || existing.changed_paths != modeling_finding.changed_paths
+            || existing.commit_sha != modeling_finding.commit_sha
+            || existing.request_id != modeling_finding.request_id
+        {
             return Err(anyhow!(
                 "closure retry conflicts with immutable Modeling finding"
             ));
         }
         modeling_finding = existing;
     } else {
-        put_repo_work_modeling_finding(&runtime_store, &modeling_finding)?;
-        modeling_finding =
-            runtime_repo_work_modeling_finding(&runtime_store, &modeling_finding_receipt_id)?
-                .ok_or_else(|| anyhow!("persisted Modeling finding could not be reread"))?;
+        return Err(anyhow!(
+            "closure cannot author a Modeling finding; route the typed request through the Modeling runtime first"
+        ));
     }
     if modeling_finding.soul_verdict_receipt_id != soul_verdict.receipt_id
         || modeling_finding.commit_sha != commit_sha
@@ -14157,6 +14171,136 @@ fn run_queue(args: QueueArgs) -> Result<Value> {
     }))
 }
 
+fn repo_work_modeling_job_id(item_slug: &str) -> String {
+    format!("repo-work-modeling-{item_slug}")
+}
+
+fn resolve_repo_work_model_runtime(epiphany_root: &Path) -> Result<PathBuf> {
+    if let Some(configured) = env::var_os("EPIPHANY_MODEL_RUNTIME_BIN") {
+        let configured = PathBuf::from(configured);
+        return configured.canonicalize().with_context(|| {
+            format!(
+                "failed to resolve EPIPHANY_MODEL_RUNTIME_BIN {}",
+                configured.display()
+            )
+        });
+    }
+    let exe_name = if cfg!(windows) {
+        "epiphany-openai-runtime.exe"
+    } else {
+        "epiphany-openai-runtime"
+    };
+    let mut candidates = Vec::new();
+    if let Some(target) = env::var_os("CARGO_TARGET_DIR") {
+        candidates.push(PathBuf::from(target).join("debug").join(exe_name));
+    }
+    candidates.push(
+        epiphany_root
+            .join("epiphany-openai-runtime")
+            .join("target")
+            .join("debug")
+            .join(exe_name),
+    );
+    candidates.push(epiphany_root.join("target").join("debug").join(exe_name));
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.is_file())
+        .ok_or_else(|| anyhow!("epiphany-openai-runtime binary is not built"))
+}
+
+fn launch_repo_work_modeling_worker(
+    epiphany_root: &Path,
+    workspace: &Path,
+    artifact_dir: &Path,
+    runtime_store: &Path,
+    request: &RepoWorkModelingRequest,
+    item_slug: &str,
+) -> Result<Value> {
+    let job_id = repo_work_modeling_job_id(item_slug);
+    let verified_diff = git_output(
+        workspace,
+        &[
+            "show",
+            "--format=fuller",
+            "--stat",
+            "--patch",
+            &request.commit_sha,
+        ],
+    )?;
+    let verified_diff = verified_diff.chars().take(24_000).collect::<String>();
+    let document = EpiphanyWorkerLaunchDocument::RepoWorkModeling(
+        EpiphanyRepoWorkModelingLaunchDocument {
+            thread_id: format!("repo-work-{}", request.item),
+            request_id: request.request_id.clone(),
+            item: request.item.clone(),
+            soul_verdict_receipt_id: request.soul_verdict_receipt_id.clone(),
+            commit_sha: request.commit_sha.clone(),
+            changed_paths: request.changed_paths.clone(),
+            instruction: request.instruction.clone(),
+            dynamic_prompt_context: Some(format!(
+                "The request is immutable and already Soul-verified. Interpret commit {} across [{}]. Return a bounded finding only; Mind owns admission and Bifrost owns publication.\n\n<soul_verified_commit_diff>\n{}\n</soul_verified_commit_diff>",
+                request.commit_sha,
+                request.changed_paths.join(", "),
+                verified_diff
+            )),
+        },
+    );
+    let created_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    open_runtime_spine_heartbeat_job(
+        runtime_store,
+        RuntimeSpineHeartbeatJobOptions {
+            runtime_id: "repo-work-local".to_string(),
+            display_name: "Epiphany Repo Work".to_string(),
+            session_id: format!("repo-work-session-{item_slug}"),
+            objective: format!("Model Soul-verified repo work item {}.", request.item),
+            coordinator_note: "Self routes the typed request; Modeling owns the result."
+                .to_string(),
+            job_id: job_id.clone(),
+            role: "modeling".to_string(),
+            binding_id: "repo-work-modeling-worker".to_string(),
+            authority_scope: "epiphany.role.modeling.repo-work".to_string(),
+            instruction: "Act as Modeling. Interpret only the typed repo-work request and return the required bounded result. Do not claim Mind, Hands, publication, merge, or service authority."
+                .to_string(),
+            launch_document: document,
+            output_contract_id: REPO_WORK_MODELING_OUTPUT_CONTRACT_ID.to_string(),
+            organ_launch_contract: default_launch_organ_contract(
+                "epiphany.role.modeling.repo-work",
+                "repo-work-modeling",
+                REPO_WORK_MODELING_OUTPUT_CONTRACT_ID,
+            ),
+            created_at,
+        },
+    )?;
+    let runtime_bin = resolve_repo_work_model_runtime(epiphany_root)?;
+    let stdout_path = artifact_dir.join(format!("{job_id}.stdout.log"));
+    let stderr_path = artifact_dir.join(format!("{job_id}.stderr.log"));
+    let stdout = fs::File::create(&stdout_path)?;
+    let stderr = fs::File::create(&stderr_path)?;
+    let child = Command::new(&runtime_bin)
+        .arg("run-worker")
+        .arg("--store")
+        .arg(runtime_store)
+        .arg("--job-id")
+        .arg(&job_id)
+        .arg("--cwd")
+        .arg(workspace)
+        .arg("--max-runtime-seconds")
+        .arg("300")
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(stderr))
+        .spawn()
+        .with_context(|| format!("failed to launch {}", runtime_bin.display()))?;
+    Ok(json!({
+        "jobId": job_id,
+        "processId": child.id(),
+        "runtimeBin": runtime_bin,
+        "stdoutArtifact": stdout_path,
+        "stderrArtifact": stderr_path,
+        "requestId": request.request_id,
+        "privateStateExposed": false
+    }))
+}
+
 fn run_tick(args: TickArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -14511,12 +14655,117 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             "Route Bifrost/GitHub publication through epiphany-work publish --closure-receipt."
                 .to_string();
     } else if close_receipt_path.exists() {
-        action = "await-modeling".to_string();
-        status = "blocked".to_string();
-        reason = "Soul passed and Self routed a typed Modeling request; no matching Modeling finding is admitted"
-            .to_string();
-        next_safe_move = "Route the persisted Modeling request to the Modeling daemon, then resume epiphany-work close with its typed result."
-            .to_string();
+        let partial_close = read_json(&close_receipt_path)?;
+        let runtime_store = args
+            .runtime_store
+            .clone()
+            .or_else(|| path_from_json(&partial_close, &["runtimeStore"]))
+            .ok_or_else(|| anyhow!("awaiting-modeling closure has no runtime store"))?;
+        let request_id = string_from_json(&partial_close, &["modeling", "requestId"])
+            .ok_or_else(|| anyhow!("awaiting-modeling closure has no typed request id"))?;
+        let request = runtime_repo_work_modeling_request(&runtime_store, &request_id)?
+            .ok_or_else(|| anyhow!("typed Modeling request {request_id:?} is missing"))?;
+        let finding_id = format!("{}-finding", request.request_id);
+        if let Some(finding) = runtime_repo_work_modeling_finding(&runtime_store, &finding_id)? {
+            if finding.verdict.trim().eq_ignore_ascii_case("passed") {
+                action = "admit-modeling".to_string();
+                if args.dry_run {
+                    status = "would-advance".to_string();
+                    reason = "a passing typed Modeling finding is ready for immutable Mind/map admission"
+                        .to_string();
+                    next_safe_move =
+                        "Rerun without --dry-run to resume closure through Mind admission."
+                            .to_string();
+                } else {
+                    advanced_result = run_close(CloseArgs {
+                        workspace: workspace.clone(),
+                        item: Some(item.clone()),
+                        execute_receipt: Some(execute_receipt_path.clone()),
+                        runtime_store: Some(runtime_store.clone()),
+                        artifact_dir: Some(artifact_dir.clone()),
+                        verification_command: None,
+                        verification_summary: None,
+                        modeling_summary: Some(finding.summary.clone()),
+                        closure_model_ref: Some(finding.model_ref.clone()),
+                        closure_model_verdict: Some(finding.verdict.clone()),
+                        closure_model_finding: Some(finding.finding.clone()),
+                        require_source_grounding: false,
+                        model_authored: true,
+                        state_revision: 0,
+                    })?;
+                    status = advanced_result["status"]
+                        .as_str()
+                        .unwrap_or("closed")
+                        .to_string();
+                    reason = "Mind admitted the matching model-authored finding and repo-work map"
+                        .to_string();
+                    next_safe_move = "Stop before Bifrost publication authority.".to_string();
+                }
+            } else {
+                action = "await-modeling-revision".to_string();
+                status = "blocked".to_string();
+                reason = format!(
+                    "Modeling returned verdict {}; immutable request requires reviewed revision before another attempt",
+                    finding.verdict
+                );
+                next_safe_move = "Review the Modeling finding and create a new bounded work request; do not overwrite immutable evidence."
+                    .to_string();
+            }
+        } else {
+            let job_id = repo_work_modeling_job_id(&item_slug);
+            match runtime_job_snapshot(&runtime_store, &job_id)? {
+                Some(snapshot)
+                    if matches!(
+                        snapshot.job.status,
+                        epiphany_core::EpiphanyRuntimeJobStatus::Queued
+                            | epiphany_core::EpiphanyRuntimeJobStatus::Running
+                    ) =>
+                {
+                    action = "await-modeling".to_string();
+                    status = "waiting".to_string();
+                    reason = format!("Modeling worker job {job_id} is still active");
+                    next_safe_move =
+                        "Wait for the Modeling runtime result; do not launch a duplicate job."
+                            .to_string();
+                }
+                Some(snapshot) => {
+                    action = "await-modeling".to_string();
+                    status = "blocked".to_string();
+                    reason = format!(
+                        "Modeling worker job {job_id} ended as {:?} without a typed finding",
+                        snapshot.job.status
+                    );
+                    next_safe_move = "Inspect the sealed worker stdout/stderr and runtime result before a reviewed retry."
+                        .to_string();
+                }
+                None if args.dry_run => {
+                    action = "launch-modeling".to_string();
+                    status = "would-advance".to_string();
+                    reason = "typed Modeling request is ready for the existing worker runtime"
+                        .to_string();
+                    next_safe_move =
+                        "Rerun without --dry-run to launch the repo-work Modeling worker."
+                            .to_string();
+                }
+                None => {
+                    action = "launch-modeling".to_string();
+                    advanced_result = launch_repo_work_modeling_worker(
+                        &epiphany_root,
+                        &workspace,
+                        &artifact_dir,
+                        &runtime_store,
+                        &request,
+                        &item_slug,
+                    )?;
+                    status = "modeling-launched".to_string();
+                    reason =
+                        "Self routed the typed request to the existing model runtime".to_string();
+                    next_safe_move =
+                        "Let a later scheduler pulse consume the typed Modeling finding."
+                            .to_string();
+                }
+            }
+        }
     } else if execute_receipt_path.exists() {
         action = "soul-verify".to_string();
         if args.dry_run {
@@ -16309,6 +16558,7 @@ fn default_if_empty(values: Vec<String>, defaults: Vec<String>) -> Vec<String> {
 #[cfg(test)]
 mod authority_tests {
     use super::*;
+    use epiphany_core::put_repo_work_modeling_finding;
 
     #[test]
     fn modeling_finding_is_mandatory_for_closure_admission() -> Result<()> {
@@ -16337,16 +16587,23 @@ mod authority_tests {
         let source = include_str!("epiphany-work.rs");
         let tick_start = source.find("fn run_tick").expect("run_tick");
         let tick_end = source[tick_start..]
-            .find("fn run_queue")
+            .find("#[cfg(test)]")
             .map(|offset| tick_start + offset)
             .unwrap_or(source.len());
         let tick = &source[tick_start..tick_end];
-        assert!(!tick.contains("run_close(CloseArgs"));
         assert!(tick.contains("run_verify(CloseArgs"));
+        assert!(tick.contains("run_close(CloseArgs"));
         assert!(tick.contains("await-modeling"));
         assert!(tick.contains("typed Modeling request"));
         assert!(!tick.contains("put_repo_work_modeling_finding"));
+        assert!(!tick.contains("RepoWorkModelingFinding {"));
         assert!(!tick.contains("commit_repo_work_map_admission"));
+        assert!(tick.find("runtime_repo_work_modeling_finding") < tick.find("run_close(CloseArgs"));
+        let production = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("production source before authority tests");
+        assert!(!production.contains("put_repo_work_modeling_finding("));
         assert!(!source.contains(&["RepoWork", "MapStore"].concat()));
         assert!(!source.contains(&["repo-work-map", ".msgpack"].concat()));
     }

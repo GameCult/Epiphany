@@ -204,9 +204,9 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Route the persisted `epiphany.modeling.repo_work_request.v0` through the real
-Modeling worker/daemon and consume its matching typed finding before existing
-Mind/map admission. Soul verification is already a separate scheduler phase;
-do not rejoin it to Modeling or introduce CLI cargo as scheduler truth. Prove a
-fresh-repository scheduler timeline reaches Bifrost while Self cannot author
-Modeling evidence.
+Move repo-work Modeling process stewardship under Idunn and add a reviewed
+request generation for non-passing immutable findings. The scheduler now routes
+passing requests through the existing model runtime and reaches Bifrost without
+Self-authored Modeling evidence; preserve that authority path. Do not overwrite
+a blocked finding, launch duplicate jobs, or grow a scheduler-owned process
+manager.
