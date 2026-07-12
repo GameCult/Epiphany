@@ -512,7 +512,6 @@ pub use cultmesh_integration::write_epiphany_cultmesh_repo_work_map_entry;
 pub use cultmesh_integration::write_epiphany_cultmesh_repo_work_overview;
 pub use cultmesh_integration::write_epiphany_cultmesh_repo_work_public_proof;
 pub use cultmesh_integration::write_epiphany_cultmesh_repo_work_readiness;
-pub use cultmesh_integration::write_epiphany_cultmesh_repo_work_readiness_review;
 pub use cultmesh_integration::write_epiphany_cultmesh_role_review_event;
 pub use cultmesh_integration::write_epiphany_cultmesh_soul_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_status;

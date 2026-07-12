@@ -292,3 +292,17 @@ Both response-closing family smokes, their bundle verifier, its PowerShell mode,
 and the aggregate green gate are deleted. Request cargo and open ledger rows
 remain valid. Typed Bifrost/Maintainer response schemas remain ingest contracts,
 but accounting cannot close until their actual bodies author the receipts.
+
+## Caller-authored multi-organ readiness approval
+
+`epiphany-work readiness-review` accepted four arbitrary nonempty strings named
+as Maintainer, Soul, Mind, and Bifrost receipts, then authored one local
+`readiness-approved` document. None of those organs participated or had its
+receipt resolved. The readiness smoke and aggregate MVP gate treated that local
+composition as both Soul approval and Bifrost-queryable closure.
+
+The command, argument surface, writer/validator, readiness smoke, wrapper mode,
+and both aggregate green gates are deleted. The readiness report remains sight
+only, and `repo.readiness_review_request` remains the correct request cargo.
+Typed review schemas/readers may ingest a future provider-authored result; four
+labels supplied by one caller are not four reviews.

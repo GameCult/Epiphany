@@ -5254,21 +5254,6 @@ pub fn load_epiphany_cultmesh_repo_work_readiness_reports(
     Ok(reports)
 }
 
-pub fn write_epiphany_cultmesh_repo_work_readiness_review(
-    store_path: impl AsRef<Path>,
-    review: EpiphanyCultMeshRepoWorkReadinessReviewEntry,
-) -> Result<EpiphanyCultMeshRepoWorkReadinessReviewEntry> {
-    validate_repo_work_readiness_review(&review)?;
-    let mut node = open_epiphany_cultmesh_node(&store_path, review.runtime_id.clone())?;
-    let written = node.put(review.review_id.clone(), &review)?;
-    node.put(
-        EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_LATEST_KEY,
-        &written,
-    )?;
-    node.flush()?;
-    Ok(written)
-}
-
 pub fn load_latest_epiphany_cultmesh_repo_work_readiness_review(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -5451,60 +5436,6 @@ fn validate_repo_work_readiness(readiness: &EpiphanyCultMeshRepoWorkReadinessEnt
     }) {
         return Err(anyhow!(
             "repo work readiness rows must not expose raw worker payload names"
-        ));
-    }
-    Ok(())
-}
-
-fn validate_repo_work_readiness_review(
-    review: &EpiphanyCultMeshRepoWorkReadinessReviewEntry,
-) -> Result<()> {
-    if review.private_state_exposed {
-        return Err(anyhow!(
-            "repo work readiness review must not expose private state"
-        ));
-    }
-    if review.schema_version != EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION {
-        return Err(anyhow!(
-            "repo work readiness review schema_version must be {:?}",
-            EPIPHANY_CULTMESH_REPO_WORK_READINESS_REVIEW_SCHEMA_VERSION
-        ));
-    }
-    if review.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID {
-        return Err(anyhow!(
-            "repo work readiness review belongs in local-area Verse {:?}",
-            EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
-        ));
-    }
-    if review.review_id.trim().is_empty() || review.item.trim().is_empty() {
-        return Err(anyhow!(
-            "repo work readiness review requires review_id and item"
-        ));
-    }
-    if !review.readiness_approval_authorized
-        || review.durable_state_commit_authorized
-        || review.publication_authorized
-        || review.merge_authorized
-        || review.upstream_sync_authorized
-        || review.deployment_authority
-        || review.service_lifecycle_authority
-        || review.hands_action_authorized
-    {
-        return Err(anyhow!(
-            "repo work readiness review may grant readiness approval only; it must deny durable-state, publication, merge, sync, deployment, service, and Hands authority"
-        ));
-    }
-    if review.tui_rows.is_empty() {
-        return Err(anyhow!(
-            "repo work readiness review requires compact TUI rows"
-        ));
-    }
-    if review.tui_rows.iter().any(|row| {
-        let lower = row.to_ascii_lowercase();
-        lower.contains("rawresult") || lower.contains("receipt body") || lower.contains("thought")
-    }) {
-        return Err(anyhow!(
-            "repo work readiness review rows must not expose raw worker payload names"
         ));
     }
     Ok(())

@@ -67,6 +67,9 @@ The confirmed conceptual substitutions have been cut:
 - the artifact-acceptance/metrics response-closing smokes, Bifrost accounting
   bundle, wrapper mode, and aggregate green gate are deleted. Their request
   cargo remains open until genuine Bifrost/Maintainer response ingest.
+- generic repo-work readiness approval is deleted. The former command accepted
+  four arbitrary strings as Maintainer/Soul/Mind/Bifrost reviews; readiness
+  remains sight-only and the request family awaits genuine reviewer evidence.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

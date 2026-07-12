@@ -23,6 +23,11 @@ Inventory every production call to `write_*receipt`, then ask whether the execut
   family binaries still expected generic query commands to manufacture final
   provider receipts, and the bundle/MVP gate promoted those stale summaries to
   green accounting. Request documents remain; provider closure remains absent.
+- Repo readiness-review approval: no production local writer. The deleted
+  command accepted four caller strings as Maintainer/Soul/Mind/Bifrost proof
+  and authored approval itself; its smoke, wrapper, and aggregate green gates
+  are also deleted. Use the readiness-review request family until genuine
+  reviewer evidence is resolved and ingested.
 - `epiphany-operator-run`: owner-aligned for operator-run receipts and coordinator receipts derived from the run it executes.
 - smoke binaries and the `epiphany-verse-query smoke` arm: fixtures, not runtime evidence. They remain a quarantine risk if permitted to target canonical stores.
 - `epiphany-work` Weksa lowering: a lowering projection receipt, explicitly non-publication authority; no substitution confirmed in this pass.

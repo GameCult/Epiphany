@@ -51,7 +51,6 @@ struct Args {
     root: PathBuf,
     smoke_root: PathBuf,
     fresh_repo_summary: Option<PathBuf>,
-    readiness_summary: Option<PathBuf>,
     daemon_survival_summary: Option<PathBuf>,
 }
 
@@ -60,7 +59,6 @@ impl Args {
         let mut root = env::current_dir().context("failed to resolve current directory")?;
         let mut smoke_root = root.join(".epiphany-smoke");
         let mut fresh_repo_summary = None;
-        let mut readiness_summary = None;
         let mut daemon_survival_summary = None;
         let mut args = env::args().skip(1).peekable();
         while let Some(arg) = args.next() {
@@ -69,9 +67,6 @@ impl Args {
                 "--smoke-root" => smoke_root = take_path(&mut args, "--smoke-root")?,
                 "--fresh-repo-summary" => {
                     fresh_repo_summary = Some(take_path(&mut args, "--fresh-repo-summary")?)
-                }
-                "--readiness-summary" => {
-                    readiness_summary = Some(take_path(&mut args, "--readiness-summary")?)
                 }
                 "--daemon-survival-summary" => {
                     daemon_survival_summary =
@@ -84,7 +79,6 @@ impl Args {
             root,
             smoke_root,
             fresh_repo_summary,
-            readiness_summary,
             daemon_survival_summary,
         })
     }
@@ -116,19 +110,14 @@ fn run_smoke(args: Args) -> Result<Value> {
     let fresh_repo_summary = args
         .fresh_repo_summary
         .unwrap_or_else(|| latest_summary(&args.smoke_root, "fresh-repo-mvp-"));
-    let readiness_summary = args
-        .readiness_summary
-        .unwrap_or_else(|| latest_summary(&args.smoke_root, "repo-work-readiness-"));
     let daemon_survival_summary = args
         .daemon_survival_summary
         .unwrap_or_else(|| latest_summary(&args.smoke_root, "daemon-survival-rehearsal-"));
 
     let fresh = read_json(&fresh_repo_summary)?;
-    let readiness = read_json(&readiness_summary)?;
     let daemon_survival = read_json(&daemon_survival_summary)?;
 
     verify_fresh_repo(&fresh)?;
-    verify_readiness(&readiness)?;
     verify_daemon_survival(&daemon_survival)?;
     let weksa_interlingua = verify_weksa_interlingua()?;
     let persona_memory_recall = verify_persona_memory_recall()?;
@@ -177,16 +166,6 @@ fn run_smoke(args: Args) -> Result<Value> {
             "operator-safe public proof exported without private state",
         ),
         green(
-            "readiness-review",
-            "Soul",
-            "readiness report and review receipt are present",
-        ),
-        green(
-            "receipt-directory",
-            "Bifrost",
-            "readiness review is queryable through the receipt directory",
-        ),
-        green(
             "long-running-daemon-proof",
             "Idunn",
             "bounded serve rehearsal wrote two scheduler pulses and sealed scheduler receipt",
@@ -227,10 +206,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "status": "mvp-demo-ready-with-known-operator-gates",
         "smokeDir": smoke_dir,
         "freshRepoSummary": fresh_repo_summary,
-        "readinessSummary": readiness_summary,
         "daemonSurvivalSummary": daemon_survival_summary,
         "freshRepoSmokeDir": fresh["smokeDir"],
-        "readinessSmokeDir": readiness["smokeDir"],
         "daemonSurvivalSmokeDir": daemon_survival["smokeDir"],
         "weksaInterlingua": weksa_interlingua,
         "personaMemoryRecall": persona_memory_recall,
@@ -283,35 +260,6 @@ fn verify_fresh_repo(value: &Value) -> Result<()> {
     require_bool(value, &["upstreamMainSynced"], true)?;
     require_eq(value, &["publicProofStatus"], "public-proof-exported")?;
     require_bool(value, &["privateStateExposed"], false)
-}
-
-fn verify_readiness(value: &Value) -> Result<()> {
-    require_eq(
-        value,
-        &["schemaVersion"],
-        "epiphany.repo_work_readiness_smoke.v0",
-    )?;
-    require_eq(value, &["status"], "ok")?;
-    require_eq(value, &["readinessStatus"], "ready")?;
-    require_eq(value, &["readinessReviewStatus"], "readiness-approved")?;
-    require_eq(value, &["publishStatus"], "publication-receipts-recorded")?;
-    require_eq(value, &["syncStatus"], "upstream-main-synced")?;
-    require_bool(value, &["upstreamMainSynced"], true)?;
-    require_bool(value, &["privateStateExposed"], false)?;
-    require_bool(value, &["sightOnly"], true)?;
-    require_bool(value, &["readinessApprovalAuthorized"], false)?;
-    require_bool(value, &["publicationAuthorized"], false)?;
-    require_bool(value, &["deploymentAuthority"], false)?;
-    require_bool(value, &["serviceLifecycleAuthority"], false)?;
-    require_bool(value, &["handsActionAuthorized"], false)?;
-    require_row(
-        value,
-        &["bifrostReadinessReviewAccountingRow"],
-        "repo-work-readiness-review",
-        "closed",
-        4,
-        1,
-    )
 }
 
 fn verify_daemon_survival(value: &Value) -> Result<()> {
@@ -807,53 +755,6 @@ fn require_contains(haystack: &str, needle: &str, label: &str) -> Result<()> {
         Ok(())
     } else {
         Err(anyhow!("expected {label} to contain {needle:?}"))
-    }
-}
-
-fn require_row(
-    value: &Value,
-    path: &[&str],
-    lane: &str,
-    status: &str,
-    review_receipt_count: u64,
-    public_artifact_count: u64,
-) -> Result<()> {
-    let row = path
-        .iter()
-        .try_fold(value, |current, key| current.get(*key))
-        .ok_or_else(|| anyhow!("missing accounting row {}", path.join(".")))?;
-    let actual_lane = row
-        .get("lane")
-        .and_then(Value::as_str)
-        .unwrap_or("<missing>");
-    let actual_status = row
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("<missing>");
-    let actual_review_receipt_count = row
-        .get("reviewReceiptCount")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    let actual_public_artifact_count = row
-        .get("publicArtifactCount")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    let actual_private = row
-        .get("privateStateExposed")
-        .and_then(Value::as_bool)
-        .unwrap_or(true);
-    if actual_lane == lane
-        && actual_status == status
-        && actual_review_receipt_count == review_receipt_count
-        && actual_public_artifact_count == public_artifact_count
-        && !actual_private
-    {
-        Ok(())
-    } else {
-        Err(anyhow!(
-            "accounting row {} mismatch: lane={actual_lane:?}, status={actual_status:?}, reviewReceiptCount={actual_review_receipt_count}, publicArtifactCount={actual_public_artifact_count}, privateStateExposed={actual_private}",
-            path.join(".")
-        ))
     }
 }
 

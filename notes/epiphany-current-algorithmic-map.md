@@ -51,6 +51,7 @@
 - Daemon-tool invocation requests likewise remain pending until the advertised host daemon or authenticated ingest boundary supplies the typed response. Local response construction/writing/validation is test-only; aggregate smoke and receipt-directory projection prove intent-present/receipt-missing instead of manufacturing host acceptance.
 - Idunn deployment and aftercare outcomes have no local production writer. The synthetic deployment-config family smoke and its green aggregate MVP-gate handoff are deleted; config audit/runbook remain pre-deployment surfaces, while typed Idunn readers await genuine daemon-authored ingest.
 - Bifrost artifact-acceptance and metrics requests remain open until actual Bifrost/Maintainer receipts are ingested. The stale response-closing request-family smokes, accounting bundle, wrapper mode, and aggregate green gate are deleted.
+- Repo-work readiness reports are sight only. The generic readiness-review approval command and writer are deleted because one caller supplied four unresolved reviewer labels; `repo.readiness_review_request` is the remaining request path, and typed review readers await genuine multi-organ/provider evidence.
 - Persona owner: `collaboration-feedback` writes public, bounded feedback only after that provider receipt exists.
 - Imagination owner: consensus participant selection, packet reference, receipt status/id, and adoption gate.
 - Persona output: `pending-imagination` with null consensus fields and `responseOwner=Imagination`.

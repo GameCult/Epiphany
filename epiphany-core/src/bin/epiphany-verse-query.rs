@@ -126,8 +126,6 @@ const WRAPPER_BIFROST_METRICS_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mod
 const WRAPPER_BIFROST_LEDGER_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode bifrost-ledger";
 const WRAPPER_RECEIPT_DIRECTORY_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode receipt-directory";
-const WRAPPER_REPO_WORK_READINESS_REVIEW_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode repo-work-readiness-review";
 const DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND: &str = "epiphany-work deployment-aftercare-audit --workspace <repo> --local-verse-store <store> --idunn-deployment-receipt-ref latest --aftercare-audit-receipt-ref latest";
 const WRAPPER_SERVICE_TICK_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode service-tick";
 const WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND: &str =
@@ -3346,7 +3344,6 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[],
-                &[],
             );
             if !missing_artifact_rows.iter().any(|row| {
                 row.priority == 50
@@ -3395,7 +3392,6 @@ fn run_cli() -> Result<()> {
                 &[],
                 &[],
                 &[synthetic_runbook_action],
-                &[],
                 &[],
                 &[],
                 &[],
@@ -4958,7 +4954,6 @@ fn swarm_action_rows(
     repo_work_overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
     repo_work_public_proofs: &[EpiphanyCultMeshRepoWorkPublicProofEntry],
     repo_work_readiness_reports: &[EpiphanyCultMeshRepoWorkReadinessEntry],
-    repo_work_readiness_reviews: &[EpiphanyCultMeshRepoWorkReadinessReviewEntry],
 ) -> (Vec<SwarmActionRow>, Vec<String>) {
     let mut rows = Vec::new();
     let mut service_execution_check_counts = BTreeMap::<String, (usize, usize)>::new();
@@ -5214,12 +5209,6 @@ fn swarm_action_rows(
     }
     for (index, readiness) in repo_work_readiness_reports.iter().take(5).enumerate() {
         rows.push(repo_work_readiness_action_row(readiness, 70 + index as u32));
-    }
-    for (index, review) in repo_work_readiness_reviews.iter().take(5).enumerate() {
-        rows.push(repo_work_readiness_review_action_row(
-            review,
-            75 + index as u32,
-        ));
     }
     if rows.is_empty() {
         rows.push(SwarmActionRow {
@@ -6315,60 +6304,6 @@ fn repo_work_readiness_action_row(
     }
 }
 
-fn repo_work_readiness_review_action_row(
-    review: &EpiphanyCultMeshRepoWorkReadinessReviewEntry,
-    priority: u32,
-) -> SwarmActionRow {
-    SwarmActionRow {
-        priority,
-        family: "repo-work-readiness-review".to_string(),
-        status: review.status.clone(),
-        lifecycle_owner: "none".to_string(),
-        hosted_body: "repo-work".to_string(),
-        action: format!(
-            "Read repo work readiness review {} for item {}; Bifrost/GitHub/Idunn/Hands still own publication, sync, deployment, service lifecycle, and branch consequences.",
-            review.review_id, review.item
-        ),
-        wrapper_mode: "repo-work-readiness-review".to_string(),
-        wrapper_command: format!(
-            "epiphany-work readiness-review --workspace \"{}\" --item \"{}\" --readiness-receipt \"{}\" --maintainer-review-receipt <ref> --soul-review-receipt <ref> --mind-review-receipt <ref> --bifrost-review-receipt <ref>",
-            review.workspace, review.item, review.readiness_receipt_ref
-        ),
-        operator_artifact_ref: review.readiness_review_receipt_ref.clone(),
-        operator_artifact_status: if review.readiness_review_receipt_ref == "none" {
-            "none".to_string()
-        } else {
-            "external-ref".to_string()
-        },
-        operator_artifact_sha256: "none".to_string(),
-        operator_artifact_execution_command: "none".to_string(),
-        operator_aftercare_command: "none".to_string(),
-        completion_audit_wrapper_mode: "none".to_string(),
-        completion_audit_wrapper_command: "none".to_string(),
-        authority_gate: "repo.work.readiness_review_readback".to_string(),
-        effect_class: "repo-work-readiness-review-readback".to_string(),
-        mutates_state: false,
-        requires_elevated_authority: false,
-        service_execution_failed_check_count: 0,
-        service_execution_missing_check_count: 0,
-        service_id: "none".to_string(),
-        service_route: "none".to_string(),
-        reason: format!(
-            "Readiness review status={} approval={}, durableState={}, publication={}, merge={}, sync={}, deployment={}, service={}, hands={}",
-            review.status,
-            review.readiness_approval_authorized,
-            review.durable_state_commit_authorized,
-            review.publication_authorized,
-            review.merge_authorized,
-            review.upstream_sync_authorized,
-            review.deployment_authority,
-            review.service_lifecycle_authority,
-            review.hands_action_authorized
-        ),
-        private_state_exposed: review.private_state_exposed,
-    }
-}
-
 fn swarm_action_tui_row(row: &SwarmActionRow) -> String {
     format!(
         "{:03} | {} | {} | {} | {} | owner={} | hostedBody={} | service={} | route={} | command={} | mutates={} | elevated={} | failedChecks={} | missingChecks={} | artifact={} | sha256={} | exec={} | audit={} | aftercare={}",
@@ -7156,7 +7091,6 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &repo_work_overviews,
         &repo_work_public_proofs,
         &repo_work_readiness_reports,
-        &repo_work_readiness_reviews,
     );
     let private_state_exposed = daemon_report
         .rows
@@ -7915,7 +7849,7 @@ fn receipt_directory_report(
                 .unwrap_or_else(|| "none".to_string()),
             service_id: "none".to_string(),
             service_route: "none".to_string(),
-            follow_up_command: WRAPPER_REPO_WORK_READINESS_REVIEW_COMMAND.to_string(),
+            follow_up_command: WRAPPER_RECEIPT_DIRECTORY_COMMAND.to_string(),
             artifact_ref: readiness_review_artifact_ref.clone(),
             artifact_status: readiness_review_artifact_status.clone(),
             artifact_sha256: operator_artifact_sha256(
