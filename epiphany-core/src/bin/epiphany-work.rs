@@ -36,9 +36,7 @@ use epiphany_core::RepoWorkModelingRoute;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::SoulVerdictReceipt;
-use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::WeksaInterlinguaInput;
 use epiphany_core::WeksaSpeakerContext;
 use epiphany_core::advance_repo_work_modeling_route;
@@ -81,6 +79,7 @@ use epiphany_core::runtime_repo_work_map_entry;
 use epiphany_core::runtime_repo_work_modeling_finding;
 use epiphany_core::runtime_repo_work_modeling_request;
 use epiphany_core::runtime_repo_work_modeling_route;
+use epiphany_core::substrate_gate_repo_work_planning_grant;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
@@ -1886,18 +1885,12 @@ fn run_work(args: RunArgs) -> Result<Value> {
     let intent_id = format!("{run_id}-hands-intent");
     let review_id = format!("{run_id}-hands-review");
 
-    let substrate_grant = SubstrateGateRepoAccessGrantReceipt {
-        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
-        receipt_id: substrate_grant_id.clone(),
-        runtime_job_id: runtime_job_id.clone(),
-        binding_id: "repo-work-runner".to_string(),
-        role: "epiphany-hands".to_string(),
-        authority_scope: "repo.branch_local_work".to_string(),
-        granted_operations: vec!["read".to_string(), "snapshot".to_string()],
-        granted_paths: requested_paths.clone(),
-        granted_at: now.clone(),
-        contract: "Substrate Gate grants read/snapshot access for work-run planning only; mutation awaits an approved Hands review.".to_string(),
-    };
+    let substrate_grant = substrate_gate_repo_work_planning_grant(
+        substrate_grant_id.clone(),
+        runtime_job_id.clone(),
+        requested_paths.clone(),
+        now.clone(),
+    );
     put_substrate_gate_repo_access_grant_receipt(&runtime_store, &substrate_grant)?;
 
     let intent = HandsActionIntent {

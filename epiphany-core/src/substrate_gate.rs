@@ -33,6 +33,7 @@ pub const SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION: &str =
     type = "epiphany.substrate_gate.repo_access_grant_receipt",
     schema = "SubstrateGateRepoAccessGrantReceipt"
 )]
+#[non_exhaustive]
 pub struct SubstrateGateRepoAccessGrantReceipt {
     #[cultcache(key = 0)]
     pub schema_version: String,
@@ -156,6 +157,52 @@ pub fn substrate_gate_repo_access_grant_for_launch(
     }
 }
 
+pub fn substrate_gate_repo_work_planning_grant(
+    receipt_id: String,
+    runtime_job_id: String,
+    granted_paths: Vec<String>,
+    granted_at: String,
+) -> SubstrateGateRepoAccessGrantReceipt {
+    SubstrateGateRepoAccessGrantReceipt {
+        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        runtime_job_id,
+        binding_id: "repo-work-runner".to_string(),
+        role: "epiphany-hands".to_string(),
+        authority_scope: "repo.branch_local_work".to_string(),
+        granted_operations: vec!["read".to_string(), "snapshot".to_string()],
+        granted_paths,
+        granted_at,
+        contract: "Substrate Gate grants read/snapshot access for repo-work planning only; mutation awaits an approved Hands review.".to_string(),
+    }
+}
+
+pub fn substrate_gate_coordinator_implementation_grant(
+    receipt_id: String,
+    runtime_job_id: String,
+    granted_paths: Vec<String>,
+    granted_at: String,
+) -> SubstrateGateRepoAccessGrantReceipt {
+    SubstrateGateRepoAccessGrantReceipt {
+        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        runtime_job_id,
+        binding_id: "implementation-worker".to_string(),
+        role: "epiphany-hands".to_string(),
+        authority_scope: "epiphany.role.implementation".to_string(),
+        granted_operations: vec![
+            "read".to_string(),
+            "snapshot".to_string(),
+            "patch".to_string(),
+            "command".to_string(),
+            "commit".to_string(),
+        ],
+        granted_paths,
+        granted_at,
+        contract: "Substrate Gate grants scoped repository access for a coordinator-approved implementation continuation; every mutation still needs Hands receipts.".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,5 +281,29 @@ mod tests {
         assert!(grant.granted_operations.contains(&"read".to_string()));
         assert!(!grant.granted_operations.contains(&"write".to_string()));
         assert!(grant.contract.contains("mutation remains forbidden"));
+    }
+
+    #[test]
+    fn repo_work_and_implementation_grants_have_fixed_policies() {
+        let planning = substrate_gate_repo_work_planning_grant(
+            "planning-grant".to_string(),
+            "planning-job".to_string(),
+            vec!["README.md".to_string()],
+            "2026-07-12T00:00:00Z".to_string(),
+        );
+        assert_eq!(planning.binding_id, "repo-work-runner");
+        assert_eq!(planning.granted_operations, vec!["read", "snapshot"]);
+
+        let implementation = substrate_gate_coordinator_implementation_grant(
+            "implementation-grant".to_string(),
+            "implementation-job".to_string(),
+            vec!["src".to_string()],
+            "2026-07-12T00:00:00Z".to_string(),
+        );
+        assert_eq!(implementation.binding_id, "implementation-worker");
+        assert_eq!(
+            implementation.granted_operations,
+            vec!["read", "snapshot", "patch", "command", "commit"]
+        );
     }
 }

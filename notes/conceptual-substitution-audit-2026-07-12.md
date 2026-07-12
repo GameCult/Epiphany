@@ -401,3 +401,13 @@ map entry. Both flags and fields are deleted. Soul derives its summary from the
 actual failed/passed invariant, and initial Mind admission deterministically
 uses revision zero; subsequent evolution is represented by the typed Modeling
 route generation rather than a decorative caller number.
+
+## Hands binaries constructing their own Substrate Gate grants
+
+Repo-work and MVP-coordinator Hands paths assembled grant receipt literals
+inline, then persisted the badge they had just awarded themselves. Grant
+records are now non-exhaustive outside the library, and the `substrate_gate`
+module owns narrow fixed-policy constructors for repo-work planning and
+coordinator-approved implementation. Production binaries no longer choose the
+binding, role, authority scope, operation set, schema, or contract prose field
+by field.

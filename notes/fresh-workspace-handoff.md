@@ -100,6 +100,9 @@ The confirmed conceptual substitutions have been cut:
 - callers cannot overwrite Soul verdict narration or choose Mind's immutable
   admission revision. Soul derives the explanation; initial map admission is
   revision zero and later evolution uses typed Modeling route generations.
+- Hands binaries no longer construct Substrate Gate grant structs inline.
+  Grants are non-exhaustive externally and come from narrow fixed-policy
+  constructors owned by the `substrate_gate` module.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

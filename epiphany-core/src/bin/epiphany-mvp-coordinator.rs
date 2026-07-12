@@ -13,8 +13,6 @@ use epiphany_core::HandsActionIntent;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
-use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::append_runtime_event;
 use epiphany_core::create_runtime_session;
 use epiphany_core::hands_action_review_for_intent;
@@ -25,6 +23,7 @@ use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_spine_status;
+use epiphany_core::substrate_gate_coordinator_implementation_grant;
 use serde_json::Value;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -816,25 +815,12 @@ fn record_hands_implementation_gate(
     let grant_id = format!("substrate-grant-{runtime_job_id}");
     let requested_paths = implementation_requested_paths(status);
 
-    let substrate_grant = SubstrateGateRepoAccessGrantReceipt {
-        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
-        receipt_id: grant_id.clone(),
-        runtime_job_id: runtime_job_id.clone(),
-        binding_id: "implementation-worker".to_string(),
-        role: "epiphany-hands".to_string(),
-        authority_scope: "epiphany.role.implementation".to_string(),
-        granted_operations: vec![
-            "read".to_string(),
-            "snapshot".to_string(),
-            "patch".to_string(),
-            "command".to_string(),
-            "commit".to_string(),
-        ],
-        granted_paths: requested_paths.clone(),
-        granted_at: requested_at.clone(),
-        contract: "Substrate Gate grants the main Hands agent scoped repository access for the coordinator-approved implementation continuation; every mutation still needs Hands receipts."
-            .to_string(),
-    };
+    let substrate_grant = substrate_gate_coordinator_implementation_grant(
+        grant_id.clone(),
+        runtime_job_id.clone(),
+        requested_paths.clone(),
+        requested_at.clone(),
+    );
     put_substrate_gate_repo_access_grant_receipt(runtime_store, &substrate_grant)?;
 
     let intent = HandsActionIntent {
