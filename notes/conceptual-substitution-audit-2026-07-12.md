@@ -572,3 +572,14 @@ of an older admission could therefore become the queue's current map. Map
 entries now require valid RFC3339 admission/mirror times, reject projection
 before Mind admission, and advance `latest` by `(admission time, map entry ID)`.
 Mirror latency is metadata; it does not own state progression.
+
+## Mirror arrival presented as current repo-work queue overview
+
+Repo-work queue loading consumes the global latest overview plus per-item
+current overview keys to identify actionable gates. The global mirror was
+arrival-owned and `generated_at` was unvalidated, so delayed transport could
+make an obsolete gate or next move appear current. Overview writes now require
+valid RFC3339 generation time and advance the global `latest` key by
+`(generation time, overview ID)`. Per-item overwrite remains intentional: that
+key owns the current projection for one item, while the global key identifies
+the newest generated item state.
