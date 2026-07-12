@@ -1,10 +1,12 @@
 use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
-use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
+use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
+use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION;
 use serde_json::json;
 use std::env;
 use std::path::PathBuf;
@@ -48,12 +50,32 @@ fn write_heartbeat(args: &Args, iteration: u64) -> Result<EpiphanyCultMeshDaemon
         .daemon_statuses
         .iter()
         .find(|status| status.daemon_id == args.daemon_id)
-        .with_context(|| {
-            format!(
-                "local Verse has no daemon status row for {}",
-                args.daemon_id
-            )
-        })?;
+        .cloned()
+        .or_else(|| {
+            load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())
+                .ok()?
+                .into_iter()
+                .find(|cluster| cluster.daemon_id == args.daemon_id)
+                .map(|cluster| EpiphanyCultMeshDaemonStatusEntry {
+                    schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
+                    daemon_id: cluster.daemon_id,
+                    cluster_id: cluster.cluster_id,
+                    body_domain: cluster.body_domain,
+                    daemon_surface_id: cluster.daemon_surface_id,
+                    eve_surface_id: cluster.eve_surface_id,
+                    status: "unknown".to_string(),
+                    last_heartbeat_utc: "unknown".to_string(),
+                    supported_actions: vec![
+                        "inspectStatus".to_string(),
+                        "pokeDaemon".to_string(),
+                        "watchHeartbeat".to_string(),
+                    ],
+                    operator_action: "pokeDaemon".to_string(),
+                    private_state_exposed: false,
+                    notes: vec!["Initial status constructed by the owning cluster daemon from persisted topology.".to_string()],
+                })
+        })
+        .with_context(|| format!("local Verse has no persisted topology for {}", args.daemon_id))?;
     let mut next = current.clone();
     next.status = args.daemon_status.clone();
     next.last_heartbeat_utc = Utc::now().to_rfc3339();

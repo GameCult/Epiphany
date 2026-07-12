@@ -635,6 +635,7 @@ fn run_cli() -> Result<()> {
             );
         }
         "poke-daemon" | "daemon-poke" => {
+            reject_daemon_poke_response_fields(&args)?;
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -666,43 +667,21 @@ fn run_cli() -> Result<()> {
                         .collect::<String>()
                 )
             });
-            let receipt_id = args
-                .receipt_id
-                .clone()
-                .unwrap_or_else(|| intent_id.replace("intent", "receipt"));
-            let resulting_status = args
-                .resulting_status
-                .clone()
-                .unwrap_or_else(|| daemon_status.status.clone());
-            let receipt_status = args
-                .receipt_status
-                .clone()
-                .unwrap_or_else(|| "recorded".to_string());
-            let artifact_ref = args
-                .artifact_ref
-                .clone()
-                .unwrap_or_else(|| format!("cultmesh://epiphany-local/daemon-poke/{intent_id}"));
-            let poke_result = write_daemon_poke_receipts(
+            let poke_result = write_daemon_poke_intent(
                 &args,
                 &context,
                 daemon_status,
                 intent_id,
-                receipt_id,
                 reason,
-                resulting_status,
-                receipt_status,
-                artifact_ref,
             )?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            if context.latest_daemon_poke_intent.is_none()
-                || context.latest_daemon_poke_receipt.is_none()
-            {
-                anyhow::bail!("local Verse query lost daemon poke intent/receipt after write");
+            if context.latest_daemon_poke_intent.is_none() {
+                anyhow::bail!("local Verse query lost daemon poke intent after write");
             }
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "status": "ok",
+                    "status": "pending-lifecycle-owner",
                     "store": args.store,
                     "runtimeId": context.runtime_id,
                     "targetDaemonId": poke_result["targetDaemonId"],
@@ -712,29 +691,31 @@ fn run_cli() -> Result<()> {
                     "receiptId": poke_result["receiptId"],
                     "receiptStatus": poke_result["receiptStatus"],
                     "resultingStatus": poke_result["resultingStatus"],
+                    "responseOwner": poke_result["responseOwner"],
                     "privateStateRequested": poke_result["privateStateRequested"],
                     "privateStateExposed": poke_result["privateStateExposed"],
                 }))?
             );
         }
         "poke-down-daemons" | "poke-unready-daemons" | "daemon-poke-down" => {
+            reject_daemon_poke_response_fields(&args)?;
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
                 Utc::now().to_rfc3339(),
             )?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            let pokes = write_poke_receipts_for_non_ready_daemons(&args, &context)?;
+            let pokes = write_poke_intents_for_non_ready_daemons(&args, &context)?;
             let poke_tui_rows = pokes.iter().map(poke_result_tui_row).collect::<Vec<_>>();
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
-                    "status": if pokes.is_empty() { "noop" } else { "ok" },
+                    "status": if pokes.is_empty() { "noop" } else { "pending-lifecycle-owner" },
                     "store": args.store,
                     "runtimeId": context.runtime_id,
                     "observedDaemonCount": context.daemon_statuses.len(),
-                    "pokedDaemonCount": pokes.len(),
+                    "requestedDaemonCount": pokes.len(),
                     "pokes": pokes,
                     "pokeRows": poke_tui_rows,
                     "tuiRows": poke_tui_rows,
@@ -864,76 +845,11 @@ fn run_cli() -> Result<()> {
             } else {
                 let context =
                     query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-                write_poke_receipts_for_non_ready_daemons(&args, &context)?
+                write_poke_intents_for_non_ready_daemons(&args, &context)?
             };
             let output =
                 SwarmTriageOutput::from_report(args.store, args.runtime_id, overview, pokes);
             println!("{}", serde_json::to_string_pretty(&output)?);
-        }
-        "daemon-status" | "set-daemon-status" => {
-            seed_epiphany_local_verse_context(
-                &args.store,
-                args.runtime_id.clone(),
-                Utc::now().to_rfc3339(),
-            )?;
-            let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            let daemon_id = args
-                .daemon_id
-                .as_deref()
-                .context("daemon-status requires --daemon-id, for example epiphany-daemon-hands")?;
-            let current = context
-                .daemon_statuses
-                .iter()
-                .find(|status| status.daemon_id == daemon_id)
-                .with_context(|| format!("local Verse has no daemon status for {daemon_id:?}"))?;
-            let status = args
-                .daemon_status
-                .clone()
-                .or_else(|| args.resulting_status.clone())
-                .unwrap_or_else(|| "ready".to_string());
-            let operator_action = args
-                .operator_action
-                .clone()
-                .or_else(|| args.requested_action.clone())
-                .unwrap_or_else(|| {
-                    if status == "ready" {
-                        "none".to_string()
-                    } else {
-                        "pokeDaemon".to_string()
-                    }
-                });
-            let mut next = current.clone();
-            next.status = status;
-            next.last_heartbeat_utc = Utc::now().to_rfc3339();
-            next.operator_action = operator_action;
-            if let Some(reason) = args.reason.clone() {
-                next.notes.push(format!("Status update reason: {reason}"));
-            }
-            let written =
-                write_epiphany_cultmesh_daemon_status(&args.store, args.runtime_id.clone(), next)?;
-            let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            let projected = context
-                .daemon_statuses
-                .iter()
-                .find(|status| status.daemon_id == written.daemon_id)
-                .context("local Verse query lost daemon status after write")?;
-            if projected.status != written.status {
-                anyhow::bail!("local Verse projected a different daemon status after write");
-            }
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({
-                    "status": "ok",
-                    "store": args.store,
-                    "runtimeId": context.runtime_id,
-                    "daemonId": written.daemon_id,
-                    "clusterId": written.cluster_id,
-                    "daemonStatus": written.status,
-                    "operatorAction": written.operator_action,
-                    "lastHeartbeatUtc": written.last_heartbeat_utc,
-                    "privateStateExposed": written.private_state_exposed,
-                }))?
-            );
         }
         "bifrost-publication" | "publish-body-change" => {
             if args.receipt_id.is_some()
@@ -2468,7 +2384,7 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke lost Eve surface readback for globally invokable eve-connect tools"
                 );
             }
-            let no_op_pokes = write_poke_receipts_for_non_ready_daemons(&args, &context)?;
+            let no_op_pokes = write_poke_intents_for_non_ready_daemons(&args, &context)?;
             if !no_op_pokes.is_empty() {
                 anyhow::bail!("local Verse query smoke poked ready daemons during no-op sweep");
             }
@@ -2612,7 +2528,7 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke degraded overview lost wrapper poke command"
                 );
             }
-            let batch_pokes = write_poke_receipts_for_non_ready_daemons(&args, &context)?;
+            let batch_pokes = write_poke_intents_for_non_ready_daemons(&args, &context)?;
             if batch_pokes.len() != 1 {
                 anyhow::bail!(
                     "local Verse query smoke expected exactly one batch daemon poke, got {}",
@@ -2666,7 +2582,7 @@ fn run_cli() -> Result<()> {
             let triage_pokes = if triage_overview.liveness_status == "ready" {
                 Vec::new()
             } else {
-                write_poke_receipts_for_non_ready_daemons(&args, &context)?
+                write_poke_intents_for_non_ready_daemons(&args, &context)?
             };
             if triage_overview.status != "attention"
                 || triage_overview.attention_daemon_ids != vec!["epiphany-daemon-hands".to_string()]
@@ -9770,16 +9686,25 @@ fn compact_tui_text(value: &str, max_chars: usize) -> String {
         + "..."
 }
 
-fn write_daemon_poke_receipts(
+fn reject_daemon_poke_response_fields(args: &Args) -> Result<()> {
+    if args.receipt_id.is_some()
+        || args.receipt_status.is_some()
+        || args.resulting_status.is_some()
+        || args.artifact_ref.is_some()
+    {
+        anyhow::bail!(
+            "daemon poke commands accept requester intent fields only; the lifecycle owner owns receipt id/status, resulting daemon status, and result artifacts"
+        );
+    }
+    Ok(())
+}
+
+fn write_daemon_poke_intent(
     args: &Args,
     context: &EpiphanyLocalVerseContext,
     daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
     intent_id: String,
-    receipt_id: String,
     reason: String,
-    resulting_status: String,
-    receipt_status: String,
-    artifact_ref: String,
 ) -> Result<serde_json::Value> {
     assert_swarm_brake_allows_surface(
         context,
@@ -9798,18 +9723,6 @@ fn write_daemon_poke_receipts(
         args.runtime_id.clone(),
         poke_intent.clone(),
     )?;
-    let poke_receipt = epiphany_cultmesh_daemon_poke_receipt_for_intent(
-        receipt_id,
-        &poke_intent,
-        receipt_status,
-        resulting_status,
-        artifact_ref,
-    );
-    let written_receipt = write_epiphany_cultmesh_daemon_poke_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        poke_receipt,
-    )?;
     let cluster = cluster_topology_for_id(context, &written_intent.target_cluster_id)?;
     Ok(json!({
         "targetDaemonId": written_intent.target_daemon_id,
@@ -9820,15 +9733,16 @@ fn write_daemon_poke_receipts(
         "eveSurfaceId": cluster.eve_surface_id.clone(),
         "observedStatus": written_intent.observed_status,
         "intentId": written_intent.intent_id,
-        "receiptId": written_receipt.receipt_id,
-        "receiptStatus": written_receipt.status,
-        "resultingStatus": written_receipt.resulting_status,
+        "receiptId": null,
+        "receiptStatus": null,
+        "resultingStatus": null,
+        "responseOwner": "Idunn/target-daemon",
         "privateStateRequested": written_intent.private_state_requested,
-        "privateStateExposed": written_receipt.private_state_exposed,
+        "privateStateExposed": false,
     }))
 }
 
-fn write_poke_receipts_for_non_ready_daemons(
+fn write_poke_intents_for_non_ready_daemons(
     args: &Args,
     context: &EpiphanyLocalVerseContext,
 ) -> Result<Vec<serde_json::Value>> {
@@ -9842,35 +9756,18 @@ fn write_poke_receipts_for_non_ready_daemons(
     for daemon_status in statuses {
         let safe_daemon_id = sanitize_id(&daemon_status.daemon_id);
         let intent_id = format!("daemon-poke-intent-{safe_daemon_id}-{issued_at}");
-        let receipt_id = format!("daemon-poke-receipt-{safe_daemon_id}-{issued_at}");
         let reason = args.reason.clone().unwrap_or_else(|| {
             format!(
                 "Operator requested typed lifecycle poke sweep after observing {} status {}.",
                 daemon_status.daemon_id, daemon_status.status
             )
         });
-        let resulting_status = args
-            .resulting_status
-            .clone()
-            .unwrap_or_else(|| daemon_status.status.clone());
-        let receipt_status = args
-            .receipt_status
-            .clone()
-            .unwrap_or_else(|| "recorded".to_string());
-        let artifact_ref = args
-            .artifact_ref
-            .clone()
-            .unwrap_or_else(|| format!("cultmesh://epiphany-local/daemon-poke-sweep/{intent_id}"));
-        pokes.push(write_daemon_poke_receipts(
+        pokes.push(write_daemon_poke_intent(
             args,
             context,
             daemon_status,
             intent_id,
-            receipt_id,
             reason,
-            resulting_status,
-            receipt_status,
-            artifact_ref,
         )?);
     }
     Ok(pokes)
@@ -10576,8 +10473,6 @@ struct Args {
     smoke_default_store: bool,
     agent_store: Option<PathBuf>,
     daemon_id: Option<String>,
-    daemon_status: Option<String>,
-    operator_action: Option<String>,
     capability_id: Option<String>,
     requesting_agent_id: Option<String>,
     brake_id: Option<String>,
@@ -10637,8 +10532,6 @@ impl Args {
         let mut runtime_id_overridden = false;
         let mut agent_store = None;
         let mut daemon_id = None;
-        let mut daemon_status = None;
-        let mut operator_action = None;
         let mut capability_id = None;
         let mut requesting_agent_id = None;
         let mut brake_id = None;
@@ -10704,13 +10597,6 @@ impl Args {
                 }
                 "--daemon-id" => {
                     daemon_id = Some(values.next().context("missing --daemon-id value")?);
-                }
-                "--daemon-status" => {
-                    daemon_status = Some(values.next().context("missing --daemon-status value")?);
-                }
-                "--operator-action" => {
-                    operator_action =
-                        Some(values.next().context("missing --operator-action value")?);
                 }
                 "--capability-id" => {
                     capability_id = Some(values.next().context("missing --capability-id value")?);
@@ -10959,8 +10845,6 @@ impl Args {
             smoke_default_store,
             agent_store,
             daemon_id,
-            daemon_status,
-            operator_action,
             capability_id,
             requesting_agent_id,
             brake_id,

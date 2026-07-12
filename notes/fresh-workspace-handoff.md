@@ -16,6 +16,10 @@ The conceptual-substitution audit found observation manufacturing the body it cl
 
 `connect-eve` and wrapper mode `eve-connect` now persist only `epiphany.cultmesh.eve_connection_intent`, return `pending-provider`, name the target cluster as response owner, and leave receipt fields null. Consumer-supplied connection receipt id/status is rejected. The request path no longer projects repo-work queue data as if the provider had accepted and returned a surface. `collaboration-feedback` now requires the cited Eve connection receipt to exist in CultMesh, and the wrapper no longer invokes `connect-eve` then cites a receipt that the same command fabricated. Physical proof shows intent present, provider receipt absent, counterfeit receipt fields rejected, and feedback refused without a genuine provider receipt.
 
+## 2026-07-12 daemon lifecycle requester/provider split
+
+Single poke, batch poke, and swarm triage now write only `epiphany.cultmesh.daemon_poke_intent`. They report `pending-lifecycle-owner`, leave receipt/result fields null, and reject caller-supplied receipt id/status, resulting daemon status, or artifact result. The generic `daemon-status` / `set-daemon-status` CLI writer was deleted because it let callers proclaim readiness and stamp a heartbeat. `epiphany-cluster-daemon`, the provider body, now creates its own initial status from persisted topology after bootstrap rather than depending on a seeded fake heartbeat. Physical proof: provider heartbeat `degraded`, poke intent observes `degraded`, provider receipt absent, caller-supplied `ready` result rejected, and generic status writer unavailable.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 

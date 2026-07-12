@@ -37,6 +37,14 @@
 - Dependent invariant: collaboration feedback may cite only a persisted provider receipt; a consumer request is not acceptance.
 - Negative proof: provider receipt remains absent after request, response-shaped fields fail, and feedback without provider acceptance fails.
 
+## Daemon lifecycle request and heartbeat paths (2026-07-12)
+
+- Request owner: Self/operator owns a daemon-poke intent; Idunn or the target daemon owns its receipt and resulting status.
+- Poke output: pending intent with observed status and null receipt/result fields, shared by single, batch, and triage paths.
+- Forbidden writers: poke callers cannot provide receipt id/status, resulting status, or artifact; the generic Verse CLI daemon-status writer no longer exists.
+- Heartbeat owner: `epiphany-cluster-daemon` writes status. On its first run it derives identity/routing fields from persisted topology and authors the first heartbeat itself.
+- Negative proof: a real provider heartbeat can precede a pending poke; no poke receipt appears, counterfeit `ready` result is rejected, and `set-daemon-status` is unavailable.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 
