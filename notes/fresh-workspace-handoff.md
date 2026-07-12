@@ -14,6 +14,8 @@ The confirmed conceptual substitutions have been cut:
 - operator-run completion is derived from a fresh, contained result artifact rather than caller status;
 - daemon service plan/execute authority is encoded by explicit command identity;
 - synthetic receipt smokes are confined beneath `.epiphany-smoke`.
+- generic local Verse bootstrap no longer publishes provider advertisements,
+  Eve surfaces, or hosted tools; provider absence survives bootstrap.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

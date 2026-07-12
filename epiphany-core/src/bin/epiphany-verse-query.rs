@@ -69,9 +69,12 @@ use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use epiphany_core::write_epiphany_cultmesh_daemon_statuses;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
+use epiphany_core::write_epiphany_cultmesh_daemon_tool_capabilities;
 use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::write_epiphany_cultmesh_eve_connection_receipt;
+use epiphany_core::write_epiphany_cultmesh_eve_surface_states;
 use epiphany_core::write_epiphany_cultmesh_imagination_consensus_receipt;
+use epiphany_core::write_epiphany_cultmesh_odin_advertisements;
 use epiphany_core::write_epiphany_cultmesh_swarm_brake;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
 use epiphany_core::EpiphanyAgentStateSoaEntry;
@@ -1413,6 +1416,18 @@ fn run_cli() -> Result<()> {
                 &args.store,
                 args.runtime_id.clone(),
                 "2026-06-02T00:00:00Z",
+            )?;
+            write_epiphany_cultmesh_odin_advertisements(
+                &args.store,
+                args.runtime_id.clone(),
+            )?;
+            write_epiphany_cultmesh_eve_surface_states(
+                &args.store,
+                args.runtime_id.clone(),
+            )?;
+            write_epiphany_cultmesh_daemon_tool_capabilities(
+                &args.store,
+                args.runtime_id.clone(),
             )?;
             write_epiphany_cultmesh_daemon_statuses(
                 &args.store,

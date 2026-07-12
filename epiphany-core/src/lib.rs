@@ -500,6 +500,7 @@ pub use cultmesh_integration::write_epiphany_cultmesh_hands_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_idunn_deployment_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_imagination_consensus_receipt;
+pub use cultmesh_integration::write_epiphany_cultmesh_odin_advertisements;
 pub use cultmesh_integration::write_epiphany_cultmesh_mind_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_run_intent;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_run_receipt;

@@ -82,6 +82,10 @@
 
 - `epiphany-verse-query smoke` owns synthetic contract fixtures only.
 - Its only writable body is `.epiphany-smoke/verse-query-default/local-verse.ccmp` with runtime `verse-query-default-smoke`.
+- Generic local Verse bootstrap owns policy, declared topology, initial brake,
+  organ contracts, and operator status only. It does not publish Odin provider
+  advertisements, Eve surfaces, or daemon-hosted tools. Those families require
+  provider publication; discovery preserves their absence.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

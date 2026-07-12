@@ -5799,8 +5799,6 @@ pub fn seed_epiphany_local_verse_context(
     write_epiphany_cultmesh_verse_policies(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_global_room_policies(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_odin_advertisements(store_path, runtime_id.clone())?;
-    write_epiphany_cultmesh_eve_surface_states(store_path, runtime_id.clone())?;
     {
         let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
         if node
@@ -5814,7 +5812,6 @@ pub fn seed_epiphany_local_verse_context(
             )?;
         }
     }
-    write_epiphany_cultmesh_daemon_tool_capabilities(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_mind_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_substrate_gate_contracts(store_path, runtime_id.clone())?;
     write_epiphany_cultmesh_eyes_contracts(store_path, runtime_id.clone())?;
@@ -9358,7 +9355,7 @@ mod tests {
     }
 
     #[test]
-    fn local_verse_context_queries_compact_policy_status_and_contracts() -> Result<()> {
+    fn local_verse_bootstrap_does_not_publish_provider_owned_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-local-verse.ccmp");
         seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-02T00:00:00Z")?;
@@ -9376,18 +9373,9 @@ mod tests {
                 && cluster.public_persona_discussion_allowed
                 && cluster.eve_surface_id == "eve://epiphany/persona"
         }));
-        assert_eq!(context.odin_advertisements.len(), 7);
-        assert!(context.odin_advertisements.iter().any(|advertisement| {
-            advertisement.cluster_id == "epiphany.cluster.persona"
-                && advertisement.eve_surface_id == "eve://epiphany/persona"
-                && !advertisement.private_state_exposed
-        }));
-        assert!(context.daemon_tool_capabilities.len() >= 18);
-        assert!(context.daemon_tool_capabilities.iter().all(|capability| {
-            capability.available_to_all_agents
-                && capability.requires_receipt
-                && !capability.private_state_exposed
-        }));
+        assert!(context.odin_advertisements.is_empty());
+        assert!(context.eve_surface_states.is_empty());
+        assert!(context.daemon_tool_capabilities.is_empty());
         assert!(context.operator_status.is_some());
         assert!(
             context

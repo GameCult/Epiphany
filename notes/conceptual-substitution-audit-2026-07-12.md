@@ -78,3 +78,19 @@ the receipts and projections without first separating those writers.
 All confirmed substitutions above have now been structurally cut from their caller-facing production paths. Diagnostics preserve absence; bootstrap does not seed liveness; cluster-daemon owns first heartbeat; discovery loaders do not synthesize providers; tool, Eve, poke, body-change, public-proof, artifact-acceptance, metrics, and Persona-feedback commands write or select requests only; provider/result fields are rejected. `epiphany-eve-provider` is the first narrow provider receipt mouth. Receipt constructors and writers remain available to owning provider binaries and focused contract tests; their mere existence is no longer caller authority.
 
 Remaining audit work is provenance rather than this original dual-writer cluster: identify every production call site of response-receipt writers, ensure it belongs to a named provider executable or ingest boundary, and distill contaminated historical claims from `state/map.yaml`.
+
+## Bootstrap/provider split
+
+The later non-receipt pass found one surviving writer from the same original
+collapse: `seed_epiphany_local_verse_context` still published all seven Odin
+advertisements, Eve surface states, and daemon tool capabilities. This made an
+explicit bootstrap structurally indistinguishable from seven providers having
+published their own presence.
+
+Bootstrap now writes only Epiphany-owned local policy, topology declaration,
+brake initialization, organ contracts, and operator status. Provider
+advertisements, surfaces, and hosted tools remain absent until a provider-owned
+publication path writes them. The quarantined `epiphany-verse-query smoke`
+fixture seeds those three families explicitly inside its fixed disposable body.
+Focused negative proof asserts that a clean bootstrap leaves all three provider
+families empty.
