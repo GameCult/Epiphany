@@ -2229,6 +2229,18 @@ the test harness then killed it deliberately. The first combined smoke exceeded
 its harness window because `service_launch` loads the entire local Verse merely
 to inspect the swarm brake. Next use the narrow brake loader and integrate
 managed-service reconcile into Idunn's native serve scheduler.
+That unattended boundary is complete. Service launch/plan now use the narrow
+swarm-brake loader and no full Verse seed/query. A separate
+`managed-service-serve` scheduler enumerates service-id policies without
+requiring standing-daemon restart policies. Live root
+`C:\Users\Meta\AppData\Local\Temp\epiphany-idunn-unattended-3394ecfaa03f41d8935f9fb70411ca75`
+proved one pulse observed PID `44276` alive without a new receipt; after the
+test harness killed it, the next pulse restarted heartbeat as PID `40532` with
+unique receipt
+`daemon-service-lifecycle-receipt-idunn-managed-heartbeat-launch-1783859054234`.
+The same heartbeat store survived and no child remains running. Next expose
+compact managed-service policy/lifecycle/process rows through Gjallar/Eve so
+operators can see Idunn physiology without invoking the supervisor CLI.
 
 ## Immediate Re-entry Instruction
 

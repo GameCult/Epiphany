@@ -162,6 +162,15 @@ Reconciliation is complete as an explicit Idunn command. The remaining
 unattended boundary is to include managed-service reconciliation in Idunn's
 native `serve` scheduler and replace `service-launch`'s full local-Verse context
 load with the narrow swarm-brake query it actually needs.
+That boundary is now complete. Service plan/launch use the narrow typed brake
+loader and no longer reseed the full local Verse. A dedicated
+`managed-service-serve` loop enumerates only managed-service policies and runs
+their reconcile reflex independently of standing-daemon topology. Live proof
+observed a heartbeat alive without duplicate launch, killed it, and the next
+Idunn pulse restarted it from the same store with a distinct PID and immutable
+lifecycle receipt. The next gap is inspectability: publish compact managed
+service desired/observed rows through Gjallar/Eve without opening command
+payloads or routine artifacts.
 
 ### Forbidden writers
 

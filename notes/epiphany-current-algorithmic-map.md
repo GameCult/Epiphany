@@ -387,6 +387,17 @@ proved restart receipt
 and PID `19736` were observed alive after the prior process was killed. Next
 fold this reconcile into Idunn's own serve loop and cut the full-context Verse
 load from service launch.
+Both cuts are landed. Service plan/launch now load only the typed swarm brake
+and rely on their own typed writers to open/register the store; they do not
+reseed or serialize the local Verse. `managed-service-serve` is a distinct Idunn
+loop from standing-daemon `serve`, so child service desired state is not blocked
+by absent topology restart policies. Live root
+`C:\Users\Meta\AppData\Local\Temp\epiphany-idunn-unattended-3394ecfaa03f41d8935f9fb70411ca75`
+proved PID `44276` was observed alive without duplication, then after forced
+death the next pulse launched PID `40532` under unique receipt
+`daemon-service-lifecycle-receipt-idunn-managed-heartbeat-launch-1783859054234`.
+The next boundary is Gjallar/Eve sight over managed service desired/observed
+state.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's proprioception.

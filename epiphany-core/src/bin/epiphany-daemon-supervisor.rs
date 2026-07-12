@@ -11,6 +11,7 @@ use epiphany_core::EpiphanyCultMeshDaemonRestartPolicyEntry;
 use epiphany_core::EpiphanyCultMeshDaemonSchedulerReceiptEntry;
 use epiphany_core::EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry;
 use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
+use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyServiceExecutionAuditReport;
@@ -21,6 +22,8 @@ use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
+use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
+use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
@@ -49,6 +52,7 @@ fn main() -> Result<()> {
         "reconcile" | "poke" | "restart" => reconcile(args),
         "tick" | "schedule" | "reconcile-all" => tick(args),
         "serve" | "loop" | "daemon" => serve(args),
+        "managed-service-serve" | "service-desired-state-serve" => managed_service_serve(args),
         "service-plan" | "install-service" => service_plan(args),
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
         "managed-service-policy" | "service-desired-state" => managed_service_policy(args),
@@ -182,14 +186,40 @@ fn serve(args: Args) -> Result<()> {
     Ok(())
 }
 
+fn managed_service_serve(args: Args) -> Result<()> {
+    let mut iteration = 0_u64;
+    loop {
+        iteration = iteration.saturating_add(1);
+        let policies = load_epiphany_cultmesh_managed_service_policies(
+            &args.store,
+            args.runtime_id.clone(),
+        )?;
+        for policy in &policies {
+            let mut service_args = args.clone();
+            service_args.service_id = policy.service_id.clone();
+            managed_service_reconcile(service_args)?;
+        }
+        println!("{}", serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.cultmesh.managed_service_scheduler_pulse.v0",
+            "status": "completed",
+            "owner": "Idunn",
+            "iteration": iteration,
+            "policyCount": policies.len(),
+            "privateStateExposed": false,
+        }))?);
+        if args.max_iterations != 0 && iteration >= args.max_iterations {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(
+            args.loop_interval_seconds.max(0) as u64,
+        ));
+    }
+    Ok(())
+}
+
 fn service_plan(args: Args) -> Result<()> {
-    seed_epiphany_local_verse_context(
-        &args.store,
-        args.runtime_id.clone(),
-        Utc::now().to_rfc3339(),
-    )?;
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let started_at = Utc::now();
     let command = service_command_path(&args)?;
     let service_args = service_serve_args(&args);
@@ -227,13 +257,8 @@ fn service_plan(args: Args) -> Result<()> {
 }
 
 fn service_launch(args: Args) -> Result<()> {
-    seed_epiphany_local_verse_context(
-        &args.store,
-        args.runtime_id.clone(),
-        Utc::now().to_rfc3339(),
-    )?;
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     if !args.required_document_types.is_empty()
         && (!args.schema_preflight_passed
             || args.executable_sha256.as_deref().is_none_or(str::is_empty)
@@ -3424,7 +3449,13 @@ fn assert_swarm_brake_allows_scheduler_tick(context: &EpiphanyLocalVerseContext)
 }
 
 fn assert_swarm_brake_allows_service_lifecycle(context: &EpiphanyLocalVerseContext) -> Result<()> {
-    let Some(brake) = context.swarm_brake.as_ref() else {
+    assert_swarm_brake_allows_service_lifecycle_entry(context.swarm_brake.as_ref())
+}
+
+fn assert_swarm_brake_allows_service_lifecycle_entry(
+    brake: Option<&EpiphanyCultMeshSwarmBrakeEntry>,
+) -> Result<()> {
+    let Some(brake) = brake else {
         return Ok(());
     };
     if brake.status != "engaged" {
@@ -3462,6 +3493,7 @@ struct RestartOutput {
     stderr_len: usize,
 }
 
+#[derive(Clone)]
 struct Args {
     command: String,
     store: PathBuf,
@@ -3744,6 +3776,8 @@ impl Args {
                     | "serve"
                     | "loop"
                     | "daemon"
+                    | "managed-service-serve"
+                    | "service-desired-state-serve"
                     | "service-plan"
                     | "install-service"
                     | "service-launch"

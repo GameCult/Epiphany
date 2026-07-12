@@ -3665,6 +3665,18 @@ pub fn load_epiphany_cultmesh_managed_service_policy(
     node.get(&epiphany_cultmesh_managed_service_policy_key(service_id))
 }
 
+pub fn load_epiphany_cultmesh_managed_service_policies(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshManagedServicePolicyEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    Ok(node
+        .get_all_with_keys::<EpiphanyCultMeshManagedServicePolicyEntry>()?
+        .into_iter()
+        .map(|(_, policy)| policy)
+        .collect())
+}
+
 pub fn write_epiphany_cultmesh_idunn_deployment_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
