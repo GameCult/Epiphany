@@ -9903,6 +9903,8 @@ fn record_repo_work_map_admission(
     closure_review: &Value,
     modeling_summary: &str,
     modeling_finding_receipt_id: &str,
+    modeling_route_id: &str,
+    modeling_generation: u64,
     soul_verdict_receipt_id: &str,
     mind_gateway_review_id: &str,
     mind_state_commit_receipt_id: &str,
@@ -9936,6 +9938,8 @@ fn record_repo_work_map_admission(
         publication_gate: "Bifrost".to_string(),
         durable_state_admitted: true,
         private_state_exposed: false,
+        modeling_route_id: modeling_route_id.to_string(),
+        modeling_generation,
     };
     commit_repo_work_map_admission(runtime_store, &entry, mind_review, mind_commit)?;
     runtime_repo_work_map_entry(runtime_store, &entry.map_entry_id)?
@@ -9993,6 +9997,8 @@ fn project_repo_work_map_entry_to_local_verse(
         format!("commit {}", entry.commit_sha),
         format!("family {}", entry.safe_action_family),
         format!("modeling {}", entry.modeling_finding_receipt_id),
+        format!("modelingRoute {}", entry.modeling_route_id),
+        format!("modelingGeneration {}", entry.modeling_generation),
         format!("mind {}", entry.mind_state_commit_receipt_id),
         format!("publicationGate {}", entry.publication_gate),
         "private false".to_string(),
@@ -10012,6 +10018,8 @@ fn project_repo_work_map_entry_to_local_verse(
         safe_action_family: entry.safe_action_family.clone(),
         modeling_summary: entry.modeling_summary.clone(),
         modeling_finding_receipt_id: entry.modeling_finding_receipt_id.clone(),
+        modeling_route_id: entry.modeling_route_id.clone(),
+        modeling_generation: entry.modeling_generation,
         soul_verdict_receipt_id: entry.soul_verdict_receipt_id.clone(),
         mind_gateway_review_id: entry.mind_gateway_review_id.clone(),
         mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
@@ -10051,6 +10059,8 @@ fn repo_work_map_entry_json(entry: &RepoWorkMapEntry) -> Value {
         "safeActionFamily": entry.safe_action_family,
         "modelingSummary": entry.modeling_summary,
         "modelingFindingReceiptId": entry.modeling_finding_receipt_id,
+        "modelingRouteId": entry.modeling_route_id,
+        "modelingGeneration": entry.modeling_generation,
         "soulVerdictReceiptId": entry.soul_verdict_receipt_id,
         "mindGatewayReviewId": entry.mind_gateway_review_id,
         "mindStateCommitReceiptId": entry.mind_state_commit_receipt_id,
@@ -11837,6 +11847,8 @@ fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
         &closure_review,
         &modeling_finding.summary,
         &modeling_finding.receipt_id,
+        &modeling_route.route_id,
+        modeling_route.generation,
         &soul_verdict.receipt_id,
         &mind_review.gateway_id,
         &mind_commit.receipt_id,
@@ -17069,6 +17081,8 @@ mod authority_tests {
             publication_gate: "Bifrost".to_string(),
             durable_state_admitted: true,
             private_state_exposed: false,
+            modeling_route_id: route.route_id.clone(),
+            modeling_generation: route.generation,
         };
         assert!(commit_repo_work_map_admission(&store, &map, &review, &commit).is_err());
         assert!(epiphany_core::runtime_mind_gateway_review(&store, &review.gateway_id)?.is_none());
@@ -17165,6 +17179,56 @@ mod authority_tests {
             request_id: request0.request_id.clone(),
         };
         put_repo_work_modeling_finding(&store, &finding0)?;
+        let stale_map_review = MindGatewayReview {
+            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "stale-map-review".to_string(),
+            source_kind: "repo_work_closure".to_string(),
+            source_role_id: "modeling".to_string(),
+            decision: MindGatewayDecision::Accept,
+            allowed_effects: vec!["repoWork.map".to_string()],
+            refused_effects: Vec::new(),
+            reasons: vec!["attempt stale admission".to_string()],
+            contract: "test".to_string(),
+        };
+        let stale_map_commit = mind_state_commit_receipt(
+            "stale-map-commit".to_string(),
+            &stale_map_review,
+            1,
+            vec!["repoWork.map".to_string()],
+            "2026-07-12T00:00:02Z".to_string(),
+        );
+        let stale_map = RepoWorkMapEntry {
+            schema_version: REPO_WORK_MAP_ENTRY_SCHEMA_VERSION.to_string(),
+            map_entry_id: "stale-map".to_string(),
+            admitted_at: "2026-07-12T00:00:02Z".to_string(),
+            item: request0.item.clone(),
+            branch: "test".to_string(),
+            changed_paths: request0.changed_paths.clone(),
+            commit_sha: request0.commit_sha.clone(),
+            safe_action_family: "repo.status_section".to_string(),
+            modeling_summary: finding0.summary.clone(),
+            modeling_finding_receipt_id: finding0.receipt_id.clone(),
+            soul_verdict_receipt_id: soul.receipt_id.clone(),
+            mind_gateway_review_id: stale_map_review.gateway_id.clone(),
+            mind_state_commit_receipt_id: stale_map_commit.receipt_id.clone(),
+            execute_receipt_path: "execute.json".to_string(),
+            closure_review_path: "review.json".to_string(),
+            closure_receipt_path: "close.json".to_string(),
+            publication_gate: "Bifrost".to_string(),
+            durable_state_admitted: true,
+            private_state_exposed: false,
+            modeling_route_id: route0.route_id.clone(),
+            modeling_generation: 0,
+        };
+        assert!(
+            commit_repo_work_map_admission(
+                &store,
+                &stale_map,
+                &stale_map_review,
+                &stale_map_commit,
+            )
+            .is_err()
+        );
         let review = MindGatewayReview {
             schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
             gateway_id: "route-g1-mind-review".to_string(),

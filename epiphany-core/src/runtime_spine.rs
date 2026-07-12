@@ -2056,6 +2056,7 @@ pub fn commit_repo_work_map_admission(
         &entry.modeling_finding_receipt_id,
         "repo-work map Modeling finding receipt id",
     )?;
+    validate_non_empty(&entry.modeling_route_id, "repo-work map Modeling route id")?;
     if !entry.durable_state_admitted || entry.private_state_exposed {
         return Err(anyhow!(
             "repo-work map admission requires admitted, private-state-sealed state"
@@ -2075,14 +2076,21 @@ pub fn commit_repo_work_map_admission(
     let modeling = cache
         .get::<RepoWorkModelingFinding>(&entry.modeling_finding_receipt_id)?
         .ok_or_else(|| anyhow!("repo-work map admission requires typed Modeling finding"))?;
+    let route = cache
+        .get::<RepoWorkModelingRoute>(&entry.modeling_route_id)?
+        .ok_or_else(|| anyhow!("repo-work map admission requires current Modeling route"))?;
     if modeling.item != entry.item
         || modeling.soul_verdict_receipt_id != entry.soul_verdict_receipt_id
         || modeling.commit_sha != entry.commit_sha
         || modeling.changed_paths != entry.changed_paths
         || modeling.summary != entry.modeling_summary
+        || modeling.verdict.trim().to_ascii_lowercase() != "passed"
+        || route.item != entry.item
+        || route.generation != entry.modeling_generation
+        || route.request_id != modeling.request_id
     {
         return Err(anyhow!(
-            "repo-work map entry does not match its typed Modeling finding"
+            "repo-work map entry does not match its passing current-generation Modeling finding"
         ));
     }
     if let Some(existing) = cache.get::<RepoWorkMapEntry>(&entry.map_entry_id)? {

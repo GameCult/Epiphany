@@ -148,4 +148,8 @@ pub struct RepoWorkMapEntry {
     pub durable_state_admitted: bool,
     #[cultcache(key = 18)]
     pub private_state_exposed: bool,
+    #[cultcache(key = 19)]
+    pub modeling_route_id: String,
+    #[cultcache(key = 20)]
+    pub modeling_generation: u64,
 }

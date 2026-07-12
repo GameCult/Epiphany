@@ -289,6 +289,13 @@ checks in native launch/coordinator code reject renewed Codex route authority.
 | Verse privacy/authority | CultMesh/Verse focused smokes and typed receipt readbacks |
 | Public crossings | Persona/Bifrost bridge smokes with private-state seals |
 
+Repo-work map admission is a canonical generation-bound transaction. A map
+entry names its `RepoWorkModelingRoute` and generation; the runtime spine loads
+that route and admits only a passing immutable finding selected by the route's
+current request. CLI closure is a caller of this invariant, not its owner.
+Non-passing findings and stale generations therefore cannot become durable Mind
+state even through a forged-looking admission call.
+
 ## Current Cut Line
 
 Keep:

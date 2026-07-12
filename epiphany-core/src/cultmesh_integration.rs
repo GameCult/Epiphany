@@ -965,6 +965,10 @@ pub struct EpiphanyCultMeshRepoWorkMapEntry {
     pub notes: Vec<String>,
     #[cultcache(key = 22)]
     pub modeling_finding_receipt_id: String,
+    #[cultcache(key = 23)]
+    pub modeling_route_id: String,
+    #[cultcache(key = 24)]
+    pub modeling_generation: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]

@@ -2130,6 +2130,15 @@ type-check. Next add a native end-to-end generation-one smoke that begins with
 a non-passing runtime finding, exercises `revise-modeling`, launches `g1`
 through Idunn/preflight, and proves generation zero cannot close or regain
 current authority.
+Map admission is now generation-bound at the canonical transaction boundary.
+`RepoWorkMapEntry` carries the stable Modeling route id and generation, and
+`commit_repo_work_map_admission` loads the current route and requires the
+referenced immutable finding to be passing, current, and selected by that
+route. The CLI is no longer the only thing preventing a non-passing or stale
+finding from entering durable Mind state. The authority suite includes the
+negative non-passing admission path and remains 4/4 green. The next move is
+still the native generation-one workflow smoke; it must exercise these gates,
+not recreate them in orchestration code.
 
 ## Immediate Re-entry Instruction
 
