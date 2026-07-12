@@ -170,11 +170,7 @@ fn codex_session_has_no_epiphany_state_custody() {
     assert!(!core_lib.contains("epiphany_rollout"));
     assert!(!protocol.contains("pub use epiphany_state_model::"));
     assert!(protocol.contains("EpiphanyState(serde_json::Value)"));
-    let production_dependencies = protocol_manifest
-        .split("[dev-dependencies]")
-        .next()
-        .expect("protocol manifest should declare dependencies");
-    assert!(!production_dependencies.contains("epiphany-state-model"));
+    assert!(!protocol_manifest.contains("epiphany-state-model"));
 }
 
 fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {

@@ -3009,7 +3009,6 @@ dependencies = [
  "codex-utils-string",
  "codex-utils-template",
  "encoding_rs",
- "epiphany-state-model",
  "globset",
  "http 1.4.0",
  "icu_decimal",

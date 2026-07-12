@@ -1917,7 +1917,11 @@ cut is complete: the rollout variant carries opaque JSON, app-server alone
 performs typed validation, malformed payloads fail closed, and production
 Codex protocol has no native-state dependency. Next delete its obsolete
 native-state test fixture and dev-dependency, leaving only an opaque historical
-envelope preservation test.
+envelope preservation test. That cleanup is complete: Codex protocol has no
+native-state dependency in any dependency class, its giant state fixture is
+gone, and a minimal opaque historical-envelope test remains. Next rename the
+variant `LegacyEpiphanyState` while preserving serde tag `epiphany_state`, then
+judge whether generic unknown-rollout cargo can remove its final named trace.
 
 ## Immediate Re-entry Instruction
 

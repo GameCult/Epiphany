@@ -50,8 +50,6 @@ use crate::request_permissions::RequestPermissionsEvent;
 use crate::request_permissions::RequestPermissionsResponse;
 use crate::request_user_input::RequestUserInputResponse;
 use crate::user_input::UserInput;
-#[cfg(test)]
-use epiphany_state_model::*;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -5104,196 +5102,27 @@ mod tests {
         Ok(())
     }
 
-    fn sample_epiphany_thread_state() -> EpiphanyThreadState {
-        EpiphanyThreadState {
-            revision: 7,
-            objective: Some("Map the rollout seam before touching prompts".to_string()),
-            active_subgoal_id: Some("phase1".to_string()),
-            subgoals: vec![EpiphanySubgoal {
-                id: "phase1".to_string(),
-                title: "Persist baseline".to_string(),
-                status: "active".to_string(),
-                summary: Some("Wire a durable rollout snapshot into core".to_string()),
-            }],
-            invariants: vec![EpiphanyInvariant {
-                id: "durable-state".to_string(),
-                description: "Resume must rebuild the latest surviving Epiphany baseline"
-                    .to_string(),
-                status: "enforced".to_string(),
-                rationale: Some("Otherwise compaction turns the machine into soup".to_string()),
-            }],
-            graphs: EpiphanyGraphs {
-                architecture: EpiphanyGraph {
-                    nodes: vec![EpiphanyGraphNode {
-                        id: "session".to_string(),
-                        title: "Session".to_string(),
-                        purpose: "Owns the mutable thread state".to_string(),
-                        mechanism: Some("Reads and writes rollout-backed baselines".to_string()),
-                        metaphor: Some(
-                            "The machine room where the levers actually live".to_string(),
-                        ),
-                        status: Some("verified".to_string()),
-                        code_refs: vec![EpiphanyCodeRef {
-                            path: test_path_buf("/repo/core/src/session/mod.rs"),
-                            start_line: Some(2600),
-                            end_line: Some(2690),
-                            symbol: Some(
-                                "record_context_updates_and_set_reference_context_item".to_string(),
-                            ),
-                            note: Some("Per-turn baseline persistence".to_string()),
-                        }],
-                    }],
-                    edges: vec![],
-                },
-                dataflow: EpiphanyGraph {
-                    nodes: vec![EpiphanyGraphNode {
-                        id: "turn-context".to_string(),
-                        title: "Turn Context".to_string(),
-                        purpose: "Captures the durable per-turn baseline".to_string(),
-                        mechanism: Some("Persists after each real user turn".to_string()),
-                        metaphor: Some("The breadcrumb the replay engine follows home".to_string()),
-                        status: Some("verified".to_string()),
-                        code_refs: vec![],
-                    }],
-                    edges: vec![EpiphanyGraphEdge {
-                        source_id: "turn-context".to_string(),
-                        target_id: "session".to_string(),
-                        kind: "persists_to".to_string(),
-                        id: Some("edge-1".to_string()),
-                        label: Some("baseline write".to_string()),
-                        mechanism: Some("TurnContext snapshots seed replay metadata".to_string()),
-                        code_refs: vec![],
-                    }],
-                },
-                links: vec![EpiphanyGraphLink {
-                    dataflow_node_id: "turn-context".to_string(),
-                    architecture_node_id: "session".to_string(),
-                    relationship: Some("implemented_by".to_string()),
-                    code_refs: vec![],
-                }],
-            },
-            graph_frontier: Some(EpiphanyGraphFrontier {
-                active_node_ids: vec!["turn-context".to_string()],
-                active_edge_ids: vec!["edge-1".to_string()],
-                open_question_ids: vec!["q1".to_string()],
-                open_gap_ids: vec!["g1".to_string()],
-                dirty_paths: vec![test_path_buf("/repo/core/src/session/mod.rs")],
-            }),
-            graph_checkpoint: Some(EpiphanyGraphCheckpoint {
-                checkpoint_id: "chk-1".to_string(),
-                graph_revision: 7,
-                summary: Some("Latest replay seam checkpoint".to_string()),
-                frontier_node_ids: vec!["turn-context".to_string()],
-                open_question_ids: vec!["q1".to_string()],
-                open_gap_ids: vec!["g1".to_string()],
-            }),
-            investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
-                checkpoint_id: "ix-1".to_string(),
-                kind: "source_gathering".to_string(),
-                disposition: EpiphanyInvestigationDisposition::ResumeReady,
-                focus: "Resume the prompt-facing replay seam.".to_string(),
-                summary: Some("The checkpoint keeps the active source seam warm.".to_string()),
-                next_action: Some("Re-open the rollout path before broad edits.".to_string()),
-                captured_at_turn_id: Some("turn-123".to_string()),
-                open_questions: vec!["Does compaction still preserve the seam?".to_string()],
-                code_refs: vec![EpiphanyCodeRef {
-                    path: test_path_buf("/repo/core/src/session/mod.rs"),
-                    start_line: Some(2600),
-                    end_line: Some(2690),
-                    symbol: Some(
-                        "record_context_updates_and_set_reference_context_item".to_string(),
-                    ),
-                    note: Some("Investigation checkpoint anchor".to_string()),
-                }],
-                evidence_ids: vec!["ev-1".to_string()],
-            }),
-            retrieval: Some(EpiphanyRetrievalState {
-                workspace_root: test_path_buf("/repo"),
-                index_revision: Some("bm25-v1".to_string()),
-                status: EpiphanyRetrievalStatus::Ready,
-                semantic_available: true,
-                last_indexed_at_unix_seconds: Some(1_744_500_000),
-                indexed_file_count: Some(12),
-                indexed_chunk_count: Some(34),
-                shards: vec![EpiphanyRetrievalShardSummary {
-                    shard_id: "workspace".to_string(),
-                    path_prefix: PathBuf::from("."),
-                    indexed_file_count: Some(12),
-                    indexed_chunk_count: Some(34),
-                    status: EpiphanyRetrievalStatus::Ready,
-                    exact_available: true,
-                    semantic_available: true,
-                }],
-                dirty_paths: vec![test_path_buf("/repo/core/src/session/mod.rs")],
-            }),
-            scratch: Some(EpiphanyScratchPad {
-                summary: Some("Persist first, get fancy later".to_string()),
-                hypothesis: Some("One extra rollout item is enough for Phase 1".to_string()),
-                next_probe: Some("Replay after rollback and compaction".to_string()),
-                notes: vec!["Do not touch prompts yet".to_string()],
-            }),
-            job_bindings: Vec::new(),
-            acceptance_receipts: Vec::new(),
-            runtime_links: Vec::new(),
-            observations: vec![EpiphanyObservation {
-                id: "obs-1".to_string(),
-                summary: "TurnContext already gives us the persistence seam".to_string(),
-                source_kind: "tool_output".to_string(),
-                status: "promoted".to_string(),
-                code_refs: vec![],
-                evidence_ids: vec!["ev-1".to_string()],
-            }],
-            recent_evidence: vec![EpiphanyEvidenceRecord {
-                id: "ev-1".to_string(),
-                kind: "research".to_string(),
-                status: "ok".to_string(),
-                summary: "Reconstruction already respects rollback and compaction boundaries"
-                    .to_string(),
-                code_refs: vec![],
-            }],
-            churn: Some(EpiphanyChurnState {
-                understanding_status: "clear".to_string(),
-                diff_pressure: "low".to_string(),
-                graph_freshness: Some("fresh".to_string()),
-                warning: None,
-                unexplained_writes: Some(0),
-            }),
-            mode: Some(EpiphanyModeState {
-                name: "epiphany".to_string(),
-                kind: Some(EpiphanyModeKind::Default),
-            }),
-            planning: EpiphanyPlanningState::default(),
-            last_updated_turn_id: Some("turn-123".to_string()),
-        }
-    }
-
     #[test]
-    fn epiphany_thread_state_round_trips() -> Result<()> {
-        let original = sample_epiphany_thread_state();
-        let value = serde_json::to_value(&original)?;
-        let reparsed: EpiphanyThreadState = serde_json::from_value(value)?;
-        assert_eq!(reparsed, original);
-        Ok(())
-    }
+    fn legacy_epiphany_state_envelope_preserves_opaque_payload() -> Result<()> {
+        let payload = json!({
+            "turn_id": "turn-123",
+            "state": {
+                "revision": 7,
+                "objective": "historical compatibility only"
+            }
+        });
+        let item = RolloutItem::EpiphanyState(payload.clone());
+        let encoded = serde_json::to_value(&item)?;
+        assert_eq!(encoded["type"], "epiphany_state");
+        assert_eq!(encoded["payload"], payload);
 
-    #[test]
-    fn epiphany_state_item_round_trips() -> Result<()> {
-        let original = EpiphanyStateItem {
-            turn_id: Some("turn-123".to_string()),
-            state: sample_epiphany_thread_state(),
-        };
-        let rollout_item = RolloutItem::EpiphanyState(serde_json::to_value(&original)?);
-        let value = serde_json::to_value(&rollout_item)?;
-        assert_eq!(value["type"], "epiphany_state");
-        let reparsed: RolloutItem = serde_json::from_value(value)?;
-        let RolloutItem::EpiphanyState(payload) = reparsed else {
+        let reparsed: RolloutItem = serde_json::from_value(encoded)?;
+        let RolloutItem::EpiphanyState(reparsed_payload) = reparsed else {
             panic!("expected opaque legacy Epiphany rollout payload");
         };
-        let reparsed: EpiphanyStateItem = serde_json::from_value(payload)?;
-        assert_eq!(reparsed, original);
+        assert_eq!(reparsed_payload, payload);
         Ok(())
     }
-
     /// Serialize Event to verify that its JSON representation has the expected
     /// amount of nesting.
     #[test]

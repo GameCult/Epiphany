@@ -320,3 +320,9 @@ after validation, and rejects malformed payloads. The old tagged JSON shape,
 latest-surviving selection, and rollback semantics remain covered. Codex
 protocol no longer has a production dependency on `epiphany-state-model`; a
 source guard proves both the opaque variant and dependency boundary.
+
+Codex protocol's obsolete native-state test authority is deleted too. The
+giant `EpiphanyThreadState` fixture and native round-trip tests are replaced by
+one minimal opaque-envelope preservation test. `codex-protocol` has no
+`epiphany-state-model` dependency in production or dev configuration; native
+state serialization is tested by its actual owner.
