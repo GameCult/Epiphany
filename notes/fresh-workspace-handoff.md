@@ -1925,7 +1925,12 @@ judge whether generic unknown-rollout cargo can remove its final named trace.
 The rename is complete and tested: all Rust matches say
 `LegacyEpiphanyState`, serde still emits/reads `epiphany_state`, and migration
 behavior is unchanged. Next audit a generic unknown historical rollout carrier,
-but reject it if it weakens strict decoding of live Codex history.
+but reject it if it weakens strict decoding of live Codex history. The audit
+rejects it: a catch-all would suppress parse errors across replay, metadata,
+listing, state extraction, and agent control. Next remove the named variant
+entirely by making app-server's migration quarantine read raw rollout lines,
+recognize only `type=epiphany_state`, and strictly decode ordinary Codex
+lifecycle items needed for rollback-aware migration.
 
 ## Immediate Re-entry Instruction
 

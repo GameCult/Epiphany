@@ -332,3 +332,13 @@ The opaque Rust variant is now named `LegacyEpiphanyState`, with an explicit
 Every remaining Codex match therefore declares that it handles quarantine
 cargo rather than live Epiphany authority. Protocol shape and app-server
 migration tests prove the rename did not change old-file compatibility.
+
+Generic unknown rollout cargo is rejected. `RolloutRecorder::load_rollout_items`
+parses each line into strict `RolloutLine`/`RolloutItem`, counts parse failures,
+and feeds the result into history replay, metadata, listing, state extraction,
+and agent control. A catch-all variant would turn malformed or future live
+items into silent success across every consumer to preserve one extinct record.
+The deletion path is narrower: app-server's migration quarantine should read
+raw rollout lines, recognize only `type=epiphany_state`, decode its payload,
+and combine those migration records with strictly decoded Codex lifecycle items.
+Then `LegacyEpiphanyState` can leave Codex protocol and all core consumers.
