@@ -95,7 +95,6 @@ use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
-use epiphany_core::write_epiphany_cultmesh_daemon_statuses;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
 use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
@@ -195,6 +194,42 @@ fn require_query_bootstrap(args: &Args) -> Result<()> {
             "local Verse has no persisted cluster topology at {}; run epiphany-verse-query seed-compact before mutating query commands",
             args.store.display()
         );
+    }
+    Ok(())
+}
+
+fn seed_quarantined_smoke_daemon_statuses(args: &Args) -> Result<()> {
+    if !args.smoke_default_store {
+        anyhow::bail!("synthetic daemon readiness is confined to the built-in smoke store");
+    }
+    for cluster in load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())? {
+        write_epiphany_cultmesh_daemon_status(
+            &args.store,
+            args.runtime_id.clone(),
+            EpiphanyCultMeshDaemonStatusEntry {
+                schema_version: epiphany_core::EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION
+                    .to_string(),
+                daemon_id: cluster.daemon_id,
+                cluster_id: cluster.cluster_id,
+                body_domain: cluster.body_domain,
+                daemon_surface_id: cluster.daemon_surface_id,
+                eve_surface_id: cluster.eve_surface_id,
+                status: "ready".to_string(),
+                last_heartbeat_utc: "2026-06-02T00:00:00Z".to_string(),
+                supported_actions: vec![
+                    "inspectStatus".to_string(),
+                    "pokeDaemon".to_string(),
+                    "watchHeartbeat".to_string(),
+                    "submitTypedToolIntent".to_string(),
+                ],
+                operator_action: "none".to_string(),
+                private_state_exposed: false,
+                notes: vec![
+                    "Synthetic liveness fixture confined to the built-in aggregate smoke body."
+                        .to_string(),
+                ],
+            },
+        )?;
     }
     Ok(())
 }
@@ -1346,11 +1381,7 @@ fn run_cli() -> Result<()> {
                     &cluster.daemon_id,
                 )?;
             }
-            write_epiphany_cultmesh_daemon_statuses(
-                &args.store,
-                args.runtime_id.clone(),
-                "2026-06-02T00:00:00Z",
-            )?;
+            seed_quarantined_smoke_daemon_statuses(&args)?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let ready_liveness =
                 load_epiphany_cultmesh_daemon_liveness(&args.store, args.runtime_id.clone())?;

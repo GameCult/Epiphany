@@ -114,6 +114,10 @@
   and Imagination consensus response construction are test-only. Production
   retains typed schemas and readers for provider-authored ingest, but no local
   shipped binary owns or writes those response documents.
+- Bulk seven-daemon `ready` construction/writing is also test-only. Production
+  loaders enumerate topology keys without manufacturing status; only narrow
+  single-daemon heartbeat/observation writers remain. Aggregate synthetic
+  readiness exists solely inside the fixed Verse smoke body.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

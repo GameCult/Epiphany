@@ -5875,8 +5875,8 @@ pub fn query_epiphany_local_verse_context(
         }
     }
     let mut daemon_statuses = Vec::new();
-    for status in epiphany_cultmesh_daemon_statuses("") {
-        if let Some(loaded) = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&status.daemon_id)? {
+    for cluster in epiphany_cultmesh_cluster_topology() {
+        if let Some(loaded) = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)? {
             daemon_statuses.push(loaded);
         }
     }
@@ -6677,6 +6677,7 @@ fn validate_eve_surface_state(surface: &EpiphanyCultMeshEveSurfaceStateEntry) ->
     Ok(())
 }
 
+#[cfg(test)]
 pub fn epiphany_cultmesh_daemon_statuses(
     last_heartbeat_utc: impl Into<String>,
 ) -> Vec<EpiphanyCultMeshDaemonStatusEntry> {
@@ -6709,6 +6710,7 @@ pub fn epiphany_cultmesh_daemon_statuses(
         .collect()
 }
 
+#[cfg(test)]
 pub fn write_epiphany_cultmesh_daemon_statuses(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,

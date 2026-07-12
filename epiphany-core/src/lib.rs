@@ -391,6 +391,7 @@ pub use cultmesh_integration::epiphany_cultmesh_continuity_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_coordinator_run_receipt_from_summary_json;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_poke_intent_from_status;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_poke_receipt_for_intent;
+#[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_daemon_statuses;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_capabilities;
 #[cfg(test)]
@@ -493,6 +494,7 @@ pub use cultmesh_integration::write_epiphany_cultmesh_daemon_restart_policy;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_scheduler_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_status;
+#[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_statuses;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_receipt;

@@ -56,3 +56,18 @@ constructors, six writers, their validators, and event-key helpers are compiled
 only under `cfg(test)`. Typed response schemas and read loaders remain in
 production for ingesting documents authored by external owning providers; no
 shipped Epiphany binary can construct or persist those responses.
+
+## Bulk daemon readiness quarantine
+
+After real heartbeat and provider ownership moved into
+`epiphany-cluster-daemon`, the library still exported
+`write_epiphany_cultmesh_daemon_statuses`, which stamped all seven declared
+daemons `ready` with one caller-provided timestamp. Its only shipped caller was
+the aggregate smoke; the full-context loader also reused the synthetic builder
+merely to enumerate keys.
+
+Loaders now enumerate daemon IDs from declared topology. The bulk ready-state
+constructor and writer are test-only. The aggregate smoke constructs its
+fixture statuses locally behind `smoke_default_store`; the helper refuses every
+non-default store. Production exposes only the single-status writer used by the
+owning cluster daemon and Idunn observation paths.
