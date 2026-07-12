@@ -272,7 +272,6 @@ fn drive_item(
             "--closure-model-ref",
             "closure-model-gate-smoke-soul-v1",
             "--model-authored",
-            "--require-closure-model-verdict",
             "--closure-model-verdict",
             model_verdict,
             "--closure-model-finding",

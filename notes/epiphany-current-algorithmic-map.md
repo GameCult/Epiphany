@@ -103,6 +103,12 @@ plurality no longer pretends to be an authority boundary.
 7. `coordinator_acceptance.rs` commits an admitted proposal with its Mind
    review/commit witnesses before Self routes another Hands turn.
 
+The repo-work scheduler obeys the same order. After a branch-local execute
+receipt it stops at `await-modeling`; it cannot invoke closure or manufacture
+Modeling/Mind evidence. `epiphany-work close` requires explicit model
+authorship, model reference, verdict, and finding before it can admit a map.
+Deterministic checks remain Soul evidence, not a substitute for Modeling.
+
 Manual edits and programmatic actions converge at the same receipt and Mind
 admission boundaries. A later action cannot retroactively make an unrecorded
 consequence valid.

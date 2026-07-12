@@ -114,6 +114,12 @@ Exit evidence:
 
 ### 3. Close The Organ Loop
 
+Status: active. The scheduler can no longer impersonate Modeling/Mind after
+Hands execution, and closure refuses deterministic fallback or a passing
+verdict without an explicit model-authored finding. The remaining cut is to
+persist that Modeling finding as its own typed runtime document and make Mind
+admission consume it rather than accepting CLI fields directly.
+
 - Prove Hands → Soul → Modeling → Mind → Self on a fresh repository without
   supervisor implementation or direct worker-thought inspection.
 - Ensure every consequence has Substrate Gate scope, Hands receipts, Soul

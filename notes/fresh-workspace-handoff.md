@@ -2000,6 +2000,17 @@ flags. The actual status executable ran successfully against
 `state/runtime-spine.msgpack`. Next audit current proof of the full Hands ->
 Soul -> Modeling -> Mind -> Self loop instead of trusting historical victory
 prose.
+That audit found `epiphany-work tick` directly invoking closure and thereby
+playing Soul, Modeling, and Mind after Hands execution. The scheduler path is
+now cut: it stops at `await-modeling`. Closure always requires explicit model
+authorship, model reference, verdict, and finding; deterministic fallback and
+provenance-only admission are gone. Negative unit tests prove a passing verdict
+without a finding is refused and the scheduler contains no closure call. The
+detached disposable-repo smoke under
+`.epiphany-smoke/closure-model-current/stdout.json` passed both explicit
+Modeling admission and Modeling refusal paths. Next persist the Modeling
+finding as a first-class typed runtime document so Mind consumes a receipt, not
+CLI-shaped evidence.
 
 ## Immediate Re-entry Instruction
 
