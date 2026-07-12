@@ -540,3 +540,12 @@ thread-state acceptance receipts remain canonical. Role review mirrors now
 require a valid RFC3339 creation time and advance `latest` only by `(creation
 time, event ID)`. Delayed review projections remain non-current and malformed
 time is refused.
+
+## Last writer presented as latest coordinator outcome
+
+The coordinator-run CultMesh mirror used arrival order for `latest`. A delayed
+older run could replace the current final action, reason, and artifact refs in
+operator/Self discovery even though runtime-spine remains the lifecycle owner.
+Coordinator mirrors now require a valid RFC3339 creation time and advance
+`latest` only by `(creation time, receipt ID)`. Delayed runs remain immutable
+history without becoming the current outcome.

@@ -138,6 +138,8 @@ The confirmed conceptual substitutions have been cut:
   cannot advertise obsolete actuator scope or record-pass commands as current.
 - `role-review-event/latest` is creation-time-owned. Delayed acceptance or
   supersession readbacks cannot rewind Self/operator coordination context.
+- `coordinator-run-receipt/latest` is creation-time-owned. Delayed runs cannot
+  replace the current final action or artifact projection.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

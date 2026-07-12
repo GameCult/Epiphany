@@ -2914,10 +2914,17 @@ pub fn write_epiphany_cultmesh_coordinator_run_receipt(
     let mut node = open_epiphany_cultmesh_node(&store_path, receipt.runtime_id.clone())?;
     let receipt_key = epiphany_cultmesh_coordinator_run_receipt_key(&receipt.receipt_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(
+    let current_latest = node.get::<EpiphanyCultMeshCoordinatorRunReceiptEntry>(
         EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_LATEST_KEY,
-        &written,
     )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        coordinator_run_receipt_event_key(&written) >= coordinator_run_receipt_event_key(current)
+    }) {
+        node.put(
+            EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_LATEST_KEY,
+            &written,
+        )?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -3170,7 +3177,20 @@ fn validate_coordinator_run_receipt(
             "coordinator run CultMesh receipt has an empty sealed artifact ref"
         ));
     }
+    DateTime::parse_from_rfc3339(&receipt.created_at_utc).map_err(|error| {
+        anyhow!("coordinator run CultMesh receipt has invalid created at: {error}")
+    })?;
     Ok(())
+}
+
+fn coordinator_run_receipt_event_key(
+    receipt: &EpiphanyCultMeshCoordinatorRunReceiptEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&receipt.created_at_utc)
+            .expect("validated coordinator run receipt timestamp"),
+        receipt.receipt_id.as_str(),
+    )
 }
 
 fn validate_hands_action_gate(gate: &EpiphanyCultMeshHandsActionGateEntry) -> Result<()> {
@@ -7645,6 +7665,34 @@ mod tests {
                 .binding(EPIPHANY_CULTMESH_COORDINATOR_RUN_RECEIPT_TYPE)
                 .is_some()
         );
+
+        let mut newer = receipt.clone();
+        newer.receipt_id = "coordinator-cultmesh-newer".to_string();
+        newer.source_receipt_id = "runtime-coordinator-receipt-newer".to_string();
+        newer.final_action = "continueImplementation".to_string();
+        newer.status = "continueImplementation".to_string();
+        newer.created_at_utc = "2026-06-18T01:00:00Z".to_string();
+        write_epiphany_cultmesh_coordinator_run_receipt(&store, newer.clone())?;
+
+        let mut delayed = receipt.clone();
+        delayed.receipt_id = "coordinator-cultmesh-delayed".to_string();
+        delayed.source_receipt_id = "runtime-coordinator-receipt-delayed".to_string();
+        delayed.final_action = "launchResearch".to_string();
+        delayed.status = "launchResearch".to_string();
+        delayed.created_at_utc = "2026-06-17T23:00:00Z".to_string();
+        write_epiphany_cultmesh_coordinator_run_receipt(&store, delayed)?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_coordinator_run_receipt(&store, "epiphany-test")?,
+            Some(newer)
+        );
+
+        let mut invalid_time = receipt.clone();
+        invalid_time.receipt_id = "coordinator-cultmesh-invalid".to_string();
+        invalid_time.source_receipt_id = "runtime-coordinator-receipt-invalid".to_string();
+        invalid_time.created_at_utc = "not-a-time".to_string();
+        let err = write_epiphany_cultmesh_coordinator_run_receipt(&store, invalid_time)
+            .expect_err("invalid coordinator run time must be refused");
+        assert!(err.to_string().contains("invalid created at"));
 
         let mut leaked = receipt;
         leaked.private_state_exposed = true;
