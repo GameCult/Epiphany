@@ -73,6 +73,9 @@ The confirmed conceptual substitutions have been cut:
 - the aggregate repo-swarm MVP gate and wrapper are deleted. It painted green
   rows from prior smoke summaries and local fixtures rather than exercising one
   live end-to-end organism. Use focused tests plus live-fire evidence instead.
+- the fresh-repo MVP smoke is deleted. Its disposable Git operations were real,
+  but its PR, maintainer-review, merge, Bifrost, and Soul evidence was supplied
+  by the same local caller rather than those owning bodies.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

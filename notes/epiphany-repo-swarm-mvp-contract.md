@@ -2615,12 +2615,12 @@ This is the difference between a demo and a repo swarm: the human talks to the
 project, the project forms a plan, the branch work happens inside its owned
 Body, and the proof bundle tells the truth without leaking the private mind.
 
-### Native Fresh Repo MVP Smoke
+### Retired Fresh Repo MVP Smoke
 
-The first repeatable Phase 7 proof is now native:
+This former proof is retired and its binary deleted:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-swarm-mvp-smoke
+epiphany-repo-swarm-mvp-smoke (deleted)
 ```
 
 The smoke creates a disposable bare `origin.git`, clones a fresh repo Body,
@@ -2647,9 +2647,10 @@ Disposable proof `.epiphany-smoke\fresh-repo-mvp-20260620-133452` reported
 `familyAssertions.status=passed`, `publishStatus=publication-receipts-recorded`,
 `syncStatus=upstream-main-synced`, `upstreamMainSynced=true`,
 `publicProofStatus=public-proof-exported`, and `privateStateExposed=false`.
-This proves the operator-facing fresh-repo artery from Persona pressure to
-Bifrost publication receipts, upstream-main ancestry proof, and redacted public
-proof export without supervisor edits inside the target repo Body.
+The Git operations proved local ancestry, but the same smoke supplied an
+`example.invalid` pull request, maintainer-review prose, and a synthetic merge
+receipt. It therefore could not prove Bifrost publication, external review, or
+Soul authority. Keep the record only as rejected historical evidence.
 
 ### Phase 0: Authority Freeze
 

@@ -58,13 +58,10 @@ Every investor-scale Objective Draft should answer:
 
 ## Roadmap Shape
 
-1. Fresh-repo Epiphany proof: the native
-   `epiphany-repo-swarm-mvp-smoke` now demonstrates Persona entry,
-   Bifrost-linked publication receipts, bounded repo-swarm routing, artifact
-   production, review, upstream-main sync proof, and sealed operator-safe
-   evidence on a disposable fresh repo. Keep it repeatable and move the same
-   loop toward an external or semi-external repo after Bifrost owns the work
-   item bridge.
+1. Fresh-repo Epiphany proof: repo-swarm substrate tests may demonstrate local
+   Persona entry, bounded routing, artifact production, and Git ancestry. A
+   genuine Bifrost body and reviewer must supply publication and review proof;
+   local fixture strings are not substitutes for those authorities.
 2. Bifrost-first private alpha: all external swarm work exists as Bifrost
    topics/work items/bridge receipts/credit, with Bifrost identity and
    Heimdall-backed outside-account capability references where needed, before

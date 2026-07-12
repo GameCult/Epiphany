@@ -319,3 +319,12 @@ The aggregate gate binary, wrapper mode, summary-path inputs, build target, and
 display projection are deleted. Focused contract tests remain useful, and live
 fire remains the proper whole-path evidence layer. A pile of green fixture
 summaries is not a system readiness owner.
+
+## Fresh-repo smoke as external governance
+
+`epiphany-repo-swarm-mvp-smoke` performed real disposable Git operations, but
+also supplied its own `example.invalid` pull request, maintainer-review prose,
+and merge-receipt string. It then asserted Bifrost publication, Soul approval,
+and upstream publication as one integrated proof. Git can prove ancestry; it
+cannot impersonate the absent publisher, reviewer, or verification organ. The
+binary and its live-proof claims are deleted.
