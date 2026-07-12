@@ -53,7 +53,6 @@ struct Args {
     fresh_repo_summary: Option<PathBuf>,
     readiness_summary: Option<PathBuf>,
     bifrost_accounting_summary: Option<PathBuf>,
-    deployment_handoff_summary: Option<PathBuf>,
     daemon_survival_summary: Option<PathBuf>,
 }
 
@@ -64,7 +63,6 @@ impl Args {
         let mut fresh_repo_summary = None;
         let mut readiness_summary = None;
         let mut bifrost_accounting_summary = None;
-        let mut deployment_handoff_summary = None;
         let mut daemon_survival_summary = None;
         let mut args = env::args().skip(1).peekable();
         while let Some(arg) = args.next() {
@@ -81,10 +79,6 @@ impl Args {
                     bifrost_accounting_summary =
                         Some(take_path(&mut args, "--bifrost-accounting-summary")?)
                 }
-                "--deployment-handoff-summary" => {
-                    deployment_handoff_summary =
-                        Some(take_path(&mut args, "--deployment-handoff-summary")?)
-                }
                 "--daemon-survival-summary" => {
                     daemon_survival_summary =
                         Some(take_path(&mut args, "--daemon-survival-summary")?)
@@ -98,7 +92,6 @@ impl Args {
             fresh_repo_summary,
             readiness_summary,
             bifrost_accounting_summary,
-            deployment_handoff_summary,
             daemon_survival_summary,
         })
     }
@@ -136,9 +129,6 @@ fn run_smoke(args: Args) -> Result<Value> {
     let bifrost_accounting_summary = args
         .bifrost_accounting_summary
         .unwrap_or_else(|| latest_summary(&args.smoke_root, "repo-bifrost-accounting-bundle-"));
-    let deployment_handoff_summary = args
-        .deployment_handoff_summary
-        .unwrap_or_else(|| latest_summary(&args.smoke_root, "repo-deployment-config-family-"));
     let daemon_survival_summary = args
         .daemon_survival_summary
         .unwrap_or_else(|| latest_summary(&args.smoke_root, "daemon-survival-rehearsal-"));
@@ -146,13 +136,11 @@ fn run_smoke(args: Args) -> Result<Value> {
     let fresh = read_json(&fresh_repo_summary)?;
     let readiness = read_json(&readiness_summary)?;
     let bifrost = read_json(&bifrost_accounting_summary)?;
-    let deployment_handoff = read_json(&deployment_handoff_summary)?;
     let daemon_survival = read_json(&daemon_survival_summary)?;
 
     verify_fresh_repo(&fresh)?;
     verify_readiness(&readiness)?;
     verify_bifrost_accounting(&bifrost)?;
-    verify_deployment_handoff(&deployment_handoff)?;
     verify_daemon_survival(&daemon_survival)?;
     let weksa_interlingua = verify_weksa_interlingua()?;
     let persona_memory_recall = verify_persona_memory_recall()?;
@@ -216,11 +204,6 @@ fn run_smoke(args: Args) -> Result<Value> {
             "readiness, artifact acceptance, and metrics accounting rows are closed",
         ),
         green(
-            "idunn-deployment-handoff",
-            "Idunn",
-            "deployment config, operator runbook, and aftercare receipt readback are sealed",
-        ),
-        green(
             "long-running-daemon-proof",
             "Idunn",
             "bounded serve rehearsal wrote two scheduler pulses and sealed scheduler receipt",
@@ -263,12 +246,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         "freshRepoSummary": fresh_repo_summary,
         "readinessSummary": readiness_summary,
         "bifrostAccountingSummary": bifrost_accounting_summary,
-        "deploymentHandoffSummary": deployment_handoff_summary,
         "daemonSurvivalSummary": daemon_survival_summary,
         "freshRepoSmokeDir": fresh["smokeDir"],
         "readinessSmokeDir": readiness["smokeDir"],
         "bifrostAccountingSmokeDir": bifrost["smokeDir"],
-        "deploymentHandoffSmokeDir": deployment_handoff["smokeDir"],
         "daemonSurvivalSmokeDir": daemon_survival["smokeDir"],
         "weksaInterlingua": weksa_interlingua,
         "personaMemoryRecall": persona_memory_recall,
@@ -396,35 +377,6 @@ fn verify_daemon_survival(value: &Value) -> Result<()> {
     require_bool(value, &["serviceManagerMutated"], false)?;
     require_bool(value, &["requiresElevatedAuthority"], false)?;
     require_bool(value, &["unattendedDaemonSurvivalRehearsed"], true)?;
-    require_bool(value, &["privateStateExposed"], false)
-}
-
-fn verify_deployment_handoff(value: &Value) -> Result<()> {
-    require_eq(
-        value,
-        &["schemaVersion"],
-        "epiphany.repo_deployment_config_family_smoke.v0",
-    )?;
-    require_eq(value, &["status"], "ok")?;
-    require_bool(value, &["deploymentConfigEnabled"], false)?;
-    require_eq(
-        value,
-        &["deploymentConfigAuditStatus"],
-        "ready-for-idunn-review",
-    )?;
-    require_bool(value, &["readyForIdunnReview"], true)?;
-    require_eq(
-        value,
-        &["deploymentExecutionRunbookStatus"],
-        "ready-for-operator-git-push",
-    )?;
-    require_eq(value, &["deploymentAftercareAuditStatus"], "complete")?;
-    require_bool(value, &["deploymentComplete"], true)?;
-    require_eq(value, &["idunnDeploymentReceiptSource"], "cultmesh")?;
-    require_eq(value, &["idunnAftercareAuditReceiptSource"], "cultmesh")?;
-    require_eq(value, &["deploymentTrigger"], "git-push-observed-by-idunn")?;
-    require_eq(value, &["deploymentOwner"], "Idunn")?;
-    require_bool(value, &["deploymentAuthority"], false)?;
     require_bool(value, &["privateStateExposed"], false)
 }
 

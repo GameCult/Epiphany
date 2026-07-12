@@ -264,3 +264,18 @@ The smoke persists the requester intent, requires the host receipt to remain
 absent, and verifies the directory reports a missing response. The typed schema
 and reader remain the host-daemon/ingest contract; no shipped generic CLI can
 author the daemon's answer.
+
+## Fixture-authored Idunn completion
+
+Idunn deployment and aftercare writers had no Idunn production caller. Their
+only shipped caller was `epiphany-repo-deployment-config-family-smoke`, which
+created `deployed` and `complete` receipts, fed them into aftercare, and then
+advertised deployment completion through swarm overview. The aggregate MVP gate
+accepted that smoke summary as a green Idunn deployment handoff.
+
+The entire synthetic deployment-config family smoke is deleted, along with the
+orphaned local Idunn deployment/aftercare writers and validators. The aggregate
+MVP gate no longer accepts its summary or publishes a green deployment row.
+Deployment config audit and operator runbook commands remain requester/operator
+surfaces; typed Idunn schemas/readers remain ingest contracts. Only an actual
+Idunn body may make deployment or aftercare complete.

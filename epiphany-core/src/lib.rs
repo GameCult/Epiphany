@@ -500,8 +500,6 @@ pub use cultmesh_integration::write_epiphany_cultmesh_eyes_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_global_room_policies;
 pub use cultmesh_integration::write_epiphany_cultmesh_hands_action_gate;
 pub use cultmesh_integration::write_epiphany_cultmesh_hands_contracts;
-pub use cultmesh_integration::write_epiphany_cultmesh_idunn_aftercare_audit_receipt;
-pub use cultmesh_integration::write_epiphany_cultmesh_idunn_deployment_receipt;
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_imagination_consensus_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_managed_service_policy;

@@ -3574,23 +3574,6 @@ pub fn load_epiphany_cultmesh_managed_service_policies(
         .collect())
 }
 
-pub fn write_epiphany_cultmesh_idunn_deployment_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    receipt: EpiphanyCultMeshIdunnDeploymentReceiptEntry,
-) -> Result<EpiphanyCultMeshIdunnDeploymentReceiptEntry> {
-    validate_idunn_deployment_receipt(&receipt)?;
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let receipt_key = epiphany_cultmesh_idunn_deployment_receipt_key(&receipt.receipt_id);
-    let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(
-        EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY,
-        &written,
-    )?;
-    node.flush()?;
-    Ok(written)
-}
-
 pub fn load_epiphany_cultmesh_idunn_deployment_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -3607,23 +3590,6 @@ pub fn load_latest_epiphany_cultmesh_idunn_deployment_receipt(
 ) -> Result<Option<EpiphanyCultMeshIdunnDeploymentReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.get(EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY)
-}
-
-pub fn write_epiphany_cultmesh_idunn_aftercare_audit_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    receipt: EpiphanyCultMeshIdunnAftercareAuditReceiptEntry,
-) -> Result<EpiphanyCultMeshIdunnAftercareAuditReceiptEntry> {
-    validate_idunn_aftercare_audit_receipt(&receipt)?;
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let receipt_key = epiphany_cultmesh_idunn_aftercare_audit_receipt_key(&receipt.receipt_id);
-    let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(
-        EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_LATEST_KEY,
-        &written,
-    )?;
-    node.flush()?;
-    Ok(written)
 }
 
 pub fn load_epiphany_cultmesh_idunn_aftercare_audit_receipt(
@@ -4025,69 +3991,6 @@ fn validate_daemon_service_lifecycle_receipt(
         return Err(anyhow!(
             "typed daemon service lifecycle receipt requires passing schema preflight, executable fingerprint, and preflight witness"
         ));
-    }
-    Ok(())
-}
-
-fn validate_idunn_deployment_receipt(
-    receipt: &EpiphanyCultMeshIdunnDeploymentReceiptEntry,
-) -> Result<()> {
-    if receipt.private_state_exposed {
-        return Err(anyhow!(
-            "Idunn deployment receipts must not expose private state"
-        ));
-    }
-    if receipt.schema_version != EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION {
-        return Err(anyhow!(
-            "Idunn deployment receipt schema_version must be {:?}",
-            EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION
-        ));
-    }
-    for (label, value) in [
-        ("receipt id", receipt.receipt_id.as_str()),
-        ("runtime id", receipt.runtime_id.as_str()),
-        ("verse id", receipt.verse_id.as_str()),
-        ("status", receipt.status.as_str()),
-        ("trigger", receipt.trigger.as_str()),
-        ("watched ref", receipt.watched_ref.as_str()),
-        ("result ref", receipt.result_ref.as_str()),
-    ] {
-        if value.trim().is_empty() {
-            return Err(anyhow!("Idunn deployment receipt missing {label}"));
-        }
-    }
-    Ok(())
-}
-
-fn validate_idunn_aftercare_audit_receipt(
-    receipt: &EpiphanyCultMeshIdunnAftercareAuditReceiptEntry,
-) -> Result<()> {
-    if receipt.private_state_exposed {
-        return Err(anyhow!(
-            "Idunn aftercare audit receipts must not expose private state"
-        ));
-    }
-    if receipt.schema_version != EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION {
-        return Err(anyhow!(
-            "Idunn aftercare audit receipt schema_version must be {:?}",
-            EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION
-        ));
-    }
-    for (label, value) in [
-        ("receipt id", receipt.receipt_id.as_str()),
-        ("runtime id", receipt.runtime_id.as_str()),
-        ("verse id", receipt.verse_id.as_str()),
-        ("status", receipt.status.as_str()),
-        ("checked ref", receipt.checked_ref.as_str()),
-        (
-            "deployment receipt id",
-            receipt.deployment_receipt_id.as_str(),
-        ),
-        ("audit ref", receipt.audit_ref.as_str()),
-    ] {
-        if value.trim().is_empty() {
-            return Err(anyhow!("Idunn aftercare audit receipt missing {label}"));
-        }
     }
     Ok(())
 }

@@ -49,6 +49,7 @@
 
 - Eve connection requests remain pending until a real target provider daemon or authenticated ingest boundary supplies the typed response. The former generic `epiphany-eve-provider` CLI is deleted because caller-supplied provider identity and status did not constitute provider participation; local response construction/writing is test-only.
 - Daemon-tool invocation requests likewise remain pending until the advertised host daemon or authenticated ingest boundary supplies the typed response. Local response construction/writing/validation is test-only; aggregate smoke and receipt-directory projection prove intent-present/receipt-missing instead of manufacturing host acceptance.
+- Idunn deployment and aftercare outcomes have no local production writer. The synthetic deployment-config family smoke and its green aggregate MVP-gate handoff are deleted; config audit/runbook remain pre-deployment surfaces, while typed Idunn readers await genuine daemon-authored ingest.
 - Persona owner: `collaboration-feedback` writes public, bounded feedback only after that provider receipt exists.
 - Imagination owner: consensus participant selection, packet reference, receipt status/id, and adoption gate.
 - Persona output: `pending-imagination` with null consensus fields and `responseOwner=Imagination`.

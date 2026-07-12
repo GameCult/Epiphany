@@ -15,6 +15,10 @@ Inventory every production call to `write_*receipt`, then ask whether the execut
   smoke was the only shipped caller and manufactured host acceptance; response
   constructor/writer/validator/key are test-only pending a real host-daemon or
   authenticated ingest boundary.
+- Idunn deployment and aftercare receipts: no production local writers. The
+  deployment-config family smoke was their only caller and fabricated a closed
+  deployment chain; the smoke, writers, and validators are deleted. Typed
+  schemas/readers remain for genuine Idunn-authored ingest.
 - `epiphany-operator-run`: owner-aligned for operator-run receipts and coordinator receipts derived from the run it executes.
 - smoke binaries and the `epiphany-verse-query smoke` arm: fixtures, not runtime evidence. They remain a quarantine risk if permitted to target canonical stores.
 - `epiphany-work` Weksa lowering: a lowering projection receipt, explicitly non-publication authority; no substitution confirmed in this pass.
@@ -46,7 +50,10 @@ Negative proof passed both directions: a plan command given hostile `--execute-i
 
 ## Standalone receipt-smoke quarantine update
 
-The two standalone smoke binaries found writing canonical receipt schemas no longer accept receipt-store destinations. `epiphany-repo-deployment-config-family-smoke` accepts only `--root` and derives its entire disposable repo/Verse body under `<root>/.epiphany-smoke`; `--smoke-root` is rejected. `epiphany-weksa-interlingua-smoke` accepts no arguments and writes only `.epiphany-smoke/weksa-interlingua/local-verse.ccmp`. Attempts to redirect either at live state fail before fixture construction.
+The remaining standalone Weksa receipt smoke accepts no arguments and writes
+only `.epiphany-smoke/weksa-interlingua/local-verse.ccmp`. The former Idunn
+deployment-config receipt smoke is deleted rather than preserved behind path
+quarantine because its claimed lifecycle never occurred.
 
 ## Orphaned provider response API quarantine
 

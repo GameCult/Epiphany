@@ -60,6 +60,10 @@ The confirmed conceptual substitutions have been cut:
 - daemon-tool response construction/writing is also test-only. No shipped host
   daemon currently responds; the aggregate smoke proves a pending intent and a
   missing host receipt rather than fabricating Hands acceptance.
+- the deployment-config family smoke and its aggregate MVP-gate row are deleted:
+  they fabricated Idunn `deployed`/`complete` receipts. Epiphany exposes config
+  audit/runbook requests and typed Idunn readers, but no local deployment or
+  aftercare response writer.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
