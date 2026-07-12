@@ -1,11 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
-use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
-use epiphany_core::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
-use epiphany_core::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION;
-use epiphany_core::EpiphanyCultMeshOperatorRunIntentEntry;
-use epiphany_core::EpiphanyCultMeshOperatorRunReceiptEntry;
 use epiphany_core::epiphany_cultmesh_coordinator_run_receipt_from_summary_json;
 use epiphany_core::epiphany_cultmesh_hands_action_gate_from_summary_json;
 use epiphany_core::epiphany_cultmesh_role_review_event_from_summary_json;
@@ -16,8 +11,13 @@ use epiphany_core::write_epiphany_cultmesh_hands_action_gate;
 use epiphany_core::write_epiphany_cultmesh_operator_run_intent;
 use epiphany_core::write_epiphany_cultmesh_operator_run_receipt;
 use epiphany_core::write_epiphany_cultmesh_role_review_event;
-use serde_json::Value;
+use epiphany_core::EpiphanyCultMeshOperatorRunIntentEntry;
+use epiphany_core::EpiphanyCultMeshOperatorRunReceiptEntry;
+use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
+use epiphany_core::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION;
 use serde_json::json;
+use serde_json::Value;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -49,6 +49,51 @@ fn main() -> Result<()> {
             print_json(json!({"status": "written", "store": args.store, "intent": written}))?;
         }
         "receipt" => {
+            let intent =
+                load_latest_epiphany_cultmesh_operator_run_intent(&args.store, &args.runtime_id)?
+                    .context("operator-run receipt requires a persisted run intent")?;
+            if intent.run_id != args.run_id || intent.mode != args.mode {
+                anyhow::bail!(
+                    "operator-run receipt does not match latest intent: requested run={} mode={}, latest run={} mode={}",
+                    args.run_id,
+                    args.mode,
+                    intent.run_id,
+                    intent.mode
+                );
+            }
+            let result_path = canonical_file(&args.result_path, "--result-path")?;
+            let artifact_root = canonical_directory(&args.artifact_root, "--artifact-root")?;
+            if !result_path.starts_with(&artifact_root) {
+                anyhow::bail!(
+                    "operator-run result {} is outside artifact root {}",
+                    result_path.display(),
+                    artifact_root.display()
+                );
+            }
+            let result_source = fs::read_to_string(&result_path).with_context(|| {
+                format!("failed to read result artifact {}", result_path.display())
+            })?;
+            let _: Value = serde_json::from_str(result_source.trim_start_matches('\u{feff}'))
+                .with_context(|| {
+                    format!(
+                        "operator-run result is not valid JSON: {}",
+                        result_path.display()
+                    )
+                })?;
+            let requested_at = chrono::DateTime::parse_from_rfc3339(&intent.requested_at_utc)
+                .context("operator-run intent has invalid requested_at_utc")?
+                .with_timezone(&Utc);
+            let modified_at: chrono::DateTime<Utc> = fs::metadata(&result_path)?
+                .modified()
+                .context("operator-run result has no modification time")?
+                .into();
+            if modified_at < requested_at {
+                anyhow::bail!(
+                    "operator-run result predates its intent: result={} intent={}",
+                    modified_at.to_rfc3339(),
+                    requested_at.to_rfc3339()
+                );
+            }
             let mut artifact_refs = Vec::new();
             push_non_empty(&mut artifact_refs, &args.result_path);
             push_non_empty(&mut artifact_refs, &args.artifact_root);
@@ -60,7 +105,7 @@ fn main() -> Result<()> {
                 run_id: args.run_id.clone(),
                 completed_at_utc: Utc::now().to_rfc3339(),
                 mode: args.mode.clone(),
-                status: args.status.clone(),
+                status: "completed".to_string(),
                 result_path: args.result_path.clone(),
                 artifact_root: args.artifact_root.clone(),
                 dogfood_root: args.dogfood_root.clone(),
@@ -212,7 +257,6 @@ struct Args {
     artifact_root: String,
     dogfood_root: String,
     result_path: String,
-    status: String,
     operator_snapshot_store: String,
     operator_snapshot_id: String,
     coordinator_summary: Option<PathBuf>,
@@ -241,7 +285,6 @@ impl Args {
             artifact_root: String::new(),
             dogfood_root: String::new(),
             result_path: String::new(),
-            status: "completed".to_string(),
             operator_snapshot_store: String::new(),
             operator_snapshot_id: String::new(),
             coordinator_summary: None,
@@ -268,7 +311,6 @@ impl Args {
                 "--artifact-root" => args.artifact_root = next(&mut values, "--artifact-root")?,
                 "--dogfood-root" => args.dogfood_root = next(&mut values, "--dogfood-root")?,
                 "--result-path" => args.result_path = next(&mut values, "--result-path")?,
-                "--status" => args.status = next(&mut values, "--status")?,
                 "--operator-snapshot-store" => {
                     args.operator_snapshot_store = next(&mut values, "--operator-snapshot-store")?
                 }
@@ -317,6 +359,30 @@ fn push_non_empty(items: &mut Vec<String>, value: &str) {
     if !value.trim().is_empty() {
         items.push(value.to_string());
     }
+}
+
+fn canonical_file(value: &str, name: &str) -> Result<PathBuf> {
+    if value.trim().is_empty() {
+        anyhow::bail!("operator-run receipt requires {name}");
+    }
+    let path =
+        fs::canonicalize(value).with_context(|| format!("{name} does not exist: {value}"))?;
+    if !path.is_file() {
+        anyhow::bail!("{name} is not a file: {}", path.display());
+    }
+    Ok(path)
+}
+
+fn canonical_directory(value: &str, name: &str) -> Result<PathBuf> {
+    if value.trim().is_empty() {
+        anyhow::bail!("operator-run receipt requires {name}");
+    }
+    let path =
+        fs::canonicalize(value).with_context(|| format!("{name} does not exist: {value}"))?;
+    if !path.is_dir() {
+        anyhow::bail!("{name} is not a directory: {}", path.display());
+    }
+    Ok(path)
 }
 
 fn print_json(value: Value) -> Result<()> {

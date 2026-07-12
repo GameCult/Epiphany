@@ -86,6 +86,13 @@
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.
 
+## Operator-run completion receipt boundary (2026-07-12)
+
+- Intent owner: operator orchestration writes run id, mode, roots, limits, and artifact coordinates before execution.
+- Completion evidence: matching latest intent plus a valid JSON result inside the canonical artifact root, modified at or after intent creation.
+- Receipt status is derived as `completed`; callers cannot submit status.
+- Forbidden evidence: missing, non-JSON, pre-intent, out-of-root, or mismatched-run artifacts.
+
 This is the source-grounded map of the live machine. Historical route and
 bridge anatomy belongs in git history and evidence ledgers, not here.
 

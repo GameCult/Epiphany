@@ -19,11 +19,14 @@ A forged operator-status artifact containing `intentId=forged-intent`, `receiptI
 
 ## Remaining scrutiny
 
-1. Inspect `epiphany-operator-run` receipt construction against actual subprocess/runtime evidence rather than command arguments.
-2. Inspect daemon-supervisor plan/rehearsal receipts separately from execution receipts so planning cannot masquerade as service mutation.
-3. Extend the same store quarantine invariant to standalone smoke binaries that accept output paths.
-4. Distill or remove dead public receipt constructors once every named provider executable exists.
+1. Inspect daemon-supervisor plan/rehearsal receipts separately from execution receipts so planning cannot masquerade as service mutation.
+2. Extend the same store quarantine invariant to standalone smoke binaries that accept output paths.
+3. Distill or remove dead public receipt constructors once every named provider executable exists.
 
 ## Smoke quarantine update
 
 `epiphany-verse-query smoke` is now hard-bound to `.epiphany-smoke/verse-query-default/local-verse.ccmp` and runtime `verse-query-default-smoke`. Store or runtime overrides are rejected before the fixture body runs. A direct attempt against `state/local-verse.ccmp` was refused and its SHA-256 remained unchanged. The quarantined smoke was repaired to seed fixture liveness explicitly and to expect requester-only poke output; it completes successfully inside the quarantine.
+
+## Operator-run evidence binding update
+
+The standalone `receipt` command previously accepted caller status and path strings, then wrote `completed` evidence without inspecting the run. It now requires the latest persisted intent to match run id and mode, derives status internally as `completed`, requires an existing valid JSON result contained by the canonical artifact root, and requires the result modification time to be no earlier than the intent request time. `--status` no longer exists. The PowerShell orchestrator supplies only the result coordinates after its checked subprocess completes.

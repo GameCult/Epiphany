@@ -3379,7 +3379,6 @@ $operatorRunReceiptArgs = @(
     "--runtime-id", $LocalVerseRuntimeId,
     "--run-id", $runId,
     "--mode", $Mode,
-    "--status", "completed",
     "--result-path", $resultPath,
     "--artifact-root", $artifactRoot,
     "--dogfood-root", $dogfoodRoot,

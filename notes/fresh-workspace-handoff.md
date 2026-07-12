@@ -40,6 +40,10 @@ The first call-site audit found a new canonical-promotion substitution in `epiph
 
 The monolithic `epiphany-verse-query smoke` fixture writer can no longer accept `--store` or `--runtime-id`; it is hard-bound to `.epiphany-smoke/verse-query-default/local-verse.ccmp` and `verse-query-default-smoke`. A direct canonical-store attempt was rejected before mutation and `state/local-verse.ccmp` retained the same SHA-256. The quarantined smoke now explicitly seeds fixture daemon statuses, expects intent-only batch poke rows, and completes `status=ok` within quarantine. Next inspect operator-run/supervisor provenance and quarantine standalone smoke binaries that accept arbitrary roots.
 
+## 2026-07-12 operator-run completion evidence binding
+
+`epiphany-operator-run receipt` no longer accepts `--status`. It loads the latest operator intent and requires matching run id/mode, canonicalizes the result and artifact-root paths, requires the result to be a file contained under the artifact root, parses it as JSON, and rejects it if its modification time predates the intent. Only then does it derive `status=completed`. The wrapper no longer passes a completion assertion. Negative proof rejects caller status and out-of-root artifacts; positive proof uses a post-intent JSON artifact. Next audit daemon-supervisor planning/rehearsal receipts against actual service/process evidence.
+
 This is the re-entry rite for `E:\Projects\EpiphanyAgent`: the waking chant for
 the local machine-spirit before it touches the forge.
 
