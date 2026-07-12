@@ -48,6 +48,9 @@ The confirmed conceptual substitutions have been cut:
 - agent-state SoA sync requires bootstrap; report preserves missing filesystem
   state. The wrapper explicitly composes sync then report rather than hiding a
   refresh inside readback.
+- query, cluster-daemon, and daemon-supervisor argument parsing no longer creates
+  store parents. Missing-store reads/prerequisites preserve filesystem absence;
+  explicit bootstrap or a real writer owns CultMesh body creation.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 

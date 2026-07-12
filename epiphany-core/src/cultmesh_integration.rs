@@ -2629,6 +2629,10 @@ pub fn load_epiphany_cultmesh_status(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshStatusEntry>> {
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(None);
+    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.get(EPIPHANY_CULTMESH_STATUS_KEY)
 }
@@ -5738,6 +5742,12 @@ pub fn query_epiphany_local_verse_context(
 ) -> Result<EpiphanyLocalVerseContext> {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
+    if !store_path.exists() {
+        anyhow::bail!(
+            "local Verse store does not exist at {}",
+            store_path.display()
+        );
+    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut verse_policies = Vec::new();
     for policy in epiphany_cultmesh_verse_policies() {
@@ -5921,6 +5931,9 @@ pub fn load_epiphany_cultmesh_daemon_liveness(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
+    if !store_path.exists() {
+        return Ok(Vec::new());
+    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
@@ -5945,6 +5958,9 @@ pub fn load_epiphany_cultmesh_daemon_restart_policy_directory(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
+    if !store_path.exists() {
+        return Ok(Vec::new());
+    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
@@ -5972,6 +5988,9 @@ pub fn load_epiphany_cultmesh_eve_surface_directory(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
+    if !store_path.exists() {
+        return Ok(Vec::new());
+    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
@@ -6028,6 +6047,9 @@ pub fn load_epiphany_cultmesh_daemon_tool_directory(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
+    if !store_path.exists() {
+        return Ok(Vec::new());
+    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let mut rows = Vec::new();
     let capabilities = node
@@ -6457,6 +6479,10 @@ pub fn load_epiphany_cultmesh_cluster_topology(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Vec<EpiphanyCultMeshClusterTopologyEntry>> {
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(Vec::new());
+    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let mut topology = Vec::new();
     for cluster in epiphany_cultmesh_cluster_topology() {
@@ -8053,8 +8079,13 @@ mod tests {
     #[test]
     fn diagnostic_loaders_do_not_materialize_missing_body_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("missing-local-verse.ccmp");
+        let missing_parent = temp.path().join("missing-body");
+        let store = missing_parent.join("missing-local-verse.ccmp");
 
+        assert_eq!(
+            load_epiphany_cultmesh_status(&store, "epiphany-test")?,
+            None
+        );
         assert!(load_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?.is_empty());
         assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
         assert!(
@@ -8067,6 +8098,14 @@ mod tests {
             !store.exists(),
             "read-only diagnostic loaders must not create a CultCache store"
         );
+        assert!(
+            !missing_parent.exists(),
+            "read-only diagnostic loaders must not create the store parent"
+        );
+        let error = query_epiphany_local_verse_context(&store, "epiphany-test")
+            .expect_err("a missing Verse cannot project a context");
+        assert!(error.to_string().contains("store does not exist"));
+        assert!(!missing_parent.exists());
         Ok(())
     }
 

@@ -3713,10 +3713,6 @@ impl Args {
             ));
         }
 
-        if let Some(parent) = store.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
         let daemon_id = match daemon_id {
             Some(daemon_id) => daemon_id,
             None if matches!(

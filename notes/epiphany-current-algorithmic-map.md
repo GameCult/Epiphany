@@ -130,6 +130,11 @@
   the persisted agent store. SoA report is filesystem-pure on a missing store.
   Wrapper mode `agent-state-soa` explicitly composes sync then report; the
   report itself never refreshes canonical state.
+- Merely naming a CultMesh store does not create its body. Query, cluster-daemon,
+  and daemon-supervisor parsers perform no filesystem writes; missing status or
+  topology prerequisites preserve absence; full context query refuses a
+  nonexistent store; narrow diagnostic directories return empty without
+  opening CultMesh. Explicit bootstrap or a real writer owns body creation.
 - Store/runtime overrides fail before fixture seeding or receipt construction.
 - Negative proof: targeting `state/local-verse.ccmp` was rejected and its SHA-256 did not change.
 - Positive proof: the built-in quarantined smoke completes successfully and reports its quarantine coordinates.

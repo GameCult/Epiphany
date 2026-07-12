@@ -217,3 +217,20 @@ opening CultMesh and refuses without creation. After explicit bootstrap, sync
 still mirrors the seven persisted agent rows and report reads them without
 mutation. The wrapper's `agent-state-soa` mode is an explicit sync-then-report
 composition, not evidence that the report command owns refresh.
+
+## Path selection/body existence split
+
+The query, cluster-daemon, and daemon-supervisor argument parsers created the
+selected CultMesh store parent unconditionally. Read-only queries, refused
+daemon starts, refused supervisor commands, and invalid smoke overrides could
+therefore alter the filesystem merely by naming a body that did not exist.
+Several diagnostic loaders also opened a missing CultMesh node before learning
+that there was nothing to read. The store path had become a conceptual
+substitute for an initialized body.
+
+Parser-side directory creation is deleted. Status and topology prerequisites
+now preserve absence; the full Verse context query refuses a nonexistent store;
+and the liveness, restart-policy, Eve-surface, and daemon-tool directories
+return empty without opening CultMesh. A nested-parent unit check and rebuilt
+CLI probe prove that query, cluster-daemon heartbeat, and supervisor status
+fail on missing stores without creating either store or parent directory.

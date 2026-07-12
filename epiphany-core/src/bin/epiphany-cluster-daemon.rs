@@ -180,9 +180,6 @@ impl Args {
             }
         }
 
-        if let Some(parent) = store.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let daemon_id = daemon_id.context("cluster daemon requires --daemon-id")?;
         if !matches!(daemon_status.as_str(), "ready" | "degraded" | "down") {
             anyhow::bail!("--daemon-status must be ready, degraded, or down");

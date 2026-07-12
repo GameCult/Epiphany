@@ -10429,10 +10429,6 @@ impl Args {
             }
         }
 
-        if let Some(parent) = store.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
         Ok(Self {
             command,
             store,
