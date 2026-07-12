@@ -370,16 +370,21 @@ pub use cultmesh_integration::default_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::epiphany_cluster_service_execution_audit_report;
 pub use cultmesh_integration::epiphany_cultmesh_agent_state_soa_summary_from_entry;
 #[cfg(test)]
+#[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_artifact_acceptance_receipt_for_map_entry;
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_body_change_publication_intent;
+#[cfg(test)]
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_collaboration_feedback;
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_contracts;
 #[cfg(test)]
+#[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
 #[cfg(test)]
+#[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_metrics_receipt_for_map_entry;
+#[cfg(test)]
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof;
 pub use cultmesh_integration::epiphany_cultmesh_continuity_contracts;
@@ -392,14 +397,17 @@ pub use cultmesh_integration::epiphany_cultmesh_daemon_statuses;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_from_status_json;
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
 #[cfg(test)]
+#[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
 pub use cultmesh_integration::epiphany_cultmesh_eve_connection_intent_from_advertisement;
+#[cfg(test)]
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_eve_connection_receipt_for_intent;
 pub use cultmesh_integration::epiphany_cultmesh_eyes_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_global_room_policies;
 pub use cultmesh_integration::epiphany_cultmesh_hands_action_gate_from_summary_json;
 pub use cultmesh_integration::epiphany_cultmesh_hands_contracts;
+#[cfg(test)]
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_imagination_consensus_receipt_for_feedback;
 pub use cultmesh_integration::epiphany_cultmesh_mind_contracts;
@@ -468,16 +476,21 @@ pub use cultmesh_integration::query_epiphany_local_verse_context;
 pub use cultmesh_integration::seed_epiphany_local_verse_context;
 pub use cultmesh_integration::write_epiphany_cultmesh_agent_state_soa_summary;
 #[cfg(test)]
+#[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_artifact_acceptance_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
+#[cfg(test)]
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_collaboration_feedback;
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_contracts;
 #[cfg(test)]
+#[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_github_publication_receipt;
 #[cfg(test)]
+#[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_metrics_receipt;
+#[cfg(test)]
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_continuity_contracts;
@@ -492,14 +505,17 @@ pub use cultmesh_integration::write_epiphany_cultmesh_daemon_status;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_statuses;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 #[cfg(test)]
+#[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_eve_connection_intent;
+#[cfg(test)]
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_eve_connection_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_eyes_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_global_room_policies;
 pub use cultmesh_integration::write_epiphany_cultmesh_hands_action_gate;
 pub use cultmesh_integration::write_epiphany_cultmesh_hands_contracts;
+#[cfg(test)]
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_imagination_consensus_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_managed_service_policy;

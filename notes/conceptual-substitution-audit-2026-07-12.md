@@ -360,3 +360,13 @@ Hands PR receipt. The command and its tests are deleted. The PR constructor and
 runtime writer are test-only; the typed record remains an ingest/read contract
 until an authenticated GitHub/Bifrost adapter owns publication evidence. The
 Hands smoke now proves only patch, command, and commit consequences.
+
+## Ownerless provider actuators in the public library
+
+Deleting CLI writers was insufficient while the library still publicly
+exported constructors and writers for Eve connection acceptance, daemon-tool
+acceptance, Bifrost body/GitHub/public-proof publication, Bifrost artifact
+acceptance and metrics closure, and Imagination consensus. No production owner
+called them; their remaining uses were unit fixtures. All sixteen constructor/
+writer exports are now `cfg(test)`. Types, validation exercised by tests, and
+production readers remain available for genuine provider-authored ingest.
