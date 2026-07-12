@@ -228,9 +228,11 @@ Several diagnostic loaders also opened a missing CultMesh node before learning
 that there was nothing to read. The store path had become a conceptual
 substitute for an initialized body.
 
-Parser-side directory creation is deleted. Status and topology prerequisites
-now preserve absence; the full Verse context query refuses a nonexistent store;
-and the liveness, restart-policy, Eve-surface, and daemon-tool directories
-return empty without opening CultMesh. A nested-parent unit check and rebuilt
-CLI probe prove that query, cluster-daemon heartbeat, and supervisor status
-fail on missing stores without creating either store or parent directory.
+Parser-side directory creation is deleted. The deeper owner is now repaired in
+`SingleFileMessagePackBackingStore`: pulling an absent store returns an empty
+envelope set before lock acquisition, so every CultCache/CultMesh reader
+inherits filesystem-pure absence instead of maintaining its own path guard.
+The scattered loader compensators were removed. Full Verse context alone adds
+projection policy by refusing to describe a nonexistent body. Backing-store and
+nested diagnostic tests plus rebuilt CLI probes prove that reads and refused
+daemon/supervisor starts create neither store, lock, nor parent directory.

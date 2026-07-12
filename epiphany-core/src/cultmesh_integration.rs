@@ -2630,9 +2630,6 @@ pub fn load_epiphany_cultmesh_status(
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshStatusEntry>> {
     let store_path = store_path.as_ref();
-    if !store_path.exists() {
-        return Ok(None);
-    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.get(EPIPHANY_CULTMESH_STATUS_KEY)
 }
@@ -5931,9 +5928,6 @@ pub fn load_epiphany_cultmesh_daemon_liveness(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
-    if !store_path.exists() {
-        return Ok(Vec::new());
-    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
@@ -5958,9 +5952,6 @@ pub fn load_epiphany_cultmesh_daemon_restart_policy_directory(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
-    if !store_path.exists() {
-        return Ok(Vec::new());
-    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
@@ -5988,9 +5979,6 @@ pub fn load_epiphany_cultmesh_eve_surface_directory(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
-    if !store_path.exists() {
-        return Ok(Vec::new());
-    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
@@ -6047,9 +6035,6 @@ pub fn load_epiphany_cultmesh_daemon_tool_directory(
 > {
     let store_path = store_path.as_ref();
     let runtime_id = runtime_id.into();
-    if !store_path.exists() {
-        return Ok(Vec::new());
-    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let mut rows = Vec::new();
     let capabilities = node
@@ -6480,9 +6465,6 @@ pub fn load_epiphany_cultmesh_cluster_topology(
     runtime_id: impl Into<String>,
 ) -> Result<Vec<EpiphanyCultMeshClusterTopologyEntry>> {
     let store_path = store_path.as_ref();
-    if !store_path.exists() {
-        return Ok(Vec::new());
-    }
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let mut topology = Vec::new();
     for cluster in epiphany_cultmesh_cluster_topology() {
