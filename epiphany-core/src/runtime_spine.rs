@@ -8,8 +8,6 @@ use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_V
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE;
-use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION;
-use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
 use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION;
@@ -3529,18 +3527,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE,
-            EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION,
-            vec![CultNetDocumentOperation::Snapshot],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Native operator status is a CultMesh document; Codex app-server status is bridge/display compatibility.",
-                "This surface names the Codex bridge role, Epiphany authority role, prompt-authority boundary, and quarantined optional bridges.",
-            ],
-        ),
-        mutation_contract(
             EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE,
             EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
             vec![
@@ -4869,26 +4855,6 @@ mod tests {
                             .iter()
                             .any(|item| item == "epiphany.persona_bubble.v0"))
                 );
-                let operator_status_contract = contracts
-                    .iter()
-                    .find(|contract| {
-                        contract.document_type == EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE
-                    })
-                    .expect("operator status should advertise a read-only CultMesh document");
-                assert_eq!(
-                    operator_status_contract.authority,
-                    CultNetMutationAuthority::ReadOnly
-                );
-                assert!(
-                    operator_status_contract
-                        .notes
-                        .as_ref()
-                        .is_some_and(|notes| {
-                            notes
-                                .iter()
-                                .any(|note| note.contains("Codex app-server status is bridge"))
-                        })
-                );
                 let operator_snapshot_contract = contracts
                     .iter()
                     .find(|contract| {
@@ -5122,11 +5088,6 @@ mod tests {
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some(THREAD_STATE_TYPE)
                 && schema.schema_version.as_deref() == Some(THREAD_STATE_SCHEMA_VERSION)
-        }));
-        assert!(schemas.iter().any(|schema| {
-            schema.document_type.as_deref() == Some(EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE)
-                && schema.schema_version.as_deref()
-                    == Some(EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION)
         }));
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE)

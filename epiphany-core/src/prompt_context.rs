@@ -246,14 +246,6 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         }
     }
 
-    if let Some(status) = input.local_verse.operator_status.as_ref() {
-        lines.push(format!(
-            "- Operator status `{}`: {}",
-            status.status,
-            compact_line(&status.summary)
-        ));
-    }
-
     if let Some(summary) = input.local_verse.latest_work_loop_summary.as_ref() {
         lines.push("## Work Loop Receipt Digest".to_string());
         lines.push(format!(

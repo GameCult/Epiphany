@@ -299,17 +299,6 @@
       "path": "epiphany.memory-graph.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-status.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.cultmesh.operator_status.v0",
-      "documentType": "epiphany.cultmesh.operator_status",
-      "title": "Epiphany CultMesh Operator Status",
-      "path": "epiphany.cultmesh.operator-status.schema.json"
-    },
-    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-snapshot.schema.json",
       "kind": "document_payload",
       "wireContracts": [

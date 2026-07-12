@@ -198,11 +198,11 @@ operator observation that no observer had produced.
 Bootstrap now writes declaration/initialization state only and leaves operator
 status absent. The follow-up audit showed `epiphany-cultmesh-status write` was
 not an observer: it had no production caller and hard-coded `status=ready` plus
-doctrine fields from a template. The shipped binary is deleted, and its default
-constructor/writer are test-only. The fixed CultMesh smoke no longer fabricates
-operator status; it retains its separate source-JSON-derived operator snapshot
-contract proof. Production keeps the typed operator-status schema and a
-filesystem-pure reader for future genuine observed ingest.
+doctrine fields from a template. The shipped binary and the entire writerless
+operator-status schema family are deleted. Keeping a catalog entry, context
+slot, prompt projection, and reader for a hypothetical future observer made
+absence look like implemented authority. The fixed CultMesh smoke retains the
+real contract: an operator snapshot distilled from a named source artifact.
 
 ## Agent-state projection body boundary
 

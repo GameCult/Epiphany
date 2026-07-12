@@ -23,7 +23,7 @@ The confirmed conceptual substitutions have been cut:
   tools; unknown daemon identities are refused before writes.
 - cluster daemons do not bootstrap or query the full Verse. Missing persisted
   topology is a pre-write refusal; explicit operator bootstrap owns shared
-  policy, topology, contracts, brake initialization, and operator status.
+  policy, topology, contracts, and brake initialization.
 - daemon-supervisor production commands likewise require persisted bootstrap
   and cannot create shared state. Its two audit-smoke fixture initializers are
   hard-confined beneath `.epiphany-smoke`.
@@ -42,10 +42,9 @@ The confirmed conceptual substitutions have been cut:
 - topology-derived provider builders are private, explicitly named templates.
   Consumers can load persisted provider documents but cannot request seven
   plausible advertisements/surfaces/tools from topology.
-- bootstrap no longer writes default operator status. Only the dedicated
-  operator-status writer was then found to be a dead `ready` template and
-  deleted. Its constructor/writer are test-only; production retains typed
-  reading for genuine observed ingest and source-derived operator snapshots.
+- bootstrap no longer writes default operator status. The dedicated writer was
+  a dead `ready` template, so the writer and its now-ownerless schema/context/
+  prompt/reader family are deleted. Source-derived operator snapshots remain.
 - agent-state SoA sync requires bootstrap; report preserves missing filesystem
   state. The wrapper explicitly composes sync then report rather than hiding a
   refresh inside readback.

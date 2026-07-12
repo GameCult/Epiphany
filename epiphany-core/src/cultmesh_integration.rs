@@ -22,10 +22,6 @@ use std::path::Path;
 pub const EPIPHANY_CULTMESH_STATUS_TYPE: &str = "epiphany.cultmesh.status";
 pub const EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION: &str = "epiphany.cultmesh.status.v0";
 pub const EPIPHANY_CULTMESH_STATUS_KEY: &str = "epiphany-local/status";
-pub const EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE: &str = "epiphany.cultmesh.operator_status";
-pub const EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.operator_status.v0";
-pub const EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY: &str = "epiphany-local/operator-status";
 pub const EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE: &str = "epiphany.cultmesh.operator_snapshot";
 pub const EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.operator_snapshot.v0";
@@ -294,38 +290,6 @@ pub struct EpiphanyCultMeshStatusEntry {
     pub note: String,
     #[cultcache(key = 5, default)]
     pub verse_tier: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.operator_status",
-    schema = "EpiphanyCultMeshOperatorStatusEntry"
-)]
-pub struct EpiphanyCultMeshOperatorStatusEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub runtime_id: String,
-    #[cultcache(key = 2)]
-    pub verse_id: String,
-    #[cultcache(key = 3)]
-    pub surface_id: String,
-    #[cultcache(key = 4)]
-    pub status: String,
-    #[cultcache(key = 5)]
-    pub generated_at_utc: String,
-    #[cultcache(key = 6)]
-    pub summary: String,
-    #[cultcache(key = 7)]
-    pub codex_bridge_role: String,
-    #[cultcache(key = 8)]
-    pub epiphany_authority_role: String,
-    #[cultcache(key = 9)]
-    pub prompt_authority: String,
-    #[cultcache(key = 10)]
-    pub native_authorities: Vec<String>,
-    #[cultcache(key = 11)]
-    pub quarantined_surfaces: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -2534,7 +2498,6 @@ pub struct EpiphanyLocalVerseContext {
         Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     pub latest_imagination_consensus_receipt:
         Option<EpiphanyCultMeshImaginationConsensusReceiptEntry>,
-    pub operator_status: Option<EpiphanyCultMeshOperatorStatusEntry>,
     pub latest_operator_snapshot: Option<EpiphanyCultMeshOperatorSnapshotEntry>,
     pub latest_operator_run_intent: Option<EpiphanyCultMeshOperatorRunIntentEntry>,
     pub latest_operator_run_receipt: Option<EpiphanyCultMeshOperatorRunReceiptEntry>,
@@ -2586,7 +2549,6 @@ pub struct EpiphanyLocalVerseContractSummary {
 
 cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshStatusEntry => EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION,
-    EpiphanyCultMeshOperatorStatusEntry => EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorSnapshotEntry => EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorRunIntentEntry => EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorRunReceiptEntry => EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION,
@@ -2671,66 +2633,6 @@ pub fn load_epiphany_cultmesh_status(
     node.get(EPIPHANY_CULTMESH_STATUS_KEY)
 }
 
-#[cfg(test)]
-pub fn default_epiphany_cultmesh_operator_status(
-    runtime_id: impl Into<String>,
-    generated_at_utc: impl Into<String>,
-) -> EpiphanyCultMeshOperatorStatusEntry {
-    EpiphanyCultMeshOperatorStatusEntry {
-        schema_version: EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION.to_string(),
-        runtime_id: runtime_id.into(),
-        verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
-        surface_id: "epiphany.operator.status".to_string(),
-        status: "ready".to_string(),
-        generated_at_utc: generated_at_utc.into(),
-        summary:
-            "Epiphany operator status is native typed state; Codex is bridge transport, not policy owner."
-                .to_string(),
-        codex_bridge_role:
-            "relatively vanilla Codex may provide OpenAI auth/model transport, streaming, and Codex-native app-server affordances."
-                .to_string(),
-        epiphany_authority_role:
-            "Epiphany owns state, processes, prompts, scheduler decisions, organ contracts, and mutation law."
-                .to_string(),
-        prompt_authority:
-            "Codex prompt machinery must not inject doctrine, role instructions, state law, or coordinator policy into Epiphany agents."
-                .to_string(),
-        native_authorities: vec![
-            "CultCache typed documents".to_string(),
-            "CultMesh local Verse store".to_string(),
-            "CultNet read/mutation/event contracts".to_string(),
-            "Epiphany organ receipt gates".to_string(),
-        ],
-        quarantined_surfaces: vec![
-            "Rider bridge".to_string(),
-            "Unity bridge".to_string(),
-        ],
-    }
-}
-
-#[cfg(test)]
-pub fn write_epiphany_cultmesh_operator_status(
-    store_path: impl AsRef<Path>,
-    status: EpiphanyCultMeshOperatorStatusEntry,
-) -> Result<EpiphanyCultMeshOperatorStatusEntry> {
-    let mut node = open_epiphany_cultmesh_node(&store_path, status.runtime_id.clone())?;
-    let written = node.put(EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY, &status)?;
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_epiphany_cultmesh_operator_status(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshOperatorStatusEntry>> {
-    let store_path = store_path.as_ref();
-    if !store_path.exists() {
-        return Ok(None);
-    }
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY)
-}
-
 pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
     runtime_id: impl Into<String>,
     snapshot_id: impl Into<String>,
@@ -2743,7 +2645,7 @@ pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
     let state_status = pointer_text(status_json, "/scene/scene/stateStatus", "unknown");
     let crrc_action = pointer_text(status_json, "/crrc/recommendation/action", "unknown");
     let reorient_action = pointer_text(status_json, "/reorient/decision/action", "unknown");
-    let operator_status = if state_status == "missing" || crrc_action == "regatherManually" {
+    let snapshot_status = if state_status == "missing" || crrc_action == "regatherManually" {
         "needs-regather"
     } else {
         "ready"
@@ -2762,7 +2664,7 @@ pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
         source_mode: source_mode.into(),
         source_path,
         thread_id: pointer_text(status_json, "/threadId", "missing"),
-        status: operator_status.to_string(),
+        status: snapshot_status.to_string(),
         state_status,
         coordinator_action: pointer_text(status_json, "/coordinator/action", "none"),
         crrc_action,
@@ -5983,7 +5885,6 @@ pub fn query_epiphany_local_verse_context(
             .get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY)?,
         latest_imagination_consensus_receipt: node
             .get(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY)?,
-        operator_status: node.get(EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY)?,
         latest_operator_snapshot: node.get(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY)?,
         latest_operator_run_intent: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY)?,
         latest_operator_run_receipt: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)?,
@@ -7229,26 +7130,6 @@ mod tests {
         assert_eq!(
             load_epiphany_cultmesh_status(&store, "epiphany-test")?,
             Some(status)
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn operator_status_round_trips_as_native_cultmesh_document() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-operator-status.ccmp");
-        let status =
-            default_epiphany_cultmesh_operator_status("epiphany-test", "2026-05-27T00:00:00Z");
-
-        write_epiphany_cultmesh_operator_status(&store, status.clone())?;
-        let loaded = load_epiphany_cultmesh_operator_status(&store, "epiphany-test")?;
-
-        assert_eq!(loaded, Some(status));
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        assert!(
-            node.documents()
-                .binding(EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE)
-                .is_some()
         );
         Ok(())
     }
@@ -9323,7 +9204,6 @@ mod tests {
         assert!(context.odin_advertisements.is_empty());
         assert!(context.eve_surface_states.is_empty());
         assert!(context.daemon_tool_capabilities.is_empty());
-        assert!(context.operator_status.is_none());
         assert!(
             context
                 .contract_summaries

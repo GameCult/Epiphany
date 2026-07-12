@@ -83,7 +83,7 @@
 - `epiphany-verse-query smoke` owns synthetic contract fixtures only.
 - Its only writable body is `.epiphany-smoke/verse-query-default/local-verse.ccmp` with runtime `verse-query-default-smoke`.
 - Generic local Verse bootstrap owns policy, declared topology, initial brake,
-  organ contracts, and operator status only. It does not publish Odin provider
+  and organ contracts only. It does not publish Odin provider
   advertisements, Eve surfaces, or daemon-hosted tools. Those families require
   provider publication; discovery preserves their absence.
 - The generic Verse query CLI has no provider-advertisement preview or Odin
@@ -123,10 +123,9 @@
   persisted loaders; only the daemon-ID-bounded publisher may lower templates
   into provider-owned documents.
 - Generic bootstrap owns declarations and initial control state, not operator
-  observation. The template-based operator-status writer binary is deleted and
-  its constructor/writer are test-only. Production retains the typed schema and
-  a filesystem-pure reader for genuinely observed future ingest; operator
-  snapshots remain source-artifact-derived documents.
+  observation. The template-based operator-status writer and its writerless
+  schema/context/prompt/reader family are deleted. Operator snapshots remain
+  source-artifact-derived documents.
 - Agent-state SoA sync requires an existing bootstrapped Verse before mirroring
   the persisted agent store. SoA report is filesystem-pure on a missing store.
   Wrapper mode `agent-state-soa` explicitly composes sync then report; the
