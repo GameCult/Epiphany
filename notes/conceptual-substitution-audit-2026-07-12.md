@@ -490,3 +490,14 @@ and its smoke manufactured that verdict. The requirement is now
 `cluster-windows-service-audit: complete`, emitted by actual SCM enumeration.
 The negative smoke corrupts that observed audit and proves the execution audit
 becomes incomplete; a copied prior conclusion has no authority.
+
+## Historical failure presented as current lifecycle state
+
+The service lifecycle directory selected the newest attention-worthy receipt
+before considering the actual newest receipt. Because lifecycle receipts have
+no resolution relation, an old failure remained the displayed present forever
+after a newer successful reconcile. The reducer now selects the latest event
+for each service family; attention is derived from that event. History retains
+older failures without letting them impersonate current state. Adversarial
+tests prove a newer recovery supersedes an old failure and a newer failure is
+not hidden by an old recovery.

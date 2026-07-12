@@ -7765,24 +7765,7 @@ fn service_lifecycle_receipt_for_directory<'a>(
     receipts: &'a [EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
     cluster: bool,
 ) -> Option<&'a EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
-    latest_service_lifecycle_attention_receipt(receipts, cluster)
-        .or_else(|| latest_service_lifecycle_receipt(receipts, cluster))
-}
-
-fn latest_service_lifecycle_attention_receipt<'a>(
-    receipts: &'a [EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry],
-    cluster: bool,
-) -> Option<&'a EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
-    receipts
-        .iter()
-        .filter(|receipt| is_cluster_service_lifecycle_receipt(receipt) == cluster)
-        .filter(|receipt| {
-            receipt.private_state_exposed
-                || service_lifecycle_status_needs_attention(&receipt.status)
-        })
-        .max_by(|left, right| {
-            service_lifecycle_receipt_sort_key(left).cmp(&service_lifecycle_receipt_sort_key(right))
-        })
+    latest_service_lifecycle_receipt(receipts, cluster)
 }
 
 fn latest_service_lifecycle_receipt_for_action<'a>(
@@ -9715,4 +9698,64 @@ fn required_list(values: &Option<Vec<String>>, message: &str) -> Result<Vec<Stri
         .filter(|items| !items.is_empty())
         .cloned()
         .context(message.to_string())
+}
+
+#[cfg(test)]
+mod lifecycle_projection_tests {
+    use super::*;
+
+    fn receipt(
+        id: &str,
+        status: &str,
+        completed_at: &str,
+    ) -> EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+        EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                .to_string(),
+            receipt_id: id.to_string(),
+            service_id: "epiphany-daemon-supervisor-service".to_string(),
+            scheduler_id: "epiphany-daemon-supervisor".to_string(),
+            runtime_id: "projection-test".to_string(),
+            daemon_selector: "epiphany-daemon-self".to_string(),
+            action: "windows-service-reconcile".to_string(),
+            status: status.to_string(),
+            command: "powershell.exe".to_string(),
+            args: Vec::new(),
+            cwd: None,
+            process_id: None,
+            exit_code: Some(0),
+            started_at_utc: completed_at.to_string(),
+            completed_at_utc: Some(completed_at.to_string()),
+            operator_artifact_ref: format!("test://{id}"),
+            private_state_exposed: false,
+            notes: Vec::new(),
+            executable_sha256: String::new(),
+            schema_catalog_sha256: String::new(),
+            preflight_witness_id: String::new(),
+            required_document_types: Vec::new(),
+            schema_preflight_passed: false,
+        }
+    }
+
+    #[test]
+    fn lifecycle_directory_uses_new_recovery_over_old_failure() {
+        let receipts = vec![
+            receipt("old-failure", "query-failed", "2026-07-13T01:00:00Z"),
+            receipt("new-recovery", "in-sync", "2026-07-13T02:00:00Z"),
+        ];
+        let selected = service_lifecycle_receipt_for_directory(&receipts, false).unwrap();
+        assert_eq!(selected.receipt_id, "new-recovery");
+        assert!(!service_lifecycle_status_needs_attention(&selected.status));
+    }
+
+    #[test]
+    fn lifecycle_directory_does_not_hide_new_failure_behind_old_recovery() {
+        let receipts = vec![
+            receipt("old-recovery", "in-sync", "2026-07-13T01:00:00Z"),
+            receipt("new-failure", "query-failed", "2026-07-13T02:00:00Z"),
+        ];
+        let selected = service_lifecycle_receipt_for_directory(&receipts, false).unwrap();
+        assert_eq!(selected.receipt_id, "new-failure");
+        assert!(service_lifecycle_status_needs_attention(&selected.status));
+    }
 }
