@@ -2,6 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_core::GhostlightSceneParticipantSeed;
+use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatHeatUpdateOptions;
 use epiphany_core::HeartbeatPumpOptions;
@@ -411,13 +412,38 @@ fn main() -> Result<()> {
                 )
             })?;
             let mut completed_iterations = 0_u64;
+            let mut completed_routines = 0_u64;
+            let mut refused_pulses = 0_u64;
             loop {
                 if max_iterations > 0 && completed_iterations >= max_iterations {
                     break;
                 }
-                assert_swarm_brake_allows_heartbeat(&local_verse_store, "serve")?;
                 let iteration = completed_iterations + 1;
                 let iteration_dir = artifact_dir.join(format!("pulse-{iteration:06}"));
+                if let Some(brake) = active_swarm_brake(&local_verse_store)? {
+                    completed_iterations = iteration;
+                    refused_pulses += 1;
+                    println!(
+                        "{}",
+                        serde_json::json!({
+                            "schemaVersion": "epiphany.heartbeat.serve_pulse.v0",
+                            "status": "refused-by-swarm-brake",
+                            "owner": "heartbeat",
+                            "lifecycleOwner": "Idunn",
+                            "iteration": iteration,
+                            "artifactDir": iteration_dir,
+                            "brakeId": brake.brake_id,
+                            "brakeScope": brake.scope,
+                            "reason": brake.reason,
+                            "privateStateExposed": false
+                        })
+                    );
+                    if max_iterations > 0 && completed_iterations >= max_iterations {
+                        break;
+                    }
+                    thread::sleep(Duration::from_secs(interval_seconds));
+                    continue;
+                }
                 let result = run_void_routine_store(
                     &store_path,
                     &iteration_dir,
@@ -428,6 +454,7 @@ fn main() -> Result<()> {
                     },
                 )?;
                 completed_iterations = iteration;
+                completed_routines += 1;
                 println!(
                     "{}",
                     serde_json::json!({
@@ -458,6 +485,8 @@ fn main() -> Result<()> {
                     "artifactDir": artifact_dir,
                     "intervalSeconds": interval_seconds,
                     "completedIterations": completed_iterations,
+                    "completedRoutines": completed_routines,
+                    "refusedPulses": refused_pulses,
                     "bounded": max_iterations > 0,
                     "privateStateExposed": false
                 })
@@ -488,26 +517,26 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 }
 
 fn usage() -> Result<()> {
-    Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--local-verse-store <path>] [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [--local-verse-store <path>] [--agent-store <path>] [--urgency <0..1>] [--min-heartbeat-rate <n>] [--max-heartbeat-rate <n>] [--min-concurrency <n>] [--max-concurrency <n>] [--max-ticks <n>]\n       epiphany-heartbeat-store heat --store <path> [--local-verse-store <path>] [--scope global|all|agent|role|arena|participant_kind|group] [--selector <id>] [--multiplier <n>] [--id <id>] [--label <text>] [--reason <text>] [--expires-after <scene-clock-delta>] [--clear]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store repair-stale --store <path> --artifact-dir <path> [--max-age-seconds <n>] [--reason <text>] [--now-utc <rfc3339>]\n       epiphany-heartbeat-store queue-mention --store <path> [--local-verse-store <path>] [--role Persona] --channel-id <id> --message-id <id> --author-id <id> --content <text> --visible-prompt <text> [--author-name <name>] [--reply-to-message-id <id>] [--source-surface <name>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--local-verse-store <path>] [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
-    ))
+    Err(anyhow!(concat!(
+        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <seed>]\n",
+        "       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [options]\n",
+        "       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [options]\n",
+        "       epiphany-heartbeat-store heat --store <path> [options]\n",
+        "       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n",
+        "       epiphany-heartbeat-store repair-stale --store <path> --artifact-dir <path> [options]\n",
+        "       epiphany-heartbeat-store queue-mention --store <path> [options]\n",
+        "       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n",
+        "       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [options]\n",
+        "       epiphany-heartbeat-store serve --store <path> --artifact-dir <path> [--local-verse-store <path>] [--agent-store <path>] [--source <source>] [--no-dream] [--interval-seconds <n>] [--max-iterations <n>]\n",
+        "       epiphany-heartbeat-store smoke [--agent-store <path>]"
+    )))
 }
 
 fn assert_swarm_brake_allows_heartbeat(
     local_verse_store: &Option<PathBuf>,
     command: &str,
 ) -> Result<()> {
-    let Some(local_verse_store) = local_verse_store else {
-        return Ok(());
-    };
-    if !local_verse_store.exists() {
-        return Ok(());
-    }
-    let Some(brake) = load_epiphany_cultmesh_swarm_brake(local_verse_store, "epiphany-local")?
-    else {
-        return Ok(());
-    };
-    if brake.status == "engaged" {
+    if let Some(brake) = active_swarm_brake(local_verse_store)? {
         anyhow::bail!(
             "epiphany-heartbeat-store {command} refusing to run: local Verse swarm brake engaged; scope={}; protected={}; affected={}; reason={}",
             brake.scope,
@@ -517,6 +546,22 @@ fn assert_swarm_brake_allows_heartbeat(
         );
     }
     Ok(())
+}
+
+fn active_swarm_brake(
+    local_verse_store: &Option<PathBuf>,
+) -> Result<Option<EpiphanyCultMeshSwarmBrakeEntry>> {
+    let Some(local_verse_store) = local_verse_store else {
+        return Ok(None);
+    };
+    if !local_verse_store.exists() {
+        return Ok(None);
+    }
+    Ok(load_epiphany_cultmesh_swarm_brake(
+        local_verse_store,
+        "epiphany-local",
+    )?
+    .filter(|brake| brake.status == "engaged"))
 }
 
 fn parse_scene_participant(raw: &str) -> Result<GhostlightSceneParticipantSeed> {

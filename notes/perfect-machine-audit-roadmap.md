@@ -92,16 +92,18 @@ The first native loop is landed as `epiphany-heartbeat-store serve`. It reuses
 the existing routine state owner, writes per-pulse artifact directories, emits
 compact sealed pulse/closure receipts, refuses a zero interval, and supports
 bounded clean shutdown for verification. It does not spawn or own child
-lifecycle. `tools/epiphany_ruminate_until.ps1` still owns the old attached
-operator vigil and must be demoted after Idunn proves the native service path.
+lifecycle. The old attached PowerShell rumination vigil has been deleted; it no
+longer owns timing, loop survival, or cycle status.
 
 ### Intended change
 
-Launch the native `serve` loop through the existing Idunn service lifecycle
-path. The heartbeat binary owns
-pulse timing and typed heartbeat receipts. Idunn owns child survival, restart,
-stdout/stderr artifacts, and lifecycle receipts. Self remains only the routing
-organ consuming heartbeat pressure.
+The bounded Idunn launch boundary is proven: the native loop survives brake
+refusals, resumes from the same persisted store, and can be launched again by
+Idunn without duplicate pending turns. The heartbeat binary owns pulse timing
+and typed heartbeat receipts. Idunn owns child launch, stdout/stderr artifacts,
+and lifecycle receipts. Self remains only the routing organ consuming heartbeat
+pressure. The remaining step is durable Idunn restart policy and compact
+operator readback for the heartbeat service, not another explicit launch smoke.
 
 ### Owner
 
@@ -142,9 +144,8 @@ daemon is orchestration around those owners, not a second scheduler.
 
 ### Cut line
 
-Demote `tools/epiphany_ruminate_until.ps1` to a historical/operator probe after
-the native loop and Idunn launch proof exist. Do not preserve its timing,
-status, or cycle-directory conventions as runtime authority.
+The attached PowerShell rumination vigil is deleted. Do not preserve its
+timing, status, or cycle-directory conventions as runtime authority.
 
 ### Verification
 

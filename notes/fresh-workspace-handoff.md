@@ -2190,6 +2190,18 @@ completed two one-second pulses and stopped cleanly. Next launch the native
 serve loop through Idunn, prove persisted-state restart without duplicate
 pending turns, and make an engaged swarm brake observable without killing the
 service.
+That service proof is complete. Brake/resume smoke root
+`C:\Users\Meta\AppData\Local\Temp\epiphany-heartbeat-brake-4426a98f9c8e457784741fac5300d56c`
+recorded two `refused-by-swarm-brake` pulses, clean closure with zero routines,
+then one successful routine after release on the same store. Idunn launched
+service `idunn-epiphany-heartbeat` for two routines and
+`idunn-epiphany-heartbeat-restart` for a separate persisted-state restart; both
+had empty stderr and compact clean closure receipts. Lifecycle receipt ids are
+`daemon-service-lifecycle-receipt-idunn-epiphany-heartbeat-launch` and
+`daemon-service-lifecycle-receipt-idunn-epiphany-heartbeat-restart-launch`.
+The old `tools/epiphany_ruminate_until.ps1` attached loop is deleted. Next give
+Idunn a durable typed heartbeat service policy/readback so restart intent and
+current pulse status survive beyond an explicit operator `service-launch`.
 
 ## Immediate Re-entry Instruction
 

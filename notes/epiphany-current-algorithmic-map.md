@@ -355,6 +355,13 @@ artifact identity and success, supports bounded clean shutdown through
 Heartbeat owns pulse timing; the next cut is to launch this binary through
 Idunn and prove restart/resume, swarm-brake observability, and lifecycle
 readback before demoting the PowerShell rumination vigil.
+That cut is now proven. An engaged brake produced two compact refused pulses
+without terminating `serve`; releasing it let the same persisted store complete
+a routine. Idunn then launched two pulses and a separate one-pulse restart from
+that store with empty stderr and lifecycle receipts. The attached PowerShell
+vigil is deleted. The remaining service boundary is durable Idunn policy and
+operator readback: advertise/configure the heartbeat service through typed
+daemon state so restart intent survives beyond one explicit `service-launch`.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's proprioception.
