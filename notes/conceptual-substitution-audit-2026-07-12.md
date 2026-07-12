@@ -124,3 +124,17 @@ calls this primitive on the shared heartbeat/serve path before writing its own
 liveness. An unknown daemon is refused before any provider document is written.
 The quarantined aggregate smoke iterates the same one-daemon primitive rather
 than using a privileged fixture shortcut.
+
+## Heartbeat/bootstrap split
+
+After provider publication moved into `epiphany-cluster-daemon`, its heartbeat
+path still called the generic local Verse bootstrap. A daemon could therefore
+repaint Self-owned policy, topology, contracts, brake initialization, and
+operator status merely by emitting liveness.
+
+Heartbeat and serve no longer bootstrap or query the full Verse context. They
+require persisted topology, load only narrow liveness rows, publish only the
+owning daemon's provider state, and write only its heartbeat. An unbootstrapped
+daemon fails before creating the CultCache store and tells the operator to run
+explicit bootstrap. The wrapper already performs that bootstrap at the
+operator boundary.
