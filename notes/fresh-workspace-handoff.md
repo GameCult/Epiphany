@@ -2047,6 +2047,20 @@ tests prove unsolicited findings are refused; all 248 library tests pass. The
 close command still creates both documents from explicit CLI cargo, so the next
 cut is to split Soul verification from close and let the scheduler route this
 request through the Modeling daemon before immutable closure admission.
+Soul is now structurally separated from that later admission. The shared
+closure pipeline has a `SoulOnly` phase exposed as `epiphany-work verify`; the
+first scheduler pulse after Hands execution runs it, persists a passing or
+failing Soul verdict, emits the typed Modeling request only after a pass, and
+stops. Modeling is no longer part of Soul's pass/fail equation. A non-passing
+Modeling verdict leaves `work-close-<item>.json` at `awaiting-modeling` with
+Soul still `passed`; overview reports the same gate instead of treating any
+close-shaped artifact as publication-ready. Disposable smoke
+`.epiphany-smoke/closure-model-gate-20260712-094208` proved a passing Modeling
+result closes and a `needs-work` result remains at the Modeling gate with
+family/path checks passed and no private-state exposure. Authority tests pass
+3/3 and all 248 library tests pass. Next route the persisted request through a
+real Modeling worker/daemon and consume its typed result without CLI-supplied
+finding cargo.
 
 ## Immediate Re-entry Instruction
 

@@ -204,9 +204,9 @@ Delete or demote:
 
 ## Immediate Next Action
 
-Split Soul verification from repo-work closure. Let Self emit the existing
-typed, immutable `epiphany.modeling.repo_work_request.v0`, route it to the
-Modeling daemon, and await the matching finding before the existing Mind/map
-admission runs. Prove the fresh-repository path reaches Bifrost while Self
-cannot synthesize Modeling evidence. The request/finding persistence boundary
-and unsolicited-finding refusal already exist; do not add a parallel route.
+Route the persisted `epiphany.modeling.repo_work_request.v0` through the real
+Modeling worker/daemon and consume its matching typed finding before existing
+Mind/map admission. Soul verification is already a separate scheduler phase;
+do not rejoin it to Modeling or introduce CLI cargo as scheduler truth. Prove a
+fresh-repository scheduler timeline reaches Bifrost while Self cannot author
+Modeling evidence.

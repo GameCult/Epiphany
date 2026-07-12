@@ -148,8 +148,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         ],
         true,
     )?;
-    require_eq(&bad.close, &["status"], "verification-failed")?;
-    require_eq(&bad.close, &["soul", "verdict"], "failed")?;
+    require_eq(&bad.close, &["status"], "awaiting-modeling")?;
+    require_eq(&bad.close, &["soul", "verdict"], "passed")?;
     require_eq(
         &bad.close,
         &["closureReview", "modelingReview", "closureReview", "status"],
@@ -186,6 +186,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "blockItem": bad.item,
         "blockCloseStatus": bad.close["status"],
         "blockSoulVerdict": bad.close["soul"]["verdict"],
+        "blockModelingRequestId": bad.close["modeling"]["requestId"],
         "blockModelStatus": bad.close["closureReview"]["modelingReview"]["closureReview"]["status"],
         "blockFamilyAssertionsStatus": bad.close["closureReview"]["familyAssertions"]["status"],
         "blockPathScopeMatched": bad.close["closureReview"]["sourceGrounding"]["pathScopeMatched"],

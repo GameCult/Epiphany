@@ -117,6 +117,15 @@ request and matches its verified consequence. The current close command writes
 both phase documents from explicit CLI cargo; scheduler launch and asynchronous
 result collection remain the next cut.
 
+Soul verification is now an explicit phase of the shared closure pipeline.
+`epiphany-work verify` and the first post-execution scheduler pulse run only
+that phase: deterministic verification, immutable Soul verdict, and immutable
+Self-to-Modeling request. Modeling absence or a non-passing Modeling verdict can
+no longer make Soul report failure. The partial closure artifact is
+`status=awaiting-modeling`; overview and later scheduler pulses preserve that
+gate rather than mistaking file existence for Mind admission. The scheduler
+source contains neither the Modeling finding writer nor map admission.
+
 The
 accepted interpretation is persisted as
 `epiphany.modeling.repo_work_finding.v0`; it references the passing Soul verdict,

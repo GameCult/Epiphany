@@ -117,6 +117,7 @@ fn main() -> Result<()> {
         "run" => run_work(parse_run_args(args)?),
         "adopt" | "promote" => run_adopt(parse_adopt_args(args)?),
         "execute" | "exec" => run_execute(parse_execute_args(args)?),
+        "verify" | "soul-verify" => run_verify(parse_close_args(args)?),
         "close" | "closure" | "verify-close" => run_close(parse_close_args(args)?),
         "publish" => run_publish(parse_publish_args(args)?),
         "sync" | "sync-main" => run_sync(parse_sync_args(args)?),
@@ -288,6 +289,12 @@ struct CloseArgs {
     require_source_grounding: bool,
     model_authored: bool,
     state_revision: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ClosurePhase {
+    SoulOnly,
+    Full,
 }
 
 #[derive(Clone, Debug)]
@@ -11151,7 +11158,15 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
     }))
 }
 
+fn run_verify(args: CloseArgs) -> Result<Value> {
+    run_closure_pipeline(args, ClosurePhase::SoulOnly)
+}
+
 fn run_close(args: CloseArgs) -> Result<Value> {
+    run_closure_pipeline(args, ClosurePhase::Full)
+}
+
+fn run_closure_pipeline(args: CloseArgs, phase: ClosurePhase) -> Result<Value> {
     let workspace = args
         .workspace
         .canonicalize()
@@ -11275,7 +11290,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         "workspace": workspace,
         "receiptId": closure_review_id,
         "item": item,
-        "owner": "Soul+Modeling",
+        "owner": "Soul",
         "stateGate": "Mind",
         "executeReceiptPath": execute_receipt_path,
         "runtimeStore": runtime_store,
@@ -11327,15 +11342,14 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         "nextSafeMove": "Soul may pass closure only when verification succeeds, actual git changed paths match the Hands-declared path scope, the accepted Mind adoption proof is present, safe-family assertions pass for known Imagination families, and any supplied or required model-authored closure verdict passes."
     });
     write_json(&closure_review_path, &closure_review)?;
-    let verification_passed = verification.status.success()
+    let soul_verification_passed = verification.status.success()
         && path_scope_matched
         && verification_source_grounded
         && mind_adoption_passed
-        && family_assertions_passed
-        && model_closure_passed;
+        && family_assertions_passed;
     let soul_verdict_id = format!("repo-work-close-{item_slug}-soul-verdict");
     let soul_summary = args.verification_summary.unwrap_or_else(|| {
-        if verification_passed {
+        if soul_verification_passed {
             format!("Soul verified branch-local commit {commit_sha} for repo work item {item}.")
         } else if !path_scope_matched {
             format!(
@@ -11352,10 +11366,6 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !family_assertions_passed {
             format!(
                 "Soul verification failed for branch-local commit {commit_sha}: safe-family assertions did not pass."
-            )
-        } else if !model_closure_passed {
-            format!(
-                "Soul verification failed for branch-local commit {commit_sha}: model-authored closure review did not pass."
             )
         } else {
             format!("Soul verification failed for branch-local commit {commit_sha}.")
@@ -11375,14 +11385,14 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         receipt_id: soul_verdict_id.clone(),
         source_result_id: format!("repo-work-execute-{item_slug}"),
         source_job_id: format!("repo-work-close-{item_slug}"),
-        verdict: if verification_passed {
+        verdict: if soul_verification_passed {
             "passed".to_string()
         } else {
             "failed".to_string()
         },
         summary: soul_summary.clone(),
         evidence_ids: evidence_ids.clone(),
-        risks: if verification_passed {
+        risks: if soul_verification_passed {
             Vec::new()
         } else if !path_scope_matched {
             vec![
@@ -11402,11 +11412,6 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         } else if !family_assertions_passed {
             vec![
                 "Closure refused because the committed content did not satisfy known safe-family assertions."
-                    .to_string(),
-            ]
-        } else if !model_closure_passed {
-            vec![
-                "Closure refused because the model-authored closure review was missing or non-passing."
                     .to_string(),
             ]
         } else {
@@ -11430,7 +11435,7 @@ fn run_close(args: CloseArgs) -> Result<Value> {
     }
 
     let closure_receipt_path = artifact_dir.join(format!("work-close-{item_slug}.json"));
-    if !verification_passed {
+    if !soul_verification_passed {
         let failed_receipt = json!({
             "schemaVersion": "epiphany.repo_work_closure_receipt.v0",
             "createdAt": now,
@@ -11505,6 +11510,42 @@ fn run_close(args: CloseArgs) -> Result<Value> {
         modeling_request = existing;
     } else {
         put_repo_work_modeling_request(&runtime_store, &modeling_request)?;
+    }
+    if phase == ClosurePhase::SoulOnly || !model_closure_passed {
+        let awaiting_receipt = json!({
+            "schemaVersion": "epiphany.repo_work_closure_receipt.v0",
+            "createdAt": now,
+            "workspace": workspace,
+            "runtimeStore": runtime_store,
+            "executeReceiptPath": execute_receipt_path,
+            "item": item,
+            "status": "awaiting-modeling",
+            "soul": {
+                "verdictReceiptId": soul_verdict.receipt_id,
+                "verdict": soul_verdict.verdict,
+                "summary": soul_verdict.summary,
+                "closureReviewReceiptId": closure_review_id,
+                "closureReviewPath": normalize_path_for_receipt(&closure_review_path)
+            },
+            "closureReview": closure_review,
+            "modeling": {
+                "requestId": modeling_request.request_id,
+                "requester": modeling_request.requester,
+                "findingReceiptId": Value::Null
+            },
+            "authority": {
+                "owner": "Self",
+                "routedSoulResult": true,
+                "authoredModelingFinding": false,
+                "publicationGateSatisfied": false,
+                "durableStateAdmitted": false,
+                "privateStateExposed": false
+            },
+            "privateStateExposed": false,
+            "nextSafeMove": "Route the typed request to Modeling and resume closure only with its matching finding."
+        });
+        write_json(&closure_receipt_path, &awaiting_receipt)?;
+        return Ok(awaiting_receipt);
     }
     let modeling_finding_receipt_id = format!("repo-work-close-{item_slug}-modeling-finding");
     let mut modeling_finding = RepoWorkModelingFinding {
@@ -14457,20 +14498,61 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             "publication receipt exists; scheduler stops before merge/sync authority".to_string();
         next_safe_move =
             "Wait for maintainer/Bifrost merge receipt, then run epiphany-work sync.".to_string();
-    } else if close_receipt_path.exists() {
+    } else if close_receipt_path.exists()
+        && read_json(&close_receipt_path)?
+            .get("status")
+            .and_then(Value::as_str)
+            == Some("closed")
+    {
         action = "none".to_string();
         status = "noop".to_string();
         reason = "Soul/Modeling/Mind closure is recorded; scheduler stops before Bifrost publication authority".to_string();
         next_safe_move =
             "Route Bifrost/GitHub publication through epiphany-work publish --closure-receipt."
                 .to_string();
-    } else if execute_receipt_path.exists() {
+    } else if close_receipt_path.exists() {
         action = "await-modeling".to_string();
         status = "blocked".to_string();
-        reason = "executed work requires an explicit model-authored Modeling finding before Mind admission"
+        reason = "Soul passed and Self routed a typed Modeling request; no matching Modeling finding is admitted"
             .to_string();
-        next_safe_move = "Run epiphany-work close with --model-authored, --closure-model-ref, --closure-model-verdict, and --closure-model-finding after Modeling reviews the Soul evidence."
+        next_safe_move = "Route the persisted Modeling request to the Modeling daemon, then resume epiphany-work close with its typed result."
             .to_string();
+    } else if execute_receipt_path.exists() {
+        action = "soul-verify".to_string();
+        if args.dry_run {
+            status = "would-advance".to_string();
+            reason = "executed work is ready for Soul verification".to_string();
+            next_safe_move = "Rerun without --dry-run to verify the Hands consequence and emit the typed Modeling request."
+                .to_string();
+        } else {
+            advanced_result = run_verify(CloseArgs {
+                workspace: workspace.clone(),
+                item: Some(item.clone()),
+                execute_receipt: Some(execute_receipt_path.clone()),
+                runtime_store: args.runtime_store.clone(),
+                artifact_dir: Some(artifact_dir.clone()),
+                verification_command: None,
+                verification_summary: None,
+                modeling_summary: None,
+                closure_model_ref: None,
+                closure_model_verdict: None,
+                closure_model_finding: None,
+                require_source_grounding: false,
+                model_authored: false,
+                state_revision: 0,
+            })?;
+            status = advanced_result
+                .get("status")
+                .and_then(Value::as_str)
+                .unwrap_or("awaiting-modeling")
+                .to_string();
+            reason =
+                "Soul verified the Hands consequence and Self routed the typed Modeling request"
+                    .to_string();
+            next_safe_move =
+                "Let the next scheduler pulse await or collect the matching Modeling finding."
+                    .to_string();
+        }
     } else if adopt_receipt_path.exists() {
         if !plan_receipt_path.exists() {
             status = "blocked".to_string();
@@ -15650,11 +15732,31 @@ fn repo_work_overview_gate(
             "merge-or-sync-receipt-missing",
             "After maintainer/Bifrost merge, run epiphany-work sync.",
         )
-    } else if close.is_some() {
+    } else if close
+        .and_then(|receipt| receipt.get("status"))
+        .and_then(Value::as_str)
+        == Some("closed")
+    {
         (
             "awaiting-publication",
             "bifrost-publication-missing",
             "Run epiphany-work publish --closure-receipt when publication is authorized.",
+        )
+    } else if close
+        .and_then(|receipt| receipt.get("status"))
+        .and_then(Value::as_str)
+        == Some("awaiting-modeling")
+    {
+        (
+            "awaiting-modeling",
+            "modeling-finding-missing",
+            "Route the typed Modeling request and resume closure with its matching finding.",
+        )
+    } else if close.is_some() {
+        (
+            "verification-refused",
+            "soul-verdict-not-passed",
+            "Repair the Hands consequence or verification evidence before retrying Soul.",
         )
     } else if execute.is_some() {
         (
@@ -16240,8 +16342,11 @@ mod authority_tests {
             .unwrap_or(source.len());
         let tick = &source[tick_start..tick_end];
         assert!(!tick.contains("run_close(CloseArgs"));
+        assert!(tick.contains("run_verify(CloseArgs"));
         assert!(tick.contains("await-modeling"));
-        assert!(tick.contains("explicit model-authored Modeling finding"));
+        assert!(tick.contains("typed Modeling request"));
+        assert!(!tick.contains("put_repo_work_modeling_finding"));
+        assert!(!tick.contains("commit_repo_work_map_admission"));
         assert!(!source.contains(&["RepoWork", "MapStore"].concat()));
         assert!(!source.contains(&["repo-work-map", ".msgpack"].concat()));
     }
