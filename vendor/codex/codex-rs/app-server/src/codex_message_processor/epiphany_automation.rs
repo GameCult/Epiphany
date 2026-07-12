@@ -26,6 +26,7 @@ use tracing::warn;
 use super::epiphany_thread_host::EpiphanyCodexThreadHost;
 use super::epiphany_thread_host::client_visible_live_thread_epiphany_state;
 use super::epiphany_thread_host::epiphany_token_usage_snapshot;
+use super::epiphany_thread_host::load_authoritative_epiphany_state;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::thread_state::ThreadState;
 
@@ -37,7 +38,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     force_checkpoint_compaction: bool,
 ) {
     let thread_id_text = thread_id.to_string();
-    let Some(state) = thread.epiphany_state().await else {
+    let Some(state) = load_authoritative_epiphany_state(thread.as_ref()).await else {
         return;
     };
 
@@ -119,7 +120,10 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
     if !should_run_epiphany_pre_compaction_checkpoint_intervention(&pressure) {
         return;
     }
-    if thread.epiphany_state().await.is_none() {
+    if load_authoritative_epiphany_state(thread.as_ref())
+        .await
+        .is_none()
+    {
         return;
     }
     {

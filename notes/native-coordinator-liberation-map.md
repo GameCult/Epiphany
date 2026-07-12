@@ -278,7 +278,10 @@ Generic update and promotion now commit through
 `EpiphanyCoordinatorService::apply_state_update_from`. A rollout snapshot may
 seed native state only when the unified store has no state document; once native
 truth exists, stale host input is refused even without an expected revision.
-Only after the native commit succeeds does `epiphany_persist_state` mirror the
-exact committed document for legacy clients, and its return value cannot repair
-or override native truth. The remaining question is whether the rollout mirror
-can be deleted in favor of notification/read projection directly from CultCache.
+The Codex rollout mirror is deleted. New turns neither persist Epiphany state as
+rollout items nor inject a rendered Epiphany state developer message. App-server
+read and automation paths load unified CultCache first and fail closed when that
+document is corrupt; session state is only an empty-store migration seed.
+`stateUpdated` notifications carry the exact native commit result directly.
+Historical rollout reconstruction remains a compatibility reader, not an owner
+or a writer.

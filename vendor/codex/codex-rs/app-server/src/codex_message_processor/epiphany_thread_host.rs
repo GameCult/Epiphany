@@ -6,8 +6,6 @@ use codex_core::latest_epiphany_state_from_rollout_items;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::TokenUsageInfo;
-use epiphany_codex_bridge::error::EpiphanyBridgeError;
-use epiphany_codex_bridge::error::Result as BridgeResult;
 use epiphany_codex_bridge::mutation_service::EpiphanyMutationHost;
 use epiphany_codex_bridge::mutation_service::load_authoritative_accepted_state;
 use epiphany_codex_bridge::pressure::EpiphanyTokenUsageSnapshot;
@@ -45,16 +43,6 @@ impl EpiphanyMutationHost for EpiphanyCodexThreadHost<'_> {
         self.thread.epiphany_reference_turn_id().await
     }
 
-    async fn epiphany_persist_state(
-        &self,
-        next_state: EpiphanyThreadState,
-    ) -> BridgeResult<EpiphanyThreadState> {
-        self.thread
-            .epiphany_persist_state(next_state)
-            .await
-            .map_err(|err| EpiphanyBridgeError::Fatal(err.to_string()))
-    }
-
     async fn epiphany_runtime_spine_store_path(&self) -> std::path::PathBuf {
         self.thread.epiphany_runtime_spine_store_path().await
     }
@@ -88,7 +76,7 @@ pub(super) async fn load_epiphany_state_from_rollout_path(
 pub(super) async fn live_thread_epiphany_state(
     thread: &CodexThread,
 ) -> Option<EpiphanyThreadState> {
-    let state = thread.epiphany_state().await?;
+    let state = load_authoritative_epiphany_state(thread).await?;
     let config = thread.config_snapshot().await;
     let codex_home = thread.codex_home().await;
     let rollout_path = thread.rollout_path();
@@ -102,6 +90,20 @@ pub(super) async fn live_thread_epiphany_state(
         )
         .await,
     )
+}
+
+pub(super) async fn load_authoritative_epiphany_state(
+    thread: &CodexThread,
+) -> Option<EpiphanyThreadState> {
+    let store = thread.epiphany_runtime_spine_store_path().await;
+    match load_authoritative_accepted_state(&store) {
+        Ok(Some(state)) => Some(state),
+        Ok(None) => thread.epiphany_state().await,
+        Err(error) => {
+            tracing::error!(%error, store = %store.display(), "failed to read unified Epiphany state");
+            None
+        }
+    }
 }
 
 pub(super) async fn client_visible_live_thread_epiphany_state(

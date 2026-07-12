@@ -20,11 +20,9 @@ use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::AskForApproval;
-use codex_protocol::protocol::EpiphanyStateItem;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::Op;
-use codex_protocol::protocol::RolloutItem;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::Submission;
@@ -328,26 +326,6 @@ impl CodexThread {
             .reference_context_item()
             .await
             .and_then(|item| item.turn_id)
-    }
-
-    pub async fn epiphany_persist_state(
-        &self,
-        next_state: EpiphanyThreadState,
-    ) -> CodexResult<EpiphanyThreadState> {
-        let reference_turn_id = self.epiphany_reference_turn_id().await;
-        self.codex
-            .session
-            .set_epiphany_state(Some(next_state.clone()))
-            .await;
-        self.codex
-            .session
-            .persist_rollout_items(&[RolloutItem::EpiphanyState(EpiphanyStateItem {
-                turn_id: reference_turn_id,
-                state: next_state.clone(),
-            })])
-            .await;
-        self.codex.session.flush_rollout().await?;
-        Ok(next_state)
     }
 
     pub async fn epiphany_runtime_spine_store_path(&self) -> PathBuf {

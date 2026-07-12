@@ -60,14 +60,6 @@ pub trait EpiphanyMutationHost {
     /// host snapshot is an input fact, not a bridge-owned source of truth.
     async fn epiphany_state(&self) -> Option<EpiphanyThreadState>;
     async fn epiphany_reference_turn_id(&self) -> Option<String>;
-    /// Mirror an already committed native state document for legacy clients.
-    ///
-    /// Native CultCache is authoritative before this hook runs. The returned
-    /// mirror cannot override or repair the native result.
-    async fn epiphany_persist_state(
-        &self,
-        next_state: EpiphanyThreadState,
-    ) -> BridgeResult<EpiphanyThreadState>;
     /// Locate the native runtime-spine store while Codex still hosts the turn.
     async fn epiphany_runtime_spine_store_path(&self) -> PathBuf;
     /// Project the already-typed state into Codex's current client-visible view.
@@ -165,7 +157,6 @@ pub async fn apply_epiphany_state_update_to_thread(
     let applied = epiphany_core::EpiphanyCoordinatorService::new(&store, &store)
         .apply_state_update_from(&thread_id, &current_state, update, reference_turn_id)
         .map_err(|error| EpiphanyBridgeError::InvalidRequest(error.to_string()))?;
-    thread.epiphany_persist_state(applied.state.clone()).await?;
     Ok(applied.state)
 }
 
@@ -574,7 +565,7 @@ fn validate_expected_revision(
 #[cfg(test)]
 mod acceptance_architecture_tests {
     #[test]
-    fn generic_update_commits_native_state_before_legacy_projection() {
+    fn generic_update_commits_native_state_without_rollout_mirror() {
         let source = include_str!("mutation_service.rs");
         let start = source
             .find("pub async fn apply_epiphany_state_update_to_thread")
@@ -584,11 +575,7 @@ mod acceptance_architecture_tests {
             .unwrap();
         let update = &source[start..end];
         assert_eq!(update.matches(".apply_state_update_from(").count(), 1);
-        assert_eq!(update.matches("epiphany_persist_state(").count(), 1);
-        assert!(
-            update.find(".apply_state_update_from(").unwrap()
-                < update.find("epiphany_persist_state(").unwrap()
-        );
+        assert_eq!(update.matches("epiphany_persist_state(").count(), 0);
         assert!(!update.contains("Ok(next_state)"));
         assert!(update.contains("Ok(applied.state)"));
     }

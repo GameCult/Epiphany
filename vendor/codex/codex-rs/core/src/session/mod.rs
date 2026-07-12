@@ -19,7 +19,6 @@ use crate::config::ManagedFeatures;
 use crate::context::ApprovedCommandPrefixSaved;
 use crate::context::CollaborationModeInstructions;
 use crate::context::ContextualUserFragment;
-use crate::context::EpiphanyStateInstructions;
 use crate::context::NetworkRuleSaved;
 use crate::context::PermissionsInstructions;
 use crate::context::PersonalitySpecInstructions;
@@ -87,7 +86,6 @@ use codex_protocol::models::format_allow_prefixes;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::permissions::FileSystemSandboxPolicy;
 use codex_protocol::permissions::NetworkSandboxPolicy;
-use codex_protocol::protocol::EpiphanyStateItem;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::FileChange;
 use codex_protocol::protocol::HasLegacyEvent;
@@ -2345,7 +2343,6 @@ impl Session {
             collaboration_mode,
             base_instructions,
             session_source,
-            epiphany_state,
         ) = {
             let state = self.state.lock().await;
             (
@@ -2354,7 +2351,6 @@ impl Session {
                 state.session_configuration.collaboration_mode.clone(),
                 state.session_configuration.base_instructions.clone(),
                 state.session_configuration.session_source.clone(),
-                state.epiphany_state(),
             )
         };
         if let Some(model_switch_message) =
@@ -2406,9 +2402,6 @@ impl Session {
             CollaborationModeInstructions::from_collaboration_mode(&collaboration_mode)
         {
             developer_sections.push(collab_instructions.render());
-        }
-        if let Some(epiphany_state) = epiphany_state.as_ref() {
-            developer_sections.push(EpiphanyStateInstructions::from_state(epiphany_state).render());
         }
         if let Some(realtime_update) = crate::context_manager::updates::build_initial_realtime_item(
             reference_context_item.as_ref(),
@@ -2549,14 +2542,6 @@ impl Session {
         // latest durable baseline even when this turn emitted no model-visible context diffs.
         self.persist_rollout_items(&[RolloutItem::TurnContext(turn_context_item.clone())])
             .await;
-        if let Some(epiphany_state) = self.epiphany_state().await {
-            self.persist_rollout_items(&[RolloutItem::EpiphanyState(EpiphanyStateItem {
-                turn_id: turn_context_item.turn_id.clone(),
-                state: epiphany_state,
-            })])
-            .await;
-        }
-
         // Advance the in-memory diff baseline even when this turn emitted no model-visible
         // context items. This keeps later runtime diffing aligned with the current turn state.
         let mut state = self.state.lock().await;

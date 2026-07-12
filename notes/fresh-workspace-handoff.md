@@ -1886,11 +1886,13 @@ focused core test and status-command test prove the transition. Explicit
 `EpiphanyCoordinatorService::interrupt_job`; nine bridge tests prove no local
 binding mutation policy remains, and the vendored app-server compiles. Generic update and promotion
 commit via `EpiphanyCoordinatorService::apply_state_update_from`, allow a legacy
-rollout to seed only an empty unified store, refuse stale host overwrite, then
-mirror the exact committed state to rollout for legacy clients. Ten bridge tests
-and two coordinator-state tests pass; the vendored app-server compiles. Next
-decide whether the rollout mirror can be deleted and notifications/readback
-projected directly from unified CultCache.
+rollout to seed only an empty unified store, and refuse stale host overwrite.
+The rollout mirror and per-turn rollout writer are deleted; Codex no longer
+injects Epiphany state through developer messages. App-server reads and
+automation prefer unified CultCache and fail closed on corrupt native state,
+while `stateUpdated` notifications carry the native commit result directly.
+Historical rollout reconstruction remains migration-only. Next audit whether
+the remaining session fallback and compatibility routes can be narrowed further.
 
 ## Immediate Re-entry Instruction
 

@@ -5135,12 +5135,10 @@ async fn record_context_updates_and_set_reference_context_item_persists_baseline
 }
 
 #[tokio::test]
-async fn record_context_updates_and_set_reference_context_item_persists_epiphany_state_after_turn_context()
- {
+async fn record_context_updates_does_not_persist_epiphany_state() {
     let (session, turn_context) = make_session_and_context().await;
-    let expected_epiphany_state = sample_epiphany_state_for_persistence();
     session
-        .set_epiphany_state(Some(expected_epiphany_state.clone()))
+        .set_epiphany_state(Some(sample_epiphany_state_for_persistence()))
         .await;
     let config = session.get_config().await;
     let recorder = RolloutRecorder::new(
@@ -5177,28 +5175,17 @@ async fn record_context_updates_and_set_reference_context_item_persists_epiphany
         panic!("expected resumed rollout history");
     };
 
-    let turn_context_index = resumed
-        .history
-        .iter()
-        .position(|item| matches!(item, RolloutItem::TurnContext(_)))
-        .expect("persisted turn context");
-    let epiphany_index = resumed
-        .history
-        .iter()
-        .position(|item| matches!(item, RolloutItem::EpiphanyState(_)))
-        .expect("persisted epiphany state");
-    assert!(turn_context_index < epiphany_index);
-
-    let persisted_epiphany_state = resumed.history.iter().find_map(|item| match item {
-        RolloutItem::EpiphanyState(item) => Some(item.clone()),
-        _ => None,
-    });
-    assert_eq!(
-        persisted_epiphany_state,
-        Some(EpiphanyStateItem {
-            turn_id: turn_context.to_turn_context_item().turn_id,
-            state: expected_epiphany_state,
-        })
+    assert!(
+        resumed
+            .history
+            .iter()
+            .any(|item| matches!(item, RolloutItem::TurnContext(_)))
+    );
+    assert!(
+        !resumed
+            .history
+            .iter()
+            .any(|item| matches!(item, RolloutItem::EpiphanyState(_)))
     );
 }
 
@@ -5323,7 +5310,7 @@ async fn build_initial_context_prepends_model_switch_message() {
 }
 
 #[tokio::test]
-async fn build_initial_context_includes_epiphany_state_block_when_present() {
+async fn build_initial_context_does_not_inject_epiphany_state_when_present() {
     let (session, turn_context) = make_session_and_context().await;
     session
         .set_epiphany_state(Some(sample_epiphany_state_for_prompt()))
@@ -5332,10 +5319,8 @@ async fn build_initial_context_includes_epiphany_state_block_when_present() {
     let initial_context = session.build_initial_context(&turn_context).await;
     let developer_text = joined_developer_input_text(&initial_context);
 
-    assert!(developer_text.contains("<epiphany_state>"));
-    assert!(developer_text.contains("## Epiphany State"));
-    assert!(developer_text.contains("Keep the prompt path oriented around the real thread state."));
-    assert!(developer_text.contains("`phase2-prompt`"));
+    assert!(!developer_text.contains("<epiphany_state>"));
+    assert!(!developer_text.contains("## Epiphany State"));
 }
 
 #[tokio::test]
@@ -5349,7 +5334,7 @@ async fn build_initial_context_omits_epiphany_state_block_when_absent() {
 }
 
 #[tokio::test]
-async fn build_initial_context_includes_resumed_epiphany_state_block() {
+async fn build_initial_context_does_not_inject_resumed_epiphany_state() {
     let (session, turn_context) = make_session_and_context().await;
     let turn_context_item = turn_context.to_turn_context_item();
     let turn_id = turn_context_item
@@ -5387,12 +5372,12 @@ async fn build_initial_context_includes_resumed_epiphany_state_block() {
     let initial_context = session.build_initial_context(&turn_context).await;
     let developer_text = joined_developer_input_text(&initial_context);
 
-    assert!(developer_text.contains("<epiphany_state>"));
-    assert!(developer_text.contains("Checkpoint: `phase2-checkpoint` (graph revision 7)"));
+    assert!(!developer_text.contains("<epiphany_state>"));
+    assert!(!developer_text.contains("Checkpoint: `phase2-checkpoint` (graph revision 7)"));
 }
 
 #[tokio::test]
-async fn build_initial_context_epiphany_state_snapshot() {
+async fn build_initial_context_epiphany_state_has_no_prompt_projection() {
     let (session, turn_context) = make_session_and_context().await;
     session
         .set_epiphany_state(Some(sample_epiphany_state_for_prompt()))
@@ -5401,15 +5386,7 @@ async fn build_initial_context_epiphany_state_snapshot() {
     let initial_context = session.build_initial_context(&turn_context).await;
     let developer_text = joined_developer_input_text(&initial_context);
 
-    let mut settings = insta::Settings::clone_current();
-    settings.set_snapshot_path("snapshots");
-    settings.set_prepend_module_to_snapshot(false);
-    settings.bind(|| {
-        insta::assert_snapshot!(
-            "codex_core__session__build_initial_context_epiphany_state",
-            developer_text
-        );
-    });
+    assert!(!developer_text.contains("<epiphany_state>"));
 }
 
 #[tokio::test]
