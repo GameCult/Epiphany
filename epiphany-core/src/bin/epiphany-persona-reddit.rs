@@ -36,7 +36,7 @@ struct PersonaRedditConfig {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PersonaSpeechAudit {
-    #[serde(rename = "schema_version")]
+    #[serde(alias = "schema_version")]
     schema_version: String,
     audit_id: String,
     created_at: String,
@@ -52,6 +52,60 @@ struct PersonaSpeechAudit {
     repeated_topic_count: usize,
     same_target_post_count: usize,
     audit_path: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum PersonaRedditPostStatus {
+    Draft,
+    Blocked,
+    Posted,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BifrostRedditPublicationProvenance {
+    bifrost_identity: String,
+    source_kind: String,
+    source_id: String,
+    authority_reference: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    epiphany_run_id: Option<String>,
+    epiphany_lane_id: String,
+    epiphany_agent_identity: String,
+    heimdall_capability_ref: String,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BifrostRedditPublicationReceipt {
+    action: String,
+    ok: bool,
+    subreddit: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    thing_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
+    crossing_receipt_id: String,
+    provenance: BifrostRedditPublicationProvenance,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersonaRedditPostArtifact {
+    schema_version: String,
+    created_at: String,
+    status: PersonaRedditPostStatus,
+    reason: String,
+    subreddit: String,
+    persona_name: Option<String>,
+    persona_flair_id: Option<String>,
+    persona_flair_text: Option<String>,
+    title: String,
+    content: String,
+    speech_audit: Option<PersonaSpeechAudit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bifrost_bridge_receipt: Option<BifrostRedditPublicationReceipt>,
 }
 
 #[derive(Clone, Debug)]
@@ -112,8 +166,6 @@ fn main() -> Result<()> {
                 &artifact_dir,
                 &cultmesh_store,
                 &runtime_id,
-                "draft",
-                "drafted without posting",
             )?
         }
         "post" => {
@@ -156,8 +208,6 @@ fn run_draft(
     artifact_dir: &Path,
     cultmesh_store: &Path,
     runtime_id: &str,
-    status: &str,
-    reason: &str,
 ) -> Result<Value> {
     ensure_post(title, content)?;
     let audit = audit_persona_speech(
@@ -174,13 +224,13 @@ fn run_draft(
         content,
         config,
         artifact_dir,
-        status,
-        reason,
+        PersonaRedditPostStatus::Draft,
+        "drafted without posting",
         Some(&audit),
         None,
     )?;
     Ok(serde_json::json!({
-        "ok": status != "blocked",
+        "ok": true,
         "posted": false,
         "draftPath": path,
         "speechAudit": audit,
@@ -216,7 +266,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaRedditPostStatus::Blocked,
             &format!("speech audit blocked: {}", audit.reasons.join("; ")),
             Some(&audit),
             None,
@@ -235,7 +285,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaRedditPostStatus::Blocked,
             "missing Bifrost-owned subreddit",
             Some(&audit),
             None,
@@ -254,7 +304,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaRedditPostStatus::Blocked,
             "missing Bifrost bridge CLI path",
             Some(&audit),
             None,
@@ -273,7 +323,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaRedditPostStatus::Blocked,
             "missing Bifrost identity for public Persona crossing",
             Some(&audit),
             None,
@@ -292,7 +342,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaRedditPostStatus::Blocked,
             "missing Heimdall-backed Reddit capability/account reference for public Persona crossing; register the Bifrost identity, link it to Heimdall, and provide a heimdall:reddit:* reference",
             Some(&audit),
             None,
@@ -311,7 +361,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaRedditPostStatus::Blocked,
             "Heimdall reference must be shaped for Reddit public Persona crossings: heimdall:reddit:*",
             Some(&audit),
             None,
@@ -342,7 +392,7 @@ fn run_post(
         content,
         config,
         artifact_dir,
-        "posted",
+        PersonaRedditPostStatus::Posted,
         "posted through Bifrost reddit-post",
         Some(&audit),
         Some(&receipt),
@@ -352,8 +402,8 @@ fn run_post(
         "posted": true,
         "transport": "bifrost.reddit-post",
         "subreddit": target_subreddit,
-        "thingId": receipt["thingId"].as_str().or_else(|| receipt["externalReceiptId"].as_str()),
-        "url": receipt["url"].as_str(),
+        "thingId": receipt.thing_id.as_deref(),
+        "url": receipt.url.as_deref(),
         "bifrostBridgeReceipt": receipt,
         "draftPath": path,
         "speechAudit": audit,
@@ -372,7 +422,7 @@ fn post_bifrost_reddit_thread(
     persona_flair_id: Option<&str>,
     persona_flair_text: Option<&str>,
     audit: &PersonaSpeechAudit,
-) -> Result<Value> {
+) -> Result<BifrostRedditPublicationReceipt> {
     let persona_name = persona_name
         .or(config.persona_name.as_deref())
         .unwrap_or("Epiphany Persona");
@@ -453,7 +503,8 @@ fn post_bifrost_reddit_thread(
         subreddit,
         audit,
     )?;
-    Ok(receipt)
+    serde_json::from_value(receipt)
+        .context("Bifrost bridge receipt did not match the typed Reddit publication contract")
 }
 
 fn validate_reddit_publication_receipt(
@@ -724,8 +775,6 @@ console.log(JSON.stringify({
         &temp_dir,
         &cultmesh_store,
         runtime_id,
-        "draft",
-        "drafted without posting",
     )?;
     let missing_bridge = run_post(
         "Epiphany missing bridge",
@@ -802,7 +851,7 @@ console.log(JSON.stringify({
         "Modeling and Soul keep circling the same public proof seam.",
         &config,
         &temp_dir,
-        "posted",
+        PersonaRedditPostStatus::Posted,
         "seed prior Reddit post for speech-audit smoke",
         Some(&seed),
         None,
@@ -816,7 +865,7 @@ console.log(JSON.stringify({
         "Modeling and Soul keep circling the same public proof seam.",
         &config,
         &temp_dir,
-        "posted",
+        PersonaRedditPostStatus::Posted,
         "seed second prior Reddit post for speech-audit smoke",
         Some(&seed),
         None,
@@ -836,7 +885,22 @@ console.log(JSON.stringify({
     let latest_cultmesh_audit =
         load_latest_epiphany_cultmesh_persona_speech_audit(&cultmesh_store, runtime_id)?
             .context("Persona Reddit smoke expected latest CultMesh audit")?;
+    let draft_artifact: Value = serde_json::from_str(&fs::read_to_string(
+        draft["draftPath"]
+            .as_str()
+            .context("Reddit smoke draft path was missing")?,
+    )?)?;
+    let posted_artifact: Value = serde_json::from_str(&fs::read_to_string(
+        bridged["draftPath"]
+            .as_str()
+            .context("Reddit smoke posted path was missing")?,
+    )?)?;
     let ok = draft["ok"] == true
+        && reddit_artifact_has_contract(&draft_artifact, false)
+        && reddit_artifact_has_contract(&posted_artifact, true)
+        && posted_artifact["status"] == "posted"
+        && posted_artifact["bifrostBridgeReceipt"]["crossingReceiptId"]
+            == "crossing_smoke-reddit-post"
         && missing_bridge["ok"] == false
         && missing_bridge["blocked"] == "missing-bifrost-bridge"
         && missing_capability["ok"] == false
@@ -868,6 +932,8 @@ console.log(JSON.stringify({
         "verifiedPostCount": verified_post_count,
         "repeatedSpeech": repeated,
         "latestCultMeshSpeechAudit": latest_cultmesh_audit,
+        "draftArtifactContractExact": reddit_artifact_has_contract(&draft_artifact, false),
+        "postedArtifactContractExact": reddit_artifact_has_contract(&posted_artifact, true),
     });
     let _ = fs::remove_dir_all(&temp_dir);
     Ok(result)
@@ -878,31 +944,31 @@ fn write_post_artifact(
     content: &str,
     config: &PersonaRedditConfig,
     artifact_dir: &Path,
-    status: &str,
+    status: PersonaRedditPostStatus,
     reason: &str,
     speech_audit: Option<&PersonaSpeechAudit>,
-    bridge_receipt: Option<&Value>,
+    bridge_receipt: Option<&BifrostRedditPublicationReceipt>,
 ) -> Result<PathBuf> {
-    let payload = serde_json::json!({
-        "schema_version": POST_SCHEMA_VERSION,
-        "created_at": now_iso(),
-        "status": status,
-        "reason": reason,
-        "subreddit": config.subreddit,
-        "persona_name": config.persona_name,
-        "persona_flair_id": config.persona_flair_id,
-        "persona_flair_text": config.persona_flair_text,
-        "title": title.trim(),
-        "content": content.trim(),
-        "speechAudit": speech_audit,
-        "bifrostBridgeReceipt": bridge_receipt,
-    });
+    let payload = PersonaRedditPostArtifact {
+        schema_version: POST_SCHEMA_VERSION.to_string(),
+        created_at: now_iso(),
+        status,
+        reason: reason.to_string(),
+        subreddit: config.subreddit.clone(),
+        persona_name: config.persona_name.clone(),
+        persona_flair_id: config.persona_flair_id.clone(),
+        persona_flair_text: config.persona_flair_text.clone(),
+        title: title.trim().to_string(),
+        content: content.trim().to_string(),
+        speech_audit: speech_audit.cloned(),
+        bifrost_bridge_receipt: bridge_receipt.cloned(),
+    };
     let path = artifact_dir.join(format!(
         "Persona-reddit-{}-{}.json",
         now_stamp(),
         short_id()
     ));
-    write_json(&path, &payload)?;
+    write_json(&path, &serde_json::to_value(payload)?)?;
     Ok(path)
 }
 
@@ -931,7 +997,7 @@ fn latest_persona_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
                 "path": path,
                 "name": path.file_name().and_then(|name| name.to_str()),
                 "modifiedAt": modified_at.to_rfc3339_opts(SecondsFormat::Secs, true),
-                "schemaVersion": payload.get("schema_version"),
+                "schemaVersion": payload.get("schemaVersion").or_else(|| payload.get("schema_version")),
                 "status": payload.get("status"),
                 "reason": payload.get("reason"),
                 "title": payload.get("title"),
@@ -987,6 +1053,31 @@ fn has_bound_reddit_publication(payload: &Value) -> bool {
         && (non_empty(&receipt["thingId"]) || non_empty(&receipt["url"]))
         && non_empty(&receipt["crossingReceiptId"])
         && receipt["provenance"]["sourceId"].as_str() == Some(audit_id)
+}
+
+fn reddit_artifact_has_contract(payload: &Value, expects_receipt: bool) -> bool {
+    const REQUIRED: [&str; 11] = [
+        "content",
+        "createdAt",
+        "personaFlairId",
+        "personaFlairText",
+        "personaName",
+        "reason",
+        "schemaVersion",
+        "speechAudit",
+        "status",
+        "subreddit",
+        "title",
+    ];
+    payload.as_object().is_some_and(|object| {
+        object.len() == REQUIRED.len() + usize::from(expects_receipt)
+            && REQUIRED.iter().all(|key| object.contains_key(*key))
+            && object.contains_key("bifrostBridgeReceipt") == expects_receipt
+            && matches!(
+                payload["status"].as_str(),
+                Some("draft" | "blocked" | "posted")
+            )
+    })
 }
 
 fn ensure_post(title: &str, content: &str) -> Result<()> {

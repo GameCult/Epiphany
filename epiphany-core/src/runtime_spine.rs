@@ -3828,9 +3828,12 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.persona_bubble.v0",
                 "epiphany.persona_chat.v0",
                 "epiphany.character_turn_packet.v0",
+                "epiphany.persona_reddit_post.v0",
+                "epiphany.persona_other_request.v0",
             ],
             vec![
-                "Persona bubble, draft, Discord, and Reddit public mouth affordances are projected from typed Persona and character-loop artifacts; public crossings route through Bifrost.",
+                "Persona bubble, Discord chat, Reddit post, and Other crossing-request artifacts are projected as discriminated typed references; public crossings route through Bifrost.",
+                "The Persona surface owns read projection only. It does not own speech eligibility, Mind admission, Bifrost request acceptance, publication, or provider delivery.",
                 "Humans talk to Persona; sealed inner thoughts stay behind the projection boundary.",
             ],
         ),

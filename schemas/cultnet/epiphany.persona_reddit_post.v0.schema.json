@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.persona_reddit_post.v0.schema.json",
+  "title": "Epiphany Persona Reddit Post Artifact",
+  "description": "Typed local Persona Reddit draft, block, or Bifrost-bound publication evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "epiphany.persona_reddit_post.v0" },
+    "createdAt": { "type": "string" },
+    "status": { "type": "string", "enum": ["draft", "blocked", "posted"] },
+    "reason": { "type": "string" },
+    "subreddit": { "type": "string" },
+    "personaName": { "type": ["string", "null"] },
+    "personaFlairId": { "type": ["string", "null"] },
+    "personaFlairText": { "type": ["string", "null"] },
+    "title": { "type": "string" },
+    "content": { "type": "string" },
+    "speechAudit": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/definitions/speechAudit" }
+      ]
+    },
+    "bifrostBridgeReceipt": { "$ref": "#/definitions/bifrostReceipt" }
+  },
+  "required": [
+    "schemaVersion", "createdAt", "status", "reason", "subreddit",
+    "personaName", "personaFlairId", "personaFlairText", "title", "content", "speechAudit"
+  ],
+  "definitions": {
+    "speechAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "const": "epiphany.persona_speech_audit.v0" },
+        "auditId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "actionKind": { "type": "string" },
+        "decision": { "type": "string" },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "contentFingerprint": { "type": "string" },
+        "openingKey": { "type": "string" },
+        "topicKey": { "type": "string" },
+        "requestedPublicTarget": { "type": ["string", "null"] },
+        "recentWindowCount": { "type": "integer", "minimum": 0 },
+        "repeatedOpeningCount": { "type": "integer", "minimum": 0 },
+        "repeatedTopicCount": { "type": "integer", "minimum": 0 },
+        "sameTargetPostCount": { "type": "integer", "minimum": 0 },
+        "auditPath": { "type": "string" }
+      },
+      "required": [
+        "schemaVersion", "auditId", "createdAt", "actionKind", "decision", "reasons",
+        "contentFingerprint", "openingKey", "topicKey", "requestedPublicTarget",
+        "recentWindowCount", "repeatedOpeningCount", "repeatedTopicCount",
+        "sameTargetPostCount", "auditPath"
+      ]
+    },
+    "bifrostReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": { "const": "reddit-post" },
+        "ok": { "const": true },
+        "subreddit": { "type": "string" },
+        "thingId": { "type": "string" },
+        "url": { "type": "string" },
+        "crossingReceiptId": { "type": "string" },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bifrostIdentity": { "type": "string" },
+            "sourceKind": { "type": "string" },
+            "sourceId": { "type": "string" },
+            "authorityReference": { "type": "string" },
+            "epiphanyRunId": { "type": "string" },
+            "epiphanyLaneId": { "const": "Persona" },
+            "epiphanyAgentIdentity": { "const": "epiphany.Persona" },
+            "heimdallCapabilityRef": { "type": "string" }
+          },
+          "required": [
+            "bifrostIdentity", "sourceKind", "sourceId", "authorityReference",
+            "epiphanyLaneId", "epiphanyAgentIdentity", "heimdallCapabilityRef"
+          ]
+        }
+      },
+      "required": ["action", "ok", "subreddit", "crossingReceiptId", "provenance"],
+      "anyOf": [{ "required": ["thingId"] }, { "required": ["url"] }]
+    }
+  }
+}

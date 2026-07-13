@@ -31,11 +31,19 @@ The next artifact-contract audit then cut `epiphany.persona_chat.v0`: its live
 writer and catalog had disagreed on field vocabulary, evidence fields, and
 lifecycle closure. The writer is now typed Rust with closed
 draft/blocked/posted status, the schema is strict and complete, and legacy
-snake_case survives only on read. Proprioception identified the next larger
-frontier: `epiphany.surface.persona.v0` has no real schema-versioned producer and
-types almost nothing, while Reddit and Other emit real artifacts absent from
-the catalog. Rebuild that surface around discriminated typed artifact refs or
-delete the false advertisement.
+snake_case survives only on read. Proprioception then identified and Hands
+rebuilt the larger false surface. `epiphany.persona_surface.v0` is now a strict,
+content-free projection of discriminated artifact and consequence-owner action
+references. It reports rejected rows and source failures as attention, while
+owning neither speech eligibility nor Mind/Bifrost/provider consequences.
+Reddit and Other now have strict typed Rust artifacts and registered schemas;
+Other ends at a crossing request and can never claim publication. Its surface
+action remains absent until a typed intent contract actually exists.
+
+This reinforces the Aetheria lesson: Modeling found the catalog fiction, Hands
+cut the producer boundaries, and Soul-shaped negative checks caught content
+leakage and false consequence ownership. Persistent anatomy lets the next Hands
+pass start at the wound instead of ceremonially rediscovering the body.
 
 Epiphany is in an authority-provenance purification pass. The live question is not whether a command can produce a plausible document; it is whether the subsystem writing that document owns the fact it asserts.
 

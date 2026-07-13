@@ -1,50 +1,109 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.persona.schema.json",
-  "title": "Epiphany Persona",
-  "description": "Operator-safe Persona bubble/draft/post surface over typed Persona and character-loop artifacts.",
+  "title": "Epiphany Persona Surface",
+  "description": "Operator-safe read projection over typed Persona mouth artifacts. It owns no speech eligibility, Mind admission, public crossing, or provider delivery.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
-    "ok": {
-      "type": "boolean"
+    "schemaVersion": {
+      "const": "epiphany.persona_surface.v0"
     },
     "status": {
+      "enum": ["loaded", "attention"]
+    },
+    "artifactDir": {
       "type": "string"
     },
-    "latestArtifacts": {
+    "artifacts": {
       "type": "array",
       "items": {
         "type": "object",
-        "additionalProperties": true
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": ["bubble", "discord-chat", "reddit-post", "other-request"]
+          },
+          "schemaVersion": {
+            "enum": [
+              "epiphany.persona_bubble.v0",
+              "epiphany.persona_chat.v0",
+              "epiphany.persona_reddit_post.v0",
+              "epiphany.persona_other_request.v0"
+            ]
+          },
+          "path": { "type": "string" },
+          "lifecycle": {
+            "enum": [
+              "projected",
+              "draft",
+              "blocked",
+              "posted",
+              "draft-candidate",
+              "crossing-requested"
+            ]
+          },
+          "modifiedAt": { "type": ["string", "null"] },
+          "target": { "type": ["string", "null"] },
+          "privateStateExposed": { "const": false }
+        },
+        "required": [
+          "kind",
+          "schemaVersion",
+          "path",
+          "lifecycle",
+          "modifiedAt",
+          "target",
+          "privateStateExposed"
+        ]
       }
     },
-    "bubbles": {
+    "rejectedArtifactCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sourceErrorCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "availableActions": {
       "type": "array",
       "items": {
         "type": "object",
-        "additionalProperties": true
+        "additionalProperties": false,
+        "properties": {
+          "actionId": {
+            "enum": [
+              "personaBubble",
+              "characterTurn",
+              "discordPersonaPost",
+              "redditPersonaPost"
+            ]
+          },
+          "intentSchemaVersion": { "type": "string" },
+          "consequenceOwner": {
+            "enum": ["persona-mouth-projection", "character-loop", "Bifrost"]
+          },
+          "surfaceOwnsConsequence": { "const": false }
+        },
+        "required": [
+          "actionId",
+          "intentSchemaVersion",
+          "consequenceOwner",
+          "surfaceOwnsConsequence"
+        ]
       }
     },
-    "drafts": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true
-      }
-    },
-    "posts": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true
-      }
-    },
-    "note": {
-      "type": "string"
-    }
+    "privateStateExposed": { "const": false }
   },
   "required": [
-    "ok"
+    "schemaVersion",
+    "status",
+    "artifactDir",
+    "artifacts",
+    "rejectedArtifactCount",
+    "sourceErrorCount",
+    "availableActions",
+    "privateStateExposed"
   ]
 }

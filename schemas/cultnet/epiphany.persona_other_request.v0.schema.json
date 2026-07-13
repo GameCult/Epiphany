@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.persona_other_request.v0.schema.json",
+  "title": "Epiphany Persona Other-Surface Crossing Request",
+  "description": "A Persona speech candidate or Bifrost crossing request. This document never proves publication.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "epiphany.persona_other_request.v0" },
+    "lifecycle": { "enum": ["draft-candidate", "blocked", "crossing-requested"] },
+    "reason": { "type": "string" },
+    "createdAt": { "type": "string" },
+    "surfaceName": { "type": "string", "minLength": 1 },
+    "targetLocator": { "type": "string", "minLength": 1 },
+    "title": { "type": "string" },
+    "personaName": { "type": "string", "minLength": 1 },
+    "content": { "type": "string" },
+    "speechAudit": { "$ref": "#/definitions/speechAudit" },
+    "bifrostRequestReceipt": { "$ref": "#/definitions/bifrostRequestReceipt" },
+    "privateStateExposed": { "const": false }
+  },
+  "required": [
+    "schemaVersion", "lifecycle", "reason", "createdAt", "surfaceName",
+    "targetLocator", "title", "personaName", "content", "privateStateExposed"
+  ],
+  "definitions": {
+    "speechAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "const": "epiphany.persona_speech_audit.v0" },
+        "auditId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "actionKind": { "enum": ["draft", "post"] },
+        "decision": { "enum": ["eligible", "blocked"] },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "contentFingerprint": { "type": "string" },
+        "openingKey": { "type": "string" },
+        "topicKey": { "type": "string" },
+        "requestedPublicTarget": { "type": ["string", "null"] },
+        "recentWindowCount": { "type": "integer", "minimum": 0 },
+        "repeatedOpeningCount": { "type": "integer", "minimum": 0 },
+        "repeatedTopicCount": { "type": "integer", "minimum": 0 },
+        "sameTargetPostCount": { "type": "integer", "minimum": 0 },
+        "auditPath": { "type": "string" }
+      },
+      "required": ["schemaVersion", "auditId", "createdAt", "actionKind", "decision", "reasons", "contentFingerprint", "openingKey", "topicKey", "requestedPublicTarget", "recentWindowCount", "repeatedOpeningCount", "repeatedTopicCount", "sameTargetPostCount", "auditPath"]
+    },
+    "bifrostRequestReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": { "const": "other-request" },
+        "ok": { "const": true },
+        "surfaceName": { "type": "string" },
+        "targetLocator": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "bridgeActionId": { "type": "string", "minLength": 1 },
+        "receiptUrl": { "type": "string", "minLength": 1 },
+        "provenance": { "$ref": "#/definitions/provenance" }
+      },
+      "required": ["action", "ok", "surfaceName", "targetLocator", "title", "content", "bridgeActionId", "receiptUrl", "provenance"]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bifrostIdentity": { "type": "string" },
+        "sourceKind": { "type": "string" },
+        "sourceId": { "type": "string" },
+        "authorityReference": { "type": "string" },
+        "epiphanyRunId": { "type": "string" },
+        "epiphanyLaneId": { "const": "Persona" },
+        "epiphanyAgentIdentity": { "const": "epiphany.Persona" },
+        "heimdallCapabilityRef": { "type": "string" }
+      },
+      "required": ["bifrostIdentity", "sourceKind", "sourceId", "authorityReference", "epiphanyRunId", "epiphanyLaneId", "epiphanyAgentIdentity", "heimdallCapabilityRef"]
+    }
+  }
+}

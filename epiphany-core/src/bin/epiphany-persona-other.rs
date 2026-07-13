@@ -32,9 +32,8 @@ struct PersonaOtherConfig {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PersonaSpeechAudit {
-    #[serde(rename = "schema_version")]
     schema_version: String,
     audit_id: String,
     created_at: String,
@@ -51,6 +50,60 @@ struct PersonaSpeechAudit {
     #[serde(rename = "sameTargetPostCount")]
     same_target_crossing_count: usize,
     audit_path: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum PersonaOtherLifecycle {
+    DraftCandidate,
+    Blocked,
+    CrossingRequested,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BifrostOtherRequestProvenance {
+    bifrost_identity: String,
+    source_kind: String,
+    source_id: String,
+    authority_reference: String,
+    epiphany_run_id: String,
+    epiphany_lane_id: String,
+    epiphany_agent_identity: String,
+    heimdall_capability_ref: String,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BifrostOtherRequestReceipt {
+    action: String,
+    ok: bool,
+    surface_name: String,
+    target_locator: String,
+    title: String,
+    content: String,
+    bridge_action_id: String,
+    receipt_url: String,
+    provenance: BifrostOtherRequestProvenance,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PersonaOtherRequestArtifact {
+    schema_version: String,
+    lifecycle: PersonaOtherLifecycle,
+    reason: String,
+    created_at: String,
+    surface_name: String,
+    target_locator: String,
+    title: String,
+    persona_name: String,
+    content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    speech_audit: Option<PersonaSpeechAudit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bifrost_request_receipt: Option<BifrostOtherRequestReceipt>,
+    private_state_exposed: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -168,7 +221,7 @@ fn run_draft(
         config,
         &target,
         artifact_dir,
-        "draft",
+        PersonaOtherLifecycle::DraftCandidate,
         "drafted without crossing Bifrost",
         Some(&audit),
         None,
@@ -213,7 +266,7 @@ fn run_request(
             config,
             &target,
             artifact_dir,
-            "blocked",
+            PersonaOtherLifecycle::Blocked,
             &format!("speech audit blocked: {}", audit.reasons.join("; ")),
             Some(&audit),
             None,
@@ -233,7 +286,7 @@ fn run_request(
             config,
             &target,
             artifact_dir,
-            "blocked",
+            PersonaOtherLifecycle::Blocked,
             "missing Bifrost bridge CLI for outside-world Persona request",
             Some(&audit),
             None,
@@ -253,7 +306,7 @@ fn run_request(
             config,
             &target,
             artifact_dir,
-            "blocked",
+            PersonaOtherLifecycle::Blocked,
             "missing Bifrost identity for outside-world Persona request",
             Some(&audit),
             None,
@@ -273,7 +326,7 @@ fn run_request(
             config,
             &target,
             artifact_dir,
-            "blocked",
+            PersonaOtherLifecycle::Blocked,
             "missing Heimdall-backed capability/account reference for outside-world Persona request",
             Some(&audit),
             None,
@@ -293,7 +346,7 @@ fn run_request(
             config,
             &target,
             artifact_dir,
-            "blocked",
+            PersonaOtherLifecycle::Blocked,
             &format!(
                 "Heimdall reference must be shaped for {} public Persona crossings: heimdall:{}:*",
                 target.surface_name, target.surface_name
@@ -327,7 +380,7 @@ fn run_request(
         config,
         &target,
         artifact_dir,
-        "requested",
+        PersonaOtherLifecycle::CrossingRequested,
         "recorded through Bifrost other-request",
         Some(&audit),
         Some(&receipt),
@@ -356,7 +409,7 @@ fn request_bifrost_other(
     title: Option<&str>,
     persona_name: Option<&str>,
     audit: &PersonaSpeechAudit,
-) -> Result<Value> {
+) -> Result<BifrostOtherRequestReceipt> {
     let title = title
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -424,7 +477,25 @@ fn request_bifrost_other(
         ));
     }
     let stdout = String::from_utf8(output.stdout).context("Bifrost bridge stdout was not UTF-8")?;
-    serde_json::from_str(strip_bom(&stdout)).context("Bifrost bridge stdout was not JSON")
+    let receipt: BifrostOtherRequestReceipt = serde_json::from_str(strip_bom(&stdout))
+        .context("Bifrost bridge stdout was not a typed other-request receipt")?;
+    if !receipt.ok
+        || receipt.action != "other-request"
+        || receipt.surface_name != target.surface_name
+        || receipt.target_locator != target.target_locator
+        || receipt.provenance.bifrost_identity != bifrost_identity
+        || receipt.provenance.source_id != audit.audit_id
+        || receipt.provenance.heimdall_capability_ref != heimdall_capability_ref
+        || receipt.provenance.epiphany_lane_id != "Persona"
+        || receipt.provenance.epiphany_agent_identity != "epiphany.Persona"
+        || receipt.bridge_action_id.trim().is_empty()
+        || receipt.receipt_url.trim().is_empty()
+    {
+        return Err(anyhow!(
+            "Bifrost other-request receipt did not bind the requested crossing"
+        ));
+    }
+    Ok(receipt)
 }
 
 fn audit_persona_speech(
@@ -655,14 +726,14 @@ console.log(JSON.stringify({
         Some("Smoke future surface".to_string()),
         None,
     )?;
-    seed_posted_artifact(
+    seed_requested_artifact(
         "Repeated future surface rite",
         &config,
         &temp_dir,
         &cultmesh_store,
         runtime_id,
     )?;
-    seed_posted_artifact(
+    seed_requested_artifact(
         "Repeated future surface rite",
         &config,
         &temp_dir,
@@ -683,7 +754,46 @@ console.log(JSON.stringify({
     let latest_cultmesh_audit =
         load_latest_epiphany_cultmesh_persona_speech_audit(&cultmesh_store, runtime_id)?
             .context("Persona other smoke expected latest CultMesh audit")?;
+    let draft_artifact = read_artifact(&draft["draftPath"])?;
+    let bridged_artifact = read_artifact(&bridged["artifactPath"])?;
+    let blocked_artifact = read_artifact(&missing_bridge["artifactPath"])?;
+    let base_keys = [
+        "schemaVersion",
+        "lifecycle",
+        "reason",
+        "createdAt",
+        "surfaceName",
+        "targetLocator",
+        "title",
+        "personaName",
+        "content",
+        "speechAudit",
+        "privateStateExposed",
+    ];
+    let requested_keys = [
+        "schemaVersion",
+        "lifecycle",
+        "reason",
+        "createdAt",
+        "surfaceName",
+        "targetLocator",
+        "title",
+        "personaName",
+        "content",
+        "speechAudit",
+        "bifrostRequestReceipt",
+        "privateStateExposed",
+    ];
     let ok = draft["ok"] == true
+        && exact_root_keys(&draft_artifact, &base_keys)
+        && draft_artifact["lifecycle"] == "draft-candidate"
+        && exact_root_keys(&blocked_artifact, &base_keys)
+        && blocked_artifact["lifecycle"] == "blocked"
+        && exact_root_keys(&bridged_artifact, &requested_keys)
+        && bridged_artifact["lifecycle"] == "crossing-requested"
+        && bridged_artifact.get("status").is_none()
+        && bridged_artifact.get("published").is_none()
+        && bridged_artifact["bifrostRequestReceipt"]["action"] == "other-request"
         && missing_bridge["ok"] == false
         && missing_bridge["blocked"] == "missing-bifrost-bridge"
         && missing_capability["ok"] == false
@@ -718,7 +828,22 @@ console.log(JSON.stringify({
     Ok(result)
 }
 
-fn seed_posted_artifact(
+fn read_artifact(path: &Value) -> Result<Value> {
+    let path = path
+        .as_str()
+        .context("smoke result omitted artifact path")?;
+    serde_json::from_str(&fs::read_to_string(path)?)
+        .with_context(|| format!("failed to decode smoke artifact {path}"))
+}
+
+fn exact_root_keys(value: &Value, expected: &[&str]) -> bool {
+    let Some(object) = value.as_object() else {
+        return false;
+    };
+    object.len() == expected.len() && expected.iter().all(|key| object.contains_key(*key))
+}
+
+fn seed_requested_artifact(
     content: &str,
     config: &PersonaOtherConfig,
     artifact_dir: &Path,
@@ -740,7 +865,7 @@ fn seed_posted_artifact(
         config,
         &target,
         artifact_dir,
-        "requested",
+        PersonaOtherLifecycle::CrossingRequested,
         "seed prior future-surface request for speech-audit smoke",
         Some(&audit),
         None,
@@ -756,10 +881,10 @@ fn write_request_artifact(
     config: &PersonaOtherConfig,
     target: &ResolvedTarget,
     artifact_dir: &Path,
-    status: &str,
+    lifecycle: PersonaOtherLifecycle,
     reason: &str,
     speech_audit: Option<&PersonaSpeechAudit>,
-    bridge_receipt: Option<&Value>,
+    bridge_receipt: Option<&BifrostOtherRequestReceipt>,
     title: Option<&str>,
     persona_name: Option<&str>,
 ) -> Result<PathBuf> {
@@ -769,21 +894,23 @@ fn write_request_artifact(
     let persona_name = persona_name
         .or(config.persona_name.as_deref())
         .unwrap_or("Epiphany Persona");
-    let payload = serde_json::json!({
-        "schemaVersion": "epiphany.persona_other_request.v0",
-        "status": status,
-        "reason": reason,
-        "createdAt": now_iso(),
-        "surfaceName": target.surface_name,
-        "targetLocator": target.target_locator,
-        "title": title.unwrap_or("Persona outside-world bridge request"),
-        "personaName": persona_name,
-        "content": content,
-        "speechAudit": speech_audit,
-        "bifrostBridgeReceipt": bridge_receipt,
-        "privateStateExposed": false,
-    });
-    write_json(&path, &payload)?;
+    let payload = PersonaOtherRequestArtifact {
+        schema_version: "epiphany.persona_other_request.v0".to_string(),
+        lifecycle,
+        reason: reason.to_string(),
+        created_at: now_iso(),
+        surface_name: target.surface_name.clone(),
+        target_locator: target.target_locator.clone(),
+        title: title
+            .unwrap_or("Persona outside-world bridge request")
+            .to_string(),
+        persona_name: persona_name.to_string(),
+        content: content.to_string(),
+        speech_audit: speech_audit.cloned(),
+        bifrost_request_receipt: bridge_receipt.cloned(),
+        private_state_exposed: false,
+    };
+    write_json(&path, &serde_json::to_value(payload)?)?;
     Ok(path)
 }
 
@@ -813,7 +940,7 @@ fn latest_persona_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
             let payload: Value = serde_json::from_str(&raw).ok()?;
             Some(serde_json::json!({
                 "path": path,
-                "status": payload.get("status"),
+                "lifecycle": payload.get("lifecycle").or_else(|| payload.get("status")),
                 "surfaceName": payload.get("surfaceName"),
                 "targetLocator": payload.get("targetLocator"),
                 "privateStateExposed": payload.get("privateStateExposed"),
@@ -851,7 +978,8 @@ fn recent_persona_speech(artifact_dir: &Path, limit: usize) -> Vec<RecentPersona
                 opening_key: audit["openingKey"].as_str().unwrap_or_default().to_string(),
                 topic_key: audit["topicKey"].as_str().unwrap_or_default().to_string(),
                 target: audit["requestedPublicTarget"].as_str().map(str::to_string),
-                crossing_recorded: payload["status"].as_str() == Some("requested"),
+                crossing_recorded: payload["lifecycle"].as_str() == Some("crossing-requested")
+                    || payload["status"].as_str() == Some("requested"),
             })
         })
         .collect()

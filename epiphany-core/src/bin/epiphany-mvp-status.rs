@@ -66,6 +66,68 @@ const SEALED_DIRECT_THOUGHT_KEYS: &[&str] = &[
 ];
 const SEALED_LONG_TEXT_KEYS: &[&str] = &["note"];
 const MAX_OPERATOR_TEXT_CHARS: usize = 1200;
+const PERSONA_SURFACE_SCHEMA_VERSION: &str = "epiphany.persona_surface.v0";
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum PersonaArtifactKind {
+    Bubble,
+    DiscordChat,
+    RedditPost,
+    OtherRequest,
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+enum PersonaArtifactLifecycle {
+    Projected,
+    Draft,
+    Blocked,
+    Posted,
+    DraftCandidate,
+    CrossingRequested,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersonaArtifactRef {
+    kind: PersonaArtifactKind,
+    schema_version: String,
+    path: String,
+    lifecycle: PersonaArtifactLifecycle,
+    modified_at: Option<String>,
+    target: Option<String>,
+    private_state_exposed: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersonaActionRef {
+    action_id: &'static str,
+    intent_schema_version: &'static str,
+    consequence_owner: &'static str,
+    surface_owns_consequence: bool,
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+enum PersonaSurfaceStatus {
+    Loaded,
+    Attention,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersonaSurface {
+    schema_version: &'static str,
+    status: PersonaSurfaceStatus,
+    artifact_dir: String,
+    artifacts: Vec<PersonaArtifactRef>,
+    rejected_artifact_count: usize,
+    source_error_count: usize,
+    available_actions: Vec<PersonaActionRef>,
+    private_state_exposed: bool,
+}
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
@@ -528,31 +590,70 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     .unwrap_or_else(
         |error| json!({"status": "error", "error": error.to_string(), "latestArtifacts": []}),
     );
-    let mut latest_artifacts = latest_discord_persona
-        .get("latestArtifacts")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    latest_artifacts.extend(
-        latest_reddit_persona
+    let mut rejected_artifact_count = 0_usize;
+    let mut source_error_count = 0_usize;
+    let mut artifacts = Vec::new();
+    for (source, readback) in [
+        ("discord", &latest_discord_persona),
+        ("reddit", &latest_reddit_persona),
+        ("other", &latest_other_persona),
+    ] {
+        if readback.get("status").and_then(Value::as_str) == Some("error") {
+            source_error_count += 1;
+            continue;
+        }
+        for artifact in readback
             .get("latestArtifacts")
             .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default(),
-    );
-    latest_artifacts.extend(
-        latest_other_persona
-            .get("latestArtifacts")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default(),
-    );
-    let persona = json!({
-        "status": "loaded",
-        "artifactDir": persona_dir,
-        "latestArtifacts": latest_artifacts,
-        "availableActions": ["personaBubble", "characterTurn", "discordPersonaPost", "redditPersonaPost", "otherWorldPersonaRequest"],
-    });
+            .into_iter()
+            .flatten()
+        {
+            if let Some(artifact) = persona_artifact_ref(source, artifact) {
+                artifacts.push(artifact);
+            } else {
+                rejected_artifact_count += 1;
+            }
+        }
+    }
+    let persona = serde_json::to_value(PersonaSurface {
+        schema_version: PERSONA_SURFACE_SCHEMA_VERSION,
+        status: if rejected_artifact_count == 0 && source_error_count == 0 {
+            PersonaSurfaceStatus::Loaded
+        } else {
+            PersonaSurfaceStatus::Attention
+        },
+        artifact_dir: persona_dir.to_string_lossy().into_owned(),
+        artifacts,
+        rejected_artifact_count,
+        source_error_count,
+        available_actions: vec![
+            PersonaActionRef {
+                action_id: "personaBubble",
+                intent_schema_version: "epiphany.persona_bubble_intent.v0",
+                consequence_owner: "persona-mouth-projection",
+                surface_owns_consequence: false,
+            },
+            PersonaActionRef {
+                action_id: "characterTurn",
+                intent_schema_version: "epiphany.character_turn_intent.v0",
+                consequence_owner: "character-loop",
+                surface_owns_consequence: false,
+            },
+            PersonaActionRef {
+                action_id: "discordPersonaPost",
+                intent_schema_version: "epiphany.discord_persona_post_intent.v0",
+                consequence_owner: "Bifrost",
+                surface_owns_consequence: false,
+            },
+            PersonaActionRef {
+                action_id: "redditPersonaPost",
+                intent_schema_version: "epiphany.reddit_persona_post_intent.v0",
+                consequence_owner: "Bifrost",
+                surface_owns_consequence: false,
+            },
+        ],
+        private_state_exposed: false,
+    })?;
     let bifrost_bridge = bifrost_bridge_readiness(root);
     let void_memory = native_json(
         "epiphany-void-memory",
@@ -565,6 +666,64 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
         persona,
         bifrost_bridge,
         void_memory,
+    })
+}
+
+fn persona_artifact_ref(source: &str, artifact: &Value) -> Option<PersonaArtifactRef> {
+    let schema_version = artifact.get("schemaVersion")?.as_str()?;
+    let (kind, expected_schema) = match (source, schema_version) {
+        ("discord", "epiphany.persona_bubble.v0") => {
+            (PersonaArtifactKind::Bubble, "epiphany.persona_bubble.v0")
+        }
+        ("discord", "epiphany.persona_chat.v0") => {
+            (PersonaArtifactKind::DiscordChat, "epiphany.persona_chat.v0")
+        }
+        ("reddit", "epiphany.persona_reddit_post.v0") => (
+            PersonaArtifactKind::RedditPost,
+            "epiphany.persona_reddit_post.v0",
+        ),
+        ("other", "epiphany.persona_other_request.v0") => (
+            PersonaArtifactKind::OtherRequest,
+            "epiphany.persona_other_request.v0",
+        ),
+        _ => return None,
+    };
+    let lifecycle = match artifact
+        .get("lifecycle")
+        .or_else(|| artifact.get("status"))?
+        .as_str()?
+    {
+        "projected" => PersonaArtifactLifecycle::Projected,
+        "draft" => PersonaArtifactLifecycle::Draft,
+        "blocked" => PersonaArtifactLifecycle::Blocked,
+        "posted" => PersonaArtifactLifecycle::Posted,
+        "draft-candidate" => PersonaArtifactLifecycle::DraftCandidate,
+        "crossing-requested" => PersonaArtifactLifecycle::CrossingRequested,
+        _ => return None,
+    };
+    let target = match kind {
+        PersonaArtifactKind::Bubble => Some("aquarium".to_string()),
+        PersonaArtifactKind::DiscordChat => None,
+        PersonaArtifactKind::RedditPost => artifact
+            .get("subreddit")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        PersonaArtifactKind::OtherRequest => artifact
+            .get("targetLocator")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+    };
+    Some(PersonaArtifactRef {
+        kind,
+        schema_version: expected_schema.to_string(),
+        path: artifact.get("path")?.as_str()?.to_string(),
+        lifecycle,
+        modified_at: artifact
+            .get("modifiedAt")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        target,
+        private_state_exposed: false,
     })
 }
 
@@ -1086,7 +1245,7 @@ pub fn render_status(status: &Value) -> String {
     let planning_summary = &planning_response["summary"];
     let checkpoint = &scene["investigationCheckpoint"];
     let latest_heartbeat = heartbeat["latestEvent"].clone();
-    let latest_persona = persona["latestArtifacts"]
+    let latest_persona = persona["artifacts"]
         .as_array()
         .and_then(|items| items.first())
         .cloned()
@@ -1150,12 +1309,13 @@ pub fn render_status(status: &Value) -> String {
         String::new(),
         "Persona".to_string(),
         format!(
-            "- latest artifact: {}",
-            maybe(&latest_persona["name"], "none")
+            "- latest artifact: {} / {}",
+            maybe(&latest_persona["kind"], "none"),
+            maybe(&latest_persona["lifecycle"], "none")
         ),
         format!(
-            "- latest content: {}",
-            maybe(&latest_persona["content"], "none")
+            "- artifact path: {}",
+            maybe(&latest_persona["path"], "none")
         ),
         format!(
             "- Bifrost bridge: {} ({}/{})",

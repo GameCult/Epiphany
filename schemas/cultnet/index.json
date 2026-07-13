@@ -860,6 +860,28 @@
       "path": "epiphany.character-turn-packet.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.persona_reddit_post.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.persona_reddit_post.v0",
+      "documentType": "epiphany.persona_reddit_post.v0",
+      "title": "Epiphany Persona Reddit Post Artifact",
+      "path": "epiphany.persona_reddit_post.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.persona_other_request.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.persona_other_request.v0",
+      "documentType": "epiphany.persona_other_request.v0",
+      "title": "Epiphany Persona Other-Surface Crossing Request",
+      "path": "epiphany.persona_other_request.v0.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-personality-artifacts.schema.json",
       "kind": "document_payload",
       "wireContracts": [
