@@ -728,6 +728,9 @@ pub struct EpiphanyMemoryGraphSnapshot {
     #[ts(type = "string | null")]
     pub schema_version: Option<String>,
     pub graph_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "EpiphanyMemoryGraphSource | null")]
+    pub source: Option<EpiphanyMemoryGraphSource>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryDomain>")]
     pub domains: Vec<EpiphanyMemoryDomain>,
@@ -749,6 +752,13 @@ pub struct EpiphanyMemoryGraphSnapshot {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryLifecycleReceipt>")]
     pub lifecycle_receipts: Vec<EpiphanyMemoryLifecycleReceipt>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
+pub struct EpiphanyMemoryGraphSource {
+    pub kind: String,
+    pub identity: String,
+    pub revision: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]

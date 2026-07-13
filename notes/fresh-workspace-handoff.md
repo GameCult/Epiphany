@@ -55,6 +55,19 @@ readiness no longer launders its cached projection. Typed Idunn deployment and
 aftercare receipts must resolve and bind across identity, runtime, Verse,
 result/ref, runbook, source commit, and current HEAD.
 
+The next Modeling pass repaired the targeting organ itself. Memory-graph v1
+binds repo anatomy to the actual state-store identity, accepted revision, and
+SHA-256 source bytes. Cache presence, path/symbol locators, and serialized
+freshness no longer make anatomy Ready. Launch and explicit refresh share one
+validator; missing/changed node, edge, or link anchors stale their summaries.
+There is still no production semantic index for graph claims, so Modeling index
+availability is honestly unavailable rather than inferred from code search.
+
+Next P0 cut: `epiphany-work run_adopt` currently synthesizes Mind ownership and
+an approved Hands review from local JSON predicates. Route adoption through the
+existing typed Mind gateway, immutably bound to the exact plan, and delete the
+scheduler's ability to author Mind/Hands consequence.
+
 Epiphany is in an authority-provenance purification pass. The live question is not whether a command can produce a plausible document; it is whether the subsystem writing that document owns the fact it asserts.
 
 The confirmed conceptual substitutions have been cut:

@@ -1,4 +1,6 @@
+use super::EpiphanyMemoryFreshnessStatus;
 use super::EpiphanyMemoryGraphSnapshot;
+use super::derive_memory_graph_freshness;
 use super::validate_memory_graph_snapshot;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -9,7 +11,7 @@ use std::path::Path;
 
 pub const MEMORY_GRAPH_TYPE: &str = "epiphany.memory_graph";
 pub const MEMORY_GRAPH_KEY: &str = "default";
-pub const MEMORY_GRAPH_SCHEMA_VERSION: &str = "epiphany.memory_graph.v0";
+pub const MEMORY_GRAPH_SCHEMA_VERSION: &str = "epiphany.memory_graph.v1";
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.memory_graph", schema = "EpiphanyMemoryGraphEntry")]
@@ -89,6 +91,13 @@ pub fn validate_memory_graph_entry(entry: &EpiphanyMemoryGraphEntry) -> Result<(
         ));
     }
     let snapshot = entry.snapshot()?;
+    if snapshot.schema_version.as_deref() != Some(MEMORY_GRAPH_SCHEMA_VERSION) {
+        return Err(anyhow!(
+            "memory graph snapshot schema_version is {:?}, expected {:?}",
+            snapshot.schema_version,
+            MEMORY_GRAPH_SCHEMA_VERSION
+        ));
+    }
     if entry.graph_id != snapshot.graph_id {
         return Err(anyhow!(
             "memory graph entry graph_id {:?} does not match snapshot graph_id {:?}",
@@ -104,6 +113,30 @@ pub fn validate_memory_graph_entry(entry: &EpiphanyMemoryGraphEntry) -> Result<(
             .collect::<Vec<_>>()
             .join("; ");
         return Err(anyhow!("memory graph validation failed: {message}"));
+    }
+    let dirty = snapshot
+        .freshness
+        .as_ref()
+        .map(|freshness| freshness.dirty_source_hashes.as_slice())
+        .unwrap_or(&[]);
+    let derived = derive_memory_graph_freshness(&snapshot, dirty);
+    if snapshot.freshness.as_ref().is_some_and(|stored| {
+        stored.status != derived.status
+            || stored.stale_node_ids != derived.stale_node_ids
+            || stored.stale_edge_ids != derived.stale_edge_ids
+            || stored.stale_summary_ids != derived.stale_summary_ids
+    }) {
+        return Err(anyhow!(
+            "memory graph stored freshness disagrees with derived lifecycle/source freshness"
+        ));
+    }
+    if snapshot.summaries.iter().any(|summary| {
+        derived.stale_summary_ids.contains(&summary.id)
+            && summary.freshness != EpiphanyMemoryFreshnessStatus::Stale
+    }) {
+        return Err(anyhow!(
+            "memory graph has a ready summary covering stale anatomy"
+        ));
     }
     Ok(())
 }

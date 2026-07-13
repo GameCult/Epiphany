@@ -18,10 +18,12 @@ pub fn plan_memory_graph_context_cut(
     query: &EpiphanyMemoryContextQuery,
 ) -> EpiphanyMemoryContextPacket {
     let budget = query.budget.unwrap_or(12).clamp(1, 64) as usize;
-    let freshness = snapshot
+    let dirty_source_hashes = snapshot
         .freshness
-        .clone()
-        .unwrap_or_else(|| derive_memory_graph_freshness(snapshot, &[]));
+        .as_ref()
+        .map(|freshness| freshness.dirty_source_hashes.as_slice())
+        .unwrap_or(&[]);
+    let freshness = derive_memory_graph_freshness(snapshot, dirty_source_hashes);
     let stale_nodes: HashSet<&str> = freshness
         .stale_node_ids
         .iter()

@@ -1618,6 +1618,29 @@ local Verse, result/checked ref, watched ref, source commit, runbook commit, and
 current HEAD. Readiness re-resolves the underlying deployment receipt; absence
 or any mismatch remains incomplete.
 
+## Cache existence is not fresh Modeling anatomy
+
+The persistent repo memory graph was reused indefinitely whenever
+`memory-graph.msgpack` existed. Repo import stamped anatomy `Ready`, while its
+so-called source hashes were only `path#symbol` locators. Launch context could
+therefore inject stale compressed summaries after accepted state revisions or
+source bytes changed.
+
+`epiphany.memory_graph.v1` now carries typed source identity and accepted state
+revision. Repo anchors use SHA-256 source-byte digests. Launch and explicit
+thread-state refresh share one refresh/validate primitive; reuse requires the
+same state-store identity, revision, schema, and every anchored source digest.
+Missing or changed node, edge, or link anchors become stale, and context cuts
+derive freshness from lifecycle/source evidence rather than trusting a cached
+freshness claim. Replacement is atomic on Windows and Unix. The graph embedding
+manifest still has no production indexer; Modeling semantic-index availability
+is therefore `unavailable`, not borrowed from generic workspace retrieval.
+
+The independent Eyes pass found the next P0 frontier: repo-work `run_adopt`
+locally authors a document claiming Mind review and then approves Hands from
+field predicates. The existing typed Mind gateway must own an immutable review
+bound to the exact plan; Self/scheduler may route it but may not impersonate it.
+
 ## Ambient command identity is not a typed crossing command
 
 Bifrost's source establishes one typed command -> one crossing attempt -> one

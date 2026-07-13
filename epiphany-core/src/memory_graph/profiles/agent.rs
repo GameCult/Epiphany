@@ -92,7 +92,7 @@ pub fn memory_graph_from_agent_memories(
     }
 
     EpiphanyMemoryGraphSnapshot {
-        schema_version: Some("epiphany.memory_graph.v0".to_string()),
+        schema_version: Some("epiphany.memory_graph.v1".to_string()),
         graph_id: graph_id.into(),
         domains,
         nodes,

@@ -27,6 +27,7 @@ use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::memory_graph_from_heartbeat_cognition;
 use epiphany_core::memory_graph_node_id;
 use epiphany_core::plan_memory_graph_context_cut;
+use epiphany_core::refresh_or_validate_repo_memory_graph;
 use epiphany_core::validate_memory_graph_snapshot;
 use epiphany_core::write_memory_graph_snapshot;
 use std::env;
@@ -291,6 +292,41 @@ fn read_refresh_args(args: impl Iterator<Item = String>) -> Result<RefreshArgs> 
 }
 
 fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
+    if args.sources.is_empty()
+        && args.agent_store.is_none()
+        && args.heartbeat_store.is_none()
+        && let Some(thread_state_store) = &args.thread_state_store
+    {
+        let state = load_thread_state(thread_state_store)?.ok_or_else(|| {
+            anyhow!(
+                "thread state store {} is missing",
+                thread_state_store.display()
+            )
+        })?;
+        let repo_root = thread_state_store
+            .parent()
+            .and_then(std::path::Path::parent)
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let source_identity = thread_state_store
+            .canonicalize()
+            .unwrap_or_else(|_| thread_state_store.clone())
+            .to_string_lossy()
+            .into_owned();
+        let (snapshot, refresh) = refresh_or_validate_repo_memory_graph(
+            &args.store,
+            &source_identity,
+            &state,
+            repo_root,
+            args.graph_id,
+        )?;
+        return Ok(serde_json::json!({
+            "ok": true, "store": args.store, "graphId": snapshot.graph_id,
+            "source": snapshot.source, "refresh": format!("{refresh:?}").to_lowercase(),
+            "domains": snapshot.domains.len(), "nodes": snapshot.nodes.len(),
+            "edges": snapshot.edges.len(), "summaries": snapshot.summaries.len(),
+            "freshness": snapshot.freshness,
+        }));
+    }
     let mut snapshots = Vec::new();
     let mut source_status = Vec::new();
 
@@ -341,7 +377,22 @@ fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
                 thread_state_store.display()
             )
         })?;
-        let snapshot = memory_graph_from_epiphany_graphs("repo-profile", &state.graphs);
+        let repo_root = thread_state_store
+            .parent()
+            .and_then(std::path::Path::parent)
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let source_identity = thread_state_store
+            .canonicalize()
+            .unwrap_or_else(|_| thread_state_store.clone())
+            .to_string_lossy()
+            .into_owned();
+        let snapshot = memory_graph_from_epiphany_graphs(
+            "repo-profile",
+            &state.graphs,
+            source_identity,
+            state.revision,
+            repo_root,
+        )?;
         source_status.push(serde_json::json!({
             "kind": "thread_state_store",
             "source": thread_state_store,

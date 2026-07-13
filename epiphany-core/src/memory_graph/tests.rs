@@ -23,6 +23,7 @@ fn fixture_snapshot() -> EpiphanyMemoryGraphSnapshot {
     let node_b = memory_graph_node_id(&domain_id, "module", "src/memory_graph.rs", Some("b"));
     let edge = memory_graph_edge_id(&node_a, &node_b, "owns", ["src/memory_graph.rs"]);
     EpiphanyMemoryGraphSnapshot {
+        schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
         graph_id: "graph".to_string(),
         domains: vec![EpiphanyMemoryDomain {
             id: domain_id.clone(),
@@ -198,6 +199,15 @@ fn memory_graph_entry_validation_rejects_mismatched_identity() {
 }
 
 #[test]
+fn memory_graph_entry_rejects_embedded_legacy_schema() {
+    let mut snapshot = fixture_snapshot();
+    snapshot.schema_version = Some("epiphany.memory_graph.v0".to_string());
+    let entry = EpiphanyMemoryGraphEntry::from_snapshot(&snapshot).expect("snapshot entry");
+    let error = validate_memory_graph_entry(&entry).expect_err("embedded v0 is invalid");
+    assert!(error.to_string().contains("snapshot schema_version"));
+}
+
+#[test]
 fn memory_graph_profile_law_keeps_role_memory_from_repo_lifecycle() {
     assert!(lifecycle_allowed_for_profile(
         EpiphanyMemoryProfile::RepoArchitecture,
@@ -354,6 +364,33 @@ fn memory_graph_context_cut_descends_when_summary_is_stale() {
     assert_eq!(packet.nodes.len(), 2);
     assert_eq!(packet.edges.len(), 1);
     assert_eq!(packet.anchors.len(), 3);
+    assert!(
+        packet
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("descended"))
+    );
+}
+
+#[test]
+fn memory_graph_context_cut_rederives_forged_ready_freshness() {
+    let mut snapshot = fixture_snapshot();
+    snapshot.nodes[0].lifecycle = EpiphanyMemoryLifecycle::Stale;
+    snapshot.freshness = Some(EpiphanyMemoryFreshness {
+        status: EpiphanyMemoryFreshnessStatus::Ready,
+        note: Some("forged cache claim".to_string()),
+        ..Default::default()
+    });
+    let packet = plan_memory_graph_context_cut(
+        &snapshot,
+        &EpiphanyMemoryContextQuery {
+            id: "query".to_string(),
+            profile: Some(EpiphanyMemoryProfile::RepoArchitecture),
+            text: Some("shared graph law".to_string()),
+            ..Default::default()
+        },
+    );
+    assert!(packet.summaries.is_empty());
     assert!(
         packet
             .warnings

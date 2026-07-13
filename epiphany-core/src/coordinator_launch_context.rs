@@ -5,21 +5,20 @@ use crate::EpiphanyMemoryContextPacket;
 use crate::EpiphanyMemoryContextQuery;
 use crate::EpiphanyMemoryProfile;
 use crate::EpiphanyPromptContextInput;
+use crate::RepoMemoryGraphRefresh;
 use crate::RuntimeHandsReceiptChainSummary;
 use crate::load_epiphany_cultmesh_cluster_topology;
 use crate::load_epiphany_cultmesh_status;
 use crate::load_latest_epiphany_cultmesh_work_loop_telemetry;
-use crate::load_memory_graph_snapshot;
-use crate::memory_graph_from_epiphany_graphs;
 use crate::plan_memory_graph_context_cut;
 use crate::query_epiphany_local_verse_context;
+use crate::refresh_or_validate_repo_memory_graph;
 use crate::render_epiphany_prompt_context;
 use crate::runtime_hands_command_receipt;
 use crate::runtime_hands_commit_receipt;
 use crate::runtime_hands_patch_receipt;
 use crate::runtime_latest_hands_receipt_chain_after;
 use crate::write_epiphany_cultmesh_work_loop_telemetry;
-use crate::write_memory_graph_snapshot;
 use chrono::SecondsFormat;
 use chrono::Utc;
 use epiphany_state_model::EpiphanyAcceptanceReceipt;
@@ -632,28 +631,27 @@ fn launch_memory_context(
     focus: &str,
 ) -> Result<EpiphanyMemoryContextPacket, String> {
     let memory_graph_store = memory_graph_store_path(runtime_store_path);
-    let (snapshot, refreshed_from_state) = match load_memory_graph_snapshot(&memory_graph_store)
-        .map_err(|error| {
-            format!(
-                "failed to load memory graph store {}: {error}",
-                memory_graph_store.display()
-            )
-        })? {
-        Some(snapshot) => (snapshot, false),
-        None => {
-            let snapshot = memory_graph_from_epiphany_graphs(
-                format!("bridge-launch-state-rev-{}", state.revision),
-                &state.graphs,
-            );
-            write_memory_graph_snapshot(&memory_graph_store, &snapshot).map_err(|error| {
-                format!(
-                    "failed to write memory graph store {} from thread state: {error}",
-                    memory_graph_store.display()
-                )
-            })?;
-            (snapshot, true)
-        }
-    };
+    let repo_root = runtime_store_path
+        .parent()
+        .and_then(Path::parent)
+        .unwrap_or_else(|| Path::new("."));
+    let source_identity = fs::canonicalize(runtime_store_path)
+        .unwrap_or_else(|_| runtime_store_path.to_path_buf())
+        .to_string_lossy()
+        .into_owned();
+    let (snapshot, refresh) = refresh_or_validate_repo_memory_graph(
+        &memory_graph_store,
+        &source_identity,
+        state,
+        repo_root,
+        format!("bridge-launch-state-rev-{}", state.revision),
+    )
+    .map_err(|error| {
+        format!(
+            "failed to refresh memory graph store {}: {error}",
+            memory_graph_store.display()
+        )
+    })?;
 
     let mut packet = plan_memory_graph_context_cut(
         &snapshot,
@@ -665,7 +663,7 @@ fn launch_memory_context(
             ..Default::default()
         },
     );
-    if refreshed_from_state {
+    if refresh == RepoMemoryGraphRefresh::Refreshed {
         packet.warnings.push(format!(
             "Memory graph store was refreshed from current thread-state repo graph at {}.",
             memory_graph_store.display()

@@ -293,7 +293,7 @@
       "wireContracts": [
         "cultnet.schema.v0"
       ],
-      "schemaVersion": "epiphany.memory_graph.v0",
+      "schemaVersion": "epiphany.memory_graph.v1",
       "documentType": "epiphany.memory_graph",
       "title": "Epiphany Memory Graph",
       "path": "epiphany.memory-graph.schema.json"

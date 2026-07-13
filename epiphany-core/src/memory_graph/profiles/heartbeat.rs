@@ -45,7 +45,7 @@ pub fn memory_graph_from_heartbeat_cognition(
     import_bridge_pressure(cognition, &mut domains, &mut nodes, &mut summaries);
 
     EpiphanyMemoryGraphSnapshot {
-        schema_version: Some("epiphany.memory_graph.v0".to_string()),
+        schema_version: Some("epiphany.memory_graph.v1".to_string()),
         graph_id: graph_id.into(),
         domains,
         nodes,

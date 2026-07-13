@@ -4,16 +4,21 @@
   "title": "Epiphany Memory Graph",
   "description": "Unified typed memory graph for repo architecture/dataflow, role memory, heartbeat pressure, incubation, agency, candidate interventions, and evidence. Embeddings are cache metadata, not canonical truth.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
-    "schemaVersion": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
+    "schemaVersion": { "const": "epiphany.memory_graph.v1" },
     "graphId": {
       "type": "string"
+    },
+    "source": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["kind", "identity", "revision"],
+      "properties": {
+        "kind": { "type": "string" },
+        "identity": { "type": "string" },
+        "revision": { "type": "integer", "minimum": 0 }
+      }
     },
     "domains": {
       "type": "array",
@@ -66,6 +71,7 @@
     }
   },
   "required": [
+    "schemaVersion",
     "graphId"
   ]
 }
