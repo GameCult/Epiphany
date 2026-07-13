@@ -93,7 +93,12 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
             intent.feedback_route,
             intent.private_state_requested
         ));
-        if let Some(receipt) = input.local_verse.latest_eve_connection_receipt.as_ref() {
+        if let Some(receipt) = input
+            .local_verse
+            .latest_eve_connection_receipt
+            .as_ref()
+            .filter(|receipt| receipt.intent_id == intent.intent_id)
+        {
             lines.push(format!(
                 "- Receipt `{}`: status={}, private_state_exposed={}",
                 receipt.receipt_id, receipt.status, receipt.private_state_exposed
@@ -189,6 +194,7 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
             .local_verse
             .latest_daemon_tool_invocation_receipt
             .as_ref()
+            .filter(|receipt| receipt.intent_id == intent.intent_id)
         {
             lines.push(format!(
                 "- Receipt `{}`: status={}, receipt_contract={}, private_state_exposed={}",
@@ -389,6 +395,8 @@ mod tests {
     use crate::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
     use crate::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
     use crate::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
+    use crate::epiphany_cultmesh_eve_connection_intent_from_advertisement;
+    use crate::epiphany_cultmesh_eve_connection_receipt_for_intent;
     use crate::load_epiphany_cultmesh_cluster_topology;
     use crate::publish_epiphany_cultmesh_provider_state;
     use crate::query_epiphany_local_verse_context;
@@ -399,6 +407,8 @@ mod tests {
     use crate::write_epiphany_cultmesh_bifrost_github_publication_receipt;
     use crate::write_epiphany_cultmesh_daemon_tool_invocation_intent;
     use crate::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
+    use crate::write_epiphany_cultmesh_eve_connection_intent;
+    use crate::write_epiphany_cultmesh_eve_connection_receipt;
     use crate::write_epiphany_cultmesh_work_loop_telemetry;
     use epiphany_state_model::EpiphanyMemoryContextPacket;
     use epiphany_state_model::EpiphanyMemoryFreshnessStatus;
@@ -420,6 +430,24 @@ mod tests {
                 capability.capability_id == "epiphany.cluster.hands.tool.repo-action"
             })
             .expect("Hands repo-action capability exists");
+        let advertisement = seeded_verse
+            .odin_advertisements
+            .first()
+            .expect("seeded Verse advertises at least one cluster");
+        let eve_intent = epiphany_cultmesh_eve_connection_intent_from_advertisement(
+            "eve-intent-prompt-test",
+            "epiphany.cluster.persona",
+            advertisement,
+            "prompt context identity proof",
+            "requestFeedback",
+        );
+        write_epiphany_cultmesh_eve_connection_intent(&store, "epiphany-test", eve_intent.clone())?;
+        let eve_receipt = epiphany_cultmesh_eve_connection_receipt_for_intent(
+            "eve-receipt-prompt-test",
+            &eve_intent,
+            "accepted",
+        );
+        write_epiphany_cultmesh_eve_connection_receipt(&store, "epiphany-test", eve_receipt)?;
         let tool_intent = epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
             "daemon-tool-intent-prompt-test",
             "epiphany.Persona",
@@ -575,11 +603,12 @@ mod tests {
             ..Default::default()
         };
 
-        let rendered = render_epiphany_prompt_context(&EpiphanyPromptContextInput {
+        let mut prompt_input = EpiphanyPromptContextInput {
             focus: "Assemble context for a bounded worker prompt.".to_string(),
             local_verse,
             memory_context,
-        });
+        };
+        let rendered = render_epiphany_prompt_context(&prompt_input);
 
         assert!(rendered.contains("<epiphany_dynamic_context>"));
         assert!(rendered.contains("Odin"));
@@ -592,6 +621,8 @@ mod tests {
         assert!(rendered.contains("Daemon Tool Directory"));
         assert!(rendered.contains("available_to_all_agents=true"));
         assert!(rendered.contains("Daemon Tool Invocation"));
+        assert!(rendered.contains("eve-intent-prompt-test"));
+        assert!(rendered.contains("eve-receipt-prompt-test"));
         assert!(rendered.contains("daemon-tool-intent-prompt-test"));
         assert!(rendered.contains("receipt_contract=epiphany.hands.action_review"));
         assert!(rendered.contains("Agent State SoA"));
@@ -616,6 +647,24 @@ mod tests {
         assert!(rendered.contains("Shared graph law"));
         assert!(rendered.contains("Mind reviews durable state effects"));
         assert!(!rendered.contains("raw worker transcript"));
+
+        prompt_input
+            .local_verse
+            .latest_daemon_tool_invocation_receipt
+            .as_mut()
+            .expect("tool receipt remains available for mismatch probe")
+            .intent_id = "another-tool-intent".to_string();
+        prompt_input
+            .local_verse
+            .latest_eve_connection_receipt
+            .as_mut()
+            .expect("Eve receipt remains available for mismatch probe")
+            .intent_id = "another-eve-intent".to_string();
+        let mismatched = render_epiphany_prompt_context(&prompt_input);
+        assert!(mismatched.contains("daemon-tool-intent-prompt-test"));
+        assert!(!mismatched.contains("receipt_contract=epiphany.hands.action_review"));
+        assert!(mismatched.contains("eve-intent-prompt-test"));
+        assert!(!mismatched.contains("eve-receipt-prompt-test"));
         Ok(())
     }
 }

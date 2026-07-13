@@ -647,6 +647,17 @@ receipt writers validate schema, internal Verse, required identity/path fields,
 and RFC3339 time. Delayed writes remain addressable by identity without
 rewinding either mirror.
 
+## Adjacent latest mirrors substituted for a causal chain
+
+Prompt assembly rendered the globally latest Eve connection receipt beneath
+the globally latest Eve intent, and did the same for daemon tool invocation,
+without checking the typed `intent_id` relationship. Concurrent or reordered
+requests could therefore tell the model that one intent had received another
+intent's outcome. The prompt projection now renders a receipt under an intent
+only when their `intent_id` values match. Unmatched receipts remain persisted
+for identity-aware diagnostics; adjacency in two convenience mirrors no longer
+manufactures causality in the Mind's context.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

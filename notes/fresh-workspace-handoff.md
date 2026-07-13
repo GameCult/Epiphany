@@ -162,6 +162,9 @@ The confirmed conceptual substitutions have been cut:
 - Operator-run receipt admission resolves its intent by `run_id`, not by the
   unrelated global latest mirror. Intent/receipt mirrors are validated and
   owner-time ordered; concurrent runs retain independent identity.
+- Prompt assembly joins Eve and daemon-tool receipts to intents only by matching
+  `intent_id`; independent latest mirrors can no longer fabricate a causal
+  completion in model context.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
