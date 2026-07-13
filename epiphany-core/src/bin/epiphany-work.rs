@@ -7396,74 +7396,63 @@ fn closure_family_assertions(
             );
         }
         "repo.scheduling_request" => {
+            let request = parse_repo_scheduling_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "scheduling-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_scheduling_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoSchedulingRequest::has_canonical_identity),
                 "Committed scheduling request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "scheduling-request-family-present",
-                content.contains("safe_action_family = \"repo.scheduling_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoSchedulingRequest::has_canonical_identity),
                 "Committed scheduling request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "scheduling-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed scheduling request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "scheduling-request-awaits-mind-adoption",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-mind-adoption\"")
-                    && content.contains("requested_scheduler = \"Self\"")
-                    && content.contains("mind_adoption_receipt_required = true")
-                    && content.contains("self_may_schedule_after_mind_only = true")
-                    && content.contains("queue_run_allowed_after_adoption = true"),
+                request.as_ref().is_some_and(RepoSchedulingRequest::awaits_mind_adoption),
                 "Committed scheduling request waits for Mind adoption before Self queue consequence.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "scheduling-request-queue-contract",
-                content.contains("[queue]")
-                    && content.contains("target_gate = \"repo-work-queue\"")
-                    && content.contains("preferred_next_safe_family = \"repo.task_card\"")
-                    && content.contains("max_items_per_pulse = 1")
-                    && content.contains("requires_epiphany_branch = true")
-                    && content.contains("publish_blocker = \"bifrost-publication-missing\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoSchedulingRequest::has_bounded_queue_contract),
                 "Committed scheduling request names a bounded queue pulse contract.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "scheduling-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains("mind_review = \"epiphany.mind.gateway_review\"")
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains(
-                        "expected_self_receipt = \"epiphany.repo_work_queue_selection.v0\"",
-                    ),
+                request.as_ref().is_some_and(RepoSchedulingRequest::has_receipt_contract),
                 "Committed scheduling request requires Mind receipts and names the later Self receipt.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "scheduling-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("self_scheduling_authorized = false")
-                    && content.contains("queue_mutation_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("bifrost_publication_required = true"),
+                request.as_ref().is_some_and(RepoSchedulingRequest::has_authority_seals),
                 "Committed scheduling request denies scheduling/queue/action/publication/cross-body authority and requires Mind/Bifrost gates.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "scheduling-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed scheduling request preserves the private-state seal.".to_string(),
             );
         }
@@ -15370,6 +15359,7 @@ idunn_deployment_authority_required = true
             "repo.sync_request",
             "repo.pr_request",
             "repo.maintainer_review_request",
+            "repo.scheduling_request",
             "repo.work_order",
             "repo.verification_request",
             "repo.credit_request",

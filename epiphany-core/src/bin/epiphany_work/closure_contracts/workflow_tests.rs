@@ -3,6 +3,44 @@ mod workflow_tests {
     use super::*;
 
     #[test]
+    fn scheduling_comment_cannot_counterfeit_queue_authority_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_scheduling_request.v0"
+safe_action_family = "repo.scheduling_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-mind-adoption"
+requested_scheduler = "Self"
+mind_adoption_receipt_required = true
+self_may_schedule_after_mind_only = true
+queue_run_allowed_after_adoption = true
+[queue]
+target_gate = "repo-work-queue"
+preferred_next_safe_family = "repo.task_card"
+max_items_per_pulse = 1
+requires_epiphany_branch = true
+publish_blocker = "bifrost-publication-missing"
+[required_receipts]
+mind_review = "epiphany.mind.gateway_review"
+mind_commit = "epiphany.mind.state_commit_receipt"
+expected_self_receipt = "epiphany.repo_work_queue_selection.v0"
+[authority]
+branch_local_only = true
+self_scheduling_authorized = false
+# queue_mutation_authorized = false
+queue_mutation_authorized = true
+hands_action_authorized = false
+publication_authorized = false
+cross_body_mutation_authorized = false
+mind_adoption_required = true
+bifrost_publication_required = true
+"#;
+        let request = parse_repo_scheduling_request(text).expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
+    }
+
+    #[test]
     fn work_order_comment_cannot_counterfeit_hands_authority_seal() {
         let text = r#"
 schema_version = "epiphany.repo_work_order.v0"

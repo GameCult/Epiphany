@@ -1041,6 +1041,19 @@ regaining substring authority.
 Fourteen high-authority closure families are typed; 507 substring assertions
 remain. Adoption and scheduling are the next workflow-shaped candidates.
 
+## Scheduling prose as Self queue authority
+
+Scheduling carried the sharper upstream consequence: it names the Self queue
+gate, next safe family, pulse bound, prerequisite Mind receipts, and expected
+queue-selection receipt. Closure previously recognized all of that through
+substring presence. A commented `queue_mutation_authorized = false` could hide
+a real grant. `repo.scheduling_request` now parses typed workflow state, checks
+the actual queue and authority fields, and has a malicious fixture plus class
+guard preventing that substitution from returning.
+
+Fifteen high-authority closure families are typed; 477 substring assertions
+remain. Adoption is the remaining untyped workflow gate in this chain.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

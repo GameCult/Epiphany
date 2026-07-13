@@ -112,6 +112,100 @@ pub(super) fn parse_repo_work_order(text: &str) -> Result<RepoWorkOrder> {
 }
 
 #[derive(Debug, Deserialize)]
+pub(super) struct RepoSchedulingRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoSchedulingBody,
+    queue: RepoSchedulingQueue,
+    required_receipts: RepoSchedulingReceipts,
+    authority: RepoSchedulingAuthority,
+}
+
+impl RepoSchedulingRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_scheduling_request.v0"
+            && self.safe_action_family == "repo.scheduling_request"
+    }
+
+    pub(super) fn awaits_mind_adoption(&self) -> bool {
+        let r = &self.request;
+        r.status == "awaiting-mind-adoption"
+            && r.requested_scheduler == "Self"
+            && r.mind_adoption_receipt_required
+            && r.self_may_schedule_after_mind_only
+            && r.queue_run_allowed_after_adoption
+    }
+
+    pub(super) fn has_bounded_queue_contract(&self) -> bool {
+        let q = &self.queue;
+        q.target_gate == "repo-work-queue"
+            && q.preferred_next_safe_family == "repo.task_card"
+            && q.max_items_per_pulse == 1
+            && q.requires_epiphany_branch
+            && q.publish_blocker == "bifrost-publication-missing"
+    }
+
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        let r = &self.required_receipts;
+        r.mind_review == "epiphany.mind.gateway_review"
+            && r.mind_commit == "epiphany.mind.state_commit_receipt"
+            && r.expected_self_receipt == "epiphany.repo_work_queue_selection.v0"
+    }
+
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let a = &self.authority;
+        a.branch_local_only
+            && !a.self_scheduling_authorized
+            && !a.queue_mutation_authorized
+            && !a.hands_action_authorized
+            && !a.publication_authorized
+            && !a.cross_body_mutation_authorized
+            && a.mind_adoption_required
+            && a.bifrost_publication_required
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoSchedulingBody {
+    status: String,
+    requested_scheduler: String,
+    mind_adoption_receipt_required: bool,
+    self_may_schedule_after_mind_only: bool,
+    queue_run_allowed_after_adoption: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoSchedulingQueue {
+    target_gate: String,
+    preferred_next_safe_family: String,
+    max_items_per_pulse: u64,
+    requires_epiphany_branch: bool,
+    publish_blocker: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoSchedulingReceipts {
+    mind_review: String,
+    mind_commit: String,
+    expected_self_receipt: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoSchedulingAuthority {
+    branch_local_only: bool,
+    self_scheduling_authorized: bool,
+    queue_mutation_authorized: bool,
+    hands_action_authorized: bool,
+    publication_authorized: bool,
+    cross_body_mutation_authorized: bool,
+    mind_adoption_required: bool,
+    bifrost_publication_required: bool,
+}
+
+pub(super) fn parse_repo_scheduling_request(text: &str) -> Result<RepoSchedulingRequest> {
+    toml::from_str(text).context("scheduling request is not valid typed TOML")
+}
+
+#[derive(Debug, Deserialize)]
 pub(super) struct RepoVerificationRequest {
     pub(super) schema_version: String,
     pub(super) safe_action_family: String,

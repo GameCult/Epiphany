@@ -329,6 +329,13 @@ high-authority families are typed and 507 substring assertions remain. Next
 inspect adoption versus scheduling and convert the authority-bearing family
 with its own negative proof.
 
+Scheduling won that comparison because it directly names Self's queue gate,
+pulse, next family, and queue-selection receipt. Its closure is now typed under
+workflow ownership; a malicious commented queue denial cannot conceal a real
+mutation grant, and the family is in the no-substring class guard. Fifteen
+high-authority families are typed and 477 substring assertions remain. Next
+type adoption, the remaining untyped workflow gate in this chain.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every
