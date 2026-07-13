@@ -757,6 +757,17 @@ typed model. Exact summary and semantic values decide closure. A comment saying
 package installation is denied cannot mask an actual grant, and the closure
 branch contains no substring authority.
 
+## Deployment-request prose substituted for Idunn handoff authority
+
+`repo.deployment_request` closure globally searched for Idunn ownership,
+deployment packet requirements, receipts, and denials of deployment, SSH, git
+push, service lifecycle, Hands, publication, merge, cross-body, and private
+Verse authority. It now parses a typed request with explicit antecedents,
+receipt contracts, deployment packet, and authority seals. Closure uses exact
+accepted-summary equality and semantic section values. Commented SSH or
+deployment denials cannot conceal real grants, and the branch contains no
+substring authority.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

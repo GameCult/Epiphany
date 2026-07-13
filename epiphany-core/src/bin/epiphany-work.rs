@@ -8789,116 +8789,74 @@ fn closure_family_assertions(
             );
         }
         "repo.deployment_request" => {
+            let parsed = parse_repo_deployment_request(&content);
+            let request = parsed.as_ref().ok();
+            push_assertion(
+                &mut assertions,
+                "deployment-request-typed-toml",
+                parsed.is_ok(),
+                match parsed.as_ref() {
+                    Ok(_) => "Committed deployment request parses as typed TOML.".to_string(),
+                    Err(error) => format!("Committed deployment request parse failed: {error:#}"),
+                },
+            );
             push_assertion(
                 &mut assertions,
                 "deployment-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_deployment_request.v0\""),
+                request.is_some_and(RepoDeploymentRequest::has_canonical_identity),
                 "Committed deployment request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "deployment-request-family-present",
-                content.contains("safe_action_family = \"repo.deployment_request\""),
+                request.is_some_and(RepoDeploymentRequest::has_canonical_identity),
                 "Committed deployment request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "deployment-request-summary-present",
-                content.contains(&compact_summary),
+                request.is_some_and(|request| request.summary == compact_summary),
                 "Committed deployment request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "deployment-request-awaits-idunn-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-idunn-review\"")
-                    && content.contains("requested_owner = \"Idunn/Maintainer\"")
-                    && content.contains(
-                        "requested_effect = \"review-repo-deployment-trigger-and-script\"",
-                    )
-                    && content.contains("deployment_trigger = \"git-push-observed-by-idunn\"")
-                    && content.contains("deployment_owner = \"Idunn\"")
-                    && content.contains("requires_explicit_deployment_policy = true")
-                    && content.contains("requires_idunn_receipt = true")
-                    && content.contains("requires_aftercare_audit = true"),
+                request.is_some_and(RepoDeploymentRequest::awaits_idunn_review),
                 "Committed deployment request waits for Idunn/maintainer review before deployment consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "deployment-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("source_grounding_required = true")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("soul_review_required = true")
-                    && content.contains("maintainer_review_required = true")
-                    && content.contains("secret_policy_review_required = true")
-                    && content.contains("bifrost_publication_review_required = true"),
+                request.is_some_and(RepoDeploymentRequest::has_antecedents),
                 "Committed deployment request requires Eyes, Mind, Soul, maintainer, secret-policy, and Bifrost antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "deployment-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains("source_grounding = \"epiphany.eyes.evidence_packet\"")
-                    && content.contains(
-                        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"",
-                    )
-                    && content.contains(
-                        "soul_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains(
-                        "secret_policy = \"epiphany.repo_secret_policy_request.v0\"",
-                    )
-                    && content.contains(
-                        "idunn_deployment = \"gamecult.idunn.deployment_receipt.v0\"",
-                    )
-                    && content.contains(
-                        "aftercare_audit = \"gamecult.idunn.deployment_aftercare_audit.v0\"",
-                    ),
+                request.is_some_and(RepoDeploymentRequest::has_receipt_contract),
                 "Committed deployment request names Eyes, Mind, Soul, maintainer, secret-policy, Idunn deployment, and aftercare receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "deployment-request-packet-contract",
-                content.contains("[deployment_packet]")
-                    && content.contains("requires_target_environment = true")
-                    && content.contains("requires_git_ref_or_branch = true")
-                    && content.contains("requires_deployment_script_ref = true")
-                    && content.contains("requires_script_hash_or_review_ref = true")
-                    && content.contains("requires_host_access_policy_ref = true")
-                    && content.contains("requires_secret_policy_ref = true")
-                    && content.contains("requires_rollback_plan = true")
-                    && content.contains("requires_aftercare_checks = true"),
+                request.is_some_and(RepoDeploymentRequest::has_packet_contract),
                 "Committed deployment request names environment, git ref, script review, host policy, secret policy, rollback, and aftercare requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "deployment-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("direct_deployment_authority = false")
-                    && content.contains("direct_ssh_authority = false")
-                    && content.contains("direct_git_push_authority = false")
-                    && content.contains("direct_service_lifecycle_authority = false")
-                    && content.contains("direct_hands_authority = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("private_verse_rummaging = false")
-                    && content.contains("idunn_deployment_authority_required = true"),
+                request.is_some_and(RepoDeploymentRequest::has_authority_seals),
                 "Committed deployment request denies deployment/SSH/push/service/action/publication/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "deployment-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request.is_some_and(|request| !request.private_state_exposed),
                 "Committed deployment request preserves the private-state seal.".to_string(),
             );
         }
@@ -12550,6 +12508,150 @@ fn parse_repo_dependency_policy_request(text: &str) -> Result<RepoDependencyPoli
     toml::from_str(text).context("dependency policy request is not valid typed TOML")
 }
 
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentRequest {
+    schema_version: String,
+    safe_action_family: String,
+    summary: String,
+    private_state_exposed: bool,
+    request: RepoDeploymentRequestBody,
+    antecedents: RepoDeploymentRequestAntecedents,
+    required_receipts: RepoDeploymentRequestReceipts,
+    deployment_packet: RepoDeploymentRequestPacket,
+    authority: RepoDeploymentRequestAuthority,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentRequestBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    deployment_trigger: String,
+    deployment_owner: String,
+    requires_explicit_deployment_policy: bool,
+    requires_idunn_receipt: bool,
+    requires_aftercare_audit: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentRequestAntecedents {
+    source_grounding_required: bool,
+    mind_adoption_required: bool,
+    soul_review_required: bool,
+    maintainer_review_required: bool,
+    secret_policy_review_required: bool,
+    bifrost_publication_review_required: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentRequestReceipts {
+    source_grounding: String,
+    mind_adoption: String,
+    soul_review: String,
+    maintainer_review: String,
+    secret_policy: String,
+    bifrost_publication_review: String,
+    idunn_deployment: String,
+    aftercare_audit: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentRequestPacket {
+    requires_target_environment: bool,
+    requires_git_ref_or_branch: bool,
+    requires_deployment_script_ref: bool,
+    requires_script_hash_or_review_ref: bool,
+    requires_host_access_policy_ref: bool,
+    requires_secret_policy_ref: bool,
+    requires_rollback_plan: bool,
+    requires_aftercare_checks: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentRequestAuthority {
+    direct_deployment_authority: bool,
+    direct_ssh_authority: bool,
+    direct_git_push_authority: bool,
+    direct_service_lifecycle_authority: bool,
+    direct_hands_authority: bool,
+    publication_authorized: bool,
+    merge_authorized: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    idunn_deployment_authority_required: bool,
+}
+
+impl RepoDeploymentRequest {
+    fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_deployment_request.v0"
+            && self.safe_action_family == "repo.deployment_request"
+    }
+
+    fn awaits_idunn_review(&self) -> bool {
+        let value = &self.request;
+        value.status == "awaiting-idunn-review"
+            && value.requested_owner == "Idunn/Maintainer"
+            && value.requested_effect == "review-repo-deployment-trigger-and-script"
+            && value.deployment_trigger == "git-push-observed-by-idunn"
+            && value.deployment_owner == "Idunn"
+            && value.requires_explicit_deployment_policy
+            && value.requires_idunn_receipt
+            && value.requires_aftercare_audit
+    }
+
+    fn has_antecedents(&self) -> bool {
+        let value = &self.antecedents;
+        value.source_grounding_required
+            && value.mind_adoption_required
+            && value.soul_review_required
+            && value.maintainer_review_required
+            && value.secret_policy_review_required
+            && value.bifrost_publication_review_required
+    }
+
+    fn has_receipt_contract(&self) -> bool {
+        let value = &self.required_receipts;
+        value.source_grounding == "epiphany.eyes.evidence_packet"
+            && value.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+            && value.soul_review == "epiphany.repo_work_closure_review.v0"
+            && value.maintainer_review == "gamecult.maintainer.review_receipt.v0"
+            && value.secret_policy == "epiphany.repo_secret_policy_request.v0"
+            && value.bifrost_publication_review == "gamecult.bifrost.publication_review_receipt.v0"
+            && value.idunn_deployment == "gamecult.idunn.deployment_receipt.v0"
+            && value.aftercare_audit == "gamecult.idunn.deployment_aftercare_audit.v0"
+    }
+
+    fn has_packet_contract(&self) -> bool {
+        let value = &self.deployment_packet;
+        value.requires_target_environment
+            && value.requires_git_ref_or_branch
+            && value.requires_deployment_script_ref
+            && value.requires_script_hash_or_review_ref
+            && value.requires_host_access_policy_ref
+            && value.requires_secret_policy_ref
+            && value.requires_rollback_plan
+            && value.requires_aftercare_checks
+    }
+
+    fn has_authority_seals(&self) -> bool {
+        let value = &self.authority;
+        !value.direct_deployment_authority
+            && !value.direct_ssh_authority
+            && !value.direct_git_push_authority
+            && !value.direct_service_lifecycle_authority
+            && !value.direct_hands_authority
+            && !value.publication_authorized
+            && !value.merge_authorized
+            && !value.cross_body_mutation_authorized
+            && !value.private_verse_rummaging
+            && value.idunn_deployment_authority_required
+    }
+}
+
+fn parse_repo_deployment_request(text: &str) -> Result<RepoDeploymentRequest> {
+    toml::from_str(text).context("deployment request is not valid typed TOML")
+}
+
 fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -15883,6 +15985,86 @@ maintainer_or_soul_dependency_authority_required = true
             .expect("end of dependency policy closure branch");
         let branch = &source[start..end];
         assert!(branch.contains("parse_repo_dependency_policy_request"));
+        assert!(!branch.contains("content.contains"));
+    }
+
+    fn deployment_request_fixture() -> String {
+        r#"
+schema_version = "epiphany.repo_deployment_request.v0"
+safe_action_family = "repo.deployment_request"
+summary = "test summary"
+private_state_exposed = false
+[request]
+status = "awaiting-idunn-review"
+requested_owner = "Idunn/Maintainer"
+requested_effect = "review-repo-deployment-trigger-and-script"
+deployment_trigger = "git-push-observed-by-idunn"
+deployment_owner = "Idunn"
+requires_explicit_deployment_policy = true
+requires_idunn_receipt = true
+requires_aftercare_audit = true
+[antecedents]
+source_grounding_required = true
+mind_adoption_required = true
+soul_review_required = true
+maintainer_review_required = true
+secret_policy_review_required = true
+bifrost_publication_review_required = true
+[required_receipts]
+source_grounding = "epiphany.eyes.evidence_packet"
+mind_adoption = "epiphany.repo_work_mind_adoption_decision.v0"
+soul_review = "epiphany.repo_work_closure_review.v0"
+maintainer_review = "gamecult.maintainer.review_receipt.v0"
+secret_policy = "epiphany.repo_secret_policy_request.v0"
+bifrost_publication_review = "gamecult.bifrost.publication_review_receipt.v0"
+idunn_deployment = "gamecult.idunn.deployment_receipt.v0"
+aftercare_audit = "gamecult.idunn.deployment_aftercare_audit.v0"
+[deployment_packet]
+requires_target_environment = true
+requires_git_ref_or_branch = true
+requires_deployment_script_ref = true
+requires_script_hash_or_review_ref = true
+requires_host_access_policy_ref = true
+requires_secret_policy_ref = true
+requires_rollback_plan = true
+requires_aftercare_checks = true
+[authority]
+direct_deployment_authority = false
+direct_ssh_authority = false
+direct_git_push_authority = false
+direct_service_lifecycle_authority = false
+direct_hands_authority = false
+publication_authorized = false
+merge_authorized = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+idunn_deployment_authority_required = true
+"#
+        .to_string()
+    }
+
+    #[test]
+    fn deployment_request_closure_refuses_comment_authority_seals() {
+        let valid = parse_repo_deployment_request(&deployment_request_fixture()).unwrap();
+        assert!(valid.has_authority_seals());
+        let counterfeit = deployment_request_fixture().replace(
+            "direct_ssh_authority = false",
+            "# direct_ssh_authority = false\ndirect_ssh_authority = true",
+        );
+        let parsed = parse_repo_deployment_request(&counterfeit).unwrap();
+        assert!(parsed.authority.direct_ssh_authority);
+        assert!(!parsed.has_authority_seals());
+
+        let source = include_str!("epiphany-work.rs");
+        let start = source
+            .find("\"repo.deployment_request\" => {")
+            .expect("deployment request closure branch");
+        let end = source[start..]
+            .find("\n        \"repo.deployment_config\" => {")
+            .map(|offset| start + offset)
+            .expect("end of deployment request closure branch");
+        let branch = &source[start..end];
+        assert!(branch.contains("parse_repo_deployment_request"));
         assert!(!branch.contains("content.contains"));
     }
 

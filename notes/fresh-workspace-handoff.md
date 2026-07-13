@@ -191,6 +191,9 @@ The confirmed conceptual substitutions have been cut:
 - Dependency-policy request closure parses typed TOML for supply-chain scope,
   receipts, evidence requirements, and authority seals; comment prose cannot
   counterfeit package/lockfile/network/CI denials.
+- Deployment-request closure parses typed TOML for Idunn ownership,
+  antecedents, receipts, deployment packet, and authority seals; comment prose
+  cannot counterfeit SSH/push/deployment denials.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
