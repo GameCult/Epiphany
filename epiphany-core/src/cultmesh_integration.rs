@@ -3425,7 +3425,6 @@ pub fn epiphany_cultmesh_eve_connection_intent_from_advertisement(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn epiphany_cultmesh_eve_connection_receipt_for_intent(
     receipt_id: impl Into<String>,
     intent: &EpiphanyCultMeshEveConnectionIntentEntry,
@@ -3466,7 +3465,6 @@ pub fn write_epiphany_cultmesh_eve_connection_intent(
     Ok(written)
 }
 
-#[cfg(test)]
 #[cfg(test)]
 pub fn write_epiphany_cultmesh_eve_connection_receipt(
     store_path: impl AsRef<Path>,
@@ -4243,7 +4241,6 @@ pub fn epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent(
     receipt_id: impl Into<String>,
     intent: &EpiphanyCultMeshDaemonToolInvocationIntentEntry,
@@ -4366,7 +4363,6 @@ pub fn write_epiphany_cultmesh_daemon_tool_invocation_intent(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn write_epiphany_cultmesh_daemon_tool_invocation_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -4442,7 +4438,6 @@ pub fn epiphany_cultmesh_bifrost_body_change_publication_intent(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent(
     receipt_id: impl Into<String>,
     intent: &EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry,
@@ -4492,7 +4487,6 @@ pub fn write_epiphany_cultmesh_bifrost_body_change_publication_intent(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -4528,7 +4522,6 @@ pub fn load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(test)]
 #[cfg(test)]
 pub fn epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
     receipt_id: impl Into<String>,
@@ -4566,7 +4559,6 @@ pub fn epiphany_cultmesh_bifrost_github_publication_receipt_for_publication(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn write_epiphany_cultmesh_bifrost_github_publication_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -4593,7 +4585,6 @@ pub fn load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(test)]
 #[cfg(test)]
 pub fn epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
     receipt_id: impl Into<String>,
@@ -4633,7 +4624,6 @@ pub fn epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -4661,7 +4651,6 @@ pub fn load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(test)]
 #[cfg(test)]
 pub fn epiphany_cultmesh_bifrost_artifact_acceptance_receipt_for_map_entry(
     receipt_id: impl Into<String>,
@@ -4698,7 +4687,6 @@ pub fn epiphany_cultmesh_bifrost_artifact_acceptance_receipt_for_map_entry(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn write_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -4726,7 +4714,6 @@ pub fn load_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[cfg(test)]
 #[cfg(test)]
 pub fn epiphany_cultmesh_bifrost_metrics_receipt_for_map_entry(
     receipt_id: impl Into<String>,
@@ -4761,7 +4748,6 @@ pub fn epiphany_cultmesh_bifrost_metrics_receipt_for_map_entry(
     }
 }
 
-#[cfg(test)]
 #[cfg(test)]
 pub fn write_epiphany_cultmesh_bifrost_metrics_receipt(
     store_path: impl AsRef<Path>,
@@ -4822,7 +4808,6 @@ pub fn epiphany_cultmesh_bifrost_collaboration_feedback(
 }
 
 #[cfg(test)]
-#[cfg(test)]
 pub fn epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
     receipt_id: impl Into<String>,
     feedback: &EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
@@ -4867,7 +4852,6 @@ pub fn write_epiphany_cultmesh_bifrost_collaboration_feedback(
     Ok(written)
 }
 
-#[cfg(test)]
 #[cfg(test)]
 pub fn write_epiphany_cultmesh_imagination_consensus_receipt(
     store_path: impl AsRef<Path>,

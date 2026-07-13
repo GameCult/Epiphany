@@ -929,3 +929,15 @@ carry no provider timestamp or monotonic revision while exposing global
 without inventing chronology from receipt IDs or consumer arrival. The coherent
 future fix is a Bifrost-owned contract revision carrying provider event order;
 no consumer-side compensator was added.
+
+Inspection reconfirmed the exact limitation: provider receipt structs contain
+neither provider timestamp nor monotonic revision, while their `latest` keys
+are overwrite mirrors. Arrival order is therefore the only fact Epiphany can
+observe. A truthful fix requires a Bifrost-owned contract revision; Epiphany
+must not synthesize provider chronology from receipt IDs or local clocks.
+
+The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
+on provider constructors/writers and their re-exports. One gate already makes
+each item test-only; the second owned nothing. The duplicates are removed.
+Production library/binary compilation proves the provider writers remain absent
+from production while their tests continue to compile and pass.

@@ -280,6 +280,12 @@ External-governance counterfeit fixtures now live in the dedicated lexical
 the six semantic counterfeit tests remain private and passing, including the
 explicit sync push-grant attack fixture.
 
+Provider chronology remains externally blocked for a precise reason: Bifrost
+receipt contracts expose no provider timestamp or monotonic revision, so local
+`latest` mirrors only know arrival order. Do not invent chronology locally. The
+33 duplicate `#[cfg(test)]` residues found around provider writers/re-exports
+were removed; one test gate remains on every test-only item.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every
