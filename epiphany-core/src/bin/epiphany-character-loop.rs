@@ -10,7 +10,6 @@ use epiphany_core::HeartbeatAgentThoughtAppraisal;
 use epiphany_core::HeartbeatAppraisalReview;
 use epiphany_core::HeartbeatCandidateImplications;
 use epiphany_core::HeartbeatEmotionalAppraisal;
-use epiphany_core::HeartbeatParticipant;
 use epiphany_core::HeartbeatParticipantLocalContext;
 use epiphany_core::HeartbeatPersonalityProjection;
 use epiphany_core::derive_agent_utterance_state;
@@ -40,7 +39,6 @@ fn main() -> Result<()> {
     let mut stimulus: Option<String> = None;
     let mut source = "epiphany/character-loop".to_string();
     let mut mode = "public-surface".to_string();
-    let mut status = "ready".to_string();
     let mut mood = "attentive".to_string();
 
     while let Some(arg) = args.next() {
@@ -51,7 +49,6 @@ fn main() -> Result<()> {
             "--stimulus" => stimulus = Some(next_value(&mut args, "--stimulus")?),
             "--source" => source = next_value(&mut args, "--source")?,
             "--mode" => mode = next_value(&mut args, "--mode")?,
-            "--status" => status = next_value(&mut args, "--status")?,
             "--mood" => mood = next_value(&mut args, "--mood")?,
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
@@ -67,7 +64,6 @@ fn main() -> Result<()> {
                 &stimulus,
                 &source,
                 &mode,
-                &status,
                 &mood,
             )?
         }
@@ -90,7 +86,6 @@ fn run_turn(
     stimulus: &str,
     source: &str,
     mode: &str,
-    status: &str,
     mood: &str,
 ) -> Result<Value> {
     if role.trim().is_empty() {
@@ -103,7 +98,7 @@ fn run_turn(
             agent_store.display()
         )
     })?;
-    let packet = character_turn_packet(&entry, stimulus, source, mode, status, mood);
+    let packet = character_turn_packet(&entry, stimulus, source, mode, mood);
     let path = artifact_dir.join(format!(
         "character-turn-{}-{}-{}.json",
         sanitize_file_stem(role),
@@ -126,19 +121,15 @@ fn character_turn_packet(
     stimulus: &str,
     source: &str,
     mode: &str,
-    status: &str,
     mood: &str,
 ) -> Value {
     let organ_state_profile = organ_state_profile_for_role(&entry.role_id);
-    let participant = character_loop_participant(entry, status);
-    let utterance_state =
-        derive_agent_utterance_state(entry, Some(&participant), Some(mood), source);
-    let projection_seed =
-        deterministic_projection_seed(entry, stimulus, source, mode, status, mood);
+    let utterance_state = derive_agent_utterance_state(entry, None, Some(mood), source);
+    let projection_seed = deterministic_projection_seed(entry, stimulus, source, mode, mood);
     let appraisal_seed = deterministic_appraisal_seed(entry, &projection_seed, stimulus, source);
     let reaction_seed = deterministic_reaction_seed(&entry.role_id, &appraisal_seed);
     serde_json::json!({
-        "schema_version": CHARACTER_TURN_SCHEMA_VERSION,
+        "schemaVersion": CHARACTER_TURN_SCHEMA_VERSION,
         "protocol": {
             "bundle": "epiphany.character_loop",
             "referenceLineage": "Ghostlight-style character-local cognition, rebuilt as Epiphany-native protocol.",
@@ -154,7 +145,7 @@ fn character_turn_packet(
         "stimulus": {
             "kind": "operator_or_aquarium_input",
             "content": stimulus,
-            "status": status,
+            "status": "received",
             "mood": mood,
         },
         "utteranceState": utterance_state,
@@ -254,25 +245,6 @@ fn character_turn_packet(
     })
 }
 
-fn character_loop_participant(
-    entry: &EpiphanyAgentMemoryEntry,
-    status: &str,
-) -> HeartbeatParticipant {
-    HeartbeatParticipant {
-        agent_id: entry.agent.agent_id.clone(),
-        role_id: entry.role_id.clone(),
-        display_name: entry.agent.identity.name.clone(),
-        initiative_speed: 1.0,
-        reaction_bias: 0.5,
-        interrupt_threshold: 0.5,
-        status: status.to_string(),
-        personality_cooldown_multiplier: 1.0,
-        mood_cooldown_multiplier: 1.0,
-        initiative_heat_multiplier: 1.0,
-        ..HeartbeatParticipant::default()
-    }
-}
-
 #[derive(Clone, Debug)]
 struct TraitSignal {
     group: &'static str,
@@ -319,10 +291,9 @@ fn deterministic_projection_seed(
     stimulus: &str,
     source: &str,
     mode: &str,
-    status: &str,
     mood: &str,
 ) -> CharacterProjectionSeed {
-    let thought_tokens = stimulus_token_set(stimulus, source, mode, status, mood);
+    let thought_tokens = stimulus_token_set(stimulus, source, mode, mood);
     let traits = collect_trait_signals(entry);
     let mut scored = traits
         .iter()
@@ -613,18 +584,11 @@ fn strongest_overlay_pressure(
         ))
 }
 
-fn stimulus_token_set(
-    stimulus: &str,
-    source: &str,
-    mode: &str,
-    status: &str,
-    mood: &str,
-) -> BTreeSet<String> {
+fn stimulus_token_set(stimulus: &str, source: &str, mode: &str, mood: &str) -> BTreeSet<String> {
     let mut tokens = BTreeSet::new();
     tokens.extend(summary_tokens(stimulus));
     tokens.extend(summary_tokens(source));
     tokens.extend(summary_tokens(mode));
-    tokens.extend(summary_tokens(status));
     tokens.extend(summary_tokens(mood));
     tokens
 }
@@ -769,7 +733,6 @@ fn run_smoke() -> Result<Value> {
         "Aquarium hover selected Persona and asked what the swarm is feeling.",
         "smoke/character-loop",
         "public-surface",
-        "ready",
         "attentive",
     )?;
     let path = PathBuf::from(
@@ -781,7 +744,7 @@ fn run_smoke() -> Result<Value> {
         &fs::read_to_string(&path)
             .with_context(|| format!("failed to read smoke artifact {}", path.display()))?,
     )?;
-    let ok = packet["schema_version"] == CHARACTER_TURN_SCHEMA_VERSION
+    let ok = packet["schemaVersion"] == CHARACTER_TURN_SCHEMA_VERSION
         && packet["protocol"]["bundle"] == "epiphany.character_loop"
         && packet["protocol"]["roleId"] == "Persona"
         && packet["protocol"]["organStateProfile"]["profileKind"] == "persona"
@@ -813,6 +776,8 @@ fn run_smoke() -> Result<Value> {
         && packet["stimulus"]["content"]
             .as_str()
             .is_some_and(|text| text.contains("Aquarium"))
+        && packet["stimulus"]["status"] == "received"
+        && packet["utteranceState"]["activation"]["status"] == "unknown"
         && packet["cognitionLanes"]["schema_version"] == "epiphany.cognition_lanes.v0"
         && packet["cognitionLanes"]["bridge"]["schema_version"] == "epiphany.cognition_bridge.v0"
         && packet["cognitionLanes"]["appraisal"]["schema_version"]
@@ -821,7 +786,9 @@ fn run_smoke() -> Result<Value> {
         "ok": ok,
         "turnPath": path,
         "packet": {
-            "schemaVersion": packet["schema_version"],
+            "schemaVersion": packet["schemaVersion"],
+            "stimulusStatus": packet["stimulus"]["status"],
+            "activationStatus": packet["utteranceState"]["activation"]["status"],
             "bundle": packet["protocol"]["bundle"],
             "roleId": packet["protocol"]["roleId"],
             "agentId": packet["protocol"]["agentId"],

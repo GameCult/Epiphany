@@ -1507,8 +1507,6 @@ fn run_persona_intake(args: PersonaIntakeArgs) -> Result<Value> {
             args.message.clone(),
             "--source".to_string(),
             "epiphany/Persona/repo-intake".to_string(),
-            "--status".to_string(),
-            "accepted-for-imagination-consensus".to_string(),
             "--mood".to_string(),
             args.mood.clone(),
         ],

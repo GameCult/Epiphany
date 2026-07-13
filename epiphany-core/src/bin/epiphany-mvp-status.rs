@@ -548,7 +548,7 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
             .unwrap_or_default(),
     );
     let persona = json!({
-        "status": "ready",
+        "status": "loaded",
         "artifactDir": persona_dir,
         "latestArtifacts": latest_artifacts,
         "availableActions": ["personaBubble", "characterTurn", "discordPersonaPost", "redditPersonaPost", "otherWorldPersonaRequest"],

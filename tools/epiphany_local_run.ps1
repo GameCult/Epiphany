@@ -2395,7 +2395,6 @@ if ($Mode -eq "mvp") {
             "--stimulus", $PersonaInput,
             "--source", "epiphany/local-mvp",
             "--mode", "local-mvp-front-door",
-            "--status", "ready",
             "--mood", "attentive"
         ) `
         -WorkingDirectory $Root `

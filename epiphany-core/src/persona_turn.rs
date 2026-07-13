@@ -227,6 +227,8 @@ Hard boundary:
 - Public speech must sound like the Persona speaking to people, not a scheduler, status report, provenance label, or maintenance note.
 - If the Persona chooses silence, route without SAY. Preserve useful private pressure as STATE NOTE only when it earns memory.
 - Do not auto-post. Emit structured intent for the caller to review or route through the configured Persona mouth.
+- Keep consequence ownership explicit: Persona owns the natural speech candidate; the parent mouth policy owns eligibility; an Aquarium bubble owns only local projection; Mind owns durable admission; Bifrost/provider receipts alone own downstream publication or delivery.
+- A successful mouth invocation, accepted request, bubble artifact, configured channel, or provider advertisement is not a publication receipt. Never label it posted, published, delivered, admitted, or consensus-accepted without the owning typed evidence.
 
 Allowed effect vocabulary:
 - STATE NOTE: bounded Persona memory, mood, need, social read, bond, value, goal, or agency pressure.
@@ -603,6 +605,8 @@ mod tests {
         assert!(interpreter.contains("Allowed effect vocabulary"));
         assert!(interpreter.contains("STATE NOTE"));
         assert!(interpreter.contains("SAY"));
+        assert!(interpreter.contains("Aquarium bubble owns only local projection"));
+        assert!(interpreter.contains("Bifrost/provider receipts alone own"));
     }
 
     #[test]

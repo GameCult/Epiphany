@@ -593,3 +593,16 @@ has no `--status`; successful writes derive `projected`; the strict intent
 schema has no status field; and the output schema permits only `projected`.
 Native smoke returns that value and an explicit `--status ready` invocation is
 rejected. The 259 library tests and all-bin check pass.
+
+Three live Epiphany-shaped read-only organs (Eyes, Proprioception, Soul) were
+used as prompt-quality probes. They converged on caller status impersonating
+character physiology. `epiphany-character-loop` no longer accepts `--status`,
+constructs no fake heartbeat participant, derives stimulus `received`, and
+reports activation `unknown` without scheduler evidence. Its packet now matches
+the registered `schemaVersion`. Proprioception also found and removed the stale
+repo-intake consensus status argument and demoted aggregate Persona status from
+`ready` to `loaded`. Persona prompts now explicitly separate candidate, bubble,
+eligibility, Mind admission, and Bifrost/provider delivery ownership. Native
+negative/smoke checks, 259 library tests, 32 work tests, and all-bin compilation
+pass. Next repair Modeling's forced-patch prompt pressure and the P0 Discord/
+Reddit arbitrary-JSON publication receipts found by Eyes and Soul.

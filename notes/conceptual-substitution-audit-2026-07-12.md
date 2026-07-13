@@ -1528,3 +1528,28 @@ bubble projection derives `status=projected`; the intent schema rejects unknown
 fields and the output schema admits only that derived value. Mood and source
 remain presentation metadata. A negative CLI check proves `--status ready` is
 rejected before artifact creation.
+
+## Caller context is not character physiology
+
+A live Eyes/Proprioception/Soul prompt-shaped audit independently converged on
+`epiphany-character-loop --status`: arbitrary caller text defaulted to `ready`,
+became a fabricated `HeartbeatParticipant.status`, entered utterance activation,
+and even influenced semantic trait scoring. The option and synthetic participant
+are deleted. Character-loop now records stimulus `received` and reports
+activation `unknown` when no scheduler-owned participant snapshot is present.
+Caller `--status` is rejected. The packet producer now emits the registered
+`schemaVersion` field instead of hiding a snake-case mismatch behind permissive
+schema settings.
+
+The same Proprioception pass caught two adjacent substitutions: repo Persona
+intake still passed `accepted-for-imagination-consensus` into the removed bubble
+status option, and MVP status called Persona `ready` after merely aggregating
+artifact reads. The stale caller is deleted and aggregate Persona state is
+`loaded`. Persona Interpreter and heartbeat prompts now name the authority map:
+candidate speech, local bubble, eligibility, Mind admission, and Bifrost/provider
+delivery are distinct consequences.
+
+Prompt signal: Modeling currently requires a durable `statePatch` even when no
+model change is warranted. That can manufacture persistence merely to satisfy
+the output contract. The next prompt-contract pass should add a source-grounded
+`no-state-change` result rather than encouraging ceremonial scratch churn.
