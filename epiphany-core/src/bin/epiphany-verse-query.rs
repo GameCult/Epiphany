@@ -5047,7 +5047,7 @@ fn repo_work_map_stage_lens_rows(
 }
 
 fn repo_work_stage_for_family(safe_action_family: &str) -> (String, String) {
-    let stage = match safe_action_family {
+    let (stage, owner) = match safe_action_family {
         "repo.append_worklog"
         | "repo.markdown_planning_note"
         | "repo.checklist_note"
@@ -5056,36 +5056,27 @@ fn repo_work_stage_for_family(safe_action_family: &str) -> (String, String) {
         | "repo.task_card"
         | "repo.consensus_brief"
         | "repo.interpreter_brief"
-        | "repo.objective_draft" => "imagination-planning",
-        "repo.tool_request" | "repo.collaboration_policy" | "repo.collaboration_topic" => {
-            "repo-body-collaboration"
-        }
-        "repo.adoption_request" => "mind-adoption-request",
-        "repo.scheduling_request" => "self-scheduling-request",
-        "repo.work_order" => "hands-execution-request",
-        "repo.verification_request" => "soul-verification-request",
-        "repo.publication_request"
-        | "repo.sync_request"
-        | "repo.maintainer_review_request"
-        | "repo.pr_request"
-        | "repo.credit_request"
-        | "repo.artifact_acceptance_request"
-        | "repo.metrics_request" => "bifrost-publication-accounting",
-        "repo.doctrine_update_request" | "repo.secret_policy_request" => "repo-governance",
-        "repo.deployment_config" | "repo.deployment_request" => "idunn-deployment",
-        _ => "unknown-safe-family",
-    };
-    let owner = match stage {
-        "imagination-planning" => "Imagination",
-        "repo-body-collaboration" => "Persona/Odin/Eve",
-        "mind-adoption-request" => "Mind",
-        "self-scheduling-request" => "Self",
-        "hands-execution-request" => "Hands",
-        "soul-verification-request" => "Soul",
-        "bifrost-publication-accounting" => "Bifrost",
-        "repo-governance" => "Mind/Soul/Maintainer",
-        "idunn-deployment" => "Idunn",
-        _ => "Unknown",
+        | "repo.objective_draft" => ("imagination-planning", "Imagination"),
+        "repo.tool_request" => ("daemon-tool-request", "target-host-daemon"),
+        "repo.collaboration_policy" => ("collaboration-policy-draft", "Imagination"),
+        "repo.collaboration_topic" => ("collaboration-topic-draft", "Imagination"),
+        "repo.adoption_request" => ("mind-adoption-request", "Mind"),
+        "repo.scheduling_request" => ("self-scheduling-request", "Self"),
+        "repo.work_order" => ("hands-execution-request", "Hands"),
+        "repo.verification_request" => ("soul-verification-request", "Soul"),
+        "repo.publication_request" => ("bifrost-publication-request", "Bifrost"),
+        "repo.sync_request" => ("bifrost-upstream-proof", "Bifrost"),
+        "repo.maintainer_review_request" => ("maintainer-review-request", "Maintainer"),
+        "repo.pr_request" => ("hands-pr-execution-request", "Hands"),
+        "repo.credit_request" => ("bifrost-credit-accounting", "Bifrost"),
+        "repo.artifact_acceptance_request" => ("maintainer-artifact-acceptance", "Maintainer"),
+        "repo.metrics_request" => ("bifrost-metrics-accounting", "Bifrost"),
+        "repo.readiness_review_request" => ("maintainer-readiness-review", "Maintainer"),
+        "repo.doctrine_update_request" => ("mind-doctrine-admission", "Mind"),
+        "repo.secret_policy_request" => ("mind-secret-policy-admission", "Mind"),
+        "repo.dependency_policy_request" => ("mind-dependency-policy-admission", "Mind"),
+        "repo.deployment_config" | "repo.deployment_request" => ("idunn-deployment", "Idunn"),
+        _ => ("unknown-safe-family", "Unknown"),
     };
     (stage.to_string(), owner.to_string())
 }
@@ -9499,6 +9490,67 @@ fn required_list(values: &Option<Vec<String>>, message: &str) -> Result<Vec<Stri
 #[cfg(test)]
 mod lifecycle_projection_tests {
     use super::*;
+
+    #[test]
+    fn repo_work_stage_lens_preserves_per_family_ownership() {
+        let expected = [
+            (
+                "repo.tool_request",
+                "daemon-tool-request",
+                "target-host-daemon",
+            ),
+            (
+                "repo.collaboration_policy",
+                "collaboration-policy-draft",
+                "Imagination",
+            ),
+            (
+                "repo.publication_request",
+                "bifrost-publication-request",
+                "Bifrost",
+            ),
+            ("repo.sync_request", "bifrost-upstream-proof", "Bifrost"),
+            (
+                "repo.maintainer_review_request",
+                "maintainer-review-request",
+                "Maintainer",
+            ),
+            ("repo.pr_request", "hands-pr-execution-request", "Hands"),
+            (
+                "repo.artifact_acceptance_request",
+                "maintainer-artifact-acceptance",
+                "Maintainer",
+            ),
+            (
+                "repo.readiness_review_request",
+                "maintainer-readiness-review",
+                "Maintainer",
+            ),
+            (
+                "repo.doctrine_update_request",
+                "mind-doctrine-admission",
+                "Mind",
+            ),
+            (
+                "repo.secret_policy_request",
+                "mind-secret-policy-admission",
+                "Mind",
+            ),
+            (
+                "repo.dependency_policy_request",
+                "mind-dependency-policy-admission",
+                "Mind",
+            ),
+            ("repo.deployment_request", "idunn-deployment", "Idunn"),
+        ];
+        for (family, stage, owner) in expected {
+            assert_eq!(
+                repo_work_stage_for_family(family),
+                (stage.to_string(), owner.to_string())
+            );
+        }
+        assert!(expected.iter().all(|(_, _, owner)| !owner.contains('/')));
+    }
 
     #[test]
     fn smoke_reset_is_confined_to_exact_canonical_quarantine() -> Result<()> {

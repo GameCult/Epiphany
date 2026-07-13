@@ -1358,3 +1358,16 @@ The repo-work stage lens still contains composite labels for grouped safe-action
 families (`Persona/Odin/Eve` and `Mind/Soul/Maintainer`). Those groups combine
 families with different authorities and need to be split by family rather than
 given a more attractive shared label.
+
+That grouped model is now deleted. `repo_work_stage_for_family` assigns stages
+and owners per typed safe family: tool requests route to their target host
+daemon; collaboration drafts remain Imagination-authored; publication, proof,
+review, PR execution, credit, artifact acceptance, metrics, readiness, policy
+admission, and deployment each name their actual owner. Dependency policy and
+readiness review are no longer silently classified as unknown. A table-driven
+regression test covers the governed families and refuses slash-composite owners.
+
+The remaining production scan finds composite owner labels in the repo-work
+readiness projection (`Idunn/Soul`, `Soul/Bifrost`, and
+`Soul/Mind/Bifrost/Maintainer`) plus arrow-shaped handoff labels presented as
+owners. Trace those rows to their receipt producers and split owner from route.

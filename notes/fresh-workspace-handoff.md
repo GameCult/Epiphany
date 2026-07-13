@@ -489,3 +489,11 @@ Self rather than its Hands/Soul/Modeling stage route. The next projection scar
 is `repo_work_stage_for_family`: it groups distinct collaboration and governance
 families under composite owners. Split those stage groups by actual family
 authority; do not merely rename the composites.
+
+The stage groups are now split per safe family, with regression coverage for
+tool host, Imagination draft, Mind admission, Maintainer decision, Hands
+execution, Bifrost proof/accounting/publication, Soul verification, Self
+scheduling, and Idunn deployment ownership. Dependency policy and readiness
+are explicitly classified instead of falling through to Unknown. Next trace
+the remaining composite owner labels in repo-work readiness rows around the
+Idunn/Soul, Soul/Bifrost, and four-reviewer projections.
