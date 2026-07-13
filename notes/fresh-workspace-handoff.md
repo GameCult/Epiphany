@@ -568,3 +568,8 @@ binary tests, and the all-bin check pass.
 Rider bridge topology no longer claims readiness from path existence. Rider is
 `discovered`, solutions are `found`, and repository topology is `gitDetected`;
 the native bridge smoke passes with the renamed evidence states.
+
+Unity bridge uses the same boundary: project version parsing is `pinned`, exact
+editor path discovery is `resolved`, and the editor package predicate is named
+`present`. Operability belongs to the subsequent `runStatus` receipt. The
+native Unity bridge smoke, 259 library tests, and all-bin check pass.

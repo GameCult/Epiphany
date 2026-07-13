@@ -223,7 +223,7 @@ fn read_unity_project_version(project_path: &Path) -> serde_json::Value {
         .as_str()
         .is_some_and(|value| !value.is_empty())
     {
-        result["status"] = json!("ready");
+        result["status"] = json!("pinned");
     } else {
         result["status"] = json!("missingProjectVersion");
         result["note"] = json!("ProjectVersion.txt did not contain m_EditorVersion.");
@@ -364,7 +364,7 @@ fn resolve_unity_editor(project_path: &Path) -> Result<serde_json::Value> {
             .collect::<Vec<_>>()
     );
     if let Some(exact) = exact {
-        result["status"] = json!("ready");
+        result["status"] = json!("resolved");
         result["editorPath"] = json!(path_string(exact));
         result["note"] = json!(format!(
             "Project pins Unity {project_version}; exact editor resolved at {}.",
@@ -481,7 +481,7 @@ fn build_unity_command(
     Ok(command)
 }
 
-fn editor_bridge_ready(summary: &serde_json::Value) -> bool {
+fn editor_bridge_present(summary: &serde_json::Value) -> bool {
     summary["editorBridge"]["exists"].as_bool() == Some(true)
 }
 
@@ -619,7 +619,7 @@ fn run_unity(options: &UnityOptions) -> Result<serde_json::Value> {
     summary["operation"] = json!("run");
     summary["label"] = json!(options.label);
     summary["unityArgs"] = json!(options.unity_args);
-    if summary["status"].as_str() != Some("ready") {
+    if summary["status"].as_str() != Some("resolved") {
         summary["runStatus"] = json!("blocked");
         summary["note"] = json!(format!(
             "{} Runtime execution refused; install the exact pinned editor or use inspect artifacts as evidence of the missing runtime.",
@@ -701,7 +701,7 @@ fn run_named_probe(options: &UnityOptions, operation: &str) -> Result<serde_json
         "description": probe_description(operation),
         "expectedArtifacts": expected_artifacts(operation),
     });
-    if summary["status"].as_str() != Some("ready") {
+    if summary["status"].as_str() != Some("resolved") {
         summary["runStatus"] = json!("blocked");
         summary["note"] = json!(format!(
             "{} Runtime/editor probe refused; install the exact pinned editor or use inspect artifacts as evidence of the missing runtime.",
@@ -710,7 +710,7 @@ fn run_named_probe(options: &UnityOptions, operation: &str) -> Result<serde_json
         write_inspection_artifacts(&directory, &summary)?;
         return Ok(summary);
     }
-    if !editor_bridge_ready(&summary) {
+    if !editor_bridge_present(&summary) {
         let bridge_path = summary["editorBridge"]["path"]
             .as_str()
             .map(ToOwned::to_owned)
@@ -785,7 +785,7 @@ fn test_unity(options: &UnityOptions) -> Result<serde_json::Value> {
     summary["operation"] = json!("run-tests");
     summary["testPlatform"] = json!(options.platform);
     summary["testFilter"] = json!(options.filter);
-    if summary["status"].as_str() != Some("ready") {
+    if summary["status"].as_str() != Some("resolved") {
         summary["runStatus"] = json!("blocked");
         summary["note"] = json!(format!(
             "{} Unity tests refused; install the exact pinned editor or use inspect artifacts as evidence of the missing runtime.",
@@ -935,8 +935,8 @@ fn bridge_guidance(project_path: &Path) -> Result<String> {
         "`epiphany-unity-bridge inspect --project-path {}`",
         project_path.display()
     );
-    if summary["status"].as_str() == Some("ready") {
-        if editor_bridge_ready(&summary) {
+    if summary["status"].as_str() == Some("resolved") {
+        if editor_bridge_present(&summary) {
             Ok(format!(
                 "- Unity bridge: project pins {} and the exact editor resolved to `{}`. If Unity execution is needed, use named bridge operations such as `epiphany-unity-bridge probe --project-path {} --operation scene-facts --scene <Assets/...unity>` or `epiphany-unity-bridge check-compilation --project-path {}`. The bridge owns -batchmode, -quit, -projectPath, -logFile, -executeMethod, and artifacts. Do not invoke `Unity`, `Unity.exe`, default installs, or PATH-resolved editors directly, and do not refactor Unity-owned scene/prefab state as raw text when the editor bridge can inspect it.",
                 summary["projectVersion"].as_str().unwrap_or("unknown"),

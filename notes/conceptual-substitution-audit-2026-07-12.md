@@ -1487,3 +1487,12 @@ The Rider bridge called a discovered executable path, solution file, and Git
 branch `ready` without executing or validating any of them. These projections
 now report `discovered`, `found`, and `gitDetected`. Discovery owns topology;
 only an actual launch receipt may later claim operability.
+
+## Editor resolution is not editor operability
+
+Unity inspection called a parsed project version and an existing exact-editor
+path `ready`; its smoke proved that state with a fake text file named as the
+editor executable. The project version is now `pinned`, the editor path is
+`resolved`, and editor-bridge package existence is explicitly `present`.
+Commands may use resolution to choose what to execute, but only `runStatus`
+records planned, completed, failed, or blocked execution consequence.

@@ -50,7 +50,7 @@ fn run_smoke() -> Result<Value> {
     require_artifact(&missing, "unity-bridge-inspection.md")?;
 
     let exact_editor = create_fake_editor(&fake_roots, PROJECT_VERSION)?;
-    let ready = run_bridge(
+    let resolved = run_bridge(
         &root,
         &workspace,
         &artifact_root,
@@ -59,15 +59,15 @@ fn run_smoke() -> Result<Value> {
         true,
     )?;
     require(
-        ready["status"] == "ready",
-        "exact editor should satisfy pin",
+        resolved["status"] == "resolved",
+        "exact editor path should resolve the pin",
     )?;
     require(
-        ready["editorPath"] == exact_editor.to_string_lossy().as_ref(),
+        resolved["editorPath"] == exact_editor.to_string_lossy().as_ref(),
         "inspection should resolve exact editor",
     )?;
     require(
-        ready
+        resolved
             .pointer("/editorBridge/exists")
             .and_then(Value::as_bool)
             == Some(false),
@@ -89,7 +89,7 @@ fn run_smoke() -> Result<Value> {
         true,
     )?;
     require(
-        planned["status"] == "ready",
+        planned["status"] == "resolved",
         "dry run should still require exact editor",
     )?;
     require(
@@ -148,7 +148,7 @@ fn run_smoke() -> Result<Value> {
         true,
     )?;
     require(
-        bridged["status"] == "ready",
+        bridged["status"] == "resolved",
         "bridge project should still resolve exact editor",
     )?;
     require(
@@ -287,13 +287,13 @@ fn run_smoke() -> Result<Value> {
         "workspace": workspace,
         "artifactRoot": artifact_root,
         "missingStatus": missing["status"],
-        "readyStatus": ready["status"],
+        "editorResolutionStatus": resolved["status"],
         "plannedStatus": planned["runStatus"],
         "missingPackageStatus": missing_package["status"],
         "sceneProbeStatus": scene_probe["runStatus"],
         "testStatus": tests["runStatus"],
         "blockedStatus": blocked["runStatus"],
-        "resolvedEditor": ready["editorPath"],
+        "resolvedEditor": resolved["editorPath"],
     });
     write_json(&result_path, &result)?;
     Ok(result)
