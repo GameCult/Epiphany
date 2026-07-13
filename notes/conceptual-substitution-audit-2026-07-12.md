@@ -746,6 +746,17 @@ packet, and authority seals. Closure requires semantic predicates and exact
 accepted-summary equality; the branch contains no substring authority. A
 commented denial cannot conceal granted secret access.
 
+## Dependency-policy prose substituted for supply-chain authority
+
+`repo.dependency_policy_request` closure used the same global substring method
+for package installation, dependency updates, lockfile mutation, network fetch,
+CI mutation, Hands, deployment, publication, service, and private Verse
+denials. It now deserializes request scope, Eyes/Soul/Mind/maintainer/Bifrost
+antecedents, receipt contracts, dependency packet, and authority seals into a
+typed model. Exact summary and semantic values decide closure. A comment saying
+package installation is denied cannot mask an actual grant, and the closure
+branch contains no substring authority.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

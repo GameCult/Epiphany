@@ -8712,120 +8712,79 @@ fn closure_family_assertions(
             );
         }
         "repo.dependency_policy_request" => {
+            let parsed = parse_repo_dependency_policy_request(&content);
+            let request = parsed.as_ref().ok();
+            push_assertion(
+                &mut assertions,
+                "dependency-policy-request-typed-toml",
+                parsed.is_ok(),
+                match parsed.as_ref() {
+                    Ok(_) => {
+                        "Committed dependency policy request parses as typed TOML.".to_string()
+                    }
+                    Err(error) => {
+                        format!("Committed dependency policy request parse failed: {error:#}")
+                    }
+                },
+            );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_dependency_policy_request.v0\""),
+                request.is_some_and(RepoDependencyPolicyRequest::has_canonical_identity),
                 "Committed dependency policy request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-family-present",
-                content.contains("safe_action_family = \"repo.dependency_policy_request\""),
+                request.is_some_and(RepoDependencyPolicyRequest::has_canonical_identity),
                 "Committed dependency policy request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-summary-present",
-                content.contains(&compact_summary),
+                request.is_some_and(|request| request.summary == compact_summary),
                 "Committed dependency policy request contains the accepted pressure summary."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-awaits-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-dependency-policy-review\"")
-                    && content.contains("requested_owner = \"Maintainer/Soul/Bifrost\"")
-                    && content.contains(
-                        "requested_effect = \"review-repo-dependency-and-supply-chain-policy\"",
-                    )
-                    && content.contains("requires_manifest_inventory = true")
-                    && content.contains("requires_lockfile_policy = true")
-                    && content.contains("requires_package_manager_command_review = true")
-                    && content.contains("requires_network_fetch_policy = true")
-                    && content.contains("requires_vulnerability_review = true")
-                    && content.contains("requires_license_review = true")
-                    && content.contains("requires_rollback_plan = true"),
+                request.is_some_and(RepoDependencyPolicyRequest::awaits_review),
                 "Committed dependency policy request waits for maintainer/Soul/Bifrost review before consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("source_grounding_required = true")
-                    && content.contains("eyes_evidence_required = true")
-                    && content.contains("soul_review_required = true")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("maintainer_review_required = true")
-                    && content.contains("bifrost_publication_review_required = true"),
+                request.is_some_and(RepoDependencyPolicyRequest::has_antecedents),
                 "Committed dependency policy request requires Eyes, Soul, Mind, maintainer, and Bifrost antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains("source_grounding = \"epiphany.eyes.evidence_packet\"")
-                    && content.contains(
-                        "soul_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"",
-                    )
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains(
-                        "bifrost_publication_review = \"gamecult.bifrost.publication_review_receipt.v0\"",
-                    )
-                    && content.contains(
-                        "dependency_audit = \"gamecult.supply_chain.dependency_audit_receipt.v0\"",
-                    ),
+                request.is_some_and(RepoDependencyPolicyRequest::has_receipt_contract),
                 "Committed dependency policy request names Eyes, Soul, Mind, maintainer, Bifrost, and dependency-audit receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-packet-contract",
-                content.contains("[dependency_packet]")
-                    && content.contains("requires_manifest_paths = true")
-                    && content.contains("requires_lockfile_paths = true")
-                    && content.contains("requires_package_manager_commands = true")
-                    && content.contains("requires_vulnerability_sources = true")
-                    && content.contains("requires_license_constraints = true")
-                    && content.contains("requires_vendored_code_policy = true")
-                    && content.contains("requires_update_cadence = true")
-                    && content.contains("requires_private_state_redaction_check = true"),
+                request.is_some_and(RepoDependencyPolicyRequest::has_packet_contract),
                 "Committed dependency policy request names manifest, lockfile, package-manager, vulnerability, license, vendored-code, update cadence, and redaction requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("direct_dependency_update_authority = false")
-                    && content.contains("direct_package_install_authority = false")
-                    && content.contains("direct_lockfile_mutation_authority = false")
-                    && content.contains("direct_network_fetch_authority = false")
-                    && content.contains("direct_ci_mutation_authority = false")
-                    && content.contains("direct_hands_authority = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("deployment_authority = false")
-                    && content.contains("service_lifecycle_authority = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("private_verse_rummaging = false")
-                    && content
-                        .contains("maintainer_or_soul_dependency_authority_required = true"),
+                request.is_some_and(RepoDependencyPolicyRequest::has_authority_seals),
                 "Committed dependency policy request denies dependency/package/lockfile/network/CI/action/publication/service/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "dependency-policy-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request.is_some_and(|request| !request.private_state_exposed),
                 "Committed dependency policy request preserves the private-state seal.".to_string(),
             );
         }
@@ -12441,6 +12400,156 @@ fn parse_repo_secret_policy_request(text: &str) -> Result<RepoSecretPolicyReques
     toml::from_str(text).context("secret policy request is not valid typed TOML")
 }
 
+#[derive(Debug, Deserialize)]
+struct RepoDependencyPolicyRequest {
+    schema_version: String,
+    safe_action_family: String,
+    summary: String,
+    private_state_exposed: bool,
+    request: RepoDependencyPolicyRequestBody,
+    antecedents: RepoDependencyPolicyAntecedents,
+    required_receipts: RepoDependencyPolicyReceipts,
+    dependency_packet: RepoDependencyPolicyPacket,
+    authority: RepoDependencyPolicyAuthority,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDependencyPolicyRequestBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    requires_manifest_inventory: bool,
+    requires_lockfile_policy: bool,
+    requires_package_manager_command_review: bool,
+    requires_network_fetch_policy: bool,
+    requires_vulnerability_review: bool,
+    requires_license_review: bool,
+    requires_rollback_plan: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDependencyPolicyAntecedents {
+    source_grounding_required: bool,
+    eyes_evidence_required: bool,
+    soul_review_required: bool,
+    mind_adoption_required: bool,
+    maintainer_review_required: bool,
+    bifrost_publication_review_required: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDependencyPolicyReceipts {
+    source_grounding: String,
+    soul_review: String,
+    mind_adoption: String,
+    maintainer_review: String,
+    bifrost_publication_review: String,
+    dependency_audit: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDependencyPolicyPacket {
+    requires_manifest_paths: bool,
+    requires_lockfile_paths: bool,
+    requires_package_manager_commands: bool,
+    requires_vulnerability_sources: bool,
+    requires_license_constraints: bool,
+    requires_vendored_code_policy: bool,
+    requires_update_cadence: bool,
+    requires_private_state_redaction_check: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDependencyPolicyAuthority {
+    direct_dependency_update_authority: bool,
+    direct_package_install_authority: bool,
+    direct_lockfile_mutation_authority: bool,
+    direct_network_fetch_authority: bool,
+    direct_ci_mutation_authority: bool,
+    direct_hands_authority: bool,
+    publication_authorized: bool,
+    merge_authorized: bool,
+    deployment_authority: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    maintainer_or_soul_dependency_authority_required: bool,
+}
+
+impl RepoDependencyPolicyRequest {
+    fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_dependency_policy_request.v0"
+            && self.safe_action_family == "repo.dependency_policy_request"
+    }
+
+    fn awaits_review(&self) -> bool {
+        let request = &self.request;
+        request.status == "awaiting-dependency-policy-review"
+            && request.requested_owner == "Maintainer/Soul/Bifrost"
+            && request.requested_effect == "review-repo-dependency-and-supply-chain-policy"
+            && request.requires_manifest_inventory
+            && request.requires_lockfile_policy
+            && request.requires_package_manager_command_review
+            && request.requires_network_fetch_policy
+            && request.requires_vulnerability_review
+            && request.requires_license_review
+            && request.requires_rollback_plan
+    }
+
+    fn has_antecedents(&self) -> bool {
+        let value = &self.antecedents;
+        value.source_grounding_required
+            && value.eyes_evidence_required
+            && value.soul_review_required
+            && value.mind_adoption_required
+            && value.maintainer_review_required
+            && value.bifrost_publication_review_required
+    }
+
+    fn has_receipt_contract(&self) -> bool {
+        let value = &self.required_receipts;
+        value.source_grounding == "epiphany.eyes.evidence_packet"
+            && value.soul_review == "epiphany.repo_work_closure_review.v0"
+            && value.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+            && value.maintainer_review == "gamecult.maintainer.review_receipt.v0"
+            && value.bifrost_publication_review == "gamecult.bifrost.publication_review_receipt.v0"
+            && value.dependency_audit == "gamecult.supply_chain.dependency_audit_receipt.v0"
+    }
+
+    fn has_packet_contract(&self) -> bool {
+        let value = &self.dependency_packet;
+        value.requires_manifest_paths
+            && value.requires_lockfile_paths
+            && value.requires_package_manager_commands
+            && value.requires_vulnerability_sources
+            && value.requires_license_constraints
+            && value.requires_vendored_code_policy
+            && value.requires_update_cadence
+            && value.requires_private_state_redaction_check
+    }
+
+    fn has_authority_seals(&self) -> bool {
+        let value = &self.authority;
+        !value.direct_dependency_update_authority
+            && !value.direct_package_install_authority
+            && !value.direct_lockfile_mutation_authority
+            && !value.direct_network_fetch_authority
+            && !value.direct_ci_mutation_authority
+            && !value.direct_hands_authority
+            && !value.publication_authorized
+            && !value.merge_authorized
+            && !value.deployment_authority
+            && !value.service_lifecycle_authority
+            && !value.cross_body_mutation_authorized
+            && !value.private_verse_rummaging
+            && value.maintainer_or_soul_dependency_authority_required
+    }
+}
+
+fn parse_repo_dependency_policy_request(text: &str) -> Result<RepoDependencyPolicyRequest> {
+    toml::from_str(text).context("dependency policy request is not valid typed TOML")
+}
+
 fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -15691,6 +15800,89 @@ maintainer_or_soul_security_authority_required = true
             .expect("end of secret policy closure branch");
         let branch = &source[start..end];
         assert!(branch.contains("parse_repo_secret_policy_request"));
+        assert!(!branch.contains("content.contains"));
+    }
+
+    fn dependency_policy_fixture() -> String {
+        r#"
+schema_version = "epiphany.repo_dependency_policy_request.v0"
+safe_action_family = "repo.dependency_policy_request"
+summary = "test summary"
+private_state_exposed = false
+[request]
+status = "awaiting-dependency-policy-review"
+requested_owner = "Maintainer/Soul/Bifrost"
+requested_effect = "review-repo-dependency-and-supply-chain-policy"
+requires_manifest_inventory = true
+requires_lockfile_policy = true
+requires_package_manager_command_review = true
+requires_network_fetch_policy = true
+requires_vulnerability_review = true
+requires_license_review = true
+requires_rollback_plan = true
+[antecedents]
+source_grounding_required = true
+eyes_evidence_required = true
+soul_review_required = true
+mind_adoption_required = true
+maintainer_review_required = true
+bifrost_publication_review_required = true
+[required_receipts]
+source_grounding = "epiphany.eyes.evidence_packet"
+soul_review = "epiphany.repo_work_closure_review.v0"
+mind_adoption = "epiphany.repo_work_mind_adoption_decision.v0"
+maintainer_review = "gamecult.maintainer.review_receipt.v0"
+bifrost_publication_review = "gamecult.bifrost.publication_review_receipt.v0"
+dependency_audit = "gamecult.supply_chain.dependency_audit_receipt.v0"
+[dependency_packet]
+requires_manifest_paths = true
+requires_lockfile_paths = true
+requires_package_manager_commands = true
+requires_vulnerability_sources = true
+requires_license_constraints = true
+requires_vendored_code_policy = true
+requires_update_cadence = true
+requires_private_state_redaction_check = true
+[authority]
+direct_dependency_update_authority = false
+direct_package_install_authority = false
+direct_lockfile_mutation_authority = false
+direct_network_fetch_authority = false
+direct_ci_mutation_authority = false
+direct_hands_authority = false
+publication_authorized = false
+merge_authorized = false
+deployment_authority = false
+service_lifecycle_authority = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+maintainer_or_soul_dependency_authority_required = true
+"#
+        .to_string()
+    }
+
+    #[test]
+    fn dependency_policy_closure_refuses_comment_authority_seals() {
+        let valid = parse_repo_dependency_policy_request(&dependency_policy_fixture()).unwrap();
+        assert!(valid.has_authority_seals());
+        let counterfeit = dependency_policy_fixture().replace(
+            "direct_package_install_authority = false",
+            "# direct_package_install_authority = false\ndirect_package_install_authority = true",
+        );
+        let parsed = parse_repo_dependency_policy_request(&counterfeit).unwrap();
+        assert!(parsed.authority.direct_package_install_authority);
+        assert!(!parsed.has_authority_seals());
+
+        let source = include_str!("epiphany-work.rs");
+        let start = source
+            .find("\"repo.dependency_policy_request\" => {")
+            .expect("dependency policy closure branch");
+        let end = source[start..]
+            .find("\n        \"repo.deployment_request\" => {")
+            .map(|offset| start + offset)
+            .expect("end of dependency policy closure branch");
+        let branch = &source[start..end];
+        assert!(branch.contains("parse_repo_dependency_policy_request"));
         assert!(!branch.contains("content.contains"));
     }
 

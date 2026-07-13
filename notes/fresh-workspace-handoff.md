@@ -188,6 +188,9 @@ The confirmed conceptual substitutions have been cut:
 - Secret-policy request closure parses typed TOML and validates request,
   antecedent, receipt, security-packet, and authority semantics. Comment prose
   cannot counterfeit secret/write/deployment denials.
+- Dependency-policy request closure parses typed TOML for supply-chain scope,
+  receipts, evidence requirements, and authority seals; comment prose cannot
+  counterfeit package/lockfile/network/CI denials.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
