@@ -4505,7 +4505,7 @@ pub fn write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
     Ok(written)
 }
 
-pub fn load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
+pub fn load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>> {
@@ -4513,7 +4513,7 @@ pub fn load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
     node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY)
 }
 
-pub fn load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+pub fn load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>> {
@@ -4576,7 +4576,7 @@ pub fn write_epiphany_cultmesh_bifrost_github_publication_receipt(
     Ok(written)
 }
 
-pub fn load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
+pub fn load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>> {
@@ -4642,7 +4642,7 @@ pub fn write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
     Ok(written)
 }
 
-pub fn load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+pub fn load_arrival_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry>> {
@@ -4705,7 +4705,7 @@ pub fn write_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
     Ok(written)
 }
 
-pub fn load_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
+pub fn load_arrival_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry>> {
@@ -4766,7 +4766,7 @@ pub fn write_epiphany_cultmesh_bifrost_metrics_receipt(
     Ok(written)
 }
 
-pub fn load_latest_epiphany_cultmesh_bifrost_metrics_receipt(
+pub fn load_arrival_latest_epiphany_cultmesh_bifrost_metrics_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostMetricsReceiptEntry>> {
@@ -4870,7 +4870,7 @@ pub fn write_epiphany_cultmesh_imagination_consensus_receipt(
     Ok(written)
 }
 
-pub fn load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
+pub fn load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>> {
@@ -9461,14 +9461,14 @@ mod tests {
         )?;
 
         assert_eq!(
-            load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
+            load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
                 &store,
                 "epiphany-test"
             )?,
             Some(intent.clone())
         );
         assert_eq!(
-            load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+            load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
                 &store,
                 "epiphany-test"
             )?,
@@ -9599,7 +9599,7 @@ mod tests {
         )?;
 
         assert_eq!(
-            load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
+            load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
                 &store,
                 "epiphany-test"
             )?,
@@ -9744,7 +9744,7 @@ mod tests {
         )?;
 
         assert_eq!(
-            load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+            load_arrival_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
                 &store,
                 "epiphany-test"
             )?,
@@ -9870,7 +9870,10 @@ mod tests {
         )?;
 
         assert_eq!(
-            load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(&store, "epiphany-test")?,
+            load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
+                &store,
+                "epiphany-test"
+            )?,
             Some(feedback)
         );
         assert_eq!(

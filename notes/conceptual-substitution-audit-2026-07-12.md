@@ -936,6 +936,12 @@ are overwrite mirrors. Arrival order is therefore the only fact Epiphany can
 observe. A truthful fix requires a Bifrost-owned contract revision; Epiphany
 must not synthesize provider chronology from receipt IDs or local clocks.
 
+The executable API now says this plainly: all seven Bifrost/GitHub mirror
+loaders are named `load_arrival_latest_*`. The old `load_latest_*` names were
+deleted without compatibility aliases. Persisted `/latest` keys remain the
+provider-facing storage contract, but Rust callers can no longer confuse their
+meaning with provider event order.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

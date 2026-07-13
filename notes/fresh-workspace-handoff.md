@@ -286,6 +286,11 @@ receipt contracts expose no provider timestamp or monotonic revision, so local
 33 duplicate `#[cfg(test)]` residues found around provider writers/re-exports
 were removed; one test gate remains on every test-only item.
 
+All seven Bifrost/GitHub mirror loader APIs are now named
+`load_arrival_latest_*`; no misleading `load_latest_*` aliases remain. The
+persisted `/latest` key spelling is retained as external storage compatibility,
+not interpreted as provider chronology.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

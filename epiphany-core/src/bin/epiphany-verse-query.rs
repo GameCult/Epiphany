@@ -45,6 +45,13 @@ use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capabili
 use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
 use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_agent_state_soa_entry;
+use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt;
+use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
+use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
+use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
+use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
+use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_metrics_receipt;
+use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
@@ -59,13 +66,6 @@ use epiphany_core::load_epiphany_cultmesh_repo_work_readiness_reports;
 use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_metrics_receipt;
-use epiphany_core::load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
@@ -921,7 +921,7 @@ fn run_cli() -> Result<()> {
                 intent.clone(),
             )?;
             let latest_intent =
-                load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
+                load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
                     &args.store,
                     args.runtime_id.clone(),
                 )?;
@@ -1240,10 +1240,11 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 feedback.clone(),
             )?;
-            let latest_feedback = load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
-                &args.store,
-                args.runtime_id.clone(),
-            )?;
+            let latest_feedback =
+                load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
+                    &args.store,
+                    args.runtime_id.clone(),
+                )?;
             if latest_feedback
                 .as_ref()
                 .map(|feedback| feedback.feedback_id.as_str())
@@ -7627,33 +7628,35 @@ fn service_lifecycle_receipt_sort_key(
 }
 
 fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
-    let latest_intent = load_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
-        &args.store,
-        args.runtime_id.clone(),
-    )?;
-    let latest_publication = load_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-    )?;
-    let latest_github = load_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
+    let latest_intent =
+        load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
+            &args.store,
+            args.runtime_id.clone(),
+        )?;
+    let latest_publication =
+        load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
+            &args.store,
+            args.runtime_id.clone(),
+        )?;
+    let latest_github = load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
         &args.store,
         args.runtime_id.clone(),
     )?;
     let latest_public_proof_publication =
-        load_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
+        load_arrival_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
             &args.store,
             args.runtime_id.clone(),
         )?;
     let latest_artifact_acceptance =
-        load_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
+        load_arrival_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
             &args.store,
             args.runtime_id.clone(),
         )?;
-    let latest_metrics = load_latest_epiphany_cultmesh_bifrost_metrics_receipt(
+    let latest_metrics = load_arrival_latest_epiphany_cultmesh_bifrost_metrics_receipt(
         &args.store,
         args.runtime_id.clone(),
     )?;
-    let latest_feedback = load_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
+    let latest_feedback = load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
         &args.store,
         args.runtime_id.clone(),
     )?;
