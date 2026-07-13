@@ -7,9 +7,14 @@ use super::EpiphanyMemoryGraphSnapshot;
 use super::EpiphanyMemoryNode;
 use super::EpiphanyMemoryProfile;
 use super::EpiphanyMemorySummary;
+use super::RepoFrontierItem;
+use super::RepoFrontierStatus;
 use super::derive_memory_graph_freshness;
 use super::ids::normalized_key;
 use super::ids::stable_memory_graph_id;
+use bm25::Document;
+use bm25::Language;
+use bm25::SearchEngineBuilder;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -73,7 +78,26 @@ pub fn plan_memory_graph_context_cut(
     let mut summaries = Vec::new();
     let mut warnings = Vec::new();
 
-    for summary in &snapshot.summaries {
+    // Modeling's unresolved frontier is explicit routing authority. Preserve its
+    // stored order and exact claim targets before asking semantic retrieval to
+    // infer what matters from the launch prose.
+    let (frontier, rejected_frontier_ids) =
+        dependency_ordered_frontier(snapshot, budget, &node_by_id, &stale_nodes);
+    for id in rejected_frontier_ids {
+        warnings.push(format!(
+            "frontier {id} was omitted because its target claims are missing, stale, or retired"
+        ));
+    }
+    for node_id in frontier
+        .iter()
+        .flat_map(|item| item.target_claim_ids.iter())
+    {
+        if let Some(node) = node_by_id.get(node_id.as_str()) {
+            push_unique_node(&mut nodes, (*node).clone(), budget);
+        }
+    }
+
+    for summary in ranked_summaries(snapshot, query, &domains, &terms, &node_by_id) {
         if summaries.len() >= budget {
             break;
         }
@@ -118,7 +142,7 @@ pub fn plan_memory_graph_context_cut(
     }
 
     if summaries.is_empty() && nodes.is_empty() {
-        for node in &snapshot.nodes {
+        for node in ranked_nodes(snapshot, query, &domains, &terms, &stale_nodes) {
             if nodes.len() >= budget {
                 break;
             }
@@ -141,6 +165,7 @@ pub fn plan_memory_graph_context_cut(
         nodes,
         edges,
         summaries,
+        frontier,
         anchors,
         warnings,
         missing_node_ids: query
@@ -156,6 +181,186 @@ pub fn plan_memory_graph_context_cut(
             .cloned()
             .collect(),
     }
+}
+
+fn dependency_ordered_frontier(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    budget: usize,
+    node_by_id: &HashMap<&str, &EpiphanyMemoryNode>,
+    stale_nodes: &HashSet<&str>,
+) -> (Vec<RepoFrontierItem>, Vec<String>) {
+    let unresolved = snapshot
+        .frontier
+        .iter()
+        .filter(|item| {
+            matches!(
+                item.status,
+                RepoFrontierStatus::Active
+                    | RepoFrontierStatus::Proposed
+                    | RepoFrontierStatus::Blocked
+            )
+        })
+        .collect::<Vec<_>>();
+    let unresolved_ids = unresolved
+        .iter()
+        .map(|item| item.id.as_str())
+        .collect::<HashSet<_>>();
+    let mut eligible_ids = unresolved
+        .iter()
+        .filter(|item| {
+            !item.target_claim_ids.is_empty()
+                && item.target_claim_ids.iter().all(|id| {
+                    node_by_id.get(id.as_str()).is_some_and(|node| {
+                        !matches!(
+                            node.lifecycle,
+                            super::EpiphanyMemoryLifecycle::Retired
+                                | super::EpiphanyMemoryLifecycle::Stale
+                        ) && !stale_nodes.contains(id.as_str())
+                    })
+                })
+        })
+        .map(|item| item.id.as_str())
+        .collect::<HashSet<_>>();
+    loop {
+        let before = eligible_ids.len();
+        let current_eligible = eligible_ids.clone();
+        eligible_ids.retain(|id| {
+            unresolved
+                .iter()
+                .find(|item| item.id == *id)
+                .is_some_and(|item| {
+                    item.dependency_item_ids.iter().all(|dependency| {
+                        !unresolved_ids.contains(dependency.as_str())
+                            || current_eligible.contains(dependency.as_str())
+                    })
+                })
+        });
+        if eligible_ids.len() == before {
+            break;
+        }
+    }
+    let rejected = unresolved
+        .iter()
+        .filter(|item| !eligible_ids.contains(item.id.as_str()))
+        .map(|item| item.id.clone())
+        .collect();
+    let eligible = unresolved
+        .into_iter()
+        .filter(|item| eligible_ids.contains(item.id.as_str()))
+        .map(|item| (item.id.as_str(), item))
+        .collect::<HashMap<_, _>>();
+    let mut ordered = Vec::new();
+    let mut complete = HashSet::new();
+    let mut visiting = HashSet::new();
+    for item in &snapshot.frontier {
+        append_frontier_prerequisites(
+            &item.id,
+            &eligible,
+            &mut visiting,
+            &mut complete,
+            &mut ordered,
+        );
+    }
+    (
+        ordered.into_iter().take(budget).cloned().collect(),
+        rejected,
+    )
+}
+
+fn append_frontier_prerequisites<'a>(
+    id: &'a str,
+    eligible: &HashMap<&'a str, &'a RepoFrontierItem>,
+    visiting: &mut HashSet<&'a str>,
+    complete: &mut HashSet<&'a str>,
+    ordered: &mut Vec<&'a RepoFrontierItem>,
+) {
+    if complete.contains(id) || !visiting.insert(id) {
+        return;
+    }
+    let Some(item) = eligible.get(id).copied() else {
+        visiting.remove(id);
+        return;
+    };
+    for dependency in &item.dependency_item_ids {
+        append_frontier_prerequisites(dependency, eligible, visiting, complete, ordered);
+    }
+    visiting.remove(id);
+    if complete.insert(id) {
+        ordered.push(item);
+    }
+}
+
+fn ranked_nodes<'a>(
+    snapshot: &'a EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+    domain_ids: &HashSet<&str>,
+    terms: &[String],
+    stale_nodes: &HashSet<&str>,
+) -> Vec<&'a EpiphanyMemoryNode> {
+    let eligible = snapshot
+        .nodes
+        .iter()
+        .filter(|node| {
+            node_matches(node, query.profile, domain_ids, &[])
+                && !stale_nodes.contains(node.id.as_str())
+        })
+        .collect::<Vec<_>>();
+    rank_typed_documents(eligible, query.text.as_deref(), terms, |node| {
+        [
+            node.title.as_str(),
+            node.claim.as_str(),
+            node.question.as_str(),
+            node.tension.as_str(),
+            node.action_implication.as_str(),
+        ]
+        .join(" ")
+    })
+}
+
+fn ranked_summaries<'a>(
+    snapshot: &'a EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+    domain_ids: &HashSet<&str>,
+    terms: &[String],
+    node_by_id: &HashMap<&str, &EpiphanyMemoryNode>,
+) -> Vec<&'a EpiphanyMemorySummary> {
+    let eligible = snapshot
+        .summaries
+        .iter()
+        .filter(|summary| summary_matches(summary, query.profile, domain_ids, &[], node_by_id))
+        .collect::<Vec<_>>();
+    rank_typed_documents(eligible, query.text.as_deref(), terms, |summary| {
+        [
+            summary.target.as_str(),
+            summary.claim.as_str(),
+            summary.question.as_str(),
+            summary.tension.as_str(),
+            summary.action_implication.as_str(),
+        ]
+        .join(" ")
+    })
+}
+
+fn rank_typed_documents<'a, T>(
+    eligible: Vec<&'a T>,
+    query: Option<&str>,
+    terms: &[String],
+    search_text: impl Fn(&T) -> String,
+) -> Vec<&'a T> {
+    if eligible.is_empty() || terms.is_empty() {
+        return eligible;
+    }
+    let documents = eligible
+        .iter()
+        .enumerate()
+        .map(|(index, value)| Document::new(index, search_text(value)))
+        .collect::<Vec<_>>();
+    let engine = SearchEngineBuilder::<usize>::with_documents(Language::English, documents).build();
+    engine
+        .search(query.unwrap_or_default(), eligible.len())
+        .into_iter()
+        .filter_map(|result| eligible.get(result.document.id).copied())
+        .collect()
 }
 
 fn query_terms(query: &EpiphanyMemoryContextQuery) -> Vec<String> {

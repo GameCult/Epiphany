@@ -298,6 +298,29 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         input.memory_context.id, input.memory_context.query_id
     ));
 
+    for item in input.memory_context.frontier.iter().take(6) {
+        lines.push(format!(
+            "- Frontier `{}` [{}] next `{}`: body={}; question={}; gap={}; dependencies={}",
+            item.id,
+            render_frontier_status(item.status),
+            item.recommended_next_organ,
+            compact_line(&item.migration_body),
+            compact_line(&item.question),
+            compact_line(&item.gap),
+            if item.dependency_item_ids.is_empty() {
+                "none".to_string()
+            } else {
+                item.dependency_item_ids.join(", ")
+            }
+        ));
+    }
+    push_omitted_count(
+        &mut lines,
+        input.memory_context.frontier.len(),
+        6,
+        "repo frontier items",
+    );
+
     for summary in input.memory_context.summaries.iter().take(4) {
         lines.push(format!(
             "- Summary `{}` [{}]: {}; next: {}",
@@ -366,6 +389,18 @@ fn render_freshness(status: EpiphanyMemoryFreshnessStatus) -> &'static str {
         EpiphanyMemoryFreshnessStatus::Stale => "stale",
         EpiphanyMemoryFreshnessStatus::Indexing => "indexing",
         EpiphanyMemoryFreshnessStatus::Unavailable => "unavailable",
+    }
+}
+
+fn render_frontier_status(status: epiphany_state_model::RepoFrontierStatus) -> &'static str {
+    use epiphany_state_model::RepoFrontierStatus::*;
+    match status {
+        Proposed => "proposed",
+        Active => "active",
+        Blocked => "blocked",
+        Resolved => "resolved",
+        Retired => "retired",
+        Superseded => "superseded",
     }
 }
 
@@ -592,6 +627,18 @@ mod tests {
         let memory_context = EpiphanyMemoryContextPacket {
             id: "memctx-test".to_string(),
             query_id: "query-test".to_string(),
+            frontier: vec![epiphany_state_model::RepoFrontierItem {
+                id: "frontier-prompt-test".to_string(),
+                migration_body: "Migrate repository authority into typed Modeling state."
+                    .to_string(),
+                question: "Can downstream organs see the frontier?".to_string(),
+                gap: "Prompt context previously carried claims without migration anatomy."
+                    .to_string(),
+                recommended_next_organ: "Soul".to_string(),
+                dependency_item_ids: vec!["frontier-foundation".to_string()],
+                status: epiphany_state_model::RepoFrontierStatus::Blocked,
+                ..Default::default()
+            }],
             summaries: vec![EpiphanyMemorySummary {
                 id: "summary-test".to_string(),
                 claim: "Shared graph law lets prompt assembly ask for relevant memory instead of hauling the archive.".to_string(),
@@ -613,6 +660,13 @@ mod tests {
         let rendered = render_epiphany_prompt_context(&prompt_input);
 
         assert!(rendered.contains("<epiphany_dynamic_context>"));
+        assert!(rendered.contains("frontier-prompt-test"));
+        assert!(rendered.contains("Migrate repository authority into typed Modeling state."));
+        assert!(rendered.contains("Can downstream organs see the frontier?"));
+        assert!(rendered.contains("Prompt context previously carried claims"));
+        assert!(rendered.contains("next `Soul`"));
+        assert!(rendered.contains("frontier-foundation"));
+        assert!(rendered.contains("blocked"));
         assert!(rendered.contains("Odin"));
         assert!(rendered.contains("Yggdrasil"));
         assert!(rendered.contains("Bifrost"));

@@ -20,12 +20,38 @@ Prompt forms worth preserving:
 - explicitly allow a worker to stop and name a missing substrate primitive;
 - review diffs against authority and concurrency invariants after tests pass.
 
-The product gap exposed by this success is persistence, not better roleplay.
-Modeling's repo anatomy, confirmed/changed/invalidated claims, freshness,
-frontier, and semantic-index consequences must live in typed searchable state
-and be projected into later Hands prompts. Otherwise an excellent coordinator
-can perform the structure transiently, but the next awakened Self inherits only
-the applause.
+The primary lesson is not Modeling persistence in isolation. The organ structure
+changed the quality of the engineering: discoveries altered plans, plans bounded
+disjoint cuts, Soul could reject a plausible green fix, Imagination could reject
+roadmap mythology, and Self preserved dependency order without flattening those
+different judgments into one running narrative. This is positive evidence for
+durable organ-to-organ cognition, not merely for role-flavored prompting.
+
+Persistence is the connective-tissue gap exposed by that success. Modeling's
+repo anatomy, confirmed/changed/invalidated claims, freshness, frontier, and
+semantic-index consequences must live in typed searchable state; Self must route
+from those artifacts; later Hands and Soul prompts must receive the relevant
+frontier and evidence. Otherwise an excellent coordinator can perform the
+structure transiently, but the next awakened Self inherits only the applause.
+
+The first safe piece of that connective tissue is now implemented. The existing
+memory-graph aggregate owns a revisioned, hashed RepoModel plus typed migration
+frontier; exact frontier claim IDs precede BM25 ranking; dependency prerequisites
+precede dependents under budget; and the frontier's body, question, gap, status,
+dependencies, and recommended organ enter dynamic role context. Canonical state
+cannot be reverse-built from thread graphs, replaced by raw refresh/bootstrap,
+or lost to concurrent valid patches: CultCache now provides exact-envelope CAS
+and insert-if-absent beneath its cross-process sidecar lock, with hostile race
+proofs. Soul rejected two earlier cuts before accepting this authority boundary.
+
+Do not call this the complete Aetheria loop. Modeling worker output still cannot
+carry a reviewed `RepoModelPatch`; Mind has no model-admission receipt binding
+patch/result/evidence; Self does not select and bind one frontier identity into a
+Hands grant; Hands consequences and Soul verdicts do not yet carry that same
+model revision/hash/item identity; and Modeling therefore cannot close exactly
+the wound Soul judged. The next cut is that closed identity chain, not more index
+polish: `Modeling patch -> Mind admission -> Self route F -> Hands consequence F
+-> Soul verdict F -> Modeling resolves F`.
 
 The next artifact-contract audit then cut `epiphany.persona_chat.v0`: its live
 writer and catalog had disagreed on field vocabulary, evidence fields, and

@@ -10,6 +10,7 @@ use crate::RuntimeHandsReceiptChainSummary;
 use crate::load_epiphany_cultmesh_cluster_topology;
 use crate::load_epiphany_cultmesh_status;
 use crate::load_latest_epiphany_cultmesh_work_loop_telemetry;
+use crate::load_memory_graph_snapshot;
 use crate::plan_memory_graph_context_cut;
 use crate::query_epiphany_local_verse_context;
 use crate::refresh_or_validate_repo_memory_graph;
@@ -639,19 +640,37 @@ fn launch_memory_context(
         .unwrap_or_else(|_| runtime_store_path.to_path_buf())
         .to_string_lossy()
         .into_owned();
-    let (snapshot, refresh) = refresh_or_validate_repo_memory_graph(
-        &memory_graph_store,
-        &source_identity,
-        state,
-        repo_root,
-        format!("bridge-launch-state-rev-{}", state.revision),
-    )
-    .map_err(|error| {
+    let stored = load_memory_graph_snapshot(&memory_graph_store).map_err(|error| {
         format!(
-            "failed to refresh memory graph store {}: {error}",
+            "failed to validate memory graph store {}: {error}",
             memory_graph_store.display()
         )
     })?;
+    let canonical = stored.as_ref().is_some_and(|snapshot| {
+        snapshot.model_revision > 0
+            || !snapshot.model_hash.is_empty()
+            || !snapshot.frontier.is_empty()
+    });
+    let (snapshot, refresh) = if canonical {
+        (
+            stored.expect("canonical snapshot was present"),
+            RepoMemoryGraphRefresh::Reused,
+        )
+    } else {
+        refresh_or_validate_repo_memory_graph(
+            &memory_graph_store,
+            &source_identity,
+            state,
+            repo_root,
+            format!("bridge-launch-state-rev-{}", state.revision),
+        )
+        .map_err(|error| {
+            format!(
+                "failed to bootstrap memory graph store {}: {error}",
+                memory_graph_store.display()
+            )
+        })?
+    };
 
     let mut packet = plan_memory_graph_context_cut(
         &snapshot,
@@ -680,9 +699,17 @@ fn launch_memory_context(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::EpiphanyMemoryDomain;
+    use crate::EpiphanyMemoryGraphSnapshot;
+    use crate::EpiphanyMemoryLifecycle;
+    use crate::EpiphanyMemoryNode;
+    use crate::EpiphanyMemoryNodeKind;
     use crate::EpiphanyRoleResultRoleId;
     use crate::HANDS_ACTION_INTENT_SCHEMA_VERSION;
     use crate::HandsActionIntent;
+    use crate::MEMORY_GRAPH_SCHEMA_VERSION;
+    use crate::RepoFrontierItem;
+    use crate::RepoFrontierStatus;
     use crate::RuntimeSpineHeartbeatJobOptions;
     use crate::RuntimeSpineInitOptions;
     use crate::build_epiphany_role_launch_request_with_dynamic_context;
@@ -691,6 +718,7 @@ mod tests {
     use crate::hands_commit_receipt_for_review;
     use crate::hands_patch_receipt_for_review;
     use crate::initialize_runtime_spine;
+    use crate::memory_graph_model_hash;
     use crate::open_runtime_spine_heartbeat_job;
     use crate::put_hands_action_intent;
     use crate::put_hands_action_review;
@@ -699,6 +727,7 @@ mod tests {
     use crate::put_hands_patch_receipt;
     use crate::runtime_worker_launch_request;
     use crate::seed_epiphany_local_verse_context;
+    use crate::write_memory_graph_snapshot;
     use epiphany_state_model::EpiphanyAcceptanceReceipt;
     use std::fs;
     use uuid::Uuid;
@@ -718,6 +747,83 @@ mod tests {
                 "native launch context contains host marker {forbidden:?}"
             );
         }
+    }
+
+    #[test]
+    fn canonical_model_frontier_survives_newer_thread_state_and_guides_launch() -> anyhow::Result<()>
+    {
+        let temp = std::env::temp_dir().join(format!(
+            "epiphany-canonical-model-launch-{}",
+            Uuid::new_v4()
+        ));
+        fs::create_dir(&temp)?;
+        let runtime_store = temp.join("runtime-spine.msgpack");
+        let graph_store = memory_graph_store_path(&runtime_store);
+        let mut snapshot = EpiphanyMemoryGraphSnapshot {
+            schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
+            graph_id: "canonical-model".to_string(),
+            model_revision: 4,
+            domains: vec![EpiphanyMemoryDomain {
+                id: "repo".to_string(),
+                profile: EpiphanyMemoryProfile::RepoArchitecture,
+                title: "Canonical repository model".to_string(),
+                lifecycle: EpiphanyMemoryLifecycle::Accepted,
+                ..Default::default()
+            }],
+            nodes: vec![EpiphanyMemoryNode {
+                id: "claim-modeling-authority".to_string(),
+                domain_id: "repo".to_string(),
+                profile: EpiphanyMemoryProfile::RepoArchitecture,
+                kind: EpiphanyMemoryNodeKind::RuntimeContract,
+                title: "Modeling authority".to_string(),
+                claim: "Canonical Modeling state survives transcript revision churn.".to_string(),
+                question: "Which downstream organ consumes it?".to_string(),
+                action_implication: "Route the exact claim into launch context.".to_string(),
+                source_hashes: vec!["anchor:missing".to_string()],
+                lifecycle: EpiphanyMemoryLifecycle::Accepted,
+                ..Default::default()
+            }],
+            frontier: vec![RepoFrontierItem {
+                id: "frontier-modeling-handoff".to_string(),
+                migration_body: "Carry the canonical repository frontier into organ prompts."
+                    .to_string(),
+                question: "Can Hands see the exact target claim?".to_string(),
+                gap: "Launch assembly previously saw only semantically similar prose.".to_string(),
+                target_claim_ids: vec!["claim-modeling-authority".to_string()],
+                source_scope: vec!["epiphany-core/src".to_string()],
+                recommended_next_organ: "Hands".to_string(),
+                status: RepoFrontierStatus::Active,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        snapshot.model_hash = memory_graph_model_hash(&snapshot)?;
+        write_memory_graph_snapshot(&graph_store, &snapshot)?;
+        let newer_thread_state = EpiphanyThreadState {
+            revision: 999,
+            objective: Some("Discuss irrelevant weather bananas.".to_string()),
+            ..Default::default()
+        };
+
+        let packet = launch_memory_context(
+            &runtime_store,
+            &newer_thread_state,
+            "irrelevant weather bananas",
+        )
+        .map_err(anyhow::Error::msg)?;
+
+        assert_eq!(packet.frontier[0].id, "frontier-modeling-handoff");
+        assert!(
+            packet
+                .nodes
+                .iter()
+                .any(|node| node.id == "claim-modeling-authority")
+        );
+        let preserved = load_memory_graph_snapshot(&graph_store)?.expect("canonical model");
+        assert_eq!(preserved.model_revision, 4);
+        assert_eq!(preserved.frontier, snapshot.frontier);
+        fs::remove_dir_all(&temp)?;
+        Ok(())
     }
 
     #[test]

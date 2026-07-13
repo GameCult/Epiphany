@@ -5,7 +5,8 @@ use super::EpiphanyMemoryLifecycle;
 use super::EpiphanyMemoryNode;
 use super::EpiphanyMemoryProfile;
 use super::EpiphanyMemorySummary;
-use std::collections::HashSet;
+use super::RepoFrontierStatus;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyMemoryGraphValidationError {
@@ -76,7 +77,132 @@ pub fn validate_memory_graph_snapshot(
         );
     }
 
+    let frontier_ids = collect_unique(
+        snapshot.frontier.iter().map(|item| item.id.as_str()),
+        "frontier",
+        &mut errors,
+    );
+    for (index, item) in snapshot.frontier.iter().enumerate() {
+        let path = format!("frontier[{index}]");
+        required(
+            &item.id,
+            format!("{path}.id"),
+            "frontier id is required",
+            &mut errors,
+        );
+        let unresolved = matches!(
+            item.status,
+            RepoFrontierStatus::Active | RepoFrontierStatus::Proposed | RepoFrontierStatus::Blocked
+        );
+        if unresolved && item.target_claim_ids.is_empty() {
+            errors.push(EpiphanyMemoryGraphValidationError::new(
+                format!("{path}.target_claim_ids"),
+                "unresolved frontier requires at least one target claim",
+            ));
+        }
+        required(
+            &item.migration_body,
+            format!("{path}.migration_body"),
+            "migration body is required",
+            &mut errors,
+        );
+        if item.question.trim().is_empty() && item.gap.trim().is_empty() {
+            errors.push(EpiphanyMemoryGraphValidationError::new(
+                format!("{path}.question"),
+                "frontier must preserve a question or gap",
+            ));
+        }
+        required(
+            &item.recommended_next_organ,
+            format!("{path}.recommended_next_organ"),
+            "recommended next organ is required",
+            &mut errors,
+        );
+        for claim_id in &item.target_claim_ids {
+            if !node_ids.contains(claim_id) {
+                errors.push(EpiphanyMemoryGraphValidationError::new(
+                    format!("{path}.target_claim_ids"),
+                    format!("frontier references missing claim {claim_id}"),
+                ));
+            } else if unresolved
+                && snapshot.nodes.iter().any(|node| {
+                    node.id == *claim_id
+                        && matches!(
+                            node.lifecycle,
+                            EpiphanyMemoryLifecycle::Retired | EpiphanyMemoryLifecycle::Stale
+                        )
+                })
+            {
+                errors.push(EpiphanyMemoryGraphValidationError::new(
+                    format!("{path}.target_claim_ids"),
+                    format!("unresolved frontier targets non-live claim {claim_id}"),
+                ));
+            }
+        }
+        for dependency_id in &item.dependency_item_ids {
+            if !frontier_ids.contains(dependency_id) {
+                errors.push(EpiphanyMemoryGraphValidationError::new(
+                    format!("{path}.dependency_item_ids"),
+                    format!("frontier references missing dependency {dependency_id}"),
+                ));
+            }
+        }
+        if let Some(superseded_by) = &item.superseded_by {
+            if !frontier_ids.contains(superseded_by) {
+                errors.push(EpiphanyMemoryGraphValidationError::new(
+                    format!("{path}.superseded_by"),
+                    format!("frontier references missing successor {superseded_by}"),
+                ));
+            }
+        }
+    }
+    validate_frontier_dependency_cycles(snapshot, &mut errors);
+
     errors
+}
+
+fn validate_frontier_dependency_cycles(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    errors: &mut Vec<EpiphanyMemoryGraphValidationError>,
+) {
+    let dependencies = snapshot
+        .frontier
+        .iter()
+        .map(|item| (item.id.as_str(), item.dependency_item_ids.as_slice()))
+        .collect::<HashMap<_, _>>();
+    let mut complete = HashSet::new();
+    for item in &snapshot.frontier {
+        let mut visiting = HashSet::new();
+        if frontier_has_cycle(&item.id, &dependencies, &mut visiting, &mut complete) {
+            errors.push(EpiphanyMemoryGraphValidationError::new(
+                format!("frontier[{}].dependency_item_ids", item.id),
+                "frontier dependencies must be acyclic",
+            ));
+        }
+    }
+}
+
+fn frontier_has_cycle<'a>(
+    id: &'a str,
+    dependencies: &HashMap<&'a str, &'a [String]>,
+    visiting: &mut HashSet<&'a str>,
+    complete: &mut HashSet<&'a str>,
+) -> bool {
+    if complete.contains(id) {
+        return false;
+    }
+    if !visiting.insert(id) {
+        return true;
+    }
+    let cyclic = dependencies.get(id).is_some_and(|ids| {
+        ids.iter().any(|dependency| {
+            dependencies.contains_key(dependency.as_str())
+                && frontier_has_cycle(dependency, dependencies, visiting, complete)
+        })
+    });
+    visiting.remove(id);
+    complete.insert(id);
+    cyclic
 }
 
 fn validate_domain(

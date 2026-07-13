@@ -25,7 +25,6 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RepoMemoryGraphRefresh {
@@ -40,77 +39,76 @@ pub fn refresh_or_validate_repo_memory_graph(
     repo_root: &Path,
     graph_id: impl Into<String>,
 ) -> Result<(EpiphanyMemoryGraphSnapshot, RepoMemoryGraphRefresh)> {
-    let current_entry = crate::memory_graph::load_memory_graph_entry(store_path)?;
-    if let Some(snapshot) = current_entry
-        .filter(|entry| entry.schema_version == crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION)
-        .and_then(|entry| entry.snapshot().ok())
-        .filter(|snapshot| {
-            snapshot.schema_version.as_deref()
-                == Some(crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION)
-        })
-    {
-        let provenance_matches = snapshot.source.as_ref().is_some_and(|source| {
-            source.kind == "thread_state_repo_graph"
-                && source.identity == source_identity
-                && source.revision == state.revision
-        });
-        if provenance_matches && snapshot_anchor_bytes_match(&snapshot, repo_root) {
-            return Ok((snapshot, RepoMemoryGraphRefresh::Reused));
+    let graph_id = graph_id.into();
+    for _ in 0..4 {
+        let inspected = crate::memory_graph::store::load_memory_graph_envelope(store_path)?;
+        if let Some(envelope) = &inspected {
+            let entry: crate::memory_graph::EpiphanyMemoryGraphEntry =
+                rmp_serde::from_slice(&envelope.payload)?;
+            crate::memory_graph::validate_memory_graph_entry(&entry)?;
+            let snapshot = entry.snapshot()?;
+            if snapshot.model_revision > 0 {
+                return Ok((snapshot, RepoMemoryGraphRefresh::Reused));
+            }
+            let provenance_matches = snapshot.source.as_ref().is_some_and(|source| {
+                source.kind == "thread_state_repo_graph"
+                    && source.identity == source_identity
+                    && source.revision == state.revision
+            });
+            if provenance_matches && snapshot_anchor_bytes_match(&snapshot, repo_root) {
+                return Ok((snapshot, RepoMemoryGraphRefresh::Reused));
+            }
         }
+
+        let snapshot = memory_graph_from_epiphany_graphs(
+            graph_id.clone(),
+            &state.graphs,
+            source_identity,
+            state.revision,
+            repo_root,
+        )?;
+        pause_after_legacy_read_for_test();
+        if crate::memory_graph::store::replace_inspected_legacy_memory_graph(
+            store_path,
+            inspected.as_ref(),
+            &snapshot,
+            &chrono::Utc::now().to_rfc3339(),
+        )? {
+            return Ok((snapshot, RepoMemoryGraphRefresh::Refreshed));
+        }
+        // Another process won. Reload under the next iteration; canonical state
+        // is authoritative and a competing legacy refresh may be retried.
     }
-
-    let snapshot = memory_graph_from_epiphany_graphs(
-        graph_id,
-        &state.graphs,
-        source_identity,
-        state.revision,
-        repo_root,
-    )?;
-    let temporary = store_path.with_extension(format!("refresh-{}.tmp", Uuid::new_v4()));
-    crate::memory_graph::write_memory_graph_snapshot(&temporary, &snapshot)?;
-    atomic_replace_file(&temporary, store_path).with_context(|| {
-        format!(
-            "atomically replace memory graph store {}",
-            store_path.display()
-        )
-    })?;
-    Ok((snapshot, RepoMemoryGraphRefresh::Refreshed))
+    Err(anyhow::anyhow!(
+        "memory graph bootstrap could not settle after concurrent writers"
+    ))
 }
 
-#[cfg(windows)]
-fn atomic_replace_file(source: &Path, destination: &Path) -> Result<()> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Storage::FileSystem::{
-        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
-    };
-    let source = source
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect::<Vec<_>>();
-    let destination = destination
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect::<Vec<_>>();
-    let moved = unsafe {
-        MoveFileExW(
-            source.as_ptr(),
-            destination.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    };
-    if moved == 0 {
-        return Err(std::io::Error::last_os_error().into());
+#[cfg(not(test))]
+fn pause_after_legacy_read_for_test() {}
+
+#[cfg(test)]
+fn pause_after_legacy_read_for_test() {
+    if let Some((ready, release)) = REFRESH_AFTER_LEGACY_READ_HOOK
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("refresh test hook lock")
+        .take()
+    {
+        ready.wait();
+        release.wait();
     }
-    Ok(())
 }
 
-#[cfg(not(windows))]
-fn atomic_replace_file(source: &Path, destination: &Path) -> Result<()> {
-    fs::rename(source, destination)?;
-    Ok(())
-}
+#[cfg(test)]
+static REFRESH_AFTER_LEGACY_READ_HOOK: std::sync::OnceLock<
+    std::sync::Mutex<
+        Option<(
+            std::sync::Arc<std::sync::Barrier>,
+            std::sync::Arc<std::sync::Barrier>,
+        )>,
+    >,
+> = std::sync::OnceLock::new();
 
 fn snapshot_anchor_bytes_match(snapshot: &EpiphanyMemoryGraphSnapshot, repo_root: &Path) -> bool {
     snapshot
@@ -745,6 +743,95 @@ mod tests {
             refresh_or_validate_repo_memory_graph(&store, "thread", &next, temp.path(), "repo")?;
         assert_eq!(revision_refresh, RepoMemoryGraphRefresh::Refreshed);
         assert_eq!(revised.source.unwrap().revision, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn repo_refresh_cannot_replace_canonical_model() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        std::fs::write(temp.path().join("body.rs"), "one")?;
+        let store = temp.path().join("memory-graph.msgpack");
+        let state = anchored_state("body.rs", 1);
+        let (mut canonical, _) =
+            refresh_or_validate_repo_memory_graph(&store, "thread", &state, temp.path(), "repo")?;
+        canonical.model_revision = 1;
+        canonical.model_hash = crate::memory_graph::memory_graph_model_hash(&canonical)?;
+        crate::memory_graph::write_memory_graph_snapshot(&store, &canonical)?;
+
+        std::fs::write(temp.path().join("body.rs"), "changed")?;
+        let newer = anchored_state("body.rs", 999);
+        let (preserved, refresh) = refresh_or_validate_repo_memory_graph(
+            &store,
+            "thread",
+            &newer,
+            temp.path(),
+            "counterfeit",
+        )?;
+        assert_eq!(refresh, RepoMemoryGraphRefresh::Reused);
+        assert_eq!(preserved.model_revision, 1);
+        assert_eq!(preserved.model_hash, canonical.model_hash);
+        assert_eq!(preserved.graph_id, canonical.graph_id);
+        Ok(())
+    }
+
+    #[test]
+    fn canonical_patch_winning_after_refresh_read_survives_refresh_resume() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        std::fs::write(temp.path().join("body.rs"), "one")?;
+        let store = temp.path().join("memory-graph.msgpack");
+        let state = anchored_state("body.rs", 1);
+        let (legacy, _) =
+            refresh_or_validate_repo_memory_graph(&store, "thread", &state, temp.path(), "repo")?;
+        let claim = legacy.nodes[0].id.clone();
+        let ready = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let release = std::sync::Arc::new(std::sync::Barrier::new(2));
+        *REFRESH_AFTER_LEGACY_READ_HOOK
+            .get_or_init(|| std::sync::Mutex::new(None))
+            .lock()
+            .unwrap() = Some((ready.clone(), release.clone()));
+
+        let refresh_store = store.clone();
+        let refresh_root = temp.path().to_path_buf();
+        let refresh_state = anchored_state("body.rs", 999);
+        let refresh = std::thread::spawn(move || {
+            refresh_or_validate_repo_memory_graph(
+                &refresh_store,
+                "thread",
+                &refresh_state,
+                &refresh_root,
+                "counterfeit-refresh",
+            )
+        });
+        ready.wait();
+        let patch = crate::memory_graph::RepoModelPatch {
+            patch_id: "canonical-wins-refresh-race".to_string(),
+            base_revision: 0,
+            base_hash: crate::memory_graph::memory_graph_model_hash(&legacy)?,
+            applied_at: "2026-07-13T03:00:00Z".to_string(),
+            operations: vec![
+                crate::memory_graph::RepoModelPatchOperation::UpsertFrontier {
+                    item: crate::memory_graph::RepoFrontierItem {
+                        id: "frontier-survives-refresh".to_string(),
+                        migration_body: "Preserve canonical Modeling authority.".to_string(),
+                        question: "Can a stale refresh overwrite this?".to_string(),
+                        gap: "The old refresh replaced the complete file.".to_string(),
+                        target_claim_ids: vec![claim],
+                        source_scope: vec!["body.rs".to_string()],
+                        recommended_next_organ: "Soul".to_string(),
+                        status: crate::memory_graph::RepoFrontierStatus::Active,
+                        ..Default::default()
+                    },
+                },
+            ],
+        };
+        let canonical = crate::memory_graph::apply_repo_model_patch(&store, &patch)?;
+        release.wait();
+        let (observed, outcome) = refresh.join().expect("refresh thread")?;
+        assert_eq!(outcome, RepoMemoryGraphRefresh::Reused);
+        assert_eq!(observed.model_revision, canonical.model_revision);
+        assert_eq!(observed.model_hash, canonical.model_hash);
+        assert_eq!(observed.frontier, canonical.frontier);
+        assert_eq!(observed.lifecycle_receipts, canonical.lifecycle_receipts);
         Ok(())
     }
 

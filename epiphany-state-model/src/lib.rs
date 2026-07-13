@@ -728,6 +728,12 @@ pub struct EpiphanyMemoryGraphSnapshot {
     #[ts(type = "string | null")]
     pub schema_version: Option<String>,
     pub graph_id: String,
+    /// Monotonic identity of the canonical aggregate. Legacy snapshots decode as revision zero.
+    #[serde(default)]
+    pub model_revision: u64,
+    /// SHA-256 of the snapshot with this field cleared.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub model_hash: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "EpiphanyMemoryGraphSource | null")]
     pub source: Option<EpiphanyMemoryGraphSource>,
@@ -752,6 +758,107 @@ pub struct EpiphanyMemoryGraphSnapshot {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryLifecycleReceipt>")]
     pub lifecycle_receipts: Vec<EpiphanyMemoryLifecycleReceipt>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<RepoFrontierItem>")]
+    pub frontier: Vec<RepoFrontierItem>,
+}
+
+/// A durable piece of unfinished repository anatomy. This is Modeling-owned state,
+/// not a scheduler job or a presentation card.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct RepoFrontierItem {
+    pub id: String,
+    pub migration_body: String,
+    pub question: String,
+    pub gap: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub target_claim_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub source_scope: Vec<String>,
+    pub recommended_next_organ: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub dependency_item_ids: Vec<String>,
+    #[serde(default)]
+    pub status: RepoFrontierStatus,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub evidence_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub created_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub updated_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub retired_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub superseded_by: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum RepoFrontierStatus {
+    #[default]
+    Proposed,
+    Active,
+    Blocked,
+    Resolved,
+    Retired,
+    Superseded,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct RepoModelPatch {
+    pub patch_id: String,
+    pub base_revision: u64,
+    pub base_hash: String,
+    pub applied_at: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<RepoModelPatchOperation>")]
+    pub operations: Vec<RepoModelPatchOperation>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
+#[serde(tag = "operation", rename_all = "snake_case")]
+#[ts(tag = "operation", rename_all = "snake_case")]
+pub enum RepoModelPatchOperation {
+    UpsertNode {
+        node: EpiphanyMemoryNode,
+    },
+    ReviseNode {
+        node: EpiphanyMemoryNode,
+    },
+    RetireNode {
+        node_id: String,
+    },
+    UpsertEdge {
+        edge: EpiphanyMemoryEdge,
+    },
+    ReviseEdge {
+        edge: EpiphanyMemoryEdge,
+    },
+    RetireEdge {
+        edge_id: String,
+    },
+    UpsertFrontier {
+        item: RepoFrontierItem,
+    },
+    ReviseFrontier {
+        item: RepoFrontierItem,
+    },
+    RetireFrontier {
+        item_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        retired_at: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        superseded_by: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
@@ -1087,6 +1194,9 @@ pub struct EpiphanyMemoryContextPacket {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemorySummary>")]
     pub summaries: Vec<EpiphanyMemorySummary>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<RepoFrontierItem>")]
+    pub frontier: Vec<RepoFrontierItem>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryAnchor>")]
     pub anchors: Vec<EpiphanyMemoryAnchor>,
