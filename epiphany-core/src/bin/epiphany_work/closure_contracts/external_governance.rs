@@ -260,7 +260,10 @@ impl RepoArtifactAcceptanceRequest {
     pub(super) fn awaits_owned_review(&self) -> bool {
         let r = &self.request;
         r.status == "awaiting-artifact-acceptance-review"
-            && r.requested_owner == "Maintainer/Bifrost"
+            && r.routing_owner == "Self"
+            && r.acceptance_owner == "Maintainer"
+            && r.accounting_owner == "Bifrost"
+            && r.acceptance_receipt_required
             && r.requested_effect == "record-accepted-artifact-for-reviewed-branch-work"
             && !r.verification_request_ref.is_empty()
             && !r.maintainer_review_request_ref.is_empty()
@@ -319,7 +322,10 @@ impl RepoArtifactAcceptanceRequest {
 #[derive(Debug, Deserialize)]
 struct RepoArtifactAcceptanceRequestBody {
     status: String,
-    requested_owner: String,
+    routing_owner: String,
+    acceptance_owner: String,
+    accounting_owner: String,
+    acceptance_receipt_required: bool,
     requested_effect: String,
     verification_request_ref: String,
     maintainer_review_request_ref: String,

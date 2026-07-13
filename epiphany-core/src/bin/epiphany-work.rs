@@ -4679,7 +4679,10 @@ fn derive_repo_artifact_acceptance_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         "status = \"awaiting-artifact-acceptance-review\"".to_string(),
-        "requested_owner = \"Maintainer/Bifrost\"".to_string(),
+        "routing_owner = \"Self\"".to_string(),
+        "acceptance_owner = \"Maintainer\"".to_string(),
+        "accounting_owner = \"Bifrost\"".to_string(),
+        "acceptance_receipt_required = true".to_string(),
         "requested_effect = \"record-accepted-artifact-for-reviewed-branch-work\"".to_string(),
         format!(
             "verification_request_ref = {}",

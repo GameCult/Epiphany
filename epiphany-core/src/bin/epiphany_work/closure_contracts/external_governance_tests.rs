@@ -144,7 +144,10 @@ summary = "summary"
 private_state_exposed = false
 [request]
 status = "awaiting-artifact-acceptance-review"
-requested_owner = "Maintainer/Bifrost"
+routing_owner = "Self"
+acceptance_owner = "Maintainer"
+accounting_owner = "Bifrost"
+acceptance_receipt_required = true
 requested_effect = "record-accepted-artifact-for-reviewed-branch-work"
 verification_request_ref = "verification"
 maintainer_review_request_ref = "review"

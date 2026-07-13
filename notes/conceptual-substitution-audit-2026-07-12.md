@@ -1280,6 +1280,15 @@ and GitHub provider outcome. GitHub-authored PR receipts are labeled GitHub;
 they do not make the provider a publication-policy organ. The request requires
 the provider receipt rather than treating provider identity as participation.
 
+## Bifrost accounting as Maintainer artifact acceptance
+
+`repo.artifact_acceptance_request` named `Maintainer/Bifrost` as one owner,
+letting review decision and accounting custody blur together. The request now
+assigns Self routing, Maintainer acceptance, and Bifrost accounting separately,
+with an explicit acceptance-receipt requirement. Operator projections label
+artifact-acceptance receipts Maintainer-owned and the accounting lane
+Bifrost-owned.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

@@ -1029,7 +1029,7 @@ fn run_cli() -> Result<()> {
                 || args.source_agent_id.is_some()
             {
                 anyhow::bail!(
-                    "bifrost-artifact-acceptance inspects a pending repo request only; Maintainer/Bifrost owns artifact, proof, review, ledger, acceptance identity/status, and accepted-by result fields"
+                    "bifrost-artifact-acceptance inspects a pending request only; Maintainer owns acceptance decisions and Bifrost owns accounting fields"
                 );
             }
 
@@ -1061,7 +1061,7 @@ fn run_cli() -> Result<()> {
                     "ledgerEntryId": null,
                     "reviewReceiptIds": [],
                     "acceptedBy": null,
-                    "responseOwner": "Maintainer/Bifrost",
+                    "responseOwner": "Maintainer",
                     "commands": {
                         "swarmOverview": WRAPPER_OVERVIEW_COMMAND,
                         "bifrostArtifactAcceptance": WRAPPER_BIFROST_ARTIFACT_ACCEPTANCE_COMMAND,
@@ -7785,7 +7785,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "artifact-acceptance-receipt".to_string(),
-                owner: "Maintainer/Bifrost".to_string(),
+                owner: "Maintainer".to_string(),
                 id: receipt.receipt_id.clone(),
                 status: receipt.status.clone(),
                 route: receipt.bifrost_ledger_entry_id.clone(),
@@ -8209,7 +8209,7 @@ fn push_artifact_acceptance_accounting_row(
         tui_rows,
         BifrostAccountingRow {
             lane: "artifact-acceptance-request".to_string(),
-            owner: "Maintainer/Bifrost".to_string(),
+            owner: "Bifrost".to_string(),
             status: bifrost_accounting_status(
                 false,
                 latest_request.is_some() || latest_receipt.is_some(),
