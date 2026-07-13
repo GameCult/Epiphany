@@ -768,6 +768,25 @@ accepted-summary equality and semantic section values. Commented SSH or
 deployment denials cannot conceal real grants, and the branch contains no
 substring authority.
 
+## Default-argument provenance substituted for deletion scope
+
+`epiphany-verse-query smoke` recursively deleted the parent of its store when a
+boolean said the CLI had used default arguments. That proved how the path was
+chosen, not where it resolved. The reset now requires the exact built-in store
+path and independently canonicalizes both `.epiphany-smoke` and the deletion
+target at actuation time. The target must be a strict descendant of the
+quarantine; junctions or other resolution escapes are refused. An outside
+sentinel survives a counterfeit store path.
+
+## Structural pressure: closure contracts need extraction
+
+The typed deployment, deployment-request, secret-policy, and dependency-policy
+models now form a contiguous contract organ inside the 16k-line `epiphany-work`
+binary. Do not add another family validator there. Extract these models and
+semantic predicates into a dedicated repo-work closure-contract module before
+continuing the conversion campaign; an inline namespace or generic policy blob
+would merely rearrange the monolith.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

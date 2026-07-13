@@ -100,7 +100,7 @@ use sha2::Sha256;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const WRAPPER_OVERVIEW_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-overview";
 const WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND: &str =
@@ -184,6 +184,38 @@ fn require_query_bootstrap(args: &Args) -> Result<()> {
             "local Verse has no persisted cluster topology at {}; run epiphany-verse-query seed-compact before mutating query commands",
             args.store.display()
         );
+    }
+    Ok(())
+}
+
+fn reset_quarantined_smoke_store(base: &Path, store: &Path) -> Result<()> {
+    let expected_store = Path::new(".epiphany-smoke/verse-query-default/local-verse.ccmp");
+    if store != expected_store {
+        anyhow::bail!(
+            "refusing to reset non-default verse-query smoke store {}",
+            store.display()
+        );
+    }
+    let quarantine = base.join(".epiphany-smoke");
+    fs::create_dir_all(&quarantine)?;
+    let resolved_quarantine = quarantine.canonicalize()?;
+    let target = base.join(
+        store
+            .parent()
+            .context("default verse-query smoke store has no parent")?,
+    );
+    if target.exists() {
+        let resolved_target = target.canonicalize()?;
+        if resolved_target == resolved_quarantine
+            || !resolved_target.starts_with(&resolved_quarantine)
+        {
+            anyhow::bail!(
+                "refusing to delete verse-query smoke target outside quarantine: {} -> {}",
+                target.display(),
+                resolved_target.display()
+            );
+        }
+        fs::remove_dir_all(&target)?;
     }
     Ok(())
 }
@@ -1351,9 +1383,7 @@ fn run_cli() -> Result<()> {
                     "verse-query smoke fixtures may use only the built-in .epiphany-smoke quarantine store; --store and --runtime-id overrides are forbidden"
                 );
             }
-            if let Some(parent) = args.store.parent() {
-                fs::remove_dir_all(parent).ok();
-            }
+            reset_quarantined_smoke_store(&env::current_dir()?, &args.store)?;
             seed_epiphany_local_verse_context(
                 &args.store,
                 args.runtime_id.clone(),
@@ -9440,6 +9470,34 @@ fn required_list(values: &Option<Vec<String>>, message: &str) -> Result<Vec<Stri
 #[cfg(test)]
 mod lifecycle_projection_tests {
     use super::*;
+
+    #[test]
+    fn smoke_reset_is_confined_to_exact_canonical_quarantine() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let target = temp
+            .path()
+            .join(".epiphany-smoke")
+            .join("verse-query-default");
+        fs::create_dir_all(&target)?;
+        fs::write(target.join("sentinel"), "delete me")?;
+        reset_quarantined_smoke_store(
+            temp.path(),
+            Path::new(".epiphany-smoke/verse-query-default/local-verse.ccmp"),
+        )?;
+        assert!(!target.exists());
+
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(&outside)?;
+        fs::write(outside.join("sentinel"), "preserve me")?;
+        assert!(
+            reset_quarantined_smoke_store(temp.path(), Path::new("outside/local-verse.ccmp"))
+                .unwrap_err()
+                .to_string()
+                .contains("non-default")
+        );
+        assert!(outside.join("sentinel").exists());
+        Ok(())
+    }
 
     fn directory_row(service_id: &str, route: &str) -> ReceiptDirectoryRow {
         ReceiptDirectoryRow {

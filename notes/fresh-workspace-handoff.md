@@ -194,6 +194,11 @@ The confirmed conceptual substitutions have been cut:
 - Deployment-request closure parses typed TOML for Idunn ownership,
   antecedents, receipts, deployment packet, and authority seals; comment prose
   cannot counterfeit SSH/push/deployment denials.
+- Verse-query smoke reset proves the exact built-in path and canonical strict
+  containment beneath `.epiphany-smoke` immediately before recursive deletion.
+- The four typed closure contract families now form a contiguous organ inside
+  `epiphany-work`; extract them to a dedicated module before adding more typed
+  families. Do not replace this with an inline namespace or generic policy blob.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
