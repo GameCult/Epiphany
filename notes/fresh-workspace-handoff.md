@@ -245,6 +245,13 @@ inputs, emitted state, forbidden writers, and negative proof before changing
 code. Also audit remaining non-receipt smoke binaries for path escape or
 destructive scope.
 
+The latest structural count is 32 closure family branches, 744 remaining
+substring assertions in the closure region, and 1,284 lines in
+`closure_contracts.rs`. Do not blindly generate a struct forest for every
+presentation-only family. The eight converted high-authority families are
+covered by `typed_closure_families_have_no_substring_authority`; prioritize the
+next consequence-bearing request and require a named owner.
+
 ## Verification baseline
 
 The last completed code pass had 258 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.

@@ -825,6 +825,23 @@ fragments. It now parses a family-specific typed contract and checks exact
 semantics. A comment cannot conceal `credit_ledger_authorized = true`; Bifrost
 remains the sole credit consequence owner.
 
+## Closure-family structural inventory
+
+The closure matcher currently has 32 `repo.*` family branches and 744 remaining
+`content.contains(...)` assertions in the measured closure region. The typed
+contract organ is already 1,284 lines. Therefore “add one struct forest per
+family” is not itself the target architecture; typed syntax without earned
+family ownership would merely rename the Jenga.
+
+Eight high-authority families currently have explicit typed semantic owners:
+tool request, credit request, artifact acceptance, metrics, secret policy,
+dependency policy, deployment config, and deployment request. A source-level
+negative proof now prevents any of those converted branches from regaining
+substring authority. Future cuts should prioritize consequence-bearing request
+families, while collapsing shared envelope syntax only where the shared owner
+and invariant can be named. Presentation-only markdown checks do not deserve a
+policy framework merely because they also use strings.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

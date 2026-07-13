@@ -15501,6 +15501,33 @@ idunn_deployment_authority_required = true
     }
 
     #[test]
+    fn typed_closure_families_have_no_substring_authority() {
+        let source = include_str!("epiphany-work.rs");
+        for family in [
+            "repo.tool_request",
+            "repo.credit_request",
+            "repo.artifact_acceptance_request",
+            "repo.metrics_request",
+            "repo.secret_policy_request",
+            "repo.dependency_policy_request",
+            "repo.deployment_config",
+            "repo.deployment_request",
+        ] {
+            let marker = format!("\"{family}\" => {{");
+            let start = source
+                .find(&marker)
+                .unwrap_or_else(|| panic!("missing {family}"));
+            let remainder = &source[start + marker.len()..];
+            let end = remainder.find("\n        \"").unwrap_or(remainder.len());
+            let branch = &remainder[..end];
+            assert!(
+                !branch.contains("content.contains"),
+                "{family} closure regained substring authority"
+            );
+        }
+    }
+
+    #[test]
     fn modeling_finding_round_trips_and_refuses_private_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("runtime.cc");
