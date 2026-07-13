@@ -275,10 +275,10 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&request_text, "upstream_sync_authorized = false")?;
     require_text(&request_text, "hands_action_authorized = false")?;
     require_text(&request_text, "cross_body_mutation_authorized = false")?;
-    require_text(
-        &request_text,
-        "bifrost_or_maintainer_authority_required = true",
-    )?;
+    require_text(&request_text, "maintainer_review_required = true")?;
+    require_text(&request_text, "bifrost_publication_gate_required = true")?;
+    require_text(&request_text, "hands_execution_required = true")?;
+    require_text(&request_text, "github_provider_receipt_required = true")?;
     require_text(&request_text, "private_state_exposed = false")?;
 
     let summary = json!({

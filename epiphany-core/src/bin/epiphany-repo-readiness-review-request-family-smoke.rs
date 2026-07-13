@@ -220,7 +220,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         &request_text,
         "required_reviewers = [\"Maintainer\", \"Soul\", \"Mind\", \"Bifrost\"]",
     )?;
-    require_text(&request_text, "readiness_approval_owner = \"none\"")?;
+    require_text(&request_text, "readiness_approval_owner = \"Maintainer\"")?;
     require_text(
         &request_text,
         "requested_effect = \"review-redacted-repo-swarm-mvp-proof-bundle\"",
@@ -231,7 +231,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_text(
         &request_text,
-        "review_is_advisory_until_maintainer_or_bifrost_acceptance = true",
+        "maintainer_readiness_acceptance_required = true",
     )?;
     require_text(&request_text, "[antecedents]")?;
     require_text(&request_text, "repo_init_required = true")?;
@@ -337,10 +337,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&request_text, "hands_action_authorized = false")?;
     require_text(&request_text, "cross_body_mutation_authorized = false")?;
     require_text(&request_text, "private_verse_rummaging = false")?;
-    require_text(
-        &request_text,
-        "maintainer_soul_mind_or_bifrost_review_required = true",
-    )?;
+    require_text(&request_text, "maintainer_review_required = true")?;
     require_text(&request_text, "private_state_exposed = false")?;
 
     let summary = json!({

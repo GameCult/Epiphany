@@ -466,3 +466,12 @@ and Bifrost publication review are separately required. Dependency policy also
 requires supply-chain audit evidence. The next conceptual-substitution targets
 are the surviving composite decision fields in external governance and the
 composite owner labels in operator projections.
+
+Artifact acceptance, PR publication, and readiness seals are now aligned with
+their split request bodies. Maintainer acceptance cannot substitute for Bifrost
+accounting; Maintainer review cannot substitute for Bifrost publication, Hands
+execution, or GitHub provider evidence; and readiness approval is Maintainer-
+owned instead of ownerless. The unresolved external-governance field is
+upstream sync's `operator_or_maintainer_authority_required`; trace its actual
+effect owner before deciding whether it is alternate human authority or another
+collapsed obligation.

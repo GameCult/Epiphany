@@ -13,9 +13,10 @@ private_state_exposed = false
 status = "awaiting-mvp-readiness-review"
 routing_owner = "Self"
 required_reviewers = ["Maintainer", "Soul", "Mind", "Bifrost"]
-readiness_approval_owner = "none"
+readiness_approval_owner = "Maintainer"
 requested_effect = "review-redacted-repo-swarm-mvp-proof-bundle"
-review_is_advisory_until_maintainer_or_bifrost_acceptance = true
+maintainer_readiness_acceptance_required = true
+bifrost_publication_review_required = true
 [antecedents]
 [required_receipts]
 [readiness_packet]
@@ -193,7 +194,8 @@ hands_action_authorized = false
 service_lifecycle_authority = false
 cross_body_mutation_authorized = false
 private_verse_rummaging = false
-maintainer_or_bifrost_acceptance_authority_required = true
+maintainer_acceptance_authority_required = true
+bifrost_accounting_required = true
 "#;
         let request = parse_repo_artifact_acceptance_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());
@@ -415,7 +417,10 @@ hands_action_authorized = false
 service_lifecycle_authority = false
 cross_body_mutation_authorized = false
 private_verse_rummaging = false
-bifrost_or_maintainer_authority_required = true
+maintainer_review_required = true
+bifrost_publication_gate_required = true
+hands_execution_required = true
+github_provider_receipt_required = true
 "#;
         let request = parse_repo_pr_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());

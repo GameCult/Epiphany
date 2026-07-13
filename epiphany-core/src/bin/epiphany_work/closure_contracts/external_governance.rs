@@ -325,7 +325,8 @@ impl RepoArtifactAcceptanceRequest {
             && !a.service_lifecycle_authority
             && !a.cross_body_mutation_authorized
             && !a.private_verse_rummaging
-            && a.maintainer_or_bifrost_acceptance_authority_required
+            && a.maintainer_acceptance_authority_required
+            && a.bifrost_accounting_required
     }
 }
 
@@ -387,7 +388,8 @@ struct RepoArtifactAcceptanceAuthority {
     service_lifecycle_authority: bool,
     cross_body_mutation_authorized: bool,
     private_verse_rummaging: bool,
-    maintainer_or_bifrost_acceptance_authority_required: bool,
+    maintainer_acceptance_authority_required: bool,
+    bifrost_accounting_required: bool,
 }
 
 pub(super) fn parse_repo_artifact_acceptance_request(
@@ -842,7 +844,10 @@ impl RepoPrRequest {
             && !a.service_lifecycle_authority
             && !a.cross_body_mutation_authorized
             && !a.private_verse_rummaging
-            && a.bifrost_or_maintainer_authority_required
+            && a.maintainer_review_required
+            && a.bifrost_publication_gate_required
+            && a.hands_execution_required
+            && a.github_provider_receipt_required
     }
 }
 #[derive(Debug, Deserialize)]
@@ -903,7 +908,10 @@ struct RepoPrAuthority {
     service_lifecycle_authority: bool,
     cross_body_mutation_authorized: bool,
     private_verse_rummaging: bool,
-    bifrost_or_maintainer_authority_required: bool,
+    maintainer_review_required: bool,
+    bifrost_publication_gate_required: bool,
+    hands_execution_required: bool,
+    github_provider_receipt_required: bool,
 }
 pub(super) fn parse_repo_pr_request(text: &str) -> Result<RepoPrRequest> {
     toml::from_str(text).context("PR request is not valid typed TOML")
@@ -1059,9 +1067,10 @@ impl RepoReadinessReviewRequest {
         r.status == "awaiting-mvp-readiness-review"
             && r.routing_owner == "Self"
             && r.required_reviewers == ["Maintainer", "Soul", "Mind", "Bifrost"]
-            && r.readiness_approval_owner == "none"
+            && r.readiness_approval_owner == "Maintainer"
             && r.requested_effect == "review-redacted-repo-swarm-mvp-proof-bundle"
-            && r.review_is_advisory_until_maintainer_or_bifrost_acceptance
+            && r.maintainer_readiness_acceptance_required
+            && r.bifrost_publication_review_required
     }
 
     pub(super) fn has_antecedent_contract(&self) -> bool {
@@ -1159,10 +1168,10 @@ impl RepoReadinessReviewRequest {
         denied
             .iter()
             .all(|key| self.authority.get(*key) == Some(&false))
-            && self
-                .authority
-                .get("maintainer_soul_mind_or_bifrost_review_required")
-                == Some(&true)
+            && self.authority.get("maintainer_review_required") == Some(&true)
+            && self.authority.get("soul_verification_required") == Some(&true)
+            && self.authority.get("mind_admission_required") == Some(&true)
+            && self.authority.get("bifrost_publication_review_required") == Some(&true)
     }
 }
 
@@ -1173,7 +1182,8 @@ struct RepoReadinessReviewBody {
     required_reviewers: Vec<String>,
     readiness_approval_owner: String,
     requested_effect: String,
-    review_is_advisory_until_maintainer_or_bifrost_acceptance: bool,
+    maintainer_readiness_acceptance_required: bool,
+    bifrost_publication_review_required: bool,
 }
 
 #[derive(Debug, Deserialize)]

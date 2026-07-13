@@ -1320,3 +1320,16 @@ The wider scan still finds composite decision fields in external governance
 (artifact acceptance, operator/maintainer consequence, PR authority, readiness)
 and composite labels in operator projections. These are the next named scars;
 they are not evidence that every slash in prose is an owner.
+
+The artifact-acceptance, PR, and readiness scars are now cut. Artifact
+acceptance requires Maintainer acceptance and Bifrost accounting separately.
+PR requests require Maintainer review, Bifrost publication gating, Hands
+execution, and a GitHub provider receipt separately. Readiness no longer has
+owner `none`: Maintainer owns the readiness verdict; Soul verification, Mind
+admission, and Bifrost publication review remain conjunctive requirements.
+
+`operator_or_maintainer_authority_required` on upstream synchronization remains
+unresolved rather than mechanically renamed. Operator authority and Maintainer
+policy consent may be genuinely different inputs, but the current field does
+not say whether either may execute, approve, or merely request synchronization.
+Map the actual sync consequence path before cutting it.
