@@ -3767,9 +3767,10 @@ fn derive_repo_interpreter_brief_plan(
         String::new(),
         "[interpreter]".to_string(),
         format!("id = {}", toml_basic_string(&brief_id)),
-        "status = \"draft\"".to_string(),
-        "owner = \"Mind\"".to_string(),
-        "source = \"Imagination\"".to_string(),
+        "status = \"awaiting-mind-interpretation\"".to_string(),
+        "authoring_owner = \"Imagination\"".to_string(),
+        "requested_interpreter = \"Mind\"".to_string(),
+        "interpretation_admitted = false".to_string(),
         "purpose = \"public-pressure-to-action-semantics\"".to_string(),
         "requires_consensus_readback = true".to_string(),
         "requires_safe_family_choice = true".to_string(),
@@ -3836,13 +3837,13 @@ fn derive_repo_interpreter_brief_plan(
         "[verification]".to_string(),
         "asks = [".to_string(),
         "  \"Soul verifies the interpreter brief path changed and contains the accepted pressure summary.\",".to_string(),
-        "  \"Soul verifies Mind owns interpretation while candidate actions remain non-authoritative.\",".to_string(),
+        "  \"Soul verifies Imagination authored a non-authoritative request for Mind interpretation.\",".to_string(),
         "  \"Soul verifies semantic checks, required gates, and authority denials are present.\",".to_string(),
         "  \"Soul verifies no paths outside the declared interpreter brief changed.\"".to_string(),
         "]".to_string(),
         String::new(),
         "[rollback]".to_string(),
-        "hints = [\"Remove the interpreter brief if Mind misread Imagination consensus or the semantic checks are incomplete.\"]".to_string(),
+        "hints = [\"Remove the interpreter brief if Imagination misrepresented the consensus or the semantic checks are incomplete.\"]".to_string(),
         String::new(),
     ];
     let command = powershell_set_lines_command(&target_path, &lines);
@@ -3850,7 +3851,7 @@ fn derive_repo_interpreter_brief_plan(
         safe_action_family: "repo.interpreter_brief".to_string(),
         target_path,
         plan_summary: format!(
-            "Mind derived a repo interpreter brief from accepted {} pressure.",
+            "Imagination derived a request for Mind interpretation from accepted {} pressure.",
             input.source
         ),
         command,
@@ -3861,7 +3862,7 @@ fn derive_repo_interpreter_brief_plan(
             "Soul verifies no paths outside the declared interpreter brief changed.".to_string(),
         ],
         rollback_hints: vec![
-            "Remove the generated interpreter brief if Mind misinterpreted Imagination consensus.".to_string(),
+            "Remove the generated interpreter brief if Imagination misrepresented the consensus.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.interpreter_brief"),
     })
@@ -7142,114 +7143,77 @@ fn closure_family_assertions(
             safe_family_planning = planning_brief_safe_family_readback(&content);
         }
         "repo.interpreter_brief" => {
+            let brief = parse_repo_interpreter_brief(&content).ok();
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-schema-present",
-                content.contains("schema_version = \"epiphany.repo_interpreter_brief.v0\""),
+                brief
+                    .as_ref()
+                    .is_some_and(RepoInterpreterBrief::has_canonical_identity),
                 "Committed interpreter brief carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-family-present",
-                content.contains("safe_action_family = \"repo.interpreter_brief\""),
+                brief
+                    .as_ref()
+                    .is_some_and(RepoInterpreterBrief::has_canonical_identity),
                 "Committed interpreter brief carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-summary-present",
-                content.contains(&compact_summary),
+                brief
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed interpreter brief contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-draft-state",
-                content.contains("[interpreter]")
-                    && content.contains("status = \"draft\"")
-                    && content.contains("owner = \"Mind\"")
-                    && content.contains("source = \"Imagination\"")
-                    && content.contains("purpose = \"public-pressure-to-action-semantics\"")
-                    && content.contains("requires_consensus_readback = true")
-                    && content.contains("requires_safe_family_choice = true")
-                    && content.contains("requires_requested_paths = true")
-                    && content.contains("requires_verification_asks = true")
-                    && content.contains("requires_evidence_needs = true")
-                    && content.contains("candidate_actions_non_authoritative = true"),
-                "Committed interpreter brief stays draft, Mind-owned, and non-authoritative."
+                brief.as_ref().is_some_and(RepoInterpreterBrief::is_imagination_request_for_mind),
+                "Committed interpreter brief remains an Imagination-authored request for Mind interpretation."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-semantic-checks",
-                content.contains("[semantic_checks]")
-                    && content.contains("intent_summary_required = true")
-                    && content.contains("scope_boundary_required = true")
-                    && content.contains("requested_paths_required = true")
-                    && content.contains("verification_required = true")
-                    && content.contains("evidence_required = true")
-                    && content.contains("rollback_required = true")
-                    && content.contains("non_goals_required = true")
-                    && content.contains("open_questions_required = true")
-                    && content.contains("consensus_alignment_required = true"),
+                brief
+                    .as_ref()
+                    .is_some_and(RepoInterpreterBrief::has_semantic_checks),
                 "Committed interpreter brief names semantic checks before action adoption."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-allowed-outputs",
-                content.contains("[allowed_outputs]")
-                    && content.contains("\"repo.consensus_brief\"")
-                    && content.contains("\"repo.objective_draft\"")
-                    && content.contains("\"repo.adoption_request\"")
-                    && content.contains("\"repo.work_order\"")
-                    && content.contains("\"repo.verification_request\"")
-                    && content.contains("\"repo.publication_request\"")
-                    && content.contains("may_request_replanning = true")
-                    && content.contains("may_request_more_consensus = true")
-                    && content.contains("may_adopt_objective = false")
-                    && content.contains("may_schedule_work = false")
-                    && content.contains("may_touch_substrate = false")
-                    && content.contains("may_publish = false")
-                    && content.contains("may_deploy = false"),
+                brief.as_ref().is_some_and(RepoInterpreterBrief::has_allowed_outputs),
                 "Committed interpreter brief limits outputs to candidate families or more planning."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-gates",
-                content.contains("[required_gates]")
-                    && content.contains("imagination_consensus_required = true")
-                    && content.contains("mind_review_required = true")
-                    && content.contains("soul_source_grounding_required = true")
-                    && content.contains("bifrost_publication_review_required = true")
-                    && content.contains("hands_receipt_required_before_state_change = true")
-                    && content.contains("substrate_receipt_required_before_mutation = true")
-                    && content.contains("idunn_receipt_required_before_deployment = true"),
+                brief.as_ref().is_some_and(RepoInterpreterBrief::has_required_gates),
                 "Committed interpreter brief names consensus, Mind, Soul, Bifrost, Hands, Substrate, and Idunn gates."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("direct_state_commit_authorized = false")
-                    && content.contains("objective_adoption_authorized = false")
-                    && content.contains("self_scheduling_authorized = false")
-                    && content.contains("substrate_access_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("shell_command_authorized = false")
-                    && content.contains("commit_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("deployment_execution_authority = false")
-                    && content.contains("cross_body_mutation_authorized = false"),
+                brief.as_ref().is_some_and(RepoInterpreterBrief::has_authority_seals),
                 "Committed interpreter brief denies state/adoption/scheduling/substrate/action/shell/commit/publication/deployment/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "interpreter-brief-private-seal",
-                content.contains("private_state_exposed = false")
-                    && content.contains("private_worker_transcripts_allowed = false")
-                    && content.contains("raw_result_payloads_allowed = false"),
+                brief
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed)
+                    && brief
+                        .as_ref()
+                        .is_some_and(RepoInterpreterBrief::has_authority_seals),
                 "Committed interpreter brief preserves private-state and transcript seals."
                     .to_string(),
             );
@@ -15281,6 +15245,7 @@ idunn_deployment_authority_required = true
             "repo.sync_request",
             "repo.pr_request",
             "repo.maintainer_review_request",
+            "repo.interpreter_brief",
             "repo.objective_draft",
             "repo.adoption_request",
             "repo.scheduling_request",

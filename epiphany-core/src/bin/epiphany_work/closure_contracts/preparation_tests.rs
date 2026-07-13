@@ -3,6 +3,44 @@ mod preparation_tests {
     use super::*;
 
     #[test]
+    fn interpreter_comment_cannot_counterfeit_state_authority_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_interpreter_brief.v0"
+safe_action_family = "repo.interpreter_brief"
+summary = "summary"
+private_state_exposed = false
+[interpreter]
+status = "awaiting-mind-interpretation"
+authoring_owner = "Imagination"
+requested_interpreter = "Mind"
+interpretation_admitted = false
+purpose = "public-pressure-to-action-semantics"
+requires_consensus_readback = true
+requires_safe_family_choice = true
+requires_requested_paths = true
+requires_verification_asks = true
+requires_evidence_needs = true
+candidate_actions_non_authoritative = true
+[semantic_checks]
+[allowed_outputs]
+candidate_safe_families = []
+may_request_replanning = false
+may_request_more_consensus = false
+may_adopt_objective = false
+may_schedule_work = false
+may_touch_substrate = false
+may_publish = false
+may_deploy = false
+[required_gates]
+[authority]
+# direct_state_commit_authorized = false
+direct_state_commit_authorized = true
+"#;
+        let brief = parse_repo_interpreter_brief(text).expect("fixture is typed TOML");
+        assert!(!brief.has_authority_seals());
+    }
+
+    #[test]
     fn objective_draft_comment_cannot_counterfeit_adoption_seal() {
         let text = r#"
 schema_version = "epiphany.repo_objective_draft.v0"

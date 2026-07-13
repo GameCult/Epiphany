@@ -1105,6 +1105,20 @@ and privacy field replace substring recognition.
 Eighteen high-authority closure families are typed. Direct source inventory now
 reports 363 substring occurrences across fifteen remaining families.
 
+## Imagination output as Mind-owned interpretation
+
+`derive_repo_interpreter_brief_plan` is deterministic safe-family lowering from
+accepted Persona/Imagination pressure, yet the emitted document said
+`owner = "Mind"` and the plan summary claimed Mind derived it. Mind had not
+acted. The artifact now states its real authority: Imagination authored a
+non-authoritative request, Mind is the requested interpreter, and
+`interpretation_admitted = false`. Preparation owns the typed closure. Its
+negative fixture prevents comments from counterfeiting state authority, while
+the class guard prevents the family returning to substring truth.
+
+Nineteen high-authority closure families are typed. Direct source inventory now
+reports 303 substring occurrences across fourteen remaining families.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

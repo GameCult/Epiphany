@@ -360,6 +360,14 @@ governance closure and a counterfeit-approval fixture protect that boundary.
 Eighteen high-authority families are typed; direct source inventory reports 363
 substring occurrences across fifteen remaining families.
 
+Interpreter Brief no longer steals Mind's name. Deterministic Imagination
+lowering now emits an Imagination-authored request for Mind interpretation with
+`interpretation_admitted=false`; it does not claim Mind authored or owns an
+interpretation that Mind never produced. Preparation owns its typed closure and
+counterfeit-state-authority fixture. Nineteen high-authority families are typed;
+direct source inventory reports 303 substring occurrences across fourteen
+remaining families.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

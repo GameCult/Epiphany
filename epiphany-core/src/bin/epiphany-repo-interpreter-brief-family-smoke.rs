@@ -206,9 +206,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         "safe_action_family = \"repo.interpreter_brief\"",
     )?;
     require_text(&brief_text, "[interpreter]")?;
-    require_text(&brief_text, "status = \"draft\"")?;
-    require_text(&brief_text, "owner = \"Mind\"")?;
-    require_text(&brief_text, "source = \"Imagination\"")?;
+    require_text(&brief_text, "status = \"awaiting-mind-interpretation\"")?;
+    require_text(&brief_text, "authoring_owner = \"Imagination\"")?;
+    require_text(&brief_text, "requested_interpreter = \"Mind\"")?;
+    require_text(&brief_text, "interpretation_admitted = false")?;
     require_text(
         &brief_text,
         "purpose = \"public-pressure-to-action-semantics\"",
