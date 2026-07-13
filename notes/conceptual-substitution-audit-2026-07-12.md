@@ -971,6 +971,8 @@ antecedents, receipt chain, PR packet, and authority seals inside external
 governance. Bifrost/GitHub and Maintainer remain consequence owners; the
 request grants no PR, push, merge, publication, sync, Hands, lifecycle, or
 cross-body authority. The class-level guard prevents substring fallback.
+A malicious typed fixture separately proves that commented
+`github_pr_authorized = false` cannot conceal an actual GitHub PR grant.
 
 Eleven high-authority closure families are now typed; 620 substring assertions
 remain in the measured closure region.

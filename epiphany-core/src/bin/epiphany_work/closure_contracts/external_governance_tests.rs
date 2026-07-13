@@ -313,4 +313,63 @@ operator_or_maintainer_authority_required = true
         let request = parse_repo_sync_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());
     }
+
+    #[test]
+    fn pr_comment_cannot_counterfeit_github_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_pr_request.v0"
+safe_action_family = "repo.pr_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-pr-publication-review"
+requested_owner = "Bifrost/GitHub"
+requested_effect = "open-or-update-review-pr-from-redacted-proof-and-maintainer-context"
+maintainer_review_request_ref = "review"
+publication_request_ref = "publication"
+sync_request_ref = "sync"
+[antecedents]
+closure_review_required = true
+soul_verdict_required = true
+mind_commit_required = true
+public_proof_required = true
+maintainer_review_required = true
+bifrost_publication_required = true
+credit_ledger_required = true
+[required_receipts]
+closure_review = "epiphany.repo_work_closure_review.v0"
+soul_verdict = "epiphany.soul.verification_verdict"
+mind_commit = "epiphany.mind.state_commit_receipt"
+public_proof = "epiphany.repo_work_public_proof_bundle.v0"
+maintainer_review = "gamecult.maintainer.review_receipt.v0"
+bifrost_publication = "gamecult.bifrost.public_proof_publication_receipt.v0"
+credit_ledger = "gamecult.bifrost.credit_receipt.v0"
+pr_publication = "gamecult.github.pull_request_publication_receipt.v0"
+[pr_packet]
+base_ref = "origin/main"
+requires_branch_name = true
+requires_title = true
+requires_body = true
+requires_changed_path_list = true
+requires_public_proof_ref = true
+requires_maintainer_review_ref = true
+requires_credit_ref = true
+requires_private_state_redaction_check = true
+[authority]
+branch_local_only = true
+# github_pr_authorized = false
+github_pr_authorized = true
+branch_push_authorized = false
+merge_authorized = false
+publication_authorized = false
+upstream_sync_authorized = false
+hands_action_authorized = false
+service_lifecycle_authority = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+bifrost_or_maintainer_authority_required = true
+"#;
+        let request = parse_repo_pr_request(text).expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
+    }
 }

@@ -300,9 +300,9 @@ Regression test `bifrost_mirrors_name_arrival_order_without_rewriting_storage_ke
 guards honest Rust vocabulary and the seven stable persisted keys together.
 
 PR-request closure is now typed within external governance and protected by the
-class no-substring guard. Current count: eleven typed high-authority families
-and 620 remaining closure substring assertions. Add the explicit malicious PR
-grant fixture next so semantic evidence matches the other external contracts.
+class no-substring guard plus an explicit malicious GitHub-grant fixture.
+Current count: eleven typed high-authority families and 620 remaining closure
+substring assertions.
 
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
