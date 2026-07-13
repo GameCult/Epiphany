@@ -425,6 +425,7 @@ pub use cultmesh_integration::load_epiphany_cultmesh_idunn_aftercare_audit_recei
 pub use cultmesh_integration::load_epiphany_cultmesh_idunn_deployment_receipt;
 pub use cultmesh_integration::load_epiphany_cultmesh_managed_service_policies;
 pub use cultmesh_integration::load_epiphany_cultmesh_managed_service_policy;
+pub use cultmesh_integration::load_epiphany_cultmesh_operator_run_intent;
 pub use cultmesh_integration::load_epiphany_cultmesh_operator_snapshot;
 pub use cultmesh_integration::load_epiphany_cultmesh_repo_work_map_entries;
 pub use cultmesh_integration::load_epiphany_cultmesh_repo_work_overviews;

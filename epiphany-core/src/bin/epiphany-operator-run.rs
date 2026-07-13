@@ -9,6 +9,7 @@ use epiphany_core::EpiphanyCultMeshOperatorRunReceiptEntry;
 use epiphany_core::epiphany_cultmesh_coordinator_run_receipt_from_summary_json;
 use epiphany_core::epiphany_cultmesh_hands_action_gate_from_summary_json;
 use epiphany_core::epiphany_cultmesh_role_review_event_from_summary_json;
+use epiphany_core::load_epiphany_cultmesh_operator_run_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_operator_run_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_operator_run_receipt;
 use epiphany_core::write_epiphany_cultmesh_coordinator_run_receipt;
@@ -49,15 +50,17 @@ fn main() -> Result<()> {
             print_json(json!({"status": "written", "store": args.store, "intent": written}))?;
         }
         "receipt" => {
-            let intent =
-                load_latest_epiphany_cultmesh_operator_run_intent(&args.store, &args.runtime_id)?
-                    .context("operator-run receipt requires a persisted run intent")?;
-            if intent.run_id != args.run_id || intent.mode != args.mode {
+            let intent = load_epiphany_cultmesh_operator_run_intent(
+                &args.store,
+                &args.runtime_id,
+                &args.run_id,
+            )?
+            .context("operator-run receipt requires a persisted intent for its run id")?;
+            if intent.mode != args.mode {
                 anyhow::bail!(
-                    "operator-run receipt does not match latest intent: requested run={} mode={}, latest run={} mode={}",
+                    "operator-run receipt mode does not match its intent: run={} requested mode={} intent mode={}",
                     args.run_id,
                     args.mode,
-                    intent.run_id,
                     intent.mode
                 );
             }

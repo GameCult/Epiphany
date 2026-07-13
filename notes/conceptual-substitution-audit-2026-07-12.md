@@ -634,6 +634,19 @@ source identity, and valid RFC3339 generation time. `latest` advances by
 `(generation time, snapshot ID)`; snapshots remain observations and acquire no
 coordinator or runtime authority.
 
+## Global chronology substituted for operator-run identity
+
+Operator-run intents and receipts were stored by `run_id`, but receipt
+admission loaded the global latest intent and required it to match the
+completing run. A newer concurrent run therefore stole the identity lookup for
+an older legitimate completion. Both global mirrors were also arrival-owned
+and their typed documents were accepted without boundary validation. Receipt
+admission now loads the intent directly by its own `run_id`; `latest` remains a
+convenience projection ordered by each document's owner timestamp. Intent and
+receipt writers validate schema, internal Verse, required identity/path fields,
+and RFC3339 time. Delayed writes remain addressable by identity without
+rewinding either mirror.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

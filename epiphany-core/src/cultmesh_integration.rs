@@ -2784,12 +2784,29 @@ pub fn write_epiphany_cultmesh_operator_run_intent(
     store_path: impl AsRef<Path>,
     intent: EpiphanyCultMeshOperatorRunIntentEntry,
 ) -> Result<EpiphanyCultMeshOperatorRunIntentEntry> {
+    validate_operator_run_intent(&intent)?;
     let mut node = open_epiphany_cultmesh_node(&store_path, intent.runtime_id.clone())?;
     let intent_key = epiphany_cultmesh_operator_run_intent_key(&intent.run_id);
     let written = node.put(intent_key.as_str(), &intent)?;
-    node.put(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY, &written)?;
+    let current_latest = node.get::<EpiphanyCultMeshOperatorRunIntentEntry>(
+        EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY,
+    )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        operator_run_intent_event_key(&written) >= operator_run_intent_event_key(current)
+    }) {
+        node.put(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY, &written)?;
+    }
     node.flush()?;
     Ok(written)
+}
+
+pub fn load_epiphany_cultmesh_operator_run_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    run_id: &str,
+) -> Result<Option<EpiphanyCultMeshOperatorRunIntentEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(epiphany_cultmesh_operator_run_intent_key(run_id).as_str())
 }
 
 pub fn load_latest_epiphany_cultmesh_operator_run_intent(
@@ -2804,12 +2821,96 @@ pub fn write_epiphany_cultmesh_operator_run_receipt(
     store_path: impl AsRef<Path>,
     receipt: EpiphanyCultMeshOperatorRunReceiptEntry,
 ) -> Result<EpiphanyCultMeshOperatorRunReceiptEntry> {
+    validate_operator_run_receipt(&receipt)?;
     let mut node = open_epiphany_cultmesh_node(&store_path, receipt.runtime_id.clone())?;
     let receipt_key = epiphany_cultmesh_operator_run_receipt_key(&receipt.run_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY, &written)?;
+    let current_latest = node.get::<EpiphanyCultMeshOperatorRunReceiptEntry>(
+        EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY,
+    )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        operator_run_receipt_event_key(&written) >= operator_run_receipt_event_key(current)
+    }) {
+        node.put(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY, &written)?;
+    }
     node.flush()?;
     Ok(written)
+}
+
+fn validate_operator_run_intent(intent: &EpiphanyCultMeshOperatorRunIntentEntry) -> Result<()> {
+    if intent.schema_version != EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "operator run intent has unsupported schema version"
+        ));
+    }
+    if intent.verse_id != EPIPHANY_CULTMESH_INTERNAL_VERSE_ID {
+        return Err(anyhow!(
+            "operator run intent must remain in the internal Verse"
+        ));
+    }
+    for (label, value) in [
+        ("runtime id", intent.runtime_id.as_str()),
+        ("run id", intent.run_id.as_str()),
+        ("mode", intent.mode.as_str()),
+        ("root", intent.root.as_str()),
+        ("workspace", intent.workspace.as_str()),
+        ("artifact root", intent.artifact_root.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("operator run intent missing {label}"));
+        }
+    }
+    DateTime::parse_from_rfc3339(&intent.requested_at_utc)
+        .map_err(|error| anyhow!("operator run intent has invalid requested_at_utc: {error}"))?;
+    Ok(())
+}
+
+fn validate_operator_run_receipt(receipt: &EpiphanyCultMeshOperatorRunReceiptEntry) -> Result<()> {
+    if receipt.schema_version != EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "operator run receipt has unsupported schema version"
+        ));
+    }
+    if receipt.verse_id != EPIPHANY_CULTMESH_INTERNAL_VERSE_ID {
+        return Err(anyhow!(
+            "operator run receipt must remain in the internal Verse"
+        ));
+    }
+    for (label, value) in [
+        ("runtime id", receipt.runtime_id.as_str()),
+        ("run id", receipt.run_id.as_str()),
+        ("mode", receipt.mode.as_str()),
+        ("status", receipt.status.as_str()),
+        ("result path", receipt.result_path.as_str()),
+        ("artifact root", receipt.artifact_root.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("operator run receipt missing {label}"));
+        }
+    }
+    DateTime::parse_from_rfc3339(&receipt.completed_at_utc)
+        .map_err(|error| anyhow!("operator run receipt has invalid completed_at_utc: {error}"))?;
+    Ok(())
+}
+
+fn operator_run_intent_event_key(
+    intent: &EpiphanyCultMeshOperatorRunIntentEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&intent.requested_at_utc)
+            .expect("validated operator run intent timestamp"),
+        intent.run_id.as_str(),
+    )
+}
+
+fn operator_run_receipt_event_key(
+    receipt: &EpiphanyCultMeshOperatorRunReceiptEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&receipt.completed_at_utc)
+            .expect("validated operator run receipt timestamp"),
+        receipt.run_id.as_str(),
+    )
 }
 
 pub fn load_latest_epiphany_cultmesh_operator_run_receipt(
@@ -7909,11 +8010,60 @@ mod tests {
 
         assert_eq!(
             load_latest_epiphany_cultmesh_operator_run_intent(&store, "epiphany-test")?,
-            Some(intent)
+            Some(intent.clone())
         );
         assert_eq!(
             load_latest_epiphany_cultmesh_operator_run_receipt(&store, "epiphany-test")?,
-            Some(receipt)
+            Some(receipt.clone())
+        );
+
+        let mut newer_intent = intent.clone();
+        newer_intent.run_id = "run-newer".to_string();
+        newer_intent.requested_at_utc = "2026-05-27T01:00:00Z".to_string();
+        write_epiphany_cultmesh_operator_run_intent(&store, newer_intent.clone())?;
+        let mut delayed_intent = intent.clone();
+        delayed_intent.run_id = "run-delayed".to_string();
+        delayed_intent.requested_at_utc = "2026-05-26T23:00:00Z".to_string();
+        write_epiphany_cultmesh_operator_run_intent(&store, delayed_intent.clone())?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_operator_run_intent(&store, "epiphany-test")?,
+            Some(newer_intent)
+        );
+        assert_eq!(
+            load_epiphany_cultmesh_operator_run_intent(&store, "epiphany-test", "run-delayed")?,
+            Some(delayed_intent)
+        );
+
+        let mut newer_receipt = receipt.clone();
+        newer_receipt.run_id = "run-newer".to_string();
+        newer_receipt.completed_at_utc = "2026-05-27T01:00:01Z".to_string();
+        write_epiphany_cultmesh_operator_run_receipt(&store, newer_receipt.clone())?;
+        let mut delayed_receipt = receipt.clone();
+        delayed_receipt.run_id = "run-delayed".to_string();
+        delayed_receipt.completed_at_utc = "2026-05-26T23:00:01Z".to_string();
+        write_epiphany_cultmesh_operator_run_receipt(&store, delayed_receipt)?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_operator_run_receipt(&store, "epiphany-test")?,
+            Some(newer_receipt)
+        );
+
+        let mut invalid_intent = intent.clone();
+        invalid_intent.run_id = "run-invalid".to_string();
+        invalid_intent.requested_at_utc = "not-a-time".to_string();
+        assert!(
+            write_epiphany_cultmesh_operator_run_intent(&store, invalid_intent)
+                .unwrap_err()
+                .to_string()
+                .contains("invalid requested_at_utc")
+        );
+        let mut wrong_verse_receipt = receipt;
+        wrong_verse_receipt.run_id = "run-wrong-verse".to_string();
+        wrong_verse_receipt.verse_id = EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string();
+        assert!(
+            write_epiphany_cultmesh_operator_run_receipt(&store, wrong_verse_receipt)
+                .unwrap_err()
+                .to_string()
+                .contains("internal Verse")
         );
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         assert!(

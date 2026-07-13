@@ -159,6 +159,9 @@ The confirmed conceptual substitutions have been cut:
 - Operator snapshots are validated internal-Verse observations and `latest` is
   generation-time-owned; delayed status transport cannot rewind the observed
   coordinator/runtime surface.
+- Operator-run receipt admission resolves its intent by `run_id`, not by the
+  unrelated global latest mirror. Intent/receipt mirrors are validated and
+  owner-time ordered; concurrent runs retain independent identity.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
