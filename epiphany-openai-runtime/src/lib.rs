@@ -1365,7 +1365,7 @@ fn role_result_id_for_launch_role(
 fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
     match document {
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling and Imagination workers must include their required statePatch. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers must include repoModelPatch; Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -1393,7 +1393,11 @@ struct RoleWorkerResultIngress {
     evidence_gaps: Vec<String>,
     risks: Vec<String>,
     state_patch: Option<epiphany_core::EpiphanyRoleStatePatchDocument>,
+    repo_model_patch: Option<epiphany_core::RepoModelPatch>,
     self_patch: Option<epiphany_core::AgentSelfPatch>,
+    verification_request_id: Option<String>,
+    frontier_route_id: Option<String>,
+    repo_frontier_modeling_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -1514,6 +1518,8 @@ fn role_worker_result_from_ingress(
 ) -> EpiphanyRuntimeRoleWorkerResult {
     let (state_patch_msgpack, state_patch_error) =
         encode_optional_document(&result.state_patch, "statePatch");
+    let (repo_model_patch_msgpack, repo_model_patch_error) =
+        encode_optional_document(&result.repo_model_patch, "repoModelPatch");
     let (self_patch_msgpack, self_patch_error) =
         encode_optional_document(&result.self_patch, "selfPatch");
     EpiphanyRuntimeRoleWorkerResult {
@@ -1540,8 +1546,17 @@ fn role_worker_result_from_ingress(
         risks: clean_string_vec(&result.risks),
         state_patch_msgpack,
         self_patch_msgpack,
-        item_error: merge_optional_errors(state_patch_error, self_patch_error),
+        item_error: merge_optional_errors(
+            merge_optional_errors(state_patch_error, self_patch_error),
+            repo_model_patch_error,
+        ),
         metadata: std::collections::BTreeMap::new(),
+        repo_model_patch_msgpack,
+        verification_request_id: clean_optional_string(result.verification_request_id.as_deref()),
+        frontier_route_id: clean_optional_string(result.frontier_route_id.as_deref()),
+        repo_frontier_modeling_request_id: clean_optional_string(
+            result.repo_frontier_modeling_request_id.as_deref(),
+        ),
     }
 }
 
@@ -1657,6 +1672,46 @@ mod tests {
     use epiphany_core::runtime_job_snapshot;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
     use tempfile::tempdir;
+
+    #[test]
+    fn verification_ingress_preserves_exact_request_and_route_binding() -> Result<()> {
+        let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
+            r#"{"roleId":"verification","verdict":"pass","summary":"verified","nextSafeMove":"admit","verificationRequestId":" verification-request-1 ","frontierRouteId":" frontier-route-1 "}"#,
+        )?;
+        let launch = EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
+            job_id: "verification-job-1".to_string(),
+            binding_id: "verification-binding-1".to_string(),
+            role: "verification".to_string(),
+            authority_scope: "epiphany.role.verification".to_string(),
+            instruction: "verify".to_string(),
+            output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+            document_kind: "role".to_string(),
+            launch_document_msgpack: Vec::new(),
+            metadata: std::collections::BTreeMap::new(),
+            organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                "epiphany.role.verification",
+                "role",
+                epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+        };
+        let result = role_worker_result_from_ingress(
+            &launch,
+            "verification",
+            "verification-result-1",
+            &parsed,
+            Vec::new(),
+        );
+        assert_eq!(
+            result.verification_request_id.as_deref(),
+            Some("verification-request-1")
+        );
+        assert_eq!(
+            result.frontier_route_id.as_deref(),
+            Some("frontier-route-1")
+        );
+        Ok(())
+    }
 
     fn test_openai_event(
         request_id: &str,
@@ -1865,10 +1920,10 @@ mod tests {
             .output_schema_json
             .as_deref()
             .expect("worker model request should carry role output schema");
-        assert!(output_schema.contains("\"statePatch\""));
+        assert!(output_schema.contains("\"repoModelPatch\""));
         assert!(output_schema.contains("\"frontierNodeIds\""));
         assert!(model_request.instructions.contains("Output schema JSON"));
-        assert!(model_request.instructions.contains("\"statePatch\""));
+        assert!(model_request.instructions.contains("\"repoModelPatch\""));
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
         assert!(
@@ -1895,7 +1950,7 @@ mod tests {
             &launch_request,
             &model_request.request_id,
             &openai_summary,
-            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"],"statePatch":{"objective":"Keep the machine mapped."},"selfPatch":{"reason":"typed nested document"}} "#,
+            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"frontierNodeIds":["old"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"],"repoModelPatch":{"patch_id":"modeling-runtime-test","base_revision":0,"base_hash":"legacy-hash","applied_at":"2026-07-13T00:00:00Z","purpose":{"kind":"evolution"},"operations":[{"operation":"retire_node","node_id":"old"}]},"statePatch":{"observations":[],"evidence":[]},"selfPatch":{"reason":"typed nested document"}} "#,
         )?;
 
         assert_eq!(result.job_id, "worker-job-1");
@@ -1909,8 +1964,11 @@ mod tests {
         assert_eq!(typed_result.files_inspected, vec!["src/lib.rs".to_string()]);
         assert_eq!(typed_result.artifact_refs, result.artifact_refs);
         assert_eq!(
-            typed_result.state_patch()?.expect("state patch").objective,
-            Some("Keep the machine mapped.".to_string())
+            typed_result
+                .repo_model_patch()?
+                .expect("repo model patch")
+                .patch_id,
+            "modeling-runtime-test"
         );
         assert_eq!(
             typed_result.self_patch()?.expect("self patch").reason,
@@ -2021,6 +2079,8 @@ mod tests {
                 risks: Vec::new(),
                 emitted_at: now(),
                 contract: "test".to_string(),
+                verification_request_id: String::new(),
+                frontier_route_id: String::new(),
             },
         )?;
         let request = epiphany_core::RepoWorkModelingRequest {
@@ -2203,11 +2263,9 @@ mod tests {
             &openai_summary1,
             r#"{"verdict":"passed","finding":"The reviewed README consequence updates the repo map.","summary":"README consequence mapped.","nextSafeMove":"Let Mind admit generation one.","evidenceIds":["soul-repo-1"],"artifactRefs":[]}"#,
         )?;
-        let finding1 = epiphany_core::runtime_repo_work_modeling_finding(
-            &store,
-            "repo-request-2-finding",
-        )?
-        .expect("generation-one typed finding");
+        let finding1 =
+            epiphany_core::runtime_repo_work_modeling_finding(&store, "repo-request-2-finding")?
+                .expect("generation-one typed finding");
         assert_eq!(finding1.verdict, "passed");
 
         let map_review = epiphany_core::MindGatewayReview {
@@ -2249,12 +2307,7 @@ mod tests {
             modeling_route_id: route1.route_id.clone(),
             modeling_generation: 1,
         };
-        epiphany_core::commit_repo_work_map_admission(
-            &store,
-            &map,
-            &map_review,
-            &map_commit,
-        )?;
+        epiphany_core::commit_repo_work_map_admission(&store, &map, &map_review, &map_commit)?;
         let mut stale = map.clone();
         stale.map_entry_id = "stale-generation-zero-map".to_string();
         stale.modeling_finding_receipt_id = finding0.receipt_id.clone();
@@ -2269,11 +2322,9 @@ mod tests {
             )
             .is_err()
         );
-        let current_route = epiphany_core::runtime_repo_work_modeling_route(
-            &store,
-            &route1.route_id,
-        )?
-        .expect("current route");
+        let current_route =
+            epiphany_core::runtime_repo_work_modeling_route(&store, &route1.route_id)?
+                .expect("current route");
         assert_eq!(current_route.generation, 1);
         assert_eq!(current_route.request_id, request1.request_id);
         Ok(())

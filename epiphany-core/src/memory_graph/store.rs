@@ -158,7 +158,8 @@ pub fn memory_graph_model_hash(snapshot: &EpiphanyMemoryGraphSnapshot) -> Result
 
 /// Applies a Modeling patch as one stale-checked replacement of the existing
 /// CultCache aggregate. Validation occurs before the store is touched.
-pub fn apply_repo_model_patch(
+#[cfg(test)]
+pub(crate) fn apply_repo_model_patch(
     store_path: impl AsRef<Path>,
     patch: &RepoModelPatch,
 ) -> Result<EpiphanyMemoryGraphSnapshot> {
@@ -184,7 +185,34 @@ pub fn apply_repo_model_patch(
     let entry: EpiphanyMemoryGraphEntry = rmp_serde::from_slice(&envelope.payload)?;
     validate_memory_graph_entry(&entry)?;
     let current = entry.snapshot()?;
-    let current_hash = memory_graph_model_hash(&current)?;
+    let next = derive_repo_model_patch(&current, patch)?;
+    let next_entry = EpiphanyMemoryGraphEntry::from_snapshot(&next)?;
+    let next_envelope = memory_graph_envelope(&next_entry, &patch.applied_at)?;
+    if !backing.compare_and_swap_entry(&envelope, next_envelope)? {
+        return Err(anyhow!(
+            "stale repo model patch: aggregate changed during compare-and-swap"
+        ));
+    }
+    Ok(next)
+}
+
+/// Purely derives and validates the next canonical aggregate. Persistence and
+/// admission authority remain the caller's responsibility.
+pub fn derive_repo_model_patch(
+    current: &EpiphanyMemoryGraphSnapshot,
+    patch: &RepoModelPatch,
+) -> Result<EpiphanyMemoryGraphSnapshot> {
+    if patch.patch_id.trim().is_empty() || patch.applied_at.trim().is_empty() {
+        return Err(anyhow!("repo model patch requires patch_id and applied_at"));
+    }
+    if patch.operations.is_empty() {
+        return Err(anyhow!(
+            "repo model patch must contain at least one operation"
+        ));
+    }
+    chrono::DateTime::parse_from_rfc3339(&patch.applied_at)
+        .map_err(|_| anyhow!("repo model patch applied_at must be RFC3339"))?;
+    let current_hash = memory_graph_model_hash(current)?;
     if patch.base_revision != current.model_revision || patch.base_hash != current_hash {
         return Err(anyhow!(
             "stale repo model patch: base revision/hash {}/{} does not match current {}/{}",
@@ -194,7 +222,7 @@ pub fn apply_repo_model_patch(
             current_hash
         ));
     }
-    let mut next = current;
+    let mut next = current.clone();
     if next
         .lifecycle_receipts
         .iter()
@@ -253,14 +281,7 @@ pub fn apply_repo_model_patch(
         ));
     }
     next.model_hash = memory_graph_model_hash(&next)?;
-    let next_entry = EpiphanyMemoryGraphEntry::from_snapshot(&next)?;
-    validate_memory_graph_entry(&next_entry)?;
-    let next_envelope = memory_graph_envelope(&next_entry, &patch.applied_at)?;
-    if !backing.compare_and_swap_entry(&envelope, next_envelope)? {
-        return Err(anyhow!(
-            "stale repo model patch: aggregate changed during compare-and-swap"
-        ));
-    }
+    validate_memory_graph_entry(&EpiphanyMemoryGraphEntry::from_snapshot(&next)?)?;
     Ok(next)
 }
 

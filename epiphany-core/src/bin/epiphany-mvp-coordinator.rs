@@ -10,6 +10,9 @@ use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
 use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
 use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
 use epiphany_core::HandsActionIntent;
+use epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT;
+use epiphany_core::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION;
+use epiphany_core::RepoFrontierHandsAuthority;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
@@ -21,8 +24,10 @@ use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::put_coordinator_run_receipt;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
+use epiphany_core::put_repo_frontier_hands_authority;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_spine_status;
+use epiphany_core::select_and_commit_repo_frontier_route;
 use epiphany_core::substrate_gate_coordinator_implementation_grant;
 use serde_json::Value;
 use serde_json::json;
@@ -802,9 +807,10 @@ fn record_hands_implementation_gate(
     artifact_dir: &Path,
     thread_id: &str,
     step_index: usize,
-    status: &Value,
+    _status: &Value,
 ) -> Result<Value> {
     let requested_at = now();
+    let route = select_and_commit_repo_frontier_route(runtime_store, &requested_at)?;
     let suffix = format!(
         "{}-{}-{}",
         sanitize_id(thread_id),
@@ -813,7 +819,7 @@ fn record_hands_implementation_gate(
     );
     let runtime_job_id = format!("hands-implementation-{suffix}");
     let grant_id = format!("substrate-grant-{runtime_job_id}");
-    let requested_paths = implementation_requested_paths(status);
+    let requested_paths = route.source_scope.clone();
 
     let substrate_grant = substrate_gate_coordinator_implementation_grant(
         grant_id.clone(),
@@ -862,6 +868,22 @@ fn record_hands_implementation_gate(
         HANDS_COMMIT_RECEIPT_TYPE.to_string(),
     ];
     put_hands_action_review(runtime_store, &review)?;
+    let authority = RepoFrontierHandsAuthority {
+        schema_version: REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.to_string(),
+        authority_id: format!("repo-frontier-hands-authority-{}", intent.intent_id),
+        route_id: route.route_id.clone(),
+        model_revision: route.model_revision,
+        model_hash: route.model_hash.clone(),
+        frontier_item_id: route.frontier_item_id.clone(),
+        frontier_item_hash: route.frontier_item_hash.clone(),
+        hands_intent_id: intent.intent_id.clone(),
+        hands_review_id: review.review_id.clone(),
+        substrate_grant_receipt_id: grant_id.clone(),
+        requested_paths: requested_paths.clone(),
+        granted_at: review.reviewed_at.clone(),
+        contract: REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.to_string(),
+    };
+    put_repo_frontier_hands_authority(runtime_store, &authority)?;
 
     Ok(json!({
         "status": "ready",
@@ -869,6 +891,10 @@ fn record_hands_implementation_gate(
         "substrateGateGrantReceiptId": grant_id,
         "intentId": intent.intent_id,
         "reviewId": review.review_id,
+        "routeId": route.route_id,
+        "modelRevision": route.model_revision,
+        "modelHash": route.model_hash,
+        "frontierItemId": route.frontier_item_id,
         "requestedPaths": requested_paths,
         "requiredReceipts": review.required_receipts,
         "recordPassCommand": hands_record_pass_command(runtime_store, artifact_dir),
@@ -903,49 +929,6 @@ fn hands_record_pass_command(runtime_store: &Path, artifact_dir: &Path) -> Value
             "<branch>"
         ],
     })
-}
-
-fn implementation_requested_paths(status: &Value) -> Vec<String> {
-    let mut paths = Vec::new();
-    for pointer in [
-        "/scene/scene/investigationCheckpoint/codeRefs",
-        "/scene/scene/investigationCheckpoint/code_refs",
-        "/scene/scene/graphFrontier/dirtyPaths",
-        "/scene/scene/graphFrontier/dirty_paths",
-    ] {
-        collect_requested_paths_at(status, pointer, &mut paths);
-    }
-    paths.sort();
-    paths.dedup();
-    if paths.is_empty() {
-        paths.push(".".to_string());
-    }
-    paths
-}
-
-fn collect_requested_paths_at(status: &Value, pointer: &str, paths: &mut Vec<String>) {
-    match status.pointer(pointer) {
-        Some(Value::Array(items)) => {
-            for item in items {
-                if let Some(path) = item
-                    .as_str()
-                    .or_else(|| item.get("path").and_then(Value::as_str))
-                {
-                    push_requested_path(paths, path);
-                }
-            }
-        }
-        Some(Value::String(path)) => push_requested_path(paths, path),
-        _ => {}
-    }
-}
-
-fn push_requested_path(paths: &mut Vec<String>, path: &str) {
-    let normalized = path.trim().replace('\\', "/");
-    if normalized.is_empty() {
-        return;
-    }
-    paths.push(normalized);
 }
 
 fn launch_role(
@@ -1888,35 +1871,6 @@ mod tests {
             "verification",
             &unreviewable
         ));
-    }
-
-    #[test]
-    fn implementation_requested_paths_use_checkpoint_and_frontier_scope() {
-        let status = json!({
-            "scene": {
-                "scene": {
-                    "investigationCheckpoint": {
-                        "codeRefs": [
-                            {"path": "src\\main.rs"},
-                            {"path": "src/main.rs"},
-                            {"path": " notes/demo.md "}
-                        ]
-                    },
-                    "graphFrontier": {
-                        "dirtyPaths": ["tests/demo.rs"]
-                    }
-                }
-            }
-        });
-
-        assert_eq!(
-            implementation_requested_paths(&status),
-            vec![
-                "notes/demo.md".to_string(),
-                "src/main.rs".to_string(),
-                "tests/demo.rs".to_string()
-            ]
-        );
     }
 
     #[test]

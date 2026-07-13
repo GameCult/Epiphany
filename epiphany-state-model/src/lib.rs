@@ -819,9 +819,22 @@ pub struct RepoModelPatch {
     pub base_revision: u64,
     pub base_hash: String,
     pub applied_at: String,
+    pub purpose: RepoModelPatchPurpose,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<RepoModelPatchOperation>")]
     pub operations: Vec<RepoModelPatchOperation>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[ts(tag = "kind", rename_all = "snake_case")]
+pub enum RepoModelPatchPurpose {
+    #[default]
+    Evolution,
+    IncorporateFrontierVerdict {
+        route_id: String,
+        soul_verdict_receipt_id: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
@@ -1185,6 +1198,10 @@ pub struct EpiphanyMemoryContextQuery {
 pub struct EpiphanyMemoryContextPacket {
     pub id: String,
     pub query_id: String,
+    #[serde(default)]
+    pub repo_model_revision: u64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub repo_model_hash: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryNode>")]
     pub nodes: Vec<EpiphanyMemoryNode>,

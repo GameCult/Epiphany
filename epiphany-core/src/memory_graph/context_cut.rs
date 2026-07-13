@@ -12,6 +12,7 @@ use super::RepoFrontierStatus;
 use super::derive_memory_graph_freshness;
 use super::ids::normalized_key;
 use super::ids::stable_memory_graph_id;
+use super::memory_graph_model_hash;
 use bm25::Document;
 use bm25::Language;
 use bm25::SearchEngineBuilder;
@@ -162,6 +163,8 @@ pub fn plan_memory_graph_context_cut(
     EpiphanyMemoryContextPacket {
         id: stable_memory_graph_id("memctx", [query.id.as_str(), snapshot.graph_id.as_str()]),
         query_id: query.id.clone(),
+        repo_model_revision: snapshot.model_revision,
+        repo_model_hash: memory_graph_model_hash(snapshot).unwrap_or_default(),
         nodes,
         edges,
         summaries,

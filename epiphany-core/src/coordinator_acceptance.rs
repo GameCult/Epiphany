@@ -2,6 +2,7 @@ use crate::coordinator_results::latest_runtime_link;
 use crate::coordinator_state::changed_fields;
 use crate::*;
 use epiphany_state_model::EpiphanyThreadState;
+use sha2::{Digest, Sha256};
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -205,6 +206,27 @@ pub fn accept_coordinator_role_finding(
             available.push(SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string());
         }
     } else if role_id == EpiphanyRoleResultRoleId::Verification {
+        let request_id = finding
+            .verification_request_id
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Verification finding omitted verificationRequestId"))?;
+        finding
+            .frontier_route_id
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Verification finding omitted frontierRouteId"))?;
+        let request = crate::runtime_repo_frontier_verification_request(store, request_id)?
+            .ok_or_else(|| anyhow::anyhow!("Verification finding names a missing request"))?;
+        crate::put_repo_frontier_verification_request(store, &request)?;
+        validate_verification_finding_binding(&finding, &request)?;
+        if request.hands_intent_id.trim().is_empty()
+            || request.hands_patch_receipt_id.trim().is_empty()
+            || request.hands_command_receipt_id.trim().is_empty()
+            || request.hands_commit_receipt_id.trim().is_empty()
+        {
+            return Err(anyhow::anyhow!(
+                "Verification finding does not echo its exact frontier request and route"
+            ));
+        }
         let verdict = soul_verdict_receipt_from_verification_finding(
             format!("soul-verdict-{}", update.accepted_receipt_id),
             &finding,
@@ -225,6 +247,44 @@ pub fn accept_coordinator_role_finding(
         update.state_update.clone(),
         reference_turn_id,
     )?;
+    if role_id == EpiphanyRoleResultRoleId::Modeling {
+        let result_id = finding
+            .runtime_result_id
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Modeling finding has no runtime result id"))?;
+        let job_id = finding
+            .runtime_job_id
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Modeling finding has no runtime job id"))?;
+        let result = runtime_role_worker_result(store, job_id)?
+            .ok_or_else(|| anyhow::anyhow!("Modeling runtime result is missing"))?;
+        if result.result_id != result_id {
+            return Err(anyhow::anyhow!("Modeling finding/result identity mismatch"));
+        }
+        let patch_bytes = result
+            .repo_model_patch_msgpack
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Modeling result has no repoModelPatch"))?;
+        let patch = result
+            .repo_model_patch()?
+            .ok_or_else(|| anyhow::anyhow!("Modeling repoModelPatch failed to decode"))?;
+        let candidate_review = RepoModelAdmissionReview {
+            schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
+            review_id: format!("repo-model-review-{result_id}"),
+            result_id: result_id.to_string(),
+            job_id: job_id.to_string(),
+            patch_id: patch.patch_id.clone(),
+            patch_sha256: format!("{:x}", Sha256::digest(patch_bytes)),
+            base_revision: patch.base_revision,
+            base_hash: patch.base_hash.clone(),
+            decision: MindGatewayDecision::Accept,
+            evidence_ids: finding.evidence_ids.clone(),
+            reviewed_at: accepted_at.clone(),
+            contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+        };
+        let review = stable_repo_model_admission_review(store, candidate_review)?;
+        commit_repo_model_admission(store, result_id, &review)?;
+    }
     let commit = mind_state_commit_receipt(
         format!("mind-commit-{}", update.accepted_receipt_id),
         &update.mind_review,
@@ -250,6 +310,48 @@ pub fn accept_coordinator_role_finding(
         finding,
         update,
     })
+}
+
+fn stable_repo_model_admission_review(
+    store: &Path,
+    candidate: RepoModelAdmissionReview,
+) -> anyhow::Result<RepoModelAdmissionReview> {
+    match coordinator_acceptance_cache(store)?
+        .get::<RepoModelAdmissionReview>(&candidate.review_id)?
+    {
+        Some(existing)
+            if existing.result_id == candidate.result_id
+                && existing.job_id == candidate.job_id
+                && existing.patch_id == candidate.patch_id
+                && existing.patch_sha256 == candidate.patch_sha256
+                && existing.base_revision == candidate.base_revision
+                && existing.base_hash == candidate.base_hash
+                && existing.decision == candidate.decision
+                && existing.evidence_ids == candidate.evidence_ids
+                && existing.schema_version == candidate.schema_version
+                && existing.contract == candidate.contract =>
+        {
+            Ok(existing)
+        }
+        Some(_) => Err(anyhow::anyhow!(
+            "stable repo model review id belongs to different admission bytes"
+        )),
+        None => Ok(candidate),
+    }
+}
+
+fn validate_verification_finding_binding(
+    finding: &EpiphanyRoleFindingInterpretation,
+    request: &RepoFrontierVerificationRequest,
+) -> anyhow::Result<()> {
+    if finding.verification_request_id.as_deref() != Some(request.request_id.as_str())
+        || finding.frontier_route_id.as_deref() != Some(request.route_id.as_str())
+    {
+        return Err(anyhow::anyhow!(
+            "Verification finding does not echo its exact frontier request and route"
+        ));
+    }
+    Ok(())
 }
 
 pub fn completed_role_finding(
@@ -563,7 +665,11 @@ pub fn build_native_role_acceptance_update(
             ));
         }
     };
-    if role_id != EpiphanyRoleResultRoleId::Verification && finding.state_patch.is_none() {
+    if matches!(
+        role_id,
+        EpiphanyRoleResultRoleId::Imagination | EpiphanyRoleResultRoleId::Research
+    ) && finding.state_patch.is_none()
+    {
         return Err("completed role finding did not include a reviewable statePatch".to_string());
     }
     if !errors.is_empty() {
@@ -739,6 +845,57 @@ mod tests {
     use super::*;
 
     #[test]
+    fn verification_finding_refuses_swapped_request_or_route() {
+        let request = RepoFrontierVerificationRequest {
+            schema_version: REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.to_string(),
+            request_id: "verification-request-1".to_string(),
+            route_id: "frontier-route-1".to_string(),
+            model_revision: 1,
+            model_hash: "model-hash".to_string(),
+            frontier_item_id: "frontier-1".to_string(),
+            frontier_item_hash: "frontier-hash".to_string(),
+            hands_intent_id: "intent-1".to_string(),
+            hands_review_id: "review-1".to_string(),
+            hands_patch_receipt_id: "patch-1".to_string(),
+            hands_command_receipt_id: "command-1".to_string(),
+            hands_commit_receipt_id: "commit-1".to_string(),
+            requested_at: "2026-07-13T00:00:00Z".to_string(),
+            contract: REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.to_string(),
+        };
+        let mut finding = EpiphanyRoleFindingInterpretation {
+            verdict: Some("pass".to_string()),
+            summary: Some("verified".to_string()),
+            next_safe_move: None,
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            runtime_result_id: Some("result-1".to_string()),
+            runtime_job_id: Some("job-1".to_string()),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch: None,
+            repo_model_patch: None,
+            self_patch: None,
+            self_persistence: None,
+            job_error: None,
+            item_error: None,
+            verification_request_id: Some(request.request_id.clone()),
+            frontier_route_id: Some(request.route_id.clone()),
+        };
+        validate_verification_finding_binding(&finding, &request).expect("exact binding");
+
+        finding.frontier_route_id = Some("frontier-route-2".to_string());
+        assert!(validate_verification_finding_binding(&finding, &request).is_err());
+        finding.frontier_route_id = Some(request.route_id.clone());
+        finding.verification_request_id = Some("verification-request-2".to_string());
+        assert!(validate_verification_finding_binding(&finding, &request).is_err());
+    }
+
+    #[test]
     fn completed_finding_admission_refuses_missing_binding() {
         let error = completed_role_finding(
             None,
@@ -903,6 +1060,169 @@ mod tests {
                 .is_some()
         );
         assert!(cache.get::<MindStateCommitReceipt>("commit-9")?.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn accepted_soul_verdict_preserves_exact_frontier_binding() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("acceptance-soul.cc");
+        let state = EpiphanyThreadState {
+            revision: 11,
+            ..Default::default()
+        };
+        let review = MindGatewayReview {
+            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "review-11".to_string(),
+            source_kind: "role".to_string(),
+            source_role_id: "verification".to_string(),
+            decision: MindGatewayDecision::Accept,
+            allowed_effects: Vec::new(),
+            refused_effects: Vec::new(),
+            reasons: Vec::new(),
+            contract: "test".to_string(),
+        };
+        let commit = mind_state_commit_receipt(
+            "commit-11".to_string(),
+            &review,
+            11,
+            Vec::new(),
+            "2026-07-13T00:00:00Z".to_string(),
+        );
+        let soul = SoulVerdictReceipt {
+            schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "soul-11".to_string(),
+            source_result_id: "result-11".to_string(),
+            source_job_id: "job-11".to_string(),
+            verdict: "pass".to_string(),
+            summary: "exact chain verified".to_string(),
+            evidence_ids: Vec::new(),
+            risks: Vec::new(),
+            emitted_at: "2026-07-13T00:00:00Z".to_string(),
+            contract: "test".to_string(),
+            verification_request_id: "verification-request-11".to_string(),
+            frontier_route_id: "frontier-route-11".to_string(),
+        };
+        commit_state_with_mind_witness(
+            &store,
+            "thread-11",
+            &state,
+            &state,
+            &review,
+            &commit,
+            &[EpiphanyAcceptancePrerequisite::Soul(soul.clone())],
+        )?;
+        let cache = coordinator_acceptance_cache(&store)?;
+        let stored = cache.get_required::<SoulVerdictReceipt>("soul-11")?;
+        assert_eq!(stored, soul);
+        assert_eq!(stored.verification_request_id, "verification-request-11");
+        assert_eq!(stored.frontier_route_id, "frontier-route-11");
+        Ok(())
+    }
+
+    #[test]
+    fn split_model_admission_retry_reuses_review_and_commits_fresh_thread_acceptance()
+    -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("split-model-retry.cc");
+        crate::initialize_runtime_spine(
+            &store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "split-model-retry".to_string(),
+                display_name: "Split model retry".to_string(),
+                created_at: "2026-07-13T09:00:00Z".to_string(),
+            },
+        )?;
+        let existing = RepoModelAdmissionReview {
+            schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
+            review_id: "repo-model-review-result-split".to_string(),
+            result_id: "result-split".to_string(),
+            job_id: "job-split".to_string(),
+            patch_id: "patch-split".to_string(),
+            patch_sha256: "a".repeat(64),
+            base_revision: 4,
+            base_hash: "b".repeat(64),
+            decision: MindGatewayDecision::Accept,
+            evidence_ids: vec!["evidence-split".to_string()],
+            reviewed_at: "2026-07-13T09:00:01Z".to_string(),
+            contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+        };
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.put(&existing.review_id, &existing)?;
+        cache.put(
+            "repo-model-admission-repo-model-review-result-split",
+            &crate::RepoModelAdmissionReceipt {
+                schema_version: crate::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.to_string(),
+                receipt_id: "repo-model-admission-repo-model-review-result-split".to_string(),
+                review_id: existing.review_id.clone(),
+                result_id: existing.result_id.clone(),
+                patch_id: existing.patch_id.clone(),
+                patch_sha256: existing.patch_sha256.clone(),
+                previous_revision: 4,
+                previous_hash: existing.base_hash.clone(),
+                admitted_revision: 5,
+                admitted_hash: "c".repeat(64),
+                admitted_at: existing.reviewed_at.clone(),
+                contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+                purpose: crate::RepoModelPatchPurpose::Evolution,
+                frontier_route_id: String::new(),
+                verification_request_id: String::new(),
+                soul_verdict_receipt_id: String::new(),
+                frontier_modeling_request_id: String::new(),
+            },
+        )?;
+        let mut fresh = existing.clone();
+        fresh.reviewed_at = "2026-07-13T09:05:00Z".to_string();
+        assert_eq!(stable_repo_model_admission_review(&store, fresh)?, existing);
+
+        let state = EpiphanyThreadState::default();
+        let next = EpiphanyThreadState {
+            revision: 1,
+            acceptance_receipts: vec![epiphany_state_model::EpiphanyAcceptanceReceipt {
+                id: "accept-modeling-fresh-nonce".to_string(),
+                result_id: "result-split".to_string(),
+                job_id: "job-split".to_string(),
+                binding_id: "modeling-worker".to_string(),
+                surface: "roleAccept".to_string(),
+                role_id: "modeling".to_string(),
+                status: "accepted".to_string(),
+                accepted_at: "2026-07-13T09:05:00Z".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let mind = MindGatewayReview {
+            schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "mind-fresh-nonce".to_string(),
+            source_kind: "role".to_string(),
+            source_role_id: "modeling".to_string(),
+            decision: MindGatewayDecision::Accept,
+            allowed_effects: vec!["state".to_string()],
+            refused_effects: Vec::new(),
+            reasons: Vec::new(),
+            contract: "fresh retry".to_string(),
+        };
+        let commit = mind_state_commit_receipt(
+            "mind-commit-fresh-nonce".to_string(),
+            &mind,
+            next.revision,
+            vec!["AcceptanceReceipts".to_string()],
+            "2026-07-13T09:05:00Z".to_string(),
+        );
+        commit_state_with_mind_witness(&store, "thread-split", &state, &next, &mind, &commit, &[])?;
+        let cache = coordinator_acceptance_cache(&store)?;
+        assert_eq!(
+            cache
+                .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+                .state()?
+                .acceptance_receipts[0]
+                .id,
+            "accept-modeling-fresh-nonce"
+        );
+        assert_eq!(
+            cache.get_all::<crate::RepoModelAdmissionReceipt>()?.len(),
+            1
+        );
         Ok(())
     }
 }

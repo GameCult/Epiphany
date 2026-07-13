@@ -246,10 +246,13 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             state_patch: None,
+            repo_model_patch: None,
             self_patch: None,
             self_persistence: None,
             job_error: None,
             item_error: None,
+            verification_request_id: None,
+            frontier_route_id: None,
         };
         let mut patch = EpiphanyRoleStatePatchDocument::default();
         patch

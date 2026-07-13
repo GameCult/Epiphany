@@ -146,6 +146,9 @@ pub struct EpiphanyCoordinatorInput {
     pub verification_result_allows_implementation: bool,
     pub verification_result_needs_evidence: bool,
     pub reorient_finding_accepted: bool,
+    /// True only when the canonical runtime RepoModel has exactly one current
+    /// admission and an Active, dependency-ready Hands frontier item.
+    pub hands_frontier_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,6 +189,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub verification_result_allows_implementation: bool,
     pub verification_result_needs_evidence: bool,
     pub reorient_finding_accepted: bool,
+    pub hands_frontier_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -281,6 +285,7 @@ pub fn derive_coordinator_status(
         verification_result_allows_implementation: input.verification_result_allows_implementation,
         verification_result_needs_evidence: input.verification_result_needs_evidence,
         reorient_finding_accepted: input.reorient_finding_accepted,
+        hands_frontier_ready: input.hands_frontier_ready,
     });
     EpiphanyCoordinatorStatus {
         decision,
@@ -974,6 +979,7 @@ pub fn recommend_coordinator_action(
         && input.verification_result_needs_evidence
         && input.modeling_result_accepted
         && input.verification_result_covers_current_modeling
+        && input.hands_frontier_ready
     {
         return build(
             EpiphanyCoordinatorAction::ContinueImplementation,
@@ -991,6 +997,7 @@ pub fn recommend_coordinator_action(
         && input.verification_result_cites_implementation_evidence
         && input.modeling_result_accepted
         && input.verification_result_covers_current_modeling
+        && input.hands_frontier_ready
     {
         return build(
             EpiphanyCoordinatorAction::ContinueImplementation,
@@ -1117,13 +1124,43 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.hands_frontier_ready {
+        return build(
+            EpiphanyCoordinatorAction::ContinueImplementation,
+            Some(EpiphanyCoordinatorRoleId::Implementation),
+            None,
+            false,
+            false,
+            "Mind has admitted the current RepoModel and Self has an actionable Hands frontier route.",
+        );
+    }
+
+    if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
+        && input.verification_result_accepted
+        && !input.verification_result_allows_implementation
+        && (input.verification_result_needs_evidence
+            || input.verification_result_cites_implementation_evidence)
+        && input.modeling_result_accepted
+        && input.verification_result_covers_current_modeling
+        && !input.hands_frontier_ready
+    {
+        return build(
+            EpiphanyCoordinatorAction::LaunchModeling,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "Soul requests another bounded consequence, but Self has no admitted actionable Hands frontier; reconcile the RepoModel before acting.",
+        );
+    }
+
     build(
-        EpiphanyCoordinatorAction::ContinueImplementation,
-        Some(EpiphanyCoordinatorRoleId::Implementation),
-        None,
+        EpiphanyCoordinatorAction::LaunchModeling,
+        Some(EpiphanyCoordinatorRoleId::Modeling),
+        Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
         false,
-        false,
-        "CRRC is clear and no specialist lane is currently blocking implementation.",
+        true,
+        "No admitted current RepoModel frontier item is actionable by Hands; route Modeling to establish or reconcile the machine map.",
     )
 }
 
@@ -1252,6 +1289,7 @@ mod tests {
             verification_result_allows_implementation: false,
             verification_result_needs_evidence: false,
             reorient_finding_accepted: false,
+            hands_frontier_ready: false,
         }
     }
 
@@ -1276,10 +1314,13 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             state_patch: None,
+            repo_model_patch: None,
             self_patch: None,
             self_persistence: None,
             job_error: None,
             item_error: None,
+            verification_request_id: None,
+            frontier_route_id: None,
         }
     }
 
@@ -1449,10 +1490,7 @@ mod tests {
             ..input()
         });
 
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::ContinueImplementation
-        );
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
     }
 
     #[test]
@@ -1766,6 +1804,7 @@ mod tests {
             modeling_result_reviewable: true,
             verification_result_accepted: true,
             verification_result_needs_evidence: true,
+            hands_frontier_ready: true,
             ..input()
         });
         assert_eq!(
@@ -1808,12 +1847,33 @@ mod tests {
             modeling_result_accepted_after_verification: true,
             verification_result_accepted: true,
             verification_result_allows_implementation: true,
+            hands_frontier_ready: true,
             ..input()
         });
         assert_eq!(
             modeled_after_pass.action,
             EpiphanyCoordinatorAction::ContinueImplementation
         );
+    }
+
+    #[test]
+    fn clear_crrc_refuses_hands_without_an_actionable_frontier() {
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            roles: Vec::new(),
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+            },
+            ..input()
+        });
+
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
+        assert_ne!(
+            decision.target_role,
+            Some(EpiphanyCoordinatorRoleId::Implementation)
+        );
+        assert!(decision.reason.contains("admitted current RepoModel"));
     }
 
     #[test]

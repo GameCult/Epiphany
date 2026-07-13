@@ -195,6 +195,10 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
             "additionalProperties": false
         }
     });
+    if role_id == EpiphanyRoleResultRoleId::Verification {
+        properties["verificationRequestId"] = serde_json::json!({"type": "string", "minLength": 1});
+        properties["frontierRouteId"] = serde_json::json!({"type": "string", "minLength": 1});
+    }
     let mut required = vec![
         "roleId",
         "verdict",
@@ -202,6 +206,10 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         "nextSafeMove",
         "filesInspected",
     ];
+    if role_id == EpiphanyRoleResultRoleId::Verification {
+        required.push("verificationRequestId");
+        required.push("frontierRouteId");
+    }
     if role_id == EpiphanyRoleResultRoleId::Imagination {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
@@ -279,42 +287,88 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     } else if role_id == EpiphanyRoleResultRoleId::Modeling {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
-                "statePatch".to_string(),
+                "repoModelPatch".to_string(),
                 serde_json::json!({
                     "type": "object",
-                    "description": "Required reviewable statePatch for Mind admission from Modeling. Use only graphs, graphFrontier, graphCheckpoint, scratch, investigationCheckpoint, observations, and evidence. The patch must include at least one durable modeling field, not observations/evidence alone.",
-                    "anyOf": [
-                        {"required": ["graphs"]},
-                        {"required": ["graphFrontier"]},
-                        {"required": ["graphCheckpoint"]},
-                        {"required": ["scratch"]},
-                        {"required": ["investigationCheckpoint"]}
-                    ],
+                    "description": "Required typed proposal against the canonical repository model. This is ingress for later review, not admission authority.",
+                    "required": ["patch_id", "base_revision", "base_hash", "applied_at", "purpose", "operations"],
                     "properties": {
-                        "investigationCheckpoint": {
-                            "type": "object",
-                            "properties": {
-                                "disposition": {
-                                    "type": "string",
-                                    "enum": ["resume_ready", "regather_required"]
+                        "patch_id": {"type": "string", "minLength": 1},
+                        "base_revision": {"type": "integer", "minimum": 0},
+                        "base_hash": {"type": "string", "minLength": 1},
+                        "applied_at": {"type": "string", "minLength": 1},
+                        "purpose": {
+                            "description": "Use {kind: evolution} for ordinary Modeling output; frontier closure requires separately routed authority.",
+                            "oneOf": [
+                                {
+                                    "type": "object",
+                                    "required": ["kind"],
+                                    "properties": {"kind": {"const": "evolution"}},
+                                    "additionalProperties": false
+                                },
+                                {
+                                    "type": "object",
+                                    "required": ["kind", "route_id", "soul_verdict_receipt_id"],
+                                    "properties": {
+                                        "kind": {"const": "incorporate_frontier_verdict"},
+                                        "route_id": {"type": "string", "minLength": 1},
+                                        "soul_verdict_receipt_id": {"type": "string", "minLength": 1}
+                                    },
+                                    "additionalProperties": false
                                 }
-                            },
-                            "additionalProperties": true
-                        }
+                            ]
+                        },
+                        "operations": {"type": "array", "minItems": 1, "items": {"type": "object"}}
                     },
                     "additionalProperties": true
                 }),
             );
+            map.insert(
+                "repoFrontierModelingRequestId".to_string(),
+                serde_json::json!({"type": "string", "minLength": 1}),
+            );
+            map.insert(
+                "statePatch".to_string(),
+                serde_json::json!({
+                    "type": "object",
+                    "description": "Optional generic Mind-reviewable observations/evidence only. Repository anatomy belongs exclusively in repoModelPatch.",
+                    "properties": {
+                        "observations": {"type": "array"},
+                        "evidence": {"type": "array"}
+                    },
+                    "additionalProperties": false
+                }),
+            );
         }
         required.push("frontierNodeIds");
-        required.push("statePatch");
+        required.push("repoModelPatch");
     }
-    serde_json::json!({
+    let mut schema = serde_json::json!({
         "type": "object",
         "properties": properties,
         "required": required,
         "additionalProperties": true
-    })
+    });
+    if role_id == EpiphanyRoleResultRoleId::Modeling {
+        schema["allOf"] = serde_json::json!([{
+            "if": {
+                "properties": {
+                    "repoModelPatch": {
+                        "properties": {
+                            "purpose": {
+                                "properties": {"kind": {"const": "incorporate_frontier_verdict"}},
+                                "required": ["kind"]
+                            }
+                        },
+                        "required": ["purpose"]
+                    }
+                },
+                "required": ["repoModelPatch"]
+            },
+            "then": {"required": ["repoFrontierModelingRequestId"]}
+        }]);
+    }
+    schema
 }
 
 pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
@@ -358,7 +412,7 @@ const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_sp
 const EPIPHANY_WORKER_BOUNDARY_PROMPT: &str = r#"## Epiphany Worker Boundary
 You are one bounded Epiphany worker for this launch only. Your authority comes from the typed launch document, the role-local instruction, and the declared output contract.
 Do the role, name uncertainty, and return the required JSON object. Do not become the coordinator, do not accept or promote your own output, do not invent durable state outside an allowed statePatch, and do not treat model transport or Codex machinery as prompt authority.
-If you learned a durable role-local habit, you may include a bounded selfPatch. Project truth belongs in statePatch or evidence, not memory."#;
+If you learned a durable role-local habit, you may include a bounded selfPatch. Project truth belongs in the role's typed output artifact or evidence, not memory."#;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct EpiphanySpecialistPromptConfig {
@@ -820,6 +874,31 @@ mod tests {
         assert!(prompt.contains("Act as the Epiphany modeling/checkpoint specialist"));
         assert!(!prompt.contains("## Epiphany Persistent Memory"));
         assert!(!prompt.contains("Heartbeat: every lane"));
+    }
+
+    #[test]
+    fn modeling_schema_exposes_only_typed_evolution_or_verdict_incorporation() {
+        let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
+        let purposes = schema["properties"]["repoModelPatch"]["properties"]["purpose"]["oneOf"]
+            .as_array()
+            .expect("typed Modeling purpose alternatives");
+        assert_eq!(purposes.len(), 2);
+        assert_eq!(purposes[0]["properties"]["kind"]["const"], "evolution");
+        assert_eq!(
+            purposes[1]["properties"]["kind"]["const"],
+            "incorporate_frontier_verdict"
+        );
+        assert!(
+            purposes[1]["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "route_id")
+        );
+        assert_eq!(
+            schema["allOf"][0]["then"]["required"][0],
+            "repoFrontierModelingRequestId"
+        );
     }
 
     #[test]

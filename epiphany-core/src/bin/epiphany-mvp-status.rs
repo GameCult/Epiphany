@@ -40,6 +40,7 @@ use epiphany_core::interpret_runtime_role_worker_result;
 use epiphany_core::read_accepted_coordinator_state;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
+use epiphany_core::runtime_has_actionable_hands_frontier;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_core::runtime_role_worker_result;
 use epiphany_state_model::EpiphanyThreadState;
@@ -408,6 +409,8 @@ fn run_native_status(args: &Args) -> Result<Value> {
         verification_finding.as_ref(),
         None,
     );
+    let hands_frontier_ready = runtime_has_actionable_hands_frontier(&runtime_store_path)
+        .context("failed to derive actionable Hands frontier from runtime-spine state")?;
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: state_ref
@@ -441,6 +444,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
             .verification_result_allows_implementation,
         verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,
         reorient_finding_accepted: finding_signals.reorient_finding_accepted,
+        hands_frontier_ready,
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
     let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;

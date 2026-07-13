@@ -297,6 +297,10 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         "- Packet `{}` from query `{}`",
         input.memory_context.id, input.memory_context.query_id
     ));
+    lines.push(format!(
+        "- Canonical RepoModel: revision={}, hash=`{}`",
+        input.memory_context.repo_model_revision, input.memory_context.repo_model_hash
+    ));
 
     for item in input.memory_context.frontier.iter().take(6) {
         lines.push(format!(

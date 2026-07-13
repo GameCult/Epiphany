@@ -55,6 +55,18 @@ use crate::modeling_gateway::RepoWorkModelingFinding;
 use crate::modeling_gateway::RepoWorkModelingRequest;
 use crate::modeling_gateway::RepoWorkModelingRoute;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
+use crate::repo_model_gateway::{
+    REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
+    REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
+    REPO_FRONTIER_ROUTE_CONTRACT, REPO_FRONTIER_ROUTE_SCHEMA_VERSION,
+    REPO_MODEL_ADMISSION_CONTRACT, REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION,
+    REPO_MODEL_ADMISSION_RECEIPT_TYPE, REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION,
+    REPO_MODEL_ADMISSION_REVIEW_TYPE, REPO_MODEL_MIGRATION_CONTRACT,
+    REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION, REPO_MODEL_MIGRATION_RECEIPT_TYPE,
+    RepoFrontierHandsAuthority, RepoFrontierModelingRequest, RepoFrontierNextOrgan,
+    RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoModelAdmissionReceipt,
+    RepoModelAdmissionReview, RepoModelMigrationReceipt,
+};
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
@@ -77,6 +89,7 @@ use crate::thread_state_store::THREAD_STATE_TYPE;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use cultcache_rs::CacheBackingStore;
 use cultcache_rs::CultCache;
 use cultcache_rs::CultCacheEnvelope;
 use cultcache_rs::DatabaseEntry;
@@ -377,6 +390,14 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub item_error: Option<String>,
     #[cultcache(key = 19, default)]
     pub metadata: BTreeMap<String, String>,
+    #[cultcache(key = 20, default)]
+    pub repo_model_patch_msgpack: Option<Vec<u8>>,
+    #[cultcache(key = 21, default)]
+    pub verification_request_id: Option<String>,
+    #[cultcache(key = 22, default)]
+    pub frontier_route_id: Option<String>,
+    #[cultcache(key = 23, default)]
+    pub repo_frontier_modeling_request_id: Option<String>,
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
@@ -389,6 +410,13 @@ impl EpiphanyRuntimeRoleWorkerResult {
 
     pub fn self_patch(&self) -> Result<Option<crate::AgentSelfPatch>> {
         decode_optional_msgpack(self.self_patch_msgpack.as_deref(), "role worker selfPatch")
+    }
+
+    pub fn repo_model_patch(&self) -> Result<Option<crate::RepoModelPatch>> {
+        decode_optional_msgpack(
+            self.repo_model_patch_msgpack.as_deref(),
+            "role worker repoModelPatch",
+        )
     }
 }
 
@@ -733,6 +761,14 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
+    cache.register_entry_type::<crate::EpiphanyMemoryGraphEntry>()?;
+    cache.register_entry_type::<RepoModelAdmissionReview>()?;
+    cache.register_entry_type::<RepoModelAdmissionReceipt>()?;
+    cache.register_entry_type::<RepoModelMigrationReceipt>()?;
+    cache.register_entry_type::<RepoFrontierRoute>()?;
+    cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
+    cache.register_entry_type::<RepoFrontierModelingRequest>()?;
+    cache.register_entry_type::<RepoFrontierVerificationRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeReorientWorkerResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
@@ -1257,6 +1293,28 @@ pub fn put_runtime_role_worker_result(
     validate_non_empty(&result.job_id, "role worker result job id")?;
     validate_non_empty(&result.result_id, "role worker result id")?;
     validate_non_empty(&result.role_id, "role worker result role id")?;
+    let is_verification = result.role_id == "verification";
+    if is_verification
+        != (result
+            .verification_request_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty())
+            && result
+                .frontier_route_id
+                .as_ref()
+                .is_some_and(|id| !id.trim().is_empty()))
+    {
+        return Err(anyhow!(
+            "Verification results require verificationRequestId and frontierRouteId; other roles must not claim them"
+        ));
+    }
+    if result.repo_frontier_modeling_request_id.is_some()
+        && !result.role_id.eq_ignore_ascii_case("modeling")
+    {
+        return Err(anyhow!(
+            "only Modeling results may echo a frontier Modeling request"
+        ));
+    }
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.put(&result.job_id, result)?;
@@ -1271,6 +1329,621 @@ pub fn runtime_role_worker_result(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)
+}
+
+pub fn ensure_runtime_repo_model(
+    runtime_store: impl AsRef<Path>,
+    legacy_memory_store: impl AsRef<Path>,
+    bootstrap_snapshot: &crate::EpiphanyMemoryGraphSnapshot,
+    at: &str,
+) -> Result<(
+    crate::EpiphanyMemoryGraphSnapshot,
+    RepoModelMigrationReceipt,
+)> {
+    chrono::DateTime::parse_from_rfc3339(at)
+        .map_err(|_| anyhow!("repo model migration timestamp must be RFC3339"))?;
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    if let Some(entry) = cache.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)? {
+        crate::validate_memory_graph_entry(&entry)?;
+        let receipt = cache
+            .get::<RepoModelMigrationReceipt>("repo-model-migration")?
+            .ok_or_else(|| anyhow!("runtime repo model exists without its migration receipt"))?;
+        return Ok((entry.snapshot()?, receipt));
+    }
+
+    let (snapshot, source_store) =
+        match crate::load_memory_graph_snapshot(legacy_memory_store.as_ref())? {
+            Some(snapshot) => (snapshot, legacy_memory_store.as_ref().display().to_string()),
+            None => (bootstrap_snapshot.clone(), "supplied-bootstrap".to_string()),
+        };
+    let entry = crate::EpiphanyMemoryGraphEntry::from_snapshot(&snapshot)?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let imported_hash = crate::memory_graph_model_hash(&snapshot)?;
+    let receipt = RepoModelMigrationReceipt {
+        schema_version: REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: "repo-model-migration".to_string(),
+        source_store,
+        source_graph_id: snapshot.graph_id.clone(),
+        imported_revision: snapshot.model_revision,
+        imported_hash,
+        imported_at: at.to_string(),
+        contract: REPO_MODEL_MIGRATION_CONTRACT.to_string(),
+    };
+    let (model_envelope, _) = cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &entry)?;
+    let (receipt_envelope, _) = cache.prepare_entry(&receipt.receipt_id, &receipt)?;
+    let backing = SingleFileMessagePackBackingStore::new(runtime_store);
+    if backing.compare_and_swap_batch(&[], vec![model_envelope, receipt_envelope])? {
+        return Ok((snapshot, receipt));
+    }
+    let mut reloaded = runtime_spine_cache(runtime_store)?;
+    reloaded.pull_all_backing_stores()?;
+    match (
+        reloaded.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?,
+        reloaded.get::<RepoModelMigrationReceipt>("repo-model-migration")?,
+    ) {
+        (Some(entry), Some(existing_receipt)) => {
+            crate::validate_memory_graph_entry(&entry)?;
+            let snapshot = entry.snapshot()?;
+            if existing_receipt.schema_version != REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION
+                || existing_receipt.contract != REPO_MODEL_MIGRATION_CONTRACT
+                || existing_receipt.source_graph_id != snapshot.graph_id
+                || existing_receipt.imported_revision != snapshot.model_revision
+                || existing_receipt.imported_hash != crate::memory_graph_model_hash(&snapshot)?
+            {
+                return Err(anyhow!("runtime repo model migration companion collision"));
+            }
+            Ok((snapshot, existing_receipt))
+        }
+        _ => Err(anyhow!(
+            "runtime repo model migration lost to a companion identity collision"
+        )),
+    }
+}
+
+pub fn commit_repo_model_admission(
+    runtime_store: impl AsRef<Path>,
+    result_id: &str,
+    review: &RepoModelAdmissionReview,
+) -> Result<RepoModelAdmissionReceipt> {
+    validate_non_empty(result_id, "repo model admission result id")?;
+    validate_non_empty(&review.review_id, "repo model admission review id")?;
+    if review.schema_version != REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION
+        || review.contract != REPO_MODEL_ADMISSION_CONTRACT
+    {
+        return Err(anyhow!("unsupported repo model admission review contract"));
+    }
+    if review.decision != MindGatewayDecision::Accept {
+        return Err(anyhow!("repo model admission requires an Accept review"));
+    }
+    chrono::DateTime::parse_from_rfc3339(&review.reviewed_at)
+        .map_err(|_| anyhow!("repo model admission review timestamp must be RFC3339"))?;
+    if review.result_id != result_id {
+        return Err(anyhow!(
+            "repo model admission review/result binding mismatch"
+        ));
+    }
+
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let matching_results = cache
+        .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+        .into_iter()
+        .filter(|candidate| candidate.result_id == result_id)
+        .collect::<Vec<_>>();
+    if matching_results.len() != 1 {
+        return Err(anyhow!(
+            "repo model admission requires one immutable Modeling result"
+        ));
+    }
+    let result = matching_results.into_iter().next().expect("one result");
+    if !result.role_id.eq_ignore_ascii_case("modeling")
+        || result.job_id != review.job_id
+        || result.result_id != review.result_id
+        || result.schema_version != RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION
+        || result.item_error.is_some()
+    {
+        return Err(anyhow!(
+            "repo model admission result role/job binding mismatch"
+        ));
+    }
+    let patch_bytes = result
+        .repo_model_patch_msgpack
+        .as_deref()
+        .ok_or_else(|| anyhow!("Modeling result is missing repoModelPatch"))?;
+    let patch: crate::RepoModelPatch = rmp_serde::from_slice(patch_bytes)
+        .context("decode exact Modeling result repoModelPatch")?;
+    let patch_sha256 = format!("{:x}", Sha256::digest(patch_bytes));
+    if review.patch_id != patch.patch_id
+        || review.patch_sha256 != patch_sha256
+        || review.base_revision != patch.base_revision
+        || review.base_hash != patch.base_hash
+    {
+        return Err(anyhow!(
+            "repo model admission review/patch binding mismatch"
+        ));
+    }
+    let mut result_evidence = result.evidence_ids.clone();
+    let mut review_evidence = review.evidence_ids.clone();
+    result_evidence.sort();
+    result_evidence.dedup();
+    review_evidence.sort();
+    review_evidence.dedup();
+    if review_evidence.is_empty() || review_evidence != result_evidence {
+        return Err(anyhow!(
+            "repo model admission review evidence does not exactly bind the Modeling result"
+        ));
+    }
+
+    let (
+        frontier_route_id,
+        verification_request_id,
+        soul_verdict_receipt_id,
+        frontier_modeling_request_id,
+    ) = match &patch.purpose {
+        crate::RepoModelPatchPurpose::Evolution => {
+            (String::new(), String::new(), String::new(), String::new())
+        }
+        crate::RepoModelPatchPurpose::IncorporateFrontierVerdict {
+            route_id,
+            soul_verdict_receipt_id,
+        } => {
+            let route = cache.get::<RepoFrontierRoute>(route_id)?.ok_or_else(|| {
+                anyhow!("frontier verdict incorporation requires its exact route")
+            })?;
+            let verdict = cache
+                .get::<SoulVerdictReceipt>(soul_verdict_receipt_id)?
+                .ok_or_else(|| {
+                    anyhow!("frontier verdict incorporation requires its exact Soul verdict")
+                })?;
+            let request = cache
+                .get::<RepoFrontierVerificationRequest>(&verdict.verification_request_id)?
+                .ok_or_else(|| {
+                    anyhow!("frontier verdict incorporation requires the Soul verification request")
+                })?;
+            let verification_results = cache
+                .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+                .into_iter()
+                .filter(|candidate| candidate.result_id == verdict.source_result_id)
+                .collect::<Vec<_>>();
+            if verification_results.len() != 1 {
+                return Err(anyhow!(
+                    "frontier verdict incorporation requires one immutable Verification result"
+                ));
+            }
+            let verification_result = &verification_results[0];
+            let modeling_request_id = result
+                .repo_frontier_modeling_request_id
+                .as_deref()
+                .ok_or_else(|| {
+                    anyhow!("frontier verdict incorporation must echo its typed Modeling request")
+                })?;
+            let modeling_request = cache
+                .get::<RepoFrontierModelingRequest>(modeling_request_id)?
+                .ok_or_else(|| {
+                    anyhow!(
+                        "frontier verdict incorporation requires its persisted Modeling request"
+                    )
+                })?;
+            let persisted_state = cache
+                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+                .ok_or_else(|| {
+                    anyhow!("frontier verdict incorporation requires persisted coordinator state")
+                })?
+                .state()?;
+            let acceptance_matches = persisted_state
+                .acceptance_receipts
+                .iter()
+                .filter(|acceptance| {
+                    acceptance.id == modeling_request.verification_acceptance_receipt_id
+                })
+                .collect::<Vec<_>>();
+            let mut verdict_evidence = verdict.evidence_ids.clone();
+            let mut verification_evidence = verification_result.evidence_ids.clone();
+            verdict_evidence.sort();
+            verdict_evidence.dedup();
+            verification_evidence.sort();
+            verification_evidence.dedup();
+            if route.schema_version != REPO_FRONTIER_ROUTE_SCHEMA_VERSION
+                || route.contract != REPO_FRONTIER_ROUTE_CONTRACT
+                || request.schema_version != REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION
+                || request.contract != REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT
+                || verdict.schema_version != SOUL_VERDICT_RECEIPT_SCHEMA_VERSION
+                || request.route_id != route.route_id
+                || request.model_revision != route.model_revision
+                || request.model_hash != route.model_hash
+                || request.frontier_item_id != route.frontier_item_id
+                || request.frontier_item_hash != route.frontier_item_hash
+                || verdict.frontier_route_id != route.route_id
+                || verdict.verification_request_id != request.request_id
+                || !verification_result
+                    .role_id
+                    .eq_ignore_ascii_case("verification")
+                || verification_result.schema_version != RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION
+                || verification_result.item_error.is_some()
+                || verification_result.result_id != verdict.source_result_id
+                || verification_result.job_id != verdict.source_job_id
+                || verification_result.verification_request_id.as_deref()
+                    != Some(request.request_id.as_str())
+                || verification_result.frontier_route_id.as_deref() != Some(route.route_id.as_str())
+                || verification_result.verdict != verdict.verdict
+                || verification_result.summary != verdict.summary
+                || verification_result.risks != verdict.risks
+                || verification_evidence != verdict_evidence
+                || modeling_request.schema_version != REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION
+                || modeling_request.contract != REPO_FRONTIER_MODELING_REQUEST_CONTRACT
+                || modeling_request.route_id != route.route_id
+                || modeling_request.model_revision != route.model_revision
+                || modeling_request.model_hash != route.model_hash
+                || modeling_request.frontier_item_id != route.frontier_item_id
+                || modeling_request.frontier_item_hash != route.frontier_item_hash
+                || modeling_request.verification_request_id != request.request_id
+                || modeling_request.soul_verdict_receipt_id != verdict.receipt_id
+                || modeling_request.verification_result_id != verification_result.result_id
+                || modeling_request.verification_job_id != verification_result.job_id
+                || acceptance_matches.len() != 1
+                || acceptance_matches[0].role_id != "verification"
+                || acceptance_matches[0].surface != "roleAccept"
+                || acceptance_matches[0].status != "accepted"
+                || acceptance_matches[0].result_id != verification_result.result_id
+                || acceptance_matches[0].job_id != verification_result.job_id
+            {
+                return Err(anyhow!(
+                    "frontier verdict incorporation does not exactly bind route, request, Soul verdict, and Verification result"
+                ));
+            }
+            if !result_evidence
+                .iter()
+                .any(|id| id == soul_verdict_receipt_id)
+            {
+                return Err(anyhow!(
+                    "frontier verdict incorporation Modeling evidence must include the exact Soul verdict receipt"
+                ));
+            }
+            if patch.operations.len() != 1 {
+                return Err(anyhow!(
+                    "frontier verdict incorporation permits exactly one frontier revision"
+                ));
+            }
+            let crate::RepoModelPatchOperation::ReviseFrontier { item } = &patch.operations[0]
+            else {
+                return Err(anyhow!(
+                    "frontier verdict incorporation permits only ReviseFrontier"
+                ));
+            };
+            if item.id != route.frontier_item_id
+                || !item
+                    .evidence_refs
+                    .iter()
+                    .any(|id| id == &request.request_id)
+                || !item
+                    .evidence_refs
+                    .iter()
+                    .any(|id| id == soul_verdict_receipt_id)
+            {
+                return Err(anyhow!(
+                    "frontier verdict incorporation revision does not bind the routed item and evidence"
+                ));
+            }
+            match verdict.verdict.trim().to_ascii_lowercase().as_str() {
+                "pass"
+                    if item.status == crate::RepoFrontierStatus::Resolved
+                        && modeling_request.allowed_disposition
+                            == RepoFrontierVerdictDisposition::Resolved => {}
+                "needs-review" | "needs-evidence" | "fail"
+                    if item.status == crate::RepoFrontierStatus::Blocked
+                        && !item.gap.trim().is_empty()
+                        && modeling_request.allowed_disposition
+                            == RepoFrontierVerdictDisposition::Blocked => {}
+                _ => {
+                    return Err(anyhow!(
+                        "frontier verdict incorporation status does not match the Soul verdict"
+                    ));
+                }
+            }
+            (
+                route.route_id,
+                request.request_id,
+                verdict.receipt_id,
+                modeling_request.request_id,
+            )
+        }
+    };
+
+    let receipt_id = format!("repo-model-admission-{}", review.review_id);
+    let existing_review = cache.get::<RepoModelAdmissionReview>(&review.review_id)?;
+    let existing_receipt = cache.get::<RepoModelAdmissionReceipt>(&receipt_id)?;
+    match (existing_review, existing_receipt) {
+        (Some(existing_review), Some(existing_receipt)) if existing_review == *review => {
+            if existing_receipt.review_id != review.review_id
+                || existing_receipt.result_id != result_id
+                || existing_receipt.patch_id != patch.patch_id
+                || existing_receipt.patch_sha256 != patch_sha256
+                || existing_receipt.contract != REPO_MODEL_ADMISSION_CONTRACT
+                || existing_receipt.schema_version != REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                || existing_receipt.purpose != patch.purpose
+                || existing_receipt.frontier_route_id != frontier_route_id
+                || existing_receipt.verification_request_id != verification_request_id
+                || existing_receipt.soul_verdict_receipt_id != soul_verdict_receipt_id
+                || existing_receipt.frontier_modeling_request_id != frontier_modeling_request_id
+            {
+                return Err(anyhow!("repo model admission receipt identity collision"));
+            }
+            return Ok(existing_receipt);
+        }
+        (None, None) => {}
+        _ => return Err(anyhow!("repo model admission companion identity collision")),
+    }
+
+    let backing = SingleFileMessagePackBackingStore::new(runtime_store);
+    let current_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .ok_or_else(|| anyhow!("runtime repo model is missing"))?;
+    let current_entry: crate::EpiphanyMemoryGraphEntry =
+        rmp_serde::from_slice(&current_envelope.payload)?;
+    crate::validate_memory_graph_entry(&current_entry)?;
+    let current = current_entry.snapshot()?;
+    if patch.purpose == crate::RepoModelPatchPurpose::Evolution {
+        let current_hash = crate::memory_graph_model_hash(&current)?;
+        let current_has_route = cache
+            .get_all::<RepoFrontierRoute>()?
+            .into_iter()
+            .any(|route| {
+                route.model_revision == current.model_revision && route.model_hash == current_hash
+            });
+        let owns_verdict_lifecycle = patch.operations.iter().any(|operation| match operation {
+            crate::RepoModelPatchOperation::ReviseFrontier { item } => matches!(
+                item.status,
+                crate::RepoFrontierStatus::Blocked
+                    | crate::RepoFrontierStatus::Resolved
+                    | crate::RepoFrontierStatus::Retired
+                    | crate::RepoFrontierStatus::Superseded
+            ),
+            crate::RepoModelPatchOperation::RetireFrontier { .. } => true,
+            _ => false,
+        });
+        if current_has_route || owns_verdict_lifecycle {
+            return Err(anyhow!(
+                "Evolution cannot bypass a current route or own verdict-driven frontier lifecycle"
+            ));
+        }
+    }
+    if let crate::RepoModelPatchPurpose::IncorporateFrontierVerdict { route_id, .. } =
+        &patch.purpose
+    {
+        let modeling_request = cache
+            .get::<RepoFrontierModelingRequest>(&frontier_modeling_request_id)?
+            .ok_or_else(|| {
+                anyhow!("frontier verdict incorporation Modeling request disappeared")
+            })?;
+        let verification_request = cache
+            .get::<RepoFrontierVerificationRequest>(&modeling_request.verification_request_id)?
+            .ok_or_else(|| {
+                anyhow!("frontier verdict incorporation verification request disappeared")
+            })?;
+        // This is deliberately adjacent to the model CAS: the complete Hands
+        // chain must still be exact at the moment its consequence enters Mind.
+        put_repo_frontier_verification_request(runtime_store, &verification_request)?;
+        let route = cache
+            .get::<RepoFrontierRoute>(route_id)?
+            .ok_or_else(|| anyhow!("frontier verdict incorporation route disappeared"))?;
+        let current_hash = crate::memory_graph_model_hash(&current)?;
+        let current_item = current
+            .frontier
+            .iter()
+            .find(|item| item.id == route.frontier_item_id)
+            .ok_or_else(|| anyhow!("frontier verdict incorporation routed item is missing"))?;
+        let current_item_hash = format!(
+            "{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(current_item)?)
+        );
+        let crate::RepoModelPatchOperation::ReviseFrontier { item } = &patch.operations[0] else {
+            unreachable!("purpose validation established one frontier revision")
+        };
+        if current.model_revision != route.model_revision
+            || current_hash != route.model_hash
+            || current_item_hash != route.frontier_item_hash
+            || current_item.status != crate::RepoFrontierStatus::Active
+            || item.migration_body != current_item.migration_body
+            || item.question != current_item.question
+            || item.target_claim_ids != current_item.target_claim_ids
+            || item.source_scope != current_item.source_scope
+            || item.dependency_item_ids != current_item.dependency_item_ids
+            || item.created_at != current_item.created_at
+            || item.recommended_next_organ != current_item.recommended_next_organ
+            || item.retired_at != current_item.retired_at
+            || item.superseded_by != current_item.superseded_by
+        {
+            return Err(anyhow!(
+                "frontier verdict incorporation requires the exact current routed item and preserves its identity-bearing anatomy"
+            ));
+        }
+    }
+    let next = crate::derive_repo_model_patch(&current, &patch)?;
+    let next_entry = crate::EpiphanyMemoryGraphEntry::from_snapshot(&next)?;
+    let receipt = RepoModelAdmissionReceipt {
+        schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: receipt_id.clone(),
+        review_id: review.review_id.clone(),
+        result_id: result_id.to_string(),
+        patch_id: patch.patch_id.clone(),
+        patch_sha256,
+        previous_revision: current.model_revision,
+        previous_hash: crate::memory_graph_model_hash(&current)?,
+        admitted_revision: next.model_revision,
+        admitted_hash: next.model_hash.clone(),
+        admitted_at: review.reviewed_at.clone(),
+        contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+        purpose: patch.purpose.clone(),
+        frontier_route_id,
+        verification_request_id,
+        soul_verdict_receipt_id,
+        frontier_modeling_request_id,
+    };
+    let (next_model_envelope, _) = cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &next_entry)?;
+    let (review_envelope, _) = cache.prepare_entry(&review.review_id, review)?;
+    let (receipt_envelope, _) = cache.prepare_entry(&receipt_id, &receipt)?;
+    if !backing.compare_and_swap_batch(
+        &[current_envelope],
+        vec![next_model_envelope, review_envelope, receipt_envelope],
+    )? {
+        return Err(anyhow!(
+            "repo model admission stale model or companion collision"
+        ));
+    }
+    Ok(receipt)
+}
+
+pub fn select_and_commit_repo_frontier_route(
+    runtime_store: impl AsRef<Path>,
+    at: &str,
+) -> Result<RepoFrontierRoute> {
+    chrono::DateTime::parse_from_rfc3339(at)
+        .map_err(|_| anyhow!("repo frontier route timestamp must be RFC3339"))?;
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let backing = SingleFileMessagePackBackingStore::new(runtime_store);
+    let current_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .ok_or_else(|| anyhow!("repo frontier routing requires the canonical runtime model"))?;
+    let current_entry: crate::EpiphanyMemoryGraphEntry =
+        rmp_serde::from_slice(&current_envelope.payload)?;
+    crate::validate_memory_graph_entry(&current_entry)?;
+    let current = current_entry.snapshot()?;
+    let current_hash = crate::memory_graph_model_hash(&current)?;
+    let receipts = cache
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
+                && receipt.admitted_revision == current.model_revision
+                && receipt.admitted_hash == current_hash
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 {
+        return Err(anyhow!(
+            "repo frontier routing requires exactly one admission receipt for the current model"
+        ));
+    }
+    let receipt = &receipts[0];
+    let item = actionable_hands_frontier_item(&current)
+        .ok_or_else(|| anyhow!("current repo model has no eligible Hands frontier route"))?;
+    if !safe_sorted_unique_paths(&item.source_scope) || item.source_scope.is_empty() {
+        return Err(anyhow!(
+            "Hands frontier route requires safe sorted source scope"
+        ));
+    }
+    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
+    let route_seed = format!("{}:{}:{}", current_hash, item.id, item_hash);
+    let route_id = format!(
+        "repo-frontier-route-{:x}",
+        Sha256::digest(route_seed.as_bytes())
+    );
+    let route = RepoFrontierRoute {
+        schema_version: REPO_FRONTIER_ROUTE_SCHEMA_VERSION.to_string(),
+        route_id: route_id.clone(),
+        next_organ: RepoFrontierNextOrgan::Hands,
+        model_revision: current.model_revision,
+        model_hash: current_hash,
+        admission_receipt_id: receipt.receipt_id.clone(),
+        frontier_item_id: item.id.clone(),
+        frontier_item_hash: item_hash,
+        migration_body: item.migration_body.clone(),
+        question: item.question.clone(),
+        gap: item.gap.clone(),
+        target_claim_ids: item.target_claim_ids.clone(),
+        source_scope: item.source_scope.clone(),
+        selected_at: at.to_string(),
+        contract: REPO_FRONTIER_ROUTE_CONTRACT.to_string(),
+    };
+    if let Some(existing) = cache.get::<RepoFrontierRoute>(&route_id)? {
+        let mut retry = route.clone();
+        retry.selected_at = existing.selected_at.clone();
+        return if existing == retry {
+            Ok(existing)
+        } else {
+            Err(anyhow!(
+                "repo frontier route deterministic identity collision"
+            ))
+        };
+    }
+    let (route_envelope, _) = cache.prepare_entry(&route_id, &route)?;
+    if !backing.compare_and_swap_batch(
+        &[current_envelope.clone()],
+        vec![current_envelope, route_envelope],
+    )? {
+        return Err(anyhow!(
+            "repo frontier route lost current-model CAS or companion collision"
+        ));
+    }
+    Ok(route)
+}
+
+fn actionable_hands_frontier_item(
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+) -> Option<&crate::RepoFrontierItem> {
+    let terminal = |status: crate::RepoFrontierStatus| {
+        matches!(
+            status,
+            crate::RepoFrontierStatus::Resolved
+                | crate::RepoFrontierStatus::Retired
+                | crate::RepoFrontierStatus::Superseded
+        )
+    };
+    model.frontier.iter().find(|item| {
+        item.status == crate::RepoFrontierStatus::Active
+            && item.recommended_next_organ == "Hands"
+            && !item.source_scope.is_empty()
+            && safe_sorted_unique_paths(&item.source_scope)
+            && item.dependency_item_ids.iter().all(|dependency_id| {
+                model
+                    .frontier
+                    .iter()
+                    .find(|candidate| candidate.id == *dependency_id)
+                    .is_some_and(|dependency| terminal(dependency.status))
+            })
+    })
+}
+
+/// Read-only Self signal. It is true only when the canonical runtime model is
+/// admitted exactly once and contains an item the route committer can hand to
+/// Hands. Status projection must use this instead of assuming that a clear
+/// CRRC lane implies implementation authority.
+pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) -> Result<bool> {
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let Some(entry) = cache.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)? else {
+        return Ok(false);
+    };
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let admission_count = cache
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
+                && receipt.admitted_revision == model.model_revision
+                && receipt.admitted_hash == model_hash
+        })
+        .count();
+    Ok(admission_count == 1 && actionable_hands_frontier_item(&model).is_some())
 }
 
 pub fn put_runtime_reorient_worker_result(
@@ -1402,19 +2075,25 @@ pub fn put_substrate_gate_repo_access_grant_receipt(
             "Substrate Gate access grant must name granted operations"
         ));
     }
+    if receipt.schema_version != SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION
+        || chrono::DateTime::parse_from_rfc3339(&receipt.granted_at).is_err()
+        || receipt.contract.trim().is_empty()
+    {
+        return Err(anyhow!("invalid Substrate Gate access grant contract"));
+    }
+    let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    if let Some(existing) = cache.get::<SubstrateGateRepoAccessGrantReceipt>(&receipt.receipt_id)? {
-        if existing != *receipt {
-            return Err(anyhow!(
-                "Substrate Gate grant id already belongs to different immutable authority"
-            ));
-        }
-        return Ok(());
+    let (envelope, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    if backing.compare_and_swap_batch(&[], vec![envelope])? { return Ok(()); }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<SubstrateGateRepoAccessGrantReceipt>(&receipt.receipt_id)? {
+        Some(existing) if existing == *receipt => Ok(()),
+        _ => Err(anyhow!("Substrate Gate grant ids are immutable")),
     }
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
 }
 
 pub fn runtime_substrate_gate_repo_access_grant_receipt(
@@ -1445,6 +2124,13 @@ pub fn put_hands_action_intent(
     if intent.requested_paths.is_empty() {
         return Err(anyhow!("Hands action intent must name requested paths"));
     }
+    if intent.schema_version != HANDS_ACTION_INTENT_SCHEMA_VERSION
+        || chrono::DateTime::parse_from_rfc3339(&intent.requested_at).is_err()
+        || intent.contract.trim().is_empty()
+    {
+        return Err(anyhow!("invalid Hands action intent contract"));
+    }
+    let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
@@ -1473,8 +2159,15 @@ pub fn put_hands_action_intent(
             "Hands action intent does not match its Substrate Gate grant scope"
         ));
     }
-    cache.put(&intent.intent_id, intent)?;
-    Ok(())
+    let (envelope, _) = cache.prepare_entry(&intent.intent_id, intent)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    if backing.compare_and_swap_batch(&[], vec![envelope])? { return Ok(()); }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<HandsActionIntent>(&intent.intent_id)? {
+        Some(existing) if existing == *intent => Ok(()),
+        _ => Err(anyhow!("Hands action intent ids are immutable")),
+    }
 }
 
 pub fn runtime_hands_action_intent(
@@ -1498,11 +2191,25 @@ pub fn put_hands_action_review(
     if review.allowed_operations.is_empty() {
         return Err(anyhow!("Hands action review must name allowed operations"));
     }
+    if review.schema_version != HANDS_ACTION_REVIEW_SCHEMA_VERSION
+        || chrono::DateTime::parse_from_rfc3339(&review.reviewed_at).is_err()
+        || review.contract.trim().is_empty()
+    {
+        return Err(anyhow!("invalid Hands action review contract"));
+    }
+    let store_path = store_path.as_ref();
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    cache.put(&review.review_id, review)?;
-    Ok(())
+    let (envelope, _) = cache.prepare_entry(&review.review_id, review)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    if backing.compare_and_swap_batch(&[], vec![envelope])? { return Ok(()); }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<HandsActionReview>(&review.review_id)? {
+        Some(existing) if existing == *review => Ok(()),
+        _ => Err(anyhow!("Hands action review ids are immutable")),
+    }
 }
 
 pub fn runtime_hands_action_review(
@@ -1513,6 +2220,501 @@ pub fn runtime_hands_action_review(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<HandsActionReview>(review_id)
+}
+
+fn validate_repo_frontier_hands_authority_chain(
+    cache: &CultCache,
+    authority: &RepoFrontierHandsAuthority,
+) -> Result<()> {
+    let route = cache.get::<RepoFrontierRoute>(&authority.route_id)?
+        .ok_or_else(|| anyhow!("Hands authority requires its persisted route"))?;
+    let current_entry = cache.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("Hands authority requires the current model"))?;
+    crate::validate_memory_graph_entry(&current_entry)?;
+    let current = current_entry.snapshot()?;
+    let intent = cache.get::<HandsActionIntent>(&authority.hands_intent_id)?
+        .ok_or_else(|| anyhow!("Hands authority requires its persisted intent"))?;
+    let review = cache.get::<HandsActionReview>(&authority.hands_review_id)?
+        .ok_or_else(|| anyhow!("Hands authority requires its persisted review"))?;
+    let grant = cache.get::<SubstrateGateRepoAccessGrantReceipt>(&authority.substrate_grant_receipt_id)?
+        .ok_or_else(|| anyhow!("Hands authority requires its persisted Substrate grant"))?;
+    let within_scope = authority.requested_paths.iter().all(|path| route.source_scope.iter().any(|scope| {
+        path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+    }));
+    let requested_operations: &[&str] = match intent.requested_action.as_str() {
+        "patch" => &["patch"],
+        "continueImplementation" => &["patch", "command", "commit"],
+        _ => return Err(anyhow!("Hands authority names an unsupported requested action")),
+    };
+    if route.schema_version != REPO_FRONTIER_ROUTE_SCHEMA_VERSION
+        || route.contract != REPO_FRONTIER_ROUTE_CONTRACT
+        || intent.schema_version != HANDS_ACTION_INTENT_SCHEMA_VERSION
+        || review.schema_version != HANDS_ACTION_REVIEW_SCHEMA_VERSION
+        || grant.schema_version != SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION
+        || intent.contract.trim().is_empty() || review.contract.trim().is_empty() || grant.contract.trim().is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&intent.requested_at).is_err()
+        || chrono::DateTime::parse_from_rfc3339(&review.reviewed_at).is_err()
+        || chrono::DateTime::parse_from_rfc3339(&grant.granted_at).is_err()
+        || route.next_organ != RepoFrontierNextOrgan::Hands
+        || authority.model_revision != route.model_revision || authority.model_hash != route.model_hash
+        || authority.frontier_item_id != route.frontier_item_id || authority.frontier_item_hash != route.frontier_item_hash
+        || current.model_revision != route.model_revision || crate::memory_graph_model_hash(&current)? != route.model_hash
+        || review.intent_id != intent.intent_id || review.decision != "approved"
+        || !requested_operations.iter().all(|required| review.allowed_operations.iter().any(|operation| operation == required))
+        || intent.substrate_gate_grant_receipt_id != grant.receipt_id
+        || grant.runtime_job_id != intent.runtime_job_id || grant.binding_id != intent.binding_id
+        || grant.role != intent.role || grant.authority_scope != intent.authority_scope
+        || !requested_operations.iter().all(|required| grant.granted_operations.iter().any(|operation| operation == required))
+        || authority.requested_paths != intent.requested_paths || authority.requested_paths != grant.granted_paths
+        || !within_scope
+    {
+        return Err(anyhow!("repo frontier Hands authority chain violates its full authority contract"));
+    }
+    Ok(())
+}
+
+pub fn put_repo_frontier_hands_authority(
+    store_path: impl AsRef<Path>,
+    authority: &RepoFrontierHandsAuthority,
+) -> Result<()> {
+    let store_path = store_path.as_ref();
+    if authority.schema_version != REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION
+        || authority.contract != REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT
+        || chrono::DateTime::parse_from_rfc3339(&authority.granted_at).is_err()
+        || !safe_sorted_unique_paths(&authority.requested_paths)
+        || authority.requested_paths.is_empty()
+    {
+        return Err(anyhow!("invalid repo frontier Hands authority contract"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    validate_repo_frontier_hands_authority_chain(&cache, authority)?;
+    let route = cache
+        .get::<RepoFrontierRoute>(&authority.route_id)?
+        .ok_or_else(|| anyhow!("repo frontier Hands authority requires its persisted route"))?;
+    let current_entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("repo frontier Hands authority requires the current model"))?;
+    crate::validate_memory_graph_entry(&current_entry)?;
+    let current = current_entry.snapshot()?;
+    let intent = cache
+        .get::<HandsActionIntent>(&authority.hands_intent_id)?
+        .ok_or_else(|| anyhow!("repo frontier Hands authority requires its persisted intent"))?;
+    let review = cache
+        .get::<HandsActionReview>(&authority.hands_review_id)?
+        .ok_or_else(|| anyhow!("repo frontier Hands authority requires its persisted review"))?;
+    let grant = cache
+        .get::<SubstrateGateRepoAccessGrantReceipt>(&authority.substrate_grant_receipt_id)?
+        .ok_or_else(|| {
+            anyhow!("repo frontier Hands authority requires its persisted Substrate grant")
+        })?;
+    let within_scope = authority.requested_paths.iter().all(|path| {
+        route.source_scope.iter().any(|scope| {
+            path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+        })
+    });
+    if route.schema_version != REPO_FRONTIER_ROUTE_SCHEMA_VERSION
+        || route.contract != REPO_FRONTIER_ROUTE_CONTRACT
+        || route.next_organ != RepoFrontierNextOrgan::Hands
+        || authority.route_id != route.route_id
+        || authority.model_revision != route.model_revision
+        || authority.model_hash != route.model_hash
+        || authority.frontier_item_id != route.frontier_item_id
+        || authority.frontier_item_hash != route.frontier_item_hash
+        || current.model_revision != route.model_revision
+        || crate::memory_graph_model_hash(&current)? != route.model_hash
+        || review.intent_id != intent.intent_id
+        || review.decision != "approved"
+        || intent.substrate_gate_grant_receipt_id != grant.receipt_id
+        || grant.runtime_job_id != intent.runtime_job_id
+        || grant.binding_id != intent.binding_id
+        || grant.role != intent.role
+        || grant.authority_scope != intent.authority_scope
+        || authority.requested_paths != intent.requested_paths
+        || authority.requested_paths != grant.granted_paths
+        || !within_scope
+    {
+        return Err(anyhow!(
+            "repo frontier Hands authority does not exactly bind route, model, intent, review, grant, and scope"
+        ));
+    }
+    let (envelope, _) = cache.prepare_entry(&authority.authority_id, authority)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let model_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .ok_or_else(|| anyhow!("repo frontier Hands authority lost its current model"))?;
+    let live_model: crate::EpiphanyMemoryGraphEntry =
+        rmp_serde::from_slice(&model_envelope.payload)?;
+    let live_snapshot = live_model.snapshot()?;
+    if live_snapshot.model_revision != authority.model_revision
+        || crate::memory_graph_model_hash(&live_snapshot)? != authority.model_hash
+    {
+        return Err(anyhow!(
+            "repo frontier Hands authority model changed before insert"
+        ));
+    }
+    if backing.compare_and_swap_batch(&[model_envelope.clone()], vec![model_envelope, envelope])? {
+        return Ok(());
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<RepoFrontierHandsAuthority>(&authority.authority_id)? {
+        Some(existing) if existing == *authority => Ok(()),
+        _ => Err(anyhow!("repo frontier Hands authority ids are immutable")),
+    }
+}
+
+pub fn put_repo_frontier_verification_request(
+    store_path: impl AsRef<Path>,
+    request: &RepoFrontierVerificationRequest,
+) -> Result<()> {
+    let store_path = store_path.as_ref();
+    if request.schema_version != REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION
+        || request.contract != REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT
+        || chrono::DateTime::parse_from_rfc3339(&request.requested_at).is_err()
+        || request.request_id.trim().is_empty()
+    {
+        return Err(anyhow!(
+            "invalid repo frontier verification request contract"
+        ));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let route = cache
+        .get::<RepoFrontierRoute>(&request.route_id)?
+        .ok_or_else(|| anyhow!("verification request requires its exact frontier route"))?;
+    let model_entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("verification request requires the current repo model"))?;
+    crate::validate_memory_graph_entry(&model_entry)?;
+    let model = model_entry.snapshot()?;
+    let authorities = cache
+        .get_all::<RepoFrontierHandsAuthority>()?
+        .into_iter()
+        .filter(|value| {
+            value.route_id == route.route_id && value.hands_intent_id == request.hands_intent_id
+        })
+        .collect::<Vec<_>>();
+    if authorities.len() != 1 {
+        return Err(anyhow!(
+            "verification request requires exactly one Hands authority"
+        ));
+    }
+    let authority = &authorities[0];
+    validate_repo_frontier_hands_authority_chain(&cache, authority)?;
+    let intent = cache
+        .get::<HandsActionIntent>(&request.hands_intent_id)?
+        .ok_or_else(|| anyhow!("verification request requires its Hands intent"))?;
+    let review = cache
+        .get::<HandsActionReview>(&request.hands_review_id)?
+        .ok_or_else(|| anyhow!("verification request requires its Hands review"))?;
+    let patch = cache
+        .get::<HandsPatchReceipt>(&request.hands_patch_receipt_id)?
+        .ok_or_else(|| anyhow!("verification request requires its exact patch receipt"))?;
+    let command = cache
+        .get::<HandsCommandReceipt>(&request.hands_command_receipt_id)?
+        .ok_or_else(|| anyhow!("verification request requires its exact command receipt"))?;
+    let commit = cache
+        .get::<HandsCommitReceipt>(&request.hands_commit_receipt_id)?
+        .ok_or_else(|| anyhow!("verification request requires its exact commit receipt"))?;
+    if request.model_revision != route.model_revision
+        || request.model_hash != route.model_hash
+        || request.frontier_item_id != route.frontier_item_id
+        || request.frontier_item_hash != route.frontier_item_hash
+        || model.model_revision != route.model_revision
+        || crate::memory_graph_model_hash(&model)? != route.model_hash
+        || authority.hands_review_id != request.hands_review_id
+        || authority.model_revision != request.model_revision
+        || authority.model_hash != request.model_hash
+        || authority.frontier_item_id != request.frontier_item_id
+        || authority.frontier_item_hash != request.frontier_item_hash
+        || review.intent_id != intent.intent_id
+        || review.decision != "approved"
+        || patch.intent_id != intent.intent_id
+        || patch.review_id != review.review_id
+        || patch.substrate_gate_grant_receipt_id != authority.substrate_grant_receipt_id
+        || command.intent_id != intent.intent_id
+        || command.review_id != review.review_id
+        || command.substrate_gate_grant_receipt_id != authority.substrate_grant_receipt_id
+        || commit.intent_id != intent.intent_id
+        || commit.review_id != review.review_id
+        || patch.runtime_job_id != intent.runtime_job_id
+        || command.runtime_job_id != intent.runtime_job_id
+        || commit.runtime_job_id != intent.runtime_job_id
+        || patch.changed_paths != commit.changed_paths
+        || patch.changed_paths != authority.requested_paths
+    {
+        return Err(anyhow!(
+            "verification request does not exactly bind route, model, Hands authority, and complete receipts"
+        ));
+    }
+    let (envelope, _) = cache.prepare_entry(&request.request_id, request)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let model_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .ok_or_else(|| anyhow!("verification request lost its current model"))?;
+    let live_model: crate::EpiphanyMemoryGraphEntry =
+        rmp_serde::from_slice(&model_envelope.payload)?;
+    let live_snapshot = live_model.snapshot()?;
+    if live_snapshot.model_revision != request.model_revision
+        || crate::memory_graph_model_hash(&live_snapshot)? != request.model_hash
+    {
+        return Err(anyhow!("verification request model changed before insert"));
+    }
+    if backing.compare_and_swap_batch(&[model_envelope.clone()], vec![model_envelope, envelope])? {
+        return Ok(());
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<RepoFrontierVerificationRequest>(&request.request_id)? {
+        Some(existing) if existing == *request => Ok(()),
+        _ => Err(anyhow!("verification request ids are immutable")),
+    }
+}
+
+pub fn runtime_repo_frontier_verification_request(
+    store_path: impl AsRef<Path>,
+    request_id: &str,
+) -> Result<Option<RepoFrontierVerificationRequest>> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<RepoFrontierVerificationRequest>(request_id)
+}
+
+pub fn runtime_repo_frontier_route(
+    store_path: impl AsRef<Path>,
+    route_id: &str,
+) -> Result<Option<RepoFrontierRoute>> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<RepoFrontierRoute>(route_id)
+}
+
+pub fn commit_repo_frontier_modeling_request(
+    store_path: impl AsRef<Path>,
+    acceptance: &epiphany_state_model::EpiphanyAcceptanceReceipt,
+) -> Result<RepoFrontierModelingRequest> {
+    if acceptance.role_id != "verification"
+        || acceptance.surface != "roleAccept"
+        || acceptance.status != "accepted"
+        || acceptance.result_id.trim().is_empty()
+        || acceptance.job_id.trim().is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&acceptance.accepted_at).is_err()
+    {
+        return Err(anyhow!(
+            "frontier Modeling request requires one accepted Verification receipt"
+        ));
+    }
+    let mut cache = runtime_spine_cache(store_path.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let state = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("frontier Modeling request requires persisted coordinator state"))?
+        .state()?;
+    let persisted_acceptances = state
+        .acceptance_receipts
+        .iter()
+        .filter(|candidate| candidate.id == acceptance.id)
+        .collect::<Vec<_>>();
+    if persisted_acceptances.len() != 1 || persisted_acceptances[0] != acceptance {
+        return Err(anyhow!(
+            "frontier Modeling request requires exactly one byte-exact persisted acceptance receipt"
+        ));
+    }
+    let acceptance = persisted_acceptances[0];
+    let results = cache
+        .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+        .into_iter()
+        .filter(|result| result.result_id == acceptance.result_id)
+        .collect::<Vec<_>>();
+    if results.len() != 1 {
+        return Err(anyhow!(
+            "frontier Modeling request requires one immutable accepted Verification result"
+        ));
+    }
+    let result = &results[0];
+    let verdicts = cache
+        .get_all::<SoulVerdictReceipt>()?
+        .into_iter()
+        .filter(|verdict| {
+            verdict.source_result_id == acceptance.result_id
+                && verdict.source_job_id == acceptance.job_id
+        })
+        .collect::<Vec<_>>();
+    if verdicts.len() != 1 {
+        return Err(anyhow!(
+            "frontier Modeling request requires exactly one Soul verdict for the accepted result"
+        ));
+    }
+    let verdict = &verdicts[0];
+    let verification_request = cache
+        .get::<RepoFrontierVerificationRequest>(&verdict.verification_request_id)?
+        .ok_or_else(|| anyhow!("frontier Modeling request requires the exact Soul request"))?;
+    let route = cache
+        .get::<RepoFrontierRoute>(&verdict.frontier_route_id)?
+        .ok_or_else(|| anyhow!("frontier Modeling request requires the exact frontier route"))?;
+    let model_entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("frontier Modeling request requires the current repo model"))?;
+    crate::validate_memory_graph_entry(&model_entry)?;
+    let model = model_entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let item = model
+        .frontier
+        .iter()
+        .find(|item| item.id == route.frontier_item_id)
+        .ok_or_else(|| anyhow!("frontier Modeling request routed item is missing"))?;
+    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
+    let mut result_evidence = result.evidence_ids.clone();
+    let mut verdict_evidence = verdict.evidence_ids.clone();
+    result_evidence.sort();
+    result_evidence.dedup();
+    verdict_evidence.sort();
+    verdict_evidence.dedup();
+    let disposition = match verdict.verdict.trim().to_ascii_lowercase().as_str() {
+        "pass" => RepoFrontierVerdictDisposition::Resolved,
+        "needs-review" | "needs-evidence" | "fail" => RepoFrontierVerdictDisposition::Blocked,
+        _ => return Err(anyhow!("Soul verdict has no allowed frontier disposition")),
+    };
+    if result.schema_version != RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION
+        || !result.role_id.eq_ignore_ascii_case("verification")
+        || result.item_error.is_some()
+        || result.job_id != acceptance.job_id
+        || result.verification_request_id.as_deref()
+            != Some(verification_request.request_id.as_str())
+        || result.frontier_route_id.as_deref() != Some(route.route_id.as_str())
+        || verdict.schema_version != SOUL_VERDICT_RECEIPT_SCHEMA_VERSION
+        || verdict.verdict != result.verdict
+        || verdict.summary != result.summary
+        || verdict.risks != result.risks
+        || verdict_evidence != result_evidence
+        || verification_request.schema_version != REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION
+        || verification_request.contract != REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT
+        || verification_request.route_id != route.route_id
+        || verification_request.model_revision != route.model_revision
+        || verification_request.model_hash != route.model_hash
+        || verification_request.frontier_item_id != route.frontier_item_id
+        || verification_request.frontier_item_hash != route.frontier_item_hash
+        || model.model_revision != route.model_revision
+        || model_hash != route.model_hash
+        || item_hash != route.frontier_item_hash
+        || item.status != crate::RepoFrontierStatus::Active
+    {
+        return Err(anyhow!(
+            "frontier Modeling request does not exactly bind accepted result, Soul verdict, request, route, item, and current model"
+        ));
+    }
+    let request_id = format!(
+        "frontier-modeling-{:x}",
+        Sha256::digest(
+            format!(
+                "{}:{}:{}:{}",
+                acceptance.id, result.result_id, verdict.receipt_id, route.route_id
+            )
+            .as_bytes()
+        )
+    );
+    let request = RepoFrontierModelingRequest {
+        schema_version: REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION.to_string(),
+        request_id: request_id.clone(),
+        model_revision: model.model_revision,
+        model_hash,
+        route_id: route.route_id.clone(),
+        frontier_item_id: route.frontier_item_id.clone(),
+        frontier_item_hash: route.frontier_item_hash.clone(),
+        verification_request_id: verification_request.request_id.clone(),
+        soul_verdict_receipt_id: verdict.receipt_id.clone(),
+        verification_result_id: result.result_id.clone(),
+        verification_job_id: result.job_id.clone(),
+        verification_acceptance_receipt_id: acceptance.id.clone(),
+        allowed_disposition: disposition,
+        requested_at: acceptance.accepted_at.clone(),
+        contract: REPO_FRONTIER_MODELING_REQUEST_CONTRACT.to_string(),
+    };
+    let (envelope, _) = cache.prepare_entry(&request_id, &request)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path.as_ref());
+    let model_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .ok_or_else(|| anyhow!("frontier Modeling request lost its current model"))?;
+    let live_model: crate::EpiphanyMemoryGraphEntry =
+        rmp_serde::from_slice(&model_envelope.payload)?;
+    let live_snapshot = live_model.snapshot()?;
+    if live_snapshot.model_revision != request.model_revision
+        || crate::memory_graph_model_hash(&live_snapshot)? != request.model_hash
+    {
+        return Err(anyhow!(
+            "frontier Modeling request model changed before insert"
+        ));
+    }
+    if backing.compare_and_swap_batch(&[model_envelope.clone()], vec![model_envelope, envelope])? {
+        return Ok(request);
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<RepoFrontierModelingRequest>(&request_id)? {
+        Some(existing) if existing == request => Ok(existing),
+        _ => Err(anyhow!(
+            "frontier Modeling request deterministic identity collision"
+        )),
+    }
+}
+
+pub fn commit_repo_frontier_verification_request_for_chain(
+    store_path: impl AsRef<Path>,
+    chain: &RuntimeHandsReceiptChainSummary,
+    requested_at: &str,
+) -> Result<RepoFrontierVerificationRequest> {
+    let mut cache = runtime_spine_cache(store_path.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    let authorities = cache
+        .get_all::<RepoFrontierHandsAuthority>()?
+        .into_iter()
+        .filter(|value| {
+            value.hands_intent_id == chain.intent_id && value.hands_review_id == chain.review_id
+        })
+        .collect::<Vec<_>>();
+    if authorities.len() != 1 {
+        return Err(anyhow!(
+            "complete Hands chain requires exactly one frontier authority before Soul launch"
+        ));
+    }
+    let authority = &authorities[0];
+    let request = RepoFrontierVerificationRequest {
+        schema_version: REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.to_string(),
+        request_id: format!(
+            "frontier-verification-{}-{}",
+            authority.route_id, chain.commit_receipt_id
+        ),
+        route_id: authority.route_id.clone(),
+        model_revision: authority.model_revision,
+        model_hash: authority.model_hash.clone(),
+        frontier_item_id: authority.frontier_item_id.clone(),
+        frontier_item_hash: authority.frontier_item_hash.clone(),
+        hands_intent_id: chain.intent_id.clone(),
+        hands_review_id: chain.review_id.clone(),
+        hands_patch_receipt_id: chain.patch_receipt_id.clone(),
+        hands_command_receipt_id: chain.command_receipt_id.clone(),
+        hands_commit_receipt_id: chain.commit_receipt_id.clone(),
+        requested_at: requested_at.to_string(),
+        contract: REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.to_string(),
+    };
+    put_repo_frontier_verification_request(store_path, &request)?;
+    Ok(request)
 }
 
 pub fn put_repo_work_plan_adoption_review(
@@ -1734,6 +2936,25 @@ fn validate_hands_consequence_grant(
     let grant = cache
         .get::<SubstrateGateRepoAccessGrantReceipt>(&intent.substrate_gate_grant_receipt_id)?
         .ok_or_else(|| anyhow!("Hands consequence requires its persisted Substrate Gate grant"))?;
+    let authorities = cache
+        .get_all::<RepoFrontierHandsAuthority>()?
+        .into_iter()
+        .filter(|authority| authority.hands_intent_id == intent.intent_id)
+        .collect::<Vec<_>>();
+    if authorities.len() != 1 {
+        return Err(anyhow!(
+            "Hands consequence requires exactly one repo frontier authority for its intent"
+        ));
+    }
+    let authority = &authorities[0];
+    let route = cache
+        .get::<RepoFrontierRoute>(&authority.route_id)?
+        .ok_or_else(|| anyhow!("Hands consequence requires its persisted repo frontier route"))?;
+    let model_entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("Hands consequence requires the current repo model"))?;
+    crate::validate_memory_graph_entry(&model_entry)?;
+    let model = model_entry.snapshot()?;
     let paths_covered = changed_paths.iter().all(|path| {
         grant.granted_paths.iter().any(|granted| {
             granted == "."
@@ -1758,6 +2979,24 @@ fn validate_hands_consequence_grant(
             .any(|allowed| allowed == operation)
         || stated_grant_id.is_some_and(|id| id != grant.receipt_id)
         || !paths_covered
+        || authority.schema_version != REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION
+        || authority.contract != REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT
+        || authority.hands_review_id != review.review_id
+        || authority.substrate_grant_receipt_id != grant.receipt_id
+        || authority.requested_paths != intent.requested_paths
+        || authority.route_id != route.route_id
+        || authority.model_revision != route.model_revision
+        || authority.model_hash != route.model_hash
+        || authority.frontier_item_id != route.frontier_item_id
+        || authority.frontier_item_hash != route.frontier_item_hash
+        || model.model_revision != route.model_revision
+        || crate::memory_graph_model_hash(&model)? != route.model_hash
+        || !changed_paths.iter().all(|path| {
+            authority.requested_paths.iter().any(|scope| {
+                path == scope
+                    || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+            })
+        })
     {
         return Err(anyhow!(
             "Hands consequence does not match its approved review and Substrate Gate grant"
@@ -1794,6 +3033,7 @@ pub fn put_hands_patch_receipt(
     store_path: impl AsRef<Path>,
     receipt: &HandsPatchReceipt,
 ) -> Result<()> {
+    let store_path = store_path.as_ref();
     validate_non_empty(&receipt.receipt_id, "Hands patch receipt id")?;
     validate_non_empty(&receipt.intent_id, "Hands patch intent")?;
     validate_non_empty(&receipt.review_id, "Hands patch review")?;
@@ -1819,8 +3059,18 @@ pub fn put_hands_patch_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
+    let (envelope, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&[], vec![envelope])?
+    {
+        return Ok(());
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<HandsPatchReceipt>(&receipt.receipt_id)? {
+        Some(existing) if existing == *receipt => Ok(()),
+        _ => Err(anyhow!("Hands patch receipt ids are immutable")),
+    }
 }
 
 pub fn runtime_hands_patch_receipt(
@@ -1837,6 +3087,7 @@ pub fn put_hands_command_receipt(
     store_path: impl AsRef<Path>,
     receipt: &HandsCommandReceipt,
 ) -> Result<()> {
+    let store_path = store_path.as_ref();
     validate_non_empty(&receipt.receipt_id, "Hands command receipt id")?;
     validate_non_empty(&receipt.intent_id, "Hands command intent")?;
     validate_non_empty(&receipt.review_id, "Hands command review")?;
@@ -1860,8 +3111,18 @@ pub fn put_hands_command_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
+    let (envelope, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&[], vec![envelope])?
+    {
+        return Ok(());
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<HandsCommandReceipt>(&receipt.receipt_id)? {
+        Some(existing) if existing == *receipt => Ok(()),
+        _ => Err(anyhow!("Hands command receipt ids are immutable")),
+    }
 }
 
 pub fn runtime_hands_command_receipt(
@@ -1878,6 +3139,7 @@ pub fn put_hands_commit_receipt(
     store_path: impl AsRef<Path>,
     receipt: &HandsCommitReceipt,
 ) -> Result<()> {
+    let store_path = store_path.as_ref();
     validate_non_empty(&receipt.receipt_id, "Hands commit receipt id")?;
     validate_non_empty(&receipt.intent_id, "Hands commit intent")?;
     validate_non_empty(&receipt.review_id, "Hands commit review")?;
@@ -1901,8 +3163,18 @@ pub fn put_hands_commit_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
+    let (envelope, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&[], vec![envelope])?
+    {
+        return Ok(());
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<HandsCommitReceipt>(&receipt.receipt_id)? {
+        Some(existing) if existing == *receipt => Ok(()),
+        _ => Err(anyhow!("Hands commit receipt ids are immutable")),
+    }
 }
 
 pub fn runtime_hands_commit_receipt(
@@ -2056,6 +3328,7 @@ pub fn put_soul_verdict_receipt(
     store_path: impl AsRef<Path>,
     receipt: &SoulVerdictReceipt,
 ) -> Result<()> {
+    let store_path = store_path.as_ref();
     validate_non_empty(&receipt.receipt_id, "Soul verdict receipt id")?;
     validate_non_empty(&receipt.source_result_id, "Soul verdict source result")?;
     validate_non_empty(&receipt.source_job_id, "Soul verdict source job")?;
@@ -2064,16 +3337,20 @@ pub fn put_soul_verdict_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     require_identity(&cache)?;
-    if let Some(existing) = cache.get::<SoulVerdictReceipt>(&receipt.receipt_id)? {
-        if existing == *receipt {
-            return Ok(());
-        }
-        return Err(anyhow!(
-            "Soul verdict receipt id already belongs to different immutable evidence"
-        ));
+    let (envelope, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
+    if SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&[], vec![envelope])?
+    {
+        return Ok(());
     }
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<SoulVerdictReceipt>(&receipt.receipt_id)? {
+        Some(existing) if existing == *receipt => Ok(()),
+        _ => Err(anyhow!(
+            "Soul verdict receipt id already belongs to different immutable evidence"
+        )),
+    }
 }
 
 pub fn runtime_soul_verdict_receipt(
@@ -3870,6 +5147,35 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            REPO_MODEL_ADMISSION_REVIEW_TYPE,
+            REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::DocumentPut],
+            CultNetMutationAuthority::Runtime,
+            vec![],
+            vec![REPO_MODEL_ADMISSION_RECEIPT_TYPE],
+            vec![
+                "Specialized Mind review binds one immutable Modeling result and exact repo-model patch.",
+            ],
+        ),
+        mutation_contract(
+            REPO_MODEL_ADMISSION_RECEIPT_TYPE,
+            REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::ReceiptWatch],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Admission receipt proves the conditional model/review/receipt commit."],
+        ),
+        mutation_contract(
+            REPO_MODEL_MIGRATION_RECEIPT_TYPE,
+            REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::ReceiptWatch],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Migration receipt proves the one-time move into runtime-owned model state."],
+        ),
+        mutation_contract(
             EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE,
             EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
             vec![
@@ -4280,6 +5586,1076 @@ mod tests {
     use cultnet_rs::CultNetWireContract;
     use cultnet_rs::decode_cultnet_message_from_slice;
     use tempfile::tempdir;
+
+    fn repo_model_bootstrap() -> crate::EpiphanyMemoryGraphSnapshot {
+        crate::EpiphanyMemoryGraphSnapshot {
+            schema_version: Some(crate::MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
+            graph_id: "runtime-repo-model".to_string(),
+            domains: vec![crate::EpiphanyMemoryDomain {
+                id: "repo".to_string(),
+                profile: crate::EpiphanyMemoryProfile::RepoArchitecture,
+                title: "Repository".to_string(),
+                lifecycle: crate::EpiphanyMemoryLifecycle::Accepted,
+                ..Default::default()
+            }],
+            nodes: vec![crate::EpiphanyMemoryNode {
+                id: "claim-runtime-model".to_string(),
+                domain_id: "repo".to_string(),
+                profile: crate::EpiphanyMemoryProfile::RepoArchitecture,
+                kind: crate::EpiphanyMemoryNodeKind::RuntimeContract,
+                title: "Runtime model".to_string(),
+                claim: "Runtime spine owns admitted repository model state.".to_string(),
+                question: "Which patch is admitted next?".to_string(),
+                action_implication: "Require specialized Mind admission.".to_string(),
+                source_hashes: vec!["anchor:missing".to_string()],
+                lifecycle: crate::EpiphanyMemoryLifecycle::Accepted,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+    }
+
+    fn repo_model_result_and_review(
+        result_id: &str,
+        job_id: &str,
+        current: &crate::EpiphanyMemoryGraphSnapshot,
+        review_id: &str,
+    ) -> Result<(EpiphanyRuntimeRoleWorkerResult, RepoModelAdmissionReview)> {
+        let patch = crate::RepoModelPatch {
+            patch_id: format!("patch-{result_id}"),
+            base_revision: current.model_revision,
+            base_hash: crate::memory_graph_model_hash(current)?,
+            applied_at: "2026-07-13T04:00:00Z".to_string(),
+            purpose: crate::RepoModelPatchPurpose::Evolution,
+            operations: vec![crate::RepoModelPatchOperation::UpsertFrontier {
+                item: crate::RepoFrontierItem {
+                    id: format!("frontier-{result_id}"),
+                    migration_body: "Carry admitted Modeling anatomy forward.".to_string(),
+                    question: "Does the specialized review bind this patch?".to_string(),
+                    gap: "Generic acceptance cannot own repository anatomy.".to_string(),
+                    target_claim_ids: vec!["claim-runtime-model".to_string()],
+                    source_scope: vec!["epiphany-core/src/runtime_spine.rs".to_string()],
+                    recommended_next_organ: "Hands".to_string(),
+                    status: crate::RepoFrontierStatus::Active,
+                    ..Default::default()
+                },
+            }],
+        };
+        let patch_bytes = rmp_serde::to_vec_named(&patch)?;
+        let result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            result_id: result_id.to_string(),
+            job_id: job_id.to_string(),
+            role_id: "modeling".to_string(),
+            verdict: "checkpoint-ready".to_string(),
+            summary: "Proposed a typed repository model patch.".to_string(),
+            next_safe_move: "Mind review.".to_string(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: vec!["epiphany-core/src/runtime_spine.rs".to_string()],
+            frontier_node_ids: vec!["claim-runtime-model".to_string()],
+            evidence_ids: vec!["evidence-runtime-model".to_string()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: BTreeMap::new(),
+            repo_model_patch_msgpack: Some(patch_bytes.clone()),
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+        };
+        let review = RepoModelAdmissionReview {
+            schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
+            review_id: review_id.to_string(),
+            result_id: result_id.to_string(),
+            job_id: job_id.to_string(),
+            patch_id: patch.patch_id,
+            patch_sha256: format!("{:x}", Sha256::digest(&patch_bytes)),
+            base_revision: patch.base_revision,
+            base_hash: patch.base_hash,
+            decision: MindGatewayDecision::Accept,
+            evidence_ids: result.evidence_ids.clone(),
+            reviewed_at: "2026-07-13T04:00:01Z".to_string(),
+            contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+        };
+        Ok((result, review))
+    }
+
+    fn admit_route_and_authorize_hands(
+        store: &Path,
+        intent: &HandsActionIntent,
+        review: &HandsActionReview,
+        suffix: &str,
+    ) -> Result<(RepoFrontierRoute, RepoFrontierHandsAuthority)> {
+        let bootstrap = repo_model_bootstrap();
+        let legacy = store.with_extension(format!("{suffix}.legacy.msgpack"));
+        let (current, _) =
+            ensure_runtime_repo_model(store, &legacy, &bootstrap, "2026-07-13T04:00:00Z")?;
+        let (mut result, mut admission_review) = repo_model_result_and_review(
+            &format!("route-result-{suffix}"),
+            &format!("route-job-{suffix}"),
+            &current,
+            &format!("route-review-{suffix}"),
+        )?;
+        let mut patch: crate::RepoModelPatch =
+            rmp_serde::from_slice(result.repo_model_patch_msgpack.as_deref().unwrap())?;
+        let crate::RepoModelPatchOperation::UpsertFrontier { item } = &mut patch.operations[0]
+        else {
+            unreachable!()
+        };
+        item.source_scope = intent.requested_paths.clone();
+        let patch_bytes = rmp_serde::to_vec_named(&patch)?;
+        result.repo_model_patch_msgpack = Some(patch_bytes.clone());
+        admission_review.patch_sha256 = format!("{:x}", Sha256::digest(&patch_bytes));
+        put_runtime_role_worker_result(store, &result)?;
+        commit_repo_model_admission(store, &result.result_id, &admission_review)?;
+        let route = select_and_commit_repo_frontier_route(store, "2026-07-13T04:00:02Z")?;
+        let authority = RepoFrontierHandsAuthority {
+            schema_version: REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.to_string(),
+            authority_id: format!("route-authority-{suffix}"),
+            route_id: route.route_id.clone(),
+            model_revision: route.model_revision,
+            model_hash: route.model_hash.clone(),
+            frontier_item_id: route.frontier_item_id.clone(),
+            frontier_item_hash: route.frontier_item_hash.clone(),
+            hands_intent_id: intent.intent_id.clone(),
+            hands_review_id: review.review_id.clone(),
+            substrate_grant_receipt_id: intent.substrate_gate_grant_receipt_id.clone(),
+            requested_paths: intent.requested_paths.clone(),
+            granted_at: "2026-07-13T04:00:03Z".to_string(),
+            contract: REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.to_string(),
+        };
+        put_repo_frontier_hands_authority(store, &authority)?;
+        Ok((route, authority))
+    }
+
+    struct FrontierVerdictFixture {
+        store: std::path::PathBuf,
+        route: RepoFrontierRoute,
+        request: RepoFrontierVerificationRequest,
+        verdict: SoulVerdictReceipt,
+        modeling_request: RepoFrontierModelingRequest,
+        current: crate::EpiphanyMemoryGraphSnapshot,
+    }
+
+    fn frontier_verdict_fixture(
+        root: &Path,
+        suffix: &str,
+        verdict_text: &str,
+    ) -> Result<FrontierVerdictFixture> {
+        let store = root.join(format!("runtime-{suffix}.cc"));
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: format!("verdict-{suffix}"),
+                display_name: "Verdict incorporation".to_string(),
+                created_at: "2026-07-13T06:00:00Z".to_string(),
+            },
+        )?;
+        let paths = vec!["epiphany-core/src/runtime_spine.rs".to_string()];
+        let grant = crate::substrate_gate_coordinator_implementation_grant(
+            format!("grant-{suffix}"),
+            format!("hands-job-{suffix}"),
+            paths.clone(),
+            "2026-07-13T06:00:01Z".to_string(),
+        );
+        put_substrate_gate_repo_access_grant_receipt(&store, &grant)?;
+        let intent = HandsActionIntent {
+            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: format!("intent-{suffix}"),
+            runtime_job_id: format!("hands-job-{suffix}"),
+            binding_id: "implementation-worker".to_string(),
+            role: "epiphany-hands".to_string(),
+            authority_scope: "epiphany.role.implementation".to_string(),
+            requested_action: "patch".to_string(),
+            requested_paths: paths.clone(),
+            substrate_gate_grant_receipt_id: grant.receipt_id.clone(),
+            requested_at: "2026-07-13T06:00:02Z".to_string(),
+            contract: "test Hands intent".to_string(),
+        };
+        put_hands_action_intent(&store, &intent)?;
+        let review = crate::hands_action_review_for_intent(
+            format!("hands-review-{suffix}"),
+            &intent,
+            "approved".to_string(),
+            vec![
+                "patch".to_string(),
+                "command".to_string(),
+                "commit".to_string(),
+            ],
+            vec!["exact route scope".to_string()],
+            "2026-07-13T06:00:03Z".to_string(),
+        );
+        put_hands_action_review(&store, &review)?;
+        let (route, _) = admit_route_and_authorize_hands(&store, &intent, &review, suffix)?;
+        let patch_receipt = crate::hands_patch_receipt_for_review(
+            format!("hands-patch-{suffix}"),
+            &intent,
+            &review,
+            paths.clone(),
+            "patch".to_string(),
+            "2026-07-13T06:00:04Z".to_string(),
+        );
+        put_hands_patch_receipt(&store, &patch_receipt)?;
+        let command_receipt = crate::hands_command_receipt_for_review(
+            format!("hands-command-{suffix}"),
+            &intent,
+            &review,
+            "cargo test".to_string(),
+            "0".to_string(),
+            "stdout".to_string(),
+            "stderr".to_string(),
+            "green".to_string(),
+            "2026-07-13T06:00:05Z".to_string(),
+        );
+        put_hands_command_receipt(&store, &command_receipt)?;
+        let commit_receipt = crate::hands_commit_receipt_for_review(
+            format!("hands-commit-{suffix}"),
+            &intent,
+            &review,
+            "abc123".to_string(),
+            "main".to_string(),
+            paths,
+            "commit".to_string(),
+            "2026-07-13T06:00:06Z".to_string(),
+        );
+        put_hands_commit_receipt(&store, &commit_receipt)?;
+        let chain = runtime_latest_hands_receipt_chain_after(&store, "2026-07-13T05:59:59Z")?
+            .expect("complete Hands chain");
+        let request = commit_repo_frontier_verification_request_for_chain(
+            &store,
+            &chain,
+            "2026-07-13T06:00:07Z",
+        )?;
+        let verification_result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            result_id: format!("verification-result-{suffix}"),
+            job_id: format!("verification-job-{suffix}"),
+            role_id: "verification".to_string(),
+            verdict: verdict_text.to_string(),
+            summary: format!("Soul says {verdict_text}."),
+            next_safe_move: "Return verdict to Modeling.".to_string(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: vec![format!("verification-evidence-{suffix}")],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: BTreeMap::new(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: Some(request.request_id.clone()),
+            frontier_route_id: Some(route.route_id.clone()),
+            repo_frontier_modeling_request_id: None,
+        };
+        put_runtime_role_worker_result(&store, &verification_result)?;
+        let verdict = SoulVerdictReceipt {
+            schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: format!("soul-verdict-{suffix}"),
+            source_result_id: verification_result.result_id.clone(),
+            source_job_id: verification_result.job_id.clone(),
+            verdict: verdict_text.to_string(),
+            summary: verification_result.summary.clone(),
+            evidence_ids: verification_result.evidence_ids.clone(),
+            risks: verification_result.risks.clone(),
+            emitted_at: "2026-07-13T06:00:08Z".to_string(),
+            contract: "accepted exact Verification finding".to_string(),
+            verification_request_id: request.request_id.clone(),
+            frontier_route_id: route.route_id.clone(),
+        };
+        put_soul_verdict_receipt(&store, &verdict)?;
+        let acceptance = epiphany_state_model::EpiphanyAcceptanceReceipt {
+            id: format!("verification-acceptance-{suffix}"),
+            result_id: verification_result.result_id.clone(),
+            job_id: verification_result.job_id.clone(),
+            binding_id: "verification-worker".to_string(),
+            surface: "roleAccept".to_string(),
+            role_id: "verification".to_string(),
+            status: "accepted".to_string(),
+            accepted_at: "2026-07-13T06:00:08Z".to_string(),
+            ..Default::default()
+        };
+        let accepted_state = epiphany_state_model::EpiphanyThreadState {
+            revision: 1,
+            acceptance_receipts: vec![acceptance.clone()],
+            ..Default::default()
+        };
+        let mut state_cache = runtime_spine_cache(&store)?;
+        state_cache.put(
+            crate::THREAD_STATE_KEY,
+            &crate::EpiphanyThreadStateEntry::from_state("fixture-thread", &accepted_state)?,
+        )?;
+        let modeling_request = commit_repo_frontier_modeling_request(&store, &acceptance)?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let current = cache
+            .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+            .expect("current model")
+            .snapshot()?;
+        Ok(FrontierVerdictFixture {
+            store,
+            route,
+            request,
+            verdict,
+            modeling_request,
+            current,
+        })
+    }
+
+    fn incorporation_result_and_review(
+        fixture: &FrontierVerdictFixture,
+        suffix: &str,
+    ) -> Result<(EpiphanyRuntimeRoleWorkerResult, RepoModelAdmissionReview)> {
+        let mut item = fixture
+            .current
+            .frontier
+            .iter()
+            .find(|item| item.id == fixture.route.frontier_item_id)
+            .expect("routed item")
+            .clone();
+        if fixture.verdict.verdict == "pass" {
+            item.status = crate::RepoFrontierStatus::Resolved;
+        } else {
+            item.status = crate::RepoFrontierStatus::Blocked;
+            item.gap = format!(
+                "Soul verdict {} requires another cut.",
+                fixture.verdict.verdict
+            );
+        }
+        item.updated_at = Some("2026-07-13T06:00:09Z".to_string());
+        item.evidence_refs.push(fixture.request.request_id.clone());
+        item.evidence_refs.push(fixture.verdict.receipt_id.clone());
+        item.evidence_refs.sort();
+        item.evidence_refs.dedup();
+        let patch = crate::RepoModelPatch {
+            patch_id: format!("incorporation-patch-{suffix}"),
+            base_revision: fixture.current.model_revision,
+            base_hash: crate::memory_graph_model_hash(&fixture.current)?,
+            applied_at: "2026-07-13T06:00:09Z".to_string(),
+            purpose: crate::RepoModelPatchPurpose::IncorporateFrontierVerdict {
+                route_id: fixture.route.route_id.clone(),
+                soul_verdict_receipt_id: fixture.verdict.receipt_id.clone(),
+            },
+            operations: vec![crate::RepoModelPatchOperation::ReviseFrontier { item }],
+        };
+        let bytes = rmp_serde::to_vec_named(&patch)?;
+        let result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            result_id: format!("incorporation-result-{suffix}"),
+            job_id: format!("incorporation-job-{suffix}"),
+            role_id: "modeling".to_string(),
+            verdict: "checkpoint-ready".to_string(),
+            summary: "Incorporate exact Soul verdict.".to_string(),
+            next_safe_move: "Mind admission.".to_string(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: vec![fixture.verdict.receipt_id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: BTreeMap::new(),
+            repo_model_patch_msgpack: Some(bytes.clone()),
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: Some(fixture.modeling_request.request_id.clone()),
+        };
+        let review = RepoModelAdmissionReview {
+            schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
+            review_id: format!("incorporation-review-{suffix}"),
+            result_id: result.result_id.clone(),
+            job_id: result.job_id.clone(),
+            patch_id: patch.patch_id,
+            patch_sha256: format!("{:x}", Sha256::digest(&bytes)),
+            base_revision: patch.base_revision,
+            base_hash: patch.base_hash,
+            decision: MindGatewayDecision::Accept,
+            evidence_ids: result.evidence_ids.clone(),
+            reviewed_at: "2026-07-13T06:00:10Z".to_string(),
+            contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+        };
+        Ok((result, review))
+    }
+
+    #[test]
+    fn repo_model_migration_and_specialized_admission_are_atomic_and_bound() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "repo-model-test".to_string(),
+                display_name: "Repo Model Test".to_string(),
+                created_at: "2026-07-13T00:00:00Z".to_string(),
+            },
+        )?;
+        let bootstrap = repo_model_bootstrap();
+        let (current, migration) = ensure_runtime_repo_model(
+            &store,
+            temp.path().join("missing-legacy.cc"),
+            &bootstrap,
+            "2026-07-13T03:00:00Z",
+        )?;
+        assert_eq!(migration.imported_revision, 0);
+        let (result, review) =
+            repo_model_result_and_review("model-result-1", "model-job-1", &current, "review-1")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let receipt = commit_repo_model_admission(&store, &result.result_id, &review)?;
+        assert_eq!(receipt.admitted_revision, 1);
+        assert_eq!(
+            commit_repo_model_admission(&store, &result.result_id, &review)?,
+            receipt
+        );
+        let (still_admitted, same_migration) = ensure_runtime_repo_model(
+            &store,
+            temp.path().join("missing-legacy.cc"),
+            &repo_model_bootstrap(),
+            "2026-07-13T05:00:00Z",
+        )?;
+        assert_eq!(still_admitted.model_revision, 1);
+        assert_eq!(same_migration, migration);
+
+        let bytes_before = fs::read(&store)?;
+        let mut swapped_result = review.clone();
+        swapped_result.result_id = "other-result".to_string();
+        assert!(commit_repo_model_admission(&store, &result.result_id, &swapped_result).is_err());
+        let mut swapped_patch = review.clone();
+        swapped_patch.review_id = "review-swapped-patch".to_string();
+        swapped_patch.patch_sha256 = "0".repeat(64);
+        assert!(commit_repo_model_admission(&store, &result.result_id, &swapped_patch).is_err());
+        assert_eq!(fs::read(&store)?, bytes_before);
+
+        let mut admitted_cache = runtime_spine_cache(&store)?;
+        admitted_cache.pull_all_backing_stores()?;
+        let admitted = admitted_cache
+            .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+            .expect("admitted model")
+            .snapshot()?;
+        let (stale_result, stale_review) = repo_model_result_and_review(
+            "model-result-stale",
+            "model-job-stale",
+            &current,
+            "review-stale",
+        )?;
+        put_runtime_role_worker_result(&store, &stale_result)?;
+        let stale_bytes = fs::read(&store)?;
+        assert!(
+            commit_repo_model_admission(&store, &stale_result.result_id, &stale_review).is_err()
+        );
+        assert_eq!(fs::read(&store)?, stale_bytes);
+        assert_eq!(admitted.model_revision, 1);
+
+        let (collision_result, collision_review) = repo_model_result_and_review(
+            "model-result-collision",
+            "model-job-collision",
+            &admitted,
+            "review-collision",
+        )?;
+        put_runtime_role_worker_result(&store, &collision_result)?;
+        let mut counterfeit = collision_review.clone();
+        counterfeit.decision = MindGatewayDecision::Hold;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        cache.put(&counterfeit.review_id, &counterfeit)?;
+        let collision_bytes = fs::read(&store)?;
+        assert!(
+            commit_repo_model_admission(&store, &collision_result.result_id, &collision_review)
+                .is_err()
+        );
+        assert_eq!(fs::read(&store)?, collision_bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn evolution_cannot_bypass_routes_or_own_frontier_verdict_lifecycle() -> Result<()> {
+        let routed_temp = tempdir()?;
+        let routed = frontier_verdict_fixture(routed_temp.path(), "evolution-route", "pass")?;
+        let (routed_result, routed_review) = repo_model_result_and_review(
+            "evolution-after-route",
+            "evolution-after-route-job",
+            &routed.current,
+            "evolution-after-route-review",
+        )?;
+        put_runtime_role_worker_result(&routed.store, &routed_result)?;
+        let before = fs::read(&routed.store)?;
+        assert!(
+            commit_repo_model_admission(&routed.store, &routed_result.result_id, &routed_review)
+                .is_err()
+        );
+        assert_eq!(fs::read(&routed.store)?, before);
+
+        let temp = tempdir()?;
+        let store = temp.path().join("evolution-lifecycle.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "evolution-lifecycle".to_string(),
+                display_name: "Evolution lifecycle".to_string(),
+                created_at: "2026-07-13T08:00:00Z".to_string(),
+            },
+        )?;
+        let (base, _) = ensure_runtime_repo_model(
+            &store,
+            temp.path().join("legacy.cc"),
+            &repo_model_bootstrap(),
+            "2026-07-13T08:00:00Z",
+        )?;
+        let (seed_result, seed_review) = repo_model_result_and_review(
+            "evolution-seed",
+            "evolution-seed-job",
+            &base,
+            "evolution-seed-review",
+        )?;
+        put_runtime_role_worker_result(&store, &seed_result)?;
+        commit_repo_model_admission(&store, &seed_result.result_id, &seed_review)?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let current = cache
+            .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+            .unwrap()
+            .snapshot()?;
+        for (suffix, operation) in [
+            ("resolved", {
+                let mut item = current.frontier[0].clone();
+                item.status = crate::RepoFrontierStatus::Resolved;
+                crate::RepoModelPatchOperation::ReviseFrontier { item }
+            }),
+            (
+                "retire",
+                crate::RepoModelPatchOperation::RetireFrontier {
+                    item_id: current.frontier[0].id.clone(),
+                    retired_at: None,
+                    superseded_by: None,
+                },
+            ),
+        ] {
+            let (mut result, mut review) = repo_model_result_and_review(
+                &format!("evolution-{suffix}"),
+                &format!("evolution-{suffix}-job"),
+                &current,
+                &format!("evolution-{suffix}-review"),
+            )?;
+            let mut patch = result.repo_model_patch()?.unwrap();
+            patch.operations = vec![operation];
+            let bytes = rmp_serde::to_vec_named(&patch)?;
+            result.repo_model_patch_msgpack = Some(bytes.clone());
+            review.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));
+            put_runtime_role_worker_result(&store, &result)?;
+            let before = fs::read(&store)?;
+            assert!(commit_repo_model_admission(&store, &result.result_id, &review).is_err());
+            assert_eq!(fs::read(&store)?, before);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn repo_model_incorporates_pass_and_nonpass_soul_verdicts_causally() -> Result<()> {
+        for verdict in ["pass", "needs-review", "needs-evidence", "fail"] {
+            let temp = tempdir()?;
+            let fixture = frontier_verdict_fixture(temp.path(), verdict, verdict)?;
+            let (result, review) = incorporation_result_and_review(&fixture, verdict)?;
+            put_runtime_role_worker_result(&fixture.store, &result)?;
+            let receipt = commit_repo_model_admission(&fixture.store, &result.result_id, &review)?;
+            assert_eq!(receipt.purpose, result.repo_model_patch()?.unwrap().purpose);
+            assert_eq!(receipt.frontier_route_id, fixture.route.route_id);
+            assert_eq!(receipt.verification_request_id, fixture.request.request_id);
+            assert_eq!(receipt.soul_verdict_receipt_id, fixture.verdict.receipt_id);
+            assert_eq!(
+                receipt.frontier_modeling_request_id,
+                fixture.modeling_request.request_id
+            );
+            assert_eq!(
+                commit_repo_model_admission(&fixture.store, &result.result_id, &review)?,
+                receipt
+            );
+            let mut cache = runtime_spine_cache(&fixture.store)?;
+            cache.pull_all_backing_stores()?;
+            let admitted = cache
+                .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+                .unwrap()
+                .snapshot()?;
+            let item = admitted
+                .frontier
+                .iter()
+                .find(|item| item.id == fixture.route.frontier_item_id)
+                .unwrap();
+            let expected = if verdict == "pass" {
+                crate::RepoFrontierStatus::Resolved
+            } else {
+                crate::RepoFrontierStatus::Blocked
+            };
+            assert_eq!(item.status, expected);
+            if verdict != "pass" {
+                assert!(!item.gap.trim().is_empty());
+            }
+            assert!(!runtime_has_actionable_hands_frontier(&fixture.store)?);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn frontier_modeling_request_reloads_exact_accepted_result_despite_adjacent_verdict()
+    -> Result<()> {
+        let temp = tempdir()?;
+        let fixture = frontier_verdict_fixture(temp.path(), "request-adjacency", "pass")?;
+        let adjacent = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            result_id: "adjacent-verification-result".to_string(),
+            job_id: "adjacent-verification-job".to_string(),
+            role_id: "verification".to_string(),
+            verdict: "fail".to_string(),
+            summary: "Nearby but not accepted.".to_string(),
+            next_safe_move: "Remain unselected.".to_string(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: vec!["adjacent-evidence".to_string()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: BTreeMap::new(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: Some(fixture.request.request_id.clone()),
+            frontier_route_id: Some(fixture.route.route_id.clone()),
+            repo_frontier_modeling_request_id: None,
+        };
+        put_runtime_role_worker_result(&fixture.store, &adjacent)?;
+        put_soul_verdict_receipt(
+            &fixture.store,
+            &SoulVerdictReceipt {
+                schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+                receipt_id: "adjacent-soul-verdict".to_string(),
+                source_result_id: adjacent.result_id.clone(),
+                source_job_id: adjacent.job_id.clone(),
+                verdict: adjacent.verdict.clone(),
+                summary: adjacent.summary.clone(),
+                evidence_ids: adjacent.evidence_ids.clone(),
+                risks: adjacent.risks.clone(),
+                emitted_at: "2026-07-13T06:00:09Z".to_string(),
+                contract: "unaccepted adjacent verdict".to_string(),
+                verification_request_id: fixture.request.request_id.clone(),
+                frontier_route_id: fixture.route.route_id.clone(),
+            },
+        )?;
+        let accepted = epiphany_state_model::EpiphanyAcceptanceReceipt {
+            id: "verification-acceptance-request-adjacency".to_string(),
+            result_id: "verification-result-request-adjacency".to_string(),
+            job_id: "verification-job-request-adjacency".to_string(),
+            binding_id: "verification-worker".to_string(),
+            surface: "roleAccept".to_string(),
+            role_id: "verification".to_string(),
+            status: "accepted".to_string(),
+            accepted_at: "2026-07-13T06:00:08Z".to_string(),
+            ..Default::default()
+        };
+        let reloaded = commit_repo_frontier_modeling_request(&fixture.store, &accepted)?;
+        assert_eq!(reloaded, fixture.modeling_request);
+        assert_eq!(reloaded.verification_result_id, accepted.result_id);
+        assert_ne!(reloaded.verification_result_id, adjacent.result_id);
+        Ok(())
+    }
+
+    #[test]
+    fn repo_model_verdict_incorporation_refuses_mixed_chains_and_illegal_edits_without_mutation()
+    -> Result<()> {
+        fn attempt(
+            fixture: &FrontierVerdictFixture,
+            suffix: &str,
+            mutate: impl FnOnce(&mut crate::RepoModelPatch),
+        ) -> Result<()> {
+            let (mut result, mut review) = incorporation_result_and_review(fixture, suffix)?;
+            let mut patch = result.repo_model_patch()?.unwrap();
+            mutate(&mut patch);
+            let bytes = rmp_serde::to_vec_named(&patch)?;
+            result.repo_model_patch_msgpack = Some(bytes.clone());
+            result.evidence_ids = match &patch.purpose {
+                crate::RepoModelPatchPurpose::IncorporateFrontierVerdict {
+                    soul_verdict_receipt_id,
+                    ..
+                } => vec![soul_verdict_receipt_id.clone()],
+                crate::RepoModelPatchPurpose::Evolution => vec!["evolution".to_string()],
+            };
+            review.patch_id = patch.patch_id.clone();
+            review.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));
+            review.base_revision = patch.base_revision;
+            review.base_hash = patch.base_hash.clone();
+            review.evidence_ids = result.evidence_ids.clone();
+            put_runtime_role_worker_result(&fixture.store, &result)?;
+            let before = fs::read(&fixture.store)?;
+            assert!(
+                commit_repo_model_admission(&fixture.store, &result.result_id, &review).is_err()
+            );
+            assert_eq!(fs::read(&fixture.store)?, before);
+            Ok(())
+        }
+
+        let temp = tempdir()?;
+        let fixture = frontier_verdict_fixture(temp.path(), "hostile", "pass")?;
+
+        attempt(&fixture, "swapped-route", |patch| {
+            patch.purpose = crate::RepoModelPatchPurpose::IncorporateFrontierVerdict {
+                route_id: "different-route".to_string(),
+                soul_verdict_receipt_id: fixture.verdict.receipt_id.clone(),
+            };
+        })?;
+
+        for (suffix, alter) in [
+            ("swapped-request", "request"),
+            ("swapped-verdict-route", "route"),
+            ("swapped-result", "result"),
+        ] {
+            let mut counterfeit = fixture.verdict.clone();
+            counterfeit.receipt_id = format!("counterfeit-{suffix}");
+            match alter {
+                "request" => counterfeit.verification_request_id = "different-request".to_string(),
+                "route" => counterfeit.frontier_route_id = "different-route".to_string(),
+                "result" => counterfeit.source_result_id = "different-result".to_string(),
+                _ => unreachable!(),
+            }
+            put_soul_verdict_receipt(&fixture.store, &counterfeit)?;
+            attempt(&fixture, suffix, |patch| {
+                patch.purpose = crate::RepoModelPatchPurpose::IncorporateFrontierVerdict {
+                    route_id: fixture.route.route_id.clone(),
+                    soul_verdict_receipt_id: counterfeit.receipt_id.clone(),
+                };
+            })?;
+        }
+
+        attempt(&fixture, "extra-op", |patch| {
+            let item = fixture.current.frontier[0].clone();
+            patch
+                .operations
+                .push(crate::RepoModelPatchOperation::ReviseFrontier { item });
+        })?;
+        attempt(&fixture, "wrong-item", |patch| {
+            let crate::RepoModelPatchOperation::ReviseFrontier { item } = &mut patch.operations[0]
+            else {
+                unreachable!()
+            };
+            item.id = "other-frontier".to_string();
+        })?;
+        attempt(&fixture, "wrong-status", |patch| {
+            let crate::RepoModelPatchOperation::ReviseFrontier { item } = &mut patch.operations[0]
+            else {
+                unreachable!()
+            };
+            item.status = crate::RepoFrontierStatus::Blocked;
+            item.gap = "still blocked".to_string();
+        })?;
+
+        let (evolution_result, evolution_review) =
+            incorporation_result_and_review(&fixture, "intervening-result")?;
+        put_runtime_role_worker_result(&fixture.store, &evolution_result)?;
+        commit_repo_model_admission(
+            &fixture.store,
+            &evolution_result.result_id,
+            &evolution_review,
+        )?;
+        let (stale_result, stale_review) =
+            incorporation_result_and_review(&fixture, "stale-model")?;
+        put_runtime_role_worker_result(&fixture.store, &stale_result)?;
+        let before = fs::read(&fixture.store)?;
+        assert!(
+            commit_repo_model_admission(&fixture.store, &stale_result.result_id, &stale_review)
+                .is_err()
+        );
+        assert_eq!(fs::read(&fixture.store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn repo_frontier_route_refuses_unadmitted_and_ineligible_models() -> Result<()> {
+        fn admitted_store_with_items(
+            store: &Path,
+            suffix: &str,
+            items: Vec<crate::RepoFrontierItem>,
+        ) -> Result<()> {
+            let bootstrap = repo_model_bootstrap();
+            let legacy = store.with_extension(format!("{suffix}.legacy.msgpack"));
+            let (current, _) =
+                ensure_runtime_repo_model(store, legacy, &bootstrap, "2026-07-13T05:00:00Z")?;
+            let (mut result, mut review) = repo_model_result_and_review(
+                &format!("eligibility-result-{suffix}"),
+                &format!("eligibility-job-{suffix}"),
+                &current,
+                &format!("eligibility-review-{suffix}"),
+            )?;
+            let mut patch: crate::RepoModelPatch =
+                rmp_serde::from_slice(result.repo_model_patch_msgpack.as_deref().unwrap())?;
+            patch.operations = items
+                .into_iter()
+                .map(|item| crate::RepoModelPatchOperation::UpsertFrontier { item })
+                .collect();
+            let bytes = rmp_serde::to_vec_named(&patch)?;
+            review.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));
+            result.repo_model_patch_msgpack = Some(bytes);
+            put_runtime_role_worker_result(store, &result)?;
+            commit_repo_model_admission(store, &result.result_id, &review)?;
+            Ok(())
+        }
+
+        let unadmitted = tempdir()?;
+        let unadmitted_store = unadmitted.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &unadmitted_store,
+            RuntimeSpineInitOptions {
+                runtime_id: "route-unadmitted".to_string(),
+                display_name: "Route Unadmitted".to_string(),
+                created_at: "2026-07-13T05:00:00Z".to_string(),
+            },
+        )?;
+        ensure_runtime_repo_model(
+            &unadmitted_store,
+            unadmitted.path().join("legacy.msgpack"),
+            &repo_model_bootstrap(),
+            "2026-07-13T05:00:00Z",
+        )?;
+        assert!(
+            select_and_commit_repo_frontier_route(&unadmitted_store, "2026-07-13T05:00:01Z")
+                .is_err()
+        );
+        assert!(!runtime_has_actionable_hands_frontier(&unadmitted_store)?);
+
+        for (suffix, status) in [
+            ("proposed", crate::RepoFrontierStatus::Proposed),
+            ("blocked", crate::RepoFrontierStatus::Blocked),
+        ] {
+            let temp = tempdir()?;
+            let store = temp.path().join("runtime.msgpack");
+            initialize_runtime_spine(
+                &store,
+                RuntimeSpineInitOptions {
+                    runtime_id: format!("route-{suffix}"),
+                    display_name: suffix.to_string(),
+                    created_at: "2026-07-13T05:00:00Z".to_string(),
+                },
+            )?;
+            admitted_store_with_items(
+                &store,
+                suffix,
+                vec![crate::RepoFrontierItem {
+                    id: format!("frontier-{suffix}"),
+                    migration_body: "body".to_string(),
+                    question: "question".to_string(),
+                    gap: "gap".to_string(),
+                    target_claim_ids: vec!["claim-runtime-model".to_string()],
+                    source_scope: vec!["epiphany-core/src".to_string()],
+                    recommended_next_organ: "Hands".to_string(),
+                    status,
+                    ..Default::default()
+                }],
+            )?;
+            assert!(select_and_commit_repo_frontier_route(&store, "2026-07-13T05:00:02Z").is_err());
+            assert!(!runtime_has_actionable_hands_frontier(&store)?);
+        }
+
+        let active = tempdir()?;
+        let active_store = active.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &active_store,
+            RuntimeSpineInitOptions {
+                runtime_id: "route-active".to_string(),
+                display_name: "active".to_string(),
+                created_at: "2026-07-13T05:00:00Z".to_string(),
+            },
+        )?;
+        admitted_store_with_items(
+            &active_store,
+            "active",
+            vec![crate::RepoFrontierItem {
+                id: "frontier-active".to_string(),
+                migration_body: "body".to_string(),
+                question: "question".to_string(),
+                gap: "gap".to_string(),
+                target_claim_ids: vec!["claim-runtime-model".to_string()],
+                source_scope: vec!["epiphany-core/src".to_string()],
+                recommended_next_organ: "Hands".to_string(),
+                status: crate::RepoFrontierStatus::Active,
+                ..Default::default()
+            }],
+        )?;
+        assert!(runtime_has_actionable_hands_frontier(&active_store)?);
+        assert!(
+            select_and_commit_repo_frontier_route(&active_store, "2026-07-13T05:00:02Z").is_ok()
+        );
+
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "route-dependency".to_string(),
+                display_name: "dependency".to_string(),
+                created_at: "2026-07-13T05:00:00Z".to_string(),
+            },
+        )?;
+        admitted_store_with_items(
+            &store,
+            "dependency",
+            vec![
+                crate::RepoFrontierItem {
+                    id: "dependency".to_string(),
+                    migration_body: "dependency".to_string(),
+                    question: "pending?".to_string(),
+                    gap: "pending".to_string(),
+                    target_claim_ids: vec!["claim-runtime-model".to_string()],
+                    source_scope: vec!["epiphany-core/src".to_string()],
+                    recommended_next_organ: "Eyes".to_string(),
+                    status: crate::RepoFrontierStatus::Active,
+                    ..Default::default()
+                },
+                crate::RepoFrontierItem {
+                    id: "dependent".to_string(),
+                    migration_body: "dependent".to_string(),
+                    question: "ready?".to_string(),
+                    gap: "dependency unresolved".to_string(),
+                    target_claim_ids: vec!["claim-runtime-model".to_string()],
+                    source_scope: vec!["epiphany-core/src".to_string()],
+                    recommended_next_organ: "Hands".to_string(),
+                    dependency_item_ids: vec!["dependency".to_string()],
+                    status: crate::RepoFrontierStatus::Active,
+                    ..Default::default()
+                },
+            ],
+        )?;
+        assert!(select_and_commit_repo_frontier_route(&store, "2026-07-13T05:00:02Z").is_err());
+        assert!(!runtime_has_actionable_hands_frontier(&store)?);
+        Ok(())
+    }
+
+    #[test]
+    fn hands_authority_documents_choose_one_immutable_identity_under_race() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(&store, RuntimeSpineInitOptions {
+            runtime_id: "authority-race".to_string(), display_name: "Authority Race".to_string(),
+            created_at: "2026-07-13T05:30:00Z".to_string(),
+        })?;
+        let base_grant = crate::substrate_gate_coordinator_implementation_grant(
+            "race-grant".to_string(), "race-job".to_string(), vec!["epiphany-core/src".to_string()],
+            "2026-07-13T05:30:00Z".to_string());
+        let mut other_grant = base_grant.clone(); other_grant.granted_paths = vec!["epiphany-core/tests".to_string()];
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let outcomes = [base_grant.clone(), other_grant.clone()].into_iter().map(|grant| {
+            let path = store.clone(); let barrier = barrier.clone();
+            std::thread::spawn(move || { barrier.wait(); put_substrate_gate_repo_access_grant_receipt(path, &grant) })
+        }).collect::<Vec<_>>();
+        assert_eq!(outcomes.into_iter().map(|outcome| outcome.join().unwrap()).filter(Result::is_ok).count(), 1);
+        let winner = runtime_substrate_gate_repo_access_grant_receipt(&store, "race-grant")?.unwrap();
+
+        let base_intent = HandsActionIntent { schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "race-intent".to_string(), runtime_job_id: winner.runtime_job_id.clone(), binding_id: winner.binding_id.clone(),
+            role: winner.role.clone(), authority_scope: winner.authority_scope.clone(), requested_action: "patch".to_string(),
+            requested_paths: winner.granted_paths.clone(), substrate_gate_grant_receipt_id: winner.receipt_id.clone(),
+            requested_at: "2026-07-13T05:30:01Z".to_string(), contract: "race intent".to_string() };
+        let mut other_intent = base_intent.clone(); other_intent.requested_action = "continueImplementation".to_string();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let outcomes = [base_intent.clone(), other_intent].into_iter().map(|intent| {
+            let path = store.clone(); let barrier = barrier.clone();
+            std::thread::spawn(move || { barrier.wait(); put_hands_action_intent(path, &intent) })
+        }).collect::<Vec<_>>();
+        assert_eq!(outcomes.into_iter().map(|outcome| outcome.join().unwrap()).filter(Result::is_ok).count(), 1);
+        let winner_intent = runtime_hands_action_intent(&store, "race-intent")?.unwrap();
+
+        let base_review = hands_action_review_for_intent("race-review".to_string(), &winner_intent, "approved".to_string(),
+            vec!["patch".to_string(), "command".to_string(), "commit".to_string()], vec!["race".to_string()],
+            "2026-07-13T05:30:02Z".to_string());
+        let mut other_review = base_review.clone(); other_review.allowed_operations = vec!["patch".to_string()];
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let outcomes = [base_review, other_review].into_iter().map(|review| {
+            let path = store.clone(); let barrier = barrier.clone();
+            std::thread::spawn(move || { barrier.wait(); put_hands_action_review(path, &review) })
+        }).collect::<Vec<_>>();
+        assert_eq!(outcomes.into_iter().map(|outcome| outcome.join().unwrap()).filter(Result::is_ok).count(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn repo_frontier_hands_authority_refuses_substitution_and_retries_exactly() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "route-hostile".to_string(),
+                display_name: "Route Hostile".to_string(),
+                created_at: "2026-07-13T06:00:00Z".to_string(),
+            },
+        )?;
+        let grant = crate::substrate_gate_coordinator_implementation_grant(
+            "route-hostile-grant".to_string(),
+            "route-hostile-job".to_string(),
+            vec!["epiphany-core/src".to_string()],
+            "2026-07-13T06:00:00Z".to_string(),
+        );
+        put_substrate_gate_repo_access_grant_receipt(&store, &grant)?;
+        let intent = HandsActionIntent {
+            schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "route-hostile-intent".to_string(),
+            runtime_job_id: grant.runtime_job_id.clone(),
+            binding_id: grant.binding_id.clone(),
+            role: grant.role.clone(),
+            authority_scope: grant.authority_scope.clone(),
+            requested_action: "patch".to_string(),
+            requested_paths: grant.granted_paths.clone(),
+            substrate_gate_grant_receipt_id: grant.receipt_id.clone(),
+            requested_at: "2026-07-13T06:00:01Z".to_string(),
+            contract: "test".to_string(),
+        };
+        put_hands_action_intent(&store, &intent)?;
+        let review = hands_action_review_for_intent(
+            "route-hostile-review".to_string(),
+            &intent,
+            "approved".to_string(),
+            vec!["patch".to_string()],
+            vec!["test".to_string()],
+            "2026-07-13T06:00:02Z".to_string(),
+        );
+        put_hands_action_review(&store, &review)?;
+        let (route, authority) =
+            admit_route_and_authorize_hands(&store, &intent, &review, "hostile")?;
+        assert_eq!(
+            select_and_commit_repo_frontier_route(&store, "2026-07-13T04:00:02Z")?,
+            route
+        );
+        put_repo_frontier_hands_authority(&store, &authority)?;
+
+        let mutations: Vec<Box<dyn Fn(&mut RepoFrontierHandsAuthority)>> = vec![
+            Box::new(|a| a.route_id = "swapped-route".to_string()),
+            Box::new(|a| a.model_hash = "0".repeat(64)),
+            Box::new(|a| a.frontier_item_hash = "1".repeat(64)),
+            Box::new(|a| a.requested_paths = vec!["outside".to_string()]),
+            Box::new(|a| a.hands_intent_id = "swapped-intent".to_string()),
+            Box::new(|a| a.hands_review_id = "swapped-review".to_string()),
+            Box::new(|a| a.substrate_grant_receipt_id = "swapped-grant".to_string()),
+        ];
+        for (index, mutate) in mutations.into_iter().enumerate() {
+            let mut counterfeit = authority.clone();
+            counterfeit.authority_id = format!("counterfeit-{index}");
+            mutate(&mut counterfeit);
+            assert!(put_repo_frontier_hands_authority(&store, &counterfeit).is_err());
+        }
+        Ok(())
+    }
 
     struct RepoWorkAdoptionFixture {
         store: PathBuf,
@@ -4793,6 +7169,8 @@ mod tests {
             risks: Vec::new(),
             emitted_at: "2026-05-06T00:07:00Z".to_string(),
             contract: "Soul verdict persists as runtime-spine proof.".to_string(),
+            verification_request_id: String::new(),
+            frontier_route_id: String::new(),
         };
         put_soul_verdict_receipt(&store, &soul_verdict)?;
         let continuity_recovery = ContinuityRecoveryReceipt {
@@ -4827,7 +7205,7 @@ mod tests {
         let hands_grant = crate::substrate_gate_coordinator_implementation_grant(
             "substrate-grant-hands-1".to_string(),
             "job-implementation-1".to_string(),
-            vec!["src".to_string()],
+            vec!["src/lib.rs".to_string()],
             "2026-05-06T00:06:20Z".to_string(),
         );
         put_substrate_gate_repo_access_grant_receipt(&store, &hands_grant)?;
@@ -4858,6 +7236,22 @@ mod tests {
             "2026-05-06T00:06:40Z".to_string(),
         );
         put_hands_action_review(&store, &hands_review)?;
+        put_substrate_gate_repo_access_grant_receipt(&store, &hands_grant)?;
+        put_hands_action_intent(&store, &hands_intent)?;
+        put_hands_action_review(&store, &hands_review)?;
+        let authority_identity_bytes = fs::read(&store)?;
+        let mut counterfeit_grant = hands_grant.clone();
+        counterfeit_grant.granted_operations = vec!["read".to_string()];
+        assert!(put_substrate_gate_repo_access_grant_receipt(&store, &counterfeit_grant).is_err());
+        let mut counterfeit_intent = hands_intent.clone();
+        counterfeit_intent.requested_action = "command".to_string();
+        assert!(put_hands_action_intent(&store, &counterfeit_intent).is_err());
+        let mut counterfeit_review = hands_review.clone();
+        counterfeit_review.allowed_operations = vec!["command".to_string()];
+        assert!(put_hands_action_review(&store, &counterfeit_review).is_err());
+        assert_eq!(fs::read(&store)?, authority_identity_bytes);
+        let (frontier_route, _) =
+            admit_route_and_authorize_hands(&store, &hands_intent, &hands_review, "mind-review")?;
         let hands_patch = crate::hands_patch_receipt_for_review(
             "hands-patch-1".to_string(),
             &hands_intent,
@@ -4918,6 +7312,20 @@ mod tests {
         let stored_commit = runtime_hands_commit_receipt(&store, "hands-commit-1")?
             .expect("Hands commit receipt should persist");
         assert_eq!(stored_commit, hands_commit);
+        put_hands_patch_receipt(&store, &hands_patch)?;
+        put_hands_command_receipt(&store, &hands_command)?;
+        put_hands_commit_receipt(&store, &hands_commit)?;
+        let immutable_bytes = fs::read(&store)?;
+        let mut counterfeit_patch = hands_patch.clone();
+        counterfeit_patch.summary = "counterfeit patch".to_string();
+        assert!(put_hands_patch_receipt(&store, &counterfeit_patch).is_err());
+        let mut counterfeit_command = hands_command.clone();
+        counterfeit_command.summary = "counterfeit command".to_string();
+        assert!(put_hands_command_receipt(&store, &counterfeit_command).is_err());
+        let mut counterfeit_commit = hands_commit.clone();
+        counterfeit_commit.summary = "counterfeit commit".to_string();
+        assert!(put_hands_commit_receipt(&store, &counterfeit_commit).is_err());
+        assert_eq!(fs::read(&store)?, immutable_bytes);
         let stored_pr = runtime_hands_pr_receipt(&store, "hands-pr-1")?
             .expect("Hands PR receipt should persist");
         assert_eq!(stored_pr, hands_pr);
@@ -4931,6 +7339,36 @@ mod tests {
         assert_eq!(hands_chain.command_receipt_id, "hands-command-1");
         assert_eq!(hands_chain.commit_receipt_id, "hands-commit-1");
         assert_eq!(hands_chain.exit_code, "0");
+        let verification_request = commit_repo_frontier_verification_request_for_chain(
+            &store,
+            &hands_chain,
+            "2026-05-06T00:07:11Z",
+        )?;
+        assert_eq!(verification_request.route_id, frontier_route.route_id);
+        assert_eq!(verification_request.hands_patch_receipt_id, "hands-patch-1");
+        assert_eq!(
+            verification_request.hands_command_receipt_id,
+            "hands-command-1"
+        );
+        assert_eq!(
+            verification_request.hands_commit_receipt_id,
+            "hands-commit-1"
+        );
+        let bytes_before_hostile_request = fs::read(&store)?;
+        let mut missing_receipt = verification_request.clone();
+        missing_receipt.request_id = "verification-missing-receipt".to_string();
+        missing_receipt.hands_command_receipt_id = "missing-command".to_string();
+        assert!(put_repo_frontier_verification_request(&store, &missing_receipt).is_err());
+        let mut swapped_route = verification_request.clone();
+        swapped_route.request_id = "verification-swapped-route".to_string();
+        swapped_route.route_id = "other-route".to_string();
+        assert!(put_repo_frontier_verification_request(&store, &swapped_route).is_err());
+        let mut mixed_chain = verification_request.clone();
+        mixed_chain.request_id = "verification-mixed-chain".to_string();
+        mixed_chain.hands_patch_receipt_id = "hands-patch-1".to_string();
+        mixed_chain.hands_commit_receipt_id = "missing-commit".to_string();
+        assert!(put_repo_frontier_verification_request(&store, &mixed_chain).is_err());
+        assert_eq!(fs::read(&store)?, bytes_before_hostile_request);
         assert!(!runtime_hands_receipt_chain_after(
             &store,
             "2026-05-06T00:07:15Z"
@@ -5024,7 +7462,7 @@ mod tests {
             role: "epiphany-hands".to_string(),
             authority_scope: "epiphany.role.implementation".to_string(),
             requested_action: "continueImplementation".to_string(),
-            requested_paths: vec![".".to_string()],
+            requested_paths: vec!["new.rs".to_string(), "old.rs".to_string()],
             substrate_gate_grant_receipt_id: "substrate-grant-reused".to_string(),
             requested_at: "2026-06-13T00:00:01Z".to_string(),
             contract: "Test reused Hands gate.".to_string(),
@@ -5034,7 +7472,7 @@ mod tests {
             &crate::substrate_gate_coordinator_implementation_grant(
                 "substrate-grant-reused".to_string(),
                 "hands-job-reused".to_string(),
-                vec![".".to_string()],
+                vec!["new.rs".to_string(), "old.rs".to_string()],
                 "2026-06-13T00:00:00Z".to_string(),
             ),
         )?;
@@ -5052,6 +7490,7 @@ mod tests {
             "2026-06-13T00:00:02Z".to_string(),
         );
         put_hands_action_review(&store, &review)?;
+        admit_route_and_authorize_hands(&store, &intent, &review, "reused")?;
 
         put_hands_patch_receipt(
             &store,

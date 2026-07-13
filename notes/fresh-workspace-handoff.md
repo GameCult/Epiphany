@@ -27,6 +27,14 @@ roadmap mythology, and Self preserved dependency order without flattening those
 different judgments into one running narrative. This is positive evidence for
 durable organ-to-organ cognition, not merely for role-flavored prompting.
 
+Do not substitute the first linear frontier identity proof for that larger
+lesson. `Modeling -> Mind -> Self -> Hands -> Soul -> Modeling` proves that one
+wound can retain causal identity. The awakened anatomy also needs typed backward
+pressure: Eyes findings that challenge model claims, Imagination revisions that
+change campaign shape, Soul rejections that create new evidence requirements,
+and Self rerouting based on those admitted artifacts. Modeling is the shared
+situational substrate, not the whole organism and not the product.
+
 Persistence is the connective-tissue gap exposed by that success. Modeling's
 repo anatomy, confirmed/changed/invalidated claims, freshness, frontier, and
 semantic-index consequences must live in typed searchable state; Self must route
@@ -44,14 +52,44 @@ or lost to concurrent valid patches: CultCache now provides exact-envelope CAS
 and insert-if-absent beneath its cross-process sidecar lock, with hostile race
 proofs. Soul rejected two earlier cuts before accepting this authority boundary.
 
-Do not call this the complete Aetheria loop. Modeling worker output still cannot
-carry a reviewed `RepoModelPatch`; Mind has no model-admission receipt binding
-patch/result/evidence; Self does not select and bind one frontier identity into a
-Hands grant; Hands consequences and Soul verdicts do not yet carry that same
-model revision/hash/item identity; and Modeling therefore cannot close exactly
-the wound Soul judged. The next cut is that closed identity chain, not more index
-polish: `Modeling patch -> Mind admission -> Self route F -> Hands consequence F
--> Soul verdict F -> Modeling resolves F`.
+The first causal-identity slice of that Aetheria loop is now closed. Modeling
+emits a typed `RepoModelPatch`; Mind admits the exact immutable worker result,
+patch bytes, evidence, review, and replacement model under one conditional
+store transaction; Self selects one eligible Active frontier item from the
+admitted current model; and the resulting route freezes model revision/hash,
+item hash, claims, dependency order, and path scope. Hands intent, review,
+Substrate grant, frontier authority, patch, command, and commit documents are
+immutable insert-once records. Soul receives a typed verification request bound
+to that complete chain. A later typed Modeling request binds the accepted Soul
+result and permits exactly one verdict-incorporation revision of the same item:
+`pass` yields `Resolved`; `needs-review`, `needs-evidence`, or `fail` yields
+`Blocked`. Self derives Hands readiness from the same selection predicate, so
+Blocked/Resolved items cannot be routed and no default implementation authority
+survives without an admitted actionable frontier.
+
+Soul found and forced cuts of four plausible green bypasses before accepting
+the slice: ordinary Evolution could mutate routed frontier lifecycle; Hands
+receipts and their intent/review/grant foundation were mutable by identity; the
+Modeling request trusted caller-supplied temporal acceptance; and a split model
+admission/thread-state commit could wedge on retry. Evolution is now barred
+while a current-model route exists and cannot manufacture Blocked or terminal
+frontier lifecycle. Every causal companion uses absent-only cross-process CAS
+with exact retry. Final verdict admission replays the full authority and
+consequence chain immediately before the model CAS. Verification acceptance is
+reloaded from canonical thread state, and stable review identity makes the
+split commit recoverable. Hostile substitution, stale-model, counterfeit,
+concurrent-writer, crash-window retry, pass/nonpass, and nonselection tests are
+green; the full core library proof is 303 passed and 1 ignored.
+
+This is still not the whole Aetheria lesson. It proves durable causal identity
+and backward Soul pressure, not the complete multi-organ correction ecology.
+Eyes challenges and Imagination campaign revisions still need typed admission
+and Self routes. The older `RepoWorkModelingRequest/Route/Finding` path is also
+misnamed parallel closure machinery: it models one already-executed work item,
+not repository anatomy. Preserve useful plan/execute receipts, but converge
+that workflow on canonical RepoFrontier route/Hands/Soul/Modeling authority and
+demote `RepoWorkMapEntry` to derived closure history. Do not let item-slug routes
+or the legacy special Modeling worker close work independently of RepoModel.
 
 The next artifact-contract audit then cut `epiphany.persona_chat.v0`: its live
 writer and catalog had disagreed on field vocabulary, evidence fields, and

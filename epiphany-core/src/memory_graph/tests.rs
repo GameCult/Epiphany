@@ -169,6 +169,7 @@ fn patch_for(
     operations: Vec<RepoModelPatchOperation>,
 ) -> RepoModelPatch {
     RepoModelPatch {
+        purpose: RepoModelPatchPurpose::Evolution,
         patch_id: "patch-1".to_string(),
         base_revision: snapshot.model_revision,
         base_hash: memory_graph_model_hash(snapshot).expect("model hash"),
@@ -872,6 +873,7 @@ fn repo_model_patch_cross_process_worker() -> Result<()> {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     let patch = RepoModelPatch {
+        purpose: RepoModelPatchPurpose::Evolution,
         patch_id: format!("cross-process-{id}"),
         base_revision: 0,
         base_hash,

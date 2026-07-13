@@ -11,8 +11,14 @@ pub const SOUL_REVIEW_RECEIPT_TYPE: &str = "epiphany.soul.review_receipt";
 pub const SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE: &str =
     "epiphany.soul.verification_refusal_receipt";
 pub const SOUL_VERIFICATION_REQUEST_SCHEMA_VERSION: &str = "epiphany.soul.verification_request.v0";
+pub const REPO_FRONTIER_VERIFICATION_REQUEST_TYPE: &str =
+    "epiphany.soul.repo_frontier_verification_request";
+pub const REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION: &str =
+    "epiphany.soul.repo_frontier_verification_request.v0";
+pub const REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT: &str =
+    "epiphany.repo_frontier_verification_request.v0";
 pub const SOUL_INVARIANT_CHECK_SCHEMA_VERSION: &str = "epiphany.soul.invariant_check.v0";
-pub const SOUL_VERDICT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.verdict_receipt.v0";
+pub const SOUL_VERDICT_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.verdict_receipt.v1";
 pub const SOUL_REGRESSION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.regression_receipt.v0";
 pub const SOUL_REVIEW_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.review_receipt.v0";
 pub const SOUL_VERIFICATION_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
@@ -40,6 +46,46 @@ pub struct SoulVerdictReceipt {
     #[cultcache(key = 8)]
     pub emitted_at: String,
     #[cultcache(key = 9)]
+    pub contract: String,
+    #[cultcache(key = 10, default)]
+    pub verification_request_id: String,
+    #[cultcache(key = 11, default)]
+    pub frontier_route_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.soul.repo_frontier_verification_request",
+    schema = "RepoFrontierVerificationRequest"
+)]
+pub struct RepoFrontierVerificationRequest {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub request_id: String,
+    #[cultcache(key = 2)]
+    pub route_id: String,
+    #[cultcache(key = 3)]
+    pub model_revision: u64,
+    #[cultcache(key = 4)]
+    pub model_hash: String,
+    #[cultcache(key = 5)]
+    pub frontier_item_id: String,
+    #[cultcache(key = 6)]
+    pub frontier_item_hash: String,
+    #[cultcache(key = 7)]
+    pub hands_intent_id: String,
+    #[cultcache(key = 8)]
+    pub hands_review_id: String,
+    #[cultcache(key = 9)]
+    pub hands_patch_receipt_id: String,
+    #[cultcache(key = 10)]
+    pub hands_command_receipt_id: String,
+    #[cultcache(key = 11)]
+    pub hands_commit_receipt_id: String,
+    #[cultcache(key = 12)]
+    pub requested_at: String,
+    #[cultcache(key = 13)]
     pub contract: String,
 }
 
@@ -154,6 +200,8 @@ pub fn soul_verdict_receipt_from_verification_finding(
         risks: finding.risks.clone(),
         emitted_at,
         contract: "Soul verdict emitted from a reviewed Verification lane finding; it is proof of verification judgment before Mind admission.".to_string(),
+        verification_request_id: finding.verification_request_id.clone().unwrap_or_default(),
+        frontier_route_id: finding.frontier_route_id.clone().unwrap_or_default(),
     }
 }
 
@@ -202,10 +250,13 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             state_patch: None,
+            repo_model_patch: None,
             self_patch: None,
             self_persistence: None,
             job_error: None,
             item_error: None,
+            verification_request_id: Some("verification-request-1".to_string()),
+            frontier_route_id: Some("frontier-route-1".to_string()),
         };
         let receipt = soul_verdict_receipt_from_verification_finding(
             "soul-verdict-1".to_string(),
@@ -214,5 +265,7 @@ mod tests {
         );
         assert_eq!(receipt.verdict, "passed");
         assert!(receipt.evidence_ids.contains(&"ev-check".to_string()));
+        assert_eq!(receipt.verification_request_id, "verification-request-1");
+        assert_eq!(receipt.frontier_route_id, "frontier-route-1");
     }
 }

@@ -28,6 +28,7 @@ pub use epiphany_state_model::RepoFrontierItem;
 pub use epiphany_state_model::RepoFrontierStatus;
 pub use epiphany_state_model::RepoModelPatch;
 pub use epiphany_state_model::RepoModelPatchOperation;
+pub use epiphany_state_model::RepoModelPatchPurpose;
 
 pub use compose::compose_memory_graph_snapshots;
 pub use context_cut::plan_memory_graph_context_cut;
@@ -44,7 +45,9 @@ pub use store::EpiphanyMemoryGraphEntry;
 pub use store::MEMORY_GRAPH_KEY;
 pub use store::MEMORY_GRAPH_SCHEMA_VERSION;
 pub use store::MEMORY_GRAPH_TYPE;
-pub use store::apply_repo_model_patch;
+#[cfg(test)]
+pub(crate) use store::apply_repo_model_patch;
+pub use store::derive_repo_model_patch;
 pub use store::load_memory_graph_entry;
 pub use store::load_memory_graph_snapshot;
 pub use store::memory_graph_cache;

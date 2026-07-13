@@ -804,6 +804,7 @@ mod tests {
         });
         ready.wait();
         let patch = crate::memory_graph::RepoModelPatch {
+            purpose: crate::memory_graph::RepoModelPatchPurpose::Evolution,
             patch_id: "canonical-wins-refresh-race".to_string(),
             base_revision: 0,
             base_hash: crate::memory_graph::memory_graph_model_hash(&legacy)?,
