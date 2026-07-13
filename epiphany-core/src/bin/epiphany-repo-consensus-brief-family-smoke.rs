@@ -242,9 +242,10 @@ fn run_smoke(args: Args) -> Result<Value> {
         &["intakeConsensus", "schemaVersion"],
         "epiphany.repo_work_intake_consensus_readback.v0",
     )?;
+    require_eq(&overview, &["intakeConsensus", "owner"], "Self")?;
     require_eq(
         &overview,
-        &["intakeConsensus", "owner"],
+        &["intakeConsensus", "handoffRoute"],
         "Persona->Imagination",
     )?;
     require_eq(

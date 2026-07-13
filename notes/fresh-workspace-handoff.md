@@ -503,3 +503,9 @@ Soul owns redaction and readiness sight; Maintainer owns readiness approval;
 Bifrost owns publication review; the four required reviewers are an explicit
 list. Next cut arrow-shaped handoffs such as `Persona->Imagination` out of owner
 fields and preserve them only as routes.
+
+Arrow-shaped owner values are now gone. Self owns intake-consensus readback and
+publishes the Persona-to-Imagination handoff separately; feedback ledger rows
+use their source Persona id; Bifrost owns consensus accounting. Continue the
+conceptual-substitution scan beyond owner strings: look for status, route,
+receipt, or cache fields that borrow consequence authority from another organ.

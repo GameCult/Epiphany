@@ -1382,3 +1382,10 @@ publication-review ownership. The report still grants none of those effects.
 The next projection scar is arrow-shaped handoff text stored in `owner`, notably
 `Persona->Imagination` in intake/accounting rows. A route is not an owner. Trace
 the document producer and carry the handoff in its route field.
+
+The arrow-owner substitution is cut. Self owns the intake-consensus readback
+and it now carries `handoffRoute=Persona->Imagination`. Collaboration feedback
+ledger rows name the actual source Persona id as owner and retain the requested
+Imagination consensus route. Bifrost owns collaboration-consensus accounting;
+the Persona-to-Imagination chain is what Bifrost observes, not who Bifrost is.
+Production source now contains no arrow-shaped owner value.

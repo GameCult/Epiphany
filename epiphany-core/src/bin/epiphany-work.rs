@@ -9768,7 +9768,8 @@ fn run_overview(args: OverviewArgs) -> Result<Value> {
         .unwrap_or(false);
     let intake_consensus_readback = json!({
         "schemaVersion": "epiphany.repo_work_intake_consensus_readback.v0",
-        "owner": "Persona->Imagination",
+        "owner": "Self",
+        "handoffRoute": "Persona->Imagination",
         "item": item,
         "feedbackId": feedback_id,
         "consensusReceiptId": consensus_receipt_id,

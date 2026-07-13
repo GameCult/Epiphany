@@ -7814,7 +7814,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "collaboration-feedback".to_string(),
-                owner: "Persona->Imagination".to_string(),
+                owner: feedback.source_persona_id.clone(),
                 id: feedback.feedback_id.clone(),
                 status: "queued-for-imagination".to_string(),
                 route: feedback.requested_consensus_route.clone(),
@@ -8117,7 +8117,7 @@ fn bifrost_accounting_rows(
         &mut tui_rows,
         BifrostAccountingRow {
             lane: "collaboration-consensus".to_string(),
-            owner: "Persona->Imagination".to_string(),
+            owner: "Bifrost".to_string(),
             status: bifrost_accounting_status(
                 collaboration_closed,
                 arrival_latest_feedback.is_some() || latest_consensus.is_some(),
