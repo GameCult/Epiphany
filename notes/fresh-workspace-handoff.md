@@ -381,6 +381,14 @@ gone; 1,393 source lines were removed without an adapter. No production source
 references remain. Direct inventory now reports 183 substring occurrences
 across twelve families.
 
+Collaboration policy/topic no longer pretend deterministic repo files are live
+Persona/Eve contracts. Imagination authors proposals; Persona owns discussion;
+Persona/Mind review policy; Mind admits it; Bifrost publishes. Requested public
+room and Eve surface ids remain unpublished until provider receipts exist, and
+downstream rendering is explicitly irrelevant. A new typed collaboration
+closure domain protects both families. Twenty-two high-authority families are
+typed; direct inventory reports 124 substring occurrences across ten families.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment

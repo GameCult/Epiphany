@@ -2727,6 +2727,13 @@ fn derive_repo_manifest_plan(
         format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
         format!("public_discussion_refs = {}", toml_array(&public_refs)),
         String::new(),
+        "[policy]".to_string(),
+        "status = \"proposed\"".to_string(),
+        "authoring_owner = \"Imagination\"".to_string(),
+        "required_reviewers = [\"Persona\", \"Mind\"]".to_string(),
+        "policy_admitted = false".to_string(),
+        "publication_owner = \"Bifrost\"".to_string(),
+        String::new(),
         "[body]".to_string(),
         format!("domain = {}", toml_basic_string(&body_domain)),
         "authority_owner = \"Epiphany Self\"".to_string(),
@@ -3319,8 +3326,15 @@ fn derive_repo_collaboration_topic_plan(
         String::new(),
         "[topic]".to_string(),
         format!("id = {}", toml_basic_string(&topic_id)),
-        format!("public_room = {}", toml_basic_string(&public_room)),
-        format!("eve_surface = {}", toml_basic_string(&eve_surface)),
+        "status = \"proposed\"".to_string(),
+        "authoring_owner = \"Imagination\"".to_string(),
+        "discussion_owner = \"Persona\"".to_string(),
+        "publication_owner = \"Bifrost\"".to_string(),
+        format!("requested_public_room = {}", toml_basic_string(&public_room)),
+        format!("requested_eve_surface = {}", toml_basic_string(&eve_surface)),
+        "public_room_published = false".to_string(),
+        "eve_surface_published = false".to_string(),
+        "provider_receipt_required = true".to_string(),
         "persona_discussion_allowed = true".to_string(),
         "human_discussion_allowed = true".to_string(),
         "agent_friendly_tui = true".to_string(),
@@ -6529,152 +6543,137 @@ fn closure_family_assertions(
             );
         }
         "repo.collaboration_policy" => {
+            let policy = parse_repo_collaboration_policy(&content).ok();
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-schema-present",
-                content.contains("schema_version = \"epiphany.repo_collaboration_policy.v0\""),
+                policy
+                    .as_ref()
+                    .is_some_and(RepoCollaborationPolicy::has_canonical_identity),
                 "Committed collaboration policy carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-family-present",
-                content.contains("safe_action_family = \"repo.collaboration_policy\""),
+                policy
+                    .as_ref()
+                    .is_some_and(RepoCollaborationPolicy::has_canonical_identity),
                 "Committed collaboration policy carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-summary-present",
-                content.contains(&compact_summary),
+                policy
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed collaboration policy contains the accepted pressure summary."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-body-truth",
-                content.contains("[body]")
-                    && content.contains("provider_owns_truth = true")
-                    && content.contains("renderer_owns_truth = false"),
+                policy
+                    .as_ref()
+                    .is_some_and(RepoCollaborationPolicy::preserves_provider_truth)
+                    && policy
+                        .as_ref()
+                        .is_some_and(RepoCollaborationPolicy::remains_proposal),
                 "Committed collaboration policy preserves provider ownership.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-verse-boundaries",
-                content.contains("[verses]")
-                    && content.contains("private = \"epiphany-internal\"")
-                    && content.contains("local = \"gamecult-local\"")
-                    && content.contains("public = \"epiphany-global\"")
-                    && content.contains("private_state_may_leave_repo = false")
-                    && content.contains("odin_discoverable = true"),
+                policy.as_ref().is_some_and(RepoCollaborationPolicy::has_verse_boundaries),
                 "Committed collaboration policy names private/local/public Verse boundaries and Odin discovery.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-eve-connection",
-                content.contains("[eve]")
-                    && content.contains("surface = \"eve://epiphany/repo/")
-                    && content.contains("compact_tui_required = true")
-                    && content.contains("connection_receipt_required = true")
-                    && content.contains("\"submit-feedback\""),
+                policy
+                    .as_ref()
+                    .is_some_and(RepoCollaborationPolicy::has_eve_request),
                 "Committed collaboration policy names the Eve connection contract.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-persona-feedback",
-                content.contains("[persona]")
-                    && content.contains("public_discussion_allowed = true")
-                    && content.contains("human_discussion_allowed = true")
-                    && content.contains("peer_persona_discussion_allowed = true")
-                    && content.contains("speech_audit_required = true")
-                    && content.contains("feedback_must_route_to_imagination = true"),
+                policy.as_ref().is_some_and(RepoCollaborationPolicy::has_persona_route),
                 "Committed collaboration policy routes Persona/human/peer feedback through audited public discussion.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-imagination-route",
-                content.contains("[imagination]")
-                    && content.contains("feedback_route = \"imagination://repo/")
-                    && content.contains("consensus_required_before_adoption = true")
-                    && content.contains("candidate_actions_non_authoritative = true")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("bifrost_publication_required = true"),
+                policy.as_ref().is_some_and(RepoCollaborationPolicy::has_imagination_route),
                 "Committed collaboration policy routes feedback to Imagination before Mind/Bifrost gates.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("direct_hands_authority = false")
-                    && content.contains("direct_mind_state_commit = false")
-                    && content.contains("direct_publication_authority = false")
-                    && content.contains("direct_merge_authority = false")
-                    && content.contains("service_lifecycle_authority = false")
-                    && content.contains("cross_body_mutation_authority = false")
-                    && content.contains("private_verse_rummaging = false")
-                    && content.contains("requires_cultmesh_receipts = true"),
+                policy.as_ref().is_some_and(RepoCollaborationPolicy::has_authority_seals),
                 "Committed collaboration policy denies direct action/state/publication/service/cross-body authority.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-policy-private-seal",
-                content.contains("private_state_exposed = false"),
+                policy
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed collaboration policy preserves the private-state seal.".to_string(),
             );
         }
         "repo.collaboration_topic" => {
+            let topic = parse_repo_collaboration_topic(&content).ok();
             push_assertion(
                 &mut assertions,
                 "collaboration-topic-schema-present",
-                content.contains("schema_version = \"epiphany.repo_collaboration_topic.v0\""),
+                topic
+                    .as_ref()
+                    .is_some_and(RepoCollaborationTopic::has_canonical_identity),
                 "Committed collaboration topic carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-topic-family-present",
-                content.contains("safe_action_family = \"repo.collaboration_topic\""),
+                topic
+                    .as_ref()
+                    .is_some_and(RepoCollaborationTopic::has_canonical_identity),
                 "Committed collaboration topic carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-topic-summary-present",
-                content.contains(&compact_summary),
+                topic
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed collaboration topic contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-topic-public-surface",
-                content.contains("[topic]")
-                    && content.contains("public_room = \"epiphany-global/persona-collaboration/")
-                    && content.contains("eve_surface = \"eve://epiphany/repo/")
-                    && content.contains("persona_discussion_allowed = true")
-                    && content.contains("human_discussion_allowed = true"),
+                topic
+                    .as_ref()
+                    .is_some_and(RepoCollaborationTopic::remains_unpublished_proposal),
                 "Committed collaboration topic names public discussion and Eve surfaces."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-topic-imagination-route",
-                content.contains("[imagination]")
-                    && content.contains("consensus_route = \"imagination://repo/")
-                    && content.contains("consensus_required_before_action = true")
-                    && content.contains("candidate_actions_are_non_authoritative = true")
-                    && content.contains("mind_adoption_required = true"),
+                topic.as_ref().is_some_and(RepoCollaborationTopic::has_imagination_route),
                 "Committed collaboration topic routes feedback to Imagination consensus before adoption.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-topic-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("adoption_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("private_verse_rummaging = false"),
+                topic.as_ref().is_some_and(RepoCollaborationTopic::has_authority_seals),
                 "Committed collaboration topic denies action, publication, cross-body, and private-rummaging authority.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "collaboration-topic-private-seal",
-                content.contains("private_state_exposed = false"),
+                topic
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed collaboration topic preserves the private-state seal.".to_string(),
             );
         }
@@ -14533,6 +14532,8 @@ idunn_deployment_authority_required = true
             "repo.sync_request",
             "repo.pr_request",
             "repo.maintainer_review_request",
+            "repo.collaboration_policy",
+            "repo.collaboration_topic",
             "repo.consensus_brief",
             "repo.interpreter_brief",
             "repo.objective_draft",

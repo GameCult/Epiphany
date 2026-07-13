@@ -1176,6 +1176,24 @@ adapter.
 Direct source inventory now reports 183 substring occurrences across twelve
 remaining families.
 
+## Repo proposal as live Persona/Eve contract
+
+Deterministic Imagination lowering emitted `repo.collaboration_policy` as
+collaboration law and `repo.collaboration_topic` with `public_room` and
+`eve_surface` fields that looked live despite no provider/publication receipt.
+The contracts now state the real boundary. Imagination authors proposals;
+Persona owns discussion; Persona and Mind review policy; Mind admits repo
+policy; Bifrost publishes. Topic fields are requested room/surface identifiers,
+both publication flags remain false, and a provider receipt is required.
+Downstream Eve/TUI/GUI composition is not an Epiphany concern.
+
+A physical collaboration closure domain parses both proposals and their
+authority seals. The malicious fixture proves a commented unpublished flag
+cannot conceal a live publication claim.
+
+Twenty-two high-authority closure families are typed. Direct source inventory
+now reports 124 substring occurrences across ten remaining families.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

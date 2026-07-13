@@ -208,11 +208,11 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&topic_text, "[topic]")?;
     require_text(
         &topic_text,
-        "public_room = \"epiphany-global/persona-collaboration/repo-collaboration-topic-family\"",
+        "requested_public_room = \"epiphany-global/persona-collaboration/repo-collaboration-topic-family\"",
     )?;
     require_text(
         &topic_text,
-        "eve_surface = \"eve://epiphany/repo/repo-collaboration-topic-family/collaboration\"",
+        "requested_eve_surface = \"eve://epiphany/repo/repo-collaboration-topic-family/collaboration\"",
     )?;
     require_text(&topic_text, "persona_discussion_allowed = true")?;
     require_text(&topic_text, "human_discussion_allowed = true")?;
