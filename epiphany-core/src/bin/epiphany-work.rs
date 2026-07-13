@@ -5763,6 +5763,15 @@ fn closure_family_assertions(
     }
     let safe_family = string_from_json(&plan_receipt, &["derivation", "safeActionFamily"])
         .unwrap_or_else(|| "manual-or-unknown".to_string());
+    let presentation_only = matches!(
+        safe_family.as_str(),
+        "repo.append_worklog"
+            | "repo.markdown_planning_note"
+            | "repo.checklist_note"
+            | "repo.markdown_managed_section"
+            | "repo.status_section"
+            | "repo.task_card"
+    );
     let target_paths = first_plan_action(&plan_receipt)
         .map(|action| string_array_field(action, "changedPaths"))
         .unwrap_or_else(|| string_array_from_json(execute_receipt, &["changedPaths"]));
@@ -5782,7 +5791,6 @@ fn closure_family_assertions(
         .or_else(|| string_from_json(&plan_receipt, &["objective"]))
         .unwrap_or_else(|| item.to_string());
     let compact_summary = compact_line(&summary);
-    let item_slug = sanitize(item);
     let committed_content = read_committed_file(workspace, commit_sha, &target_path)?;
     let mut assertions = Vec::new();
     push_assertion(
@@ -5793,122 +5801,17 @@ fn closure_family_assertions(
     );
     let content = committed_content.unwrap_or_default();
     match safe_family.as_str() {
-        "repo.append_worklog" => {
+        "repo.append_worklog"
+        | "repo.markdown_planning_note"
+        | "repo.checklist_note"
+        | "repo.markdown_managed_section"
+        | "repo.status_section"
+        | "repo.task_card" => {
             push_assertion(
                 &mut assertions,
-                "worklog-summary-present",
-                content.contains(&compact_summary),
-                "Committed worklog contains the accepted pressure summary.".to_string(),
-            );
-        }
-        "repo.markdown_planning_note" => {
-            push_assertion(
-                &mut assertions,
-                "planning-summary-present",
-                content.contains(&compact_summary),
-                "Committed planning note contains the accepted pressure summary.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "planning-authority-seal-present",
-                content.contains("Authority seal"),
-                "Committed planning note carries an authority seal.".to_string(),
-            );
-        }
-        "repo.checklist_note" => {
-            push_assertion(
-                &mut assertions,
-                "checklist-summary-present",
-                content.contains(&compact_summary),
-                "Committed checklist contains the accepted pressure summary.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "checklist-items-present",
-                content.contains("- [ ]"),
-                "Committed checklist carries branch-local checklist items.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "checklist-authority-present",
-                content.contains("Authority"),
-                "Committed checklist carries an authority section.".to_string(),
-            );
-        }
-        "repo.markdown_managed_section" => {
-            let start_marker = format!("<!-- epiphany-section:{item_slug}:start -->");
-            let end_marker = format!("<!-- epiphany-section:{item_slug}:end -->");
-            push_assertion(
-                &mut assertions,
-                "managed-section-start-marker",
-                content.contains(&start_marker),
-                "Committed managed section contains its start marker.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "managed-section-end-marker",
-                content.contains(&end_marker),
-                "Committed managed section contains its end marker.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "managed-section-summary-present",
-                content.contains(&compact_summary),
-                "Committed managed section contains the accepted pressure summary.".to_string(),
-            );
-        }
-        "repo.status_section" => {
-            let start_marker = format!("<!-- epiphany-status:{item_slug}:start -->");
-            let end_marker = format!("<!-- epiphany-status:{item_slug}:end -->");
-            push_assertion(
-                &mut assertions,
-                "status-section-start-marker",
-                content.contains(&start_marker),
-                "Committed repo status section contains its start marker.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "status-section-end-marker",
-                content.contains(&end_marker),
-                "Committed repo status section contains its end marker.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "status-section-summary-present",
-                content.contains(&compact_summary),
-                "Committed repo status section contains the accepted pressure summary.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "status-section-private-seal",
-                content.contains("Private state exposed: false"),
-                "Committed repo status section preserves the private-state seal.".to_string(),
-            );
-        }
-        "repo.task_card" => {
-            push_assertion(
-                &mut assertions,
-                "task-card-schema-present",
-                content.contains("schema_version = \"epiphany.repo_work_task_card.v0\""),
-                "Committed task card carries the task-card schema version.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "task-card-family-present",
-                content.contains("safe_action_family = \"repo.task_card\""),
-                "Committed task card carries the task-card safe family.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "task-card-summary-present",
-                content.contains(&compact_summary),
-                "Committed task card contains the accepted pressure summary.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "task-card-private-seal",
-                content.contains("private_state_exposed = false"),
-                "Committed task card preserves the private-state seal.".to_string(),
+                "presentation-only-family",
+                true,
+                "Presentation formatting carries no closure authority; committed target/path evidence remains authoritative.".to_string(),
             );
         }
         "repo.tool_request" => {
@@ -7578,6 +7481,7 @@ fn closure_family_assertions(
         json!({
             "status": if passed { "passed" } else { "failed" },
             "safeActionFamily": safe_family,
+            "presentationOnly": presentation_only,
             "targetPath": target_path,
             "planReceiptPath": plan_receipt_path,
             "assertions": assertions
@@ -13968,6 +13872,22 @@ idunn_deployment_authority_required = true
                 "{family} closure regained substring authority"
             );
         }
+    }
+
+    #[test]
+    fn closure_has_no_substring_authority() {
+        let source = include_str!("epiphany-work.rs");
+        let start = source
+            .find("fn closure_family_assertions(")
+            .expect("closure start");
+        let end = source[start..]
+            .find("fn push_assertion(")
+            .map(|offset| start + offset)
+            .expect("closure end");
+        assert!(
+            !source[start..end].contains("content.contains"),
+            "closure regained presentation substring authority"
+        );
     }
 
     #[test]

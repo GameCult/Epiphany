@@ -1245,6 +1245,19 @@ All remaining substring-backed families are presentation-only. Direct source
 inventory is 17 occurrences across worklog, planning/checklist notes,
 managed/status sections, and task cards.
 
+## Presentation formatting as Soul closure truth
+
+The final six families checked summaries, headings, markers, checkboxes, and
+TOML labels with substring assertions. Those are renderer/content concerns,
+not authority. Common closure already proves the recorded target blob exists at
+the claimed commit and path. The six branches are collapsed into an explicit
+`presentationOnly=true` classification; formatting carries no closure
+authority. A whole-function regression test proves `closure_family_assertions`
+contains zero `content.contains` calls.
+
+The closure conceptual-substitution pass is complete: zero substring authority
+remains in closure.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

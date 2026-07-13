@@ -412,6 +412,12 @@ doctrine state, and Hands mutates `AGENTS.md` under receipts. Typed operations
 closure and a counterfeit-Hands fixture protect the chain. The remaining
 source inventory is 17 occurrences across six presentation families.
 
+The six presentation families are now explicitly `presentationOnly=true` and
+share no formatting assertions. Common commit/path/blob evidence remains the
+closure proof; summaries, headings, markers, and checkboxes no longer
+impersonate Soul authority. A whole-function regression test proves zero
+`content.contains` calls remain in closure.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment
