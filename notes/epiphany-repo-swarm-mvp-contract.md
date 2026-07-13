@@ -297,11 +297,6 @@ operator-safe status section in the repo Body, defaulting to `README.md`; and
 `--action-family repo-manifest` writes a structured Epiphany Body manifest,
 defaulting to `epiphany.toml`, with body domain, private/local/public Verse ids,
 Eve surface id, capability hints, and authority seals; and
-`--action-family repo-tool-capabilities` writes a structured repo tool
-capability manifest, defaulting to `.epiphany/repo-tool-capabilities.toml`,
-with local CultMesh/Odin discovery flags, typed daemon tool invocation
-intent/receipt contracts, expected repo-swarm capability ids, host-daemon
-execution ownership, Idunn lifecycle ownership, and authority seals; and
 `--action-family repo-tool-request` writes a structured daemon-hosted tool
 request under `.epiphany/tool-requests/<item>.toml`, naming the local
 CultMesh/Odin tool directory, selected daemon capability, typed invocation

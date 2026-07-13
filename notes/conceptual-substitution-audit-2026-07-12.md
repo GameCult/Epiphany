@@ -1194,6 +1194,23 @@ cannot conceal a live publication claim.
 Twenty-two high-authority closure families are typed. Direct source inventory
 now reports 124 substring occurrences across ten remaining families.
 
+## Expected tool and Eve catalogs as provider publication
+
+`repo.tool_capabilities` marked a deterministic list of four expected tools as
+Odin-discoverable and available without a host advertisement.
+`repo.eve_surface` invented a surface URI, row catalog, lowering targets, and
+Odin discovery without a provider-published composition graph. Both duplicated
+real typed provider paths already present in the machine.
+
+Both safe families are deleted end to end: dispatch, generators, closure arms,
+Verse classification, CLI help, and their 395/382-line dedicated smokes. The
+cut removed 1,188 source lines without adapters. `repo.tool_request`, host
+receipts, Odin discovery, Eve connection receipts, and provider-owned surface
+publication remain the live paths. Downstream composition remains downstream.
+
+Direct source inventory now reports 71 substring occurrences across eight
+remaining families.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

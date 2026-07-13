@@ -389,6 +389,14 @@ downstream rendering is explicitly irrelevant. A new typed collaboration
 closure domain protects both families. Twenty-two high-authority families are
 typed; direct inventory reports 124 substring occurrences across ten families.
 
+The fake provider catalogs are deleted. `repo.tool_capabilities` advertised
+expected tools without a host receipt; `repo.eve_surface` invented a live
+surface/rows/lowering catalog without provider publication. Dispatch,
+generators, closure, Verse classification, CLI help, and both dedicated smokes
+are gone—1,188 source lines, no adapters. Real tool requests/host receipts,
+Odin discovery, Eve connection receipts, and provider-owned composition remain.
+Direct inventory is 71 occurrences across eight families.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment

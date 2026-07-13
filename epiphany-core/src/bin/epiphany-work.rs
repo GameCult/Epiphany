@@ -2202,16 +2202,10 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         "repo-manifest" | "body-manifest" | "epiphany-manifest" => {
             derive_repo_manifest_plan(input, &action_family)
         }
-        "repo-tool-capabilities" | "tool-capabilities" | "capability-manifest" => {
-            derive_repo_tool_capabilities_plan(input, &action_family)
-        }
         "repo-tool-request"
         | "tool-request"
         | "daemon-tool-request"
         | "repo-daemon-tool-request" => derive_repo_tool_request_plan(input, &action_family),
-        "repo-eve-surface" | "eve-surface" | "cultui-surface" | "tui-surface" => {
-            derive_repo_eve_surface_plan(input, &action_family)
-        }
         "repo-collaboration-policy" | "collaboration-policy" | "repo-collab-policy" => {
             derive_repo_collaboration_policy_plan(input, &action_family)
         }
@@ -2289,7 +2283,7 @@ fn derive_safe_plan_family(input: DeriveSafePlanInput<'_>) -> Result<DerivedSafe
         | "idunn-deployment-request"
         | "repo-deploy-request" => derive_repo_deployment_request_plan(input, &action_family),
         other => Err(anyhow!(
-            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-capabilities, repo-tool-request, repo-eve-surface, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-interpreter-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-readiness-review-request, repo-doctrine-update-request, repo-secret-policy-request, repo-dependency-policy-request, repo-deployment-config, and repo-deployment-request"
+            "unsupported derive-plan action family {other:?}; supported families are append-worklog, planning-note, checklist-note, section-note, repo-status-section, task-card, repo-manifest, repo-tool-request, repo-collaboration-policy, repo-collaboration-topic, repo-consensus-brief, repo-interpreter-brief, repo-objective-draft, repo-adoption-request, repo-scheduling-request, repo-work-order, repo-verification-request, repo-publication-request, repo-sync-request, repo-maintainer-review-request, repo-pr-request, repo-credit-request, repo-artifact-acceptance-request, repo-metrics-request, repo-readiness-review-request, repo-doctrine-update-request, repo-secret-policy-request, repo-dependency-policy-request, repo-deployment-config, and repo-deployment-request"
         )),
     }
 }
@@ -2792,126 +2786,6 @@ fn derive_repo_manifest_plan(
     })
 }
 
-fn derive_repo_tool_capabilities_plan(
-    input: DeriveSafePlanInput<'_>,
-    action_family: &str,
-) -> Result<DerivedSafePlan> {
-    let item_slug = sanitize(input.item);
-    let target_path = validate_toml_target_path(
-        input
-            .target_path
-            .unwrap_or(".epiphany/repo-tool-capabilities.toml"),
-    )?;
-    let candidate_refs =
-        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
-    let public_refs =
-        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
-    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let tool_surface_id = format!("epiphany.repo.{item_slug}.tool-capabilities");
-    let intent_contract = "epiphany.cultmesh.daemon_tool_invocation_intent.v0";
-    let receipt_contract = "epiphany.cultmesh.daemon_tool_invocation_receipt.v0";
-    let lines = vec![
-        "# Epiphany repo tool capability manifest.".to_string(),
-        "# Branch-local capability discovery cargo; the hosting daemon owns execution.".to_string(),
-        format!(
-            "schema_version = {}",
-            toml_basic_string("epiphany.repo_tool_capabilities.v0")
-        ),
-        format!("item = {}", toml_basic_string(input.item)),
-        format!("created_at = {}", toml_basic_string(&now)),
-        format!("source = {}", toml_basic_string(input.source)),
-        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
-        format!(
-            "safe_action_family = {}",
-            toml_basic_string("repo.tool_capabilities")
-        ),
-        format!("model_authored = {}", input.model_authored),
-        format!(
-            "model_ref = {}",
-            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
-        ),
-        "operator_authored_shell_details = false".to_string(),
-        "hands_authority_granted = false".to_string(),
-        "durable_state_admitted = false".to_string(),
-        "publication_authorized = false".to_string(),
-        "merge_authorized = false".to_string(),
-        "service_lifecycle_authority = false".to_string(),
-        "cross_repo_mutation = false".to_string(),
-        "private_state_exposed = false".to_string(),
-        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
-        format!("public_discussion_refs = {}", toml_array(&public_refs)),
-        String::new(),
-        "[tool_directory]".to_string(),
-        format!("surface_id = {}", toml_basic_string(&tool_surface_id)),
-        "verse = \"gamecult-local\"".to_string(),
-        "odin_discoverable = true".to_string(),
-        "available_to_authorized_agents = true".to_string(),
-        "agent_friendly_tui = true".to_string(),
-        String::new(),
-        "[contracts]".to_string(),
-        format!(
-            "intent = {}",
-            toml_basic_string(intent_contract)
-        ),
-        format!(
-            "receipt = {}",
-            toml_basic_string(receipt_contract)
-        ),
-        "requires_receipts = true".to_string(),
-        "host_daemon_owns_execution = true".to_string(),
-        "idunn_owns_lifecycle = true".to_string(),
-        String::new(),
-        "[expected_capabilities]".to_string(),
-        "ids = [".to_string(),
-        "  \"repo-work-overview\"," .to_string(),
-        "  \"repo-work-queue-run\"," .to_string(),
-        "  \"repo-work-public-proof\"," .to_string(),
-        "  \"bifrost-public-proof\"".to_string(),
-        "]".to_string(),
-        String::new(),
-        "[authority]".to_string(),
-        "arbitrary_shell_authority = false".to_string(),
-        "deployment_authority = false".to_string(),
-        "service_start_stop_authority = false".to_string(),
-        "private_verse_rummaging = false".to_string(),
-        "tool_invocation_requires_host_receipt = true".to_string(),
-        String::new(),
-        "[verification]".to_string(),
-        "asks = [".to_string(),
-        "  \"Soul verifies the capability manifest path changed and contains the accepted pressure summary.\"," .to_string(),
-        "  \"Soul verifies the manifest names tool intent and receipt contracts without granting execution authority.\"," .to_string(),
-        "  \"Soul verifies no paths outside the declared tool capability manifest changed.\"".to_string(),
-        "]".to_string(),
-        String::new(),
-        "[rollback]".to_string(),
-        "hints = [\"Remove the repo tool capability manifest if the accepted pressure was misderived.\"]".to_string(),
-        String::new(),
-    ];
-    let command = powershell_set_lines_command(&target_path, &lines);
-    Ok(DerivedSafePlan {
-        safe_action_family: "repo.tool_capabilities".to_string(),
-        target_path,
-        plan_summary: format!(
-            "Imagination derived a repo tool capability manifest from accepted {} pressure.",
-            input.source
-        ),
-        command,
-        commit_message: format!(
-            "Add repo tool capability manifest for work item {}",
-            input.item
-        ),
-        verification_asks: vec![
-            "Soul verifies the repo tool capability manifest path changed and contains the accepted pressure summary.".to_string(),
-            "Soul verifies the manifest advertises typed tool intent/receipt contracts while leaving execution with host daemons.".to_string(),
-            "Soul verifies no paths outside the declared capability manifest changed.".to_string(),
-        ],
-        rollback_hints: vec![
-            "Remove the generated repo tool capability manifest if the accepted pressure was misinterpreted.".to_string(),
-        ],
-        derivation: plan_derivation_receipt(input, action_family, "repo.tool_capabilities"),
-    })
-}
-
 fn derive_repo_tool_request_plan(
     input: DeriveSafePlanInput<'_>,
     action_family: &str,
@@ -3026,131 +2900,6 @@ fn derive_repo_tool_request_plan(
             "Remove the generated repo tool request if the accepted pressure was misinterpreted or targets the wrong daemon capability.".to_string(),
         ],
         derivation: plan_derivation_receipt(input, action_family, "repo.tool_request"),
-    })
-}
-
-fn derive_repo_eve_surface_plan(
-    input: DeriveSafePlanInput<'_>,
-    action_family: &str,
-) -> Result<DerivedSafePlan> {
-    let item_slug = sanitize(input.item);
-    let default_target = format!(".epiphany/eve-surfaces/{item_slug}.toml");
-    let target_path = validate_toml_target_path(input.target_path.unwrap_or(&default_target))?;
-    let candidate_refs =
-        string_array_from_json(input.accept_receipt, &["feedback", "candidateActionRefs"]);
-    let public_refs =
-        string_array_from_json(input.accept_receipt, &["feedback", "publicDiscussionRefs"]);
-    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let surface_id = format!("eve://epiphany/repo/{item_slug}/surface");
-    let local_verse_id = "gamecult-local";
-    let public_verse_id = "epiphany-global";
-    let owner = format!("repo:{item_slug}");
-    let lines = vec![
-        "# Epiphany repo Eve surface contract.".to_string(),
-        "# Branch-local CultUI projection cargo; not renderer ownership or private-state authority.".to_string(),
-        format!(
-            "schema_version = {}",
-            toml_basic_string("epiphany.repo_eve_surface.v0")
-        ),
-        format!("item = {}", toml_basic_string(input.item)),
-        format!("created_at = {}", toml_basic_string(&now)),
-        format!("source = {}", toml_basic_string(input.source)),
-        format!("summary = {}", toml_basic_string(&compact_line(input.summary))),
-        format!(
-            "safe_action_family = {}",
-            toml_basic_string("repo.eve_surface")
-        ),
-        format!("model_authored = {}", input.model_authored),
-        format!(
-            "model_ref = {}",
-            toml_basic_string(input.model_ref.unwrap_or("deterministic-fallback"))
-        ),
-        "operator_authored_shell_details = false".to_string(),
-        "hands_authority_granted = false".to_string(),
-        "durable_state_admitted = false".to_string(),
-        "publication_authorized = false".to_string(),
-        "merge_authorized = false".to_string(),
-        "service_lifecycle_authority = false".to_string(),
-        "cross_repo_mutation = false".to_string(),
-        "private_state_exposed = false".to_string(),
-        format!("candidate_action_refs = {}", toml_array(&candidate_refs)),
-        format!("public_discussion_refs = {}", toml_array(&public_refs)),
-        String::new(),
-        "[surface]".to_string(),
-        format!("id = {}", toml_basic_string(&surface_id)),
-        format!("owner_body = {}", toml_basic_string(&owner)),
-        "owner = \"repo Persona/Self\"".to_string(),
-        "renderer_owns_truth = false".to_string(),
-        "branch_local_only = true".to_string(),
-        String::new(),
-        "[verses]".to_string(),
-        format!("local = {}", toml_basic_string(local_verse_id)),
-        format!("public = {}", toml_basic_string(public_verse_id)),
-        "private_projection_allowed = false".to_string(),
-        "public_projection_allowed = true".to_string(),
-        "odin_discoverable = true".to_string(),
-        String::new(),
-        "[cultui]".to_string(),
-        "tui_contract = \"epiphany.eve.tui_surface.v0\"".to_string(),
-        "gui_contract = \"epiphany.eve.gui_surface.v0\"".to_string(),
-        "compact_agent_tui = true".to_string(),
-        "human_gui_lowering_allowed = true".to_string(),
-        "lowering_targets = [\"tui\", \"gui\", \"browser\", \"future-room\"]".to_string(),
-        String::new(),
-        "[rows]".to_string(),
-        "ids = [".to_string(),
-        "  \"repo-work-queue\"," .to_string(),
-        "  \"repo-work-next-action\"," .to_string(),
-        "  \"repo-public-proof\"," .to_string(),
-        "  \"persona-collaboration-topic\"".to_string(),
-        "]".to_string(),
-        String::new(),
-        "[collaboration]".to_string(),
-        "persona_discussion_allowed = true".to_string(),
-        "human_discussion_allowed = true".to_string(),
-        "feedback_routes_to_imagination = true".to_string(),
-        "candidate_actions_non_authoritative = true".to_string(),
-        "mind_adoption_required = true".to_string(),
-        String::new(),
-        "[authority]".to_string(),
-        "rendering_authority = false".to_string(),
-        "state_authority = false".to_string(),
-        "publication_authority = false".to_string(),
-        "service_lifecycle_authority = false".to_string(),
-        "cross_body_mutation_authority = false".to_string(),
-        "private_verse_rummaging = false".to_string(),
-        "requires_cultmesh_receipts = true".to_string(),
-        String::new(),
-        "[verification]".to_string(),
-        "asks = [".to_string(),
-        "  \"Soul verifies the Eve surface contract path changed and contains the accepted pressure summary.\",".to_string(),
-        "  \"Soul verifies the surface names CultUI TUI/GUI contracts, Verse routing, Odin discovery, and collaboration feedback routing without granting renderer or mutation authority.\",".to_string(),
-        "  \"Soul verifies no paths outside the declared Eve surface contract changed.\"".to_string(),
-        "]".to_string(),
-        String::new(),
-        "[rollback]".to_string(),
-        "hints = [\"Remove the repo Eve surface contract if the accepted pressure was misderived.\"]".to_string(),
-        String::new(),
-    ];
-    let command = powershell_set_lines_command(&target_path, &lines);
-    Ok(DerivedSafePlan {
-        safe_action_family: "repo.eve_surface".to_string(),
-        target_path,
-        plan_summary: format!(
-            "Imagination derived a repo Eve surface contract from accepted {} pressure.",
-            input.source
-        ),
-        command,
-        commit_message: format!("Add repo Eve surface contract for work item {}", input.item),
-        verification_asks: vec![
-            "Soul verifies the repo Eve surface contract path changed and contains the accepted pressure summary.".to_string(),
-            "Soul verifies the contract exposes compact TUI/GUI lowering through CultMesh/Odin while preserving provider ownership and private-state seals.".to_string(),
-            "Soul verifies no paths outside the declared Eve surface contract changed.".to_string(),
-        ],
-        rollback_hints: vec![
-            "Remove the generated repo Eve surface contract if the accepted pressure was misinterpreted.".to_string(),
-        ],
-        derivation: plan_derivation_receipt(input, action_family, "repo.eve_surface"),
     })
 }
 
@@ -6321,79 +6070,6 @@ fn closure_family_assertions(
                     .to_string(),
             );
         }
-        "repo.tool_capabilities" => {
-            push_assertion(
-                &mut assertions,
-                "tool-capabilities-schema-present",
-                content.contains("schema_version = \"epiphany.repo_tool_capabilities.v0\""),
-                "Committed tool capability manifest carries the schema version.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "tool-capabilities-family-present",
-                content.contains("safe_action_family = \"repo.tool_capabilities\""),
-                "Committed tool capability manifest carries the safe action family.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "tool-capabilities-summary-present",
-                content.contains(&compact_summary),
-                "Committed tool capability manifest contains the accepted pressure summary."
-                    .to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "tool-directory-present",
-                content.contains("[tool_directory]")
-                    && content.contains("verse = \"gamecult-local\"")
-                    && content.contains("odin_discoverable = true")
-                    && content.contains("available_to_authorized_agents = true"),
-                "Committed tool capability manifest exposes local CultMesh/Odin discovery."
-                    .to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "tool-contracts-present",
-                content.contains("[contracts]")
-                    && content.contains(
-                        "intent = \"epiphany.cultmesh.daemon_tool_invocation_intent.v0\"",
-                    )
-                    && content.contains(
-                        "receipt = \"epiphany.cultmesh.daemon_tool_invocation_receipt.v0\"",
-                    )
-                    && content.contains("requires_receipts = true")
-                    && content.contains("host_daemon_owns_execution = true"),
-                "Committed tool capability manifest names typed invocation contracts and host execution ownership.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "tool-capabilities-ids-present",
-                content.contains("[expected_capabilities]")
-                    && content.contains("\"repo-work-overview\"")
-                    && content.contains("\"repo-work-queue-run\"")
-                    && content.contains("\"repo-work-public-proof\"")
-                    && content.contains("\"bifrost-public-proof\""),
-                "Committed tool capability manifest lists expected repo-swarm capability ids."
-                    .to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "tool-capabilities-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("arbitrary_shell_authority = false")
-                    && content.contains("deployment_authority = false")
-                    && content.contains("service_start_stop_authority = false")
-                    && content.contains("private_verse_rummaging = false")
-                    && content.contains("tool_invocation_requires_host_receipt = true"),
-                "Committed tool capability manifest denies shell/deploy/service/private-rummaging authority and requires host receipts.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "tool-capabilities-private-seal",
-                content.contains("private_state_exposed = false"),
-                "Committed tool capability manifest preserves the private-state seal.".to_string(),
-            );
-        }
         "repo.tool_request" => {
             let request = parse_repo_tool_request(&content).ok();
             push_assertion(
@@ -6461,85 +6137,6 @@ fn closure_family_assertions(
                     .as_ref()
                     .is_some_and(|request| !request.private_state_exposed),
                 "Committed tool request preserves the private-state seal.".to_string(),
-            );
-        }
-        "repo.eve_surface" => {
-            push_assertion(
-                &mut assertions,
-                "eve-surface-schema-present",
-                content.contains("schema_version = \"epiphany.repo_eve_surface.v0\""),
-                "Committed Eve surface contract carries the schema version.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "eve-surface-family-present",
-                content.contains("safe_action_family = \"repo.eve_surface\""),
-                "Committed Eve surface contract carries the safe action family.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "eve-surface-summary-present",
-                content.contains(&compact_summary),
-                "Committed Eve surface contract contains the accepted pressure summary."
-                    .to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "eve-surface-routing-present",
-                content.contains("[surface]")
-                    && content.contains("id = \"eve://epiphany/repo/")
-                    && content.contains("renderer_owns_truth = false"),
-                "Committed Eve surface contract names the provider-owned surface.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "eve-surface-verses-present",
-                content.contains("[verses]")
-                    && content.contains("local = \"gamecult-local\"")
-                    && content.contains("public = \"epiphany-global\"")
-                    && content.contains("private_projection_allowed = false")
-                    && content.contains("odin_discoverable = true"),
-                "Committed Eve surface contract names Verse routing and Odin discovery."
-                    .to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "eve-surface-cultui-contracts",
-                content.contains("[cultui]")
-                    && content.contains("tui_contract = \"epiphany.eve.tui_surface.v0\"")
-                    && content.contains("gui_contract = \"epiphany.eve.gui_surface.v0\"")
-                    && content.contains("compact_agent_tui = true"),
-                "Committed Eve surface contract names compact TUI and GUI lowering contracts."
-                    .to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "eve-surface-collaboration-route",
-                content.contains("[collaboration]")
-                    && content.contains("persona_discussion_allowed = true")
-                    && content.contains("human_discussion_allowed = true")
-                    && content.contains("feedback_routes_to_imagination = true")
-                    && content.contains("candidate_actions_non_authoritative = true"),
-                "Committed Eve surface contract routes collaboration feedback to Imagination without authorizing actions.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "eve-surface-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("rendering_authority = false")
-                    && content.contains("state_authority = false")
-                    && content.contains("publication_authority = false")
-                    && content.contains("service_lifecycle_authority = false")
-                    && content.contains("cross_body_mutation_authority = false")
-                    && content.contains("private_verse_rummaging = false")
-                    && content.contains("requires_cultmesh_receipts = true"),
-                "Committed Eve surface contract denies renderer/state/publication/service/cross-body/private-rummaging authority.".to_string(),
-            );
-            push_assertion(
-                &mut assertions,
-                "eve-surface-private-seal",
-                content.contains("private_state_exposed = false"),
-                "Committed Eve surface contract preserves the private-state seal.".to_string(),
             );
         }
         "repo.collaboration_policy" => {
@@ -15200,9 +14797,7 @@ fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
             | "repo.status_section"
             | "repo.task_card"
             | "repo.body_manifest"
-            | "repo.tool_capabilities"
             | "repo.tool_request"
-            | "repo.eve_surface"
             | "repo.collaboration_policy"
             | "repo.collaboration_topic"
             | "repo.consensus_brief"
@@ -15344,7 +14939,7 @@ fn print_usage() {
         "usage: epiphany-work <persona-intake|accept|derive-plan|plan|run|adopt|execute|close|overview|readiness|deployment-config-audit|deployment-execution-runbook|deployment-aftercare-audit|export-proof|tick|queue-run|serve> ...\n\
          persona-intake --workspace <repo> --item <id> --message <text> [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>]\n\
          accept --workspace <repo> --from <persona|bifrost|persona-or-bifrost> --item <id> [--summary <text>] [--topic <topic>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--online-receipt <path>] [--public-discussion-ref <ref>] [--candidate-action-ref <ref>]\n\
-         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-capabilities|repo-tool-request|repo-eve-surface|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-interpreter-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-readiness-review-request|repo-doctrine-update-request|repo-secret-policy-request|repo-dependency-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
+         derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-manifest|repo-tool-request|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-interpreter-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-readiness-review-request|repo-doctrine-update-request|repo-secret-policy-request|repo-dependency-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
          adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
