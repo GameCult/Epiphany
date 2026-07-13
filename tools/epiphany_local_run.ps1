@@ -2411,7 +2411,6 @@ if ($Mode -eq "mvp") {
             "--runtime-id", $LocalVerseRuntimeId,
             "--content", $PersonaInput,
             "--source", "epiphany/local-mvp",
-            "--status", "ready",
             "--mood", "attentive"
         ) `
         -WorkingDirectory $Root `

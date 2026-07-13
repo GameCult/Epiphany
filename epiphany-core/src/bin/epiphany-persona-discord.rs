@@ -47,7 +47,6 @@ fn main() -> Result<()> {
     let mut content: Option<String> = None;
     let mut channel_id: Option<String> = None;
     let mut source = "epiphany/Persona".to_string();
-    let mut status = "ready".to_string();
     let mut mood = "attentive".to_string();
     let mut limit = 8_usize;
     let mut persona_name: Option<String> = None;
@@ -63,7 +62,6 @@ fn main() -> Result<()> {
             "--content" => content = Some(next_value(&mut args, "--content")?),
             "--channel-id" => channel_id = Some(next_value(&mut args, "--channel-id")?),
             "--source" => source = next_value(&mut args, "--source")?,
-            "--status" => status = next_value(&mut args, "--status")?,
             "--mood" => mood = next_value(&mut args, "--mood")?,
             "--limit" => limit = next_value(&mut args, "--limit")?.parse()?,
             "--persona-name" => persona_name = Some(next_value(&mut args, "--persona-name")?),
@@ -99,7 +97,6 @@ fn main() -> Result<()> {
                 &cultmesh_store,
                 &runtime_id,
                 &source,
-                &status,
                 &mood,
             )?
         }
@@ -168,7 +165,6 @@ fn run_bubble(
     cultmesh_store: &Path,
     runtime_id: &str,
     source: &str,
-    status: &str,
     mood: &str,
 ) -> Result<Value> {
     ensure_content(content, "Persona bubble")?;
@@ -181,7 +177,7 @@ fn run_bubble(
         None,
         false,
     )?;
-    let payload = bubble_payload(content, source, status, mood);
+    let payload = bubble_payload(content, source, mood);
     let path = artifact_dir.join(format!(
         "Persona-bubble-{}-{}.json",
         now_stamp(),
@@ -753,7 +749,6 @@ console.log(JSON.stringify({
         &cultmesh_store,
         runtime_id,
         "smoke/Persona",
-        "ready",
         "attentive",
     )?;
     let blocked = run_post(
@@ -937,11 +932,11 @@ fn write_draft(
     Ok(path)
 }
 
-fn bubble_payload(content: &str, source: &str, status: &str, mood: &str) -> Value {
+fn bubble_payload(content: &str, source: &str, mood: &str) -> Value {
     serde_json::json!({
         "schema_version": BUBBLE_SCHEMA_VERSION,
         "created_at": now_iso(),
-        "status": status,
+        "status": "projected",
         "source": source,
         "target": "aquarium",
         "role_id": "Persona",

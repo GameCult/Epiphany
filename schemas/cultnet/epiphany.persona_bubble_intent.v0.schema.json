@@ -4,7 +4,7 @@
   "title": "epiphany persona_bubble_intent v0",
   "description": "Persona bubble intent for Aquarium-visible chat puffs.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "threadId": {
       "type": "string"
@@ -13,9 +13,6 @@
       "type": "string"
     },
     "source": {
-      "type": "string"
-    },
-    "status": {
       "type": "string"
     },
     "mood": {

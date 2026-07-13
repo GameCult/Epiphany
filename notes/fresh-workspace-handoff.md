@@ -587,3 +587,9 @@ posts. Recent speech tracks `crossing_recorded` and
 transport receipt. The old v0 `sameTargetPostCount` spelling is serialization-
 only compatibility. Native Other-mouth smoke, 259 library tests, and all-bin
 compilation pass.
+
+Persona Aquarium bubbles no longer accept caller-authored readiness. The CLI
+has no `--status`; successful writes derive `projected`; the strict intent
+schema has no status field; and the output schema permits only `projected`.
+Native smoke returns that value and an explicit `--status ready` invocation is
+rejected. The 259 library tests and all-bin check pass.

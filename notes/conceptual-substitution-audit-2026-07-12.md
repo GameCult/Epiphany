@@ -1518,3 +1518,13 @@ for repetition pressure. It now records `crossing_recorded` and counts
 effects; it no longer implies that an outside provider published them. The v0
 serialized `sameTargetPostCount` field remains only as a compatibility name and
 does not own the internal model.
+
+## Caller presentation text is not bubble readiness
+
+The Discord Persona bubble CLI accepted arbitrary `--status` text, while the
+MVP wrapper supplied `ready`. That let a caller author an Aquarium-visible
+lifecycle verdict with no owner or evidence. The option is deleted. Successful
+bubble projection derives `status=projected`; the intent schema rejects unknown
+fields and the output schema admits only that derived value. Mood and source
+remain presentation metadata. A negative CLI check proves `--status ready` is
+rejected before artifact creation.
