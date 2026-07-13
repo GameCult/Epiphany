@@ -208,7 +208,7 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
 
     if let Some(intent) = input
         .local_verse
-        .latest_bifrost_body_change_publication_intent
+        .arrival_latest_bifrost_body_change_publication_intent
         .as_ref()
     {
         lines.push("## Bifrost Publication Gate".to_string());
@@ -224,7 +224,7 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         ));
         if let Some(receipt) = input
             .local_verse
-            .latest_bifrost_body_change_publication_receipt
+            .arrival_latest_bifrost_body_change_publication_receipt
             .as_ref()
             .filter(|receipt| receipt.intent_id == intent.intent_id)
         {
@@ -238,7 +238,7 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
             ));
             if let Some(github) = input
                 .local_verse
-                .latest_bifrost_github_publication_receipt
+                .arrival_latest_bifrost_github_publication_receipt
                 .as_ref()
                 .filter(|github| github.bifrost_publication_receipt_id == receipt.receipt_id)
             {
@@ -664,7 +664,7 @@ mod tests {
             .intent_id = "another-eve-intent".to_string();
         prompt_input
             .local_verse
-            .latest_bifrost_body_change_publication_receipt
+            .arrival_latest_bifrost_body_change_publication_receipt
             .as_mut()
             .expect("Bifrost receipt remains available for mismatch probe")
             .intent_id = "another-bifrost-intent".to_string();

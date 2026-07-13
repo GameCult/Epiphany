@@ -2592,7 +2592,7 @@ fn run_cli() -> Result<()> {
             write_epiphany_cultmesh_agent_state_soa_summary(&args.store, agent_state_summary)?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             if context
-                .latest_bifrost_body_change_publication_intent
+                .arrival_latest_bifrost_body_change_publication_intent
                 .is_none()
                 || context.eve_surface_states.len() != context.odin_advertisements.len()
                 || context.daemon_statuses.len() != context.cluster_topology.len()
@@ -2604,10 +2604,14 @@ fn run_cli() -> Result<()> {
                     .as_ref()
                     .is_some_and(|brake| brake.private_state_exposed)
                 || context
-                    .latest_bifrost_body_change_publication_receipt
+                    .arrival_latest_bifrost_body_change_publication_receipt
                     .is_some()
-                || context.latest_bifrost_github_publication_receipt.is_some()
-                || context.latest_bifrost_collaboration_feedback.is_none()
+                || context
+                    .arrival_latest_bifrost_github_publication_receipt
+                    .is_some()
+                || context
+                    .arrival_latest_bifrost_collaboration_feedback
+                    .is_none()
                 || context.latest_imagination_consensus_receipt.is_some()
                 || context.latest_work_loop_summary.is_none()
                 || context.latest_agent_state_soa_summary.is_none()
@@ -2914,10 +2918,10 @@ fn run_cli() -> Result<()> {
                     "latestToolInvocationReceipt": context.latest_daemon_tool_invocation_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "latestDaemonPokeIntent": context.latest_daemon_poke_intent.as_ref().map(|intent| intent.intent_id.clone()),
                     "latestDaemonPokeReceipt": context.latest_daemon_poke_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
-                    "arrivalLatestBifrostPublicationIntent": context.latest_bifrost_body_change_publication_intent.as_ref().map(|intent| intent.intent_id.clone()),
-                    "arrivalLatestBifrostPublicationReceipt": context.latest_bifrost_body_change_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
-                    "arrivalLatestBifrostGithubReceipt": context.latest_bifrost_github_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
-                    "arrivalLatestBifrostCollaborationFeedback": context.latest_bifrost_collaboration_feedback.as_ref().map(|feedback| feedback.feedback_id.clone()),
+                    "arrivalLatestBifrostPublicationIntent": context.arrival_latest_bifrost_body_change_publication_intent.as_ref().map(|intent| intent.intent_id.clone()),
+                    "arrivalLatestBifrostPublicationReceipt": context.arrival_latest_bifrost_body_change_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
+                    "arrivalLatestBifrostGithubReceipt": context.arrival_latest_bifrost_github_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
+                    "arrivalLatestBifrostCollaborationFeedback": context.arrival_latest_bifrost_collaboration_feedback.as_ref().map(|feedback| feedback.feedback_id.clone()),
                     "latestImaginationConsensusReceipt": context.latest_imagination_consensus_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "latestWorkLoopTelemetry": context.latest_work_loop_summary.as_ref().map(|summary| summary.telemetry_id.clone()),
                     "latestAgentStateSoaSummary": context.latest_agent_state_soa_summary.as_ref().map(|summary| summary.summary_id.clone()),
@@ -6776,17 +6780,17 @@ fn receipt_directory_report(
             owner: "Bifrost".to_string(),
             document_kind: "gamecult.bifrost.github_publication_receipt.v0".to_string(),
             latest_id: context
-                .latest_bifrost_github_publication_receipt
+                .arrival_latest_bifrost_github_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.receipt_id.clone())
                 .unwrap_or_else(|| "missing".to_string()),
             status: context
-                .latest_bifrost_github_publication_receipt
+                .arrival_latest_bifrost_github_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.publication_status.clone())
                 .unwrap_or_else(|| "missing".to_string()),
             route: context
-                .latest_bifrost_github_publication_receipt
+                .arrival_latest_bifrost_github_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.pull_request_url.clone())
                 .unwrap_or_else(|| "none".to_string()),
@@ -6796,9 +6800,11 @@ fn receipt_directory_report(
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
             artifact_sha256: "none".to_string(),
-            present: context.latest_bifrost_github_publication_receipt.is_some(),
+            present: context
+                .arrival_latest_bifrost_github_publication_receipt
+                .is_some(),
             private_state_exposed: context
-                .latest_bifrost_github_publication_receipt
+                .arrival_latest_bifrost_github_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.private_state_exposed)
                 .unwrap_or(false),
@@ -6812,17 +6818,17 @@ fn receipt_directory_report(
             owner: "Bifrost".to_string(),
             document_kind: "gamecult.bifrost.public_proof_publication_receipt.v0".to_string(),
             latest_id: context
-                .latest_bifrost_public_proof_publication_receipt
+                .arrival_latest_bifrost_public_proof_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.receipt_id.clone())
                 .unwrap_or_else(|| "missing".to_string()),
             status: context
-                .latest_bifrost_public_proof_publication_receipt
+                .arrival_latest_bifrost_public_proof_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.status.clone())
                 .unwrap_or_else(|| "missing".to_string()),
             route: context
-                .latest_bifrost_public_proof_publication_receipt
+                .arrival_latest_bifrost_public_proof_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.publication_url.clone())
                 .unwrap_or_else(|| "none".to_string()),
@@ -6830,12 +6836,12 @@ fn receipt_directory_report(
             service_route: "none".to_string(),
             follow_up_command: WRAPPER_BIFROST_LEDGER_COMMAND.to_string(),
             artifact_ref: context
-                .latest_bifrost_public_proof_publication_receipt
+                .arrival_latest_bifrost_public_proof_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.public_proof_ref.clone())
                 .unwrap_or_else(|| "none".to_string()),
             artifact_status: context
-                .latest_bifrost_public_proof_publication_receipt
+                .arrival_latest_bifrost_public_proof_publication_receipt
                 .as_ref()
                 .map(|receipt| {
                     if receipt.public_proof_ref == "none" {
@@ -6846,15 +6852,15 @@ fn receipt_directory_report(
                 })
                 .unwrap_or_else(|| "none".to_string()),
             artifact_sha256: context
-                .latest_bifrost_public_proof_publication_receipt
+                .arrival_latest_bifrost_public_proof_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.public_proof_sha256.clone())
                 .unwrap_or_else(|| "none".to_string()),
             present: context
-                .latest_bifrost_public_proof_publication_receipt
+                .arrival_latest_bifrost_public_proof_publication_receipt
                 .is_some(),
             private_state_exposed: context
-                .latest_bifrost_public_proof_publication_receipt
+                .arrival_latest_bifrost_public_proof_publication_receipt
                 .as_ref()
                 .map(|receipt| receipt.private_state_exposed)
                 .unwrap_or(false),

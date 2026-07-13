@@ -948,6 +948,12 @@ and JSON surface: provider-derived IDs use `arrival_latest_*` and
 while locally ordered Imagination consensus retains its legitimate `latest`
 name.
 
+`EpiphanyCultMeshContext` now completes the correction: its five provider
+mirror fields use `arrival_latest_bifrost_*`, and prompt-context plus Verse
+consumers read those names directly. The only remaining Bifrost `LATEST_KEY`
+identifiers describe persisted `/latest` compatibility keys, not chronology
+claims in typed runtime state.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

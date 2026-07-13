@@ -2426,15 +2426,15 @@ pub struct EpiphanyLocalVerseContext {
         Option<EpiphanyCultMeshDaemonToolInvocationIntentEntry>,
     pub latest_daemon_tool_invocation_receipt:
         Option<EpiphanyCultMeshDaemonToolInvocationReceiptEntry>,
-    pub latest_bifrost_body_change_publication_intent:
+    pub arrival_latest_bifrost_body_change_publication_intent:
         Option<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
-    pub latest_bifrost_body_change_publication_receipt:
+    pub arrival_latest_bifrost_body_change_publication_receipt:
         Option<EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
-    pub latest_bifrost_github_publication_receipt:
+    pub arrival_latest_bifrost_github_publication_receipt:
         Option<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
-    pub latest_bifrost_public_proof_publication_receipt:
+    pub arrival_latest_bifrost_public_proof_publication_receipt:
         Option<EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry>,
-    pub latest_bifrost_collaboration_feedback:
+    pub arrival_latest_bifrost_collaboration_feedback:
         Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     pub latest_imagination_consensus_receipt:
         Option<EpiphanyCultMeshImaginationConsensusReceiptEntry>,
@@ -6098,15 +6098,15 @@ pub fn query_epiphany_local_verse_context(
             .get(EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_LATEST_KEY)?,
         latest_daemon_tool_invocation_receipt: node
             .get(EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_LATEST_KEY)?,
-        latest_bifrost_body_change_publication_intent: node
+        arrival_latest_bifrost_body_change_publication_intent: node
             .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY)?,
-        latest_bifrost_body_change_publication_receipt: node
+        arrival_latest_bifrost_body_change_publication_receipt: node
             .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY)?,
-        latest_bifrost_github_publication_receipt: node
+        arrival_latest_bifrost_github_publication_receipt: node
             .get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY)?,
-        latest_bifrost_public_proof_publication_receipt: node
+        arrival_latest_bifrost_public_proof_publication_receipt: node
             .get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY)?,
-        latest_bifrost_collaboration_feedback: node
+        arrival_latest_bifrost_collaboration_feedback: node
             .get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY)?,
         latest_imagination_consensus_receipt: node
             .get(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY)?,
@@ -9883,7 +9883,7 @@ mod tests {
         let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         assert_eq!(
             context
-                .latest_bifrost_collaboration_feedback
+                .arrival_latest_bifrost_collaboration_feedback
                 .as_ref()
                 .map(|feedback| feedback.requested_consensus_route.as_str()),
             Some("imagination.consensus_discovery")
