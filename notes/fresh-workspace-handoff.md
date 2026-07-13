@@ -293,7 +293,9 @@ not interpreted as provider chronology.
 The Bifrost ledger report also uses `arrival_latest_*` typed fields and
 `arrivalLatestBifrost*` JSON keys; no old report aliases remain.
 `EpiphanyCultMeshContext`, prompt assembly, and Verse consumers now also use
-`arrival_latest_bifrost_*`; only persisted key constants retain `LATEST_KEY`.
+`arrival_latest_bifrost_*`; persisted storage strings retain `/latest`.
+The Rust constant identifiers are now `*_ARRIVAL_LATEST_KEY` too; only their
+external string values retain the `/latest` storage spelling.
 
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in

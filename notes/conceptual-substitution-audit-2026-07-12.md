@@ -954,6 +954,11 @@ consumers read those names directly. The only remaining Bifrost `LATEST_KEY`
 identifiers describe persisted `/latest` compatibility keys, not chronology
 claims in typed runtime state.
 
+Those seven Rust key constants now also use `*_ARRIVAL_LATEST_KEY`. Their
+persisted string values remain byte-for-byte `.../latest`, preserving external
+storage compatibility while removing the last ambiguous chronology identifier
+from the Rust API.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

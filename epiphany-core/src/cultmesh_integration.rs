@@ -218,42 +218,42 @@ pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_TYPE: &str =
     "gamecult.bifrost.body_change_publication_intent";
 pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION: &str =
     "gamecult.bifrost.body_change_publication_intent.v0";
-pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY: &str =
+pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_ARRIVAL_LATEST_KEY: &str =
     "gamecult-local/bifrost/body-change-publication-intent/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_TYPE: &str =
     "gamecult.bifrost.body_change_publication_receipt";
 pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.bifrost.body_change_publication_receipt.v0";
-pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY: &str =
+pub const EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY: &str =
     "gamecult-local/bifrost/body-change-publication-receipt/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_TYPE: &str =
     "gamecult.bifrost.github_publication_receipt";
 pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.bifrost.github_publication_receipt.v0";
-pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY: &str =
+pub const EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY: &str =
     "gamecult-local/bifrost/github-publication-receipt/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_TYPE: &str =
     "gamecult.bifrost.public_proof_publication_receipt";
 pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.bifrost.public_proof_publication_receipt.v0";
-pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY: &str =
+pub const EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY: &str =
     "gamecult-local/bifrost/public-proof-publication-receipt/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_TYPE: &str =
     "gamecult.bifrost.artifact_acceptance_receipt";
 pub const EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.bifrost.artifact_acceptance_receipt.v0";
-pub const EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_LATEST_KEY: &str =
+pub const EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_ARRIVAL_LATEST_KEY: &str =
     "gamecult-local/bifrost/artifact-acceptance-receipt/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_TYPE: &str = "gamecult.bifrost.metrics_receipt";
 pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.bifrost.metrics_receipt.v0";
-pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_LATEST_KEY: &str =
+pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_ARRIVAL_LATEST_KEY: &str =
     "gamecult-local/bifrost/metrics-receipt/latest";
 pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE: &str =
     "gamecult.bifrost.collaboration_feedback";
 pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION: &str =
     "gamecult.bifrost.collaboration_feedback.v0";
-pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY: &str =
+pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY: &str =
     "gamecult-local/bifrost/collaboration-feedback/latest";
 pub const EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_TYPE: &str =
     "gamecult.imagination.consensus_discovery_receipt";
@@ -4479,7 +4479,7 @@ pub fn write_epiphany_cultmesh_bifrost_body_change_publication_intent(
         epiphany_cultmesh_bifrost_body_change_publication_intent_key(&intent.intent_id);
     let written = node.put(intent_key.as_str(), &intent)?;
     node.put(
-        EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY,
+        EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_ARRIVAL_LATEST_KEY,
         &written,
     )?;
     node.flush()?;
@@ -4498,7 +4498,7 @@ pub fn write_epiphany_cultmesh_bifrost_body_change_publication_receipt(
         epiphany_cultmesh_bifrost_body_change_publication_receipt_key(&receipt.receipt_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
     node.put(
-        EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY,
+        EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY,
         &written,
     )?;
     node.flush()?;
@@ -4510,7 +4510,7 @@ pub fn load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_int
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY)
+    node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_ARRIVAL_LATEST_KEY)
 }
 
 pub fn load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
@@ -4518,7 +4518,7 @@ pub fn load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_rec
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY)
+    node.get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4569,7 +4569,7 @@ pub fn write_epiphany_cultmesh_bifrost_github_publication_receipt(
     let receipt_key = epiphany_cultmesh_bifrost_github_publication_receipt_key(&receipt.receipt_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
     node.put(
-        EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY,
+        EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY,
         &written,
     )?;
     node.flush()?;
@@ -4581,7 +4581,7 @@ pub fn load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY)
+    node.get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4635,7 +4635,7 @@ pub fn write_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
         epiphany_cultmesh_bifrost_public_proof_publication_receipt_key(&receipt.receipt_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
     node.put(
-        EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY,
+        EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY,
         &written,
     )?;
     node.flush()?;
@@ -4647,7 +4647,7 @@ pub fn load_arrival_latest_epiphany_cultmesh_bifrost_public_proof_publication_re
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY)
+    node.get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4698,7 +4698,7 @@ pub fn write_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
         epiphany_cultmesh_bifrost_artifact_acceptance_receipt_key(&receipt.receipt_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
     node.put(
-        EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_LATEST_KEY,
+        EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_ARRIVAL_LATEST_KEY,
         &written,
     )?;
     node.flush()?;
@@ -4710,7 +4710,7 @@ pub fn load_arrival_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_LATEST_KEY)
+    node.get(EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_ARRIVAL_LATEST_KEY)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -4759,7 +4759,7 @@ pub fn write_epiphany_cultmesh_bifrost_metrics_receipt(
     let receipt_key = epiphany_cultmesh_bifrost_metrics_receipt_key(&receipt.receipt_id);
     let written = node.put(receipt_key.as_str(), &receipt)?;
     node.put(
-        EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_LATEST_KEY,
+        EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_ARRIVAL_LATEST_KEY,
         &written,
     )?;
     node.flush()?;
@@ -4771,7 +4771,7 @@ pub fn load_arrival_latest_epiphany_cultmesh_bifrost_metrics_receipt(
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostMetricsReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_LATEST_KEY)
+    node.get(EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_ARRIVAL_LATEST_KEY)
 }
 
 pub fn epiphany_cultmesh_bifrost_collaboration_feedback(
@@ -4845,7 +4845,7 @@ pub fn write_epiphany_cultmesh_bifrost_collaboration_feedback(
     let feedback_key = epiphany_cultmesh_bifrost_collaboration_feedback_key(&feedback.feedback_id);
     let written = node.put(feedback_key.as_str(), &feedback)?;
     node.put(
-        EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY,
+        EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY,
         &written,
     )?;
     node.flush()?;
@@ -4875,7 +4875,7 @@ pub fn load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY)
+    node.get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY)
 }
 
 pub fn load_latest_epiphany_cultmesh_imagination_consensus_receipt(
@@ -6099,15 +6099,15 @@ pub fn query_epiphany_local_verse_context(
         latest_daemon_tool_invocation_receipt: node
             .get(EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_LATEST_KEY)?,
         arrival_latest_bifrost_body_change_publication_intent: node
-            .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_LATEST_KEY)?,
+            .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_ARRIVAL_LATEST_KEY)?,
         arrival_latest_bifrost_body_change_publication_receipt: node
-            .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_LATEST_KEY)?,
+            .get(EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)?,
         arrival_latest_bifrost_github_publication_receipt: node
-            .get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_LATEST_KEY)?,
+            .get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)?,
         arrival_latest_bifrost_public_proof_publication_receipt: node
-            .get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_LATEST_KEY)?,
+            .get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)?,
         arrival_latest_bifrost_collaboration_feedback: node
-            .get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_LATEST_KEY)?,
+            .get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY)?,
         latest_imagination_consensus_receipt: node
             .get(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY)?,
         latest_operator_snapshot: node.get(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY)?,
