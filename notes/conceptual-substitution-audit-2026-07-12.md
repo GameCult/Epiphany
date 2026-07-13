@@ -603,3 +603,13 @@ only by generic store injection. The entire family and every downstream
 projection are deleted. Maintainer, Soul, Mind, and Bifrost review receipts
 remain in their owning contract families; no composite counterfeit review is
 manufactured to summarize them.
+
+## Mirror arrival presented as latest repo-work public proof
+
+Repo-work public proof carries the redacted artifact ref/hash and commit-facing
+evidence consumed by Bifrost discovery, but its `latest` mirror was
+arrival-owned and `generated_at` was unchecked. Delayed proof transport could
+replace the current proof projection with an older commit/hash. Public-proof
+writes now require valid RFC3339 generation time and advance `latest` by
+`(generation time, public proof ID)`. Publication receipts still bind their
+specific proof ID and SHA; the directory mirror can no longer drift backward.

@@ -5491,10 +5491,18 @@ pub fn write_epiphany_cultmesh_repo_work_public_proof(
     validate_repo_work_public_proof(&proof)?;
     let mut node = open_epiphany_cultmesh_node(&store_path, proof.runtime_id.clone())?;
     let written = node.put(proof.public_proof_id.clone(), &proof)?;
-    node.put(
+    let current_latest = node.get::<EpiphanyCultMeshRepoWorkPublicProofEntry>(
         EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_LATEST_KEY,
-        &written,
     )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        repo_work_public_proof_generation_key(&written)
+            >= repo_work_public_proof_generation_key(current)
+    }) {
+        node.put(
+            EPIPHANY_CULTMESH_REPO_WORK_PUBLIC_PROOF_LATEST_KEY,
+            &written,
+        )?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -5717,6 +5725,8 @@ fn validate_repo_work_public_proof(proof: &EpiphanyCultMeshRepoWorkPublicProofEn
             "repo work public proof requires public_proof_id and item"
         ));
     }
+    DateTime::parse_from_rfc3339(&proof.generated_at)
+        .map_err(|error| anyhow!("repo work public proof has invalid generated_at: {error}"))?;
     if proof.public_proof_ref.trim().is_empty() || proof.public_proof_sha256.trim().is_empty() {
         return Err(anyhow!(
             "repo work public proof requires artifact ref and sha256"
@@ -5734,6 +5744,16 @@ fn validate_repo_work_public_proof(proof: &EpiphanyCultMeshRepoWorkPublicProofEn
         ));
     }
     Ok(())
+}
+
+fn repo_work_public_proof_generation_key(
+    proof: &EpiphanyCultMeshRepoWorkPublicProofEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&proof.generated_at)
+            .expect("validated repo work public proof generation timestamp"),
+        proof.public_proof_id.as_str(),
+    )
 }
 
 pub fn seed_epiphany_local_verse_context(
@@ -9430,6 +9450,22 @@ mod tests {
             private_state_exposed: false,
             notes: vec!["redacted proof".to_string()],
         };
+        let mut newer_proof = proof.clone();
+        newer_proof.public_proof_id = "repo-work-public-proof-newer".to_string();
+        newer_proof.generated_at = "2026-06-20T13:00:00Z".to_string();
+        newer_proof.commit_sha = "def456".to_string();
+        write_epiphany_cultmesh_repo_work_public_proof(&store, newer_proof.clone())?;
+        write_epiphany_cultmesh_repo_work_public_proof(&store, proof.clone())?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_repo_work_public_proof(&store, "epiphany-test")?,
+            Some(newer_proof)
+        );
+        let mut invalid_time = proof.clone();
+        invalid_time.public_proof_id = "repo-work-public-proof-invalid".to_string();
+        invalid_time.generated_at = "not-a-time".to_string();
+        let error = write_epiphany_cultmesh_repo_work_public_proof(&store, invalid_time)
+            .expect_err("invalid public proof generation time must be refused");
+        assert!(error.to_string().contains("invalid generated_at"));
         let receipt = epiphany_cultmesh_bifrost_public_proof_publication_receipt_for_proof(
             "bifrost-public-proof-publication-test",
             &proof,
