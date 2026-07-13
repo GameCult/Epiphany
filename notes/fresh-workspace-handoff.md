@@ -368,6 +368,13 @@ counterfeit-state-authority fixture. Nineteen high-authority families are typed;
 direct source inventory reports 303 substring occurrences across fourteen
 remaining families.
 
+Planning Brief is mapped for deletion, not typing. It contains no candidate
+work-item records; copied global schema/catalog/closure doctrine is read back as
+`safeFamilyPlanning`, letting catalog completeness impersonate item planning.
+Remove the family, generator, closure/readback, dedicated smoke, and readiness
+dependency together. Preserve consensus -> interpretation request -> objective
+draft -> Mind adoption. Do not replace it with another per-item catalog dump.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment

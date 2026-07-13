@@ -1131,6 +1131,39 @@ real grant into an apparent denial.
 Twenty high-authority closure families are typed. Direct source inventory now
 reports 278 substring occurrences across thirteen remaining families.
 
+## Planning catalog as work-item plan
+
+`repo.planning_brief` contains no candidate work-item records. Its instance
+data is only item metadata, summary, and public/candidate references. The other
+sections are copied global doctrine: a candidate schema, the complete safe-
+family catalog, closure-proof policy, closure ladder, and organ gate order.
+Closure then reads those copied constants back and emits
+`safeFamilyPlanning`, allowing catalog completeness to impersonate actual
+decomposition.
+
+Authority map for the cut:
+
+- Owner: no owner exists for the claimed plan because no candidate plan is
+  present. Imagination owns genuine candidate decomposition when it produces
+  candidate action items.
+- Inputs: accepted public pressure and candidate references.
+- Output today: one per-item file containing mostly global catalog/policy.
+- Derived state: `safeFamilyPlanning` is catalog self-attestation, not evidence
+  that this item has a plan.
+- Forbidden writers: the planning-brief closure/readback may not satisfy
+  readiness, evidence, or planning gates from copied constants.
+- Shared path: derive-plan, close, overview/readback, readiness, and the family
+  smoke all currently share the false witness.
+- Deletion line: remove the `repo.planning_brief` safe family, its generator,
+  closure arm, `planning_brief_safe_family_readback`, dedicated smoke, and any
+  readiness dependency on `safeFamilyPlanning`. Preserve the real preparation
+  chain: consensus draft, interpretation request, objective draft, then Mind
+  adoption.
+
+Do not replace the family with another catalog-shaped document. If a later
+planning artifact is needed, it must contain actual candidate action records
+and reference a separately owned contract/catalog.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.
