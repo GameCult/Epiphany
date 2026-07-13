@@ -10268,4 +10268,22 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn bifrost_mirrors_name_arrival_order_without_rewriting_storage_keys() {
+        let source = include_str!("cultmesh_integration.rs");
+        let old_loader = ["load_", "latest_epiphany_cultmesh_bifrost_"].concat();
+        let old_field = ["pub ", "latest_bifrost_"].concat();
+        assert!(!source.contains(&old_loader));
+        assert!(!source.contains(&old_field));
+        assert_eq!(
+            source
+                .lines()
+                .filter(|line| {
+                    line.contains("\"gamecult-local/bifrost/") && line.contains("/latest\"")
+                })
+                .count(),
+            7
+        );
+    }
 }

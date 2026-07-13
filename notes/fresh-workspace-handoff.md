@@ -296,6 +296,8 @@ The Bifrost ledger report also uses `arrival_latest_*` typed fields and
 `arrival_latest_bifrost_*`; persisted storage strings retain `/latest`.
 The Rust constant identifiers are now `*_ARRIVAL_LATEST_KEY` too; only their
 external string values retain the `/latest` storage spelling.
+Regression test `bifrost_mirrors_name_arrival_order_without_rewriting_storage_keys`
+guards honest Rust vocabulary and the seven stable persisted keys together.
 
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
@@ -306,4 +308,4 @@ next consequence-bearing request and require a named owner.
 
 ## Verification baseline
 
-The last completed code pass had 258 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.
+The last completed code pass had 259 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.

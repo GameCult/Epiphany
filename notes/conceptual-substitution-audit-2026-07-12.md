@@ -959,6 +959,11 @@ persisted string values remain byte-for-byte `.../latest`, preserving external
 storage compatibility while removing the last ambiguous chronology identifier
 from the Rust API.
 
+A source-level invariant now locks both sides: old provider-latest loader/field
+names must remain absent, while exactly seven persisted Bifrost `/latest` key
+strings must remain. This prevents either semantic regression or accidental
+storage-contract churn.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.
