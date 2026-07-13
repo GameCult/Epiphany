@@ -116,8 +116,10 @@ review_load = "gamecult.metrics.review_load_receipt.v0"
 credit_readback = "gamecult.bifrost.credit_readback_receipt.v0"
 [metrics_packet]
 requires_model_call_count = true
-requires_token_or_cost_summary = true
-requires_review_minutes_or_count = true
+requires_token_summary = true
+requires_cost_availability_status = true
+requires_review_duration = true
+requires_review_event_count = true
 requires_accepted_artifact_ref = true
 requires_public_proof_ref = true
 requires_credit_readback_ref = true

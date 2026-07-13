@@ -156,8 +156,10 @@ impl RepoMetricsRequest {
     pub(super) fn has_metrics_packet(&self) -> bool {
         let p = &self.metrics_packet;
         p.requires_model_call_count
-            && p.requires_token_or_cost_summary
-            && p.requires_review_minutes_or_count
+            && p.requires_token_summary
+            && p.requires_cost_availability_status
+            && p.requires_review_duration
+            && p.requires_review_event_count
             && p.requires_accepted_artifact_ref
             && p.requires_public_proof_ref
             && p.requires_credit_readback_ref
@@ -223,8 +225,10 @@ struct RepoMetricsReceipts {
 #[derive(Debug, Deserialize)]
 struct RepoMetricsPacket {
     requires_model_call_count: bool,
-    requires_token_or_cost_summary: bool,
-    requires_review_minutes_or_count: bool,
+    requires_token_summary: bool,
+    requires_cost_availability_status: bool,
+    requires_review_duration: bool,
+    requires_review_event_count: bool,
     requires_accepted_artifact_ref: bool,
     requires_public_proof_ref: bool,
     requires_credit_readback_ref: bool,

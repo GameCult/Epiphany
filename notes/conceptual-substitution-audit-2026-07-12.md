@@ -1433,3 +1433,12 @@ the mutable ref Idunn watches and the immutable commit it deploys. The Idunn
 receipt contract already records both `watched_ref` and `source_commit`.
 Deployment requests now require both fields: trigger topology and artifact
 identity are conjunctive evidence.
+
+## Measurement availability is not measurement equivalence
+
+The metrics packet accepted token-or-cost and review-minutes-or-count summaries.
+Those quantities answer different questions. It now requires token usage, an
+explicit cost availability status, review duration, and review-event count.
+Unknown vendor pricing may be reported as unavailable rather than fabricated;
+it may not erase token accounting. A review count may not erase elapsed load,
+and duration may not erase how many review events occurred.

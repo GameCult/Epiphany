@@ -534,3 +534,10 @@ Deployment git identity is also split. Requests now require both watched ref
 and source commit SHA, matching Idunn's receipt. A branch/ref identifies the
 mutable trigger path; the commit SHA identifies deployed bytes. Do not collapse
 them back into one convenient string.
+
+Metrics packet completeness is now explicit: token summary, cost availability
+status, review duration, and review-event count are separate requirements.
+This permits honest unavailable pricing without treating cost and tokens—or
+duration and event count—as interchangeable. Next inspect projected accounting
+status to ensure receipt presence cannot close a row whose required dimensions
+are absent.
