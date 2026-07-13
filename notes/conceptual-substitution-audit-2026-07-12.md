@@ -851,6 +851,15 @@ the quarantine. Reset now canonicalizes the quarantine and target immediately
 before actuation and requires a strict descendant. A traversal-negative test
 proves path spelling cannot grant deletion authority.
 
+## Timestamp freshness substituted for reset authority
+
+Thirty-two family/lifecycle smoke binaries created second-stamped directories,
+then recursively deleted the leaf if it already existed. A timestamp is a name,
+not deletion authority; an occupied leaf could be an attacker-controlled
+junction. These smokes now claim the fresh leaf with `create_dir` and fail
+closed on collision. They have no reset path and therefore no recursive-delete
+authority to redirect.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

@@ -250,6 +250,10 @@ destructive scope.
 deletion. Continue the same resolved-containment audit across remaining smoke
 reset helpers.
 
+The 32 repeated timestamped family/lifecycle smokes no longer reset occupied
+leaves. They atomically claim a fresh directory with `create_dir` and fail on
+collision, removing their recursive-delete authority entirely.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

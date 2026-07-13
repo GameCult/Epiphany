@@ -53,12 +53,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         .with_context(|| format!("failed to create {}", smoke_root.display()))?;
     let stamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
     let smoke_dir = smoke_root.join(format!("repo-publication-request-family-{stamp}"));
-    if smoke_dir.exists() {
-        fs::remove_dir_all(&smoke_dir)
-            .with_context(|| format!("failed to clear {}", smoke_dir.display()))?;
-    }
-    fs::create_dir_all(&smoke_dir)
-        .with_context(|| format!("failed to create {}", smoke_dir.display()))?;
+    fs::create_dir(&smoke_dir)
+        .with_context(|| format!("failed to claim fresh smoke dir {}", smoke_dir.display()))?;
 
     let repo = smoke_dir.join("repo-body");
     fs::create_dir_all(&repo).with_context(|| format!("failed to create {}", repo.display()))?;

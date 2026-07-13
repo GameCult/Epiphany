@@ -53,12 +53,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         .with_context(|| format!("failed to create {}", smoke_root.display()))?;
     let stamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
     let smoke_dir = smoke_root.join(format!("daemon-survival-rehearsal-{stamp}"));
-    if smoke_dir.exists() {
-        fs::remove_dir_all(&smoke_dir)
-            .with_context(|| format!("failed to clear {}", smoke_dir.display()))?;
-    }
-    fs::create_dir_all(&smoke_dir)
-        .with_context(|| format!("failed to create {}", smoke_dir.display()))?;
+    fs::create_dir(&smoke_dir)
+        .with_context(|| format!("failed to claim fresh smoke dir {}", smoke_dir.display()))?;
 
     let local_verse = smoke_dir.join("local-verse.ccmp");
     let runtime_id = "epiphany-local";
