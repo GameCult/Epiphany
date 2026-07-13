@@ -8056,112 +8056,74 @@ fn closure_family_assertions(
             );
         }
         "repo.credit_request" => {
+            let request = parse_repo_credit_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "credit-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_credit_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoCreditRequest::has_canonical_identity),
                 "Committed credit request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "credit-request-family-present",
-                content.contains("safe_action_family = \"repo.credit_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoCreditRequest::has_canonical_identity),
                 "Committed credit request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "credit-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed credit request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "credit-request-awaits-bifrost-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-bifrost-credit-review\"")
-                    && content.contains("requested_owner = \"Bifrost\"")
-                    && content.contains(
-                        "requested_effect = \"record-credit-for-redacted-proof-and-accepted-artifact\"",
-                    )
-                    && content.contains("publication_request_ref = ")
-                    && content.contains("maintainer_review_request_ref = ")
-                    && content.contains("pr_request_ref = "),
+                request
+                    .as_ref()
+                    .is_some_and(RepoCreditRequest::awaits_bifrost_review),
                 "Committed credit request waits for Bifrost credit review before consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "credit-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("closure_review_required = true")
-                    && content.contains("soul_verdict_required = true")
-                    && content.contains("mind_commit_required = true")
-                    && content.contains("public_proof_required = true")
-                    && content.contains("maintainer_review_required = true")
-                    && content.contains("accepted_artifact_required = true")
-                    && content.contains("authorship_context_required = true"),
+                request.as_ref().is_some_and(RepoCreditRequest::has_antecedent_contract),
                 "Committed credit request requires closure, Soul, Mind, proof, review, accepted artifact, and authorship antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "credit-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains(
-                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
-                    )
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains(
-                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
-                    )
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains(
-                        "accepted_artifact = \"gamecult.artifact.acceptance_receipt.v0\"",
-                    )
-                    && content.contains("credit_ledger = \"gamecult.bifrost.credit_receipt.v0\"")
-                    && content.contains("credit_readback = \"gamecult.bifrost.credit_readback_receipt.v0\""),
+                request.as_ref().is_some_and(RepoCreditRequest::has_receipt_contract),
                 "Committed credit request names closure, proof, review, accepted artifact, ledger, and readback receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "credit-request-packet-contract",
-                content.contains("[credit_packet]")
-                    && content.contains("requires_author_identity = true")
-                    && content.contains("requires_reviewer_identity = true")
-                    && content.contains("requires_accepted_artifact_ref = true")
-                    && content.contains("requires_public_proof_ref = true")
-                    && content.contains("requires_changed_path_list = true")
-                    && content.contains("requires_credit_ledger_target = true")
-                    && content.contains("requires_private_state_redaction_check = true"),
+                request.as_ref().is_some_and(RepoCreditRequest::has_credit_packet),
                 "Committed credit request names author, reviewer, artifact, proof, path, ledger, and redaction requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "credit-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("credit_ledger_authorized = false")
-                    && content.contains("bifrost_publication_authorized = false")
-                    && content.contains("github_pr_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("upstream_sync_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("bifrost_credit_authority_required = true"),
+                request.as_ref().is_some_and(RepoCreditRequest::has_authority_seals),
                 "Committed credit request denies credit/publication/PR/merge/sync/action/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "credit-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed credit request preserves the private-state seal.".to_string(),
             );
         }

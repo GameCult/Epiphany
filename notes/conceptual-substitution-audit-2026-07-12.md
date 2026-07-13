@@ -817,6 +817,14 @@ semantics. A commented denial cannot conceal
 `artifact_acceptance_authorized = true`; Maintainer/Bifrost remains the only
 named acceptance owner.
 
+## Credit-request prose substituted for Bifrost authority
+
+`repo.credit_request` closure previously inferred Bifrost request identity,
+receipt contracts, packet requirements, and denied ledger authority from text
+fragments. It now parses a family-specific typed contract and checks exact
+semantics. A comment cannot conceal `credit_ledger_authorized = true`; Bifrost
+remains the sole credit consequence owner.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their
