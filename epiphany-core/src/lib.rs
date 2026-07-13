@@ -716,6 +716,7 @@ pub use persona_turn::persona_projected_surface_is_clean;
 pub use persona_turn::render_persona_semantic_memory_recall;
 pub use persona_turn::semantic_memory_recall_from_heartbeat_action;
 pub use process_observation::EpiphanyProcessObservation;
+pub use process_observation::native_process_executable_path;
 pub use process_observation::observe_native_process;
 pub use promotion::EpiphanyPromotionDecision;
 pub use promotion::EpiphanyPromotionInput;

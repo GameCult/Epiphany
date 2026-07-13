@@ -77,6 +77,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_public_proof;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness;
+use epiphany_core::native_process_executable_path;
 use epiphany_core::observe_native_process;
 use epiphany_core::open_epiphany_cultmesh_node;
 use epiphany_core::publish_epiphany_cultmesh_provider_state;
@@ -103,6 +104,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const WRAPPER_OVERVIEW_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-overview";
+const DIRECT_MANAGED_SERVICE_SIGHT_COMMAND: &str = "epiphany-verse-query managed-services";
 const WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode swarm-online-runbook";
 const WRAPPER_POKE_NON_READY_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-poke-down";
@@ -377,7 +379,7 @@ fn run_cli() -> Result<()> {
                     "attentionCount": report.attention_count,
                     "rows": report.rows,
                     "tuiRows": report.tui_rows,
-                    "privateStateExposed": false,
+                    "privateStateExposed": report.private_state_exposed,
                 }))?
             );
         }
@@ -795,6 +797,7 @@ fn run_cli() -> Result<()> {
                 "tools": "epiphany-verse-query tool-directory",
                 "receipts": "epiphany-verse-query receipt-directory",
                 "restartPolicies": "epiphany-verse-query restart-policy-directory",
+                "managedServiceSight": DIRECT_MANAGED_SERVICE_SIGHT_COMMAND,
                 "repoWorkOverview": "epiphany-work overview --workspace <repo> --item <item>",
                 "repoWorkMap": "epiphany-verse-query swarm-overview",
                 "idunnDeploymentAftercareAudit": DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND,
@@ -3267,7 +3270,7 @@ struct DaemonToolDirectoryReport {
     host_attention_count: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ManagedServiceSightReport {
     status: String,
@@ -3275,9 +3278,10 @@ struct ManagedServiceSightReport {
     attention_count: usize,
     rows: Vec<ManagedServiceSightRow>,
     tui_rows: Vec<String>,
+    private_state_exposed: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ManagedServiceSightRow {
     service_id: String,
@@ -3286,6 +3290,7 @@ struct ManagedServiceSightRow {
     restart_mode: String,
     process_observation: String,
     process_id: Option<u32>,
+    process_identity_verified: bool,
     lifecycle_receipt_id: Option<String>,
     lifecycle_status: Option<String>,
     last_pulse_status: Option<String>,
@@ -3308,11 +3313,21 @@ fn managed_service_sight_report(
             .filter(|receipt| receipt.service_id == policy.service_id)
             .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
         let process_id = latest.and_then(|receipt| receipt.process_id);
-        let process_observation = process_id
+        let mut process_observation = process_id
             .map(observe_native_process)
             .transpose()?
             .map(|observation| observation.label().to_string())
             .unwrap_or_else(|| "missing".to_string());
+        let process_identity_verified = if process_observation == "alive" {
+            latest.is_some_and(|receipt| {
+                verify_process_executable_identity(process_id, &receipt.executable_sha256)
+            })
+        } else {
+            false
+        };
+        if process_observation == "alive" && !process_identity_verified {
+            process_observation = "identity-unverified".to_string();
+        }
         let pulse = compact_last_service_pulse(&policy);
         rows.push(ManagedServiceSightRow {
             service_id: policy.service_id,
@@ -3321,6 +3336,7 @@ fn managed_service_sight_report(
             restart_mode: policy.restart_mode,
             process_observation,
             process_id,
+            process_identity_verified,
             lifecycle_receipt_id: latest.map(|receipt| receipt.receipt_id.clone()),
             lifecycle_status: latest.map(|receipt| receipt.status.clone()),
             last_pulse_status: pulse
@@ -3335,6 +3351,12 @@ fn managed_service_sight_report(
             private_state_exposed: false,
         });
     }
+    Ok(managed_service_sight_report_from_rows(rows))
+}
+
+fn managed_service_sight_report_from_rows(
+    mut rows: Vec<ManagedServiceSightRow>,
+) -> ManagedServiceSightReport {
     rows.sort_by(|left, right| left.service_id.cmp(&right.service_id));
     let alive_count = rows
         .iter()
@@ -3349,7 +3371,13 @@ fn managed_service_sight_report(
         .map(|row| {
             format!(
                 "{} | service={} | owner={} | desired={} | restart={} | observed={} | pid={} | lifecycle={} | pulse={} | iteration={} | private=false",
-                if row.enabled && row.process_observation == "alive" { "READY" } else { "ATTN" },
+                if !row.enabled {
+                    "DISABLED"
+                } else if row.process_observation == "alive" {
+                    "READY"
+                } else {
+                    "ATTN"
+                },
                 row.service_id,
                 row.owner_daemon_id,
                 if row.enabled { "enabled" } else { "disabled" },
@@ -3362,7 +3390,7 @@ fn managed_service_sight_report(
             )
         })
         .collect();
-    Ok(ManagedServiceSightReport {
+    ManagedServiceSightReport {
         status: if attention_count == 0 {
             "ready"
         } else {
@@ -3373,7 +3401,28 @@ fn managed_service_sight_report(
         attention_count,
         rows,
         tui_rows,
-    })
+        private_state_exposed: false,
+    }
+}
+
+fn verify_process_executable_identity(process_id: Option<u32>, expected_sha256: &str) -> bool {
+    let Some(process_id) = process_id else {
+        return false;
+    };
+    if expected_sha256.trim().is_empty() {
+        return false;
+    }
+    let Ok(Some(path)) = native_process_executable_path(process_id) else {
+        return false;
+    };
+    let Ok(bytes) = fs::read(path) else {
+        return false;
+    };
+    format!("{:x}", Sha256::digest(bytes)).eq_ignore_ascii_case(expected_sha256.trim())
+}
+
+fn managed_service_overview_requires_attention(report: &ManagedServiceSightReport) -> bool {
+    report.attention_count > 0
 }
 
 fn compact_last_service_pulse(
@@ -3441,6 +3490,7 @@ struct SwarmOverviewReport {
     tool_host_attention_tui_rows: Vec<String>,
     service_lifecycle_attention_rows: Vec<ReceiptDirectoryRow>,
     service_lifecycle_attention_tui_rows: Vec<String>,
+    managed_service_report: ManagedServiceSightReport,
     service_execution_failed_check_count: usize,
     service_execution_missing_check_count: usize,
     service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
@@ -3796,6 +3846,10 @@ struct SwarmOverviewOutput {
     tool_host_attention_tui_rows: Vec<String>,
     service_lifecycle_attention_count: usize,
     service_lifecycle_attention_rows: Vec<ReceiptDirectoryRow>,
+    managed_service_count: usize,
+    managed_service_alive_count: usize,
+    managed_service_attention_count: usize,
+    managed_service_rows: Vec<ManagedServiceSightRow>,
     service_execution_failed_check_count: usize,
     service_execution_missing_check_count: usize,
     service_execution_failed_check_rows: Vec<EpiphanyServiceExecutionAuditCheck>,
@@ -3904,6 +3958,10 @@ impl SwarmOverviewOutput {
             tool_host_attention_tui_rows: report.tool_host_attention_tui_rows,
             service_lifecycle_attention_count: report.service_lifecycle_attention_rows.len(),
             service_lifecycle_attention_rows: report.service_lifecycle_attention_rows,
+            managed_service_count: report.managed_service_report.rows.len(),
+            managed_service_alive_count: report.managed_service_report.alive_count,
+            managed_service_attention_count: report.managed_service_report.attention_count,
+            managed_service_rows: report.managed_service_report.rows,
             service_execution_failed_check_count: report.service_execution_failed_check_count,
             service_execution_missing_check_count: report.service_execution_missing_check_count,
             service_execution_failed_check_rows: report.service_execution_failed_check_rows,
@@ -6165,6 +6223,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         args.runtime_id.clone(),
     )?;
     let policy_report = daemon_restart_policy_directory_report_from_rows(&policy_directory);
+    let managed_service_report = managed_service_sight_report(&args.store, &args.runtime_id)?;
     let lifecycle_receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
         &args.store,
         args.runtime_id.clone(),
@@ -6271,6 +6330,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let recovery_status = if topology_report.rows.is_empty() {
         "unknown".to_string()
     } else if policy_report.status == "ok"
+        && !managed_service_overview_requires_attention(&managed_service_report)
         && cluster_service_lifecycle_attention.is_none()
         && service_lifecycle_attention.is_none()
     {
@@ -6299,7 +6359,13 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
                 WRAPPER_POKE_NON_READY_COMMAND.to_string(),
             )
         } else if recovery_status != "ready" {
-            if policy_report.status != "ok" {
+            if managed_service_overview_requires_attention(&managed_service_report) {
+                (
+                    DIRECT_MANAGED_SERVICE_SIGHT_COMMAND.to_string(),
+                    "managed-services".to_string(),
+                    DIRECT_MANAGED_SERVICE_SIGHT_COMMAND.to_string(),
+                )
+            } else if policy_report.status != "ok" {
                 (
                     "epiphany-verse-query restart-policy-directory".to_string(),
                     "service-policy-directory".to_string(),
@@ -6420,6 +6486,11 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .any(|row| row.private_state_exposed)
         || tool_report.rows.iter().any(|row| row.private_state_exposed)
         || policy_report.private_state_exposed
+        || managed_service_report.private_state_exposed
+        || managed_service_report
+            .rows
+            .iter()
+            .any(|row| row.private_state_exposed)
         || repo_work_overviews
             .iter()
             .any(|overview| overview.private_state_exposed)
@@ -6508,6 +6579,7 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         tool_host_attention_tui_rows,
         service_lifecycle_attention_rows,
         service_lifecycle_attention_tui_rows,
+        managed_service_report,
         service_execution_failed_check_count,
         service_execution_missing_check_count,
         service_execution_failed_check_rows,
@@ -9516,6 +9588,100 @@ fn required_list(values: &Option<Vec<String>>, message: &str) -> Result<Vec<Stri
 #[cfg(test)]
 mod lifecycle_projection_tests {
     use super::*;
+
+    fn managed_service_row(
+        service_id: &str,
+        enabled: bool,
+        process_observation: &str,
+        lifecycle_status: &str,
+    ) -> ManagedServiceSightRow {
+        ManagedServiceSightRow {
+            service_id: service_id.to_string(),
+            owner_daemon_id: "Idunn".to_string(),
+            enabled,
+            restart_mode: "on-failure".to_string(),
+            process_observation: process_observation.to_string(),
+            process_id: Some(4242),
+            process_identity_verified: process_observation == "alive",
+            lifecycle_receipt_id: Some("stale-receipt".to_string()),
+            lifecycle_status: Some(lifecycle_status.to_string()),
+            last_pulse_status: Some("ready".to_string()),
+            last_pulse_iteration: Some(7),
+            last_pulse_artifact: Some("sealed-artifact".to_string()),
+            private_state_exposed: false,
+        }
+    }
+
+    #[test]
+    fn managed_service_native_dead_observation_beats_stale_lifecycle_readiness() {
+        let report = managed_service_sight_report_from_rows(vec![managed_service_row(
+            "svc-dead", true, "dead", "ready",
+        )]);
+        assert_eq!(report.status, "attention");
+        assert_eq!(report.attention_count, 1);
+        assert!(managed_service_overview_requires_attention(&report));
+        assert!(report.tui_rows[0].starts_with("ATTN |"));
+    }
+
+    #[test]
+    fn disabled_managed_service_does_not_force_overview_attention() {
+        let report = managed_service_sight_report_from_rows(vec![managed_service_row(
+            "svc-disabled",
+            false,
+            "missing",
+            "ready",
+        )]);
+        assert_eq!(report.status, "ready");
+        assert_eq!(report.attention_count, 0);
+        assert!(!managed_service_overview_requires_attention(&report));
+        assert!(report.tui_rows[0].starts_with("DISABLED |"));
+    }
+
+    #[test]
+    fn unverified_process_identity_cannot_satisfy_managed_service_sight() {
+        let mut row = managed_service_row("svc-reused-pid", true, "identity-unverified", "ready");
+        row.process_identity_verified = false;
+        let report = managed_service_sight_report_from_rows(vec![row]);
+        assert_eq!(report.status, "attention");
+        assert_eq!(report.alive_count, 0);
+        assert!(managed_service_overview_requires_attention(&report));
+    }
+
+    #[test]
+    fn specialist_and_overview_share_compact_sealed_sight_rows() -> Result<()> {
+        let report = managed_service_sight_report_from_rows(vec![managed_service_row(
+            "svc-shared",
+            true,
+            "alive",
+            "ready",
+        )]);
+        let specialist_projection = serde_json::to_value(&report)?;
+        let overview_rows = serde_json::to_value(&report.rows)?;
+        assert_eq!(specialist_projection["rows"], overview_rows);
+        assert_eq!(specialist_projection["privateStateExposed"], false);
+        assert_eq!(
+            specialist_projection["rows"][0]["privateStateExposed"],
+            false
+        );
+        assert!(specialist_projection.get("privatePayload").is_none());
+        assert!(
+            specialist_projection["rows"][0]
+                .get("privatePayload")
+                .is_none()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn swarm_managed_service_route_is_read_only_idunn_sight() {
+        assert_eq!(
+            DIRECT_MANAGED_SERVICE_SIGHT_COMMAND,
+            "epiphany-verse-query managed-services"
+        );
+        for forbidden in ["reconcile", "launch", "restart", "write", "deploy"] {
+            assert!(!DIRECT_MANAGED_SERVICE_SIGHT_COMMAND.contains(forbidden));
+        }
+    }
 
     #[test]
     fn repo_work_stage_lens_preserves_per_family_ownership() {

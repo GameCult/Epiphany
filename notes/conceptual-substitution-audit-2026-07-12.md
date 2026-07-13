@@ -1596,6 +1596,28 @@ compile boundary and deletion line; give Hands hostile negative acceptance
 criteria; permit workers to stop and name missing substrate primitives; and
 review green diffs against authority and concurrency invariants.
 
+## Idunn sight and deployment consequence split
+
+The next organ-shaped pass found two related live substitutions. The specialist
+managed-service view joined Idunn policy, lifecycle history, native process
+observation, and sealed pulse evidence, while swarm overview derived recovery
+without that child-service sight. Both projections now consume one sight
+builder. Enabled children require a live process whose executable hash matches
+the Idunn lifecycle receipt; PID existence alone is identity-unverified and
+forces attention. The overview exports typed rows only. Existing specialist TUI
+lowering does not leak into the renderer-neutral overview or grant Gjallar/Eve
+presentation ownership.
+
+The stronger wound was `deployment-aftercare-audit`: caller-supplied JSON files
+could impersonate Idunn deployment and aftercare responses, produce local
+`deploymentComplete=true`, and then be trusted again by readiness. Raw response
+file inputs and cached projection acceptance are deleted. Completion now
+requires typed CultMesh Idunn receipts with exact terminal states and nonempty
+identities, bound conjunctively across receipt id, deployment id, runtime,
+local Verse, result/checked ref, watched ref, source commit, runbook commit, and
+current HEAD. Readiness re-resolves the underlying deployment receipt; absence
+or any mismatch remains incomplete.
+
 ## Ambient command identity is not a typed crossing command
 
 Bifrost's source establishes one typed command -> one crossing attempt -> one

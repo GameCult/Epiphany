@@ -45,6 +45,16 @@ cut the producer boundaries, and Soul-shaped negative checks caught content
 leakage and false consequence ownership. Persistent anatomy lets the next Hands
 pass start at the wound instead of ceremonially rediscovering the body.
 
+The following Aetheria-shaped pass cut two Idunn split truths. Swarm overview
+now consumes the same managed-child sight as the specialist Idunn view, but
+exports typed rows only; Gjallar/Eve remain downstream lowerers. Enabled child
+readiness requires native process executable identity matching the lifecycle
+receipt, so PID reuse cannot counterfeit life. Separately,
+`deployment-aftercare-audit` no longer accepts raw caller response files, and
+readiness no longer launders its cached projection. Typed Idunn deployment and
+aftercare receipts must resolve and bind across identity, runtime, Verse,
+result/ref, runbook, source commit, and current HEAD.
+
 Epiphany is in an authority-provenance purification pass. The live question is not whether a command can produce a plausible document; it is whether the subsystem writing that document owns the fact it asserts.
 
 The confirmed conceptual substitutions have been cut:
