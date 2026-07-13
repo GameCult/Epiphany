@@ -904,7 +904,9 @@ publication receipts, Git ancestry requirements, and denied sync authority. It
 now parses exact typed semantics inside external governance. Upstream
 containment remains evidence produced through the named fetch/merge-base proof;
 the request grants no merge, push, sync, publication, credit, Hands, lifecycle,
-or cross-body authority. The class-level guard prevents substring fallback.
+or cross-body authority. The class-level guard prevents substring fallback. A
+malicious typed fixture separately proves that commented
+`push_authorized = false` cannot conceal an actual push grant.
 
 Ten high-authority families are now typed; 667 substring assertions remain in
 the measured closure region. External governance is 933 lines and remains a
@@ -915,7 +917,7 @@ bounded physical domain rather than returning to the facade slab.
 External governance carried 267 lines of counterfeit fixtures inline under the
 misleading name `tool_request_tests`. They now live in
 `external_governance_tests.rs` and retain lexical access through a test-only
-include. Production governance is 668 lines; the five counterfeit-seal tests
+include. Production governance is 668 lines; the six counterfeit-seal tests
 remain intact without widening visibility or creating a test API.
 
 ## Unresolved: provider receipts without chronology

@@ -264,4 +264,53 @@ maintainer_review_required = true
         let request = parse_repo_publication_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());
     }
+
+    #[test]
+    fn sync_comment_cannot_counterfeit_push_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_sync_request.v0"
+safe_action_family = "repo.sync_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-upstream-main-proof"
+requested_owner = "Bifrost"
+requested_effect = "prove-published-commit-contained-by-upstream-main"
+publication_request_ref = "publication"
+[antecedents]
+publication_receipt_required = true
+github_publication_required = true
+maintainer_review_required = true
+credit_ledger_required = true
+public_proof_required = true
+[required_receipts]
+bifrost_publication = "gamecult.bifrost.public_proof_publication_receipt.v0"
+github_publication = "gamecult.github.publication_receipt.v0"
+maintainer_review = "gamecult.maintainer.review_receipt.v0"
+credit_ledger = "gamecult.bifrost.credit_receipt.v0"
+upstream_sync = "epiphany.repo_work_upstream_main_sync.v0"
+ancestry_proof = "git.merge_base_is_ancestor"
+[sync_proof]
+target_ref = "origin/main"
+requires_fetch_before_check = true
+requires_merge_base_ancestor_check = true
+requires_clean_public_proof_readback = true
+records_upstream_main_sha = true
+[authority]
+branch_local_only = true
+merge_authorized = false
+# push_authorized = false
+push_authorized = true
+upstream_sync_authorized = false
+github_publication_authorized = false
+credit_ledger_authorized = false
+hands_action_authorized = false
+service_lifecycle_authority = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+operator_or_maintainer_authority_required = true
+"#;
+        let request = parse_repo_sync_request(text).expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
+    }
 }

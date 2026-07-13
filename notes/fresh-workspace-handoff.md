@@ -277,7 +277,8 @@ and 667 remaining closure substring assertions.
 
 External-governance counterfeit fixtures now live in the dedicated lexical
 `external_governance_tests.rs`; production contract anatomy is 668 lines and
-the five semantic counterfeit tests remain private and passing.
+the six semantic counterfeit tests remain private and passing, including the
+explicit sync push-grant attack fixture.
 
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
