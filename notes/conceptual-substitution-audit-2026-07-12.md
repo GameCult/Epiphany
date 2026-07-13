@@ -1002,6 +1002,18 @@ Thirteen high-authority families are now typed; 543 substring assertions remain.
 A malicious typed fixture separately proves that commented
 `soul_verdict_authorized = false` cannot conceal an actual verdict grant.
 
+## Next closure-domain cut: workflow authority
+
+Current physical pressure is 724 production lines in external governance, 551
+in operations, and 477 in external-governance fixtures. The generator already
+names the earned phases: preparation, adoption/queue, execution/review,
+publication/accounting, and policy/deployment. Therefore the next adoption,
+scheduling, or work-order conversion must create `workflow.rs`; typed
+verification belongs there and should migrate in the same pass. Do not append
+workflow contracts to external governance merely because its parser imports are
+nearby. External governance should converge on tooling plus
+publication/accounting; operations retains policy/deployment.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

@@ -312,6 +312,12 @@ Verification-request closure is now typed and class-guarded. Current count:
 thirteen typed high-authority families and 543 remaining substring assertions.
 The explicit malicious Soul-verdict fixture now passes as a negative proof.
 
+Closure-domain pressure: external governance 724 production lines, operations
+551, external fixtures 477. The next adoption/scheduling/work-order conversion
+must create `closure_contracts/workflow.rs` and migrate typed verification with
+it. This follows the generator's existing phase ownership; do not keep feeding
+the external-governance drawer.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every
