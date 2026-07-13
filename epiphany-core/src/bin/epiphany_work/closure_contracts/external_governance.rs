@@ -770,7 +770,11 @@ impl RepoPrRequest {
     pub(super) fn awaits_owned_review(&self) -> bool {
         let r = &self.request;
         r.status == "awaiting-pr-publication-review"
-            && r.requested_owner == "Bifrost/GitHub"
+            && r.routing_owner == "Self"
+            && r.publication_owner == "Bifrost"
+            && r.execution_owner == "Hands"
+            && r.provider == "GitHub"
+            && r.provider_receipt_required
             && r.requested_effect
                 == "open-or-update-review-pr-from-redacted-proof-and-maintainer-context"
             && !r.maintainer_review_request_ref.is_empty()
@@ -828,7 +832,11 @@ impl RepoPrRequest {
 #[derive(Debug, Deserialize)]
 struct RepoPrRequestBody {
     status: String,
-    requested_owner: String,
+    routing_owner: String,
+    publication_owner: String,
+    execution_owner: String,
+    provider: String,
+    provider_receipt_required: bool,
     requested_effect: String,
     maintainer_review_request_ref: String,
     publication_request_ref: String,

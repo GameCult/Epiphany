@@ -198,7 +198,11 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&request_text, "safe_action_family = \"repo.pr_request\"")?;
     require_text(&request_text, "[request]")?;
     require_text(&request_text, "status = \"awaiting-pr-publication-review\"")?;
-    require_text(&request_text, "requested_owner = \"Bifrost/GitHub\"")?;
+    require_text(&request_text, "routing_owner = \"Self\"")?;
+    require_text(&request_text, "publication_owner = \"Bifrost\"")?;
+    require_text(&request_text, "execution_owner = \"Hands\"")?;
+    require_text(&request_text, "provider = \"GitHub\"")?;
+    require_text(&request_text, "provider_receipt_required = true")?;
     require_text(
         &request_text,
         "requested_effect = \"open-or-update-review-pr-from-redacted-proof-and-maintainer-context\"",

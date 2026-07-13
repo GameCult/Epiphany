@@ -7751,7 +7751,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "github-publication-receipt".to_string(),
-                owner: "Bifrost/GitHub".to_string(),
+                owner: "GitHub".to_string(),
                 id: receipt.receipt_id.clone(),
                 status: receipt.publication_status.clone(),
                 route: receipt.ledger_entry_id.clone(),

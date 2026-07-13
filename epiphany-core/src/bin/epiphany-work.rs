@@ -4381,7 +4381,11 @@ fn derive_repo_pr_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         "status = \"awaiting-pr-publication-review\"".to_string(),
-        "requested_owner = \"Bifrost/GitHub\"".to_string(),
+        "routing_owner = \"Self\"".to_string(),
+        "publication_owner = \"Bifrost\"".to_string(),
+        "execution_owner = \"Hands\"".to_string(),
+        "provider = \"GitHub\"".to_string(),
+        "provider_receipt_required = true".to_string(),
         "requested_effect = \"open-or-update-review-pr-from-redacted-proof-and-maintainer-context\""
             .to_string(),
         format!(
@@ -6753,7 +6757,7 @@ fn closure_family_assertions(
                 request
                     .as_ref()
                     .is_some_and(RepoPrRequest::awaits_owned_review),
-                "Committed PR request waits for Bifrost/GitHub review before consequence."
+                "Committed PR request separates Self routing, Bifrost publication, Hands execution, and GitHub provider outcome."
                     .to_string(),
             );
             push_assertion(
@@ -10109,7 +10113,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         )?,
         readiness_missing_row(
             "bifrost-publication",
-            "Bifrost/GitHub",
+            "Bifrost",
             "provider-authored publication receipts",
             "Wait for Bifrost and the GitHub publication adapter; legacy local publish aggregates are not authority.",
         ),
@@ -10372,7 +10376,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
                 private_state_exposed: false,
                 notes: vec![
                     "Repo work readiness is reviewable sight only; Maintainer/Soul/Mind/Bifrost own any readiness approval.".to_string(),
-                    "Bifrost/GitHub own publication and upstream-main sync; Idunn owns service lifecycle; Hands owns branch-local action consequences.".to_string(),
+                    "Bifrost owns publication gates; Hands performs bounded PR actions; GitHub supplies provider receipts; Idunn owns service lifecycle.".to_string(),
                     "Downstream consumers may project these rows without scheduling, publication, merge, deployment, service lifecycle, cross-body mutation, or private Verse authority.".to_string(),
                 ],
             };

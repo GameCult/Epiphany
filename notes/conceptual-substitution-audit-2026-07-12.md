@@ -1272,6 +1272,14 @@ deployment body. Compilation caught the mismatch before semantic tests ran;
 secret policy was restored and the exact deployment struct changed. This is
 further evidence that broad textual surgery needs owner-specific contexts.
 
+## GitHub provider as Bifrost publication ownership
+
+`repo.pr_request` named `Bifrost/GitHub` as one owner. The request and operator
+ledger now separate Self routing, Bifrost publication gating, Hands PR action,
+and GitHub provider outcome. GitHub-authored PR receipts are labeled GitHub;
+they do not make the provider a publication-policy organ. The request requires
+the provider receipt rather than treating provider identity as participation.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

@@ -359,7 +359,11 @@ summary = "summary"
 private_state_exposed = false
 [request]
 status = "awaiting-pr-publication-review"
-requested_owner = "Bifrost/GitHub"
+routing_owner = "Self"
+publication_owner = "Bifrost"
+execution_owner = "Hands"
+provider = "GitHub"
+provider_receipt_required = true
 requested_effect = "open-or-update-review-pr-from-redacted-proof-and-maintainer-context"
 maintainer_review_request_ref = "review"
 publication_request_ref = "publication"

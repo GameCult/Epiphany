@@ -425,6 +425,12 @@ outcomes. A generic patch briefly struck secret-policy fields; compilation
 caught it before tests, the fields were restored, and exact deployment tests
 plus the full baseline pass.
 
+PR request no longer has a `Bifrost/GitHub` composite owner. Self routes,
+Bifrost owns the publication gate, Hands performs bounded PR action, and GitHub
+only supplies provider outcomes. The GitHub receipt ledger row is now
+GitHub-owned. Nine external-governance fixtures, 259 library tests, and all
+binaries pass.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment
