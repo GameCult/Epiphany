@@ -555,3 +555,12 @@ as `unconfigured`, `active`, or `attention` from participants and pending-turn
 state. The focused library suite, all-bin check, and native heartbeat smoke pass.
 Continue through cache/freshness projections; do not let existence, successful
 decode, or a latest mirror impersonate current consequence authority.
+
+Operator cache readback is also purified. `epiphany-operator-run latest` joins
+the latest intent to its exact receipt by `run_id`; a new intent cannot borrow
+an older latest completion. Its statuses are lifecycle facts (`missing`,
+`requested`, `completed`, `attention`, `orphaned-receipt`), never generic
+`ready`. `epiphany-operator-snapshot latest` reports present state as `loaded`.
+Negative unit coverage proves intent presence is only requested and mismatched
+receipt identity cannot close it. Both native smokes, 259 library tests, focused
+binary tests, and the all-bin check pass.

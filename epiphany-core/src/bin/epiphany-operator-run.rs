@@ -10,6 +10,7 @@ use epiphany_core::epiphany_cultmesh_coordinator_run_receipt_from_summary_json;
 use epiphany_core::epiphany_cultmesh_hands_action_gate_from_summary_json;
 use epiphany_core::epiphany_cultmesh_role_review_event_from_summary_json;
 use epiphany_core::load_epiphany_cultmesh_operator_run_intent;
+use epiphany_core::load_epiphany_cultmesh_operator_run_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_operator_run_intent;
 use epiphany_core::load_latest_epiphany_cultmesh_operator_run_receipt;
 use epiphany_core::write_epiphany_cultmesh_coordinator_run_receipt;
@@ -126,10 +127,17 @@ fn main() -> Result<()> {
         "latest" => {
             let intent =
                 load_latest_epiphany_cultmesh_operator_run_intent(&args.store, &args.runtime_id)?;
-            let receipt =
-                load_latest_epiphany_cultmesh_operator_run_receipt(&args.store, &args.runtime_id)?;
+            let receipt = if let Some(intent) = intent.as_ref() {
+                load_epiphany_cultmesh_operator_run_receipt(
+                    &args.store,
+                    &args.runtime_id,
+                    &intent.run_id,
+                )?
+            } else {
+                load_latest_epiphany_cultmesh_operator_run_receipt(&args.store, &args.runtime_id)?
+            };
             print_json(json!({
-                "status": if intent.is_some() || receipt.is_some() { "ready" } else { "missing" },
+                "status": operator_run_status(intent.as_ref(), receipt.as_ref()),
                 "store": args.store,
                 "intent": intent,
                 "receipt": receipt,
@@ -240,6 +248,90 @@ fn main() -> Result<()> {
         other => anyhow::bail!("unknown command {other:?}; use intent, receipt, latest, or smoke"),
     }
     Ok(())
+}
+
+fn operator_run_status(
+    intent: Option<&EpiphanyCultMeshOperatorRunIntentEntry>,
+    receipt: Option<&EpiphanyCultMeshOperatorRunReceiptEntry>,
+) -> &'static str {
+    match (intent, receipt) {
+        (None, None) => "missing",
+        (Some(_), None) => "requested",
+        (None, Some(_)) => "orphaned-receipt",
+        (Some(intent), Some(receipt))
+            if intent.run_id == receipt.run_id && receipt.status == "completed" =>
+        {
+            "completed"
+        }
+        (Some(_), Some(_)) => "attention",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn intent(run_id: &str) -> EpiphanyCultMeshOperatorRunIntentEntry {
+        EpiphanyCultMeshOperatorRunIntentEntry {
+            schema_version: EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION.to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+            run_id: run_id.to_string(),
+            requested_at_utc: "2026-07-13T00:00:00Z".to_string(),
+            mode: "status".to_string(),
+            root: "root".to_string(),
+            workspace: "workspace".to_string(),
+            thread_id: String::new(),
+            codex_home: String::new(),
+            target_dir: String::new(),
+            max_steps: 1,
+            timeout_seconds: 1,
+            auto_review: false,
+            no_ephemeral: false,
+            artifact_root: "artifacts".to_string(),
+            dogfood_root: String::new(),
+        }
+    }
+
+    fn receipt(run_id: &str, status: &str) -> EpiphanyCultMeshOperatorRunReceiptEntry {
+        EpiphanyCultMeshOperatorRunReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+            run_id: run_id.to_string(),
+            completed_at_utc: "2026-07-13T00:00:01Z".to_string(),
+            mode: "status".to_string(),
+            status: status.to_string(),
+            result_path: "result.json".to_string(),
+            artifact_root: "artifacts".to_string(),
+            dogfood_root: String::new(),
+            operator_snapshot_store: String::new(),
+            operator_snapshot_id: String::new(),
+            artifact_refs: Vec::new(),
+            notes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn intent_presence_is_requested_not_ready() {
+        let intent = intent("run-new");
+        assert_eq!(operator_run_status(Some(&intent), None), "requested");
+    }
+
+    #[test]
+    fn only_matching_completed_receipt_closes_latest_intent() {
+        let intent = intent("run-new");
+        let old_receipt = receipt("run-old", "completed");
+        let matching_receipt = receipt("run-new", "completed");
+        assert_eq!(
+            operator_run_status(Some(&intent), Some(&old_receipt)),
+            "attention"
+        );
+        assert_eq!(
+            operator_run_status(Some(&intent), Some(&matching_receipt)),
+            "completed"
+        );
+    }
 }
 
 struct Args {

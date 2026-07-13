@@ -2933,6 +2933,15 @@ pub fn load_latest_epiphany_cultmesh_operator_run_receipt(
     node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)
 }
 
+pub fn load_epiphany_cultmesh_operator_run_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    run_id: &str,
+) -> Result<Option<EpiphanyCultMeshOperatorRunReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(epiphany_cultmesh_operator_run_receipt_key(run_id).as_str())
+}
+
 pub fn epiphany_cultmesh_coordinator_run_receipt_from_summary_json(
     runtime_id: impl Into<String>,
     receipt_id: impl Into<String>,

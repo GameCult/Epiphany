@@ -1464,3 +1464,19 @@ is `unconfigured`; active participants whose pending turns are running are
 smoke asserts the distinction at the emitted projection layer. State loading
 owns readability. Participant physiology derives scheduler status. Presence
 alone owns no readiness verdict.
+
+## Cache presence is not operator-run readiness
+
+The operator-run `latest` projection emitted `ready` when either a latest intent
+or a latest receipt existed. This collapsed request, execution, and completion,
+and the two independent latest mirrors could pair a new intent with an older
+run's receipt. A historical completion could therefore lend authority to work
+that had only been requested.
+
+Readback now loads the latest intent, then looks up that intent's receipt by
+`run_id`. It reports `requested` until the matching receipt exists, `completed`
+only for a matching completed receipt, `attention` for an inconsistent pair,
+`orphaned-receipt` when receipt state exists without an intent, and `missing`
+when neither exists. The operator snapshot readback likewise reports `loaded`,
+not `ready`, when a snapshot is merely present. Cache lookup owns retrieval;
+the joined lifecycle evidence owns lifecycle status.

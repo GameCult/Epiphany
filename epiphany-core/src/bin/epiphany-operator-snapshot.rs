@@ -41,7 +41,7 @@ fn main() -> Result<()> {
             let latest =
                 load_latest_epiphany_cultmesh_operator_snapshot(&args.store, &args.runtime_id)?;
             print_json(json!({
-                "status": if latest.is_some() { "ready" } else { "missing" },
+                "status": if latest.is_some() { "loaded" } else { "missing" },
                 "store": args.store,
                 "snapshot": latest,
             }))?;
