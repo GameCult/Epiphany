@@ -43,14 +43,19 @@ use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
     REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
     REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
+    REPO_FRONTIER_PLAN_ADOPTION_SCHEMA_VERSION, REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION,
+    REPO_FRONTIER_PLANNING_CONTRACT, REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_ROUTE_CONTRACT, REPO_FRONTIER_ROUTE_SCHEMA_VERSION,
+    REPO_FRONTIER_WORK_PROPOSAL_CONTRACT, REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION,
     REPO_MODEL_ADMISSION_CONTRACT, REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION,
     REPO_MODEL_ADMISSION_RECEIPT_TYPE, REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION,
     REPO_MODEL_ADMISSION_REVIEW_TYPE, REPO_MODEL_MIGRATION_CONTRACT,
     REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION, REPO_MODEL_MIGRATION_RECEIPT_TYPE,
     RepoFrontierHandsAuthority, RepoFrontierModelingRequest, RepoFrontierNextOrgan,
-    RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoModelAdmissionReceipt,
-    RepoModelAdmissionReview, RepoModelMigrationReceipt,
+    RepoFrontierPlanAdoption, RepoFrontierPlanCandidate, RepoFrontierPlanDecision,
+    RepoFrontierPlanningRequest, RepoFrontierRoute, RepoFrontierVerdictDisposition,
+    RepoFrontierWorkProposal, RepoModelAdmissionReceipt, RepoModelAdmissionReview,
+    RepoModelMigrationReceipt,
 };
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
@@ -753,6 +758,10 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierRoute>()?;
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
+    cache.register_entry_type::<RepoFrontierWorkProposal>()?;
+    cache.register_entry_type::<RepoFrontierPlanningRequest>()?;
+    cache.register_entry_type::<RepoFrontierPlanCandidate>()?;
+    cache.register_entry_type::<RepoFrontierPlanAdoption>()?;
     cache.register_entry_type::<RepoFrontierVerificationRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeReorientWorkerResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
@@ -1777,6 +1786,380 @@ pub fn commit_repo_model_admission(
         ));
     }
     Ok(receipt)
+}
+
+fn put_immutable_planning_entry<T: cultcache_rs::DatabaseEntry + PartialEq + Clone>(
+    store_path: &Path,
+    key: &str,
+    value: &T,
+) -> Result<()> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    if let Some(existing) = cache.get::<T>(key)? {
+        return if existing == *value {
+            Ok(())
+        } else {
+            Err(anyhow!("planning document ids are immutable"))
+        };
+    }
+    let (envelope, _) = cache.prepare_entry(key, value)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    if backing.compare_and_swap_batch(&[], vec![envelope])? {
+        return Ok(());
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<T>(key)? {
+        Some(existing) if existing == *value => Ok(()),
+        _ => Err(anyhow!("planning document CAS collision")),
+    }
+}
+
+pub fn put_repo_frontier_work_proposal(
+    store_path: impl AsRef<Path>,
+    proposal: &RepoFrontierWorkProposal,
+) -> Result<()> {
+    if proposal.schema_version != REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION
+        || proposal.contract != REPO_FRONTIER_WORK_PROPOSAL_CONTRACT
+        || proposal.proposal_id.trim().is_empty()
+        || proposal.source_actor.trim().is_empty()
+        || proposal.source_ref.trim().is_empty()
+        || proposal.repository.trim().is_empty()
+        || proposal.workspace.trim().is_empty()
+        || proposal.thread_id.trim().is_empty()
+        || proposal.runtime_id.trim().is_empty()
+        || proposal.title.trim().is_empty()
+        || proposal.body.trim().is_empty()
+        || proposal.desired_outcome.trim().is_empty()
+        || proposal.private_state_included
+        || chrono::DateTime::parse_from_rfc3339(&proposal.proposed_at).is_err()
+    {
+        return Err(anyhow!("invalid inert repo frontier work proposal"));
+    }
+    let content = rmp_serde::to_vec_named(&(
+        &proposal.title,
+        &proposal.body,
+        &proposal.desired_outcome,
+        &proposal.constraints,
+        &proposal.scope_hints,
+        &proposal.evidence_refs,
+    ))?;
+    if proposal.content_sha256 != format!("{:x}", Sha256::digest(content)) {
+        return Err(anyhow!("proposal content hash mismatch"));
+    }
+    let mut cache = runtime_spine_cache(store_path.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    let identity = require_identity(&cache)?;
+    if identity.runtime_id != proposal.runtime_id {
+        return Err(anyhow!("proposal runtime identity mismatch"));
+    }
+    put_immutable_planning_entry(store_path.as_ref(), &proposal.proposal_id, proposal)
+}
+
+pub fn select_and_commit_repo_frontier_planning_request(
+    runtime_store: impl AsRef<Path>,
+    at: &str,
+) -> Result<RepoFrontierPlanningRequest> {
+    chrono::DateTime::parse_from_rfc3339(at)
+        .map_err(|_| anyhow!("planning request timestamp must be RFC3339"))?;
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let backing = SingleFileMessagePackBackingStore::new(runtime_store);
+    let model_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|e| e.r#type == crate::MEMORY_GRAPH_TYPE && e.key == crate::MEMORY_GRAPH_KEY)
+        .ok_or_else(|| anyhow!("planning requires canonical model"))?;
+    let entry: crate::EpiphanyMemoryGraphEntry = rmp_serde::from_slice(&model_envelope.payload)?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let receipts = cache
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|r| {
+            r.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                && r.contract == REPO_MODEL_ADMISSION_CONTRACT
+                && r.admitted_revision == model.model_revision
+                && r.admitted_hash == model_hash
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 {
+        return Err(anyhow!(
+            "planning requires exactly one current admission receipt"
+        ));
+    }
+    let item = actionable_imagination_frontier_item(&model)
+        .ok_or_else(|| anyhow!("planning requires an actionable Imagination frontier"))?;
+    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
+    if cache
+        .get_all::<RepoFrontierPlanAdoption>()?
+        .iter()
+        .any(|a| {
+            a.decision == RepoFrontierPlanDecision::Adopt
+                && a.model_hash == model_hash
+                && a.frontier_item_id == item.id
+                && a.frontier_item_hash == item_hash
+        })
+    {
+        return Err(anyhow!("current frontier already has an adopted plan"));
+    }
+    let request_id = format!(
+        "repo-frontier-planning-{:x}",
+        Sha256::digest(format!("{model_hash}:{}:{item_hash}", item.id).as_bytes())
+    );
+    let request = RepoFrontierPlanningRequest {
+        schema_version: REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION.into(),
+        request_id: request_id.clone(),
+        model_revision: model.model_revision,
+        model_hash,
+        admission_receipt_id: receipts[0].receipt_id.clone(),
+        frontier_item_id: item.id.clone(),
+        frontier_item_hash: item_hash,
+        selected_organ: "Imagination".into(),
+        source_scope: item.source_scope.clone(),
+        requested_at: at.into(),
+        contract: REPO_FRONTIER_PLANNING_CONTRACT.into(),
+    };
+    if let Some(existing) = cache.get::<RepoFrontierPlanningRequest>(&request_id)? {
+        let mut retry = request.clone();
+        retry.requested_at = existing.requested_at.clone();
+        return if existing == retry {
+            Ok(existing)
+        } else {
+            Err(anyhow!("planning request identity collision"))
+        };
+    }
+    let (envelope, _) = cache.prepare_entry(&request_id, &request)?;
+    if !backing.compare_and_swap_batch(&[model_envelope.clone()], vec![model_envelope, envelope])? {
+        let mut reloaded = runtime_spine_cache(runtime_store)?;
+        reloaded.pull_all_backing_stores()?;
+        if let Some(existing) = reloaded.get::<RepoFrontierPlanningRequest>(&request_id)? {
+            let mut retry = request;
+            retry.requested_at = existing.requested_at.clone();
+            return if existing == retry {
+                Ok(existing)
+            } else {
+                Err(anyhow!("planning request CAS collision"))
+            };
+        }
+        return Err(anyhow!("planning request lost current-model CAS"));
+    }
+    Ok(request)
+}
+
+fn actionable_imagination_frontier_item(
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+) -> Option<&crate::RepoFrontierItem> {
+    let terminal = |id: &str| {
+        model
+            .frontier
+            .iter()
+            .find(|item| item.id == id)
+            .is_some_and(|item| {
+                matches!(
+                    item.status,
+                    crate::RepoFrontierStatus::Resolved
+                        | crate::RepoFrontierStatus::Retired
+                        | crate::RepoFrontierStatus::Superseded
+                )
+            })
+    };
+    let mut eligible = model
+        .frontier
+        .iter()
+        .filter(|item| {
+            item.status == crate::RepoFrontierStatus::Active
+                && item.recommended_next_organ == "Imagination"
+                && !item.source_scope.is_empty()
+                && safe_sorted_unique_paths(&item.source_scope)
+                && item.dependency_item_ids.iter().all(|id| terminal(id))
+        })
+        .collect::<Vec<_>>();
+    eligible.sort_by(|a, b| a.id.cmp(&b.id));
+    eligible.into_iter().next()
+}
+
+pub fn put_repo_frontier_plan_candidate(
+    store_path: impl AsRef<Path>,
+    candidate: &RepoFrontierPlanCandidate,
+) -> Result<()> {
+    if candidate.schema_version != REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION
+        || candidate.contract != REPO_FRONTIER_PLANNING_CONTRACT
+        || candidate.selected_fields_invalid()
+    {
+        return Err(anyhow!("invalid repo frontier plan candidate"));
+    }
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let request = cache
+        .get::<RepoFrontierPlanningRequest>(&candidate.planning_request_id)?
+        .ok_or_else(|| anyhow!("candidate requires persisted planning request"))?;
+    if request.schema_version != REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION
+        || request.contract != REPO_FRONTIER_PLANNING_CONTRACT
+        || request.selected_organ != "Imagination"
+    {
+        return Err(anyhow!("candidate planning request contract is invalid"));
+    }
+    if candidate.model_revision != request.model_revision
+        || candidate.model_hash != request.model_hash
+        || candidate.frontier_item_id != request.frontier_item_id
+        || candidate.frontier_item_hash != request.frontier_item_hash
+    {
+        return Err(anyhow!("candidate substituted planning identity"));
+    }
+    let admission = cache
+        .get::<RepoModelAdmissionReceipt>(&request.admission_receipt_id)?
+        .ok_or_else(|| anyhow!("candidate requires exact admission receipt"))?;
+    if admission.schema_version != REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+        || admission.contract != REPO_MODEL_ADMISSION_CONTRACT
+        || admission.admitted_revision != request.model_revision
+        || admission.admitted_hash != request.model_hash
+    {
+        return Err(anyhow!("candidate admission binding mismatch"));
+    }
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let model_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|e| e.r#type == crate::MEMORY_GRAPH_TYPE && e.key == crate::MEMORY_GRAPH_KEY)
+        .ok_or_else(|| anyhow!("candidate requires canonical model"))?;
+    let entry: crate::EpiphanyMemoryGraphEntry = rmp_serde::from_slice(&model_envelope.payload)?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    if model.model_revision != request.model_revision
+        || crate::memory_graph_model_hash(&model)? != request.model_hash
+    {
+        return Err(anyhow!("candidate model is stale"));
+    }
+    let item = model
+        .frontier
+        .iter()
+        .find(|i| i.id == request.frontier_item_id)
+        .ok_or_else(|| anyhow!("candidate frontier missing"))?;
+    if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?)) != request.frontier_item_hash
+        || item.source_scope != request.source_scope
+    {
+        return Err(anyhow!("candidate frontier identity mismatch"));
+    }
+    if !candidate.safe_paths.iter().all(|path| {
+        request.source_scope.iter().any(|scope| {
+            path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+        })
+    }) {
+        return Err(anyhow!("candidate paths exceed frontier source scope"));
+    }
+    put_immutable_planning_entry(store_path, &candidate.candidate_id, candidate)
+}
+
+impl RepoFrontierPlanCandidate {
+    fn selected_fields_invalid(&self) -> bool {
+        self.candidate_id.trim().is_empty()
+            || self.safe_paths.is_empty()
+            || !safe_sorted_unique_paths(&self.safe_paths)
+            || self.action.trim().is_empty()
+            || self.command.trim().is_empty()
+            || self.checks.is_empty()
+            || self.checks.iter().any(|v| v.trim().is_empty())
+            || self.stop_conditions.is_empty()
+            || self.stop_conditions.iter().any(|v| v.trim().is_empty())
+            || self.rollback_steps.is_empty()
+            || self.rollback_steps.iter().any(|v| v.trim().is_empty())
+            || self.commit_message.trim().is_empty()
+            || chrono::DateTime::parse_from_rfc3339(&self.proposed_at).is_err()
+    }
+}
+
+pub fn put_repo_frontier_plan_adoption(
+    store_path: impl AsRef<Path>,
+    adoption: &RepoFrontierPlanAdoption,
+) -> Result<()> {
+    if adoption.schema_version != REPO_FRONTIER_PLAN_ADOPTION_SCHEMA_VERSION
+        || adoption.contract != REPO_FRONTIER_PLANNING_CONTRACT
+        || adoption.adoption_id.trim().is_empty()
+        || adoption.rationale.trim().is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&adoption.decided_at).is_err()
+    {
+        return Err(anyhow!("invalid repo frontier plan adoption"));
+    }
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let candidate = cache
+        .get::<RepoFrontierPlanCandidate>(&adoption.candidate_id)?
+        .ok_or_else(|| anyhow!("adoption requires persisted candidate"))?;
+    let bytes = rmp_serde::to_vec_named(&candidate)?;
+    if adoption.candidate_sha256 != format!("{:x}", Sha256::digest(bytes))
+        || adoption.planning_request_id != candidate.planning_request_id
+        || adoption.model_revision != candidate.model_revision
+        || adoption.model_hash != candidate.model_hash
+        || adoption.frontier_item_id != candidate.frontier_item_id
+        || adoption.frontier_item_hash != candidate.frontier_item_hash
+    {
+        return Err(anyhow!("adoption substituted candidate identity"));
+    }
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let model_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|e| e.r#type == crate::MEMORY_GRAPH_TYPE && e.key == crate::MEMORY_GRAPH_KEY)
+        .ok_or_else(|| anyhow!("adoption requires current model"))?;
+    let entry: crate::EpiphanyMemoryGraphEntry = rmp_serde::from_slice(&model_envelope.payload)?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    if model.model_revision != adoption.model_revision
+        || crate::memory_graph_model_hash(&model)? != adoption.model_hash
+    {
+        return Err(anyhow!("adoption model is stale"));
+    }
+    let item = model
+        .frontier
+        .iter()
+        .find(|i| i.id == adoption.frontier_item_id)
+        .ok_or_else(|| anyhow!("adoption frontier missing"))?;
+    if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?))
+        != adoption.frontier_item_hash
+    {
+        return Err(anyhow!("adoption frontier identity is stale"));
+    }
+    let claim_id = format!(
+        "repo-frontier-plan-adopt-{:x}",
+        Sha256::digest(format!("{}:{}", adoption.model_hash, adoption.frontier_item_id).as_bytes())
+    );
+    if adoption.decision == RepoFrontierPlanDecision::Adopt {
+        if adoption.adoption_id != claim_id {
+            return Err(anyhow!("Adopt must use deterministic frontier claim id"));
+        }
+    } else if adoption
+        .adoption_id
+        .starts_with("repo-frontier-plan-adopt-")
+    {
+        return Err(anyhow!(
+            "Hold/Refuse cannot occupy the frontier Adopt claim"
+        ));
+    }
+    if let Some(existing) = cache.get::<RepoFrontierPlanAdoption>(&adoption.adoption_id)? {
+        return if existing == *adoption {
+            Ok(())
+        } else {
+            Err(anyhow!("plan adoption ids are immutable"))
+        };
+    }
+    let (envelope, _) = cache.prepare_entry(&adoption.adoption_id, adoption)?;
+    if !backing.compare_and_swap_batch(&[model_envelope.clone()], vec![model_envelope, envelope])? {
+        let mut reloaded = runtime_spine_cache(store_path)?;
+        reloaded.pull_all_backing_stores()?;
+        return match reloaded.get::<RepoFrontierPlanAdoption>(&adoption.adoption_id)? {
+            Some(existing) if existing == *adoption => Ok(()),
+            Some(_) => Err(anyhow!("frontier Adopt claim already owned")),
+            None => Err(anyhow!("plan adoption lost current-model CAS")),
+        };
+    }
+    Ok(())
 }
 
 pub fn select_and_commit_repo_frontier_route(
@@ -5062,6 +5445,233 @@ mod tests {
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
         };
         Ok((result, review))
+    }
+
+    #[test]
+    fn typed_frontier_planning_chain_is_exact_immutable_and_non_routing() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("planning.ccmp");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "planning-test".into(),
+                display_name: "Planning Test".into(),
+                created_at: "2026-07-13T03:00:00Z".into(),
+            },
+        )?;
+        let proposal_content = rmp_serde::to_vec_named(&(
+            "Plan typed frontier work",
+            "Build the inert planning foundation.",
+            "Produce typed planning documents.",
+            vec!["No execution route"],
+            vec!["epiphany-core/src"],
+            vec!["evidence-user-request"],
+        ))?;
+        let proposal = RepoFrontierWorkProposal {
+            schema_version: REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION.into(),
+            proposal_id: "proposal-1".into(),
+            source_kind: crate::RepoFrontierProposalSourceKind::User,
+            source_actor: "operator".into(),
+            source_ref: "thread-message-1".into(),
+            repository: "EpiphanyAgent".into(),
+            workspace: "E:/Projects/EpiphanyAgent".into(),
+            thread_id: "thread-1".into(),
+            runtime_id: "planning-test".into(),
+            content_sha256: format!("{:x}", Sha256::digest(proposal_content)),
+            title: "Plan typed frontier work".into(),
+            body: "Build the inert planning foundation.".into(),
+            desired_outcome: "Produce typed planning documents.".into(),
+            constraints: vec!["No execution route".into()],
+            scope_hints: vec!["epiphany-core/src".into()],
+            evidence_refs: vec!["evidence-user-request".into()],
+            private_state_included: false,
+            proposed_at: "2026-07-13T03:01:00Z".into(),
+            contract: REPO_FRONTIER_WORK_PROPOSAL_CONTRACT.into(),
+        };
+        put_repo_frontier_work_proposal(&store, &proposal)?;
+        put_repo_frontier_work_proposal(&store, &proposal)?;
+        let mut corrupt_proposal = proposal.clone();
+        corrupt_proposal.proposal_id = "proposal-corrupt".into();
+        corrupt_proposal.body = "substituted".into();
+        assert!(put_repo_frontier_work_proposal(&store, &corrupt_proposal).is_err());
+        let bootstrap = repo_model_bootstrap();
+        let legacy = temp.path().join("legacy.msgpack");
+        let (current, _) =
+            ensure_runtime_repo_model(&store, &legacy, &bootstrap, "2026-07-13T04:00:00Z")?;
+        let (mut result, mut review) = repo_model_result_and_review(
+            "planning-result",
+            "planning-job",
+            &current,
+            "planning-review",
+        )?;
+        let mut patch: crate::RepoModelPatch =
+            rmp_serde::from_slice(result.repo_model_patch_msgpack.as_deref().unwrap())?;
+        let crate::RepoModelPatchOperation::UpsertFrontier { item } = &mut patch.operations[0]
+        else {
+            unreachable!()
+        };
+        item.recommended_next_organ = "Imagination".into();
+        let bytes = rmp_serde::to_vec_named(&patch)?;
+        result.repo_model_patch_msgpack = Some(bytes.clone());
+        review.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));
+        put_runtime_role_worker_result(&store, &result)?;
+        commit_repo_model_admission(&store, &result.result_id, &review)?;
+
+        let request_store_one = store.clone();
+        let request_store_two = store.clone();
+        let left = std::thread::spawn(move || {
+            select_and_commit_repo_frontier_planning_request(
+                request_store_one,
+                "2026-07-13T05:00:00Z",
+            )
+        });
+        let right = std::thread::spawn(move || {
+            select_and_commit_repo_frontier_planning_request(
+                request_store_two,
+                "2026-07-13T05:01:00Z",
+            )
+        });
+        let request = left.join().unwrap()?;
+        let concurrent = right.join().unwrap()?;
+        assert_eq!(request.selected_organ, "Imagination");
+        assert_eq!(concurrent, request);
+        assert!(
+            runtime_spine_cache(&store)?
+                .get_all::<RepoFrontierRoute>()?
+                .is_empty()
+        );
+
+        let candidate = RepoFrontierPlanCandidate {
+            schema_version: REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.into(),
+            candidate_id: "candidate-1".into(),
+            planning_request_id: request.request_id.clone(),
+            model_revision: request.model_revision,
+            model_hash: request.model_hash.clone(),
+            frontier_item_id: request.frontier_item_id.clone(),
+            frontier_item_hash: request.frontier_item_hash.clone(),
+            safe_paths: vec!["epiphany-core/src/runtime_spine.rs".into()],
+            action: "Add typed planning state".into(),
+            command: "cargo test".into(),
+            checks: vec!["focused tests pass".into()],
+            stop_conditions: vec!["model identity changes".into()],
+            rollback_steps: vec!["remove candidate".into()],
+            commit_message: "Add typed planning foundation".into(),
+            proposed_at: "2026-07-13T05:02:00Z".into(),
+            contract: REPO_FRONTIER_PLANNING_CONTRACT.into(),
+        };
+        put_repo_frontier_plan_candidate(&store, &candidate)?;
+        put_repo_frontier_plan_candidate(&store, &candidate)?;
+        let mut swapped = candidate.clone();
+        swapped.candidate_id = "candidate-swapped".into();
+        swapped.frontier_item_hash = "0".repeat(64);
+        assert!(put_repo_frontier_plan_candidate(&store, &swapped).is_err());
+        let mut unsafe_paths = candidate.clone();
+        unsafe_paths.candidate_id = "candidate-unsafe".into();
+        unsafe_paths.safe_paths = vec!["z".into(), "a".into()];
+        assert!(put_repo_frontier_plan_candidate(&store, &unsafe_paths).is_err());
+        let mut escaped = candidate.clone();
+        escaped.candidate_id = "candidate-escaped".into();
+        escaped.safe_paths = vec!["epiphany-core/src/lib.rs".into()];
+        assert!(put_repo_frontier_plan_candidate(&store, &escaped).is_err());
+        let mut blank_check = candidate.clone();
+        blank_check.candidate_id = "candidate-blank".into();
+        blank_check.checks = vec![" ".into()];
+        assert!(put_repo_frontier_plan_candidate(&store, &blank_check).is_err());
+
+        let mut candidate_two = candidate.clone();
+        candidate_two.candidate_id = "candidate-2".into();
+        candidate_two.action = "Alternative exact plan".into();
+        put_repo_frontier_plan_candidate(&store, &candidate_two)?;
+
+        let adoption = RepoFrontierPlanAdoption {
+            schema_version: REPO_FRONTIER_PLAN_ADOPTION_SCHEMA_VERSION.into(),
+            adoption_id: format!(
+                "repo-frontier-plan-adopt-{:x}",
+                Sha256::digest(
+                    format!("{}:{}", request.model_hash, request.frontier_item_id).as_bytes()
+                )
+            ),
+            candidate_id: candidate.candidate_id.clone(),
+            candidate_sha256: format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&candidate)?)),
+            planning_request_id: request.request_id.clone(),
+            model_revision: request.model_revision,
+            model_hash: request.model_hash.clone(),
+            frontier_item_id: request.frontier_item_id.clone(),
+            frontier_item_hash: request.frontier_item_hash.clone(),
+            decision: RepoFrontierPlanDecision::Adopt,
+            rationale: "Exact bounded plan".into(),
+            decided_at: "2026-07-13T05:03:00Z".into(),
+            contract: REPO_FRONTIER_PLANNING_CONTRACT.into(),
+        };
+        let mut adoption_two = adoption.clone();
+        adoption_two.candidate_id = candidate_two.candidate_id.clone();
+        adoption_two.candidate_sha256 = format!(
+            "{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&candidate_two)?)
+        );
+        adoption_two.rationale = "Competing exact plan".into();
+        let mut claim_squatter = adoption.clone();
+        claim_squatter.decision = RepoFrontierPlanDecision::Hold;
+        claim_squatter.rationale = "Attempt to squat the reserved claim".into();
+        assert!(put_repo_frontier_plan_adoption(&store, &claim_squatter).is_err());
+        let store_one = store.clone();
+        let store_two = store.clone();
+        let first = adoption.clone();
+        let second = adoption_two.clone();
+        let left = std::thread::spawn(move || put_repo_frontier_plan_adoption(store_one, &first));
+        let right = std::thread::spawn(move || put_repo_frontier_plan_adoption(store_two, &second));
+        let outcomes = [left.join().unwrap(), right.join().unwrap()];
+        assert_eq!(outcomes.iter().filter(|result| result.is_ok()).count(), 1);
+        let mut loaded = runtime_spine_cache(&store)?;
+        loaded.pull_all_backing_stores()?;
+        let winner = loaded
+            .get::<RepoFrontierPlanAdoption>(&adoption.adoption_id)?
+            .unwrap();
+        put_repo_frontier_plan_adoption(&store, &winner)?;
+        let mut counterfeit = adoption.clone();
+        counterfeit.adoption_id = "adoption-counterfeit".into();
+        counterfeit.candidate_sha256 = "f".repeat(64);
+        assert!(put_repo_frontier_plan_adoption(&store, &counterfeit).is_err());
+        assert!(
+            select_and_commit_repo_frontier_planning_request(&store, "2026-07-13T06:00:00Z")
+                .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn imagination_frontier_selection_is_deterministic_and_dependency_aware() {
+        let mut model = repo_model_bootstrap();
+        let item = |id: &str, dependencies: Vec<&str>| crate::RepoFrontierItem {
+            id: id.into(),
+            migration_body: "body".into(),
+            question: "question".into(),
+            gap: "gap".into(),
+            recommended_next_organ: "Imagination".into(),
+            source_scope: vec!["epiphany-core/src".into()],
+            dependency_item_ids: dependencies.into_iter().map(str::to_string).collect(),
+            status: crate::RepoFrontierStatus::Active,
+            ..Default::default()
+        };
+        model.frontier = vec![
+            item("z-ready", vec![]),
+            item("a-blocked", vec!["dependency"]),
+            crate::RepoFrontierItem {
+                id: "dependency".into(),
+                status: crate::RepoFrontierStatus::Blocked,
+                ..Default::default()
+            },
+            item("b-ready", vec![]),
+        ];
+        assert_eq!(
+            actionable_imagination_frontier_item(&model).unwrap().id,
+            "b-ready"
+        );
+        model.frontier[2].status = crate::RepoFrontierStatus::Resolved;
+        assert_eq!(
+            actionable_imagination_frontier_item(&model).unwrap().id,
+            "a-blocked"
+        );
     }
 
     fn admit_route_and_authorize_hands(

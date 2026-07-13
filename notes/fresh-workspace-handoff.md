@@ -114,6 +114,30 @@ candidate -> Mind plan adoption -> distinct Self execution route -> canonical
 Hands/Soul/verdict-incorporation chain. Plan readiness does not belong in
 `RepoFrontierStatus`, and a generic phase router has not earned existence.
 
+The typed pre-Hands planning foundation is now implemented and Soul-approved.
+`RepoFrontierWorkProposal` is immutable, content-hashed, runtime-bound, rejects
+marked private state, and has an explicit inert contract. It cannot create a
+frontier or route. `RepoFrontierPlanningRequest` is a distinct Self document:
+it validates the canonical model and admission, chooses the deterministic first
+dependency-ready Active Imagination frontier, freezes item hash/source scope,
+and uses current-model CAS. `RepoFrontierPlanCandidate` binds that request and
+revalidates model/admission/item/scope; safe paths must be contained by the
+frozen scope and checks/stop/rollback lists must contain real text. Mind plan
+adoption binds exact candidate bytes and current anatomy. `Adopt` owns one
+deterministic model+frontier claim; concurrent candidates produce one winner,
+while Hold/Refuse cannot squat the reserved claim prefix. Exact retries
+revalidate current state. Nothing in this foundation emits an execution route,
+Hands authority, or frontier lifecycle change. Full core proof is 296 passed
+and 1 ignored; independent Soul verdict is PASS.
+
+Proposal-to-frontier admission is deliberately still absent. Do not infer a
+selected proposal by intersecting arbitrary evidence or add patch metadata.
+Add one explicit coordinator/user proposal intake and one typed selected-
+proposal Modeling launch identity. Modeling's Evolution patch must cite that
+proposal in result evidence and exactly one UpsertFrontier evidence_refs; Mind
+reloads the immutable proposal and verifies content/repo binding before
+admission. Only the admitted frontier becomes anatomy.
+
 The next artifact-contract audit then cut `epiphany.persona_chat.v0`: its live
 writer and catalog had disagreed on field vocabulary, evidence fields, and
 lifecycle closure. The writer is now typed Rust with closed

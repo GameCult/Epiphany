@@ -611,7 +611,7 @@ fn classify_run_stop(
                 "Self",
                 "repo.work.overview",
                 "no-repo-work-rows",
-                "epiphany-work persona-intake --workspace <repo> --item <id> --message <text>",
+                "none",
                 false,
                 false,
             ),

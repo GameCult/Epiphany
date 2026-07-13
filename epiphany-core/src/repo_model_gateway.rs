@@ -27,6 +27,183 @@ pub const REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.modeling.repo_frontier_verdict_request.v0";
 pub const REPO_FRONTIER_MODELING_REQUEST_CONTRACT: &str =
     "epiphany.repo_frontier_verdict_modeling_request.v0";
+pub const REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION: &str =
+    "epiphany.repo_frontier_work_proposal.v0";
+pub const REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION: &str =
+    "epiphany.self.repo_frontier_planning_request.v0";
+pub const REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION: &str =
+    "epiphany.imagination.repo_frontier_plan_candidate.v0";
+pub const REPO_FRONTIER_PLAN_ADOPTION_SCHEMA_VERSION: &str =
+    "epiphany.mind.repo_frontier_plan_adoption.v0";
+pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v0";
+pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
+    "epiphany.repo_frontier_work_proposal.inert.v0";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepoFrontierProposalSourceKind {
+    User,
+    Persona,
+    Bifrost,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.evidence.repo_frontier_work_proposal",
+    schema = "RepoFrontierWorkProposal"
+)]
+pub struct RepoFrontierWorkProposal {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub proposal_id: String,
+    #[cultcache(key = 2)]
+    pub source_kind: RepoFrontierProposalSourceKind,
+    #[cultcache(key = 3)]
+    pub source_actor: String,
+    #[cultcache(key = 4)]
+    pub source_ref: String,
+    #[cultcache(key = 5)]
+    pub repository: String,
+    #[cultcache(key = 6)]
+    pub workspace: String,
+    #[cultcache(key = 7)]
+    pub thread_id: String,
+    #[cultcache(key = 8)]
+    pub runtime_id: String,
+    #[cultcache(key = 9)]
+    pub content_sha256: String,
+    #[cultcache(key = 10)]
+    pub title: String,
+    #[cultcache(key = 11)]
+    pub body: String,
+    #[cultcache(key = 12)]
+    pub desired_outcome: String,
+    #[cultcache(key = 13)]
+    pub constraints: Vec<String>,
+    #[cultcache(key = 14)]
+    pub scope_hints: Vec<String>,
+    #[cultcache(key = 15)]
+    pub evidence_refs: Vec<String>,
+    #[cultcache(key = 16)]
+    pub private_state_included: bool,
+    #[cultcache(key = 17)]
+    pub proposed_at: String,
+    #[cultcache(key = 18)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.self.repo_frontier_planning_request",
+    schema = "RepoFrontierPlanningRequest"
+)]
+pub struct RepoFrontierPlanningRequest {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub request_id: String,
+    #[cultcache(key = 2)]
+    pub model_revision: u64,
+    #[cultcache(key = 3)]
+    pub model_hash: String,
+    #[cultcache(key = 4)]
+    pub admission_receipt_id: String,
+    #[cultcache(key = 5)]
+    pub frontier_item_id: String,
+    #[cultcache(key = 6)]
+    pub frontier_item_hash: String,
+    #[cultcache(key = 7)]
+    pub selected_organ: String,
+    #[cultcache(key = 8)]
+    pub source_scope: Vec<String>,
+    #[cultcache(key = 9)]
+    pub requested_at: String,
+    #[cultcache(key = 10)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.imagination.repo_frontier_plan_candidate",
+    schema = "RepoFrontierPlanCandidate"
+)]
+pub struct RepoFrontierPlanCandidate {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub candidate_id: String,
+    #[cultcache(key = 2)]
+    pub planning_request_id: String,
+    #[cultcache(key = 3)]
+    pub model_revision: u64,
+    #[cultcache(key = 4)]
+    pub model_hash: String,
+    #[cultcache(key = 5)]
+    pub frontier_item_id: String,
+    #[cultcache(key = 6)]
+    pub frontier_item_hash: String,
+    #[cultcache(key = 7)]
+    pub safe_paths: Vec<String>,
+    #[cultcache(key = 8)]
+    pub action: String,
+    #[cultcache(key = 9)]
+    pub command: String,
+    #[cultcache(key = 10)]
+    pub checks: Vec<String>,
+    #[cultcache(key = 11)]
+    pub stop_conditions: Vec<String>,
+    #[cultcache(key = 12)]
+    pub rollback_steps: Vec<String>,
+    #[cultcache(key = 13)]
+    pub commit_message: String,
+    #[cultcache(key = 14)]
+    pub proposed_at: String,
+    #[cultcache(key = 15)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepoFrontierPlanDecision {
+    Adopt,
+    Refuse,
+    Hold,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.mind.repo_frontier_plan_adoption",
+    schema = "RepoFrontierPlanAdoption"
+)]
+pub struct RepoFrontierPlanAdoption {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub adoption_id: String,
+    #[cultcache(key = 2)]
+    pub candidate_id: String,
+    #[cultcache(key = 3)]
+    pub candidate_sha256: String,
+    #[cultcache(key = 4)]
+    pub planning_request_id: String,
+    #[cultcache(key = 5)]
+    pub model_revision: u64,
+    #[cultcache(key = 6)]
+    pub model_hash: String,
+    #[cultcache(key = 7)]
+    pub frontier_item_id: String,
+    #[cultcache(key = 8)]
+    pub frontier_item_hash: String,
+    #[cultcache(key = 9)]
+    pub decision: RepoFrontierPlanDecision,
+    #[cultcache(key = 10)]
+    pub rationale: String,
+    #[cultcache(key = 11)]
+    pub decided_at: String,
+    #[cultcache(key = 12)]
+    pub contract: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

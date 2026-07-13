@@ -62,10 +62,13 @@ identity; no CLI slug, filesystem path, or old close receipt may synthesize it.
    scheduler/publication authority, and current-looking CultMesh writers.
    Historical readers are sight-only and cannot feed gates, actions, closure,
    pending Bifrost requests, or accounting. Temporary workflow outage is honest.
-2. Add typed proposal-to-frontier bootstrap through ordinary Modeling/Mind.
-3. Add typed Self planning request, frontier plan candidate/adoption, and bind
-   plan identity into the later Self execution route plus Hands authority.
-   Re-enable execution only through that chain.
+2. **Foundation landed:** immutable inert proposal, typed Self planning request,
+   Imagination plan candidate, and Mind plan adoption exist with exact model,
+   admission, frontier, scope, candidate-byte, race, and retry proofs. The
+   selected-proposal Modeling launch and proposal-bound Evolution admission are
+   still absent and must be built explicitly.
+3. Bind adopted plan identity into a distinct Self execution route plus Hands
+   authority. Re-enable execution only through that chain.
 4. Rewire verification/closure through canonical Soul and verdict incorporation.
 5. Rebuild closure/public proof as read-only joins, then delete stale map schemas
    and projection keys.
