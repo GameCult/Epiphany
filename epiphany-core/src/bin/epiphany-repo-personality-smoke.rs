@@ -23,8 +23,8 @@ fn run_smoke() -> Result<Value> {
     let artifacts = root
         .join(".epiphany-smoke")
         .join("repo-personality-artifacts");
-    reset_path(&workspace)?;
-    reset_path(&artifacts)?;
+    reset_smoke_path(&root, &workspace)?;
+    reset_smoke_path(&root, &artifacts)?;
     let cult_repo = create_repo(
         &workspace.join("CultTiny"),
         &[
@@ -717,11 +717,45 @@ fn run_git(repo: &Path, args: &[&str]) -> Result<()> {
     )
 }
 
-fn reset_path(path: &Path) -> Result<()> {
+fn reset_smoke_path(root: &Path, path: &Path) -> Result<()> {
+    let quarantine = root.join(".epiphany-smoke");
+    fs::create_dir_all(&quarantine)?;
+    let quarantine = quarantine.canonicalize()?;
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)?;
+    let resolved = if path.exists() {
+        path.canonicalize()?
+    } else {
+        parent.canonicalize()?.join(
+            path.file_name()
+                .ok_or_else(|| anyhow!("smoke path has no leaf"))?,
+        )
+    };
+    if resolved == quarantine || !resolved.starts_with(&quarantine) {
+        return Err(anyhow!(
+            "refusing to reset path outside smoke quarantine: {}",
+            path.display()
+        ));
+    }
     if path.exists() {
         fs::remove_dir_all(path).with_context(|| format!("failed to reset {}", path.display()))?;
     }
     fs::create_dir_all(path).with_context(|| format!("failed to create {}", path.display()))
+}
+
+#[cfg(test)]
+mod reset_tests {
+    use super::*;
+
+    #[test]
+    fn reset_refuses_traversal_outside_smoke_quarantine() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let escaped = temp.path().join(".epiphany-smoke").join("..");
+        let error = reset_smoke_path(temp.path(), &escaped).expect_err("escape must fail");
+        assert!(error.to_string().contains("outside smoke quarantine"));
+        assert!(temp.path().exists());
+        Ok(())
+    }
 }
 
 fn path_value(value: &Value, key: &str) -> Result<PathBuf> {

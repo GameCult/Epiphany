@@ -245,6 +245,11 @@ inputs, emitted state, forbidden writers, and negative proof before changing
 code. Also audit remaining non-receipt smoke binaries for path escape or
 destructive scope.
 
+`epiphany-repo-personality-smoke` reset is now canonically confined beneath
+`.epiphany-smoke`; fixed default provenance no longer authorizes recursive
+deletion. Continue the same resolved-containment audit across remaining smoke
+reset helpers.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

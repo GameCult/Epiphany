@@ -842,6 +842,15 @@ families, while collapsing shared envelope syntax only where the shared owner
 and invariant can be named. Presentation-only markdown checks do not deserve a
 policy framework merely because they also use strings.
 
+## Fixed smoke-path provenance substituted for deletion scope
+
+`epiphany-repo-personality-smoke` built workspace and artifact paths beneath a
+fixed `.epiphany-smoke` spelling, then recursively deleted them without
+resolving containment. A junction at either leaf could redirect deletion beyond
+the quarantine. Reset now canonicalizes the quarantine and target immediately
+before actuation and requires a strict descendant. A traversal-negative test
+proves path spelling cannot grant deletion authority.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their
