@@ -1,10 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.Persona-chat.schema.json",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.persona-chat.schema.json",
   "title": "Epiphany Persona Chat Draft",
   "description": "Persona chat draft/post artifact.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "schemaVersion": {
       "type": "string"
@@ -13,7 +13,8 @@
       "type": "string"
     },
     "status": {
-      "type": "string"
+      "type": "string",
+      "enum": ["draft", "blocked", "posted"]
     },
     "reason": {
       "type": "string"
@@ -41,6 +42,12 @@
     },
     "content": {
       "type": "string"
+    },
+    "speechAudit": {
+      "type": ["object", "null"]
+    },
+    "bifrostBridgeReceipt": {
+      "type": "object"
     }
   },
   "required": [
@@ -49,6 +56,10 @@
     "status",
     "reason",
     "allowedChannelName",
-    "content"
+    "allowedChannelId",
+    "personaName",
+    "personaAvatarUrl",
+    "content",
+    "speechAudit"
   ]
 }

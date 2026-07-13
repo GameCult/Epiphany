@@ -85,7 +85,7 @@ fn main() -> Result<()> {
                 &artifact_dir,
                 &cultmesh_store,
                 &runtime_id,
-                "draft",
+                PersonaChatStatus::Draft,
                 "drafted without posting",
             )?
         }
@@ -137,7 +137,7 @@ fn run_draft(
     artifact_dir: &Path,
     cultmesh_store: &Path,
     runtime_id: &str,
-    status: &str,
+    status: PersonaChatStatus,
     reason: &str,
 ) -> Result<Value> {
     ensure_content(content, "Persona chat")?;
@@ -152,7 +152,7 @@ fn run_draft(
     )?;
     let path = write_draft(content, config, artifact_dir, status, reason, Some(&audit))?;
     Ok(serde_json::json!({
-        "ok": status != "blocked",
+        "ok": status != PersonaChatStatus::Blocked,
         "posted": false,
         "draftPath": path,
         "speechAudit": audit,
@@ -221,7 +221,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaChatStatus::Blocked,
             &format!("speech audit blocked: {}", audit.reasons.join("; ")),
             Some(&audit),
         )?;
@@ -238,7 +238,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaChatStatus::Blocked,
             "missing #aquarium channel id",
             Some(&audit),
         )?;
@@ -255,7 +255,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaChatStatus::Blocked,
             "requested channel does not match configured #aquarium channel id",
             Some(&audit),
         )?;
@@ -272,7 +272,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaChatStatus::Blocked,
             "missing Bifrost bridge CLI path",
             Some(&audit),
         )?;
@@ -289,7 +289,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaChatStatus::Blocked,
             "missing Bifrost identity for public Persona crossing",
             Some(&audit),
         )?;
@@ -306,7 +306,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaChatStatus::Blocked,
             "missing Heimdall-backed Discord capability/account reference for public Persona crossing; register the Bifrost identity, link it to Heimdall, and provide a heimdall:discord:* reference",
             Some(&audit),
         )?;
@@ -323,7 +323,7 @@ fn run_post(
             content,
             config,
             artifact_dir,
-            "blocked",
+            PersonaChatStatus::Blocked,
             "Heimdall reference must be shaped for Discord public Persona crossings: heimdall:discord:*",
             Some(&audit),
         )?;
@@ -351,7 +351,7 @@ fn run_post(
         content,
         config,
         artifact_dir,
-        "posted",
+        PersonaChatStatus::Posted,
         &format!(
             "posted message {} through {}",
             posted.message_id, posted.transport
@@ -428,6 +428,31 @@ struct PersonaSpeechAudit {
     repeated_topic_count: usize,
     same_channel_post_count: usize,
     audit_path: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum PersonaChatStatus {
+    Draft,
+    Blocked,
+    Posted,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersonaChatArtifact {
+    schema_version: String,
+    created_at: String,
+    status: PersonaChatStatus,
+    reason: String,
+    allowed_channel_name: String,
+    allowed_channel_id: Option<String>,
+    persona_name: Option<String>,
+    persona_avatar_url: Option<String>,
+    content: String,
+    speech_audit: Option<PersonaSpeechAudit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bifrost_bridge_receipt: Option<Value>,
 }
 
 #[derive(Clone, Debug)]
@@ -837,7 +862,7 @@ console.log(JSON.stringify({
         &temp_dir,
         &cultmesh_store,
         runtime_id,
-        "draft",
+        PersonaChatStatus::Draft,
         "drafted without posting",
     )?;
     let bubble = run_bubble(
@@ -942,7 +967,7 @@ console.log(JSON.stringify({
         "Rite noted: Modeling and Soul keep circling the same evidence seam.",
         &config,
         &temp_dir,
-        "posted",
+        PersonaChatStatus::Posted,
         "seed prior posted Persona output for speech-audit smoke",
         Some(&repeated_audit_seed),
     )?;
@@ -954,7 +979,7 @@ console.log(JSON.stringify({
         "Rite noted: Modeling and Soul keep circling the same evidence seam.",
         &config,
         &temp_dir,
-        "posted",
+        PersonaChatStatus::Posted,
         "seed second prior posted Persona output for speech-audit smoke",
         Some(&repeated_audit_seed),
     )?;
@@ -972,7 +997,19 @@ console.log(JSON.stringify({
     let latest_cultmesh_audit =
         load_latest_epiphany_cultmesh_persona_speech_audit(&cultmesh_store, runtime_id)?
             .context("Persona speech audit smoke expected latest CultMesh audit")?;
+    let draft_artifact: Value = serde_json::from_str(&fs::read_to_string(
+        draft["draftPath"]
+            .as_str()
+            .context("draft smoke result missing artifact path")?,
+    )?)?;
+    let posted_artifact: Value = serde_json::from_str(&fs::read_to_string(
+        bridged["draftPath"]
+            .as_str()
+            .context("posted smoke result missing artifact path")?,
+    )?)?;
     let ok = draft["ok"] == true
+        && chat_artifact_has_contract(&draft_artifact, false)
+        && chat_artifact_has_contract(&posted_artifact, true)
         && bubble["ok"] == true
         && bubble["bubble"]["schemaVersion"] == BUBBLE_SCHEMA_VERSION
         && bubble["bubble"].as_object().is_some_and(|payload| {
@@ -1044,36 +1081,44 @@ fn write_draft(
     content: &str,
     config: &PersonaConfig,
     artifact_dir: &Path,
-    status: &str,
+    status: PersonaChatStatus,
     reason: &str,
     speech_audit: Option<&PersonaSpeechAudit>,
 ) -> Result<PathBuf> {
-    let payload = serde_json::json!({
-        "schema_version": CHAT_SCHEMA_VERSION,
-        "created_at": now_iso(),
-        "status": status,
-        "reason": reason,
-        "allowed_channel_name": if config.allowed_channel_name.is_empty() { "#aquarium" } else { &config.allowed_channel_name },
-        "allowed_channel_id": allowed_channel_id(config),
-        "persona_name": config.persona_name,
-        "persona_avatar_url": config.persona_avatar_url,
-        "content": content.trim(),
-        "speechAudit": speech_audit,
-    });
+    let payload = PersonaChatArtifact {
+        schema_version: CHAT_SCHEMA_VERSION.to_string(),
+        created_at: now_iso(),
+        status,
+        reason: reason.to_string(),
+        allowed_channel_name: if config.allowed_channel_name.is_empty() {
+            "#aquarium".to_string()
+        } else {
+            config.allowed_channel_name.clone()
+        },
+        allowed_channel_id: allowed_channel_id(config),
+        persona_name: config.persona_name.clone(),
+        persona_avatar_url: config.persona_avatar_url.clone(),
+        content: content.trim().to_string(),
+        speech_audit: speech_audit.cloned(),
+        bifrost_bridge_receipt: None,
+    };
     let path = artifact_dir.join(format!("Persona-chat-{}-{}.json", now_stamp(), short_id()));
-    write_json(&path, &payload)?;
+    write_json(&path, &serde_json::to_value(payload)?)?;
     Ok(path)
 }
 
 fn bind_publication_receipt(path: &Path, receipt: &Value) -> Result<()> {
-    let mut payload: Value = serde_json::from_str(&fs::read_to_string(path)?)?;
-    payload["bifrostBridgeReceipt"] = receipt.clone();
-    write_json(path, &payload)
+    let mut payload: PersonaChatArtifact = serde_json::from_str(&fs::read_to_string(path)?)?;
+    payload.bifrost_bridge_receipt = Some(receipt.clone());
+    write_json(path, &serde_json::to_value(payload)?)
 }
 
 fn has_bound_discord_publication(payload: &Value) -> bool {
     let receipt = &payload["bifrostBridgeReceipt"];
-    let channel_id = payload["allowed_channel_id"].as_str().unwrap_or_default();
+    let channel_id = payload["allowedChannelId"]
+        .as_str()
+        .or_else(|| payload["allowed_channel_id"].as_str())
+        .unwrap_or_default();
     let audit_id = payload["speechAudit"]["auditId"]
         .as_str()
         .or_else(|| payload["speechAudit"]["audit_id"].as_str())
@@ -1084,6 +1129,31 @@ fn has_bound_discord_publication(payload: &Value) -> bool {
         && non_empty(&receipt["messageId"])
         && non_empty(&receipt["crossingReceiptId"])
         && receipt["provenance"]["sourceId"].as_str() == Some(audit_id)
+}
+
+fn chat_artifact_has_contract(payload: &Value, expects_receipt: bool) -> bool {
+    const REQUIRED: [&str; 10] = [
+        "allowedChannelId",
+        "allowedChannelName",
+        "content",
+        "createdAt",
+        "personaAvatarUrl",
+        "personaName",
+        "reason",
+        "schemaVersion",
+        "speechAudit",
+        "status",
+    ];
+    payload.as_object().is_some_and(|object| {
+        let expected_len = REQUIRED.len() + usize::from(expects_receipt);
+        object.len() == expected_len
+            && REQUIRED.iter().all(|key| object.contains_key(*key))
+            && object.contains_key("bifrostBridgeReceipt") == expects_receipt
+            && matches!(
+                payload["status"].as_str(),
+                Some("draft" | "blocked" | "posted")
+            )
+    })
 }
 
 fn bubble_payload(content: &str, source: &str, mood: &str) -> Value {
@@ -1133,9 +1203,7 @@ fn latest_persona_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
                 "path": path,
                 "name": path.file_name().and_then(|name| name.to_str()),
                 "modifiedAt": modified_at.to_rfc3339_opts(SecondsFormat::Secs, true),
-                "schemaVersion": payload
-                    .get("schemaVersion")
-                    .or_else(|| payload.get("schema_version")),
+                "schemaVersion": payload.get("schemaVersion").or_else(|| payload.get("schema_version")),
                 "status": payload.get("status"),
                 "reason": payload.get("reason"),
                 "content": payload.get("content"),
@@ -1185,7 +1253,10 @@ fn recent_persona_speech(artifact_dir: &Path, limit: usize) -> Vec<RecentPersona
             Some(RecentPersonaSpeech {
                 opening_key: opening_key(&content),
                 topic_key: topic_key(&content),
-                channel_id: payload["allowed_channel_id"].as_str().map(str::to_string),
+                channel_id: payload["allowedChannelId"]
+                    .as_str()
+                    .or_else(|| payload["allowed_channel_id"].as_str())
+                    .map(str::to_string),
                 action_kind,
             })
         })

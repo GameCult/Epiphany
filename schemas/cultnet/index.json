@@ -835,10 +835,10 @@
       "schemaVersion": "epiphany.persona_bubble.v0",
       "documentType": "epiphany.persona_bubble.v0",
       "title": "Epiphany Persona Bubble",
-      "path": "epiphany.Persona-bubble.schema.json"
+      "path": "epiphany.persona-bubble.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.Persona-chat.schema.json",
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.persona-chat.schema.json",
       "kind": "document_payload",
       "wireContracts": [
         "cultnet.schema.v0"
@@ -846,7 +846,7 @@
       "schemaVersion": "epiphany.persona_chat.v0",
       "documentType": "epiphany.persona_chat.v0",
       "title": "Epiphany Persona Chat Draft",
-      "path": "epiphany.Persona-chat.schema.json"
+      "path": "epiphany.persona-chat.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.character-turn-packet.schema.json",

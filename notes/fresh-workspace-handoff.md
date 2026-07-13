@@ -27,6 +27,16 @@ and be projected into later Hands prompts. Otherwise an excellent coordinator
 can perform the structure transiently, but the next awakened Self inherits only
 the applause.
 
+The next artifact-contract audit then cut `epiphany.persona_chat.v0`: its live
+writer and catalog had disagreed on field vocabulary, evidence fields, and
+lifecycle closure. The writer is now typed Rust with closed
+draft/blocked/posted status, the schema is strict and complete, and legacy
+snake_case survives only on read. Proprioception identified the next larger
+frontier: `epiphany.surface.persona.v0` has no real schema-versioned producer and
+types almost nothing, while Reddit and Other emit real artifacts absent from
+the catalog. Rebuild that surface around discriminated typed artifact refs or
+delete the false advertisement.
+
 Epiphany is in an authority-provenance purification pass. The live question is not whether a command can produce a plausible document; it is whether the subsystem writing that document owns the fact it asserts.
 
 The confirmed conceptual substitutions have been cut:

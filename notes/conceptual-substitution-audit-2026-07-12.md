@@ -1619,3 +1619,36 @@ snake_case remains read-only compatibility input. Bubble and character packet
 schemas reject extra root fields, character intent rejects undeclared cargo,
 and native smokes assert the exact emitted top-level sets. A registered schema
 that the producer does not actually speak is catalog theater, not a contract.
+
+The adjacent Persona chat/post artifact had the same wound with more authority
+attached. Its live writer emitted snake_case fields plus speech-audit and
+Bifrost-receipt evidence while the registered schema required camelCase, omitted
+the evidence, accepted arbitrary lifecycle strings, and hid every disagreement
+behind `additionalProperties=true`.
+
+Authority map for the cut:
+
+- Owner: the Persona Discord artifact writer owns local draft/post artifact
+  shape; Bifrost owns the publication receipt embedded after validated crossing.
+- Inputs: audited content, fixed channel/Persona configuration, internally
+  derived draft/blocked/posted outcome, and optional validated Bifrost receipt.
+- Outputs: one typed `epiphany.persona_chat.v0` artifact.
+- Derived state: latest-artifact and repetition views are read-only projections.
+- Forbidden writers: callers, generic surface schemas, MVP aggregation, and
+  audit telemetry cannot author lifecycle or publication.
+- Cut line: delete the snake_case writer vocabulary and arbitrary status string;
+  retain snake_case only in legacy readers.
+
+The writer is now a typed Rust `PersonaChatArtifact` with a closed
+`PersonaChatStatus` enum. The registered schema names every emitted root field,
+requires the speech audit, admits the Bifrost receipt only as optional provider
+evidence, rejects extra fields, and uses the same lowercase schema identity and
+catalog path as the file. The native smoke loads both draft and posted artifacts
+and checks their exact top-level field sets.
+
+Proprioception found the next Modeling frontier: `epiphany.surface.persona.v0`
+is effectively catalog fiction. Its schema requires only `ok`, accepts untyped
+artifact arrays, and no producer writes a document with that schema version.
+Real Reddit and Other artifacts exist but are not registered as output
+contracts. Rebuild that surface around typed discriminated artifact references,
+register the real outputs, or stop advertising them as typed surface outputs.
