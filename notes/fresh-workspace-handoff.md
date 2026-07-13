@@ -336,6 +336,14 @@ mutation grant, and the family is in the no-substring class guard. Fifteen
 high-authority families are typed and 477 substring assertions remain. Next
 type adoption, the remaining untyped workflow gate in this chain.
 
+Adoption closure is now typed under workflow ownership as well. The decision
+contract, review/state receipts, input requirements, authority denials, and
+private seal are read as actual TOML fields; blank input references are
+rejected. A malicious commented state-commit denial cannot hide a real grant,
+and adoption is in the class guard. Sixteen high-authority families are typed
+and 447 substring assertions remain. The complete adoption/scheduling/work-
+order/verification chain now has one physical workflow owner.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

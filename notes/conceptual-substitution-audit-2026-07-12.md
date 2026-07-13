@@ -1054,6 +1054,20 @@ guard preventing that substitution from returning.
 Fifteen high-authority closure families are typed; 477 substring assertions
 remain. Adoption is the remaining untyped workflow gate in this chain.
 
+## Adoption prose as Mind state authority
+
+`repo.adoption_request` closure previously recognized the Mind decision,
+allowed verdicts, required review/state receipts, inputs, and authority denials
+by substring. A commented `state_commit_authorized = false` could conceal a
+real state grant. Adoption now parses typed workflow state, validates nonblank
+input references, and checks actual decision and authority fields. Its
+malicious fixture and class guard prevent presentation text from impersonating
+Mind admission authority.
+
+Sixteen high-authority closure families are typed; 447 substring assertions
+remain. The adoption/scheduling/work-order/verification workflow chain is now
+typed under one physical owner.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

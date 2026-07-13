@@ -206,6 +206,107 @@ pub(super) fn parse_repo_scheduling_request(text: &str) -> Result<RepoScheduling
 }
 
 #[derive(Debug, Deserialize)]
+pub(super) struct RepoAdoptionRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoAdoptionBody,
+    decision_contract: RepoAdoptionDecisionContract,
+    inputs: RepoAdoptionInputs,
+    authority: RepoAdoptionAuthority,
+}
+
+impl RepoAdoptionRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_adoption_request.v0"
+            && self.safe_action_family == "repo.adoption_request"
+    }
+
+    pub(super) fn awaits_mind_review(&self) -> bool {
+        let r = &self.request;
+        r.status == "awaiting-mind-review"
+            && r.requested_decision == "adopt-or-refuse-objective-draft"
+            && r.mind_review_required
+            && r.mind_state_commit_required
+            && r.self_scheduling_after_mind_only
+    }
+
+    pub(super) fn has_decision_contract(&self) -> bool {
+        let d = &self.decision_contract;
+        d.allowed_verdicts == ["adopted", "refused", "needs-more-consensus"]
+            && d.requires_review_finding
+            && d.requires_receipt == "epiphany.mind.gateway_review"
+            && d.requires_commit_receipt_if_adopted == "epiphany.mind.state_commit_receipt"
+            && d.does_not_modify_state
+    }
+
+    pub(super) fn has_input_contract(&self) -> bool {
+        self.inputs.objective_draft_required
+            && self.inputs.consensus_brief_required
+            && self
+                .inputs
+                .public_discussion_refs
+                .iter()
+                .all(|value| !value.trim().is_empty())
+            && self
+                .inputs
+                .candidate_action_refs
+                .iter()
+                .all(|value| !value.trim().is_empty())
+    }
+
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let a = &self.authority;
+        a.branch_local_only
+            && !a.objective_adoption_authorized
+            && !a.state_commit_authorized
+            && !a.self_scheduling_authorized
+            && !a.hands_action_authorized
+            && !a.publication_authorized
+            && !a.cross_body_mutation_authorized
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoAdoptionBody {
+    status: String,
+    requested_decision: String,
+    mind_review_required: bool,
+    mind_state_commit_required: bool,
+    self_scheduling_after_mind_only: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoAdoptionDecisionContract {
+    allowed_verdicts: Vec<String>,
+    requires_review_finding: bool,
+    requires_receipt: String,
+    requires_commit_receipt_if_adopted: String,
+    does_not_modify_state: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoAdoptionInputs {
+    public_discussion_refs: Vec<String>,
+    candidate_action_refs: Vec<String>,
+    objective_draft_required: bool,
+    consensus_brief_required: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoAdoptionAuthority {
+    branch_local_only: bool,
+    objective_adoption_authorized: bool,
+    state_commit_authorized: bool,
+    self_scheduling_authorized: bool,
+    hands_action_authorized: bool,
+    publication_authorized: bool,
+    cross_body_mutation_authorized: bool,
+}
+
+pub(super) fn parse_repo_adoption_request(text: &str) -> Result<RepoAdoptionRequest> {
+    toml::from_str(text).context("adoption request is not valid typed TOML")
+}
+
+#[derive(Debug, Deserialize)]
 pub(super) struct RepoVerificationRequest {
     pub(super) schema_version: String,
     pub(super) safe_action_family: String,

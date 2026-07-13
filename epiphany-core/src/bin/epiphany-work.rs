@@ -7324,74 +7324,61 @@ fn closure_family_assertions(
             );
         }
         "repo.adoption_request" => {
+            let request = parse_repo_adoption_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "adoption-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_adoption_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoAdoptionRequest::has_canonical_identity),
                 "Committed adoption request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "adoption-request-family-present",
-                content.contains("safe_action_family = \"repo.adoption_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoAdoptionRequest::has_canonical_identity),
                 "Committed adoption request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "adoption-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed adoption request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "adoption-request-awaits-mind",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-mind-review\"")
-                    && content.contains(
-                        "requested_decision = \"adopt-or-refuse-objective-draft\"",
-                    )
-                    && content.contains("mind_review_required = true")
-                    && content.contains("mind_state_commit_required = true")
-                    && content.contains("self_scheduling_after_mind_only = true"),
+                request.as_ref().is_some_and(RepoAdoptionRequest::awaits_mind_review),
                 "Committed adoption request waits for Mind review before state or scheduling consequence.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "adoption-request-decision-contract",
-                content.contains("[decision_contract]")
-                    && content.contains("allowed_verdicts = [\"adopted\", \"refused\", \"needs-more-consensus\"]")
-                    && content.contains("requires_review_finding = true")
-                    && content.contains("requires_receipt = \"epiphany.mind.gateway_review\"")
-                    && content.contains("requires_commit_receipt_if_adopted = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains("does_not_modify_state = true"),
+                request.as_ref().is_some_and(RepoAdoptionRequest::has_decision_contract),
                 "Committed adoption request names the Mind decision contract without modifying state.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "adoption-request-inputs-present",
-                content.contains("[inputs]")
-                    && content.contains("public_discussion_refs = [")
-                    && content.contains("candidate_action_refs = [")
-                    && content.contains("objective_draft_required = true")
-                    && content.contains("consensus_brief_required = true"),
+                request.as_ref().is_some_and(RepoAdoptionRequest::has_input_contract),
                 "Committed adoption request preserves public inputs and requires draft/consensus antecedents.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "adoption-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("objective_adoption_authorized = false")
-                    && content.contains("state_commit_authorized = false")
-                    && content.contains("self_scheduling_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false"),
+                request.as_ref().is_some_and(RepoAdoptionRequest::has_authority_seals),
                 "Committed adoption request denies adoption/state/scheduling/action/publication/cross-body authority.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "adoption-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed adoption request preserves the private-state seal.".to_string(),
             );
         }
@@ -15359,6 +15346,7 @@ idunn_deployment_authority_required = true
             "repo.sync_request",
             "repo.pr_request",
             "repo.maintainer_review_request",
+            "repo.adoption_request",
             "repo.scheduling_request",
             "repo.work_order",
             "repo.verification_request",

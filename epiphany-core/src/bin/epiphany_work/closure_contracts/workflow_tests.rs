@@ -3,6 +3,44 @@ mod workflow_tests {
     use super::*;
 
     #[test]
+    fn adoption_comment_cannot_counterfeit_state_authority_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_adoption_request.v0"
+safe_action_family = "repo.adoption_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-mind-review"
+requested_decision = "adopt-or-refuse-objective-draft"
+mind_review_required = true
+mind_state_commit_required = true
+self_scheduling_after_mind_only = true
+[decision_contract]
+allowed_verdicts = ["adopted", "refused", "needs-more-consensus"]
+requires_review_finding = true
+requires_receipt = "epiphany.mind.gateway_review"
+requires_commit_receipt_if_adopted = "epiphany.mind.state_commit_receipt"
+does_not_modify_state = true
+[inputs]
+public_discussion_refs = []
+candidate_action_refs = []
+objective_draft_required = true
+consensus_brief_required = true
+[authority]
+branch_local_only = true
+objective_adoption_authorized = false
+# state_commit_authorized = false
+state_commit_authorized = true
+self_scheduling_authorized = false
+hands_action_authorized = false
+publication_authorized = false
+cross_body_mutation_authorized = false
+"#;
+        let request = parse_repo_adoption_request(text).expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
+    }
+
+    #[test]
     fn scheduling_comment_cannot_counterfeit_queue_authority_seal() {
         let text = r#"
 schema_version = "epiphany.repo_scheduling_request.v0"
