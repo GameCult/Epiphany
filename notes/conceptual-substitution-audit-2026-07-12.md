@@ -1508,3 +1508,13 @@ receipt may prove publication or delivery.
 The bridge smoke also stopped hard-coding an obsolete provider topology. It now
 checks the evidence-state vocabulary and private-state seal rather than
 asserting that a named surface must remain live forever.
+
+## Crossing request is not publication
+
+The generic Persona mouth correctly emits a Bifrost `other-request`, but its
+recent-speech model called a `requested` artifact `posted` and used that fiction
+for repetition pressure. It now records `crossing_recorded` and counts
+`same_target_crossing_count`. Repetition protection still observes real request
+effects; it no longer implies that an outside provider published them. The v0
+serialized `sameTargetPostCount` field remains only as a compatibility name and
+does not own the internal model.

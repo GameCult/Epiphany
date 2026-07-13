@@ -580,3 +580,10 @@ Epiphany reports `provider-ready`, `prepared`, or `missing`, with explicit
 native bridge smoke validates evidence vocabulary rather than stale provider
 topology and was repaired to the current native status CLI. It passes alongside
 259 library tests and all-bin compilation.
+
+The generic Persona Other mouth no longer models accepted Bifrost requests as
+posts. Recent speech tracks `crossing_recorded` and
+`same_target_crossing_count`; actual publication still requires an external
+transport receipt. The old v0 `sameTargetPostCount` spelling is serialization-
+only compatibility. Native Other-mouth smoke, 259 library tests, and all-bin
+compilation pass.

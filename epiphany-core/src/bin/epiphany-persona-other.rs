@@ -48,7 +48,8 @@ struct PersonaSpeechAudit {
     recent_window_count: usize,
     repeated_opening_count: usize,
     repeated_topic_count: usize,
-    same_target_post_count: usize,
+    #[serde(rename = "sameTargetPostCount")]
+    same_target_crossing_count: usize,
     audit_path: PathBuf,
 }
 
@@ -57,7 +58,7 @@ struct RecentPersonaSpeech {
     opening_key: String,
     topic_key: String,
     target: Option<String>,
-    posted: bool,
+    crossing_recorded: bool,
 }
 
 fn main() -> Result<()> {
@@ -447,9 +448,9 @@ fn audit_persona_speech(
         .iter()
         .filter(|speech| !topic_key.is_empty() && speech.topic_key == topic_key)
         .count();
-    let same_target_post_count = recent
+    let same_target_crossing_count = recent
         .iter()
-        .filter(|speech| speech.posted && speech.target.as_deref() == Some(&target_key))
+        .filter(|speech| speech.crossing_recorded && speech.target.as_deref() == Some(&target_key))
         .count();
     let mut reasons = Vec::new();
     if public_request && repeated_opening_count >= 2 {
@@ -458,7 +459,7 @@ fn audit_persona_speech(
     if public_request && repeated_topic_count >= 3 {
         reasons.push("repeated-topic".to_string());
     }
-    if public_request && same_target_post_count >= 3 {
+    if public_request && same_target_crossing_count >= 3 {
         reasons.push("target-saturation".to_string());
     }
     if content.trim().len() > 9000 {
@@ -491,7 +492,7 @@ fn audit_persona_speech(
         recent_window_count: recent.len(),
         repeated_opening_count,
         repeated_topic_count,
-        same_target_post_count,
+        same_target_crossing_count,
         audit_path,
     };
     write_json(&audit.audit_path, &serde_json::to_value(&audit)?)?;
@@ -512,7 +513,7 @@ fn audit_persona_speech(
             recent_window_count: audit.recent_window_count as u32,
             repeated_opening_count: audit.repeated_opening_count as u32,
             repeated_topic_count: audit.repeated_topic_count as u32,
-            same_channel_post_count: audit.same_target_post_count as u32,
+            same_channel_post_count: audit.same_target_crossing_count as u32,
             reasons: audit.reasons.clone(),
             artifact_ref: audit.audit_path.display().to_string(),
             created_at_utc: audit.created_at.clone(),
@@ -850,7 +851,7 @@ fn recent_persona_speech(artifact_dir: &Path, limit: usize) -> Vec<RecentPersona
                 opening_key: audit["openingKey"].as_str().unwrap_or_default().to_string(),
                 topic_key: audit["topicKey"].as_str().unwrap_or_default().to_string(),
                 target: audit["requestedPublicTarget"].as_str().map(str::to_string),
-                posted: payload["status"].as_str() == Some("requested"),
+                crossing_recorded: payload["status"].as_str() == Some("requested"),
             })
         })
         .collect()
