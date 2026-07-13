@@ -650,75 +650,365 @@ pub(super) struct RepoSyncRequest {
     authority: RepoSyncAuthority,
 }
 impl RepoSyncRequest {
-    pub(super) fn has_canonical_identity(&self) -> bool { self.schema_version == "epiphany.repo_sync_request.v0" && self.safe_action_family == "repo.sync_request" }
-    pub(super) fn awaits_upstream_proof(&self) -> bool { self.request.status == "awaiting-upstream-main-proof" && self.request.requested_owner == "Bifrost" && self.request.requested_effect == "prove-published-commit-contained-by-upstream-main" && !self.request.publication_request_ref.is_empty() }
-    pub(super) fn has_antecedent_contract(&self) -> bool { let a=&self.antecedents; a.publication_receipt_required && a.github_publication_required && a.maintainer_review_required && a.credit_ledger_required && a.public_proof_required }
-    pub(super) fn has_receipt_contract(&self) -> bool { let r=&self.required_receipts; r.bifrost_publication == "gamecult.bifrost.public_proof_publication_receipt.v0" && r.github_publication == "gamecult.github.publication_receipt.v0" && r.maintainer_review == "gamecult.maintainer.review_receipt.v0" && r.credit_ledger == "gamecult.bifrost.credit_receipt.v0" && r.upstream_sync == "epiphany.repo_work_upstream_main_sync.v0" && r.ancestry_proof == "git.merge_base_is_ancestor" }
-    pub(super) fn has_proof_contract(&self) -> bool { let p=&self.sync_proof; p.target_ref == "origin/main" && p.requires_fetch_before_check && p.requires_merge_base_ancestor_check && p.requires_clean_public_proof_readback && p.records_upstream_main_sha }
-    pub(super) fn has_authority_seals(&self) -> bool { let a=&self.authority; a.branch_local_only && !a.merge_authorized && !a.push_authorized && !a.upstream_sync_authorized && !a.github_publication_authorized && !a.credit_ledger_authorized && !a.hands_action_authorized && !a.service_lifecycle_authority && !a.cross_body_mutation_authorized && !a.private_verse_rummaging && a.operator_or_maintainer_authority_required }
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_sync_request.v0"
+            && self.safe_action_family == "repo.sync_request"
+    }
+    pub(super) fn awaits_upstream_proof(&self) -> bool {
+        self.request.status == "awaiting-upstream-main-proof"
+            && self.request.requested_owner == "Bifrost"
+            && self.request.requested_effect == "prove-published-commit-contained-by-upstream-main"
+            && !self.request.publication_request_ref.is_empty()
+    }
+    pub(super) fn has_antecedent_contract(&self) -> bool {
+        let a = &self.antecedents;
+        a.publication_receipt_required
+            && a.github_publication_required
+            && a.maintainer_review_required
+            && a.credit_ledger_required
+            && a.public_proof_required
+    }
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        let r = &self.required_receipts;
+        r.bifrost_publication == "gamecult.bifrost.public_proof_publication_receipt.v0"
+            && r.github_publication == "gamecult.github.publication_receipt.v0"
+            && r.maintainer_review == "gamecult.maintainer.review_receipt.v0"
+            && r.credit_ledger == "gamecult.bifrost.credit_receipt.v0"
+            && r.upstream_sync == "epiphany.repo_work_upstream_main_sync.v0"
+            && r.ancestry_proof == "git.merge_base_is_ancestor"
+    }
+    pub(super) fn has_proof_contract(&self) -> bool {
+        let p = &self.sync_proof;
+        p.target_ref == "origin/main"
+            && p.requires_fetch_before_check
+            && p.requires_merge_base_ancestor_check
+            && p.requires_clean_public_proof_readback
+            && p.records_upstream_main_sha
+    }
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let a = &self.authority;
+        a.branch_local_only
+            && !a.merge_authorized
+            && !a.push_authorized
+            && !a.upstream_sync_authorized
+            && !a.github_publication_authorized
+            && !a.credit_ledger_authorized
+            && !a.hands_action_authorized
+            && !a.service_lifecycle_authority
+            && !a.cross_body_mutation_authorized
+            && !a.private_verse_rummaging
+            && a.operator_or_maintainer_authority_required
+    }
 }
-#[derive(Debug, Deserialize)] struct RepoSyncRequestBody { status:String, requested_owner:String, requested_effect:String, publication_request_ref:String }
-#[derive(Debug, Deserialize)] struct RepoSyncAntecedents { publication_receipt_required:bool, github_publication_required:bool, maintainer_review_required:bool, credit_ledger_required:bool, public_proof_required:bool }
-#[derive(Debug, Deserialize)] struct RepoSyncReceipts { bifrost_publication:String, github_publication:String, maintainer_review:String, credit_ledger:String, upstream_sync:String, ancestry_proof:String }
-#[derive(Debug, Deserialize)] struct RepoSyncProof { target_ref:String, requires_fetch_before_check:bool, requires_merge_base_ancestor_check:bool, requires_clean_public_proof_readback:bool, records_upstream_main_sha:bool }
-#[derive(Debug, Deserialize)] struct RepoSyncAuthority { branch_local_only:bool, merge_authorized:bool, push_authorized:bool, upstream_sync_authorized:bool, github_publication_authorized:bool, credit_ledger_authorized:bool, hands_action_authorized:bool, service_lifecycle_authority:bool, cross_body_mutation_authorized:bool, private_verse_rummaging:bool, operator_or_maintainer_authority_required:bool }
-pub(super) fn parse_repo_sync_request(text:&str)->Result<RepoSyncRequest>{toml::from_str(text).context("sync request is not valid typed TOML")}
-
+#[derive(Debug, Deserialize)]
+struct RepoSyncRequestBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    publication_request_ref: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoSyncAntecedents {
+    publication_receipt_required: bool,
+    github_publication_required: bool,
+    maintainer_review_required: bool,
+    credit_ledger_required: bool,
+    public_proof_required: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoSyncReceipts {
+    bifrost_publication: String,
+    github_publication: String,
+    maintainer_review: String,
+    credit_ledger: String,
+    upstream_sync: String,
+    ancestry_proof: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoSyncProof {
+    target_ref: String,
+    requires_fetch_before_check: bool,
+    requires_merge_base_ancestor_check: bool,
+    requires_clean_public_proof_readback: bool,
+    records_upstream_main_sha: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoSyncAuthority {
+    branch_local_only: bool,
+    merge_authorized: bool,
+    push_authorized: bool,
+    upstream_sync_authorized: bool,
+    github_publication_authorized: bool,
+    credit_ledger_authorized: bool,
+    hands_action_authorized: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    operator_or_maintainer_authority_required: bool,
+}
+pub(super) fn parse_repo_sync_request(text: &str) -> Result<RepoSyncRequest> {
+    toml::from_str(text).context("sync request is not valid typed TOML")
+}
 
 #[derive(Debug, Deserialize)]
 pub(super) struct RepoPrRequest {
-    pub(super) schema_version:String, pub(super) safe_action_family:String,
-    pub(super) summary:String, pub(super) private_state_exposed:bool,
-    request:RepoPrRequestBody, antecedents:RepoPrAntecedents,
-    required_receipts:RepoPrReceipts, pr_packet:RepoPrPacket, authority:RepoPrAuthority,
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoPrRequestBody,
+    antecedents: RepoPrAntecedents,
+    required_receipts: RepoPrReceipts,
+    pr_packet: RepoPrPacket,
+    authority: RepoPrAuthority,
 }
 impl RepoPrRequest {
-    pub(super) fn has_canonical_identity(&self)->bool{self.schema_version=="epiphany.repo_pr_request.v0"&&self.safe_action_family=="repo.pr_request"}
-    pub(super) fn awaits_owned_review(&self)->bool{let r=&self.request;r.status=="awaiting-pr-publication-review"&&r.requested_owner=="Bifrost/GitHub"&&r.requested_effect=="open-or-update-review-pr-from-redacted-proof-and-maintainer-context"&&!r.maintainer_review_request_ref.is_empty()&&!r.publication_request_ref.is_empty()&&!r.sync_request_ref.is_empty()}
-    pub(super) fn has_antecedent_contract(&self)->bool{let a=&self.antecedents;a.closure_review_required&&a.soul_verdict_required&&a.mind_commit_required&&a.public_proof_required&&a.maintainer_review_required&&a.bifrost_publication_required&&a.credit_ledger_required}
-    pub(super) fn has_receipt_contract(&self)->bool{let r=&self.required_receipts;r.closure_review=="epiphany.repo_work_closure_review.v0"&&r.soul_verdict=="epiphany.soul.verification_verdict"&&r.mind_commit=="epiphany.mind.state_commit_receipt"&&r.public_proof=="epiphany.repo_work_public_proof_bundle.v0"&&r.maintainer_review=="gamecult.maintainer.review_receipt.v0"&&r.bifrost_publication=="gamecult.bifrost.public_proof_publication_receipt.v0"&&r.credit_ledger=="gamecult.bifrost.credit_receipt.v0"&&r.pr_publication=="gamecult.github.pull_request_publication_receipt.v0"}
-    pub(super) fn has_packet_contract(&self)->bool{let p=&self.pr_packet;p.base_ref=="origin/main"&&p.requires_branch_name&&p.requires_title&&p.requires_body&&p.requires_changed_path_list&&p.requires_public_proof_ref&&p.requires_maintainer_review_ref&&p.requires_credit_ref&&p.requires_private_state_redaction_check}
-    pub(super) fn has_authority_seals(&self)->bool{let a=&self.authority;a.branch_local_only&&!a.github_pr_authorized&&!a.branch_push_authorized&&!a.merge_authorized&&!a.publication_authorized&&!a.upstream_sync_authorized&&!a.hands_action_authorized&&!a.service_lifecycle_authority&&!a.cross_body_mutation_authorized&&!a.private_verse_rummaging&&a.bifrost_or_maintainer_authority_required}
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_pr_request.v0"
+            && self.safe_action_family == "repo.pr_request"
+    }
+    pub(super) fn awaits_owned_review(&self) -> bool {
+        let r = &self.request;
+        r.status == "awaiting-pr-publication-review"
+            && r.requested_owner == "Bifrost/GitHub"
+            && r.requested_effect
+                == "open-or-update-review-pr-from-redacted-proof-and-maintainer-context"
+            && !r.maintainer_review_request_ref.is_empty()
+            && !r.publication_request_ref.is_empty()
+            && !r.sync_request_ref.is_empty()
+    }
+    pub(super) fn has_antecedent_contract(&self) -> bool {
+        let a = &self.antecedents;
+        a.closure_review_required
+            && a.soul_verdict_required
+            && a.mind_commit_required
+            && a.public_proof_required
+            && a.maintainer_review_required
+            && a.bifrost_publication_required
+            && a.credit_ledger_required
+    }
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        let r = &self.required_receipts;
+        r.closure_review == "epiphany.repo_work_closure_review.v0"
+            && r.soul_verdict == "epiphany.soul.verification_verdict"
+            && r.mind_commit == "epiphany.mind.state_commit_receipt"
+            && r.public_proof == "epiphany.repo_work_public_proof_bundle.v0"
+            && r.maintainer_review == "gamecult.maintainer.review_receipt.v0"
+            && r.bifrost_publication == "gamecult.bifrost.public_proof_publication_receipt.v0"
+            && r.credit_ledger == "gamecult.bifrost.credit_receipt.v0"
+            && r.pr_publication == "gamecult.github.pull_request_publication_receipt.v0"
+    }
+    pub(super) fn has_packet_contract(&self) -> bool {
+        let p = &self.pr_packet;
+        p.base_ref == "origin/main"
+            && p.requires_branch_name
+            && p.requires_title
+            && p.requires_body
+            && p.requires_changed_path_list
+            && p.requires_public_proof_ref
+            && p.requires_maintainer_review_ref
+            && p.requires_credit_ref
+            && p.requires_private_state_redaction_check
+    }
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let a = &self.authority;
+        a.branch_local_only
+            && !a.github_pr_authorized
+            && !a.branch_push_authorized
+            && !a.merge_authorized
+            && !a.publication_authorized
+            && !a.upstream_sync_authorized
+            && !a.hands_action_authorized
+            && !a.service_lifecycle_authority
+            && !a.cross_body_mutation_authorized
+            && !a.private_verse_rummaging
+            && a.bifrost_or_maintainer_authority_required
+    }
 }
-#[derive(Debug,Deserialize)] struct RepoPrRequestBody{status:String,requested_owner:String,requested_effect:String,maintainer_review_request_ref:String,publication_request_ref:String,sync_request_ref:String}
-#[derive(Debug,Deserialize)] struct RepoPrAntecedents{closure_review_required:bool,soul_verdict_required:bool,mind_commit_required:bool,public_proof_required:bool,maintainer_review_required:bool,bifrost_publication_required:bool,credit_ledger_required:bool}
-#[derive(Debug,Deserialize)] struct RepoPrReceipts{closure_review:String,soul_verdict:String,mind_commit:String,public_proof:String,maintainer_review:String,bifrost_publication:String,credit_ledger:String,pr_publication:String}
-#[derive(Debug,Deserialize)] struct RepoPrPacket{base_ref:String,requires_branch_name:bool,requires_title:bool,requires_body:bool,requires_changed_path_list:bool,requires_public_proof_ref:bool,requires_maintainer_review_ref:bool,requires_credit_ref:bool,requires_private_state_redaction_check:bool}
-#[derive(Debug,Deserialize)] struct RepoPrAuthority{branch_local_only:bool,github_pr_authorized:bool,branch_push_authorized:bool,merge_authorized:bool,publication_authorized:bool,upstream_sync_authorized:bool,hands_action_authorized:bool,service_lifecycle_authority:bool,cross_body_mutation_authorized:bool,private_verse_rummaging:bool,bifrost_or_maintainer_authority_required:bool}
-pub(super) fn parse_repo_pr_request(text:&str)->Result<RepoPrRequest>{toml::from_str(text).context("PR request is not valid typed TOML")}
+#[derive(Debug, Deserialize)]
+struct RepoPrRequestBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    maintainer_review_request_ref: String,
+    publication_request_ref: String,
+    sync_request_ref: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoPrAntecedents {
+    closure_review_required: bool,
+    soul_verdict_required: bool,
+    mind_commit_required: bool,
+    public_proof_required: bool,
+    maintainer_review_required: bool,
+    bifrost_publication_required: bool,
+    credit_ledger_required: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoPrReceipts {
+    closure_review: String,
+    soul_verdict: String,
+    mind_commit: String,
+    public_proof: String,
+    maintainer_review: String,
+    bifrost_publication: String,
+    credit_ledger: String,
+    pr_publication: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoPrPacket {
+    base_ref: String,
+    requires_branch_name: bool,
+    requires_title: bool,
+    requires_body: bool,
+    requires_changed_path_list: bool,
+    requires_public_proof_ref: bool,
+    requires_maintainer_review_ref: bool,
+    requires_credit_ref: bool,
+    requires_private_state_redaction_check: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoPrAuthority {
+    branch_local_only: bool,
+    github_pr_authorized: bool,
+    branch_push_authorized: bool,
+    merge_authorized: bool,
+    publication_authorized: bool,
+    upstream_sync_authorized: bool,
+    hands_action_authorized: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    bifrost_or_maintainer_authority_required: bool,
+}
+pub(super) fn parse_repo_pr_request(text: &str) -> Result<RepoPrRequest> {
+    toml::from_str(text).context("PR request is not valid typed TOML")
+}
 
-#[derive(Debug,Deserialize)]
-pub(super) struct RepoMaintainerReviewRequest{pub(super) schema_version:String,pub(super) safe_action_family:String,pub(super) summary:String,pub(super) private_state_exposed:bool,request:RepoMaintainerReviewBody,antecedents:RepoMaintainerReviewAntecedents,required_receipts:RepoMaintainerReviewReceipts,review_packet:RepoMaintainerReviewPacket,authority:RepoMaintainerReviewAuthority}
-impl RepoMaintainerReviewRequest{
-pub(super) fn has_canonical_identity(&self)->bool{self.schema_version=="epiphany.repo_maintainer_review_request.v0"&&self.safe_action_family=="repo.maintainer_review_request"}
-pub(super) fn awaits_review(&self)->bool{let r=&self.request;r.status=="awaiting-maintainer-review"&&r.requested_owner=="Maintainer"&&r.requested_effect=="review-redacted-proof-and-branch-diff"&&!r.verification_request_ref.is_empty()&&!r.publication_request_ref.is_empty()}
-pub(super) fn has_antecedent_contract(&self)->bool{let a=&self.antecedents;a.closure_review_required&&a.soul_verdict_required&&a.mind_commit_required&&a.public_proof_required&&a.bifrost_publication_request_required}
-pub(super) fn has_receipt_contract(&self)->bool{let r=&self.required_receipts;r.closure_review=="epiphany.repo_work_closure_review.v0"&&r.soul_verdict=="epiphany.soul.verification_verdict"&&r.mind_commit=="epiphany.mind.state_commit_receipt"&&r.public_proof=="epiphany.repo_work_public_proof_bundle.v0"&&r.maintainer_review=="gamecult.maintainer.review_receipt.v0"&&r.bifrost_publication=="gamecult.bifrost.public_proof_publication_receipt.v0"}
-pub(super) fn has_review_packet(&self)->bool{let p=&self.review_packet;p.requires_reviewer_identity&&p.requires_review_verdict&&p.allowed_verdicts==["approved","changes-requested","rejected","needs-human-context"]&&p.requires_changed_path_list&&p.requires_public_proof_ref&&p.requires_private_state_redaction_check}
-pub(super) fn has_authority_seals(&self)->bool{let a=&self.authority;a.branch_local_only&&!a.maintainer_approval_authorized&&!a.merge_authorized&&!a.push_authorized&&!a.publication_authorized&&!a.upstream_sync_authorized&&!a.hands_action_authorized&&!a.service_lifecycle_authority&&!a.cross_body_mutation_authorized&&!a.private_verse_rummaging&&a.human_or_maintainer_response_required}
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoMaintainerReviewRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoMaintainerReviewBody,
+    antecedents: RepoMaintainerReviewAntecedents,
+    required_receipts: RepoMaintainerReviewReceipts,
+    review_packet: RepoMaintainerReviewPacket,
+    authority: RepoMaintainerReviewAuthority,
 }
-#[derive(Debug,Deserialize)]struct RepoMaintainerReviewBody{status:String,requested_owner:String,requested_effect:String,verification_request_ref:String,publication_request_ref:String}
-#[derive(Debug,Deserialize)]struct RepoMaintainerReviewAntecedents{closure_review_required:bool,soul_verdict_required:bool,mind_commit_required:bool,public_proof_required:bool,bifrost_publication_request_required:bool}
-#[derive(Debug,Deserialize)]struct RepoMaintainerReviewReceipts{closure_review:String,soul_verdict:String,mind_commit:String,public_proof:String,maintainer_review:String,bifrost_publication:String}
-#[derive(Debug,Deserialize)]struct RepoMaintainerReviewPacket{requires_reviewer_identity:bool,requires_review_verdict:bool,allowed_verdicts:Vec<String>,requires_changed_path_list:bool,requires_public_proof_ref:bool,requires_private_state_redaction_check:bool}
-#[derive(Debug,Deserialize)]struct RepoMaintainerReviewAuthority{branch_local_only:bool,maintainer_approval_authorized:bool,merge_authorized:bool,push_authorized:bool,publication_authorized:bool,upstream_sync_authorized:bool,hands_action_authorized:bool,service_lifecycle_authority:bool,cross_body_mutation_authorized:bool,private_verse_rummaging:bool,human_or_maintainer_response_required:bool}
-pub(super) fn parse_repo_maintainer_review_request(text:&str)->Result<RepoMaintainerReviewRequest>{toml::from_str(text).context("maintainer review request is not valid typed TOML")}
-
-#[derive(Debug,Deserialize)]
-pub(super) struct RepoVerificationRequest{pub(super)schema_version:String,pub(super)safe_action_family:String,pub(super)summary:String,pub(super)private_state_exposed:bool,request:RepoVerificationBody,antecedents:RepoVerificationAntecedents,required_receipts:RepoVerificationReceipts,checks:RepoVerificationChecks,authority:RepoVerificationAuthority}
-impl RepoVerificationRequest{
-pub(super)fn has_canonical_identity(&self)->bool{self.schema_version=="epiphany.repo_verification_request.v0"&&self.safe_action_family=="repo.verification_request"}
-pub(super)fn awaits_soul_review(&self)->bool{let r=&self.request;r.status=="awaiting-soul-review"&&r.requested_owner=="Soul"&&r.requested_effect=="verify-branch-local-hands-work"&&!r.work_order_ref.is_empty()}
-pub(super)fn has_antecedent_contract(&self)->bool{let a=&self.antecedents;a.substrate_gate_required&&a.hands_intent_required&&a.hands_review_required&&a.hands_patch_required&&a.hands_command_required&&a.hands_commit_required&&a.work_order_required}
-pub(super)fn has_receipt_contract(&self)->bool{let r=&self.required_receipts;r.hands_patch=="epiphany.hands.patch_receipt"&&r.hands_command=="epiphany.hands.command_receipt"&&r.hands_commit=="epiphany.hands.commit_receipt"&&r.soul_verdict=="epiphany.soul.verification_verdict"&&r.closure_review=="epiphany.repo_work_closure_review.v0"&&r.mind_review=="epiphany.mind.gateway_review"&&r.mind_commit=="epiphany.mind.state_commit_receipt"}
-pub(super)fn has_check_contract(&self)->bool{self.checks.required==["declared-paths-match-commit","hands-receipts-present","visible-diff-supports-summary","no-private-state-exposure","publication-remains-gated"]&&self.checks.model_verdict_allowed&&self.checks.failure_blocks_mind_admission}
-pub(super)fn has_authority_seals(&self)->bool{let a=&self.authority;a.branch_local_only&&!a.soul_verdict_authorized&&!a.state_commit_authorized&&!a.hands_action_authorized&&!a.rerun_authorized&&!a.publication_authorized&&!a.merge_authorized&&!a.service_lifecycle_authority&&!a.cross_body_mutation_authorized&&!a.private_verse_rummaging&&a.bifrost_publication_required}
+impl RepoMaintainerReviewRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_maintainer_review_request.v0"
+            && self.safe_action_family == "repo.maintainer_review_request"
+    }
+    pub(super) fn awaits_review(&self) -> bool {
+        let r = &self.request;
+        r.status == "awaiting-maintainer-review"
+            && r.requested_owner == "Maintainer"
+            && r.requested_effect == "review-redacted-proof-and-branch-diff"
+            && !r.verification_request_ref.is_empty()
+            && !r.publication_request_ref.is_empty()
+    }
+    pub(super) fn has_antecedent_contract(&self) -> bool {
+        let a = &self.antecedents;
+        a.closure_review_required
+            && a.soul_verdict_required
+            && a.mind_commit_required
+            && a.public_proof_required
+            && a.bifrost_publication_request_required
+    }
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        let r = &self.required_receipts;
+        r.closure_review == "epiphany.repo_work_closure_review.v0"
+            && r.soul_verdict == "epiphany.soul.verification_verdict"
+            && r.mind_commit == "epiphany.mind.state_commit_receipt"
+            && r.public_proof == "epiphany.repo_work_public_proof_bundle.v0"
+            && r.maintainer_review == "gamecult.maintainer.review_receipt.v0"
+            && r.bifrost_publication == "gamecult.bifrost.public_proof_publication_receipt.v0"
+    }
+    pub(super) fn has_review_packet(&self) -> bool {
+        let p = &self.review_packet;
+        p.requires_reviewer_identity
+            && p.requires_review_verdict
+            && p.allowed_verdicts
+                == [
+                    "approved",
+                    "changes-requested",
+                    "rejected",
+                    "needs-human-context",
+                ]
+            && p.requires_changed_path_list
+            && p.requires_public_proof_ref
+            && p.requires_private_state_redaction_check
+    }
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let a = &self.authority;
+        a.branch_local_only
+            && !a.maintainer_approval_authorized
+            && !a.merge_authorized
+            && !a.push_authorized
+            && !a.publication_authorized
+            && !a.upstream_sync_authorized
+            && !a.hands_action_authorized
+            && !a.service_lifecycle_authority
+            && !a.cross_body_mutation_authorized
+            && !a.private_verse_rummaging
+            && a.human_or_maintainer_response_required
+    }
 }
-#[derive(Debug,Deserialize)]struct RepoVerificationBody{status:String,requested_owner:String,requested_effect:String,work_order_ref:String}
-#[derive(Debug,Deserialize)]struct RepoVerificationAntecedents{substrate_gate_required:bool,hands_intent_required:bool,hands_review_required:bool,hands_patch_required:bool,hands_command_required:bool,hands_commit_required:bool,work_order_required:bool}
-#[derive(Debug,Deserialize)]struct RepoVerificationReceipts{hands_patch:String,hands_command:String,hands_commit:String,soul_verdict:String,closure_review:String,mind_review:String,mind_commit:String}
-#[derive(Debug,Deserialize)]struct RepoVerificationChecks{required:Vec<String>,model_verdict_allowed:bool,failure_blocks_mind_admission:bool}
-#[derive(Debug,Deserialize)]struct RepoVerificationAuthority{branch_local_only:bool,soul_verdict_authorized:bool,state_commit_authorized:bool,hands_action_authorized:bool,rerun_authorized:bool,publication_authorized:bool,merge_authorized:bool,service_lifecycle_authority:bool,cross_body_mutation_authorized:bool,private_verse_rummaging:bool,bifrost_publication_required:bool}
-pub(super)fn parse_repo_verification_request(text:&str)->Result<RepoVerificationRequest>{toml::from_str(text).context("verification request is not valid typed TOML")}
+#[derive(Debug, Deserialize)]
+struct RepoMaintainerReviewBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    verification_request_ref: String,
+    publication_request_ref: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoMaintainerReviewAntecedents {
+    closure_review_required: bool,
+    soul_verdict_required: bool,
+    mind_commit_required: bool,
+    public_proof_required: bool,
+    bifrost_publication_request_required: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoMaintainerReviewReceipts {
+    closure_review: String,
+    soul_verdict: String,
+    mind_commit: String,
+    public_proof: String,
+    maintainer_review: String,
+    bifrost_publication: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoMaintainerReviewPacket {
+    requires_reviewer_identity: bool,
+    requires_review_verdict: bool,
+    allowed_verdicts: Vec<String>,
+    requires_changed_path_list: bool,
+    requires_public_proof_ref: bool,
+    requires_private_state_redaction_check: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoMaintainerReviewAuthority {
+    branch_local_only: bool,
+    maintainer_approval_authorized: bool,
+    merge_authorized: bool,
+    push_authorized: bool,
+    publication_authorized: bool,
+    upstream_sync_authorized: bool,
+    hands_action_authorized: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    human_or_maintainer_response_required: bool,
+}
+pub(super) fn parse_repo_maintainer_review_request(
+    text: &str,
+) -> Result<RepoMaintainerReviewRequest> {
+    toml::from_str(text).context("maintainer review request is not valid typed TOML")
+}
 
 include!("external_governance_tests.rs");

@@ -1014,6 +1014,20 @@ workflow contracts to external governance merely because its parser imports are
 nearby. External governance should converge on tooling plus
 publication/accounting; operations retains policy/deployment.
 
+## Workflow authority physically separated
+
+`repo.verification_request` and its counterfeit-Soul-verdict fixture now live
+under `closure_contracts/workflow.rs` and `workflow_tests.rs`. External
+governance no longer owns verification merely because the request arrives from
+outside the process. The facade composes workflow as a peer closure domain;
+adoption, scheduling, and work-order contracts should migrate into that owner
+as they are typed.
+
+The included closure files also required direct `rustfmt`: Cargo's normal fmt
+walk does not discover these lexically included modules. Expanded line counts
+therefore measure readable source, not architectural growth. Ownership and
+imports remain the useful measures.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

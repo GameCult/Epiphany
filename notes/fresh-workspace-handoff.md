@@ -312,11 +312,15 @@ Verification-request closure is now typed and class-guarded. Current count:
 thirteen typed high-authority families and 543 remaining substring assertions.
 The explicit malicious Soul-verdict fixture now passes as a negative proof.
 
-Closure-domain pressure: external governance 724 production lines, operations
-551, external fixtures 477. The next adoption/scheduling/work-order conversion
-must create `closure_contracts/workflow.rs` and migrate typed verification with
-it. This follows the generator's existing phase ownership; do not keep feeding
-the external-governance drawer.
+Closure-domain authority now has a physical workflow owner.
+`closure_contracts/workflow.rs` owns typed verification request closure and
+`workflow_tests.rs` owns its counterfeit-Soul-verdict fixture. The facade
+composes workflow beside external governance and operations. Direct `rustfmt`
+is required for these lexically included files because Cargo fmt does not find
+them. Next, type and move one adoption/scheduling/work-order family into
+workflow rather than feeding the external drawer. External governance should
+converge on tooling plus publication/accounting; operations retains
+policy/deployment.
 
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
