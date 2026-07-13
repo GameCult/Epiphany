@@ -29,8 +29,8 @@ fn run_smoke() -> Result<Value> {
 
     let status = run_bridge(&root, &workspace, &artifact_root, &fake_rider, &["status"])?;
     require(
-        status["status"] == "ready",
-        "fake Rider path should make status ready",
+        status["status"] == "discovered",
+        "fake Rider path should be reported as discovered",
     )?;
     require(
         status["riderPath"] == fake_rider.to_string_lossy().as_ref(),

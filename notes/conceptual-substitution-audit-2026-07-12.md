@@ -1480,3 +1480,10 @@ only for a matching completed receipt, `attention` for an inconsistent pair,
 when neither exists. The operator snapshot readback likewise reports `loaded`,
 not `ready`, when a snapshot is merely present. Cache lookup owns retrieval;
 the joined lifecycle evidence owns lifecycle status.
+
+## Tool discovery is not operational readiness
+
+The Rider bridge called a discovered executable path, solution file, and Git
+branch `ready` without executing or validating any of them. These projections
+now report `discovered`, `found`, and `gitDetected`. Discovery owns topology;
+only an actual launch receipt may later claim operability.

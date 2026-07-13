@@ -311,7 +311,7 @@ fn discover_solution(project_root: &Path) -> Result<serde_json::Value> {
     top_level.sort();
     if !top_level.is_empty() {
         return Ok(json!({
-            "status": "ready",
+            "status": "found",
             "path": top_level[0],
             "candidates": top_level.iter().take(8).collect::<Vec<_>>(),
         }));
@@ -319,7 +319,7 @@ fn discover_solution(project_root: &Path) -> Result<serde_json::Value> {
     let mut candidates = Vec::new();
     collect_solutions(&root, &root, &mut candidates)?;
     Ok(json!({
-        "status": if candidates.is_empty() { "missingSolution" } else { "ready" },
+        "status": if candidates.is_empty() { "missingSolution" } else { "found" },
         "path": candidates.first(),
         "candidates": candidates.iter().take(8).collect::<Vec<_>>(),
     }))
@@ -384,7 +384,7 @@ fn vcs_summary(project_root: &Path) -> serde_json::Value {
         }
     }
     json!({
-        "status": if branch.is_some() { "ready" } else { "notGit" },
+        "status": if branch.is_some() { "gitDetected" } else { "notGit" },
         "branch": branch,
         "dirty": status.as_deref().is_some_and(|value| !value.is_empty()),
         "changedFiles": changed_files,
@@ -438,12 +438,12 @@ fn status_rider(options: &RiderOptions) -> Result<serde_json::Value> {
     let solution = discover_solution(&project_root)?;
     let first_rider = installations.first();
     let status = if first_rider.is_some() {
-        "ready"
+        "discovered"
     } else {
         "missingRider"
     };
     let note = if first_rider.is_some() {
-        "Rider executable is available for explicit source navigation and context capture."
+        "A Rider executable candidate was discovered for explicit source navigation and context capture."
     } else {
         "No Rider executable was found. Install Rider or set EPIPHANY_RIDER_PATH."
     };
