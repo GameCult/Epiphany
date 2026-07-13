@@ -1371,3 +1371,14 @@ The remaining production scan finds composite owner labels in the repo-work
 readiness projection (`Idunn/Soul`, `Soul/Bifrost`, and
 `Soul/Mind/Bifrost/Maintainer`) plus arrow-shaped handoff labels presented as
 owners. Trace those rows to their receipt producers and split owner from route.
+
+The readiness composites are now split. Idunn owns deployment-aftercare
+receipts and Soul is named separately as verifier. Soul owns private-state
+redaction verification and Bifrost is named separately as publication reviewer.
+Soul owns the readiness sight report; its authority block separately records
+the required reviewer set, Maintainer readiness-approval ownership, and Bifrost
+publication-review ownership. The report still grants none of those effects.
+
+The next projection scar is arrow-shaped handoff text stored in `owner`, notably
+`Persona->Imagination` in intake/accounting rows. A route is not an owner. Trace
+the document producer and carry the handoff in its route field.

@@ -5330,7 +5330,7 @@ fn derive_repo_secret_policy_request_plan(
         "]".to_string(),
         String::new(),
         "[rollback]".to_string(),
-        "hints = [\"Remove the secret policy request if the security review is not ready for maintainer/Soul/Bifrost review.\"]"
+        "hints = [\"Remove the secret policy request if it is not ready for Maintainer review, Soul verification, Mind admission, and Bifrost publication review.\"]"
             .to_string(),
         String::new(),
     ];
@@ -5478,7 +5478,7 @@ fn derive_repo_dependency_policy_request_plan(
         "]".to_string(),
         String::new(),
         "[rollback]".to_string(),
-        "hints = [\"Remove the dependency policy request if the supply-chain review is not ready for maintainer/Soul/Bifrost review.\"]"
+        "hints = [\"Remove the dependency policy request if it is not ready for Maintainer review, Soul verification, Mind admission, Bifrost publication review, and supply-chain audit.\"]"
             .to_string(),
         String::new(),
     ];
@@ -7319,7 +7319,7 @@ fn closure_family_assertions(
                 &mut assertions,
                 "dependency-policy-request-awaits-review",
                 request.is_some_and(RepoDependencyPolicyRequest::awaits_review),
-                "Committed dependency policy request waits for maintainer/Soul/Bifrost review before consequence."
+                "Committed dependency policy request waits for Maintainer review, Soul verification, Mind admission, Bifrost publication review, and supply-chain audit before consequence."
                     .to_string(),
             );
             push_assertion(
@@ -10206,7 +10206,8 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
                 && !receipt.private_state_exposed;
             rows.push(json!({
                 "kind": "deployment-aftercare",
-                "owner": "Idunn/Soul",
+                "owner": "Idunn",
+                "verifier": "Soul",
                 "requiredSchema": "gamecult.idunn.deployment_aftercare_audit.v0",
                 "evidenceRef": receipt_ref,
                 "artifactStatus": "cultmesh",
@@ -10229,7 +10230,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         } else {
             rows.push(readiness_missing_row(
                 "deployment-aftercare",
-                "Idunn/Soul",
+                "Idunn",
                 "gamecult.idunn.deployment_aftercare_audit.v0",
                 "Supply --deployment-aftercare-audit-receipt-ref after Idunn records deployment aftercare in the repo-local Verse.",
             ));
@@ -10248,7 +10249,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         });
         rows.push(readiness_path_row(
             "deployment-aftercare",
-            "Idunn/Soul",
+            "Idunn",
             "epiphany.repo_deployment_aftercare_audit.v0",
             path,
             satisfied,
@@ -10257,7 +10258,7 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
     } else {
         rows.push(readiness_missing_row(
             "deployment-aftercare",
-            "Idunn/Soul",
+            "Idunn",
             "epiphany.repo_deployment_aftercare_audit.v0",
             "Supply --deployment-aftercare-audit-receipt, --deployment-aftercare-audit-receipt-ref, or run deployment-aftercare-audit into the repo work artifact directory.",
         ));
@@ -10282,7 +10283,8 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
     }
     rows.push(json!({
         "kind": "private-state-redaction",
-        "owner": "Soul/Bifrost",
+        "owner": "Soul",
+        "publicationReviewOwner": "Bifrost",
         "requiredSchema": "epiphany.private_state_redaction_report.v0",
         "evidenceRef": overview["proofBundle"].get("bundleId").cloned().unwrap_or(Value::String("missing".to_string())),
         "satisfied": overview
@@ -10349,7 +10351,10 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
         "rows": rows,
         "allowedVerdicts": ["ready", "ready-with-caveats", "not-ready", "needs-human-review"],
         "authority": {
-            "owner": "Soul/Mind/Bifrost/Maintainer",
+            "owner": "Soul",
+            "requiredReviewers": ["Maintainer", "Soul", "Mind", "Bifrost"],
+            "readinessApprovalOwner": "Maintainer",
+            "publicationReviewOwner": "Bifrost",
             "sightOnly": true,
             "readinessApprovalAuthorized": false,
             "durableStateCommitAuthorized": false,

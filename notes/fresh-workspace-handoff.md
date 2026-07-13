@@ -497,3 +497,9 @@ scheduling, and Idunn deployment ownership. Dependency policy and readiness
 are explicitly classified instead of falling through to Unknown. Next trace
 the remaining composite owner labels in repo-work readiness rows around the
 Idunn/Soul, Soul/Bifrost, and four-reviewer projections.
+
+Those readiness rows are split: Idunn owns aftercare evidence, Soul verifies;
+Soul owns redaction and readiness sight; Maintainer owns readiness approval;
+Bifrost owns publication review; the four required reviewers are an explicit
+list. Next cut arrow-shaped handoffs such as `Persona->Imagination` out of owner
+fields and preserve them only as routes.
