@@ -304,6 +304,10 @@ class no-substring guard plus an explicit malicious GitHub-grant fixture.
 Current count: eleven typed high-authority families and 620 remaining closure
 substring assertions.
 
+Maintainer-review closure is now typed and class-guarded. Current count: twelve
+typed high-authority families and 582 remaining substring assertions. Add the
+explicit malicious maintainer-approval fixture next.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

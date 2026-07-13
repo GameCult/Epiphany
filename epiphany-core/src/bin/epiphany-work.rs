@@ -7797,103 +7797,75 @@ fn closure_family_assertions(
             );
         }
         "repo.maintainer_review_request" => {
+            let request = parse_repo_maintainer_review_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_maintainer_review_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMaintainerReviewRequest::has_canonical_identity),
                 "Committed maintainer review request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-family-present",
-                content.contains("safe_action_family = \"repo.maintainer_review_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMaintainerReviewRequest::has_canonical_identity),
                 "Committed maintainer review request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed maintainer review request contains the accepted pressure summary."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-awaits-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-maintainer-review\"")
-                    && content.contains("requested_owner = \"Maintainer\"")
-                    && content
-                        .contains("requested_effect = \"review-redacted-proof-and-branch-diff\"")
-                    && content.contains("verification_request_ref = ")
-                    && content.contains("publication_request_ref = "),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMaintainerReviewRequest::awaits_review),
                 "Committed maintainer review request waits for human review before consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("closure_review_required = true")
-                    && content.contains("soul_verdict_required = true")
-                    && content.contains("mind_commit_required = true")
-                    && content.contains("public_proof_required = true")
-                    && content.contains("bifrost_publication_request_required = true"),
+                request.as_ref().is_some_and(RepoMaintainerReviewRequest::has_antecedent_contract),
                 "Committed maintainer review request requires closure, Soul, Mind, proof, and Bifrost request antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains(
-                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
-                    )
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains(
-                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
-                    )
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains("bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\""),
+                request.as_ref().is_some_and(RepoMaintainerReviewRequest::has_receipt_contract),
                 "Committed maintainer review request names closure, proof, maintainer, and Bifrost receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-review-packet",
-                content.contains("[review_packet]")
-                    && content.contains("requires_reviewer_identity = true")
-                    && content.contains("requires_review_verdict = true")
-                    && content.contains("allowed_verdicts = [\"approved\", \"changes-requested\", \"rejected\", \"needs-human-context\"]")
-                    && content.contains("requires_changed_path_list = true")
-                    && content.contains("requires_public_proof_ref = true")
-                    && content.contains("requires_private_state_redaction_check = true"),
+                request.as_ref().is_some_and(RepoMaintainerReviewRequest::has_review_packet),
                 "Committed maintainer review request names reviewer identity, verdict, changed path, proof, and redaction requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("maintainer_approval_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("push_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("upstream_sync_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("human_or_maintainer_response_required = true"),
+                request.as_ref().is_some_and(RepoMaintainerReviewRequest::has_authority_seals),
                 "Committed maintainer review request denies approval/merge/push/publication/sync/action/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "maintainer-review-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed maintainer review request preserves the private-state seal.".to_string(),
             );
         }
@@ -15422,6 +15394,7 @@ idunn_deployment_authority_required = true
             "repo.publication_request",
             "repo.sync_request",
             "repo.pr_request",
+            "repo.maintainer_review_request",
             "repo.credit_request",
             "repo.artifact_acceptance_request",
             "repo.metrics_request",

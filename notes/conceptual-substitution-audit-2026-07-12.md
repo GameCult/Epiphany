@@ -977,6 +977,16 @@ A malicious typed fixture separately proves that commented
 Eleven high-authority closure families are now typed; 620 substring assertions
 remain in the measured closure region.
 
+## Maintainer-review prose substituted for human judgment
+
+`repo.maintainer_review_request` closure now parses exact typed request,
+antecedent, receipt, allowed-verdict, review-packet, and authority semantics.
+Maintainer/human judgment remains the consequence owner; Soul, Mind, and
+Bifrost receipts remain prerequisites rather than approval substitutes. The
+class guard prevents substring fallback.
+
+Twelve high-authority families are now typed; 582 substring assertions remain.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

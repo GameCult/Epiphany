@@ -687,4 +687,21 @@ impl RepoPrRequest {
 #[derive(Debug,Deserialize)] struct RepoPrAuthority{branch_local_only:bool,github_pr_authorized:bool,branch_push_authorized:bool,merge_authorized:bool,publication_authorized:bool,upstream_sync_authorized:bool,hands_action_authorized:bool,service_lifecycle_authority:bool,cross_body_mutation_authorized:bool,private_verse_rummaging:bool,bifrost_or_maintainer_authority_required:bool}
 pub(super) fn parse_repo_pr_request(text:&str)->Result<RepoPrRequest>{toml::from_str(text).context("PR request is not valid typed TOML")}
 
+#[derive(Debug,Deserialize)]
+pub(super) struct RepoMaintainerReviewRequest{pub(super) schema_version:String,pub(super) safe_action_family:String,pub(super) summary:String,pub(super) private_state_exposed:bool,request:RepoMaintainerReviewBody,antecedents:RepoMaintainerReviewAntecedents,required_receipts:RepoMaintainerReviewReceipts,review_packet:RepoMaintainerReviewPacket,authority:RepoMaintainerReviewAuthority}
+impl RepoMaintainerReviewRequest{
+pub(super) fn has_canonical_identity(&self)->bool{self.schema_version=="epiphany.repo_maintainer_review_request.v0"&&self.safe_action_family=="repo.maintainer_review_request"}
+pub(super) fn awaits_review(&self)->bool{let r=&self.request;r.status=="awaiting-maintainer-review"&&r.requested_owner=="Maintainer"&&r.requested_effect=="review-redacted-proof-and-branch-diff"&&!r.verification_request_ref.is_empty()&&!r.publication_request_ref.is_empty()}
+pub(super) fn has_antecedent_contract(&self)->bool{let a=&self.antecedents;a.closure_review_required&&a.soul_verdict_required&&a.mind_commit_required&&a.public_proof_required&&a.bifrost_publication_request_required}
+pub(super) fn has_receipt_contract(&self)->bool{let r=&self.required_receipts;r.closure_review=="epiphany.repo_work_closure_review.v0"&&r.soul_verdict=="epiphany.soul.verification_verdict"&&r.mind_commit=="epiphany.mind.state_commit_receipt"&&r.public_proof=="epiphany.repo_work_public_proof_bundle.v0"&&r.maintainer_review=="gamecult.maintainer.review_receipt.v0"&&r.bifrost_publication=="gamecult.bifrost.public_proof_publication_receipt.v0"}
+pub(super) fn has_review_packet(&self)->bool{let p=&self.review_packet;p.requires_reviewer_identity&&p.requires_review_verdict&&p.allowed_verdicts==["approved","changes-requested","rejected","needs-human-context"]&&p.requires_changed_path_list&&p.requires_public_proof_ref&&p.requires_private_state_redaction_check}
+pub(super) fn has_authority_seals(&self)->bool{let a=&self.authority;a.branch_local_only&&!a.maintainer_approval_authorized&&!a.merge_authorized&&!a.push_authorized&&!a.publication_authorized&&!a.upstream_sync_authorized&&!a.hands_action_authorized&&!a.service_lifecycle_authority&&!a.cross_body_mutation_authorized&&!a.private_verse_rummaging&&a.human_or_maintainer_response_required}
+}
+#[derive(Debug,Deserialize)]struct RepoMaintainerReviewBody{status:String,requested_owner:String,requested_effect:String,verification_request_ref:String,publication_request_ref:String}
+#[derive(Debug,Deserialize)]struct RepoMaintainerReviewAntecedents{closure_review_required:bool,soul_verdict_required:bool,mind_commit_required:bool,public_proof_required:bool,bifrost_publication_request_required:bool}
+#[derive(Debug,Deserialize)]struct RepoMaintainerReviewReceipts{closure_review:String,soul_verdict:String,mind_commit:String,public_proof:String,maintainer_review:String,bifrost_publication:String}
+#[derive(Debug,Deserialize)]struct RepoMaintainerReviewPacket{requires_reviewer_identity:bool,requires_review_verdict:bool,allowed_verdicts:Vec<String>,requires_changed_path_list:bool,requires_public_proof_ref:bool,requires_private_state_redaction_check:bool}
+#[derive(Debug,Deserialize)]struct RepoMaintainerReviewAuthority{branch_local_only:bool,maintainer_approval_authorized:bool,merge_authorized:bool,push_authorized:bool,publication_authorized:bool,upstream_sync_authorized:bool,hands_action_authorized:bool,service_lifecycle_authority:bool,cross_body_mutation_authorized:bool,private_verse_rummaging:bool,human_or_maintainer_response_required:bool}
+pub(super) fn parse_repo_maintainer_review_request(text:&str)->Result<RepoMaintainerReviewRequest>{toml::from_str(text).context("maintainer review request is not valid typed TOML")}
+
 include!("external_governance_tests.rs");
