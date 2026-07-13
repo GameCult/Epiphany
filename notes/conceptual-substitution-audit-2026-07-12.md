@@ -622,6 +622,18 @@ valid RFC3339 generation time, are confined to the local-area Verse, and
 advance `latest` by `(generation time, summary ID)`. Delayed stale summaries
 cannot replace current swarm self-knowledge.
 
+## Mirror arrival presented as current operator observation
+
+Operator snapshots distill runtime status into typed internal-Verse context for
+the human-facing control surface, but their `latest` mirror was arrival-owned
+and the writer accepted unvalidated source bindings and timestamps. A delayed
+old status snapshot could therefore rewind the observed coordinator action,
+jobs, tools, and next action after the runtime had moved on. Snapshot writes
+now require the canonical schema, internal Verse, nonempty runtime/snapshot and
+source identity, and valid RFC3339 generation time. `latest` advances by
+`(generation time, snapshot ID)`; snapshots remain observations and acquire no
+coordinator or runtime authority.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

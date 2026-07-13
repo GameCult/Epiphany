@@ -2711,12 +2711,55 @@ pub fn write_epiphany_cultmesh_operator_snapshot(
     store_path: impl AsRef<Path>,
     snapshot: EpiphanyCultMeshOperatorSnapshotEntry,
 ) -> Result<EpiphanyCultMeshOperatorSnapshotEntry> {
+    validate_operator_snapshot(&snapshot)?;
     let mut node = open_epiphany_cultmesh_node(&store_path, snapshot.runtime_id.clone())?;
     let snapshot_key = epiphany_cultmesh_operator_snapshot_key(&snapshot.snapshot_id);
     let written = node.put(snapshot_key.as_str(), &snapshot)?;
-    node.put(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY, &written)?;
+    let current_latest = node.get::<EpiphanyCultMeshOperatorSnapshotEntry>(
+        EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY,
+    )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        operator_snapshot_generation_key(&written) >= operator_snapshot_generation_key(current)
+    }) {
+        node.put(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY, &written)?;
+    }
     node.flush()?;
     Ok(written)
+}
+
+fn validate_operator_snapshot(snapshot: &EpiphanyCultMeshOperatorSnapshotEntry) -> Result<()> {
+    if snapshot.schema_version != EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION {
+        return Err(anyhow!("operator snapshot has unsupported schema version"));
+    }
+    if snapshot.verse_id != EPIPHANY_CULTMESH_INTERNAL_VERSE_ID {
+        return Err(anyhow!(
+            "operator snapshot must remain in the internal Verse"
+        ));
+    }
+    for (label, value) in [
+        ("runtime id", snapshot.runtime_id.as_str()),
+        ("snapshot id", snapshot.snapshot_id.as_str()),
+        ("source mode", snapshot.source_mode.as_str()),
+        ("source path", snapshot.source_path.as_str()),
+        ("status", snapshot.status.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("operator snapshot missing {label}"));
+        }
+    }
+    DateTime::parse_from_rfc3339(&snapshot.generated_at_utc)
+        .map_err(|error| anyhow!("operator snapshot has invalid generated_at_utc: {error}"))?;
+    Ok(())
+}
+
+fn operator_snapshot_generation_key(
+    snapshot: &EpiphanyCultMeshOperatorSnapshotEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&snapshot.generated_at_utc)
+            .expect("validated operator snapshot generation timestamp"),
+        snapshot.snapshot_id.as_str(),
+    )
 }
 
 pub fn load_epiphany_cultmesh_operator_snapshot(
@@ -7288,9 +7331,39 @@ mod tests {
             load_epiphany_cultmesh_operator_snapshot(&store, "epiphany-test", "snapshot-test")?,
             Some(snapshot.clone())
         );
+        let mut newer = snapshot.clone();
+        newer.snapshot_id = "snapshot-newer".to_string();
+        newer.generated_at_utc = "2026-05-27T01:00:00Z".to_string();
+        newer.coordinator_action = "continue".to_string();
+        write_epiphany_cultmesh_operator_snapshot(&store, newer.clone())?;
+
+        let mut delayed = snapshot.clone();
+        delayed.snapshot_id = "snapshot-delayed".to_string();
+        delayed.generated_at_utc = "2026-05-26T23:00:00Z".to_string();
+        write_epiphany_cultmesh_operator_snapshot(&store, delayed)?;
         assert_eq!(
             load_latest_epiphany_cultmesh_operator_snapshot(&store, "epiphany-test")?,
-            Some(snapshot)
+            Some(newer)
+        );
+
+        let mut invalid_time = snapshot.clone();
+        invalid_time.snapshot_id = "snapshot-invalid-time".to_string();
+        invalid_time.generated_at_utc = "not-a-time".to_string();
+        assert!(
+            write_epiphany_cultmesh_operator_snapshot(&store, invalid_time)
+                .unwrap_err()
+                .to_string()
+                .contains("invalid generated_at_utc")
+        );
+
+        let mut wrong_verse = snapshot;
+        wrong_verse.snapshot_id = "snapshot-wrong-verse".to_string();
+        wrong_verse.verse_id = EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string();
+        assert!(
+            write_epiphany_cultmesh_operator_snapshot(&store, wrong_verse)
+                .unwrap_err()
+                .to_string()
+                .contains("internal Verse")
         );
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         assert!(

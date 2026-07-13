@@ -156,6 +156,9 @@ The confirmed conceptual substitutions have been cut:
   proof transport cannot replace the current commit/hash evidence projection.
 - Agent-state SoA `latest` is generation-time-owned and local-area confined;
   delayed summaries cannot rewind prompt/swarm self-knowledge.
+- Operator snapshots are validated internal-Verse observations and `latest` is
+  generation-time-owned; delayed status transport cannot rewind the observed
+  coordinator/runtime surface.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
@@ -194,4 +197,4 @@ Continue the modeling pass beyond receipt writers. Inventory production paths wh
 
 ## Verification baseline
 
-The last completed code pass had 252 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.
+The last completed code pass had 258 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.
