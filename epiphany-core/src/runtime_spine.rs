@@ -39,21 +39,6 @@ use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
 use crate::mind_gateway::MindGatewayDecision;
 use crate::mind_gateway::MindGatewayReview;
 use crate::mind_gateway::MindStateCommitReceipt;
-use crate::mind_gateway::RepoWorkHandsGrant;
-use crate::mind_gateway::RepoWorkPlanAdoptionDecision;
-use crate::mind_gateway::RepoWorkPlanAdoptionReview;
-use crate::modeling_gateway::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
-use crate::modeling_gateway::REPO_WORK_MAP_ENTRY_TYPE;
-use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
-use crate::modeling_gateway::REPO_WORK_MODELING_FINDING_TYPE;
-use crate::modeling_gateway::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION;
-use crate::modeling_gateway::REPO_WORK_MODELING_REQUEST_TYPE;
-use crate::modeling_gateway::REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION;
-use crate::modeling_gateway::REPO_WORK_MODELING_ROUTE_TYPE;
-use crate::modeling_gateway::RepoWorkMapEntry;
-use crate::modeling_gateway::RepoWorkModelingFinding;
-use crate::modeling_gateway::RepoWorkModelingRequest;
-use crate::modeling_gateway::RepoWorkModelingRoute;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::repo_model_gateway::{
     REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
@@ -775,12 +760,6 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
     cache.register_entry_type::<MindGatewayReview>()?;
     cache.register_entry_type::<MindStateCommitReceipt>()?;
-    cache.register_entry_type::<RepoWorkPlanAdoptionReview>()?;
-    cache.register_entry_type::<RepoWorkHandsGrant>()?;
-    cache.register_entry_type::<RepoWorkModelingFinding>()?;
-    cache.register_entry_type::<RepoWorkModelingRequest>()?;
-    cache.register_entry_type::<RepoWorkModelingRoute>()?;
-    cache.register_entry_type::<RepoWorkMapEntry>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
     cache.register_entry_type::<HandsActionIntent>()?;
@@ -2087,7 +2066,9 @@ pub fn put_substrate_gate_repo_access_grant_receipt(
     require_identity(&cache)?;
     let (envelope, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
     let backing = SingleFileMessagePackBackingStore::new(store_path);
-    if backing.compare_and_swap_batch(&[], vec![envelope])? { return Ok(()); }
+    if backing.compare_and_swap_batch(&[], vec![envelope])? {
+        return Ok(());
+    }
     let mut reloaded = runtime_spine_cache(store_path)?;
     reloaded.pull_all_backing_stores()?;
     match reloaded.get::<SubstrateGateRepoAccessGrantReceipt>(&receipt.receipt_id)? {
@@ -2161,7 +2142,9 @@ pub fn put_hands_action_intent(
     }
     let (envelope, _) = cache.prepare_entry(&intent.intent_id, intent)?;
     let backing = SingleFileMessagePackBackingStore::new(store_path);
-    if backing.compare_and_swap_batch(&[], vec![envelope])? { return Ok(()); }
+    if backing.compare_and_swap_batch(&[], vec![envelope])? {
+        return Ok(());
+    }
     let mut reloaded = runtime_spine_cache(store_path)?;
     reloaded.pull_all_backing_stores()?;
     match reloaded.get::<HandsActionIntent>(&intent.intent_id)? {
@@ -2203,7 +2186,9 @@ pub fn put_hands_action_review(
     require_identity(&cache)?;
     let (envelope, _) = cache.prepare_entry(&review.review_id, review)?;
     let backing = SingleFileMessagePackBackingStore::new(store_path);
-    if backing.compare_and_swap_batch(&[], vec![envelope])? { return Ok(()); }
+    if backing.compare_and_swap_batch(&[], vec![envelope])? {
+        return Ok(());
+    }
     let mut reloaded = runtime_spine_cache(store_path)?;
     reloaded.pull_all_backing_stores()?;
     match reloaded.get::<HandsActionReview>(&review.review_id)? {
@@ -2226,49 +2211,81 @@ fn validate_repo_frontier_hands_authority_chain(
     cache: &CultCache,
     authority: &RepoFrontierHandsAuthority,
 ) -> Result<()> {
-    let route = cache.get::<RepoFrontierRoute>(&authority.route_id)?
+    let route = cache
+        .get::<RepoFrontierRoute>(&authority.route_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted route"))?;
-    let current_entry = cache.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+    let current_entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
         .ok_or_else(|| anyhow!("Hands authority requires the current model"))?;
     crate::validate_memory_graph_entry(&current_entry)?;
     let current = current_entry.snapshot()?;
-    let intent = cache.get::<HandsActionIntent>(&authority.hands_intent_id)?
+    let intent = cache
+        .get::<HandsActionIntent>(&authority.hands_intent_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted intent"))?;
-    let review = cache.get::<HandsActionReview>(&authority.hands_review_id)?
+    let review = cache
+        .get::<HandsActionReview>(&authority.hands_review_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted review"))?;
-    let grant = cache.get::<SubstrateGateRepoAccessGrantReceipt>(&authority.substrate_grant_receipt_id)?
+    let grant = cache
+        .get::<SubstrateGateRepoAccessGrantReceipt>(&authority.substrate_grant_receipt_id)?
         .ok_or_else(|| anyhow!("Hands authority requires its persisted Substrate grant"))?;
-    let within_scope = authority.requested_paths.iter().all(|path| route.source_scope.iter().any(|scope| {
-        path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
-    }));
+    let within_scope = authority.requested_paths.iter().all(|path| {
+        route.source_scope.iter().any(|scope| {
+            path == scope || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+        })
+    });
     let requested_operations: &[&str] = match intent.requested_action.as_str() {
         "patch" => &["patch"],
         "continueImplementation" => &["patch", "command", "commit"],
-        _ => return Err(anyhow!("Hands authority names an unsupported requested action")),
+        _ => {
+            return Err(anyhow!(
+                "Hands authority names an unsupported requested action"
+            ));
+        }
     };
     if route.schema_version != REPO_FRONTIER_ROUTE_SCHEMA_VERSION
         || route.contract != REPO_FRONTIER_ROUTE_CONTRACT
         || intent.schema_version != HANDS_ACTION_INTENT_SCHEMA_VERSION
         || review.schema_version != HANDS_ACTION_REVIEW_SCHEMA_VERSION
         || grant.schema_version != SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION
-        || intent.contract.trim().is_empty() || review.contract.trim().is_empty() || grant.contract.trim().is_empty()
+        || intent.contract.trim().is_empty()
+        || review.contract.trim().is_empty()
+        || grant.contract.trim().is_empty()
         || chrono::DateTime::parse_from_rfc3339(&intent.requested_at).is_err()
         || chrono::DateTime::parse_from_rfc3339(&review.reviewed_at).is_err()
         || chrono::DateTime::parse_from_rfc3339(&grant.granted_at).is_err()
         || route.next_organ != RepoFrontierNextOrgan::Hands
-        || authority.model_revision != route.model_revision || authority.model_hash != route.model_hash
-        || authority.frontier_item_id != route.frontier_item_id || authority.frontier_item_hash != route.frontier_item_hash
-        || current.model_revision != route.model_revision || crate::memory_graph_model_hash(&current)? != route.model_hash
-        || review.intent_id != intent.intent_id || review.decision != "approved"
-        || !requested_operations.iter().all(|required| review.allowed_operations.iter().any(|operation| operation == required))
+        || authority.model_revision != route.model_revision
+        || authority.model_hash != route.model_hash
+        || authority.frontier_item_id != route.frontier_item_id
+        || authority.frontier_item_hash != route.frontier_item_hash
+        || current.model_revision != route.model_revision
+        || crate::memory_graph_model_hash(&current)? != route.model_hash
+        || review.intent_id != intent.intent_id
+        || review.decision != "approved"
+        || !requested_operations.iter().all(|required| {
+            review
+                .allowed_operations
+                .iter()
+                .any(|operation| operation == required)
+        })
         || intent.substrate_gate_grant_receipt_id != grant.receipt_id
-        || grant.runtime_job_id != intent.runtime_job_id || grant.binding_id != intent.binding_id
-        || grant.role != intent.role || grant.authority_scope != intent.authority_scope
-        || !requested_operations.iter().all(|required| grant.granted_operations.iter().any(|operation| operation == required))
-        || authority.requested_paths != intent.requested_paths || authority.requested_paths != grant.granted_paths
+        || grant.runtime_job_id != intent.runtime_job_id
+        || grant.binding_id != intent.binding_id
+        || grant.role != intent.role
+        || grant.authority_scope != intent.authority_scope
+        || !requested_operations.iter().all(|required| {
+            grant
+                .granted_operations
+                .iter()
+                .any(|operation| operation == required)
+        })
+        || authority.requested_paths != intent.requested_paths
+        || authority.requested_paths != grant.granted_paths
         || !within_scope
     {
-        return Err(anyhow!("repo frontier Hands authority chain violates its full authority contract"));
+        return Err(anyhow!(
+            "repo frontier Hands authority chain violates its full authority contract"
+        ));
     }
     Ok(())
 }
@@ -2715,193 +2732,6 @@ pub fn commit_repo_frontier_verification_request_for_chain(
     };
     put_repo_frontier_verification_request(store_path, &request)?;
     Ok(request)
-}
-
-pub fn put_repo_work_plan_adoption_review(
-    store_path: impl AsRef<Path>,
-    review: &RepoWorkPlanAdoptionReview,
-) -> Result<()> {
-    validate_repo_work_plan_adoption_review(review)?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    if let Some(existing) = cache.get::<RepoWorkPlanAdoptionReview>(&review.review_id)? {
-        if existing == *review {
-            return Ok(());
-        }
-        return Err(anyhow!(
-            "repo-work plan adoption review ids are immutable; {} already names different bytes",
-            review.review_id
-        ));
-    }
-    cache.put(&review.review_id, review)?;
-    Ok(())
-}
-
-pub fn runtime_repo_work_plan_adoption_review(
-    store_path: impl AsRef<Path>,
-    review_id: &str,
-) -> Result<Option<RepoWorkPlanAdoptionReview>> {
-    validate_non_empty(review_id, "repo-work plan adoption review id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoWorkPlanAdoptionReview>(review_id)
-}
-
-pub fn runtime_repo_work_hands_grant(
-    store_path: impl AsRef<Path>,
-    grant_id: &str,
-) -> Result<Option<RepoWorkHandsGrant>> {
-    validate_non_empty(grant_id, "repo-work Hands grant id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoWorkHandsGrant>(grant_id)
-}
-
-/// Atomically publishes the capability and its approved generic Hands review.
-/// Neither document is observable unless both pass validation and the backing-store swap succeeds.
-pub fn commit_repo_work_hands_grant(
-    store_path: impl AsRef<Path>,
-    grant: &RepoWorkHandsGrant,
-    approved_review: &HandsActionReview,
-) -> Result<()> {
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let adoption = cache
-        .get::<RepoWorkPlanAdoptionReview>(&grant.adoption_review_id)?
-        .ok_or_else(|| {
-            anyhow!("repo-work Hands grant requires its persisted Mind adoption review")
-        })?;
-    validate_repo_work_plan_adoption_review(&adoption)?;
-    let persisted_adoption_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(&adoption)?));
-    if adoption.decision != RepoWorkPlanAdoptionDecision::Adopt
-        || grant.schema_version != crate::mind_gateway::REPO_WORK_HANDS_GRANT_SCHEMA_VERSION
-        || grant.private_state_exposed
-        || !valid_lower_sha256(&grant.adoption_review_sha256)
-        || grant.adoption_review_sha256 != persisted_adoption_sha256
-        || !valid_lower_sha256(&grant.plan_sha256)
-        || !valid_lower_sha256(&grant.run_receipt_sha256)
-        || chrono::DateTime::parse_from_rfc3339(&grant.granted_at).is_err()
-        || !safe_sorted_unique_paths(&grant.changed_paths)
-        || grant.adoption_review_id != adoption.review_id
-        || grant.workspace_identity != adoption.workspace_identity
-        || grant.item != adoption.item
-        || grant.plan_id != adoption.plan_id
-        || grant.plan_sha256 != adoption.plan_sha256
-        || grant.run_receipt_sha256 != adoption.run_receipt_sha256
-        || grant.plan_receipt_path != adoption.plan_receipt_path
-        || grant.run_receipt_path != adoption.run_receipt_path
-        || grant.hands_intent_id != adoption.hands_intent_id
-        || grant.queued_hands_review_id != adoption.queued_hands_review_id
-        || grant.substrate_grant_receipt_id != adoption.substrate_grant_receipt_id
-        || grant.action_id != adoption.action_id
-        || grant.action_command != adoption.action_command
-        || grant.action_commit_message != adoption.action_commit_message
-        || grant.changed_paths != adoption.changed_paths
-        || approved_review.review_id != grant.approved_hands_review_id
-        || approved_review.intent_id != grant.hands_intent_id
-        || approved_review.decision != "approved"
-        || approved_review.allowed_operations != grant.allowed_operations
-    {
-        return Err(anyhow!(
-            "repo-work Hands grant does not exactly bind its accepted Mind review and approved Hands review"
-        ));
-    }
-    let intent = cache
-        .get::<HandsActionIntent>(&grant.hands_intent_id)?
-        .ok_or_else(|| anyhow!("repo-work Hands grant requires its persisted Hands intent"))?;
-    let queued = cache
-        .get::<HandsActionReview>(&grant.queued_hands_review_id)?
-        .ok_or_else(|| anyhow!("repo-work Hands grant requires its queued Hands review"))?;
-    if intent.intent_id != queued.intent_id
-        || queued.decision != "queued-for-adoption"
-        || intent.substrate_gate_grant_receipt_id != grant.substrate_grant_receipt_id
-        || intent.requested_paths != grant.changed_paths
-    {
-        return Err(anyhow!(
-            "repo-work Hands grant authority chain is inconsistent"
-        ));
-    }
-    let existing_grant = cache.get::<RepoWorkHandsGrant>(&grant.grant_id)?;
-    let existing_review = cache.get::<HandsActionReview>(&approved_review.review_id)?;
-    match (existing_grant, existing_review) {
-        (None, None) => {}
-        (Some(existing_grant), Some(existing_review))
-            if existing_grant == *grant && existing_review == *approved_review =>
-        {
-            return Ok(());
-        }
-        _ => {
-            return Err(anyhow!(
-                "repo-work Hands grant and approved review ids are an immutable pair"
-            ));
-        }
-    }
-    let (grant_entry, _) = cache.prepare_entry(&grant.grant_id, grant)?;
-    let (review_entry, _) = cache.prepare_entry(&approved_review.review_id, approved_review)?;
-    cache.put_prepared_batch(vec![grant_entry, review_entry])
-}
-
-fn validate_repo_work_plan_adoption_review(review: &RepoWorkPlanAdoptionReview) -> Result<()> {
-    validate_non_empty(&review.review_id, "repo-work plan adoption review id")?;
-    validate_non_empty(&review.workspace_identity, "repo-work workspace identity")?;
-    validate_non_empty(&review.item, "repo-work item")?;
-    validate_non_empty(&review.plan_id, "repo-work plan id")?;
-    validate_non_empty(&review.plan_sha256, "repo-work plan SHA-256")?;
-    validate_non_empty(&review.run_receipt_sha256, "repo-work run receipt SHA-256")?;
-    validate_non_empty(&review.plan_receipt_path, "repo-work plan receipt path")?;
-    validate_non_empty(&review.run_receipt_path, "repo-work run receipt path")?;
-    validate_non_empty(&review.hands_intent_id, "repo-work Hands intent")?;
-    validate_non_empty(
-        &review.queued_hands_review_id,
-        "repo-work queued Hands review",
-    )?;
-    validate_non_empty(
-        &review.substrate_grant_receipt_id,
-        "repo-work Substrate grant",
-    )?;
-    validate_non_empty(&review.action_id, "repo-work action id")?;
-    validate_non_empty(&review.action_command, "repo-work action command")?;
-    validate_non_empty(
-        &review.action_commit_message,
-        "repo-work action commit message",
-    )?;
-    validate_non_empty(&review.reviewed_at, "repo-work adoption review timestamp")?;
-    let valid_sha256 =
-        |value: &str| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit());
-    let normalized_paths = review
-        .changed_paths
-        .iter()
-        .map(|path| path.replace('\\', "/"))
-        .collect::<Vec<_>>();
-    let mut sorted_paths = normalized_paths.clone();
-    sorted_paths.sort();
-    sorted_paths.dedup();
-    if review.schema_version != crate::mind_gateway::REPO_WORK_PLAN_ADOPTION_REVIEW_SCHEMA_VERSION
-        || review.plan_schema_version != "epiphany.repo_work_action_plan_receipt.v0"
-        || !valid_sha256(&review.plan_sha256)
-        || !valid_sha256(&review.run_receipt_sha256)
-        || review.private_state_exposed
-        || review.changed_paths.is_empty()
-        || !valid_lower_sha256(&review.plan_sha256)
-        || !valid_lower_sha256(&review.run_receipt_sha256)
-        || !Path::new(&review.plan_receipt_path).is_absolute()
-        || !Path::new(&review.run_receipt_path).is_absolute()
-        || chrono::DateTime::parse_from_rfc3339(&review.reviewed_at).is_err()
-        || !safe_sorted_unique_paths(&review.changed_paths)
-        || review.changed_paths != sorted_paths
-    {
-        return Err(anyhow!("invalid repo-work plan adoption review contract"));
-    }
-    Ok(())
-}
-
-fn valid_lower_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn safe_sorted_unique_paths(paths: &[String]) -> bool {
@@ -3361,394 +3191,6 @@ pub fn runtime_soul_verdict_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<SoulVerdictReceipt>(receipt_id)
-}
-
-pub fn put_repo_work_modeling_finding(
-    store_path: impl AsRef<Path>,
-    finding: &RepoWorkModelingFinding,
-) -> Result<()> {
-    validate_non_empty(&finding.receipt_id, "Modeling finding receipt id")?;
-    validate_non_empty(&finding.item, "Modeling finding item")?;
-    validate_non_empty(&finding.model_ref, "Modeling finding model ref")?;
-    validate_non_empty(
-        &finding.soul_verdict_receipt_id,
-        "Modeling finding Soul verdict receipt id",
-    )?;
-    validate_non_empty(&finding.verdict, "Modeling finding verdict")?;
-    validate_non_empty(&finding.finding, "Modeling finding text")?;
-    validate_non_empty(&finding.commit_sha, "Modeling finding commit sha")?;
-    validate_non_empty(&finding.emitted_at, "Modeling finding timestamp")?;
-    if finding.schema_version != REPO_WORK_MODELING_FINDING_SCHEMA_VERSION {
-        return Err(anyhow!("unsupported Modeling finding schema"));
-    }
-    if finding.private_state_exposed {
-        return Err(anyhow!("Modeling finding cannot expose private state"));
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let request = cache
-        .get::<RepoWorkModelingRequest>(&finding.request_id)?
-        .ok_or_else(|| anyhow!("Modeling finding requires its typed request"))?;
-    let soul = cache
-        .get::<SoulVerdictReceipt>(&finding.soul_verdict_receipt_id)?
-        .ok_or_else(|| anyhow!("Modeling finding requires its Soul verdict receipt"))?;
-    if soul.verdict.trim().to_ascii_lowercase() != "passed" {
-        return Err(anyhow!(
-            "Modeling finding requires a passing Soul verdict receipt"
-        ));
-    }
-    if request.item != finding.item
-        || request.soul_verdict_receipt_id != finding.soul_verdict_receipt_id
-        || request.commit_sha != finding.commit_sha
-        || request.changed_paths != finding.changed_paths
-    {
-        return Err(anyhow!(
-            "Modeling finding does not answer its typed request"
-        ));
-    }
-    if let Some(existing) = cache.get::<RepoWorkModelingFinding>(&finding.receipt_id)? {
-        if existing == *finding {
-            return Ok(());
-        }
-        return Err(anyhow!(
-            "Modeling finding receipt id already belongs to different immutable evidence"
-        ));
-    }
-    cache.put(&finding.receipt_id, finding)?;
-    Ok(())
-}
-
-pub fn put_repo_work_modeling_request(
-    store_path: impl AsRef<Path>,
-    request: &RepoWorkModelingRequest,
-) -> Result<()> {
-    if request.schema_version != REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION {
-        return Err(anyhow!("unsupported Modeling request schema"));
-    }
-    validate_non_empty(&request.request_id, "Modeling request id")?;
-    validate_non_empty(&request.item, "Modeling request item")?;
-    validate_non_empty(&request.requester, "Modeling request requester")?;
-    validate_non_empty(
-        &request.soul_verdict_receipt_id,
-        "Modeling request Soul verdict receipt id",
-    )?;
-    validate_non_empty(&request.commit_sha, "Modeling request commit sha")?;
-    validate_non_empty(&request.instruction, "Modeling request instruction")?;
-    validate_non_empty(&request.requested_at, "Modeling request timestamp")?;
-    if request.requester != "self" || request.private_state_exposed {
-        return Err(anyhow!(
-            "repo-work Modeling requests must be Self-routed and private-state sealed"
-        ));
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let soul = cache
-        .get::<SoulVerdictReceipt>(&request.soul_verdict_receipt_id)?
-        .ok_or_else(|| anyhow!("Modeling request requires its Soul verdict receipt"))?;
-    if soul.verdict.trim().to_ascii_lowercase() != "passed" {
-        return Err(anyhow!("Modeling request requires a passing Soul verdict"));
-    }
-    if let Some(existing) = cache.get::<RepoWorkModelingRequest>(&request.request_id)? {
-        if existing == *request {
-            return Ok(());
-        }
-        return Err(anyhow!(
-            "Modeling request id already belongs to different immutable work"
-        ));
-    }
-    cache.put(&request.request_id, request)?;
-    Ok(())
-}
-
-pub fn runtime_repo_work_modeling_request(
-    store_path: impl AsRef<Path>,
-    request_id: &str,
-) -> Result<Option<RepoWorkModelingRequest>> {
-    validate_non_empty(request_id, "Modeling request id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoWorkModelingRequest>(request_id)
-}
-
-pub fn commit_initial_repo_work_modeling_route(
-    store_path: impl AsRef<Path>,
-    request: &RepoWorkModelingRequest,
-    route: &RepoWorkModelingRoute,
-) -> Result<RepoWorkModelingRoute> {
-    if request.schema_version != REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION {
-        return Err(anyhow!("unsupported Modeling request schema"));
-    }
-    validate_non_empty(&request.request_id, "Modeling request id")?;
-    validate_non_empty(&request.item, "Modeling request item")?;
-    validate_non_empty(
-        &request.soul_verdict_receipt_id,
-        "Modeling request Soul verdict receipt id",
-    )?;
-    validate_non_empty(&request.commit_sha, "Modeling request commit sha")?;
-    validate_non_empty(&request.instruction, "Modeling request instruction")?;
-    validate_non_empty(&request.requested_at, "Modeling request timestamp")?;
-    if request.requester != "self" || request.private_state_exposed {
-        return Err(anyhow!(
-            "initial Modeling request must be Self-routed and private-state sealed"
-        ));
-    }
-    if route.schema_version != REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION {
-        return Err(anyhow!("unsupported Modeling route schema"));
-    }
-    validate_non_empty(&route.route_id, "Modeling route id")?;
-    validate_non_empty(&route.item, "Modeling route item")?;
-    validate_non_empty(&route.request_id, "Modeling route request id")?;
-    validate_non_empty(&route.authority_owner, "Modeling route authority owner")?;
-    validate_non_empty(
-        &route.authority_witness_id,
-        "Modeling route authority witness",
-    )?;
-    validate_non_empty(&route.updated_at, "Modeling route timestamp")?;
-    if route.generation != 0
-        || !route.previous_finding_receipt_id.is_empty()
-        || route.authority_owner != "soul"
-        || route.authority_witness_id != request.soul_verdict_receipt_id
-        || route.item != request.item
-        || route.request_id != request.request_id
-        || route.private_state_exposed
-    {
-        return Err(anyhow!(
-            "initial Modeling route must be generation zero, Soul-backed, request-matched, and private-state sealed"
-        ));
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let soul = cache
-        .get::<SoulVerdictReceipt>(&request.soul_verdict_receipt_id)?
-        .ok_or_else(|| anyhow!("initial Modeling route requires its Soul verdict"))?;
-    if soul.verdict.trim().to_ascii_lowercase() != "passed" {
-        return Err(anyhow!(
-            "initial Modeling route requires passing Soul truth"
-        ));
-    }
-    if let Some(existing) = cache.get::<RepoWorkModelingRoute>(&route.route_id)? {
-        let stored_request = cache
-            .get::<RepoWorkModelingRequest>(&existing.request_id)?
-            .ok_or_else(|| anyhow!("existing Modeling route lost its request"))?;
-        if existing == *route && stored_request == *request {
-            return Ok(existing);
-        }
-        return Err(anyhow!(
-            "initial Modeling route already belongs to different routing truth"
-        ));
-    }
-    if cache
-        .get::<RepoWorkModelingRequest>(&request.request_id)?
-        .is_some()
-    {
-        return Err(anyhow!(
-            "Modeling request exists without its atomic initial route"
-        ));
-    }
-    let (request_envelope, _) = cache.prepare_entry(&request.request_id, request)?;
-    let (route_envelope, _) = cache.prepare_entry(&route.route_id, route)?;
-    cache.put_prepared_batch(vec![request_envelope, route_envelope])?;
-    Ok(route.clone())
-}
-
-pub fn runtime_repo_work_modeling_route(
-    store_path: impl AsRef<Path>,
-    route_id: &str,
-) -> Result<Option<RepoWorkModelingRoute>> {
-    validate_non_empty(route_id, "Modeling route id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoWorkModelingRoute>(route_id)
-}
-
-pub fn advance_repo_work_modeling_route(
-    store_path: impl AsRef<Path>,
-    request: &RepoWorkModelingRequest,
-    route: &RepoWorkModelingRoute,
-    mind_review: &MindGatewayReview,
-) -> Result<RepoWorkModelingRoute> {
-    if request.schema_version != REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION
-        || route.schema_version != REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION
-    {
-        return Err(anyhow!("unsupported Modeling route generation schema"));
-    }
-    validate_non_empty(&request.request_id, "next Modeling request id")?;
-    validate_non_empty(&request.item, "next Modeling request item")?;
-    validate_non_empty(
-        &request.soul_verdict_receipt_id,
-        "next Modeling request Soul verdict",
-    )?;
-    validate_non_empty(&request.commit_sha, "next Modeling request commit")?;
-    validate_non_empty(&request.instruction, "next Modeling request instruction")?;
-    validate_non_empty(&request.requested_at, "next Modeling request timestamp")?;
-    validate_non_empty(&route.route_id, "Modeling route id")?;
-    validate_non_empty(
-        &route.previous_finding_receipt_id,
-        "previous Modeling finding receipt id",
-    )?;
-    validate_non_empty(&route.updated_at, "next Modeling route timestamp")?;
-    if request.requester != "mind"
-        || request.private_state_exposed
-        || route.private_state_exposed
-        || route.authority_owner != "mind"
-        || route.authority_witness_id != mind_review.gateway_id
-        || route.request_id != request.request_id
-        || route.item != request.item
-        || mind_review.decision != MindGatewayDecision::Accept
-        || mind_review.source_kind != "repo_work_modeling_revision"
-        || !mind_review
-            .allowed_effects
-            .iter()
-            .any(|effect| effect == "repoWork.modelingRoute")
-    {
-        return Err(anyhow!(
-            "next Modeling generation requires a private-state-sealed Mind acceptance that owns only the route transition"
-        ));
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let current = cache
-        .get::<RepoWorkModelingRoute>(&route.route_id)?
-        .ok_or_else(|| anyhow!("cannot advance a missing Modeling route"))?;
-    let current_request = cache
-        .get::<RepoWorkModelingRequest>(&current.request_id)?
-        .ok_or_else(|| anyhow!("current Modeling route lost its request"))?;
-    let previous_finding = cache
-        .get::<RepoWorkModelingFinding>(&route.previous_finding_receipt_id)?
-        .ok_or_else(|| anyhow!("next Modeling generation requires the previous finding"))?;
-    if route.generation != current.generation.saturating_add(1)
-        || previous_finding.request_id != current.request_id
-        || previous_finding.item != current.item
-        || previous_finding
-            .verdict
-            .trim()
-            .eq_ignore_ascii_case("passed")
-        || request.item != current_request.item
-        || request.soul_verdict_receipt_id != current_request.soul_verdict_receipt_id
-        || request.commit_sha != current_request.commit_sha
-        || request.changed_paths != current_request.changed_paths
-    {
-        return Err(anyhow!(
-            "next Modeling generation must follow one non-passing current finding and preserve the Soul-verified consequence"
-        ));
-    }
-    if cache
-        .get::<RepoWorkModelingRequest>(&request.request_id)?
-        .is_some()
-    {
-        return Err(anyhow!("next Modeling request id already exists"));
-    }
-    let (request_envelope, _) = cache.prepare_entry(&request.request_id, request)?;
-    let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
-    let (route_envelope, _) = cache.prepare_entry(&route.route_id, route)?;
-    cache.put_prepared_batch(vec![request_envelope, review_envelope, route_envelope])?;
-    Ok(route.clone())
-}
-
-pub fn runtime_repo_work_modeling_finding(
-    store_path: impl AsRef<Path>,
-    receipt_id: &str,
-) -> Result<Option<RepoWorkModelingFinding>> {
-    validate_non_empty(receipt_id, "Modeling finding receipt id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoWorkModelingFinding>(receipt_id)
-}
-
-pub fn commit_repo_work_map_admission(
-    store_path: impl AsRef<Path>,
-    entry: &RepoWorkMapEntry,
-    mind_review: &MindGatewayReview,
-    mind_commit: &MindStateCommitReceipt,
-) -> Result<RepoWorkMapEntry> {
-    if entry.schema_version != REPO_WORK_MAP_ENTRY_SCHEMA_VERSION {
-        return Err(anyhow!("unsupported repo-work map entry schema"));
-    }
-    validate_non_empty(&entry.map_entry_id, "repo-work map entry id")?;
-    validate_non_empty(&entry.item, "repo-work map item")?;
-    validate_non_empty(
-        &entry.modeling_finding_receipt_id,
-        "repo-work map Modeling finding receipt id",
-    )?;
-    validate_non_empty(&entry.modeling_route_id, "repo-work map Modeling route id")?;
-    if !entry.durable_state_admitted || entry.private_state_exposed {
-        return Err(anyhow!(
-            "repo-work map admission requires admitted, private-state-sealed state"
-        ));
-    }
-    if entry.mind_gateway_review_id != mind_review.gateway_id
-        || entry.mind_state_commit_receipt_id != mind_commit.receipt_id
-        || mind_commit.gateway_id != mind_review.gateway_id
-    {
-        return Err(anyhow!(
-            "repo-work map entry and Mind witnesses do not share one identity"
-        ));
-    }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
-    let modeling = cache
-        .get::<RepoWorkModelingFinding>(&entry.modeling_finding_receipt_id)?
-        .ok_or_else(|| anyhow!("repo-work map admission requires typed Modeling finding"))?;
-    let route = cache
-        .get::<RepoWorkModelingRoute>(&entry.modeling_route_id)?
-        .ok_or_else(|| anyhow!("repo-work map admission requires current Modeling route"))?;
-    if modeling.item != entry.item
-        || modeling.soul_verdict_receipt_id != entry.soul_verdict_receipt_id
-        || modeling.commit_sha != entry.commit_sha
-        || modeling.changed_paths != entry.changed_paths
-        || modeling.summary != entry.modeling_summary
-        || modeling.verdict.trim().to_ascii_lowercase() != "passed"
-        || route.item != entry.item
-        || route.generation != entry.modeling_generation
-        || route.request_id != modeling.request_id
-    {
-        return Err(anyhow!(
-            "repo-work map entry does not match its passing current-generation Modeling finding"
-        ));
-    }
-    if let Some(existing) = cache.get::<RepoWorkMapEntry>(&entry.map_entry_id)? {
-        let mut candidate = entry.clone();
-        candidate.admitted_at = existing.admitted_at.clone();
-        if existing != candidate {
-            return Err(anyhow!(
-                "repo-work map entry id already belongs to different admitted state"
-            ));
-        }
-        let stored_review = cache
-            .get::<MindGatewayReview>(&existing.mind_gateway_review_id)?
-            .ok_or_else(|| anyhow!("admitted repo-work map is missing its Mind review"))?;
-        let stored_commit = cache
-            .get::<MindStateCommitReceipt>(&existing.mind_state_commit_receipt_id)?
-            .ok_or_else(|| anyhow!("admitted repo-work map is missing its Mind commit"))?;
-        if stored_review.gateway_id != existing.mind_gateway_review_id
-            || stored_commit.gateway_id != stored_review.gateway_id
-        {
-            return Err(anyhow!(
-                "admitted repo-work map has incoherent Mind witnesses"
-            ));
-        }
-        return Ok(existing);
-    }
-    let (review_envelope, _) = cache.prepare_entry(&mind_review.gateway_id, mind_review)?;
-    let (commit_envelope, _) = cache.prepare_entry(&mind_commit.receipt_id, mind_commit)?;
-    let (map_envelope, _) = cache.prepare_entry(&entry.map_entry_id, entry)?;
-    cache.put_prepared_batch(vec![review_envelope, commit_envelope, map_envelope])?;
-    Ok(entry.clone())
-}
-
-pub fn runtime_repo_work_map_entry(
-    store_path: impl AsRef<Path>,
-    map_entry_id: &str,
-) -> Result<Option<RepoWorkMapEntry>> {
-    validate_non_empty(map_entry_id, "repo-work map entry id")?;
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.get::<RepoWorkMapEntry>(map_entry_id)
 }
 
 pub fn put_continuity_recovery_receipt(
@@ -4335,69 +3777,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![
                 "Job results are evidence records; review and acceptance are separate typed flows.",
-            ],
-        ),
-        mutation_contract(
-            REPO_WORK_MODELING_REQUEST_TYPE,
-            REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![REPO_WORK_MODELING_REQUEST_TYPE],
-            vec![REPO_WORK_MODELING_FINDING_TYPE],
-            vec![
-                "Self routes Soul-verified repo consequence to Modeling through this request.",
-                "The request grants no authority to author the Modeling result.",
-            ],
-        ),
-        mutation_contract(
-            REPO_WORK_MODELING_FINDING_TYPE,
-            REPO_WORK_MODELING_FINDING_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Modeling findings interpret a Soul-verified repo consequence before Mind admits a map update.",
-                "Schedulers and raw CLI fields cannot substitute for this persisted receipt.",
-            ],
-        ),
-        mutation_contract(
-            REPO_WORK_MODELING_ROUTE_TYPE,
-            REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![REPO_WORK_MODELING_REQUEST_TYPE, MIND_GATEWAY_REVIEW_TYPE],
-            vec![REPO_WORK_MODELING_ROUTE_TYPE],
-            vec![
-                "The route is the sole current-generation owner for repo-work Modeling requests.",
-                "Generation zero is Soul-backed; later generations require a Mind review and preserve the previous finding.",
-                "Filesystem closure artifacts and Self are projections/routers, not route writers.",
-            ],
-        ),
-        mutation_contract(
-            REPO_WORK_MAP_ENTRY_TYPE,
-            REPO_WORK_MAP_ENTRY_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::Snapshot,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::ReadOnly,
-            vec![],
-            vec![],
-            vec![
-                "Repo-work map entries are Mind-admitted durable state committed atomically with their Mind witnesses.",
-                "CultMesh rows are projections of this entry, not a second map owner.",
             ],
         ),
         mutation_contract(
@@ -6546,46 +5925,116 @@ mod tests {
     fn hands_authority_documents_choose_one_immutable_identity_under_race() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
-        initialize_runtime_spine(&store, RuntimeSpineInitOptions {
-            runtime_id: "authority-race".to_string(), display_name: "Authority Race".to_string(),
-            created_at: "2026-07-13T05:30:00Z".to_string(),
-        })?;
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "authority-race".to_string(),
+                display_name: "Authority Race".to_string(),
+                created_at: "2026-07-13T05:30:00Z".to_string(),
+            },
+        )?;
         let base_grant = crate::substrate_gate_coordinator_implementation_grant(
-            "race-grant".to_string(), "race-job".to_string(), vec!["epiphany-core/src".to_string()],
-            "2026-07-13T05:30:00Z".to_string());
-        let mut other_grant = base_grant.clone(); other_grant.granted_paths = vec!["epiphany-core/tests".to_string()];
+            "race-grant".to_string(),
+            "race-job".to_string(),
+            vec!["epiphany-core/src".to_string()],
+            "2026-07-13T05:30:00Z".to_string(),
+        );
+        let mut other_grant = base_grant.clone();
+        other_grant.granted_paths = vec!["epiphany-core/tests".to_string()];
         let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
-        let outcomes = [base_grant.clone(), other_grant.clone()].into_iter().map(|grant| {
-            let path = store.clone(); let barrier = barrier.clone();
-            std::thread::spawn(move || { barrier.wait(); put_substrate_gate_repo_access_grant_receipt(path, &grant) })
-        }).collect::<Vec<_>>();
-        assert_eq!(outcomes.into_iter().map(|outcome| outcome.join().unwrap()).filter(Result::is_ok).count(), 1);
-        let winner = runtime_substrate_gate_repo_access_grant_receipt(&store, "race-grant")?.unwrap();
+        let outcomes = [base_grant.clone(), other_grant.clone()]
+            .into_iter()
+            .map(|grant| {
+                let path = store.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    put_substrate_gate_repo_access_grant_receipt(path, &grant)
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            outcomes
+                .into_iter()
+                .map(|outcome| outcome.join().unwrap())
+                .filter(Result::is_ok)
+                .count(),
+            1
+        );
+        let winner =
+            runtime_substrate_gate_repo_access_grant_receipt(&store, "race-grant")?.unwrap();
 
-        let base_intent = HandsActionIntent { schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
-            intent_id: "race-intent".to_string(), runtime_job_id: winner.runtime_job_id.clone(), binding_id: winner.binding_id.clone(),
-            role: winner.role.clone(), authority_scope: winner.authority_scope.clone(), requested_action: "patch".to_string(),
-            requested_paths: winner.granted_paths.clone(), substrate_gate_grant_receipt_id: winner.receipt_id.clone(),
-            requested_at: "2026-07-13T05:30:01Z".to_string(), contract: "race intent".to_string() };
-        let mut other_intent = base_intent.clone(); other_intent.requested_action = "continueImplementation".to_string();
+        let base_intent = HandsActionIntent {
+            schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "race-intent".to_string(),
+            runtime_job_id: winner.runtime_job_id.clone(),
+            binding_id: winner.binding_id.clone(),
+            role: winner.role.clone(),
+            authority_scope: winner.authority_scope.clone(),
+            requested_action: "patch".to_string(),
+            requested_paths: winner.granted_paths.clone(),
+            substrate_gate_grant_receipt_id: winner.receipt_id.clone(),
+            requested_at: "2026-07-13T05:30:01Z".to_string(),
+            contract: "race intent".to_string(),
+        };
+        let mut other_intent = base_intent.clone();
+        other_intent.requested_action = "continueImplementation".to_string();
         let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
-        let outcomes = [base_intent.clone(), other_intent].into_iter().map(|intent| {
-            let path = store.clone(); let barrier = barrier.clone();
-            std::thread::spawn(move || { barrier.wait(); put_hands_action_intent(path, &intent) })
-        }).collect::<Vec<_>>();
-        assert_eq!(outcomes.into_iter().map(|outcome| outcome.join().unwrap()).filter(Result::is_ok).count(), 1);
+        let outcomes = [base_intent.clone(), other_intent]
+            .into_iter()
+            .map(|intent| {
+                let path = store.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    put_hands_action_intent(path, &intent)
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            outcomes
+                .into_iter()
+                .map(|outcome| outcome.join().unwrap())
+                .filter(Result::is_ok)
+                .count(),
+            1
+        );
         let winner_intent = runtime_hands_action_intent(&store, "race-intent")?.unwrap();
 
-        let base_review = hands_action_review_for_intent("race-review".to_string(), &winner_intent, "approved".to_string(),
-            vec!["patch".to_string(), "command".to_string(), "commit".to_string()], vec!["race".to_string()],
-            "2026-07-13T05:30:02Z".to_string());
-        let mut other_review = base_review.clone(); other_review.allowed_operations = vec!["patch".to_string()];
+        let base_review = hands_action_review_for_intent(
+            "race-review".to_string(),
+            &winner_intent,
+            "approved".to_string(),
+            vec![
+                "patch".to_string(),
+                "command".to_string(),
+                "commit".to_string(),
+            ],
+            vec!["race".to_string()],
+            "2026-07-13T05:30:02Z".to_string(),
+        );
+        let mut other_review = base_review.clone();
+        other_review.allowed_operations = vec!["patch".to_string()];
         let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
-        let outcomes = [base_review, other_review].into_iter().map(|review| {
-            let path = store.clone(); let barrier = barrier.clone();
-            std::thread::spawn(move || { barrier.wait(); put_hands_action_review(path, &review) })
-        }).collect::<Vec<_>>();
-        assert_eq!(outcomes.into_iter().map(|outcome| outcome.join().unwrap()).filter(Result::is_ok).count(), 1);
+        let outcomes = [base_review, other_review]
+            .into_iter()
+            .map(|review| {
+                let path = store.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    put_hands_action_review(path, &review)
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            outcomes
+                .into_iter()
+                .map(|outcome| outcome.join().unwrap())
+                .filter(Result::is_ok)
+                .count(),
+            1
+        );
         Ok(())
     }
 
@@ -6656,244 +6105,6 @@ mod tests {
         }
         Ok(())
     }
-
-    struct RepoWorkAdoptionFixture {
-        store: PathBuf,
-        review: RepoWorkPlanAdoptionReview,
-        grant: RepoWorkHandsGrant,
-        approved: HandsActionReview,
-    }
-
-    fn repo_work_adoption_fixture() -> Result<(tempfile::TempDir, RepoWorkAdoptionFixture)> {
-        let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
-        initialize_runtime_spine(
-            &store,
-            RuntimeSpineInitOptions {
-                runtime_id: "epiphany-adoption-test".to_string(),
-                display_name: "Epiphany Adoption Test".to_string(),
-                created_at: "2026-07-13T00:00:00Z".to_string(),
-            },
-        )?;
-        let paths = vec!["src/lib.rs".to_string()];
-        let substrate = crate::substrate_gate_coordinator_implementation_grant(
-            "substrate-adoption-1".to_string(),
-            "hands-job-adoption-1".to_string(),
-            paths.clone(),
-            "2026-07-13T00:00:01Z".to_string(),
-        );
-        put_substrate_gate_repo_access_grant_receipt(&store, &substrate)?;
-        let intent = HandsActionIntent {
-            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
-            intent_id: "hands-intent-adoption-1".to_string(),
-            runtime_job_id: "hands-job-adoption-1".to_string(),
-            binding_id: "implementation-worker".to_string(),
-            role: "epiphany-hands".to_string(),
-            authority_scope: "epiphany.role.implementation".to_string(),
-            requested_action: "runAcceptedWorkItem".to_string(),
-            requested_paths: paths.clone(),
-            substrate_gate_grant_receipt_id: substrate.receipt_id.clone(),
-            requested_at: "2026-07-13T00:00:02Z".to_string(),
-            contract: "Mind adoption test intent.".to_string(),
-        };
-        put_hands_action_intent(&store, &intent)?;
-        let queued = crate::hands_action_review_for_intent(
-            "hands-review-queued-adoption-1".to_string(),
-            &intent,
-            "queued-for-adoption".to_string(),
-            vec![
-                "patch".to_string(),
-                "command".to_string(),
-                "commit".to_string(),
-            ],
-            vec!["Mind decision required.".to_string()],
-            "2026-07-13T00:00:03Z".to_string(),
-        );
-        put_hands_action_review(&store, &queued)?;
-        let review = RepoWorkPlanAdoptionReview {
-            schema_version: crate::mind_gateway::REPO_WORK_PLAN_ADOPTION_REVIEW_SCHEMA_VERSION
-                .to_string(),
-            review_id: "mind-adoption-1".to_string(),
-            decision: crate::mind_gateway::RepoWorkPlanAdoptionDecision::Adopt,
-            workspace_identity: "workspace-1".to_string(),
-            item: "item-1".to_string(),
-            plan_schema_version: "epiphany.repo_work_action_plan_receipt.v0".to_string(),
-            plan_id: "plan-1".to_string(),
-            plan_sha256: "a".repeat(64),
-            run_receipt_sha256: "b".repeat(64),
-            plan_receipt_path: temp.path().join("plan.json").display().to_string(),
-            run_receipt_path: temp.path().join("run.json").display().to_string(),
-            hands_intent_id: intent.intent_id.clone(),
-            queued_hands_review_id: queued.review_id.clone(),
-            substrate_grant_receipt_id: substrate.receipt_id.clone(),
-            action_id: "action-1".to_string(),
-            action_command: "cargo test --lib".to_string(),
-            action_commit_message: "Test immutable adoption".to_string(),
-            changed_paths: paths.clone(),
-            reviewed_at: "2026-07-13T00:00:04Z".to_string(),
-            private_state_exposed: false,
-        };
-        put_repo_work_plan_adoption_review(&store, &review)?;
-        let approved = crate::hands_action_review_for_intent(
-            "hands-review-approved-adoption-1".to_string(),
-            &intent,
-            "approved".to_string(),
-            vec![
-                "patch".to_string(),
-                "command".to_string(),
-                "commit".to_string(),
-            ],
-            vec!["Bound to immutable Mind review.".to_string()],
-            "2026-07-13T00:00:05Z".to_string(),
-        );
-        let grant = RepoWorkHandsGrant {
-            schema_version: crate::mind_gateway::REPO_WORK_HANDS_GRANT_SCHEMA_VERSION.to_string(),
-            grant_id: "hands-grant-adoption-1".to_string(),
-            adoption_review_id: review.review_id.clone(),
-            adoption_review_sha256: format!("{:x}", Sha256::digest(serde_json::to_vec(&review)?)),
-            workspace_identity: review.workspace_identity.clone(),
-            item: review.item.clone(),
-            plan_id: review.plan_id.clone(),
-            plan_sha256: review.plan_sha256.clone(),
-            run_receipt_sha256: review.run_receipt_sha256.clone(),
-            plan_receipt_path: review.plan_receipt_path.clone(),
-            run_receipt_path: review.run_receipt_path.clone(),
-            hands_intent_id: review.hands_intent_id.clone(),
-            queued_hands_review_id: review.queued_hands_review_id.clone(),
-            approved_hands_review_id: approved.review_id.clone(),
-            substrate_grant_receipt_id: review.substrate_grant_receipt_id.clone(),
-            action_id: review.action_id.clone(),
-            action_command: review.action_command.clone(),
-            action_commit_message: review.action_commit_message.clone(),
-            allowed_operations: approved.allowed_operations.clone(),
-            changed_paths: review.changed_paths.clone(),
-            granted_at: "2026-07-13T00:00:05Z".to_string(),
-            private_state_exposed: false,
-        };
-        Ok((
-            temp,
-            RepoWorkAdoptionFixture {
-                store,
-                review,
-                grant,
-                approved,
-            },
-        ))
-    }
-
-    #[test]
-    fn repo_work_mind_review_is_create_once_and_idempotent() -> Result<()> {
-        let (_temp, fixture) = repo_work_adoption_fixture()?;
-        put_repo_work_plan_adoption_review(&fixture.store, &fixture.review)?;
-        let mut counterfeit = fixture.review.clone();
-        counterfeit.action_command = "cargo test --all".to_string();
-        assert!(put_repo_work_plan_adoption_review(&fixture.store, &counterfeit).is_err());
-        assert_eq!(
-            runtime_repo_work_plan_adoption_review(&fixture.store, &fixture.review.review_id)?,
-            Some(fixture.review)
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn repo_work_refuse_and_hold_cannot_mint_hands_authority() -> Result<()> {
-        for decision in [
-            crate::mind_gateway::RepoWorkPlanAdoptionDecision::Refuse,
-            crate::mind_gateway::RepoWorkPlanAdoptionDecision::Hold,
-        ] {
-            let (_temp, mut fixture) = repo_work_adoption_fixture()?;
-            fixture.review.review_id = format!("mind-{decision:?}").to_lowercase();
-            fixture.review.decision = decision;
-            fixture.grant.adoption_review_id = fixture.review.review_id.clone();
-            put_repo_work_plan_adoption_review(&fixture.store, &fixture.review)?;
-            assert!(
-                commit_repo_work_hands_grant(&fixture.store, &fixture.grant, &fixture.approved)
-                    .is_err()
-            );
-            assert!(
-                runtime_repo_work_hands_grant(&fixture.store, &fixture.grant.grant_id)?.is_none()
-            );
-            assert!(
-                runtime_hands_action_review(&fixture.store, &fixture.approved.review_id)?.is_none()
-            );
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn repo_work_swapped_binding_fails_atomically() -> Result<()> {
-        let (_temp, mut fixture) = repo_work_adoption_fixture()?;
-        fixture.grant.plan_receipt_path = fixture.review.run_receipt_path.clone();
-        assert!(
-            commit_repo_work_hands_grant(&fixture.store, &fixture.grant, &fixture.approved)
-                .is_err()
-        );
-        assert!(runtime_repo_work_hands_grant(&fixture.store, &fixture.grant.grant_id)?.is_none());
-        assert!(
-            runtime_hands_action_review(&fixture.store, &fixture.approved.review_id)?.is_none()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn repo_work_counterfeit_review_digest_fails_atomically() -> Result<()> {
-        let (_temp, mut fixture) = repo_work_adoption_fixture()?;
-        fixture.grant.adoption_review_sha256 = "c".repeat(64);
-        assert!(
-            commit_repo_work_hands_grant(&fixture.store, &fixture.grant, &fixture.approved)
-                .is_err()
-        );
-        assert!(runtime_repo_work_hands_grant(&fixture.store, &fixture.grant.grant_id)?.is_none());
-        assert!(
-            runtime_hands_action_review(&fixture.store, &fixture.approved.review_id)?.is_none()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn repo_work_exact_adoption_chain_commits_grant_and_review_together() -> Result<()> {
-        let (_temp, fixture) = repo_work_adoption_fixture()?;
-        commit_repo_work_hands_grant(&fixture.store, &fixture.grant, &fixture.approved)?;
-        assert_eq!(
-            runtime_repo_work_hands_grant(&fixture.store, &fixture.grant.grant_id)?,
-            Some(fixture.grant)
-        );
-        assert_eq!(
-            runtime_hands_action_review(&fixture.store, &fixture.approved.review_id)?,
-            Some(fixture.approved)
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn repo_work_grant_and_approved_review_are_create_once_as_a_pair() -> Result<()> {
-        let (_temp, fixture) = repo_work_adoption_fixture()?;
-        commit_repo_work_hands_grant(&fixture.store, &fixture.grant, &fixture.approved)?;
-        commit_repo_work_hands_grant(&fixture.store, &fixture.grant, &fixture.approved)?;
-
-        let mut counterfeit_grant = fixture.grant.clone();
-        counterfeit_grant.action_command = "cargo test --all".to_string();
-        assert!(
-            commit_repo_work_hands_grant(&fixture.store, &counterfeit_grant, &fixture.approved)
-                .is_err()
-        );
-        let mut counterfeit_review = fixture.approved.clone();
-        counterfeit_review.reasons = vec!["replacement opinion".to_string()];
-        assert!(
-            commit_repo_work_hands_grant(&fixture.store, &fixture.grant, &counterfeit_review)
-                .is_err()
-        );
-        assert_eq!(
-            runtime_repo_work_hands_grant(&fixture.store, &fixture.grant.grant_id)?,
-            Some(fixture.grant)
-        );
-        assert_eq!(
-            runtime_hands_action_review(&fixture.store, &fixture.approved.review_id)?,
-            Some(fixture.approved)
-        );
-        Ok(())
-    }
-
     #[test]
     fn runtime_spine_initializes_sessions_events_and_status() -> Result<()> {
         let temp = tempdir()?;

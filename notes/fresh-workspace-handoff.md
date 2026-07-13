@@ -91,6 +91,29 @@ that workflow on canonical RepoFrontier route/Hands/Soul/Modeling authority and
 demote `RepoWorkMapEntry` to derived closure history. Do not let item-slug routes
 or the legacy special Modeling worker close work independently of RepoModel.
 
+Stage 1 of that convergence is now landed in the worktree and Soul-approved.
+The parallel authority was cut before its replacement was enabled. Legacy
+RepoWork Modeling request/route/finding/map types, worker launch, OpenAI ingress,
+runtime writers, manual generation retry, Mind plan-adoption type, independent
+Hands grant, CultMesh overview/readiness/public-proof writers, and closure
+contract corpse are deleted. `epiphany-work` is an 82-line quarantine mouth:
+every mutation/scheduling/publication command refuses before substrate access;
+overview emits only an explicit `historical-only` non-authoritative projection.
+Verse query cannot turn historical map rows into current gates, actions,
+closure, acceptance, pending Bifrost requests, or accounting. Legitimate
+Bifrost artifact-acceptance and metrics receipts still produce accounting rows
+without consulting RepoWork history. The authoritative serial proof is core
+294 passed/1 ignored, epiphany-work 1 passed, Verse query 13 passed, OpenAI
+runtime 8 passed; independent Soul verdict is PASS.
+
+The temporary outage is intentional. Do not resurrect old plan/run/adopt/
+execute/close code to restore motion. The next build begins from the authority
+map in `notes/repo-work-canonical-convergence.md`: inert proposal -> ordinary
+Modeling frontier admission -> typed Self planning request -> Imagination plan
+candidate -> Mind plan adoption -> distinct Self execution route -> canonical
+Hands/Soul/verdict-incorporation chain. Plan readiness does not belong in
+`RepoFrontierStatus`, and a generic phase router has not earned existence.
+
 The next artifact-contract audit then cut `epiphany.persona_chat.v0`: its live
 writer and catalog had disagreed on field vocabulary, evidence fields, and
 lifecycle closure. The writer is now typed Rust with closed

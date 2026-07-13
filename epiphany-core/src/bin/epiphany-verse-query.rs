@@ -425,7 +425,6 @@ fn run_cli() -> Result<()> {
         }
         "swarm-brake" | "brake" => {
             require_query_bootstrap(&args)?;
-
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let created_at_utc = Utc::now().to_rfc3339();
             let status = args
@@ -1022,106 +1021,10 @@ fn run_cli() -> Result<()> {
             );
         }
         "bifrost-artifact-acceptance" | "artifact-acceptance" => {
-            if args.artifact_ref.is_some()
-                || args.public_proof_id.is_some()
-                || args.result_ref.is_some()
-                || args.review_receipts.is_some()
-                || args.ledger_entry_id.is_some()
-                || args.receipt_id.is_some()
-                || args.receipt_status.is_some()
-                || args.source_agent_id.is_some()
-            {
-                anyhow::bail!(
-                    "bifrost-artifact-acceptance inspects a pending request only; Maintainer owns acceptance decisions and Bifrost owns accounting fields"
-                );
-            }
-
-            require_query_bootstrap(&args)?;
-
-            let (_, map_entries) = load_repo_work_map_entries(&args)?;
-            let map_entry = latest_repo_work_map_entry_for_family(
-                &map_entries,
-                "repo.artifact_acceptance_request",
-            )
-            .context(
-                "bifrost-artifact-acceptance requires a repo.artifact_acceptance_request map entry",
-            )?;
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({
-                    "schemaVersion": "epiphany.local_verse_bifrost_artifact_acceptance.v0",
-                    "status": "pending-maintainer-bifrost",
-                    "store": args.store,
-                    "runtimeId": args.runtime_id,
-                    "receiptId": null,
-                    "item": map_entry.item,
-                    "sourceWorkspace": map_entry.workspace,
-                    "sourceBranch": map_entry.branch,
-                    "commitSha": map_entry.commit_sha,
-                    "changedPaths": map_entry.changed_paths,
-                    "artifactRef": null,
-                    "publicProofRef": null,
-                    "ledgerEntryId": null,
-                    "reviewReceiptIds": [],
-                    "acceptedBy": null,
-                    "responseOwner": "Maintainer",
-                    "commands": {
-                        "swarmOverview": WRAPPER_OVERVIEW_COMMAND,
-                        "bifrostArtifactAcceptance": WRAPPER_BIFROST_ARTIFACT_ACCEPTANCE_COMMAND,
-                        "bifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND
-                    },
-                    "privateStateExposed": false,
-                }))?
-            );
+            anyhow::bail!("historical-only: canonical frontier workflow required")
         }
         "bifrost-metrics" | "metrics-receipt" => {
-            if args.artifact_ref.is_some()
-                || args.verification_receipts.is_some()
-                || args.review_receipts.is_some()
-                || args.credit_receipt_ids.is_some()
-                || args.public_proof_id.is_some()
-                || args.result_ref.is_some()
-                || args.receipt_summary.is_some()
-                || args.receipt_id.is_some()
-                || args.receipt_status.is_some()
-            {
-                anyhow::bail!(
-                    "bifrost-metrics inspects a pending request only; Bifrost owns accounting fields and Maintainer owns review-load evidence"
-                );
-            }
-
-            require_query_bootstrap(&args)?;
-
-            let (_, map_entries) = load_repo_work_map_entries(&args)?;
-            let map_entry =
-                latest_repo_work_map_entry_for_family(&map_entries, "repo.metrics_request")
-                    .context("bifrost-metrics requires a repo.metrics_request map entry")?;
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({
-                    "schemaVersion": "epiphany.local_verse_bifrost_metrics.v0",
-                    "status": "pending-bifrost-maintainer",
-                    "store": args.store,
-                    "runtimeId": args.runtime_id,
-                    "receiptId": null,
-                    "item": map_entry.item,
-                    "sourceWorkspace": map_entry.workspace,
-                    "sourceBranch": map_entry.branch,
-                    "artifactAcceptanceReceiptId": null,
-                    "modelSpendReceiptIds": [],
-                    "reviewLoadReceiptIds": [],
-                    "creditReadbackReceiptIds": [],
-                    "publicProofRef": null,
-                    "metricsSummary": null,
-                    "responseOwner": "Bifrost",
-                    "commands": {
-                        "swarmOverview": WRAPPER_OVERVIEW_COMMAND,
-                        "bifrostMetrics": WRAPPER_BIFROST_METRICS_COMMAND,
-                        "bifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND
-                    },
-                    "privateStateExposed": false,
-                }))?
-            );
+            anyhow::bail!("historical-only: canonical frontier workflow required")
         }
         "bifrost-ledger" | "publication-ledger" => {
             let report = load_bifrost_ledger_report(&args)?;
@@ -3560,6 +3463,8 @@ struct RepoWorkOverviewRow {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RepoWorkMapRow {
+    status: String,
+    reason: String,
     map_entry_id: String,
     workspace: String,
     item: String,
@@ -4757,13 +4662,14 @@ fn repo_work_overview_row(overview: &EpiphanyCultMeshRepoWorkOverviewEntry) -> R
         workspace: overview.workspace.clone(),
         item: overview.item.clone(),
         branch: overview.branch.clone(),
-        current_gate: overview.current_gate.clone(),
-        blocker: overview.blocker.clone(),
-        next_safe_move: overview.next_safe_move.clone(),
+        current_gate: "historical-only".to_string(),
+        blocker: "canonical-frontier-workflow-required".to_string(),
+        next_safe_move: "Canonical frontier workflow required; historical record grants no action."
+            .to_string(),
         changed_path_count: overview.changed_paths.len(),
         commit_sha: overview.commit_sha.clone(),
         soul_verdict: overview.soul_verdict.clone(),
-        publication_status: overview.publication_status.clone(),
+        publication_status: "historical-only".to_string(),
         sync_status: overview.sync_status.clone(),
         proof_bundle_ref: overview.proof_bundle_ref.clone(),
         private_state_exposed: overview.private_state_exposed,
@@ -4799,19 +4705,22 @@ fn repo_work_map_rows(
 
 fn repo_work_map_row(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> RepoWorkMapRow {
     RepoWorkMapRow {
+        status: "historical-only".to_string(),
+        reason: "canonical frontier workflow required".to_string(),
         map_entry_id: entry.map_entry_id.clone(),
         workspace: entry.workspace.clone(),
         item: entry.item.clone(),
         branch: entry.branch.clone(),
         changed_path_count: entry.changed_paths.len(),
         commit_sha: entry.commit_sha.clone(),
-        safe_action_family: entry.safe_action_family.clone(),
-        modeling_summary: entry.modeling_summary.clone(),
+        safe_action_family: format!("historical:{}", entry.safe_action_family),
+        modeling_summary: "Historical record only; canonical frontier workflow required."
+            .to_string(),
         soul_verdict_receipt_id: entry.soul_verdict_receipt_id.clone(),
         mind_gateway_review_id: entry.mind_gateway_review_id.clone(),
         mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
-        publication_gate: entry.publication_gate.clone(),
-        durable_state_admitted: entry.durable_state_admitted,
+        publication_gate: "historical-only".to_string(),
+        durable_state_admitted: false,
         source_store_path: entry.source_store_path.clone(),
         private_state_exposed: entry.private_state_exposed,
     }
@@ -4849,19 +4758,19 @@ fn repo_work_map_semantic_rows(
 }
 
 fn repo_work_map_semantic_row(entry: &EpiphanyCultMeshRepoWorkMapEntry) -> RepoWorkMapSemanticRow {
-    let (stage, stage_owner) = repo_work_stage_for_family(&entry.safe_action_family);
     RepoWorkMapSemanticRow {
         item: entry.item.clone(),
         branch: entry.branch.clone(),
-        stage,
-        stage_owner,
-        publication_gate: entry.publication_gate.clone(),
-        gate_owner: repo_work_gate_owner(&entry.publication_gate),
-        safe_action_family: entry.safe_action_family.clone(),
+        stage: "historical-only".to_string(),
+        stage_owner: "none".to_string(),
+        publication_gate: "historical-only".to_string(),
+        gate_owner: "none".to_string(),
+        safe_action_family: format!("historical:{}", entry.safe_action_family),
         changed_path_count: entry.changed_paths.len(),
         latest_commit_sha: entry.commit_sha.clone(),
         latest_mind_state_commit_receipt_id: entry.mind_state_commit_receipt_id.clone(),
-        modeling_summary: entry.modeling_summary.clone(),
+        modeling_summary: "Historical record only; canonical frontier workflow required."
+            .to_string(),
         sight_only: true,
         private_state_exposed: entry.private_state_exposed,
     }
@@ -5408,9 +5317,10 @@ fn repo_work_public_proof_row(
         workspace: proof.workspace.clone(),
         item: proof.item.clone(),
         branch: proof.branch.clone(),
-        current_gate: proof.current_gate.clone(),
-        blocker: proof.blocker.clone(),
-        next_safe_move: proof.next_safe_move.clone(),
+        current_gate: "historical-only".to_string(),
+        blocker: "canonical-frontier-workflow-required".to_string(),
+        next_safe_move: "Canonical frontier workflow required; historical record grants no action."
+            .to_string(),
         changed_path_count: proof.changed_paths.len(),
         commit_sha: proof.commit_sha.clone(),
         soul_verdict: proof.soul_verdict.clone(),
@@ -5460,18 +5370,18 @@ fn repo_work_readiness_row(
         readiness_id: report.readiness_id.clone(),
         workspace: report.workspace.clone(),
         item: report.item.clone(),
-        status: report.status.clone(),
-        missing_required_count: report.missing_required_count,
-        satisfied_required_count: report.satisfied_required_count,
+        status: "historical-only".to_string(),
+        missing_required_count: 1,
+        satisfied_required_count: 0,
         readiness_receipt_ref: report.readiness_receipt_ref.clone(),
         overview_receipt_ref: report.overview_receipt_ref.clone(),
         proof_bundle_id: report.proof_bundle_id.clone(),
-        missing_kinds: report.missing_kinds.clone(),
-        sight_only: report.sight_only,
-        readiness_approval_authorized: report.readiness_approval_authorized,
-        publication_authorized: report.publication_authorized,
-        service_lifecycle_authority: report.service_lifecycle_authority,
-        hands_action_authorized: report.hands_action_authorized,
+        missing_kinds: vec!["canonical-frontier-workflow-required".to_string()],
+        sight_only: true,
+        readiness_approval_authorized: false,
+        publication_authorized: false,
+        service_lifecycle_authority: false,
+        hands_action_authorized: false,
         private_state_exposed: report.private_state_exposed,
     }
 }
@@ -6125,21 +6035,6 @@ fn load_repo_work_map_entries(
     Ok((latest_repo_work_map_entry, repo_work_map_entries))
 }
 
-fn latest_repo_work_map_entry_for_family(
-    entries: &[EpiphanyCultMeshRepoWorkMapEntry],
-    family: &str,
-) -> Option<EpiphanyCultMeshRepoWorkMapEntry> {
-    entries
-        .iter()
-        .filter(|entry| entry.safe_action_family == family)
-        .max_by(|left, right| {
-            left.admitted_at
-                .cmp(&right.admitted_at)
-                .then_with(|| left.map_entry_id.cmp(&right.map_entry_id))
-        })
-        .cloned()
-}
-
 fn load_repo_work_public_proofs(
     args: &Args,
 ) -> Result<(
@@ -6447,19 +6342,19 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
     let (repo_work_map_semantic_rows, repo_work_map_semantic_tui_rows) =
         repo_work_map_semantic_rows(&repo_work_map_entries);
     let (repo_work_map_family_lens_rows, repo_work_map_family_lens_tui_rows) =
-        repo_work_map_family_lens_rows(&repo_work_map_entries);
+        repo_work_map_family_lens_rows(&[]);
     let (repo_work_map_path_lens_rows, repo_work_map_path_lens_tui_rows) =
-        repo_work_map_path_lens_rows(&repo_work_map_entries);
+        repo_work_map_path_lens_rows(&[]);
     let (repo_work_map_branch_lens_rows, repo_work_map_branch_lens_tui_rows) =
-        repo_work_map_branch_lens_rows(&repo_work_map_entries);
+        repo_work_map_branch_lens_rows(&[]);
     let (repo_work_map_stage_lens_rows, repo_work_map_stage_lens_tui_rows) =
-        repo_work_map_stage_lens_rows(&repo_work_map_entries);
+        repo_work_map_stage_lens_rows(&[]);
     let (repo_work_map_gate_lens_rows, repo_work_map_gate_lens_tui_rows) =
-        repo_work_map_gate_lens_rows(&repo_work_map_entries);
+        repo_work_map_gate_lens_rows(&[]);
     let (repo_work_map_closure_rows, repo_work_map_closure_tui_rows) =
-        repo_work_map_closure_rows(&repo_work_map_entries);
+        repo_work_map_closure_rows(&[]);
     let (repo_work_map_acceptance_rows, repo_work_map_acceptance_tui_rows) =
-        repo_work_map_acceptance_rows(&repo_work_map_entries);
+        repo_work_map_acceptance_rows(&[]);
     let (repo_work_public_proof_rows, repo_work_public_proof_tui_rows) =
         repo_work_public_proof_rows(&repo_work_public_proofs);
     let (repo_work_readiness_rows, repo_work_readiness_tui_rows) =
@@ -6476,9 +6371,9 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         &service_lifecycle_attention_rows,
         &service_execution_failed_check_rows,
         &service_execution_runbook_actions,
-        &repo_work_overviews,
-        &repo_work_public_proofs,
-        &repo_work_readiness_reports,
+        &[],
+        &[],
+        &[],
     );
     let private_state_exposed = daemon_report
         .rows
@@ -6542,13 +6437,13 @@ fn load_swarm_overview_report(args: &Args) -> Result<SwarmOverviewReport> {
         .map(|entry| entry.map_entry_id.clone());
     let latest_repo_work_gate = latest_repo_work_overview
         .as_ref()
-        .map(|overview| overview.current_gate.clone());
+        .map(|_| "historical-only".to_string());
     let latest_repo_work_blocker = latest_repo_work_overview
         .as_ref()
-        .map(|overview| overview.blocker.clone());
-    let latest_repo_work_next_safe_move = latest_repo_work_overview
-        .as_ref()
-        .map(|overview| overview.next_safe_move.clone());
+        .map(|_| "canonical-frontier-workflow-required".to_string());
+    let latest_repo_work_next_safe_move = latest_repo_work_overview.as_ref().map(|_| {
+        "Canonical frontier workflow required; historical record grants no action.".to_string()
+    });
     let latest_repo_work_public_proof = latest_repo_work_public_proof
         .as_ref()
         .map(|proof| proof.public_proof_id.clone());
@@ -7740,8 +7635,6 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
         &args.store,
         args.runtime_id.clone(),
     )?;
-    let repo_work_map_entries =
-        load_epiphany_cultmesh_repo_work_map_entries(&args.store, args.runtime_id.clone())?;
     Ok(bifrost_ledger_report(
         arrival_latest_intent.as_ref(),
         arrival_latest_publication.as_ref(),
@@ -7751,7 +7644,7 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
         arrival_latest_metrics.as_ref(),
         arrival_latest_feedback.as_ref(),
         latest_consensus.as_ref(),
-        &repo_work_map_entries,
+        &[],
     ))
 }
 
@@ -7768,7 +7661,7 @@ fn bifrost_ledger_report(
     arrival_latest_metrics: Option<&EpiphanyCultMeshBifrostMetricsReceiptEntry>,
     arrival_latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
-    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
+    _repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
 ) -> BifrostLedgerReport {
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
@@ -7934,7 +7827,6 @@ fn bifrost_ledger_report(
         arrival_latest_metrics,
         arrival_latest_feedback,
         latest_consensus,
-        repo_work_map_entries,
     );
     let closed_accounting_row_count = accounting_rows
         .iter()
@@ -7983,13 +7875,7 @@ fn bifrost_ledger_report(
         arrival_latest_feedback_id: arrival_latest_feedback
             .map(|feedback| feedback.feedback_id.clone()),
         latest_consensus_receipt_id: latest_consensus.map(|receipt| receipt.receipt_id.clone()),
-        repo_work_accounting_request_count: repo_work_map_entries
-            .iter()
-            .filter(|entry| {
-                entry.safe_action_family == "repo.artifact_acceptance_request"
-                    || entry.safe_action_family == "repo.metrics_request"
-            })
-            .count(),
+        repo_work_accounting_request_count: 0,
         private_state_exposed,
     }
 }
@@ -8029,7 +7915,6 @@ fn bifrost_accounting_rows(
     arrival_latest_metrics: Option<&EpiphanyCultMeshBifrostMetricsReceiptEntry>,
     arrival_latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
-    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
 ) -> (Vec<BifrostAccountingRow>, Vec<String>) {
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
@@ -8157,15 +8042,9 @@ fn bifrost_accounting_rows(
     push_artifact_acceptance_accounting_row(
         &mut rows,
         &mut tui_rows,
-        repo_work_map_entries,
         arrival_latest_artifact_acceptance,
     );
-    push_metrics_accounting_row(
-        &mut rows,
-        &mut tui_rows,
-        repo_work_map_entries,
-        arrival_latest_metrics,
-    );
+    push_metrics_accounting_row(&mut rows, &mut tui_rows, arrival_latest_metrics);
 
     let matching_consensus = arrival_latest_feedback.and_then(|feedback| {
         latest_consensus.filter(|receipt| receipt.feedback_id == feedback.feedback_id)
@@ -8222,44 +8101,18 @@ fn bifrost_accounting_rows(
 fn push_artifact_acceptance_accounting_row(
     rows: &mut Vec<BifrostAccountingRow>,
     tui_rows: &mut Vec<String>,
-    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
     latest_receipt: Option<&EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry>,
 ) {
-    let matching = repo_work_map_entries
-        .iter()
-        .filter(|entry| entry.safe_action_family == "repo.artifact_acceptance_request")
-        .collect::<Vec<_>>();
-    let latest_request = matching.iter().copied().max_by(|left, right| {
-        left.admitted_at
-            .cmp(&right.admitted_at)
-            .then_with(|| left.map_entry_id.cmp(&right.map_entry_id))
-    });
-    let request_private = latest_request
-        .map(|entry| entry.private_state_exposed)
-        .unwrap_or(false);
     let receipt_private = latest_receipt
         .map(|receipt| receipt.private_state_exposed)
         .unwrap_or(false);
     let review_receipt_count = latest_receipt
         .map(|receipt| receipt.maintainer_review_receipt_ids.len())
-        .or_else(|| {
-            latest_request.map(|entry| {
-                [
-                    &entry.soul_verdict_receipt_id,
-                    &entry.mind_gateway_review_id,
-                    &entry.mind_state_commit_receipt_id,
-                ]
-                .iter()
-                .filter(|receipt| !receipt.trim().is_empty() && receipt.as_str() != "none")
-                .count()
-            })
-        })
         .unwrap_or(0);
     let public_artifact_count = latest_receipt
         .map(|receipt| receipt.changed_paths.len())
-        .or_else(|| latest_request.map(|entry| entry.changed_paths.len()))
         .unwrap_or(0);
-    let private = request_private || receipt_private;
+    let private = receipt_private;
     let receipt_proof_complete = latest_receipt
         .map(|receipt| {
             !receipt.artifact_ref.trim().is_empty()
@@ -8278,13 +8131,12 @@ fn push_artifact_acceptance_accounting_row(
             lane: "artifact-acceptance-request".to_string(),
             owner: "Bifrost".to_string(),
             status: bifrost_accounting_status(
-                false,
-                latest_request.is_some() || latest_receipt.is_some(),
+                receipt_proof_complete,
+                latest_receipt.is_some(),
                 private,
             ),
             closure: format!(
-                "request={} acceptance={} requestIdentity=missing receiptProof={} review={} artifacts={}",
-                present_word(latest_request.is_some()),
+                "acceptance={} receiptProof={} review={} artifacts={}",
                 present_word(latest_receipt.is_some()),
                 if receipt_proof_complete {
                     "complete"
@@ -8296,23 +8148,12 @@ fn push_artifact_acceptance_accounting_row(
             ),
             ledger_entry_id: latest_receipt
                 .map(|receipt| receipt.bifrost_ledger_entry_id.clone())
-                .or_else(|| latest_request.map(|entry| entry.publication_gate.clone()))
                 .unwrap_or_else(|| "none".to_string()),
             latest_receipt_id: latest_receipt
                 .map(|receipt| receipt.receipt_id.clone())
-                .or_else(|| latest_request.map(|entry| entry.mind_state_commit_receipt_id.clone()))
                 .unwrap_or_else(|| "none".to_string()),
             public_ref: latest_receipt
                 .map(|receipt| receipt.public_proof_ref.clone())
-                .or_else(|| {
-                    latest_request.map(|entry| {
-                        if entry.commit_sha.trim().is_empty() || entry.commit_sha == "none" {
-                            entry.branch.clone()
-                        } else {
-                            entry.commit_sha.clone()
-                        }
-                    })
-                })
                 .unwrap_or_else(|| "none".to_string()),
             review_receipt_count,
             credit_receipt_count: 0,
@@ -8325,21 +8166,8 @@ fn push_artifact_acceptance_accounting_row(
 fn push_metrics_accounting_row(
     rows: &mut Vec<BifrostAccountingRow>,
     tui_rows: &mut Vec<String>,
-    repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
     latest_receipt: Option<&EpiphanyCultMeshBifrostMetricsReceiptEntry>,
 ) {
-    let matching = repo_work_map_entries
-        .iter()
-        .filter(|entry| entry.safe_action_family == "repo.metrics_request")
-        .collect::<Vec<_>>();
-    let latest_request = matching.iter().copied().max_by(|left, right| {
-        left.admitted_at
-            .cmp(&right.admitted_at)
-            .then_with(|| left.map_entry_id.cmp(&right.map_entry_id))
-    });
-    let request_private = latest_request
-        .map(|entry| entry.private_state_exposed)
-        .unwrap_or(false);
     let receipt_private = latest_receipt
         .map(|receipt| receipt.private_state_exposed)
         .unwrap_or(false);
@@ -8352,28 +8180,9 @@ fn push_metrics_accounting_row(
     let credit_count = latest_receipt
         .map(|receipt| receipt.credit_readback_receipt_ids.len())
         .unwrap_or(0);
-    let public_artifact_count = latest_receipt
-        .map(|_| 1)
-        .or_else(|| latest_request.map(|entry| entry.changed_paths.len()))
-        .unwrap_or(0);
-    let request_review_count = latest_request
-        .map(|entry| {
-            [
-                &entry.soul_verdict_receipt_id,
-                &entry.mind_gateway_review_id,
-                &entry.mind_state_commit_receipt_id,
-            ]
-            .iter()
-            .filter(|receipt| !receipt.trim().is_empty() && receipt.as_str() != "none")
-            .count()
-        })
-        .unwrap_or(0);
-    let review_receipt_count = if latest_receipt.is_some() {
-        model_spend_count + review_load_count
-    } else {
-        request_review_count
-    };
-    let private = request_private || receipt_private;
+    let public_artifact_count = latest_receipt.map(|_| 1).unwrap_or(0);
+    let review_receipt_count = model_spend_count + review_load_count;
+    let private = receipt_private;
     let receipt_proof_complete = latest_receipt
         .map(|receipt| {
             !receipt.artifact_acceptance_receipt_id.trim().is_empty()
@@ -8418,13 +8227,12 @@ fn push_metrics_accounting_row(
             lane: "metrics-request".to_string(),
             owner: "Bifrost".to_string(),
             status: bifrost_accounting_status(
-                false,
-                latest_request.is_some() || latest_receipt.is_some(),
+                receipt_proof_complete,
+                latest_receipt.is_some(),
                 private,
             ),
             closure: format!(
-                "request={} metrics={} requestIdentity=missing receiptProof={} modelSpend={} reviewLoad={} credit={}",
-                present_word(latest_request.is_some()),
+                "metrics={} receiptProof={} modelSpend={} reviewLoad={} credit={}",
                 present_word(latest_receipt.is_some()),
                 if receipt_proof_complete {
                     "complete"
@@ -8435,24 +8243,14 @@ fn push_metrics_accounting_row(
                 review_load_count,
                 credit_count
             ),
-            ledger_entry_id: latest_request
-                .map(|entry| entry.publication_gate.clone())
+            ledger_entry_id: latest_receipt
+                .map(|receipt| receipt.artifact_acceptance_receipt_id.clone())
                 .unwrap_or_else(|| "none".to_string()),
             latest_receipt_id: latest_receipt
                 .map(|receipt| receipt.receipt_id.clone())
-                .or_else(|| latest_request.map(|entry| entry.mind_state_commit_receipt_id.clone()))
                 .unwrap_or_else(|| "none".to_string()),
             public_ref: latest_receipt
                 .map(|receipt| receipt.public_proof_ref.clone())
-                .or_else(|| {
-                    latest_request.map(|entry| {
-                        if entry.commit_sha.trim().is_empty() || entry.commit_sha == "none" {
-                            entry.branch.clone()
-                        } else {
-                            entry.commit_sha.clone()
-                        }
-                    })
-                })
                 .unwrap_or_else(|| "none".to_string()),
             review_receipt_count,
             credit_receipt_count: credit_count,
@@ -10056,7 +9854,6 @@ mod lifecycle_projection_tests {
             None,
             None,
             None,
-            &[],
         );
         assert_eq!(matching[0].status, "closed");
 
@@ -10071,7 +9868,6 @@ mod lifecycle_projection_tests {
             None,
             None,
             None,
-            &[],
         );
         assert_eq!(mismatched[0].status, "open");
         assert!(mismatched[0].closure.contains("publication=missing"));
@@ -10091,7 +9887,6 @@ mod lifecycle_projection_tests {
             None,
             Some(&feedback),
             Some(&matching_consensus),
-            &[],
         );
         assert_eq!(matching.last().unwrap().status, "closed");
 
@@ -10105,7 +9900,6 @@ mod lifecycle_projection_tests {
             None,
             Some(&feedback),
             Some(&unrelated_consensus),
-            &[],
         );
         let row = mismatched.last().unwrap();
         assert_eq!(row.status, "open");
@@ -10114,48 +9908,33 @@ mod lifecycle_projection_tests {
     }
 
     #[test]
-    fn request_accounting_stays_open_without_typed_receipt_identity() {
-        let old_private = repo_request("repo.artifact_acceptance_request", "old", true);
-        let mut current = repo_request("repo.artifact_acceptance_request", "current", false);
-        current.admitted_at = "2026-07-13T01:00:00Z".to_string();
+    fn receipt_accounting_ignores_historical_repo_work_requests() {
+        let historical = repo_request("repo.artifact_acceptance_request", "old", true);
         let artifact = artifact_receipt();
-        let mut rows = Vec::new();
-        let mut tui = Vec::new();
-        push_artifact_acceptance_accounting_row(
-            &mut rows,
-            &mut tui,
-            &[old_private, current],
-            Some(&artifact),
-        );
-        assert_eq!(rows[0].status, "open");
-        assert!(rows[0].closure.contains("requestIdentity=missing"));
-        assert!(rows[0].closure.contains("receiptProof=complete"));
-        assert!(!rows[0].private_state_exposed);
-
-        let request = repo_request("repo.metrics_request", "metrics", false);
         let metrics = metrics_receipt();
-        rows.clear();
-        tui.clear();
-        push_metrics_accounting_row(
-            &mut rows,
-            &mut tui,
-            std::slice::from_ref(&request),
+        let (rows, _) = bifrost_accounting_rows(
+            None,
+            None,
+            None,
+            None,
+            Some(&artifact),
             Some(&metrics),
+            None,
+            None,
         );
-        assert_eq!(rows[0].status, "open");
-        assert!(rows[0].closure.contains("requestIdentity=missing"));
-        assert!(rows[0].closure.contains("receiptProof=complete"));
+        assert_eq!(rows.iter().filter(|row| row.status == "closed").count(), 2);
+        assert!(
+            rows.iter()
+                .any(|row| row.lane == "artifact-acceptance-request")
+        );
+        assert!(rows.iter().any(|row| row.lane == "metrics-request"));
+        assert!(historical.private_state_exposed);
 
         let mut incomplete_metrics = metrics_receipt();
         incomplete_metrics.token_summary_ref = None;
-        rows.clear();
-        tui.clear();
-        push_metrics_accounting_row(
-            &mut rows,
-            &mut tui,
-            std::slice::from_ref(&request),
-            Some(&incomplete_metrics),
-        );
+        let mut rows = Vec::new();
+        let mut tui = Vec::new();
+        push_metrics_accounting_row(&mut rows, &mut tui, Some(&incomplete_metrics));
         assert_eq!(rows[0].status, "open");
         assert!(rows[0].closure.contains("receiptProof=incomplete"));
     }
