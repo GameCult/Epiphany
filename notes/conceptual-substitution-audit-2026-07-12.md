@@ -789,6 +789,16 @@ parent binary, not promoted into a generic global policy API. New typed closure
 families belong in this contract organ when they protect a named family
 invariant; do not rebuild generic policy mush.
 
+## Tool-request prose substituted for typed authority
+
+`repo.tool_request` closure treated the presence of authority-denial strings as
+proof that direct execution, shell, Hands, state, publication, lifecycle,
+cross-body, and private-Verse authority were absent. A comment could therefore
+counterfeit the seal while the typed value granted execution. The family now
+parses through `closure_contracts.rs` and checks exact request, CultMesh, Odin,
+and authority semantics. A regression fixture proves commented denial text
+cannot conceal `direct_tool_execution = true`.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

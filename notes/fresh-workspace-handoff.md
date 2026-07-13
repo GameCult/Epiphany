@@ -234,7 +234,14 @@ Historical implementation detail belongs in git history, smoke artifacts, and th
 
 ## Next real move
 
-Continue the modeling pass beyond receipt writers. Inventory production paths where a projection, cache, adapter, scheduler, coordinator, or compatibility surface asserts a fact owned elsewhere. For each candidate, name the owner, allowed inputs, emitted state, forbidden writers, and negative proof before changing code. Also audit remaining non-receipt smoke binaries for path escape or destructive scope.
+Continue the modeling pass beyond receipt writers. Tool-request closure now uses
+the typed family contract and cannot accept comment-counterfeit execution seals.
+Inventory remaining substring closure families and production paths where a
+projection, cache, adapter, scheduler, coordinator, or compatibility surface
+asserts a fact owned elsewhere. For each candidate, name the owner, allowed
+inputs, emitted state, forbidden writers, and negative proof before changing
+code. Also audit remaining non-receipt smoke binaries for path escape or
+destructive scope.
 
 ## Verification baseline
 

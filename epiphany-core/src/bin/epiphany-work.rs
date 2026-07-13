@@ -6597,80 +6597,71 @@ fn closure_family_assertions(
             );
         }
         "repo.tool_request" => {
+            let request = parse_repo_tool_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "tool-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_tool_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoToolRequest::has_canonical_identity),
                 "Committed tool request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "tool-request-family-present",
-                content.contains("safe_action_family = \"repo.tool_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoToolRequest::has_canonical_identity),
                 "Committed tool request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "tool-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed tool request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "tool-request-section-present",
-                content.contains("[request]")
-                    && content.contains("target_directory = \"gamecult-local/daemon-tool-directory\"")
-                    && content.contains(
-                        "target_capability = \"daemon-tool-capability:selected-by-review\"",
-                    )
-                    && content.contains("operation = \"submitTypedToolIntent\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoToolRequest::has_request_contract),
                 "Committed tool request names the daemon tool directory and typed intent operation."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "tool-request-cultmesh-contracts",
-                content.contains("[cultmesh]")
-                    && content.contains(
-                        "intent_contract = \"epiphany.cultmesh.daemon_tool_invocation_intent.v0\"",
-                    )
-                    && content.contains(
-                        "receipt_contract = \"epiphany.cultmesh.daemon_tool_invocation_receipt.v0\"",
-                    )
-                    && content.contains("host_daemon_owns_execution = true")
-                    && content.contains("requester_owns_request = false")
-                    && content.contains("requires_host_liveness_ready = true")
-                    && content.contains("requires_cultmesh_receipts = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoToolRequest::has_cultmesh_contract),
                 "Committed tool request names typed CultMesh contracts, host liveness, and host execution ownership.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "tool-request-odin-provider-ownership",
-                content.contains("[odin]")
-                    && content.contains("discoverable = true")
-                    && content.contains("preserves_provider_ownership = true")
-                    && content.contains("private_verse_passthrough = false"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoToolRequest::has_odin_contract),
                 "Committed tool request preserves Odin discovery and provider ownership boundaries."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "tool-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("direct_tool_execution = false")
-                    && content.contains("arbitrary_shell_authority = false")
-                    && content.contains("hands_action_authority = false")
-                    && content.contains("state_commit_authority = false")
-                    && content.contains("publication_authority = false")
-                    && content.contains("service_lifecycle_authority = false")
-                    && content.contains("cross_body_mutation_authority = false")
-                    && content.contains("private_verse_rummaging = false"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoToolRequest::has_authority_seals),
                 "Committed tool request denies direct execution, shell, Hands, state, publication, lifecycle, cross-body, and private-rummaging authority.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "tool-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed tool request preserves the private-state seal.".to_string(),
             );
         }

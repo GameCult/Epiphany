@@ -2,6 +2,141 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+pub(super) struct RepoToolRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    pub(super) request: RepoToolRequestBody,
+    pub(super) cultmesh: RepoToolRequestCultMesh,
+    pub(super) odin: RepoToolRequestOdin,
+    pub(super) authority: RepoToolRequestAuthority,
+}
+
+impl RepoToolRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_tool_request.v0"
+            && self.safe_action_family == "repo.tool_request"
+    }
+
+    pub(super) fn has_request_contract(&self) -> bool {
+        self.request.target_directory == "gamecult-local/daemon-tool-directory"
+            && self.request.target_capability == "daemon-tool-capability:selected-by-review"
+            && self.request.operation == "submitTypedToolIntent"
+    }
+
+    pub(super) fn has_cultmesh_contract(&self) -> bool {
+        self.cultmesh.intent_contract == "epiphany.cultmesh.daemon_tool_invocation_intent.v0"
+            && self.cultmesh.receipt_contract
+                == "epiphany.cultmesh.daemon_tool_invocation_receipt.v0"
+            && self.cultmesh.host_daemon_owns_execution
+            && !self.cultmesh.requester_owns_request
+            && self.cultmesh.requires_host_liveness_ready
+            && self.cultmesh.requires_cultmesh_receipts
+    }
+
+    pub(super) fn has_odin_contract(&self) -> bool {
+        self.odin.discoverable
+            && self.odin.preserves_provider_ownership
+            && !self.odin.private_verse_passthrough
+    }
+
+    pub(super) fn has_authority_seals(&self) -> bool {
+        !self.authority.direct_tool_execution
+            && !self.authority.arbitrary_shell_authority
+            && !self.authority.hands_action_authority
+            && !self.authority.state_commit_authority
+            && !self.authority.publication_authority
+            && !self.authority.service_lifecycle_authority
+            && !self.authority.cross_body_mutation_authority
+            && !self.authority.private_verse_rummaging
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoToolRequestBody {
+    target_directory: String,
+    target_capability: String,
+    operation: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoToolRequestCultMesh {
+    intent_contract: String,
+    receipt_contract: String,
+    host_daemon_owns_execution: bool,
+    requester_owns_request: bool,
+    requires_host_liveness_ready: bool,
+    requires_cultmesh_receipts: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoToolRequestOdin {
+    discoverable: bool,
+    preserves_provider_ownership: bool,
+    private_verse_passthrough: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoToolRequestAuthority {
+    pub(super) direct_tool_execution: bool,
+    arbitrary_shell_authority: bool,
+    hands_action_authority: bool,
+    state_commit_authority: bool,
+    publication_authority: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authority: bool,
+    private_verse_rummaging: bool,
+}
+
+pub(super) fn parse_repo_tool_request(text: &str) -> Result<RepoToolRequest> {
+    toml::from_str(text).context("tool request is not valid typed TOML")
+}
+
+#[cfg(test)]
+mod tool_request_tests {
+    use super::*;
+
+    #[test]
+    fn comment_cannot_counterfeit_direct_execution_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_tool_request.v0"
+safe_action_family = "repo.tool_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+target_directory = "gamecult-local/daemon-tool-directory"
+target_capability = "daemon-tool-capability:selected-by-review"
+operation = "submitTypedToolIntent"
+[cultmesh]
+intent_contract = "epiphany.cultmesh.daemon_tool_invocation_intent.v0"
+receipt_contract = "epiphany.cultmesh.daemon_tool_invocation_receipt.v0"
+host_daemon_owns_execution = true
+requester_owns_request = false
+requires_host_liveness_ready = true
+requires_cultmesh_receipts = true
+[odin]
+discoverable = true
+preserves_provider_ownership = true
+private_verse_passthrough = false
+[authority]
+# direct_tool_execution = false
+direct_tool_execution = true
+arbitrary_shell_authority = false
+hands_action_authority = false
+state_commit_authority = false
+publication_authority = false
+service_lifecycle_authority = false
+cross_body_mutation_authority = false
+private_verse_rummaging = false
+"#;
+        let request = parse_repo_tool_request(text).expect("fixture is typed TOML");
+        assert!(request.authority.direct_tool_execution);
+        assert!(!request.has_authority_seals());
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub(super) struct RepoDeploymentConfig {
     pub(super) schema_version: String,
     pub(super) safe_action_family: String,
