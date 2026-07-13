@@ -4681,7 +4681,7 @@ pub fn epiphany_cultmesh_bifrost_artifact_acceptance_receipt_for_map_entry(
         notes: vec![
             "Bifrost artifact acceptance receipt closes accepted-artifact accounting for Mind-admitted branch work.".to_string(),
             "This receipt carries artifact, review, ledger, commit, and path refs only; private worker/operator/agent state remains sealed.".to_string(),
-            "Repo-work request cargo may ask for this receipt, but Bifrost/Maintainer owns acceptance.".to_string(),
+            "Repo-work request cargo may ask for this receipt; Maintainer owns acceptance and Bifrost owns accounting.".to_string(),
         ],
     }
 }
@@ -4743,7 +4743,7 @@ pub fn epiphany_cultmesh_bifrost_metrics_receipt_for_map_entry(
         notes: vec![
             "Bifrost metrics receipt closes model-spend, review-load, accepted-artifact, and credit-readback accounting for branch work.".to_string(),
             "Metrics are operator-safe refs and summaries, not private worker transcripts or raw model streams.".to_string(),
-            "Repo-work request cargo may ask for this receipt, but Bifrost/Maintainer owns accounting.".to_string(),
+            "Repo-work request cargo may ask for this receipt; Bifrost owns accounting and Maintainer owns review-load evidence.".to_string(),
         ],
     }
 }

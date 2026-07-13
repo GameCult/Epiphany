@@ -85,7 +85,11 @@ summary = "summary"
 private_state_exposed = false
 [request]
 status = "awaiting-metrics-review"
-requested_owner = "Bifrost/Maintainer"
+routing_owner = "Self"
+accounting_owner = "Bifrost"
+review_evidence_owner = "Maintainer"
+spend_receipt_required = true
+review_load_receipt_required = true
 requested_effect = "record-compute-review-and-artifact-accounting"
 publication_request_ref = "publication"
 credit_request_ref = "credit"
@@ -129,7 +133,8 @@ hands_action_authorized = false
 service_lifecycle_authority = false
 cross_body_mutation_authorized = false
 private_verse_rummaging = false
-bifrost_or_maintainer_metrics_authority_required = true
+bifrost_accounting_required = true
+maintainer_review_evidence_required = true
 "#;
         let request = parse_repo_metrics_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());

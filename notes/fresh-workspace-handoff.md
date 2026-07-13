@@ -452,4 +452,9 @@ Bifrost records accounting, and the typed request requires the acceptance
 receipt. Operator receipt and accounting rows report those separate owners.
 Nine external-governance fixtures, 259 library tests, and all binaries pass.
 
+Metrics/accounting no longer has a `Bifrost/Maintainer` composite or OR gate.
+Self routes, Bifrost accounts, Maintainer owns review-load evidence, and spend/
+review-load receipts are required observations without authorizing spend or
+ledger mutation. Contract catalogue and operator rows use the same ownership.
+
 The last completed code pass had 259 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.

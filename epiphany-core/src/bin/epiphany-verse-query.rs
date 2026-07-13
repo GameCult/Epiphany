@@ -1083,7 +1083,7 @@ fn run_cli() -> Result<()> {
                 || args.receipt_status.is_some()
             {
                 anyhow::bail!(
-                    "bifrost-metrics inspects a pending repo request only; Bifrost/Maintainer owns accepted artifact, spend, review load, credit, proof, summary, and receipt result fields"
+                    "bifrost-metrics inspects a pending request only; Bifrost owns accounting fields and Maintainer owns review-load evidence"
                 );
             }
 
@@ -1110,7 +1110,7 @@ fn run_cli() -> Result<()> {
                     "creditReadbackReceiptIds": [],
                     "publicProofRef": null,
                     "metricsSummary": null,
-                    "responseOwner": "Bifrost/Maintainer",
+                    "responseOwner": "Bifrost",
                     "commands": {
                         "swarmOverview": WRAPPER_OVERVIEW_COMMAND,
                         "bifrostMetrics": WRAPPER_BIFROST_METRICS_COMMAND,
@@ -7802,7 +7802,7 @@ fn bifrost_ledger_report(
             &mut tui_rows,
             BifrostLedgerRow {
                 document_kind: "metrics-receipt".to_string(),
-                owner: "Bifrost/Maintainer".to_string(),
+                owner: "Bifrost".to_string(),
                 id: receipt.receipt_id.clone(),
                 status: receipt.status.clone(),
                 route: receipt.artifact_acceptance_receipt_id.clone(),
@@ -8323,7 +8323,7 @@ fn push_metrics_accounting_row(
         tui_rows,
         BifrostAccountingRow {
             lane: "metrics-request".to_string(),
-            owner: "Bifrost/Maintainer".to_string(),
+            owner: "Bifrost".to_string(),
             status: bifrost_accounting_status(
                 false,
                 latest_request.is_some() || latest_receipt.is_some(),

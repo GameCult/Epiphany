@@ -114,7 +114,11 @@ impl RepoMetricsRequest {
 
     pub(super) fn awaits_owned_review(&self) -> bool {
         self.request.status == "awaiting-metrics-review"
-            && self.request.requested_owner == "Bifrost/Maintainer"
+            && self.request.routing_owner == "Self"
+            && self.request.accounting_owner == "Bifrost"
+            && self.request.review_evidence_owner == "Maintainer"
+            && self.request.spend_receipt_required
+            && self.request.review_load_receipt_required
             && self.request.requested_effect == "record-compute-review-and-artifact-accounting"
             && !self.request.publication_request_ref.is_empty()
             && !self.request.credit_request_ref.is_empty()
@@ -169,14 +173,19 @@ impl RepoMetricsRequest {
             && !a.service_lifecycle_authority
             && !a.cross_body_mutation_authorized
             && !a.private_verse_rummaging
-            && a.bifrost_or_maintainer_metrics_authority_required
+            && a.bifrost_accounting_required
+            && a.maintainer_review_evidence_required
     }
 }
 
 #[derive(Debug, Deserialize)]
 struct RepoMetricsRequestBody {
     status: String,
-    requested_owner: String,
+    routing_owner: String,
+    accounting_owner: String,
+    review_evidence_owner: String,
+    spend_receipt_required: bool,
+    review_load_receipt_required: bool,
     requested_effect: String,
     publication_request_ref: String,
     credit_request_ref: String,
@@ -231,7 +240,8 @@ struct RepoMetricsAuthority {
     service_lifecycle_authority: bool,
     cross_body_mutation_authorized: bool,
     private_verse_rummaging: bool,
-    bifrost_or_maintainer_metrics_authority_required: bool,
+    bifrost_accounting_required: bool,
+    maintainer_review_evidence_required: bool,
 }
 
 pub(super) fn parse_repo_metrics_request(text: &str) -> Result<RepoMetricsRequest> {

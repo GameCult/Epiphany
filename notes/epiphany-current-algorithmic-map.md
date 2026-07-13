@@ -61,6 +61,7 @@
 - Deployment requests split Self routing from independent Maintainer/Soul/Mind/Bifrost review and Idunn-only execution. Maintainer review cannot impersonate Idunn deployment; only Idunn deployment and aftercare receipts prove outcomes.
 - PR requests split Self routing, Bifrost publication gating, Hands execution, and GitHub provider outcomes. GitHub receipt authorship does not grant publication-policy authority.
 - Artifact acceptance requests split Self routing, Maintainer acceptance decisions, and Bifrost accounting. Acceptance receipts and accounting ledger rows no longer claim one composite owner.
+- Metrics requests split Self routing, Bifrost accounting custody, and Maintainer review-load evidence. Spend/review receipts are observations and grant no spend or ledger authority.
 - `repo.planning_brief` is deleted. It contained no candidate work-item records and let copied global catalog/schema/closure constants self-attest as per-item planning and readiness evidence. The live preparation chain is consensus draft -> interpretation request -> objective draft -> Mind adoption.
 - There is no aggregate repo-swarm MVP gate. The former smoke manually aggregated fixture summaries into green rows and `demoReady=true`; it and its wrapper are deleted. Whole-organism readiness requires a live-fire path whose claimed consequences are observed at their owning boundaries.
 - Persona owner: `collaboration-feedback` writes public, bounded feedback only after that provider receipt exists.

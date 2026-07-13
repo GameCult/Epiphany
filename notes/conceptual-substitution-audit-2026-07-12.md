@@ -1289,6 +1289,16 @@ with an explicit acceptance-receipt requirement. Operator projections label
 artifact-acceptance receipts Maintainer-owned and the accounting lane
 Bifrost-owned.
 
+## Review-load evidence as Bifrost metrics ownership
+
+`repo.metrics_request` named `Bifrost/Maintainer` and carried a
+`bifrost_or_maintainer` authority gate. The request now assigns Self routing,
+Bifrost accounting, and Maintainer review-load evidence separately. Model-spend
+and review-load receipts are required observations; recording them grants no
+spend, review-load, or ledger mutation authority. Metrics receipts and
+accounting lanes are Bifrost-owned, while the contract catalogue explicitly
+leaves review evidence with Maintainer.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.
