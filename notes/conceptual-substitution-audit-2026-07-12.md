@@ -990,6 +990,16 @@ grant.
 
 Twelve high-authority families are now typed; 582 substring assertions remain.
 
+## Verification-request prose substituted for Soul authority
+
+`repo.verification_request` closure now parses exact typed request,
+Substrate/Hands antecedent, receipt-chain, required-check, and authority
+semantics. Soul owns the verdict; Mind admission remains downstream. The
+request grants no verdict, rerun, state commit, Hands, publication, lifecycle,
+or cross-body consequence. The class guard prevents substring fallback.
+
+Thirteen high-authority families are now typed; 543 substring assertions remain.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

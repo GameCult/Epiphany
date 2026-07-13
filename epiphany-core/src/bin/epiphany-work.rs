@@ -7555,96 +7555,81 @@ fn closure_family_assertions(
             );
         }
         "repo.verification_request" => {
+            let request = parse_repo_verification_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "verification-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_verification_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoVerificationRequest::has_canonical_identity),
                 "Committed verification request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "verification-request-family-present",
-                content.contains("safe_action_family = \"repo.verification_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoVerificationRequest::has_canonical_identity),
                 "Committed verification request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "verification-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed verification request contains the accepted pressure summary."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "verification-request-awaits-soul-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-soul-review\"")
-                    && content.contains("requested_owner = \"Soul\"")
-                    && content.contains("requested_effect = \"verify-branch-local-hands-work\"")
-                    && content.contains("work_order_ref = "),
+                request
+                    .as_ref()
+                    .is_some_and(RepoVerificationRequest::awaits_soul_review),
                 "Committed verification request waits for Soul review before proof consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "verification-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("substrate_gate_required = true")
-                    && content.contains("hands_intent_required = true")
-                    && content.contains("hands_review_required = true")
-                    && content.contains("hands_patch_required = true")
-                    && content.contains("hands_command_required = true")
-                    && content.contains("hands_commit_required = true")
-                    && content.contains("work_order_required = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoVerificationRequest::has_antecedent_contract),
                 "Committed verification request requires Substrate and Hands antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "verification-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains("hands_patch = \"epiphany.hands.patch_receipt\"")
-                    && content.contains("hands_command = \"epiphany.hands.command_receipt\"")
-                    && content.contains("hands_commit = \"epiphany.hands.commit_receipt\"")
-                    && content.contains("soul_verdict = \"epiphany.soul.verification_verdict\"")
-                    && content
-                        .contains("closure_review = \"epiphany.repo_work_closure_review.v0\"")
-                    && content.contains("mind_review = \"epiphany.mind.gateway_review\"")
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoVerificationRequest::has_receipt_contract),
                 "Committed verification request names Hands/Soul/closure/Mind receipt chain."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "verification-request-checks-present",
-                content.contains("[checks]")
-                    && content.contains("\"declared-paths-match-commit\"")
-                    && content.contains("\"hands-receipts-present\"")
-                    && content.contains("\"visible-diff-supports-summary\"")
-                    && content.contains("\"no-private-state-exposure\"")
-                    && content.contains("\"publication-remains-gated\"")
-                    && content.contains("failure_blocks_mind_admission = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoVerificationRequest::has_check_contract),
                 "Committed verification request names the closure checks that Soul should run."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "verification-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("soul_verdict_authorized = false")
-                    && content.contains("state_commit_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("rerun_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("bifrost_publication_required = true"),
+                request.as_ref().is_some_and(RepoVerificationRequest::has_authority_seals),
                 "Committed verification request denies verdict/state/action/rerun/publication/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "verification-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed verification request preserves the private-state seal.".to_string(),
             );
         }
@@ -15395,6 +15380,7 @@ idunn_deployment_authority_required = true
             "repo.sync_request",
             "repo.pr_request",
             "repo.maintainer_review_request",
+            "repo.verification_request",
             "repo.credit_request",
             "repo.artifact_acceptance_request",
             "repo.metrics_request",

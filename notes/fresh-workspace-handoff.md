@@ -308,6 +308,10 @@ Maintainer-review closure is now typed and class-guarded. Current count: twelve
 typed high-authority families and 582 remaining substring assertions. The
 explicit malicious maintainer-approval fixture now passes as a negative proof.
 
+Verification-request closure is now typed and class-guarded. Current count:
+thirteen typed high-authority families and 543 remaining substring assertions.
+Add the explicit malicious Soul-verdict fixture next.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every
