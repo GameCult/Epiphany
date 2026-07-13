@@ -1,4 +1,85 @@
 #[derive(Debug, Deserialize)]
+pub(super) struct RepoConsensusBrief {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    consensus: RepoConsensusState,
+    imagination: RepoConsensusImagination,
+    inputs: RepoConsensusInputs,
+    authority: std::collections::BTreeMap<String, bool>,
+}
+impl RepoConsensusBrief {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_consensus_brief.v0"
+            && self.safe_action_family == "repo.consensus_brief"
+    }
+    pub(super) fn remains_unconverged_draft(&self) -> bool {
+        self.consensus.status == "draft"
+            && !self.consensus.converged
+            && self.consensus.conflicts_remaining
+            && self.consensus.requires_human_or_persona_review
+    }
+    pub(super) fn has_imagination_route(&self) -> bool {
+        let i = &self.imagination;
+        i.role == "consensus-discovery"
+            && i.candidate_actions_non_authoritative
+            && i.may_emit_action_items_receipt
+            && i.must_preserve_public_refs
+            && i.must_not_read_private_verses
+    }
+    pub(super) fn has_input_contract(&self) -> bool {
+        self.inputs.feedback_source == "Persona public discussion"
+            && self
+                .inputs
+                .public_discussion_refs
+                .iter()
+                .all(|v| !v.trim().is_empty())
+            && self
+                .inputs
+                .candidate_action_refs
+                .iter()
+                .all(|v| !v.trim().is_empty())
+    }
+    pub(super) fn has_authority_seals(&self) -> bool {
+        [
+            "objective_adoption_authorized",
+            "hands_action_authorized",
+            "publication_authorized",
+            "cross_body_mutation_authorized",
+        ]
+        .iter()
+        .all(|key| self.authority.get(*key) == Some(&false))
+            && self.authority.get("mind_adoption_required") == Some(&true)
+            && self.authority.get("bifrost_publication_required") == Some(&true)
+    }
+}
+#[derive(Debug, Deserialize)]
+struct RepoConsensusState {
+    status: String,
+    converged: bool,
+    conflicts_remaining: bool,
+    requires_human_or_persona_review: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoConsensusImagination {
+    role: String,
+    candidate_actions_non_authoritative: bool,
+    may_emit_action_items_receipt: bool,
+    must_preserve_public_refs: bool,
+    must_not_read_private_verses: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoConsensusInputs {
+    public_discussion_refs: Vec<String>,
+    candidate_action_refs: Vec<String>,
+    feedback_source: String,
+}
+pub(super) fn parse_repo_consensus_brief(text: &str) -> Result<RepoConsensusBrief> {
+    toml::from_str(text).context("consensus brief is not valid typed TOML")
+}
+
+#[derive(Debug, Deserialize)]
 pub(super) struct RepoInterpreterBrief {
     pub(super) schema_version: String,
     pub(super) safe_action_family: String,

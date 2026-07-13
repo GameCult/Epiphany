@@ -1119,6 +1119,18 @@ the class guard prevents the family returning to substring truth.
 Nineteen high-authority closure families are typed. Direct source inventory now
 reports 303 substring occurrences across fourteen remaining families.
 
+## Consensus state as nearby prose
+
+`repo.consensus_brief` was semantically honest—it remained draft,
+unconverged, conflict-bearing, and review-required—but closure inferred those
+facts and its authority seals by substring. Typed preparation closure now reads
+the actual consensus, Imagination route, public inputs, downstream gates, and
+privacy state. The counterfeit-adoption fixture proves comments cannot turn a
+real grant into an apparent denial.
+
+Twenty high-authority closure families are typed. Direct source inventory now
+reports 278 substring occurrences across thirteen remaining families.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

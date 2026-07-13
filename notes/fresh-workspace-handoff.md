@@ -368,6 +368,13 @@ counterfeit-state-authority fixture. Nineteen high-authority families are typed;
 direct source inventory reports 303 substring occurrences across fourteen
 remaining families.
 
+Consensus Brief keeps its honest draft/unconverged semantics but no longer
+proves them with substring presence. Preparation owns its typed consensus,
+Imagination route, inputs, authority, and privacy closure; a malicious comment
+cannot counterfeit adoption denial. Twenty high-authority families are typed;
+direct source inventory reports 278 substring occurrences across thirteen
+remaining families.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

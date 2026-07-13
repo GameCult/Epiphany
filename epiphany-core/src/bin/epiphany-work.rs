@@ -6898,70 +6898,66 @@ fn closure_family_assertions(
             );
         }
         "repo.consensus_brief" => {
+            let brief = parse_repo_consensus_brief(&content).ok();
             push_assertion(
                 &mut assertions,
                 "consensus-brief-schema-present",
-                content.contains("schema_version = \"epiphany.repo_consensus_brief.v0\""),
+                brief
+                    .as_ref()
+                    .is_some_and(RepoConsensusBrief::has_canonical_identity),
                 "Committed consensus brief carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "consensus-brief-family-present",
-                content.contains("safe_action_family = \"repo.consensus_brief\""),
+                brief
+                    .as_ref()
+                    .is_some_and(RepoConsensusBrief::has_canonical_identity),
                 "Committed consensus brief carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "consensus-brief-summary-present",
-                content.contains(&compact_summary),
+                brief
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed consensus brief contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "consensus-brief-draft-state",
-                content.contains("[consensus]")
-                    && content.contains("status = \"draft\"")
-                    && content.contains("converged = false")
-                    && content.contains("conflicts_remaining = true")
-                    && content.contains("requires_human_or_persona_review = true"),
+                brief
+                    .as_ref()
+                    .is_some_and(RepoConsensusBrief::remains_unconverged_draft),
                 "Committed consensus brief remains a draft requiring review.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "consensus-brief-imagination-route",
-                content.contains("[imagination]")
-                    && content.contains("role = \"consensus-discovery\"")
-                    && content.contains("candidate_actions_non_authoritative = true")
-                    && content.contains("may_emit_action_items_receipt = true")
-                    && content.contains("must_not_read_private_verses = true"),
+                brief.as_ref().is_some_and(RepoConsensusBrief::has_imagination_route),
                 "Committed consensus brief routes through Imagination without private Verse rummaging.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "consensus-brief-inputs-present",
-                content.contains("[inputs]")
-                    && content.contains("public_discussion_refs = [")
-                    && content.contains("candidate_action_refs = [")
-                    && content.contains("feedback_source = \"Persona public discussion\""),
+                brief
+                    .as_ref()
+                    .is_some_and(RepoConsensusBrief::has_input_contract),
                 "Committed consensus brief preserves public feedback and candidate-action inputs."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "consensus-brief-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("objective_adoption_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("bifrost_publication_required = true"),
+                brief.as_ref().is_some_and(RepoConsensusBrief::has_authority_seals),
                 "Committed consensus brief denies adoption/action/publication/cross-body authority and requires Mind/Bifrost gates.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "consensus-brief-private-seal",
-                content.contains("private_state_exposed = false"),
+                brief
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed consensus brief preserves the private-state seal.".to_string(),
             );
         }
@@ -15245,6 +15241,7 @@ idunn_deployment_authority_required = true
             "repo.sync_request",
             "repo.pr_request",
             "repo.maintainer_review_request",
+            "repo.consensus_brief",
             "repo.interpreter_brief",
             "repo.objective_draft",
             "repo.adoption_request",
