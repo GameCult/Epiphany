@@ -874,6 +874,20 @@ UUID/adoption pattern. They also now claim their leaves with `create_dir`.
 Generated temp ownership is consistent across the full Rust source tree, not
 merely production binaries; tests do not receive imaginary cleanup authority.
 
+## Publication-request prose substituted for Bifrost governance
+
+`repo.publication_request` closure previously inferred Bifrost review state,
+receipt chains, export redaction, and denied publication authority from text
+fragments. It now parses a family-specific typed contract and checks exact
+semantics. Commented denial text cannot conceal
+`bifrost_publication_authorized = true`; Bifrost remains consequence owner and
+Maintainer review remains mandatory.
+
+After this cut, nine high-authority closure families are typed, the measured
+closure region contains 704 remaining substring assertions, and the contract
+organ is 1,458 lines. The warning against blind struct-forest growth remains in
+force.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

@@ -261,6 +261,11 @@ Three coordinator launch-context test leaves were corrected as well. The full
 Rust source search now contains no generated `temp_dir()` leaf adopted through
 `create_dir_all`.
 
+Publication-request closure is now typed and guarded against regaining
+substring authority. Current structural count: nine typed high-authority
+families, 704 remaining closure substring assertions, and 1,458 contract-organ
+lines.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

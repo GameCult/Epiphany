@@ -7649,104 +7649,76 @@ fn closure_family_assertions(
             );
         }
         "repo.publication_request" => {
+            let request = parse_repo_publication_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "publication-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_publication_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoPublicationRequest::has_canonical_identity),
                 "Committed publication request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "publication-request-family-present",
-                content.contains("safe_action_family = \"repo.publication_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoPublicationRequest::has_canonical_identity),
                 "Committed publication request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "publication-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed publication request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "publication-request-awaits-bifrost-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-bifrost-review\"")
-                    && content.contains("requested_owner = \"Bifrost\"")
-                    && content.contains(
-                        "requested_effect = \"publish-redacted-proof-and-route-maintainer-review\"",
-                    )
-                    && content.contains("verification_request_ref = "),
+                request
+                    .as_ref()
+                    .is_some_and(RepoPublicationRequest::awaits_bifrost_review),
                 "Committed publication request waits for Bifrost review before public consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "publication-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("closure_review_required = true")
-                    && content.contains("soul_verdict_required = true")
-                    && content.contains("mind_commit_required = true")
-                    && content.contains("public_proof_export_required = true")
-                    && content.contains("private_state_redaction_required = true"),
+                request.as_ref().is_some_and(RepoPublicationRequest::has_antecedent_contract),
                 "Committed publication request requires closure, Soul, Mind, and redacted proof antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "publication-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains(
-                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
-                    )
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains(
-                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
-                    )
-                    && content.contains("bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\"")
-                    && content.contains("github_publication = \"gamecult.github.publication_receipt.v0\"")
-                    && content.contains("credit_ledger = \"gamecult.bifrost.credit_receipt.v0\"")
-                    && content.contains(
-                        "upstream_sync = \"epiphany.repo_work_upstream_main_sync.v0\"",
-                    ),
+                request.as_ref().is_some_and(RepoPublicationRequest::has_receipt_contract),
                 "Committed publication request names the Bifrost/GitHub/credit/upstream receipt chain."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "publication-request-redaction-contract",
-                content.contains("[public_export]")
-                    && content.contains("redacted_only = true")
-                    && content.contains("raw_receipts_allowed = false")
-                    && content.contains("private_paths_allowed = false")
-                    && content.contains("worker_thought_allowed = false")
-                    && content.contains("operator_context_allowed = false")
-                    && content.contains("credit_required = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoPublicationRequest::has_redaction_contract),
                 "Committed publication request preserves the public export redaction contract."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "publication-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("bifrost_publication_authorized = false")
-                    && content.contains("github_publication_authorized = false")
-                    && content.contains("credit_ledger_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("upstream_sync_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("maintainer_review_required = true"),
+                request.as_ref().is_some_and(RepoPublicationRequest::has_authority_seals),
                 "Committed publication request denies publication/credit/merge/sync/action/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "publication-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed publication request preserves the private-state seal.".to_string(),
             );
         }
@@ -15505,6 +15477,7 @@ idunn_deployment_authority_required = true
         let source = include_str!("epiphany-work.rs");
         for family in [
             "repo.tool_request",
+            "repo.publication_request",
             "repo.credit_request",
             "repo.artifact_acceptance_request",
             "repo.metrics_request",

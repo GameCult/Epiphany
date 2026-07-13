@@ -515,6 +515,128 @@ pub(super) fn parse_repo_credit_request(text: &str) -> Result<RepoCreditRequest>
     toml::from_str(text).context("credit request is not valid typed TOML")
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoPublicationRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoPublicationRequestBody,
+    antecedents: RepoPublicationAntecedents,
+    required_receipts: RepoPublicationReceipts,
+    public_export: RepoPublicationExport,
+    authority: RepoPublicationAuthority,
+}
+
+impl RepoPublicationRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_publication_request.v0"
+            && self.safe_action_family == "repo.publication_request"
+    }
+    pub(super) fn awaits_bifrost_review(&self) -> bool {
+        self.request.status == "awaiting-bifrost-review"
+            && self.request.requested_owner == "Bifrost"
+            && self.request.requested_effect == "publish-redacted-proof-and-route-maintainer-review"
+            && !self.request.verification_request_ref.is_empty()
+    }
+    pub(super) fn has_antecedent_contract(&self) -> bool {
+        let a = &self.antecedents;
+        a.closure_review_required
+            && a.soul_verdict_required
+            && a.mind_commit_required
+            && a.public_proof_export_required
+            && a.private_state_redaction_required
+    }
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        let r = &self.required_receipts;
+        r.closure_review == "epiphany.repo_work_closure_review.v0"
+            && r.soul_verdict == "epiphany.soul.verification_verdict"
+            && r.mind_commit == "epiphany.mind.state_commit_receipt"
+            && r.public_proof == "epiphany.repo_work_public_proof_bundle.v0"
+            && r.bifrost_publication == "gamecult.bifrost.public_proof_publication_receipt.v0"
+            && r.github_publication == "gamecult.github.publication_receipt.v0"
+            && r.credit_ledger == "gamecult.bifrost.credit_receipt.v0"
+            && r.upstream_sync == "epiphany.repo_work_upstream_main_sync.v0"
+    }
+    pub(super) fn has_redaction_contract(&self) -> bool {
+        let e = &self.public_export;
+        e.redacted_only
+            && !e.raw_receipts_allowed
+            && !e.private_paths_allowed
+            && !e.worker_thought_allowed
+            && !e.operator_context_allowed
+            && e.credit_required
+    }
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let a = &self.authority;
+        a.branch_local_only
+            && !a.bifrost_publication_authorized
+            && !a.github_publication_authorized
+            && !a.credit_ledger_authorized
+            && !a.merge_authorized
+            && !a.upstream_sync_authorized
+            && !a.hands_action_authorized
+            && !a.service_lifecycle_authority
+            && !a.cross_body_mutation_authorized
+            && !a.private_verse_rummaging
+            && a.maintainer_review_required
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoPublicationRequestBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    verification_request_ref: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoPublicationAntecedents {
+    closure_review_required: bool,
+    soul_verdict_required: bool,
+    mind_commit_required: bool,
+    public_proof_export_required: bool,
+    private_state_redaction_required: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoPublicationReceipts {
+    closure_review: String,
+    soul_verdict: String,
+    mind_commit: String,
+    public_proof: String,
+    bifrost_publication: String,
+    github_publication: String,
+    credit_ledger: String,
+    upstream_sync: String,
+}
+#[derive(Debug, Deserialize)]
+struct RepoPublicationExport {
+    redacted_only: bool,
+    raw_receipts_allowed: bool,
+    private_paths_allowed: bool,
+    worker_thought_allowed: bool,
+    operator_context_allowed: bool,
+    credit_required: bool,
+}
+#[derive(Debug, Deserialize)]
+struct RepoPublicationAuthority {
+    branch_local_only: bool,
+    bifrost_publication_authorized: bool,
+    github_publication_authorized: bool,
+    credit_ledger_authorized: bool,
+    merge_authorized: bool,
+    upstream_sync_authorized: bool,
+    hands_action_authorized: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    maintainer_review_required: bool,
+}
+
+pub(super) fn parse_repo_publication_request(text: &str) -> Result<RepoPublicationRequest> {
+    toml::from_str(text).context("publication request is not valid typed TOML")
+}
+
 #[cfg(test)]
 mod tool_request_tests {
     use super::*;
@@ -727,6 +849,58 @@ private_verse_rummaging = false
 bifrost_credit_authority_required = true
 "#;
         let request = parse_repo_credit_request(text).expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
+    }
+
+    #[test]
+    fn publication_comment_cannot_counterfeit_bifrost_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_publication_request.v0"
+safe_action_family = "repo.publication_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-bifrost-review"
+requested_owner = "Bifrost"
+requested_effect = "publish-redacted-proof-and-route-maintainer-review"
+verification_request_ref = "verification"
+[antecedents]
+closure_review_required = true
+soul_verdict_required = true
+mind_commit_required = true
+public_proof_export_required = true
+private_state_redaction_required = true
+[required_receipts]
+closure_review = "epiphany.repo_work_closure_review.v0"
+soul_verdict = "epiphany.soul.verification_verdict"
+mind_commit = "epiphany.mind.state_commit_receipt"
+public_proof = "epiphany.repo_work_public_proof_bundle.v0"
+bifrost_publication = "gamecult.bifrost.public_proof_publication_receipt.v0"
+github_publication = "gamecult.github.publication_receipt.v0"
+credit_ledger = "gamecult.bifrost.credit_receipt.v0"
+upstream_sync = "epiphany.repo_work_upstream_main_sync.v0"
+[public_export]
+redacted_only = true
+raw_receipts_allowed = false
+private_paths_allowed = false
+worker_thought_allowed = false
+operator_context_allowed = false
+credit_required = true
+[authority]
+branch_local_only = true
+# bifrost_publication_authorized = false
+bifrost_publication_authorized = true
+github_publication_authorized = false
+credit_ledger_authorized = false
+merge_authorized = false
+upstream_sync_authorized = false
+hands_action_authorized = false
+service_lifecycle_authority = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+maintainer_review_required = true
+"#;
+        let request = parse_repo_publication_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());
     }
 }
