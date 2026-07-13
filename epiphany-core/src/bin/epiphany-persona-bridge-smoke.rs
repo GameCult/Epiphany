@@ -128,13 +128,18 @@ fn validate_readiness(value: &Value) -> Result<()> {
             == Some(false),
         "Bifrost readiness smoke should seal private state",
     )?;
+    let surfaces = value
+        .pointer("/bifrostBridge/surfaces")
+        .and_then(Value::as_array)
+        .ok_or_else(|| anyhow!("Bifrost readiness smoke has no surface rows"))?;
     require(
-        surface_is(value, "github", &["live"])
-            && surface_is(value, "other", &["live"])
-            && surface_is(value, "patron", &["live"])
-            && surface_is(value, "discord", &["live", "prepared"])
-            && surface_is(value, "reddit", &["live", "prepared"]),
-        "Bifrost readiness smoke should expose governed bridge surfaces",
+        surfaces.iter().all(|surface| {
+            matches!(
+                surface.get("status").and_then(Value::as_str),
+                Some("provider-ready" | "prepared" | "missing")
+            )
+        }),
+        "Bifrost readiness smoke should expose evidence states, not live transport claims",
     )
 }
 
@@ -202,7 +207,7 @@ fn validate_persona_surface(
 fn bridge_summary(value: &Value) -> Value {
     json!({
         "status": value.pointer("/bifrostBridge/status"),
-        "readySurfaceCount": value.pointer("/bifrostBridge/readySurfaceCount"),
+        "providerReadySurfaceCount": value.pointer("/bifrostBridge/providerReadySurfaceCount"),
         "preparedSurfaceCount": value.pointer("/bifrostBridge/preparedSurfaceCount"),
         "surfaceCount": value.pointer("/bifrostBridge/surfaceCount"),
         "surfaces": value.pointer("/bifrostBridge/surfaces"),
@@ -225,19 +230,6 @@ fn persona_summary(name: &str, value: &Value) -> Value {
             .cloned()
             .unwrap_or(Value::Null),
     })
-}
-
-fn surface_is(value: &Value, id: &str, allowed: &[&str]) -> bool {
-    value
-        .pointer("/bifrostBridge/surfaces")
-        .and_then(Value::as_array)
-        .and_then(|surfaces| {
-            surfaces
-                .iter()
-                .find(|surface| surface.get("id").and_then(Value::as_str) == Some(id))
-        })
-        .and_then(|surface| surface.get("status").and_then(Value::as_str))
-        .is_some_and(|status| allowed.contains(&status))
 }
 
 fn ensure_bins_built(root: &Path) -> Result<()> {

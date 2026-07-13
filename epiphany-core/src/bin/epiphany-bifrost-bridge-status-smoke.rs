@@ -60,7 +60,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
         "statusExe": status_exe,
         "bifrostBridge": bridge,
         "privateStateExposed": bridge["privateStateExposed"],
-        "readySurfaceCount": bridge["readySurfaceCount"],
+        "providerReadySurfaceCount": bridge["providerReadySurfaceCount"],
         "preparedSurfaceCount": bridge["preparedSurfaceCount"],
         "surfaceCount": bridge["surfaceCount"],
         "surfaces": bridge["surfaces"],
@@ -72,7 +72,6 @@ fn run_smoke(args: &Args) -> Result<Value> {
 fn run_native_status(root: &Path, status_exe: &Path) -> Result<Value> {
     let output = Command::new(status_exe)
         .current_dir(root)
-        .arg("--native")
         .arg("--json")
         .arg("--cwd")
         .arg(root)
@@ -104,27 +103,19 @@ fn validate_bridge(bridge: &Value) -> Result<()> {
             .is_some_and(|count| count >= 5),
         "Bifrost bridge sight should expose at least five governed surfaces",
     )?;
-    require(
-        surface_is(bridge, "github", &["live"])
-            && surface_is(bridge, "other", &["live"])
-            && surface_is(bridge, "patron", &["live"])
-            && surface_is(bridge, "discord", &["live", "prepared"])
-            && surface_is(bridge, "reddit", &["live", "prepared"]),
-        "Bifrost bridge sight should report GitHub/Other/Patron live and Discord/Reddit live or prepared",
-    )
-}
-
-fn surface_is(bridge: &Value, id: &str, allowed: &[&str]) -> bool {
-    bridge
+    let surfaces = bridge
         .get("surfaces")
         .and_then(Value::as_array)
-        .and_then(|surfaces| {
-            surfaces
-                .iter()
-                .find(|surface| surface.get("id").and_then(Value::as_str) == Some(id))
-        })
-        .and_then(|surface| surface.get("status").and_then(Value::as_str))
-        .is_some_and(|surface_status| allowed.contains(&surface_status))
+        .ok_or_else(|| anyhow!("Bifrost bridge sight has no surface rows"))?;
+    require(
+        surfaces.iter().all(|surface| {
+            matches!(
+                surface.get("status").and_then(Value::as_str),
+                Some("provider-ready" | "prepared" | "missing")
+            )
+        }),
+        "Bifrost bridge rows must report evidence state without claiming live transport",
+    )
 }
 
 fn ensure_status_built(root: &Path, status_exe: &Path) -> Result<()> {

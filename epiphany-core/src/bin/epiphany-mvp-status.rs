@@ -629,13 +629,13 @@ fn bifrost_bridge_readiness(root: &Path) -> Value {
         .unwrap_or_default()
         .into_iter()
         .map(|surface| {
-            let ready = surface["ready"].as_bool().unwrap_or(false);
+            let provider_ready = surface["ready"].as_bool().unwrap_or(false);
             let prepared = surface["prepared"].as_bool().unwrap_or(false);
             json!({
                 "id": surface["id"].clone(),
                 "label": surface["label"].clone(),
-                "status": if ready { "live" } else if prepared { "prepared" } else { "missing" },
-                "ready": ready,
+                "status": if provider_ready { "provider-ready" } else if prepared { "prepared" } else { "missing" },
+                "providerReady": provider_ready,
                 "prepared": prepared,
                 "authority": surface["authority"].clone(),
                 "credentialSource": surface["credentialSource"].clone(),
@@ -645,25 +645,25 @@ fn bifrost_bridge_readiness(root: &Path) -> Value {
         .collect::<Vec<_>>();
     let ready_count = surfaces
         .iter()
-        .filter(|surface| surface["ready"].as_bool().unwrap_or(false))
+        .filter(|surface| surface["providerReady"].as_bool().unwrap_or(false))
         .count();
     let prepared_count = surfaces
         .iter()
         .filter(|surface| {
             surface["prepared"].as_bool().unwrap_or(false)
-                && !surface["ready"].as_bool().unwrap_or(false)
+                && !surface["providerReady"].as_bool().unwrap_or(false)
         })
         .count();
     json!({
-        "status": if bridge["ready"].as_bool().unwrap_or(false) { "live" } else if bridge["prepared"].as_bool().unwrap_or(false) { "prepared" } else { "unavailable" },
+        "status": if bridge["ready"].as_bool().unwrap_or(false) { "provider-ready" } else if bridge["prepared"].as_bool().unwrap_or(false) { "prepared" } else { "unavailable" },
         "owner": "Bifrost",
         "authority": "Bifrost owns outside-world crossing gates, bridge receipts, and readiness projection; Heimdall owns provider OAuth, account links, and capability truth; Epiphany consumes this as read-only bridge sight.",
         "source": "Bifrost provider advertisement print-surface",
         "tool": advertisement_tool,
         "generatedAt": parsed["stats"]["generatedAt"].clone(),
-        "ready": bridge["ready"].clone(),
+        "providerReady": bridge["ready"].clone(),
         "prepared": bridge["prepared"].clone(),
-        "readySurfaceCount": ready_count,
+        "providerReadySurfaceCount": ready_count,
         "preparedSurfaceCount": prepared_count,
         "surfaceCount": surfaces.len(),
         "surfaces": surfaces,
@@ -1160,7 +1160,7 @@ pub fn render_status(status: &Value) -> String {
         format!(
             "- Bifrost bridge: {} ({}/{})",
             maybe(&bifrost_bridge["status"], "unavailable"),
-            maybe(&bifrost_bridge["readySurfaceCount"], "0"),
+            maybe(&bifrost_bridge["providerReadySurfaceCount"], "0"),
             maybe(&bifrost_bridge["surfaceCount"], "0")
         ),
         format!(

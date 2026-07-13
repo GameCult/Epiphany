@@ -2569,7 +2569,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.bifrostBridge -and $null -ne $result.bifrostBridge.surfaces -and $result.bifrostBridge.surfaces.Count -gt 0) {
                 $bridgeRows = (@($result.bifrostBridge.surfaces) | ForEach-Object { "$($_.id)=$($_.status)" }) -join ","
             }
-            Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action), bifrostBridge=$($result.bifrostBridge.status), bridgeReady=$($result.bifrostBridge.readySurfaceCount)/$($result.bifrostBridge.surfaceCount), bridgeRows=$bridgeRows"
+            Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action), bifrostBridge=$($result.bifrostBridge.status), providerReady=$($result.bifrostBridge.providerReadySurfaceCount)/$($result.bifrostBridge.surfaceCount), bridgeRows=$bridgeRows"
         } elseif ($Mode -eq "agent-state-soa") {
             $agentRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
@@ -2667,7 +2667,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
             if ($null -ne $result.readiness -and $null -ne $result.readiness.surfaces -and $result.readiness.surfaces.Count -gt 0) {
                 $bridgeRows = (($result.readiness.surfaces | ForEach-Object { "$($_.id)=$($_.status)" }) -join ",")
             }
-            Write-Host "Persona bridge: status=$($result.status), bridge=$($result.readiness.status), ready=$($result.readiness.readySurfaceCount)/$($result.readiness.surfaceCount), bridgeRows=$bridgeRows, mouthRows=$surfaceRows, privateStateExposed=$($result.privateStateExposed), artifact=$resultPath"
+            Write-Host "Persona bridge: status=$($result.status), bridge=$($result.readiness.status), providerReady=$($result.readiness.providerReadySurfaceCount)/$($result.readiness.surfaceCount), bridgeRows=$bridgeRows, mouthRows=$surfaceRows, privateStateExposed=$($result.privateStateExposed), artifact=$resultPath"
         } elseif ($Mode -eq "bifrost-publication") {
             Write-Host "Bifrost publication request: status=$($result.status), intent=$($result.intentId), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-public-proof") {

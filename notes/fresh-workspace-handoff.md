@@ -573,3 +573,10 @@ Unity bridge uses the same boundary: project version parsing is `pinned`, exact
 editor path discovery is `resolved`, and the editor package predicate is named
 `present`. Operability belongs to the subsequent `runStatus` receipt. The
 native Unity bridge smoke, 259 library tests, and all-bin check pass.
+
+Bifrost bridge sight no longer upgrades provider readiness to live transport.
+Epiphany reports `provider-ready`, `prepared`, or `missing`, with explicit
+`providerReady` fields/counts; publication still requires Bifrost receipts. The
+native bridge smoke validates evidence vocabulary rather than stale provider
+topology and was repaired to the current native status CLI. It passes alongside
+259 library tests and all-bin compilation.

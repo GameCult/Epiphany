@@ -1496,3 +1496,15 @@ editor executable. The project version is now `pinned`, the editor path is
 `resolved`, and editor-bridge package existence is explicitly `present`.
 Commands may use resolution to choose what to execute, but only `runStatus`
 records planned, completed, failed, or blocked execution consequence.
+
+## Provider readiness is not live transport
+
+Epiphany consumed Bifrost's provider readiness boolean and renamed it `live`,
+turning credential/capability sight into a transport claim. The projection now
+preserves it as `provider-ready`; rows may otherwise be `prepared` or `missing`.
+Fields and counts use `providerReady` explicitly. Only a Bifrost transport
+receipt may prove publication or delivery.
+
+The bridge smoke also stopped hard-coding an obsolete provider topology. It now
+checks the evidence-state vocabulary and private-state seal rather than
+asserting that a named surface must remain live forever.
