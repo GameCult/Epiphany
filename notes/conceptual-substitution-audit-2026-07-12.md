@@ -728,6 +728,13 @@ fields fail parsing, and the runbook reports missing values rather than
 inventing deployment targets. Audit semantics compare the parsed values, not
 their textual costume.
 
+The repo-work closure gate had retained a second substring-based deployment
+validator after the operational path became typed. It is now collapsed onto
+the same deserialized model and semantic predicates, including exact accepted
+summary equality. Closure cannot bless a config that only mentions the desired
+values in comments or unrelated tables, and no deployment closure branch uses
+`content.contains` as authority.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

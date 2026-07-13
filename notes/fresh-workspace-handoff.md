@@ -183,6 +183,8 @@ The confirmed conceptual substitutions have been cut:
 - Deployment operational audit and runbook read one typed TOML model. Substring
   presence, comments, wrong sections, and silent watched-ref/script defaults no
   longer substitute for valid deployment configuration.
+- Repo-work deployment closure uses that same typed model and semantic
+  predicates; the duplicate substring validator is deleted.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
