@@ -353,6 +353,13 @@ commented adoption denial from hiding a real grant. Seventeen high-authority
 families are typed. Continue from the source-derived family inventory, not the
 historical counter.
 
+The readiness-review hydra is cut. Self owns routing; Maintainer, Soul, Mind,
+and Bifrost are independent required reviewers; `readiness_approval_owner` is
+explicitly `none` because no local aggregate writer exists. Typed external-
+governance closure and a counterfeit-approval fixture protect that boundary.
+Eighteen high-authority families are typed; direct source inventory reports 363
+substring occurrences across fifteen remaining families.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

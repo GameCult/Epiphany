@@ -5529,7 +5529,9 @@ fn derive_repo_readiness_review_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         "status = \"awaiting-mvp-readiness-review\"".to_string(),
-        "requested_owner = \"Maintainer/Soul/Mind/Bifrost\"".to_string(),
+        "routing_owner = \"Self\"".to_string(),
+        "required_reviewers = [\"Maintainer\", \"Soul\", \"Mind\", \"Bifrost\"]".to_string(),
+        "readiness_approval_owner = \"none\"".to_string(),
         "requested_effect = \"review-redacted-repo-swarm-mvp-proof-bundle\"".to_string(),
         "readiness_scope = \"fresh repo init, online swarm, Persona intake, Imagination planning, Self queue-run, Hands branch work, Soul closure, Modeling map update, Mind admission, Bifrost public proof, upstream-main sync, Idunn lifecycle, global tool directory, and private-state redaction\"".to_string(),
         "review_is_advisory_until_maintainer_or_bifrost_acceptance = true".to_string(),
@@ -8121,138 +8123,77 @@ fn closure_family_assertions(
             );
         }
         "repo.readiness_review_request" => {
+            let request = parse_repo_readiness_review_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_readiness_review_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoReadinessReviewRequest::has_canonical_identity),
                 "Committed readiness review request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-family-present",
-                content.contains("safe_action_family = \"repo.readiness_review_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoReadinessReviewRequest::has_canonical_identity),
                 "Committed readiness review request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed readiness review request contains the accepted pressure summary."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-awaits-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-mvp-readiness-review\"")
-                    && content.contains("requested_owner = \"Maintainer/Soul/Mind/Bifrost\"")
-                    && content.contains(
-                        "requested_effect = \"review-redacted-repo-swarm-mvp-proof-bundle\"",
-                    )
-                    && content.contains(
-                        "review_is_advisory_until_maintainer_or_bifrost_acceptance = true",
-                    ),
+                request.as_ref().is_some_and(RepoReadinessReviewRequest::has_coherent_routing),
                 "Committed readiness review request waits for maintainer/Soul/Mind/Bifrost review before consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("repo_init_required = true")
-                    && content.contains("swarm_online_required = true")
-                    && content.contains("persona_intake_required = true")
-                    && content.contains("imagination_plan_required = true")
-                    && content.contains("self_queue_run_required = true")
-                    && content.contains("hands_commit_required = true")
-                    && content.contains("soul_closure_required = true")
-                    && content.contains("modeling_map_update_required = true")
-                    && content.contains("mind_admission_required = true")
-                    && content.contains("public_proof_required = true")
-                    && content.contains("bifrost_publication_required = true")
-                    && content.contains("upstream_main_sync_required = true")
-                    && content.contains("idunn_lifecycle_readiness_required = true")
-                    && content.contains("tool_directory_readiness_required = true")
-                    && content.contains("private_state_redaction_required = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoReadinessReviewRequest::has_antecedent_contract),
                 "Committed readiness review request requires all repo-swarm MVP organ proofs."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains("repo_init = \"epiphany.repo_swarm_init_receipt.v0\"")
-                    && content
-                        .contains("swarm_online = \"epiphany.repo_swarm_online_receipt.v0\"")
-                    && content
-                        .contains("persona_speech_audit = \"epiphany.persona_speech_audit.v0\"")
-                    && content.contains("imagination_action_items = \"epiphany.repo_work_imagination_action_items_receipt.v0\"")
-                    && content.contains("queue_run = \"epiphany.repo_work_queue_run_receipt.v0\"")
-                    && content.contains("hands_commit = \"epiphany.hands.commit_receipt\"")
-                    && content
-                        .contains("closure_review = \"epiphany.repo_work_closure_review.v0\"")
-                    && content
-                        .contains("soul_verdict = \"epiphany.soul.verification_verdict\"")
-                    && content.contains("modeling_map = \"epiphany.repo_work_map_entry.v0\"")
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains(
-                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
-                    )
-                    && content.contains("bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\"")
-                    && content.contains(
-                        "upstream_sync = \"epiphany.repo_work_upstream_sync_receipt.v0\"",
-                    )
-                    && content.contains("idunn_lifecycle = \"epiphany.repo_work_service_audit.v0\"")
-                    && content.contains("tool_directory = \"epiphany.cultmesh.daemon_tool_directory.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoReadinessReviewRequest::has_receipt_contract),
                 "Committed readiness review request names the MVP proof receipt contract."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-packet-contract",
-                content.contains("[readiness_packet]")
-                    && content.contains("requires_proof_bundle_ref = true")
-                    && content.contains("requires_changed_path_list = true")
-                    && content.contains("requires_branch_name = true")
-                    && content.contains("requires_upstream_main_ref = true")
-                    && content.contains("requires_public_proof_ref = true")
-                    && content.contains("requires_bifrost_ledger_ref = true")
-                    && content.contains("requires_idunn_lifecycle_ref = true")
-                    && content.contains("requires_tool_directory_ref = true")
-                    && content.contains("requires_redaction_report = true")
-                    && content.contains("requires_reviewer_identity = true")
-                    && content.contains(
-                        "allowed_verdicts = [\"ready\", \"ready-with-caveats\", \"not-ready\", \"needs-human-review\"]",
-                    ),
+                request.as_ref().is_some_and(RepoReadinessReviewRequest::has_packet_contract),
                 "Committed readiness review request names proof bundle, branch, upstream, Bifrost, Idunn, tool, redaction, reviewer, and verdict requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("readiness_approval_authorized = false")
-                    && content.contains("durable_state_commit_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("bifrost_publication_authorized = false")
-                    && content.contains("github_pr_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("upstream_sync_authorized = false")
-                    && content.contains("deployment_authority = false")
-                    && content.contains("service_lifecycle_authority = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("private_verse_rummaging = false")
-                    && content.contains(
-                        "maintainer_soul_mind_or_bifrost_review_required = true",
-                    ),
+                request.as_ref().is_some_and(RepoReadinessReviewRequest::has_authority_seals),
                 "Committed readiness review request denies readiness/state/publication/PR/merge/sync/deploy/service/Hands/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "readiness-review-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed readiness review request preserves the private-state seal.".to_string(),
             );
         }
@@ -15348,6 +15289,7 @@ idunn_deployment_authority_required = true
             "repo.credit_request",
             "repo.artifact_acceptance_request",
             "repo.metrics_request",
+            "repo.readiness_review_request",
             "repo.secret_policy_request",
             "repo.dependency_policy_request",
             "repo.deployment_config",

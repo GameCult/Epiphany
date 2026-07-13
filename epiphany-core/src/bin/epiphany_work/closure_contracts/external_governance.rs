@@ -1011,4 +1011,166 @@ pub(super) fn parse_repo_maintainer_review_request(
     toml::from_str(text).context("maintainer review request is not valid typed TOML")
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoReadinessReviewRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoReadinessReviewBody,
+    antecedents: std::collections::BTreeMap<String, bool>,
+    required_receipts: std::collections::BTreeMap<String, String>,
+    readiness_packet: RepoReadinessPacket,
+    authority: std::collections::BTreeMap<String, bool>,
+}
+
+impl RepoReadinessReviewRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_readiness_review_request.v0"
+            && self.safe_action_family == "repo.readiness_review_request"
+    }
+
+    pub(super) fn has_coherent_routing(&self) -> bool {
+        let r = &self.request;
+        r.status == "awaiting-mvp-readiness-review"
+            && r.routing_owner == "Self"
+            && r.required_reviewers == ["Maintainer", "Soul", "Mind", "Bifrost"]
+            && r.readiness_approval_owner == "none"
+            && r.requested_effect == "review-redacted-repo-swarm-mvp-proof-bundle"
+            && r.review_is_advisory_until_maintainer_or_bifrost_acceptance
+    }
+
+    pub(super) fn has_antecedent_contract(&self) -> bool {
+        [
+            "repo_init_required",
+            "swarm_online_required",
+            "persona_intake_required",
+            "imagination_plan_required",
+            "self_queue_run_required",
+            "hands_commit_required",
+            "soul_closure_required",
+            "modeling_map_update_required",
+            "mind_admission_required",
+            "public_proof_required",
+            "bifrost_publication_required",
+            "upstream_main_sync_required",
+            "idunn_lifecycle_readiness_required",
+            "tool_directory_readiness_required",
+            "private_state_redaction_required",
+        ]
+        .iter()
+        .all(|key| self.antecedents.get(*key) == Some(&true))
+    }
+
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        [
+            ("repo_init", "epiphany.repo_swarm_init_receipt.v0"),
+            ("swarm_online", "epiphany.repo_swarm_online_receipt.v0"),
+            ("persona_speech_audit", "epiphany.persona_speech_audit.v0"),
+            (
+                "imagination_action_items",
+                "epiphany.repo_work_imagination_action_items_receipt.v0",
+            ),
+            ("queue_run", "epiphany.repo_work_queue_run_receipt.v0"),
+            ("hands_commit", "epiphany.hands.commit_receipt"),
+            ("closure_review", "epiphany.repo_work_closure_review.v0"),
+            ("soul_verdict", "epiphany.soul.verification_verdict"),
+            ("modeling_map", "epiphany.repo_work_map_entry.v0"),
+            ("mind_commit", "epiphany.mind.state_commit_receipt"),
+            ("public_proof", "epiphany.repo_work_public_proof_bundle.v0"),
+            (
+                "bifrost_publication",
+                "gamecult.bifrost.public_proof_publication_receipt.v0",
+            ),
+            (
+                "upstream_sync",
+                "epiphany.repo_work_upstream_sync_receipt.v0",
+            ),
+            ("idunn_lifecycle", "epiphany.repo_work_service_audit.v0"),
+            (
+                "tool_directory",
+                "epiphany.cultmesh.daemon_tool_directory.v0",
+            ),
+        ]
+        .iter()
+        .all(|(key, value)| self.required_receipts.get(*key).is_some_and(|v| v == value))
+    }
+
+    pub(super) fn has_packet_contract(&self) -> bool {
+        let p = &self.readiness_packet;
+        p.requires_proof_bundle_ref
+            && p.requires_changed_path_list
+            && p.requires_branch_name
+            && p.requires_upstream_main_ref
+            && p.requires_public_proof_ref
+            && p.requires_bifrost_ledger_ref
+            && p.requires_idunn_lifecycle_ref
+            && p.requires_tool_directory_ref
+            && p.requires_redaction_report
+            && p.requires_reviewer_identity
+            && p.allowed_verdicts
+                == [
+                    "ready",
+                    "ready-with-caveats",
+                    "not-ready",
+                    "needs-human-review",
+                ]
+    }
+
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let denied = [
+            "readiness_approval_authorized",
+            "durable_state_commit_authorized",
+            "publication_authorized",
+            "bifrost_publication_authorized",
+            "github_pr_authorized",
+            "merge_authorized",
+            "upstream_sync_authorized",
+            "deployment_authority",
+            "service_lifecycle_authority",
+            "hands_action_authorized",
+            "cross_body_mutation_authorized",
+            "private_verse_rummaging",
+        ];
+        denied
+            .iter()
+            .all(|key| self.authority.get(*key) == Some(&false))
+            && self
+                .authority
+                .get("maintainer_soul_mind_or_bifrost_review_required")
+                == Some(&true)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoReadinessReviewBody {
+    status: String,
+    routing_owner: String,
+    required_reviewers: Vec<String>,
+    readiness_approval_owner: String,
+    requested_effect: String,
+    review_is_advisory_until_maintainer_or_bifrost_acceptance: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoReadinessPacket {
+    requires_proof_bundle_ref: bool,
+    requires_changed_path_list: bool,
+    requires_branch_name: bool,
+    requires_upstream_main_ref: bool,
+    requires_public_proof_ref: bool,
+    requires_bifrost_ledger_ref: bool,
+    requires_idunn_lifecycle_ref: bool,
+    requires_tool_directory_ref: bool,
+    requires_redaction_report: bool,
+    requires_reviewer_identity: bool,
+    allowed_verdicts: Vec<String>,
+}
+
+pub(super) fn parse_repo_readiness_review_request(
+    text: &str,
+) -> Result<RepoReadinessReviewRequest> {
+    toml::from_str(text).context("readiness review request is not valid typed TOML")
+}
+
 include!("external_governance_tests.rs");

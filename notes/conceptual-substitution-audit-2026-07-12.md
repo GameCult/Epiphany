@@ -1090,6 +1090,21 @@ grant. Mind, Self, Hands, and Bifrost remain downstream gates.
 Seventeen high-authority closure families are typed. The source-derived
 residual is 426 substring occurrences across sixteen families.
 
+## Reviewer coalition as one readiness owner
+
+Readiness request cargo named `Maintainer/Soul/Mind/Bifrost` as one
+`requested_owner`. That was not harmless display text: an earlier deleted
+command accepted four caller strings and minted aggregate approval, exactly the
+failure this ownership fiction invites. Readiness routing now has one owner:
+Self. Maintainer, Soul, Mind, and Bifrost are an explicit ordered reviewer set,
+and `readiness_approval_owner = "none"` records that no local aggregate may
+turn their unresolved evidence into approval. The request is typed inside
+external governance; its actual antecedents, receipts, packet, authority seals,
+and privacy field replace substring recognition.
+
+Eighteen high-authority closure families are typed. Direct source inventory now
+reports 363 substring occurrences across fifteen remaining families.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

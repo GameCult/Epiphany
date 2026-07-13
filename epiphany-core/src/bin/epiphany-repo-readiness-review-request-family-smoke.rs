@@ -215,10 +215,12 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_text(&request_text, "[request]")?;
     require_text(&request_text, "status = \"awaiting-mvp-readiness-review\"")?;
+    require_text(&request_text, "routing_owner = \"Self\"")?;
     require_text(
         &request_text,
-        "requested_owner = \"Maintainer/Soul/Mind/Bifrost\"",
+        "required_reviewers = [\"Maintainer\", \"Soul\", \"Mind\", \"Bifrost\"]",
     )?;
+    require_text(&request_text, "readiness_approval_owner = \"none\"")?;
     require_text(
         &request_text,
         "requested_effect = \"review-redacted-repo-swarm-mvp-proof-bundle\"",

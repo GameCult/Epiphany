@@ -3,6 +3,42 @@ mod external_governance_tests {
     use super::*;
 
     #[test]
+    fn readiness_comment_cannot_counterfeit_approval_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_readiness_review_request.v0"
+safe_action_family = "repo.readiness_review_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-mvp-readiness-review"
+routing_owner = "Self"
+required_reviewers = ["Maintainer", "Soul", "Mind", "Bifrost"]
+readiness_approval_owner = "none"
+requested_effect = "review-redacted-repo-swarm-mvp-proof-bundle"
+review_is_advisory_until_maintainer_or_bifrost_acceptance = true
+[antecedents]
+[required_receipts]
+[readiness_packet]
+requires_proof_bundle_ref = false
+requires_changed_path_list = false
+requires_branch_name = false
+requires_upstream_main_ref = false
+requires_public_proof_ref = false
+requires_bifrost_ledger_ref = false
+requires_idunn_lifecycle_ref = false
+requires_tool_directory_ref = false
+requires_redaction_report = false
+requires_reviewer_identity = false
+allowed_verdicts = []
+[authority]
+# readiness_approval_authorized = false
+readiness_approval_authorized = true
+"#;
+        let request = parse_repo_readiness_review_request(text).expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
+    }
+
+    #[test]
     fn comment_cannot_counterfeit_direct_execution_seal() {
         let text = r#"
 schema_version = "epiphany.repo_tool_request.v0"
