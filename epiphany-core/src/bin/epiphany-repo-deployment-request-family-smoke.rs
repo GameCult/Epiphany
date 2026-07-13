@@ -247,7 +247,8 @@ fn run_smoke(args: Args) -> Result<Value> {
         "aftercare_audit = \"gamecult.idunn.deployment_aftercare_audit.v0\"",
     )?;
     require_text(&request_text, "requires_deployment_script_ref = true")?;
-    require_text(&request_text, "requires_script_hash_or_review_ref = true")?;
+    require_text(&request_text, "requires_script_hash = true")?;
+    require_text(&request_text, "requires_script_review_ref = true")?;
     require_text(&request_text, "requires_host_access_policy_ref = true")?;
     require_text(&request_text, "requires_secret_policy_ref = true")?;
     require_text(&request_text, "requires_rollback_plan = true")?;

@@ -13,7 +13,7 @@ private_state_exposed = false
 status = "draft"
 converged = false
 conflicts_remaining = true
-requires_human_or_persona_review = true
+requires_additional_public_feedback = true
 [imagination]
 role = "consensus-discovery"
 candidate_actions_non_authoritative = true

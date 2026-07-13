@@ -3086,7 +3086,7 @@ fn derive_repo_consensus_brief_plan(
         "status = \"draft\"".to_string(),
         "converged = false".to_string(),
         "conflicts_remaining = true".to_string(),
-        "requires_human_or_persona_review = true".to_string(),
+        "requires_additional_public_feedback = true".to_string(),
         format!(
             "recommended_next_safe_family = {}",
             toml_basic_string(recommended_family)
@@ -5588,7 +5588,8 @@ fn derive_repo_deployment_request_plan(
         "requires_target_environment = true".to_string(),
         "requires_git_ref_or_branch = true".to_string(),
         "requires_deployment_script_ref = true".to_string(),
-        "requires_script_hash_or_review_ref = true".to_string(),
+        "requires_script_hash = true".to_string(),
+        "requires_script_review_ref = true".to_string(),
         "requires_host_access_policy_ref = true".to_string(),
         "requires_secret_policy_ref = true".to_string(),
         "requires_rollback_plan = true".to_string(),
@@ -13750,7 +13751,8 @@ aftercare_audit = "gamecult.idunn.deployment_aftercare_audit.v0"
 requires_target_environment = true
 requires_git_ref_or_branch = true
 requires_deployment_script_ref = true
-requires_script_hash_or_review_ref = true
+requires_script_hash = true
+requires_script_review_ref = true
 requires_host_access_policy_ref = true
 requires_secret_policy_ref = true
 requires_rollback_plan = true

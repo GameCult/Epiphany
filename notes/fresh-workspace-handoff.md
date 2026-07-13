@@ -523,3 +523,9 @@ the Maintainer review request and doctrine update request now require explicit
 Maintainer review, matching their receipt contracts and reviewer topology.
 Continue auditing remaining OR-shaped fields, but distinguish legitimate input
 alternatives (for example token count or cost summary) from authority gates.
+
+Two further OR substitutions are cut. Consensus drafts require additional
+public feedback rather than "human or Persona review"; Mind/Bifrost remain the
+gates. Deployment requests require both script hash and script-review ref,
+because identity and approval are distinct proofs. Continue classifying the
+remaining OR-shaped fields by what invariant each alternative actually proves.

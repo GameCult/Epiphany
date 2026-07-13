@@ -212,7 +212,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&brief_text, "status = \"draft\"")?;
     require_text(&brief_text, "converged = false")?;
     require_text(&brief_text, "conflicts_remaining = true")?;
-    require_text(&brief_text, "requires_human_or_persona_review = true")?;
+    require_text(&brief_text, "requires_additional_public_feedback = true")?;
     require_text(
         &brief_text,
         "recommended_next_safe_family = \"repo.task_card\"",

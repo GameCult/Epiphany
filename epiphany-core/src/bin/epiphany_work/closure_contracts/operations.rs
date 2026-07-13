@@ -481,7 +481,8 @@ pub(super) struct RepoDeploymentRequestPacket {
     pub(super) requires_target_environment: bool,
     pub(super) requires_git_ref_or_branch: bool,
     pub(super) requires_deployment_script_ref: bool,
-    pub(super) requires_script_hash_or_review_ref: bool,
+    pub(super) requires_script_hash: bool,
+    pub(super) requires_script_review_ref: bool,
     pub(super) requires_host_access_policy_ref: bool,
     pub(super) requires_secret_policy_ref: bool,
     pub(super) requires_rollback_plan: bool,
@@ -548,7 +549,8 @@ impl RepoDeploymentRequest {
         value.requires_target_environment
             && value.requires_git_ref_or_branch
             && value.requires_deployment_script_ref
-            && value.requires_script_hash_or_review_ref
+            && value.requires_script_hash
+            && value.requires_script_review_ref
             && value.requires_host_access_policy_ref
             && value.requires_secret_policy_ref
             && value.requires_rollback_plan

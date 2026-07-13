@@ -18,7 +18,7 @@ impl RepoConsensusBrief {
         self.consensus.status == "draft"
             && !self.consensus.converged
             && self.consensus.conflicts_remaining
-            && self.consensus.requires_human_or_persona_review
+            && self.consensus.requires_additional_public_feedback
     }
     pub(super) fn has_imagination_route(&self) -> bool {
         let i = &self.imagination;
@@ -59,7 +59,7 @@ struct RepoConsensusState {
     status: String,
     converged: bool,
     conflicts_remaining: bool,
-    requires_human_or_persona_review: bool,
+    requires_additional_public_feedback: bool,
 }
 #[derive(Debug, Deserialize)]
 struct RepoConsensusImagination {

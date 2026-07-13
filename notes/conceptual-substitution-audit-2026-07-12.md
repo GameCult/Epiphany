@@ -1414,3 +1414,16 @@ request named Maintainer in `required_reviewers`, then accepted
 Both now require Maintainer review explicitly. Humans and Personas may still
 supply context or pressure through their own fields, but generic human input
 cannot satisfy a Maintainer receipt or doctrine-review obligation.
+
+## Social feedback is not review; identity is not approval
+
+Consensus Brief used `requires_human_or_persona_review` to mean that an
+unconverged Imagination draft needed more public input. The field now says
+`requires_additional_public_feedback`. Human and Persona contributions remain
+social evidence; Mind adoption and Bifrost publication remain the authority
+gates.
+
+Deployment requests accepted `script_hash_or_review_ref`, treating byte
+identity and approval as interchangeable. They now require both a script hash
+and a script-review reference. The hash binds the reviewed bytes; the review
+receipt carries judgment. Neither may impersonate the other.
