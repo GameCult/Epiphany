@@ -984,6 +984,9 @@ antecedent, receipt, allowed-verdict, review-packet, and authority semantics.
 Maintainer/human judgment remains the consequence owner; Soul, Mind, and
 Bifrost receipts remain prerequisites rather than approval substitutes. The
 class guard prevents substring fallback.
+A malicious typed fixture proves commented
+`maintainer_approval_authorized = false` cannot conceal an actual approval
+grant.
 
 Twelve high-authority families are now typed; 582 substring assertions remain.
 

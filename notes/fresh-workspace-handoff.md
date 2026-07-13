@@ -305,8 +305,8 @@ Current count: eleven typed high-authority families and 620 remaining closure
 substring assertions.
 
 Maintainer-review closure is now typed and class-guarded. Current count: twelve
-typed high-authority families and 582 remaining substring assertions. Add the
-explicit malicious maintainer-approval fixture next.
+typed high-authority families and 582 remaining substring assertions. The
+explicit malicious maintainer-approval fixture now passes as a negative proof.
 
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in

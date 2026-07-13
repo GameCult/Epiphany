@@ -372,4 +372,56 @@ bifrost_or_maintainer_authority_required = true
         let request = parse_repo_pr_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());
     }
+
+    #[test]
+    fn maintainer_comment_cannot_counterfeit_approval_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_maintainer_review_request.v0"
+safe_action_family = "repo.maintainer_review_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-maintainer-review"
+requested_owner = "Maintainer"
+requested_effect = "review-redacted-proof-and-branch-diff"
+verification_request_ref = "verification"
+publication_request_ref = "publication"
+[antecedents]
+closure_review_required = true
+soul_verdict_required = true
+mind_commit_required = true
+public_proof_required = true
+bifrost_publication_request_required = true
+[required_receipts]
+closure_review = "epiphany.repo_work_closure_review.v0"
+soul_verdict = "epiphany.soul.verification_verdict"
+mind_commit = "epiphany.mind.state_commit_receipt"
+public_proof = "epiphany.repo_work_public_proof_bundle.v0"
+maintainer_review = "gamecult.maintainer.review_receipt.v0"
+bifrost_publication = "gamecult.bifrost.public_proof_publication_receipt.v0"
+[review_packet]
+requires_reviewer_identity = true
+requires_review_verdict = true
+allowed_verdicts = ["approved", "changes-requested", "rejected", "needs-human-context"]
+requires_changed_path_list = true
+requires_public_proof_ref = true
+requires_private_state_redaction_check = true
+[authority]
+branch_local_only = true
+# maintainer_approval_authorized = false
+maintainer_approval_authorized = true
+merge_authorized = false
+push_authorized = false
+publication_authorized = false
+upstream_sync_authorized = false
+hands_action_authorized = false
+service_lifecycle_authority = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+human_or_maintainer_response_required = true
+"#;
+        let request = parse_repo_maintainer_review_request(text)
+            .expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
+    }
 }
