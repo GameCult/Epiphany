@@ -778,14 +778,16 @@ target at actuation time. The target must be a strict descendant of the
 quarantine; junctions or other resolution escapes are refused. An outside
 sentinel survives a counterfeit store path.
 
-## Structural pressure: closure contracts need extraction
+## Closure-contract ownership extracted from command orchestration
 
 The typed deployment, deployment-request, secret-policy, and dependency-policy
-models now form a contiguous contract organ inside the 16k-line `epiphany-work`
-binary. Do not add another family validator there. Extract these models and
-semantic predicates into a dedicated repo-work closure-contract module before
-continuing the conversion campaign; an inline namespace or generic policy blob
-would merely rearrange the monolith.
+models and their family-specific semantic predicates now live in
+`epiphany_work/closure_contracts.rs`, not the 16k-line `epiphany-work` command
+body. The binary lost 504 lines and now orchestrates parsing/assessment without
+owning schema anatomy. The module surface is `pub(super)`: available only to its
+parent binary, not promoted into a generic global policy API. New typed closure
+families belong in this contract organ when they protect a named family
+invariant; do not rebuild generic policy mush.
 
 ## Unresolved: provider receipts without chronology
 

@@ -196,9 +196,10 @@ The confirmed conceptual substitutions have been cut:
   cannot counterfeit SSH/push/deployment denials.
 - Verse-query smoke reset proves the exact built-in path and canonical strict
   containment beneath `.epiphany-smoke` immediately before recursive deletion.
-- The four typed closure contract families now form a contiguous organ inside
-  `epiphany-work`; extract them to a dedicated module before adding more typed
-  families. Do not replace this with an inline namespace or generic policy blob.
+- The four typed closure contract families live in
+  `epiphany_work/closure_contracts.rs`; `epiphany-work` is their orchestrator.
+  The module is parent-private and preserves family-specific predicates rather
+  than exporting generic policy machinery.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
