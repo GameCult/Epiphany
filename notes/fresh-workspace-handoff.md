@@ -517,3 +517,9 @@ provenance, target-host execution ownership, and requester execution denial.
 The typed closure now validates the identity and authority split. Continue
 looking for fields where observation, request, admission, and effect ownership
 are collapsed under innocent-sounding status or cache names.
+
+Maintainer review is no longer substitutable by generic human response. Both
+the Maintainer review request and doctrine update request now require explicit
+Maintainer review, matching their receipt contracts and reviewer topology.
+Continue auditing remaining OR-shaped fields, but distinguish legitimate input
+alternatives (for example token count or cost summary) from authority gates.

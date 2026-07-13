@@ -994,7 +994,7 @@ impl RepoMaintainerReviewRequest {
             && !a.service_lifecycle_authority
             && !a.cross_body_mutation_authorized
             && !a.private_verse_rummaging
-            && a.human_or_maintainer_response_required
+            && a.maintainer_response_required
     }
 }
 #[derive(Debug, Deserialize)]
@@ -1043,7 +1043,7 @@ struct RepoMaintainerReviewAuthority {
     service_lifecycle_authority: bool,
     cross_body_mutation_authorized: bool,
     private_verse_rummaging: bool,
-    human_or_maintainer_response_required: bool,
+    maintainer_response_required: bool,
 }
 pub(super) fn parse_repo_maintainer_review_request(
     text: &str,

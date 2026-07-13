@@ -475,7 +475,7 @@ hands_action_authorized = false
 service_lifecycle_authority = false
 cross_body_mutation_authorized = false
 private_verse_rummaging = false
-human_or_maintainer_response_required = true
+maintainer_response_required = true
 "#;
         let request = parse_repo_maintainer_review_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());

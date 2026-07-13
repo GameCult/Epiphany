@@ -271,6 +271,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "requires_private_state_redaction_check = true",
     )?;
     require_text(&request_text, "maintainer_approval_authorized = false")?;
+    require_text(&request_text, "maintainer_response_required = true")?;
     require_text(&request_text, "merge_authorized = false")?;
     require_text(&request_text, "push_authorized = false")?;
     require_text(&request_text, "publication_authorized = false")?;

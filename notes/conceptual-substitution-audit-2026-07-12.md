@@ -1402,3 +1402,15 @@ The request now carries a concrete requester body, `routing_owner=Self`, and
 `pressure_source=Persona`. CultMesh separately states that the target host
 daemon owns execution and the requester does not. The typed closure validates
 all of these fields. Persona supplies pressure; Self routes; the provider acts.
+
+## Human context is not Maintainer authority
+
+Two review contracts weakened named Maintainer gates into OR conditions. The
+Maintainer review request accepted `human_or_maintainer_response_required`, even
+though its required receipt is specifically Maintainer-authored. The doctrine
+request named Maintainer in `required_reviewers`, then accepted
+`requires_human_or_maintainer_review`.
+
+Both now require Maintainer review explicitly. Humans and Personas may still
+supply context or pressure through their own fields, but generic human input
+cannot satisfy a Maintainer receipt or doctrine-review obligation.

@@ -601,7 +601,7 @@ impl RepoDoctrineUpdateRequest {
             && r.requested_effect == "review-repo-agent-doctrine-update"
             && r.doctrine_target == "AGENTS.md"
             && r.requires_source_grounding
-            && r.requires_human_or_maintainer_review
+            && r.maintainer_review_required
     }
     pub(super) fn has_antecedent_contract(&self) -> bool {
         [
@@ -675,7 +675,7 @@ struct RepoDoctrineRequestBody {
     requested_effect: String,
     doctrine_target: String,
     requires_source_grounding: bool,
-    requires_human_or_maintainer_review: bool,
+    maintainer_review_required: bool,
 }
 pub(super) fn parse_repo_doctrine_update_request(text: &str) -> Result<RepoDoctrineUpdateRequest> {
     toml::from_str(text).context("doctrine update request is not valid typed TOML")

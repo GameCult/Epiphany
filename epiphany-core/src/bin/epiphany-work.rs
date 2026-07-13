@@ -4289,7 +4289,7 @@ fn derive_repo_maintainer_review_request_plan(
         "service_lifecycle_authority = false".to_string(),
         "cross_body_mutation_authorized = false".to_string(),
         "private_verse_rummaging = false".to_string(),
-        "human_or_maintainer_response_required = true".to_string(),
+        "maintainer_response_required = true".to_string(),
         String::new(),
         "[verification]".to_string(),
         "asks = [".to_string(),
@@ -5153,7 +5153,7 @@ fn derive_repo_doctrine_update_request_plan(
         format!("doctrine_target = {}", toml_basic_string(doctrine_target)),
         "change_surface = \"repo-local agent instructions and operating doctrine\"".to_string(),
         "requires_source_grounding = true".to_string(),
-        "requires_human_or_maintainer_review = true".to_string(),
+        "maintainer_review_required = true".to_string(),
         String::new(),
         "[antecedents]".to_string(),
         "persona_or_human_feedback_required = true".to_string(),
@@ -13993,7 +13993,7 @@ mutation_owner = "Hands"
 requested_effect = "review-repo-agent-doctrine-update"
 doctrine_target = "AGENTS.md"
 requires_source_grounding = true
-requires_human_or_maintainer_review = true
+maintainer_review_required = true
 [antecedents]
 [required_receipts]
 [doctrine_packet]

@@ -235,7 +235,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_text(&request_text, "doctrine_target = \"AGENTS.md\"")?;
     require_text(&request_text, "requires_source_grounding = true")?;
-    require_text(&request_text, "requires_human_or_maintainer_review = true")?;
+    require_text(&request_text, "maintainer_review_required = true")?;
     require_text(&request_text, "[antecedents]")?;
     require_text(&request_text, "persona_or_human_feedback_required = true")?;
     require_text(&request_text, "imagination_plan_required = true")?;
