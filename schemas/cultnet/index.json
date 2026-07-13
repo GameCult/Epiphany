@@ -827,7 +827,7 @@
       "path": "epiphany.swarm-control-receipt.schema.json"
     },
     {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.Persona-bubble.schema.json",
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.persona-bubble.schema.json",
       "kind": "document_payload",
       "wireContracts": [
         "cultnet.schema.v0"

@@ -37,7 +37,7 @@ server object deserves to be duplicated into a second baroque schema maze.
 - `*.intent.v0`: control documents Aquarium, a Discord bridge, a voice surface,
   or another trusted coordinator can submit through CultNet.
 - receipt/artifact schemas such as `epiphany.swarm-control-receipt`,
-  `epiphany.Persona-bubble`, `epiphany.character-turn-packet`, and
+  `epiphany.persona-bubble`, `epiphany.character-turn-packet`, and
   `epiphany.repo-birth-runner`.
 
 ## Publication Path

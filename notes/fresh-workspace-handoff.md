@@ -2,6 +2,31 @@
 
 ## Current orientation — 2026-07-12
 
+### Aetheria organ-structure evidence — 2026-07-13
+
+Task `019f3fe1-9f69-74e3-97fb-a18490d72119` supplied strong positive evidence
+for the Epiphany hypothesis without requiring raw worker-thought inspection.
+Modeling maintained concrete migration bodies across Aetheria, EveUnity, and
+CultLib; Eyes found CultCache crash consistency and SoA ownership skew; Hands
+landed bounded disjoint changes; Soul rejected a registry repair that still
+allowed readers to observe partial refresh; Imagination corrected a roadmap
+that called unfinished migration complete; Self preserved dependency order and
+kept unrelated compile skew out of coherent commits.
+
+Prompt forms worth preserving:
+
+- require the exact compile boundary and deletion line when research expands;
+- give Hands hostile negative acceptance criteria, not only a desired output;
+- explicitly allow a worker to stop and name a missing substrate primitive;
+- review diffs against authority and concurrency invariants after tests pass.
+
+The product gap exposed by this success is persistence, not better roleplay.
+Modeling's repo anatomy, confirmed/changed/invalidated claims, freshness,
+frontier, and semantic-index consequences must live in typed searchable state
+and be projected into later Hands prompts. Otherwise an excellent coordinator
+can perform the structure transiently, but the next awakened Self inherits only
+the applause.
+
 Epiphany is in an authority-provenance purification pass. The live question is not whether a command can produce a plausible document; it is whether the subsystem writing that document owns the fact it asserts.
 
 The confirmed conceptual substitutions have been cut:

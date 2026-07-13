@@ -4,7 +4,7 @@
   "title": "epiphany character_turn_intent v0",
   "description": "Character-loop turn intent for Persona or other embodied actors.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "threadId": {
       "type": "string"
@@ -19,9 +19,6 @@
       "type": "string"
     },
     "mode": {
-      "type": "string"
-    },
-    "status": {
       "type": "string"
     },
     "mood": {

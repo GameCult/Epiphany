@@ -744,7 +744,28 @@ fn run_smoke() -> Result<Value> {
         &fs::read_to_string(&path)
             .with_context(|| format!("failed to read smoke artifact {}", path.display()))?,
     )?;
-    let ok = packet["schemaVersion"] == CHARACTER_TURN_SCHEMA_VERSION
+    const EXPECTED_PACKET_FIELDS: [&str; 14] = [
+        "allowedOutputs",
+        "appraisalSeed",
+        "cognitionLanes",
+        "createdAt",
+        "guardrails",
+        "projectedLocalContext",
+        "projectionSeed",
+        "protocol",
+        "reactionSeed",
+        "resultShape",
+        "schemaVersion",
+        "source",
+        "stimulus",
+        "utteranceState",
+    ];
+    let ok = packet.as_object().is_some_and(|payload| {
+        payload.len() == EXPECTED_PACKET_FIELDS.len()
+            && EXPECTED_PACKET_FIELDS
+                .iter()
+                .all(|key| payload.contains_key(*key))
+    }) && packet["schemaVersion"] == CHARACTER_TURN_SCHEMA_VERSION
         && packet["protocol"]["bundle"] == "epiphany.character_loop"
         && packet["protocol"]["roleId"] == "Persona"
         && packet["protocol"]["organStateProfile"]["profileKind"] == "persona"

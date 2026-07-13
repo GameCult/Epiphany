@@ -1573,3 +1573,49 @@ binds the validated receipt into its artifact; both history readers require a
 receipt whose action, target, provider evidence, crossing id, and audit source id
 match the artifact. Forged status-only artifacts remain readable local files but
 cannot increase verified post counts or steer same-target publication pressure.
+
+## A good coordinator turn is not a persistent Modeling organ
+
+Aetheria dogfood task `019f3fe1-9f69-74e3-97fb-a18490d72119` provided positive
+evidence that the organ structure changes engineering outcomes. Modeling named
+the remaining migration bodies; Eyes found CultCache crash consistency and SoA
+ownership defects; Hands received bounded disjoint cuts; Soul found that a
+plausible registry repair still exposed partial refresh to readers; Imagination
+corrected a roadmap that called unfinished migration complete; Self preserved
+dependency order across Aetheria, EveUnity, and CultLib.
+
+The structure must not be confused with a coordinator temporarily remembering
+an excellent map. The product obligation is a typed, persistent, semantically
+searchable Modeling knowledgebase whose changed, confirmed, and invalidated
+anatomy carries freshness, frontier, and index consequences into later Hands
+prompts. Otherwise the next Self inherits role names and receipts but loses the
+targeting solution that made the work efficient.
+
+The run also supplied reusable prompt evidence: ask broad research for the exact
+compile boundary and deletion line; give Hands hostile negative acceptance
+criteria; permit workers to stop and name missing substrate primitives; and
+review green diffs against authority and concurrency invariants.
+
+## Ambient command identity is not a typed crossing command
+
+Bifrost's source establishes one typed command -> one crossing attempt -> one
+canonical `crossing_${commandId}` receipt. Its current actuator gate only checks
+that a command-id string is nonempty, however, and reusing that ambient id can
+overwrite the canonical receipt. Discord has a singular typed command shape but
+only smoke-grade intake; Reddit has no typed command contract. Epiphany must not
+invent a local UUID and call it Bifrost command authority. The coherent repair
+belongs at Bifrost intake: create one typed command per crossing, bind exact
+action/payload/target, atomically claim it once, and reject nonexistent,
+concurrent, mismatched, or terminal reuse. Until that exists, crossing identity
+remains an upstream authority wound rather than a local validation omission.
+
+## Producer spelling is contract identity
+
+Persona bubble artifacts emitted snake_case root fields while their registered
+CultNet schema required camelCase. Character-loop had removed caller-authored
+`--status`, but the registered character intent still admitted `status` and
+arbitrary extra fields. Bubble now writes the registered field names; legacy
+snake_case remains read-only compatibility input. Bubble and character packet
+schemas reject extra root fields, character intent rejects undeclared cargo,
+and native smokes assert the exact emitted top-level sets. A registered schema
+that the producer does not actually speak is catalog theater, not a contract.

@@ -4,7 +4,7 @@
   "title": "Epiphany Character Turn Packet",
   "description": "Epiphany-native character-loop projection packet.",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "schemaVersion": {
       "type": "string"

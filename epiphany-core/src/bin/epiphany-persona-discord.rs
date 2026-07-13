@@ -974,7 +974,23 @@ console.log(JSON.stringify({
             .context("Persona speech audit smoke expected latest CultMesh audit")?;
     let ok = draft["ok"] == true
         && bubble["ok"] == true
-        && bubble["bubble"]["schema_version"] == BUBBLE_SCHEMA_VERSION
+        && bubble["bubble"]["schemaVersion"] == BUBBLE_SCHEMA_VERSION
+        && bubble["bubble"].as_object().is_some_and(|payload| {
+            const EXPECTED: [&str; 11] = [
+                "agentId",
+                "bubble",
+                "content",
+                "createdAt",
+                "displayName",
+                "mood",
+                "roleId",
+                "schemaVersion",
+                "source",
+                "status",
+                "target",
+            ];
+            payload.len() == EXPECTED.len() && EXPECTED.iter().all(|key| payload.contains_key(*key))
+        })
         && bubble["bubble"]["bubble"]["requiresDiscord"] == false
         && blocked["ok"] == false
         && blocked["blocked"] == "missing-channel-id"
@@ -1072,14 +1088,14 @@ fn has_bound_discord_publication(payload: &Value) -> bool {
 
 fn bubble_payload(content: &str, source: &str, mood: &str) -> Value {
     serde_json::json!({
-        "schema_version": BUBBLE_SCHEMA_VERSION,
-        "created_at": now_iso(),
+        "schemaVersion": BUBBLE_SCHEMA_VERSION,
+        "createdAt": now_iso(),
         "status": "projected",
         "source": source,
         "target": "aquarium",
-        "role_id": "Persona",
-        "agent_id": "Persona",
-        "display_name": "Persona",
+        "roleId": "Persona",
+        "agentId": "Persona",
+        "displayName": "Persona",
         "mood": mood,
         "content": content.trim(),
         "bubble": {
@@ -1117,7 +1133,9 @@ fn latest_persona_artifacts(artifact_dir: &Path, limit: usize) -> Vec<Value> {
                 "path": path,
                 "name": path.file_name().and_then(|name| name.to_str()),
                 "modifiedAt": modified_at.to_rfc3339_opts(SecondsFormat::Secs, true),
-                "schemaVersion": payload.get("schema_version"),
+                "schemaVersion": payload
+                    .get("schemaVersion")
+                    .or_else(|| payload.get("schema_version")),
                 "status": payload.get("status"),
                 "reason": payload.get("reason"),
                 "content": payload.get("content"),
@@ -1155,7 +1173,9 @@ fn recent_persona_speech(artifact_dir: &Path, limit: usize) -> Vec<RecentPersona
                 .or_else(|| payload["bubble"]["content"].as_str())?
                 .to_string();
             let status = payload["status"].as_str().unwrap_or_default();
-            let action_kind = if payload["schema_version"] == BUBBLE_SCHEMA_VERSION {
+            let action_kind = if payload["schemaVersion"] == BUBBLE_SCHEMA_VERSION
+                || payload["schema_version"] == BUBBLE_SCHEMA_VERSION
+            {
                 PersonaSpeechActionKind::Bubble
             } else if status == "posted" && has_bound_discord_publication(&payload) {
                 PersonaSpeechActionKind::Post
