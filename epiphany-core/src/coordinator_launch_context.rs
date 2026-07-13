@@ -726,7 +726,7 @@ mod tests {
     fn launch_context_persists_on_runtime_worker_request() -> anyhow::Result<()> {
         let temp =
             std::env::temp_dir().join(format!("epiphany-bridge-launch-context-{}", Uuid::new_v4()));
-        fs::create_dir_all(&temp)?;
+        fs::create_dir(&temp)?;
         let runtime_store = temp.join("runtime-spine.msgpack");
         let state = EpiphanyThreadState {
             revision: 7,
@@ -802,7 +802,7 @@ mod tests {
             "epiphany-launch-context-unbootstrapped-{}",
             Uuid::new_v4()
         ));
-        fs::create_dir_all(&temp)?;
+        fs::create_dir(&temp)?;
         let runtime_store = temp.join("runtime-spine.msgpack");
         let local_verse_store = local_verse_store_path(&runtime_store);
         let state = EpiphanyThreadState {
@@ -826,7 +826,7 @@ mod tests {
     #[test]
     fn verification_launch_context_includes_hands_receipt_chain() -> anyhow::Result<()> {
         let temp = std::env::temp_dir().join(format!("epiphany-hands-context-{}", Uuid::new_v4()));
-        fs::create_dir_all(&temp)?;
+        fs::create_dir(&temp)?;
         let runtime_store = temp.join("runtime-spine.msgpack");
         initialize_runtime_spine(
             &runtime_store,

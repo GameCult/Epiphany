@@ -869,6 +869,11 @@ helpers now use `create_dir`, so cleanup authority exists only after exclusive
 creation succeeds. Source search finds no remaining `env::temp_dir()` helper
 that adopts its generated leaf with `create_dir_all`.
 
+The same audit found three coordinator launch-context tests with the identical
+UUID/adoption pattern. They also now claim their leaves with `create_dir`.
+Generated temp ownership is consistent across the full Rust source tree, not
+merely production binaries; tests do not receive imaginary cleanup authority.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their
