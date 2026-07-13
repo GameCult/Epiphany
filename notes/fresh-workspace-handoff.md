@@ -344,6 +344,15 @@ and adoption is in the class guard. Sixteen high-authority families are typed
 and 447 substring assertions remain. The complete adoption/scheduling/work-
 order/verification chain now has one physical workflow owner.
 
+The old residual counter was diff-derived and has been retired. Direct source
+inventory now reports 426 `content.contains` occurrences across sixteen
+remaining closure families. Objective Draft has moved into a new physical
+`preparation.rs` owner because it is Imagination cargo, not workflow or
+external governance. Its typed closure and malicious fixture prevent a
+commented adoption denial from hiding a real grant. Seventeen high-authority
+families are typed. Continue from the source-derived family inventory, not the
+historical counter.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

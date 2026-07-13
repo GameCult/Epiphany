@@ -1068,6 +1068,28 @@ Sixteen high-authority closure families are typed; 447 substring assertions
 remain. The adoption/scheduling/work-order/verification workflow chain is now
 typed under one physical owner.
 
+## Source-derived residual inventory
+
+The running residual count above was inferred from diff deletions and is not a
+sound metric. A direct parse of the closure match arms finds 426
+`content.contains` occurrences across sixteen remaining families. That is the
+canonical baseline; future counts must be regenerated from source. The
+families separate into presentation helpers, Body/interface descriptions,
+collaboration/preparation cargo, readiness publication/accounting, and doctrine
+policy. They do not share an owner merely because they share an assertion
+mechanism.
+
+## Objective draft physically owned by preparation
+
+`repo.objective_draft` is Imagination-owned preparation cargo, not workflow
+authority and not external governance. A new `preparation.rs` closure domain
+owns its typed draft state, acceptance contract, input references, and
+authority seals. A commented adoption denial cannot conceal a real adoption
+grant. Mind, Self, Hands, and Bifrost remain downstream gates.
+
+Seventeen high-authority closure families are typed. The source-derived
+residual is 426 substring occurrences across sixteen families.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

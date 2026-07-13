@@ -7253,73 +7253,67 @@ fn closure_family_assertions(
             );
         }
         "repo.objective_draft" => {
+            let draft = parse_repo_objective_draft(&content).ok();
             push_assertion(
                 &mut assertions,
                 "objective-draft-schema-present",
-                content.contains("schema_version = \"epiphany.repo_objective_draft.v0\""),
+                draft
+                    .as_ref()
+                    .is_some_and(RepoObjectiveDraft::has_canonical_identity),
                 "Committed Objective Draft carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "objective-draft-family-present",
-                content.contains("safe_action_family = \"repo.objective_draft\""),
+                draft
+                    .as_ref()
+                    .is_some_and(RepoObjectiveDraft::has_canonical_identity),
                 "Committed Objective Draft carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "objective-draft-summary-present",
-                content.contains(&compact_summary),
+                draft
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed Objective Draft contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "objective-draft-review-state",
-                content.contains("[draft]")
-                    && content.contains("status = \"review-required\"")
-                    && content.contains("adoption_gate = \"Mind\"")
-                    && content.contains("scheduler_gate = \"Self\"")
-                    && content.contains("publication_gate = \"Bifrost\"")
-                    && content.contains("objective_adopted = false"),
+                draft
+                    .as_ref()
+                    .is_some_and(RepoObjectiveDraft::remains_imagination_draft),
                 "Committed Objective Draft remains review-required and unadopted.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "objective-draft-acceptance-criteria",
-                content.contains("[acceptance]")
-                    && content.contains("Mind explicitly accepts or rejects")
-                    && content.contains("Self schedules only after Mind adoption")
-                    && content.contains("Hands acts only through a later receipt-backed plan")
-                    && content.contains("Bifrost gates publication"),
+                draft
+                    .as_ref()
+                    .is_some_and(RepoObjectiveDraft::has_acceptance_contract),
                 "Committed Objective Draft names acceptance criteria and downstream gates."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "objective-draft-inputs-present",
-                content.contains("[inputs]")
-                    && content.contains("public_discussion_refs = [")
-                    && content.contains("candidate_action_refs = [")
-                    && content.contains("consensus_brief_required = true"),
+                draft.as_ref().is_some_and(RepoObjectiveDraft::has_input_contract),
                 "Committed Objective Draft preserves discussion/action refs and requires consensus."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "objective-draft-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("objective_adoption_authorized = false")
-                    && content.contains("self_scheduling_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("bifrost_publication_required = true"),
+                draft.as_ref().is_some_and(RepoObjectiveDraft::has_authority_seals),
                 "Committed Objective Draft denies adoption/scheduling/action/publication/cross-body authority and requires Mind/Bifrost gates.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "objective-draft-private-seal",
-                content.contains("private_state_exposed = false"),
+                draft
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed Objective Draft preserves the private-state seal.".to_string(),
             );
         }
@@ -15346,6 +15340,7 @@ idunn_deployment_authority_required = true
             "repo.sync_request",
             "repo.pr_request",
             "repo.maintainer_review_request",
+            "repo.objective_draft",
             "repo.adoption_request",
             "repo.scheduling_request",
             "repo.work_order",
