@@ -479,7 +479,8 @@ pub(super) struct RepoDeploymentRequestReceipts {
 #[derive(Debug, Deserialize)]
 pub(super) struct RepoDeploymentRequestPacket {
     pub(super) requires_target_environment: bool,
-    pub(super) requires_git_ref_or_branch: bool,
+    pub(super) requires_watched_ref: bool,
+    pub(super) requires_source_commit_sha: bool,
     pub(super) requires_deployment_script_ref: bool,
     pub(super) requires_script_hash: bool,
     pub(super) requires_script_review_ref: bool,
@@ -547,7 +548,8 @@ impl RepoDeploymentRequest {
     pub(super) fn has_packet_contract(&self) -> bool {
         let value = &self.deployment_packet;
         value.requires_target_environment
-            && value.requires_git_ref_or_branch
+            && value.requires_watched_ref
+            && value.requires_source_commit_sha
             && value.requires_deployment_script_ref
             && value.requires_script_hash
             && value.requires_script_review_ref

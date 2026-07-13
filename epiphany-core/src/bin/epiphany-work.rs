@@ -5586,7 +5586,8 @@ fn derive_repo_deployment_request_plan(
         String::new(),
         "[deployment_packet]".to_string(),
         "requires_target_environment = true".to_string(),
-        "requires_git_ref_or_branch = true".to_string(),
+        "requires_watched_ref = true".to_string(),
+        "requires_source_commit_sha = true".to_string(),
         "requires_deployment_script_ref = true".to_string(),
         "requires_script_hash = true".to_string(),
         "requires_script_review_ref = true".to_string(),
@@ -13749,7 +13750,8 @@ idunn_deployment = "gamecult.idunn.deployment_receipt.v0"
 aftercare_audit = "gamecult.idunn.deployment_aftercare_audit.v0"
 [deployment_packet]
 requires_target_environment = true
-requires_git_ref_or_branch = true
+requires_watched_ref = true
+requires_source_commit_sha = true
 requires_deployment_script_ref = true
 requires_script_hash = true
 requires_script_review_ref = true

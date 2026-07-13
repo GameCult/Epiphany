@@ -529,3 +529,8 @@ public feedback rather than "human or Persona review"; Mind/Bifrost remain the
 gates. Deployment requests require both script hash and script-review ref,
 because identity and approval are distinct proofs. Continue classifying the
 remaining OR-shaped fields by what invariant each alternative actually proves.
+
+Deployment git identity is also split. Requests now require both watched ref
+and source commit SHA, matching Idunn's receipt. A branch/ref identifies the
+mutable trigger path; the commit SHA identifies deployed bytes. Do not collapse
+them back into one convenient string.

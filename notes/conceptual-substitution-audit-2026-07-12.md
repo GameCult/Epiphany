@@ -1427,3 +1427,9 @@ Deployment requests accepted `script_hash_or_review_ref`, treating byte
 identity and approval as interchangeable. They now require both a script hash
 and a script-review reference. The hash binds the reviewed bytes; the review
 receipt carries judgment. Neither may impersonate the other.
+
+Deployment also accepted `git_ref_or_branch`, obscuring the difference between
+the mutable ref Idunn watches and the immutable commit it deploys. The Idunn
+receipt contract already records both `watched_ref` and `source_commit`.
+Deployment requests now require both fields: trigger topology and artifact
+identity are conjunctive evidence.
