@@ -715,6 +715,19 @@ route could therefore repair or counterfeit missing ownership. Service lookup
 now accepts only the typed field; rows without it cannot produce a runbook
 action. A route such as `counterfeit::route` remains prose and nothing more.
 
+## TOML text resemblance substituted for deployment configuration
+
+The operational deployment-config audit validated authority seals, Idunn
+ownership, contracts, and required receipts with `text.contains(...)` checks.
+The runbook then scraped `watched_ref` and `deployment_script_ref` line-by-line
+and silently supplied defaults. Comments, wrong-table keys, or missing values
+could therefore resemble a valid config closely enough to steer operational
+output. Both paths now consume one deserialized TOML model with typed nested
+sections and required fields. Comments cannot override real booleans, missing
+fields fail parsing, and the runbook reports missing values rather than
+inventing deployment targets. Audit semantics compare the parsed values, not
+their textual costume.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

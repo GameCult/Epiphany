@@ -87,6 +87,7 @@ use epiphany_core::write_epiphany_cultmesh_repo_work_readiness;
 use epiphany_core::write_epiphany_cultmesh_weksa_lowering_receipt;
 use epiphany_state_model::EpiphanyMemoryContextQuery;
 use epiphany_state_model::EpiphanyMemoryProfile;
+use serde::Deserialize;
 use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
@@ -12255,6 +12256,73 @@ fn run_readiness(args: ReadinessArgs) -> Result<Value> {
     }))
 }
 
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentConfig {
+    schema_version: String,
+    safe_action_family: String,
+    private_state_exposed: bool,
+    deployment: RepoDeploymentSettings,
+    cultmesh: RepoDeploymentCultMesh,
+    required_receipts: RepoDeploymentRequiredReceipts,
+    authority: RepoDeploymentAuthority,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentSettings {
+    enabled: bool,
+    owner: String,
+    trigger: String,
+    watched_ref: String,
+    deployment_script_ref: String,
+    deployment_script_hash_required: bool,
+    deployment_script_review_required: bool,
+    host_access_policy_ref_required: bool,
+    secret_values_embedded: bool,
+    rollback_plan_ref_required: bool,
+    aftercare_checks_required: bool,
+    idunn_receipt_required: bool,
+    aftercare_audit_required: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentCultMesh {
+    local_verse: String,
+    capability_family: String,
+    intent_contract: String,
+    receipt_contract: String,
+    aftercare_contract: String,
+    daemon_owns_execution: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentRequiredReceipts {
+    mind_adoption: String,
+    soul_review: String,
+    maintainer_review: String,
+    secret_policy: String,
+    idunn_deployment: String,
+    aftercare_audit: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoDeploymentAuthority {
+    configuration_only: bool,
+    direct_deployment_authority: bool,
+    direct_ssh_authority: bool,
+    direct_git_push_authority: bool,
+    direct_service_lifecycle_authority: bool,
+    direct_hands_authority: bool,
+    publication_authorized: bool,
+    merge_authorized: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    idunn_deployment_authority_required: bool,
+}
+
+fn parse_repo_deployment_config(text: &str) -> Result<RepoDeploymentConfig> {
+    toml::from_str(text).context("deployment config is not valid typed TOML")
+}
+
 fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -12271,100 +12339,122 @@ fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value>
     let receipt_path = artifact_dir.join("deployment-config-audit.json");
     let generated_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let mut assertions = Vec::new();
-    let mut config_text = String::new();
+    let mut parsed_config = None;
 
     if config_path.exists() {
-        config_text = fs::read_to_string(&config_path)
+        let config_text = fs::read_to_string(&config_path)
             .with_context(|| format!("failed to read {}", config_path.display()))?;
+        match parse_repo_deployment_config(&config_text) {
+            Ok(config) => {
+                push_assertion(
+                    &mut assertions,
+                    "deployment-config-typed-toml",
+                    true,
+                    "Deployment config parses as the typed TOML contract.".to_string(),
+                );
+                parsed_config = Some(config);
+            }
+            Err(error) => push_assertion(
+                &mut assertions,
+                "deployment-config-typed-toml",
+                false,
+                format!("Deployment config parse failed: {error:#}"),
+            ),
+        }
         push_assertion(
             &mut assertions,
             "deployment-config-schema-present",
-            config_text.contains("schema_version = \"epiphany.repo_deployment_config.v0\""),
+            parsed_config.as_ref().is_some_and(|config| {
+                config.schema_version == "epiphany.repo_deployment_config.v0"
+            }),
             "Deployment config carries the schema version.".to_string(),
         );
         push_assertion(
             &mut assertions,
             "deployment-config-family-present",
-            config_text.contains("safe_action_family = \"repo.deployment_config\""),
+            parsed_config
+                .as_ref()
+                .is_some_and(|config| config.safe_action_family == "repo.deployment_config"),
             "Deployment config carries the safe action family.".to_string(),
         );
         push_assertion(
             &mut assertions,
             "deployment-config-idunn-trigger",
-            config_text.contains("[deployment]")
-                && config_text.contains("enabled = false")
-                && config_text.contains("owner = \"Idunn\"")
-                && config_text.contains("trigger = \"git-push-observed-by-idunn\"")
-                && config_text.contains("watched_ref = \"refs/heads/main\"")
-                && config_text.contains("deployment_script_ref = \"deploy/idunn-deploy.ps1\"")
-                && config_text.contains("deployment_script_hash_required = true")
-                && config_text.contains("deployment_script_review_required = true")
-                && config_text.contains("host_access_policy_ref_required = true")
-                && config_text.contains("secret_values_embedded = false")
-                && config_text.contains("rollback_plan_ref_required = true")
-                && config_text.contains("aftercare_checks_required = true")
-                && config_text.contains("idunn_receipt_required = true")
-                && config_text.contains("aftercare_audit_required = true"),
+            parsed_config.as_ref().is_some_and(|config| {
+                let deployment = &config.deployment;
+                !deployment.enabled
+                    && deployment.owner == "Idunn"
+                    && deployment.trigger == "git-push-observed-by-idunn"
+                    && deployment.watched_ref == "refs/heads/main"
+                    && deployment.deployment_script_ref == "deploy/idunn-deploy.ps1"
+                    && deployment.deployment_script_hash_required
+                    && deployment.deployment_script_review_required
+                    && deployment.host_access_policy_ref_required
+                    && !deployment.secret_values_embedded
+                    && deployment.rollback_plan_ref_required
+                    && deployment.aftercare_checks_required
+                    && deployment.idunn_receipt_required
+                    && deployment.aftercare_audit_required
+            }),
             "Deployment config names disabled Idunn git-push trigger, reviewed script/hash, policy, rollback, and aftercare requirements."
                 .to_string(),
         );
         push_assertion(
             &mut assertions,
             "deployment-config-cultmesh-contract",
-            config_text.contains("[cultmesh]")
-                && config_text.contains("local_verse = \"gamecult-local\"")
-                && config_text.contains("capability_family = \"gamecult.idunn.deployment\"")
-                && config_text
-                    .contains("intent_contract = \"gamecult.idunn.deployment_intent.v0\"")
-                && config_text
-                    .contains("receipt_contract = \"gamecult.idunn.deployment_receipt.v0\"")
-                && config_text.contains(
-                    "aftercare_contract = \"gamecult.idunn.deployment_aftercare_audit.v0\"",
-                )
-                && config_text.contains("daemon_owns_execution = true"),
+            parsed_config.as_ref().is_some_and(|config| {
+                let cultmesh = &config.cultmesh;
+                cultmesh.local_verse == "gamecult-local"
+                    && cultmesh.capability_family == "gamecult.idunn.deployment"
+                    && cultmesh.intent_contract == "gamecult.idunn.deployment_intent.v0"
+                    && cultmesh.receipt_contract == "gamecult.idunn.deployment_receipt.v0"
+                    && cultmesh.aftercare_contract == "gamecult.idunn.deployment_aftercare_audit.v0"
+                    && cultmesh.daemon_owns_execution
+            }),
             "Deployment config routes execution through Idunn CultMesh contracts.".to_string(),
         );
         push_assertion(
             &mut assertions,
             "deployment-config-receipt-contract",
-            config_text.contains("[required_receipts]")
-                && config_text
-                    .contains("mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"")
-                && config_text.contains("soul_review = \"epiphany.repo_work_closure_review.v0\"")
-                && config_text
-                    .contains("maintainer_review = \"gamecult.maintainer.review_receipt.v0\"")
-                && config_text
-                    .contains("secret_policy = \"epiphany.repo_secret_policy_request.v0\"")
-                && config_text
-                    .contains("idunn_deployment = \"gamecult.idunn.deployment_receipt.v0\"")
-                && config_text.contains(
-                    "aftercare_audit = \"gamecult.idunn.deployment_aftercare_audit.v0\"",
-                ),
+            parsed_config.as_ref().is_some_and(|config| {
+                let receipts = &config.required_receipts;
+                receipts.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+                    && receipts.soul_review == "epiphany.repo_work_closure_review.v0"
+                    && receipts.maintainer_review == "gamecult.maintainer.review_receipt.v0"
+                    && receipts.secret_policy == "epiphany.repo_secret_policy_request.v0"
+                    && receipts.idunn_deployment == "gamecult.idunn.deployment_receipt.v0"
+                    && receipts.aftercare_audit
+                        == "gamecult.idunn.deployment_aftercare_audit.v0"
+            }),
             "Deployment config names Mind, Soul, maintainer, secret-policy, Idunn deployment, and aftercare receipts."
                 .to_string(),
         );
         push_assertion(
             &mut assertions,
             "deployment-config-authority-seals",
-            config_text.contains("[authority]")
-                && config_text.contains("configuration_only = true")
-                && config_text.contains("direct_deployment_authority = false")
-                && config_text.contains("direct_ssh_authority = false")
-                && config_text.contains("direct_git_push_authority = false")
-                && config_text.contains("direct_service_lifecycle_authority = false")
-                && config_text.contains("direct_hands_authority = false")
-                && config_text.contains("publication_authorized = false")
-                && config_text.contains("merge_authorized = false")
-                && config_text.contains("cross_body_mutation_authorized = false")
-                && config_text.contains("private_verse_rummaging = false")
-                && config_text.contains("idunn_deployment_authority_required = true"),
+            parsed_config.as_ref().is_some_and(|config| {
+                let authority = &config.authority;
+                authority.configuration_only
+                    && !authority.direct_deployment_authority
+                    && !authority.direct_ssh_authority
+                    && !authority.direct_git_push_authority
+                    && !authority.direct_service_lifecycle_authority
+                    && !authority.direct_hands_authority
+                    && !authority.publication_authorized
+                    && !authority.merge_authorized
+                    && !authority.cross_body_mutation_authorized
+                    && !authority.private_verse_rummaging
+                    && authority.idunn_deployment_authority_required
+            }),
             "Deployment config denies deployment, SSH, git-push, service lifecycle, Hands, publication, merge, and cross-body authority."
                 .to_string(),
         );
         push_assertion(
             &mut assertions,
             "deployment-config-private-seal",
-            config_text.contains("private_state_exposed = false"),
+            parsed_config
+                .as_ref()
+                .is_some_and(|config| !config.private_state_exposed),
             "Deployment config preserves the private-state seal.".to_string(),
         );
     } else {
@@ -12386,7 +12476,10 @@ fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value>
     } else {
         "missing"
     };
-    let daemon_owns_execution = all_passed && config_text.contains("daemon_owns_execution = true");
+    let daemon_owns_execution = all_passed
+        && parsed_config
+            .as_ref()
+            .is_some_and(|config| config.cultmesh.daemon_owns_execution);
     let receipt = json!({
         "schemaVersion": "epiphany.repo_deployment_config_audit.v0",
         "auditId": "repo-deployment-config-audit",
@@ -12439,11 +12532,15 @@ fn run_deployment_execution_runbook(args: DeploymentExecutionRunbookArgs) -> Res
     } else {
         String::new()
     };
-    let watched_ref = deployment_config_string_value(&config_text, "watched_ref")
-        .unwrap_or_else(|| "refs/heads/main".to_string());
-    let deployment_script_ref =
-        deployment_config_string_value(&config_text, "deployment_script_ref")
-            .unwrap_or_else(|| "deploy/idunn-deploy.ps1".to_string());
+    let parsed_config = parse_repo_deployment_config(&config_text).ok();
+    let watched_ref = parsed_config
+        .as_ref()
+        .map(|config| config.deployment.watched_ref.clone())
+        .unwrap_or_else(|| "missing".to_string());
+    let deployment_script_ref = parsed_config
+        .as_ref()
+        .map(|config| config.deployment.deployment_script_ref.clone())
+        .unwrap_or_else(|| "missing".to_string());
     let current_branch = git_output(&workspace, &["rev-parse", "--abbrev-ref", "HEAD"])?;
     let current_commit = git_output(&workspace, &["rev-parse", "HEAD"])?;
     let generated_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
@@ -15310,6 +15407,79 @@ mod authority_tests {
     use epiphany_core::RepoWorkModelingFinding;
     use epiphany_core::put_repo_work_modeling_finding;
 
+    fn deployment_config_fixture() -> String {
+        r#"
+schema_version = "epiphany.repo_deployment_config.v0"
+safe_action_family = "repo.deployment_config"
+private_state_exposed = false
+
+[deployment]
+enabled = false
+owner = "Idunn"
+trigger = "git-push-observed-by-idunn"
+watched_ref = "refs/heads/main"
+deployment_script_ref = "deploy/idunn-deploy.ps1"
+deployment_script_hash_required = true
+deployment_script_review_required = true
+host_access_policy_ref_required = true
+secret_values_embedded = false
+rollback_plan_ref_required = true
+aftercare_checks_required = true
+idunn_receipt_required = true
+aftercare_audit_required = true
+
+[cultmesh]
+local_verse = "gamecult-local"
+capability_family = "gamecult.idunn.deployment"
+intent_contract = "gamecult.idunn.deployment_intent.v0"
+receipt_contract = "gamecult.idunn.deployment_receipt.v0"
+aftercare_contract = "gamecult.idunn.deployment_aftercare_audit.v0"
+daemon_owns_execution = true
+
+[required_receipts]
+mind_adoption = "epiphany.repo_work_mind_adoption_decision.v0"
+soul_review = "epiphany.repo_work_closure_review.v0"
+maintainer_review = "gamecult.maintainer.review_receipt.v0"
+secret_policy = "epiphany.repo_secret_policy_request.v0"
+idunn_deployment = "gamecult.idunn.deployment_receipt.v0"
+aftercare_audit = "gamecult.idunn.deployment_aftercare_audit.v0"
+
+[authority]
+configuration_only = true
+direct_deployment_authority = false
+direct_ssh_authority = false
+direct_git_push_authority = false
+direct_service_lifecycle_authority = false
+direct_hands_authority = false
+publication_authorized = false
+merge_authorized = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+idunn_deployment_authority_required = true
+"#
+        .to_string()
+    }
+
+    #[test]
+    fn deployment_config_uses_typed_toml_not_comment_resemblance() {
+        let valid = parse_repo_deployment_config(&deployment_config_fixture()).unwrap();
+        assert_eq!(valid.deployment.watched_ref, "refs/heads/main");
+        assert!(!valid.authority.direct_git_push_authority);
+
+        let counterfeit = deployment_config_fixture().replace(
+            "direct_git_push_authority = false",
+            "# direct_git_push_authority = false\ndirect_git_push_authority = true",
+        );
+        let parsed = parse_repo_deployment_config(&counterfeit).unwrap();
+        assert!(parsed.authority.direct_git_push_authority);
+
+        let missing_typed_field = deployment_config_fixture().replace(
+            "watched_ref = \"refs/heads/main\"\n",
+            "# watched_ref = \"refs/heads/main\"\n",
+        );
+        assert!(parse_repo_deployment_config(&missing_typed_field).is_err());
+    }
+
     #[test]
     fn queue_selection_rows_preserve_typed_scheduler_state() {
         let overview = EpiphanyCultMeshRepoWorkOverviewEntry {
@@ -16075,18 +16245,6 @@ fn compact_text(text: &str, limit: usize) -> String {
         .collect::<String>();
     truncated.push_str("...");
     truncated
-}
-
-fn deployment_config_string_value(text: &str, key: &str) -> Option<String> {
-    let prefix = format!("{key} = ");
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if let Some(value) = trimmed.strip_prefix(&prefix) {
-            let value = value.strip_prefix('"')?.strip_suffix('"')?;
-            return Some(value.to_string());
-        }
-    }
-    None
 }
 
 fn read_json(path: &Path) -> Result<Value> {

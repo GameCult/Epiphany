@@ -180,6 +180,9 @@ The confirmed conceptual substitutions have been cut:
   or hostile strings cannot steer gate, blocker, item, branch, or next move.
 - Receipt-directory runbook selection uses typed `service_id` only. It no
   longer recovers service ownership by splitting human route prose at `::`.
+- Deployment operational audit and runbook read one typed TOML model. Substring
+  presence, comments, wrong sections, and silent watched-ref/script defaults no
+  longer substitute for valid deployment configuration.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
