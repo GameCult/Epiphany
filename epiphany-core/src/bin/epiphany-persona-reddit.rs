@@ -443,7 +443,92 @@ fn post_bifrost_reddit_thread(
         ));
     }
     let stdout = String::from_utf8(output.stdout).context("Bifrost bridge stdout was not UTF-8")?;
-    serde_json::from_str(strip_bom(&stdout)).context("Bifrost bridge stdout was not JSON")
+    let receipt: Value =
+        serde_json::from_str(strip_bom(&stdout)).context("Bifrost bridge stdout was not JSON")?;
+    validate_reddit_publication_receipt(
+        &receipt,
+        config,
+        bifrost_identity,
+        heimdall_capability_ref,
+        subreddit,
+        audit,
+    )?;
+    Ok(receipt)
+}
+
+fn validate_reddit_publication_receipt(
+    receipt: &Value,
+    config: &PersonaRedditConfig,
+    bifrost_identity: &str,
+    heimdall_capability_ref: &str,
+    subreddit: &str,
+    audit: &PersonaSpeechAudit,
+) -> Result<()> {
+    let expected_source_kind = config
+        .bifrost_source_kind
+        .as_deref()
+        .unwrap_or("epiphany_persona_reddit");
+    let expected_authority = config
+        .bifrost_authority_ref
+        .as_deref()
+        .unwrap_or("epiphany.persona_speech_audit");
+    let checks = [
+        (receipt["action"].as_str() == Some("reddit-post"), "action"),
+        (receipt["ok"].as_bool() == Some(true), "successful outcome"),
+        (
+            receipt["subreddit"].as_str() == Some(subreddit),
+            "subreddit binding",
+        ),
+        (
+            non_empty(&receipt["thingId"]) || non_empty(&receipt["url"]),
+            "provider thing id or receipt URL",
+        ),
+        (
+            non_empty(&receipt["crossingReceiptId"]),
+            "canonical crossing receipt id",
+        ),
+        (
+            receipt["provenance"]["bifrostIdentity"].as_str() == Some(bifrost_identity),
+            "Bifrost identity",
+        ),
+        (
+            receipt["provenance"]["sourceKind"].as_str() == Some(expected_source_kind),
+            "source kind",
+        ),
+        (
+            receipt["provenance"]["sourceId"].as_str() == Some(audit.audit_id.as_str()),
+            "speech audit binding",
+        ),
+        (
+            receipt["provenance"]["authorityReference"].as_str() == Some(expected_authority),
+            "authority reference",
+        ),
+        (
+            receipt["provenance"]["epiphanyLaneId"].as_str() == Some("Persona"),
+            "lane identity",
+        ),
+        (
+            receipt["provenance"]["epiphanyAgentIdentity"].as_str() == Some("epiphany.Persona"),
+            "agent identity",
+        ),
+        (
+            receipt["provenance"]["heimdallCapabilityRef"].as_str()
+                == Some(heimdall_capability_ref),
+            "Heimdall capability",
+        ),
+    ];
+    for (valid, label) in checks {
+        if !valid {
+            return Err(anyhow!(
+                "Bifrost Reddit publication receipt missing or mismatched {label}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn non_empty(value: &Value) -> bool {
+    value.as_str().is_some_and(|value| !value.trim().is_empty())
 }
 
 fn audit_persona_speech(
@@ -574,6 +659,7 @@ console.log(JSON.stringify({
   personaFlairText: opt("--persona-flair-text"),
   thingId: "t3_epiphanysmoke",
   url: `https://reddit.com/r/${opt("--subreddit")}/comments/t3_epiphanysmoke/epiphany_smoke/`,
+  crossingReceiptId: "crossing_smoke-reddit-post",
   provenance: {
     bifrostIdentity: opt("--identity"),
     sourceKind: opt("--source-kind"),
@@ -598,6 +684,12 @@ console.log(JSON.stringify({
         bifrost_source_kind: Some("epiphany_persona_reddit".to_string()),
         bifrost_authority_ref: Some("epiphany.persona_speech_audit".to_string()),
         heimdall_capability_ref_env: Some("HEIMDALL_CAPABILITY_REF_TEST".to_string()),
+    };
+    let invalid_bridge = temp_dir.join("invalid-bifrost-bridge.mjs");
+    fs::write(&invalid_bridge, "console.log('{}');\n")?;
+    let invalid_receipt_config = PersonaRedditConfig {
+        bifrost_bridge_cli_path: Some(invalid_bridge),
+        ..config.clone()
     };
     let no_bridge_config = PersonaRedditConfig {
         bifrost_bridge_cli_path: None,
@@ -683,6 +775,19 @@ console.log(JSON.stringify({
         None,
         None,
     )?;
+    let invalid_receipt_rejected = run_post(
+        "Epiphany rejects empty bridge JSON",
+        "Persona must not call arbitrary JSON a Reddit publication receipt.",
+        &invalid_receipt_config,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        None,
+        None,
+        None,
+        None,
+    )
+    .is_err();
     let seed = audit_persona_speech(
         "Repeated Reddit rite",
         "Modeling and Soul keep circling the same public proof seam.",
@@ -702,6 +807,10 @@ console.log(JSON.stringify({
         Some(&seed),
         None,
     )?;
+    let verified_post_count = recent_persona_speech(&temp_dir, 12)
+        .iter()
+        .filter(|speech| speech.posted)
+        .count();
     write_post_artifact(
         "Repeated Reddit rite",
         "Modeling and Soul keep circling the same public proof seam.",
@@ -735,6 +844,8 @@ console.log(JSON.stringify({
         && wrong_surface_capability["ok"] == false
         && wrong_surface_capability["blocked"] == "wrong-heimdall-capability-surface"
         && bridged["ok"] == true
+        && invalid_receipt_rejected
+        && verified_post_count == 1
         && bridged["transport"] == "bifrost.reddit-post"
         && bridged["bifrostBridgeReceipt"]["provenance"]["bifrostIdentity"] == "epiphany.Persona"
         && bridged["bifrostBridgeReceipt"]["provenance"]["heimdallCapabilityRef"]
@@ -753,6 +864,8 @@ console.log(JSON.stringify({
         "missingCapability": missing_capability,
         "wrongSurfaceCapability": wrong_surface_capability,
         "bridged": bridged,
+        "invalidReceiptRejected": invalid_receipt_rejected,
+        "verifiedPostCount": verified_post_count,
         "repeatedSpeech": repeated,
         "latestCultMeshSpeechAudit": latest_cultmesh_audit,
     });
@@ -854,10 +967,26 @@ fn recent_persona_speech(artifact_dir: &Path, limit: usize) -> Vec<RecentPersona
                 opening_key: opening_key(&title),
                 topic_key: topic_key(&format!("{title}\n\n{content}")),
                 subreddit: payload["subreddit"].as_str().map(str::to_string),
-                posted: payload["status"].as_str() == Some("posted"),
+                posted: payload["status"].as_str() == Some("posted")
+                    && has_bound_reddit_publication(&payload),
             })
         })
         .collect()
+}
+
+fn has_bound_reddit_publication(payload: &Value) -> bool {
+    let receipt = &payload["bifrostBridgeReceipt"];
+    let subreddit = payload["subreddit"].as_str().unwrap_or_default();
+    let audit_id = payload["speechAudit"]["auditId"]
+        .as_str()
+        .or_else(|| payload["speechAudit"]["audit_id"].as_str())
+        .unwrap_or_default();
+    receipt["action"] == "reddit-post"
+        && receipt["ok"] == true
+        && receipt["subreddit"].as_str() == Some(subreddit)
+        && (non_empty(&receipt["thingId"]) || non_empty(&receipt["url"]))
+        && non_empty(&receipt["crossingReceiptId"])
+        && receipt["provenance"]["sourceId"].as_str() == Some(audit_id)
 }
 
 fn ensure_post(title: &str, content: &str) -> Result<()> {

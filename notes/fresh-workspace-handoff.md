@@ -604,5 +604,19 @@ repo-intake consensus status argument and demoted aggregate Persona status from
 `ready` to `loaded`. Persona prompts now explicitly separate candidate, bubble,
 eligibility, Mind admission, and Bifrost/provider delivery ownership. Native
 negative/smoke checks, 259 library tests, 32 work tests, and all-bin compilation
-pass. Next repair Modeling's forced-patch prompt pressure and the P0 Discord/
-Reddit arbitrary-JSON publication receipts found by Eyes and Soul.
+pass. Operator correction: Modeling's mandatory typed patch is intentional
+because the live searchable body map is its product; confirmation passes must
+bank freshness and source-grounded map confidence. Improve the patch vocabulary,
+do not add a no-state-change escape. Continue the P0 Discord/Reddit arbitrary-
+JSON publication receipt cut found by Eyes and Soul.
+
+That P0 cut is complete. Epiphany now validates Bifrost's real Discord/Reddit
+publication output: exact action/outcome, target, provider id or URL, canonical
+crossing receipt id, and returned provenance bound to the speech audit and
+authority inputs. Discord fallback IDs are deleted. Native hostile smokes prove
+exit-zero `{}` cannot publish. Posted artifacts count as history only when their
+embedded receipt binds back to the artifact target and audit; forged
+`status=posted` files do not count. The remaining Bifrost seam is command
+cardinality: Epiphany inherits a CultMesh command id, so the coordinator must
+ensure one typed command id per crossing rather than letting multiple posts share
+one canonical `crossing_<command>` receipt.

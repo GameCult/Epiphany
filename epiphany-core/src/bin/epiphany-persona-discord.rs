@@ -358,6 +358,7 @@ fn run_post(
         ),
         Some(&audit),
     )?;
+    bind_publication_receipt(&path, &posted.bridge_receipt)?;
     Ok(serde_json::json!({
         "ok": true,
         "posted": true,
@@ -647,10 +648,17 @@ fn post_bifrost_discord_message(
     let stdout = String::from_utf8(output.stdout).context("Bifrost bridge stdout was not UTF-8")?;
     let receipt: Value =
         serde_json::from_str(strip_bom(&stdout)).context("Bifrost bridge stdout was not JSON")?;
+    validate_discord_publication_receipt(
+        &receipt,
+        config,
+        bifrost_identity,
+        heimdall_capability_ref,
+        channel_id,
+        audit,
+    )?;
     let message_id = receipt["messageId"]
         .as_str()
-        .or_else(|| receipt["externalReceiptId"].as_str())
-        .unwrap_or("bifrost-discord-post")
+        .expect("validated Discord receipt has messageId")
         .to_string();
     Ok(PostedDiscordMessage {
         message_id,
@@ -659,6 +667,87 @@ fn post_bifrost_discord_message(
         external_receipt_id: receipt["externalReceiptId"].as_str().map(str::to_string),
         bridge_receipt: receipt,
     })
+}
+
+fn validate_discord_publication_receipt(
+    receipt: &Value,
+    config: &PersonaConfig,
+    bifrost_identity: &str,
+    heimdall_capability_ref: &str,
+    channel_id: &str,
+    audit: &PersonaSpeechAudit,
+) -> Result<()> {
+    let expected_source_kind = config
+        .bifrost_source_kind
+        .as_deref()
+        .unwrap_or("epiphany_persona_speech");
+    let expected_authority = config
+        .bifrost_authority_ref
+        .as_deref()
+        .unwrap_or("epiphany.persona_speech_audit");
+    let checks = [
+        (receipt["action"].as_str() == Some("discord-post"), "action"),
+        (receipt["ok"].as_bool() == Some(true), "successful outcome"),
+        (
+            receipt["channelId"].as_str() == Some(channel_id),
+            "channel binding",
+        ),
+        (non_empty(&receipt["messageId"]), "provider message id"),
+        (non_empty(&receipt["transport"]), "provider transport"),
+        (non_empty(&receipt["url"]), "receipt URL"),
+        (
+            non_empty(&receipt["crossingReceiptId"]),
+            "canonical crossing receipt id",
+        ),
+        (
+            receipt["provenance"]["bifrostIdentity"].as_str() == Some(bifrost_identity),
+            "Bifrost identity",
+        ),
+        (
+            receipt["provenance"]["sourceKind"].as_str() == Some(expected_source_kind),
+            "source kind",
+        ),
+        (
+            receipt["provenance"]["sourceId"].as_str() == Some(audit.audit_id.as_str()),
+            "speech audit binding",
+        ),
+        (
+            receipt["provenance"]["authorityReference"].as_str() == Some(expected_authority),
+            "authority reference",
+        ),
+        (
+            receipt["provenance"]["epiphanyLaneId"].as_str() == Some("Persona"),
+            "lane identity",
+        ),
+        (
+            receipt["provenance"]["epiphanyAgentIdentity"].as_str() == Some("epiphany.Persona"),
+            "agent identity",
+        ),
+        (
+            receipt["provenance"]["heimdallCapabilityRef"].as_str()
+                == Some(heimdall_capability_ref),
+            "Heimdall capability",
+        ),
+    ];
+    for (valid, label) in checks {
+        if !valid {
+            return Err(anyhow!(
+                "Bifrost Discord publication receipt missing or mismatched {label}"
+            ));
+        }
+    }
+    let message_id = receipt["messageId"].as_str().expect("validated message id");
+    let url = receipt["url"].as_str().expect("validated receipt URL");
+    if !url.contains(&format!("/{channel_id}/{message_id}")) {
+        return Err(anyhow!(
+            "Bifrost Discord publication receipt URL is not bound to channel and message"
+        ));
+    }
+    Ok(())
+}
+
+fn non_empty(value: &Value) -> bool {
+    value.as_str().is_some_and(|value| !value.trim().is_empty())
 }
 
 fn bifrost_node_executable() -> String {
@@ -696,8 +785,12 @@ function opt(name) {
 }
 console.log(JSON.stringify({
   action: args[0],
+  ok: true,
+  channelId: opt("--channel-id"),
   messageId: "bridge-message-123",
   externalReceiptId: "bridge-message-123",
+  transport: "discord-webhook",
+  crossingReceiptId: "crossing_smoke-discord-post",
   url: `https://discord.com/channels/test/${opt("--channel-id")}/bridge-message-123`,
   provenance: {
     bifrostIdentity: opt("--identity"),
@@ -715,6 +808,10 @@ console.log(JSON.stringify({
     .with_context(|| format!("failed to write {}", fake_bridge.display()))?;
     let mut bridge_config = config.clone();
     bridge_config.bifrost_bridge_cli_path = Some(fake_bridge);
+    let invalid_bridge = temp_dir.join("invalid-bifrost-bridge.mjs");
+    fs::write(&invalid_bridge, "console.log('{}');\n")?;
+    let mut invalid_receipt_config = bridge_config.clone();
+    invalid_receipt_config.bifrost_bridge_cli_path = Some(invalid_bridge);
     let mut missing_capability_config = bridge_config.clone();
     missing_capability_config.heimdall_capability_ref_env =
         Some("HEIMDALL_CAPABILITY_REF_MISSING_FOR_SMOKE".to_string());
@@ -809,6 +906,18 @@ console.log(JSON.stringify({
         Some("https://example.invalid/Persona.png".to_string()),
         None,
     )?;
+    let invalid_receipt_rejected = run_post(
+        "Persona must reject empty successful bridge JSON.",
+        &invalid_receipt_config,
+        &temp_dir,
+        &cultmesh_store,
+        runtime_id,
+        Some("123".to_string()),
+        None,
+        None,
+        None,
+    )
+    .is_err();
     let wrong = run_post(
         "Persona should not post outside #aquarium.",
         &bridge_config,
@@ -837,6 +946,10 @@ console.log(JSON.stringify({
         "seed prior posted Persona output for speech-audit smoke",
         Some(&repeated_audit_seed),
     )?;
+    let verified_post_count = recent_persona_speech(&temp_dir, 12)
+        .iter()
+        .filter(|speech| speech.action_kind == PersonaSpeechActionKind::Post)
+        .count();
     write_draft(
         "Rite noted: Modeling and Soul keep circling the same evidence seam.",
         &config,
@@ -872,6 +985,8 @@ console.log(JSON.stringify({
         && wrong_surface_capability["ok"] == false
         && wrong_surface_capability["blocked"] == "wrong-heimdall-capability-surface"
         && bridged["ok"] == true
+        && invalid_receipt_rejected
+        && verified_post_count == 1
         && bridged["transport"] == "bifrost.discord-post"
         && bridged["bifrostBridgeReceipt"]["provenance"]["bifrostIdentity"] == "epiphany.Persona"
         && bridged["bifrostBridgeReceipt"]["provenance"]["heimdallCapabilityRef"]
@@ -899,6 +1014,8 @@ console.log(JSON.stringify({
         "missingCapability": missing_capability,
         "wrongSurfaceCapability": wrong_surface_capability,
         "bridged": bridged,
+        "invalidReceiptRejected": invalid_receipt_rejected,
+        "verifiedPostCount": verified_post_count,
         "wrongChannel": wrong,
         "repeatedSpeech": repeated,
         "latestCultMeshSpeechAudit": latest_cultmesh_audit,
@@ -930,6 +1047,27 @@ fn write_draft(
     let path = artifact_dir.join(format!("Persona-chat-{}-{}.json", now_stamp(), short_id()));
     write_json(&path, &payload)?;
     Ok(path)
+}
+
+fn bind_publication_receipt(path: &Path, receipt: &Value) -> Result<()> {
+    let mut payload: Value = serde_json::from_str(&fs::read_to_string(path)?)?;
+    payload["bifrostBridgeReceipt"] = receipt.clone();
+    write_json(path, &payload)
+}
+
+fn has_bound_discord_publication(payload: &Value) -> bool {
+    let receipt = &payload["bifrostBridgeReceipt"];
+    let channel_id = payload["allowed_channel_id"].as_str().unwrap_or_default();
+    let audit_id = payload["speechAudit"]["auditId"]
+        .as_str()
+        .or_else(|| payload["speechAudit"]["audit_id"].as_str())
+        .unwrap_or_default();
+    receipt["action"] == "discord-post"
+        && receipt["ok"] == true
+        && receipt["channelId"].as_str() == Some(channel_id)
+        && non_empty(&receipt["messageId"])
+        && non_empty(&receipt["crossingReceiptId"])
+        && receipt["provenance"]["sourceId"].as_str() == Some(audit_id)
 }
 
 fn bubble_payload(content: &str, source: &str, mood: &str) -> Value {
@@ -1019,7 +1157,7 @@ fn recent_persona_speech(artifact_dir: &Path, limit: usize) -> Vec<RecentPersona
             let status = payload["status"].as_str().unwrap_or_default();
             let action_kind = if payload["schema_version"] == BUBBLE_SCHEMA_VERSION {
                 PersonaSpeechActionKind::Bubble
-            } else if status == "posted" {
+            } else if status == "posted" && has_bound_discord_publication(&payload) {
                 PersonaSpeechActionKind::Post
             } else {
                 PersonaSpeechActionKind::Draft

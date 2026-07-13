@@ -1549,7 +1549,27 @@ artifact reads. The stale caller is deleted and aggregate Persona state is
 candidate speech, local bubble, eligibility, Mind admission, and Bifrost/provider
 delivery are distinct consequences.
 
-Prompt signal: Modeling currently requires a durable `statePatch` even when no
-model change is warranted. That can manufacture persistence merely to satisfy
-the output contract. The next prompt-contract pass should add a source-grounded
-`no-state-change` result rather than encouraging ceremonial scratch churn.
+Prompt signal, corrected after operator review: Modeling must always maintain
+the live persistent body map. A source pass that confirms existing anatomy
+still owes a typed freshness/checkpoint witness so Hands can trust the map
+instead of rediscovering the repo. The prompt improvement is not a
+`no-state-change` escape hatch; it is sharper language requiring every patch to
+name changed, confirmed, or invalidated anatomy plus freshness/frontier and
+semantic-index consequences, so mandatory persistence cannot decay into
+ceremonial scratch churn.
+
+## Successful bridge process is not publication
+
+Eyes inspected Bifrost's actual bridge contract. Discord and Reddit stdout must
+carry exact action, `ok=true`, destination binding, provider identity/URL,
+canonical crossing receipt id, and provenance bound to the Persona speech audit,
+lane, agent, authority, Bifrost identity, and Heimdall capability. Epiphany had
+accepted exit zero plus arbitrary JSON; Discord even invented a fallback message
+id. Both mouths now validate the existing Bifrost contract before writing
+`posted`. Hostile exit-zero `{}` bridges are rejected by native smokes.
+
+Publication history no longer trusts local artifact `status=posted`. Discord
+binds the validated receipt into its artifact; both history readers require a
+receipt whose action, target, provider evidence, crossing id, and audit source id
+match the artifact. Forged status-only artifacts remain readable local files but
+cannot increase verified post counts or steer same-target publication pressure.
