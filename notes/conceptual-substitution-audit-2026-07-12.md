@@ -1258,6 +1258,20 @@ contains zero `content.contains` calls.
 The closure conceptual-substitution pass is complete: zero substring authority
 remains in closure.
 
+## Maintainer review as Idunn deployment ownership
+
+The wider production scan found `repo.deployment_request` naming
+`Idunn/Maintainer` as one requested owner. Review consent and deployment
+execution are different authorities. The typed request now gives Self routing,
+names Maintainer/Soul/Mind/Bifrost as independent reviewers, and gives Idunn
+alone execution ownership. Idunn deployment and aftercare receipts remain the
+only outcome evidence.
+
+An initial generic struct patch struck secret-policy fields instead of the
+deployment body. Compilation caught the mismatch before semantic tests ran;
+secret policy was restored and the exact deployment struct changed. This is
+further evidence that broad textual surgery needs owner-specific contexts.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

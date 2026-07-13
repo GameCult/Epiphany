@@ -225,12 +225,16 @@ fn run_smoke(args: Args) -> Result<Value> {
         "safe_action_family = \"repo.deployment_request\"",
     )?;
     require_text(&request_text, "status = \"awaiting-idunn-review\"")?;
-    require_text(&request_text, "requested_owner = \"Idunn/Maintainer\"")?;
+    require_text(&request_text, "routing_owner = \"Self\"")?;
+    require_text(
+        &request_text,
+        "required_reviewers = [\"Maintainer\", \"Soul\", \"Mind\", \"Bifrost\"]",
+    )?;
+    require_text(&request_text, "execution_owner = \"Idunn\"")?;
     require_text(
         &request_text,
         "deployment_trigger = \"git-push-observed-by-idunn\"",
     )?;
-    require_text(&request_text, "deployment_owner = \"Idunn\"")?;
     require_text(&request_text, "requires_idunn_receipt = true")?;
     require_text(&request_text, "requires_aftercare_audit = true")?;
     require_text(&request_text, "secret_policy_review_required = true")?;

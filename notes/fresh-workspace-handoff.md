@@ -418,6 +418,13 @@ closure proof; summaries, headings, markers, and checkboxes no longer
 impersonate Soul authority. A whole-function regression test proves zero
 `content.contains` calls remain in closure.
 
+The beyond-closure scan has started. Deployment request no longer has an
+`Idunn/Maintainer` composite owner: Self routes, Maintainer/Soul/Mind/Bifrost
+review independently, and Idunn alone executes and authors deployment/aftercare
+outcomes. A generic patch briefly struck secret-policy fields; compilation
+caught it before tests, the fields were restored, and exact deployment tests
+plus the full baseline pass.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment

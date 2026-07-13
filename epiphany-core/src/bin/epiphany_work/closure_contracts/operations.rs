@@ -422,10 +422,11 @@ pub(super) struct RepoDeploymentRequest {
 #[derive(Debug, Deserialize)]
 pub(super) struct RepoDeploymentRequestBody {
     pub(super) status: String,
-    pub(super) requested_owner: String,
+    pub(super) routing_owner: String,
+    pub(super) required_reviewers: Vec<String>,
+    pub(super) execution_owner: String,
     pub(super) requested_effect: String,
     pub(super) deployment_trigger: String,
-    pub(super) deployment_owner: String,
     pub(super) requires_explicit_deployment_policy: bool,
     pub(super) requires_idunn_receipt: bool,
     pub(super) requires_aftercare_audit: bool,
@@ -488,10 +489,11 @@ impl RepoDeploymentRequest {
     pub(super) fn awaits_idunn_review(&self) -> bool {
         let value = &self.request;
         value.status == "awaiting-idunn-review"
-            && value.requested_owner == "Idunn/Maintainer"
+            && value.routing_owner == "Self"
+            && value.required_reviewers == ["Maintainer", "Soul", "Mind", "Bifrost"]
+            && value.execution_owner == "Idunn"
             && value.requested_effect == "review-repo-deployment-trigger-and-script"
             && value.deployment_trigger == "git-push-observed-by-idunn"
-            && value.deployment_owner == "Idunn"
             && value.requires_explicit_deployment_policy
             && value.requires_idunn_receipt
             && value.requires_aftercare_audit

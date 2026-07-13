@@ -5522,10 +5522,11 @@ fn derive_repo_deployment_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         "status = \"awaiting-idunn-review\"".to_string(),
-        "requested_owner = \"Idunn/Maintainer\"".to_string(),
+        "routing_owner = \"Self\"".to_string(),
+        "required_reviewers = [\"Maintainer\", \"Soul\", \"Mind\", \"Bifrost\"]".to_string(),
+        "execution_owner = \"Idunn\"".to_string(),
         "requested_effect = \"review-repo-deployment-trigger-and-script\"".to_string(),
         "deployment_trigger = \"git-push-observed-by-idunn\"".to_string(),
-        "deployment_owner = \"Idunn\"".to_string(),
         "deployment_surface = \"reviewed repo deployment script or runbook\"".to_string(),
         "requires_explicit_deployment_policy = true".to_string(),
         "requires_idunn_receipt = true".to_string(),
@@ -13671,10 +13672,11 @@ summary = "test summary"
 private_state_exposed = false
 [request]
 status = "awaiting-idunn-review"
-requested_owner = "Idunn/Maintainer"
+routing_owner = "Self"
+required_reviewers = ["Maintainer", "Soul", "Mind", "Bifrost"]
+execution_owner = "Idunn"
 requested_effect = "review-repo-deployment-trigger-and-script"
 deployment_trigger = "git-push-observed-by-idunn"
-deployment_owner = "Idunn"
 requires_explicit_deployment_policy = true
 requires_idunn_receipt = true
 requires_aftercare_audit = true
