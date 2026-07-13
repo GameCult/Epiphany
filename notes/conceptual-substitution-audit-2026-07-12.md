@@ -706,6 +706,15 @@ overview identity and branch. Swarm classification reads only typed fields;
 the compact-row parser and every prose fallback are deleted. A hostile legacy
 string containing `gate=published` and `item=counterfeit` is inert.
 
+## Route prose substituted for service identity
+
+Receipt-directory runbook projection already carries a typed `service_id`, but
+when that field was absent it split the human route label at `::` and promoted
+the prefix into service identity for audit/report selection. The presentation
+route could therefore repair or counterfeit missing ownership. Service lookup
+now accepts only the typed field; rows without it cannot produce a runbook
+action. A route such as `counterfeit::route` remains prose and nothing more.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

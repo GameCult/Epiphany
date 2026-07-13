@@ -5726,11 +5726,7 @@ fn service_execution_runbook_actions(
                         WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND.to_string(),
                 })
             } else {
-                let service_id = if row.service_id == "none" {
-                    receipt_directory_row_service_id(row)?
-                } else {
-                    row.service_id.clone()
-                };
+                let service_id = receipt_directory_row_service_id(row)?;
                 let (_, report) = single_service_reports
                     .iter()
                     .find(|(candidate_id, _)| candidate_id == &service_id)?;
@@ -7326,13 +7322,7 @@ fn receipt_directory_attention_route_row(row: &ReceiptDirectoryRow) -> String {
 }
 
 fn receipt_directory_row_service_id(row: &ReceiptDirectoryRow) -> Option<String> {
-    if row.service_id != "none" && !row.service_id.is_empty() {
-        return Some(row.service_id.clone());
-    }
-    row.route
-        .split_once("::")
-        .map(|(service_id, _)| service_id.to_string())
-        .filter(|service_id| !service_id.is_empty())
+    (row.service_id != "none" && !row.service_id.is_empty()).then(|| row.service_id.clone())
 }
 
 fn receipt_directory_daemon_poke_status(
@@ -9450,6 +9440,36 @@ fn required_list(values: &Option<Vec<String>>, message: &str) -> Result<Vec<Stri
 #[cfg(test)]
 mod lifecycle_projection_tests {
     use super::*;
+
+    fn directory_row(service_id: &str, route: &str) -> ReceiptDirectoryRow {
+        ReceiptDirectoryRow {
+            family: "service-execution-runbook".to_string(),
+            owner: "Idunn".to_string(),
+            document_kind: "test".to_string(),
+            latest_id: "receipt-1".to_string(),
+            status: "written".to_string(),
+            route: route.to_string(),
+            service_id: service_id.to_string(),
+            service_route: "none".to_string(),
+            follow_up_command: "test".to_string(),
+            artifact_ref: "artifact://1".to_string(),
+            artifact_status: "external-ref".to_string(),
+            artifact_sha256: "none".to_string(),
+            present: true,
+            private_state_exposed: false,
+        }
+    }
+
+    #[test]
+    fn receipt_directory_never_recovers_service_identity_from_route_prose() {
+        let typed = directory_row("service-1", "counterfeit::route");
+        assert_eq!(
+            receipt_directory_row_service_id(&typed).as_deref(),
+            Some("service-1")
+        );
+        let missing = directory_row("none", "counterfeit::route");
+        assert_eq!(receipt_directory_row_service_id(&missing), None);
+    }
 
     fn bifrost_intent(id: &str) -> EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry {
         EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry {

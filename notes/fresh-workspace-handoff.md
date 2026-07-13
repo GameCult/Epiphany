@@ -178,6 +178,8 @@ The confirmed conceptual substitutions have been cut:
 - Repo-work queue receipts carry typed queue/selected row objects. Swarm stop
   classification no longer reparses `QUEUE-RUN | key=value` TUI prose; legacy
   or hostile strings cannot steer gate, blocker, item, branch, or next move.
+- Receipt-directory runbook selection uses typed `service_id` only. It no
+  longer recovers service ownership by splitting human route prose at `::`.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
