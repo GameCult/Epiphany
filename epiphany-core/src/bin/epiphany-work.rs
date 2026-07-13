@@ -28,13 +28,16 @@ use epiphany_core::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
 use epiphany_core::MindGatewayDecision;
 use epiphany_core::MindGatewayReview;
 use epiphany_core::PersonaMemoryCacheConfig;
+use epiphany_core::REPO_WORK_HANDS_GRANT_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MAP_ENTRY_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_OUTPUT_CONTRACT_ID;
 use epiphany_core::REPO_WORK_MODELING_REQUEST_SCHEMA_VERSION;
 use epiphany_core::REPO_WORK_MODELING_ROUTE_SCHEMA_VERSION;
+use epiphany_core::RepoWorkHandsGrant;
 use epiphany_core::RepoWorkMapEntry;
 use epiphany_core::RepoWorkModelingRequest;
 use epiphany_core::RepoWorkModelingRoute;
+use epiphany_core::RepoWorkPlanAdoptionDecision;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION;
@@ -45,6 +48,7 @@ use epiphany_core::advance_repo_work_modeling_route;
 use epiphany_core::build_weksa_interlingua_packet;
 use epiphany_core::build_weksa_target_lowering_request;
 use epiphany_core::commit_initial_repo_work_modeling_route;
+use epiphany_core::commit_repo_work_hands_grant;
 use epiphany_core::commit_repo_work_map_admission;
 use epiphany_core::default_launch_organ_contract;
 use epiphany_core::hands_action_review_for_intent;
@@ -77,11 +81,14 @@ use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
 use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_repo_work_hands_grant;
 use epiphany_core::runtime_repo_work_map_entry;
 use epiphany_core::runtime_repo_work_modeling_finding;
 use epiphany_core::runtime_repo_work_modeling_request;
 use epiphany_core::runtime_repo_work_modeling_route;
+use epiphany_core::runtime_repo_work_plan_adoption_review;
 use epiphany_core::substrate_gate_repo_work_planning_grant;
+use epiphany_core::validate_hands_action_authority;
 use epiphany_core::write_epiphany_cultmesh_repo_work_map_entry;
 use epiphany_core::write_epiphany_cultmesh_repo_work_overview;
 use epiphany_core::write_epiphany_cultmesh_repo_work_public_proof;
@@ -249,15 +256,12 @@ struct PlanReceiptInputs {
 #[derive(Clone, Debug)]
 struct AdoptArgs {
     workspace: PathBuf,
-    epiphany_root: PathBuf,
     item: Option<String>,
     run_receipt: Option<PathBuf>,
     plan_receipt: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     artifact_dir: Option<PathBuf>,
-    plan_summary: Option<String>,
-    adoption_evidence_refs: Vec<String>,
-    mind_adoption_rationale: Option<String>,
+    mind_review_id: String,
 }
 
 #[derive(Clone, Debug)]
@@ -723,21 +727,17 @@ fn parse_derive_plan_args(args: impl Iterator<Item = String>) -> Result<DerivePl
 
 fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
     let mut workspace = None;
-    let mut epiphany_root = None;
     let mut item = None;
     let mut run_receipt = None;
     let mut plan_receipt = None;
     let mut runtime_store = None;
     let mut artifact_dir = None;
-    let mut plan_summary = None;
-    let mut adoption_evidence_refs = Vec::new();
-    let mut mind_adoption_rationale = None;
+    let mut mind_review_id = None;
 
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
-            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
             "--item" => item = Some(take_string(&mut args, "--item")?),
             "--run-receipt" => run_receipt = Some(take_path(&mut args, "--run-receipt")?),
             "--from-plan" | "--plan-receipt" => {
@@ -745,34 +745,20 @@ fn parse_adopt_args(args: impl Iterator<Item = String>) -> Result<AdoptArgs> {
             }
             "--runtime-store" => runtime_store = Some(take_path(&mut args, "--runtime-store")?),
             "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
-            "--plan-summary" => plan_summary = Some(take_string(&mut args, "--plan-summary")?),
-            "--adoption-evidence-ref" | "--evidence-ref" => {
-                adoption_evidence_refs.push(take_string(&mut args, "--adoption-evidence-ref")?);
-            }
-            "--mind-adoption-rationale" | "--adoption-rationale" => {
-                mind_adoption_rationale =
-                    Some(take_string(&mut args, "--mind-adoption-rationale")?);
+            "--mind-review-id" => {
+                mind_review_id = Some(take_string(&mut args, "--mind-review-id")?)
             }
             other => return Err(anyhow!("unexpected adopt argument {other:?}")),
         }
     }
-    if adoption_evidence_refs.is_empty() && plan_receipt.is_none() {
-        return Err(anyhow!(
-            "adopt requires at least one --adoption-evidence-ref or --from-plan proving Imagination/Self/Mind adoption"
-        ));
-    }
     Ok(AdoptArgs {
         workspace: workspace.context("missing --workspace")?,
-        epiphany_root: epiphany_root
-            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
         item,
         run_receipt,
         plan_receipt,
         runtime_store,
         artifact_dir,
-        plan_summary,
-        adoption_evidence_refs,
-        mind_adoption_rationale,
+        mind_review_id: mind_review_id.context("adopt requires --mind-review-id")?,
     })
 }
 
@@ -5146,7 +5132,7 @@ fn derive_repo_doctrine_update_request_plan(
         "[required_receipts]".to_string(),
         "imagination_plan = \"epiphany.repo_work_imagination_action_items_receipt.v0\""
             .to_string(),
-        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "mind_adoption = \"epiphany.repo_work_plan_adoption_review.v0\"".to_string(),
         "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
         "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
         "hands_commit = \"epiphany.hands.commit_receipt\"".to_string(),
@@ -5275,7 +5261,7 @@ fn derive_repo_secret_policy_request_plan(
         "[required_receipts]".to_string(),
         "source_grounding = \"epiphany.eyes.evidence_packet\"".to_string(),
         "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
-        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "mind_adoption = \"epiphany.repo_work_plan_adoption_review.v0\"".to_string(),
         "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
         "bifrost_publication_review = \"gamecult.bifrost.publication_review_receipt.v0\""
             .to_string(),
@@ -5415,7 +5401,7 @@ fn derive_repo_dependency_policy_request_plan(
         "[required_receipts]".to_string(),
         "source_grounding = \"epiphany.eyes.evidence_packet\"".to_string(),
         "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
-        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "mind_adoption = \"epiphany.repo_work_plan_adoption_review.v0\"".to_string(),
         "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
         "bifrost_publication_review = \"gamecult.bifrost.publication_review_receipt.v0\""
             .to_string(),
@@ -5556,7 +5542,7 @@ fn derive_repo_deployment_request_plan(
         String::new(),
         "[required_receipts]".to_string(),
         "source_grounding = \"epiphany.eyes.evidence_packet\"".to_string(),
-        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "mind_adoption = \"epiphany.repo_work_plan_adoption_review.v0\"".to_string(),
         "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
         "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
         "secret_policy = \"epiphany.repo_secret_policy_request.v0\"".to_string(),
@@ -5696,7 +5682,7 @@ fn derive_repo_deployment_config_plan(
         "daemon_owns_execution = true".to_string(),
         String::new(),
         "[required_receipts]".to_string(),
-        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"".to_string(),
+        "mind_adoption = \"epiphany.repo_work_plan_adoption_review.v0\"".to_string(),
         "soul_review = \"epiphany.repo_work_closure_review.v0\"".to_string(),
         "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"".to_string(),
         "secret_policy = \"epiphany.repo_secret_policy_request.v0\"".to_string(),
@@ -7540,143 +7526,85 @@ fn closure_mind_adoption_review(execute_receipt: &Value) -> Result<(Value, bool)
             false,
         ));
     }
-    let Some(mind_decision) = adopt_receipt.get("mindAdoptionDecision") else {
+    let runtime_store = path_from_json(execute_receipt, &["runtimeStore"])
+        .or_else(|| path_from_json(&adopt_receipt, &["runtimeStore"]));
+    let mind_review_id = string_from_json(&adopt_receipt, &["mindReviewId"]);
+    let hands_grant_id = string_from_json(&adopt_receipt, &["handsGrantId"]);
+    let (Some(runtime_store), Some(mind_review_id), Some(hands_grant_id)) =
+        (runtime_store, mind_review_id, hands_grant_id)
+    else {
         return Ok((
             json!({
                 "schemaVersion": "epiphany.repo_work_mind_adoption_closure_review.v0",
                 "status": "failed",
-                "reason": "adopt receipt has no mindAdoptionDecision",
+                "reason": "adopt receipt does not bind runtime-spine Mind review and Hands grant ids",
                 "adoptReceiptPath": adopt_receipt_path,
                 "assertions": []
             }),
             false,
         ));
     };
-    let plan_derived = execute_receipt.get("planReceiptPath").is_some();
+    let mind = runtime_repo_work_plan_adoption_review(&runtime_store, &mind_review_id)?;
+    let grant = runtime_repo_work_hands_grant(&runtime_store, &hands_grant_id)?;
     let mut assertions = Vec::new();
     push_assertion(
         &mut assertions,
-        "decision-schema",
-        string_from_json(mind_decision, &["schemaVersion"]).as_deref()
-            == Some("epiphany.repo_work_mind_adoption_decision.v0"),
-        "Mind adoption decision carries the expected schema.".to_string(),
+        "typed-mind-review-present",
+        mind.is_some(),
+        "Runtime-spine contains the typed Mind adoption review.".to_string(),
     );
     push_assertion(
         &mut assertions,
-        "decision-status-adopted",
-        string_from_json(mind_decision, &["status"]).as_deref()
-            == Some("adopted-for-branch-local-hands"),
-        "Mind adoption decision accepted branch-local Hands authority.".to_string(),
+        "typed-hands-grant-present",
+        grant.is_some(),
+        "Runtime-spine contains the typed Hands grant derived from Mind adoption.".to_string(),
     );
-    push_assertion(
-        &mut assertions,
-        "decision-owner-mind",
-        string_from_json(mind_decision, &["owner"]).as_deref() == Some("Mind"),
-        "Mind is the recorded adoption decision owner.".to_string(),
-    );
-    push_assertion(
-        &mut assertions,
-        "decision-interpreter-mind",
-        string_from_json(mind_decision, &["interpreter"]).as_deref() == Some("Mind"),
-        "Mind is the recorded adoption interpreter.".to_string(),
-    );
-    push_assertion(
-        &mut assertions,
-        "action-item-accepted",
-        bool_from_json(
-            mind_decision,
-            &["interpretation", "classification", "actionItemAccepted"],
-        ) == Some(true),
-        "Mind classified the plan cargo as an accepted action item.".to_string(),
-    );
-    push_assertion(
-        &mut assertions,
-        "safe-family-recognized",
-        bool_from_json(
-            mind_decision,
-            &["interpretation", "classification", "safeFamilyRecognized"],
-        ) == Some(true)
-            && bool_from_json(mind_decision, &["gates", "safeFamilyRequired"]) == Some(true),
-        "Mind recognized the safe family and recorded the safe-family gate.".to_string(),
-    );
-    push_assertion(
-        &mut assertions,
-        "requested-paths-match-plan",
-        !plan_derived
-            || (bool_from_json(
-                mind_decision,
-                &[
-                    "interpretation",
-                    "classification",
-                    "requestedPathsMatchPlan",
-                ],
-            ) == Some(true)
-                && bool_from_json(mind_decision, &["gates", "branchLocalOnly"]) == Some(true)),
-        "Mind confirmed requested paths match the plan before branch-local Hands authority."
-            .to_string(),
-    );
-    push_assertion(
-        &mut assertions,
-        "private-state-sealed",
-        bool_from_json(mind_decision, &["privateStateExposed"]) == Some(false),
-        "Mind adoption decision preserves the private-state seal.".to_string(),
-    );
-
-    let mind_decision_path = path_from_json(mind_decision, &["receiptPath"]);
-    let standalone_review = if let Some(path) = mind_decision_path.as_ref() {
-        match read_json_if_exists(path)? {
-            Some(standalone) => {
-                let matching_decision_id = string_from_json(&standalone, &["decisionId"])
-                    == string_from_json(mind_decision, &["decisionId"]);
-                let matching_status = string_from_json(&standalone, &["status"])
-                    == string_from_json(mind_decision, &["status"]);
-                let matching_schema = string_from_json(&standalone, &["schemaVersion"])
-                    == string_from_json(mind_decision, &["schemaVersion"]);
-                let matching_private_seal = bool_from_json(&standalone, &["privateStateExposed"])
-                    == bool_from_json(mind_decision, &["privateStateExposed"]);
-                push_assertion(
-                    &mut assertions,
-                    "standalone-decision-matches-snapshot",
-                    matching_decision_id
-                        && matching_status
-                        && matching_schema
-                        && matching_private_seal,
-                    "Standalone Mind decision matches the adopt receipt snapshot.".to_string(),
-                );
-                json!({
-                    "status": "present",
-                    "receiptPath": path,
-                    "decisionIdMatched": matching_decision_id,
-                    "statusMatched": matching_status,
-                    "schemaMatched": matching_schema,
-                    "privateStateSealMatched": matching_private_seal
-                })
-            }
-            None => {
-                push_assertion(
-                    &mut assertions,
-                    "standalone-decision-present",
-                    false,
-                    "Standalone Mind decision path exists in snapshot but the file is missing."
-                        .to_string(),
-                );
-                json!({
-                    "status": "missing",
-                    "receiptPath": path
-                })
-            }
-        }
-    } else {
+    if let (Some(mind), Some(grant)) = (mind.as_ref(), grant.as_ref()) {
+        let mind_sha256 = format!("{:x}", Sha256::digest(serde_json::to_vec(mind)?));
+        let approved =
+            runtime_hands_action_review(&runtime_store, &grant.approved_hands_review_id)?;
         push_assertion(
             &mut assertions,
-            "standalone-decision-path-present",
-            false,
-            "Adopt receipt snapshot names the standalone Mind decision receipt path.".to_string(),
+            "mind-review-adopts-exact-plan",
+            mind.schema_version == epiphany_core::REPO_WORK_PLAN_ADOPTION_REVIEW_SCHEMA_VERSION
+                && mind.decision == RepoWorkPlanAdoptionDecision::Adopt
+                && !mind.private_state_exposed,
+            "Typed Mind review adopts one sealed immutable plan binding.".to_string(),
         );
-        json!({
-            "status": "missing-path"
-        })
-    };
+        push_assertion(
+            &mut assertions,
+            "hands-grant-binds-mind-review",
+            grant.schema_version == REPO_WORK_HANDS_GRANT_SCHEMA_VERSION
+                && grant.adoption_review_id == mind.review_id
+                && grant.adoption_review_sha256 == mind_sha256
+                && grant.workspace_identity == mind.workspace_identity
+                && grant.plan_id == mind.plan_id
+                && grant.plan_sha256 == mind.plan_sha256
+                && grant.run_receipt_sha256 == mind.run_receipt_sha256
+                && grant.changed_paths == mind.changed_paths
+                && !grant.private_state_exposed,
+            "Typed Hands grant exactly binds the persisted Mind review and plan/run identity."
+                .to_string(),
+        );
+        push_assertion(
+            &mut assertions,
+            "approved-hands-review-bound",
+            approved.as_ref().is_some_and(|review| {
+                review.review_id == grant.approved_hands_review_id
+                    && review.intent_id == grant.hands_intent_id
+                    && review.decision == "approved"
+                    && review.allowed_operations == grant.allowed_operations
+            }),
+            "Approved Hands review is the review named by the typed grant.".to_string(),
+        );
+        push_assertion(
+            &mut assertions,
+            "execute-receipt-binds-adoption-chain",
+            execute_receipt_binds_adoption_chain(execute_receipt, mind, grant),
+            "Execute receipt is cross-bound to the same workspace, plan, run, action, Hands, and Substrate authority chain."
+                .to_string(),
+        );
+    }
 
     let passed = assertions
         .iter()
@@ -7686,14 +7614,61 @@ fn closure_mind_adoption_review(execute_receipt: &Value) -> Result<(Value, bool)
             "schemaVersion": "epiphany.repo_work_mind_adoption_closure_review.v0",
             "status": if passed { "passed" } else { "failed" },
             "adoptReceiptPath": adopt_receipt_path,
-            "mindDecisionPath": mind_decision_path,
-            "planDerived": plan_derived,
+            "runtimeStore": runtime_store,
+            "mindReviewId": mind_review_id,
+            "handsGrantId": hands_grant_id,
             "assertions": assertions,
-            "standaloneDecisionReview": standalone_review,
             "privateStateExposed": false
         }),
         passed,
     ))
+}
+
+fn execute_receipt_binds_adoption_chain(
+    execute_receipt: &Value,
+    mind: &epiphany_core::RepoWorkPlanAdoptionReview,
+    grant: &RepoWorkHandsGrant,
+) -> bool {
+    let execute_workspace = path_from_json(execute_receipt, &["workspace"])
+        .and_then(|path| path.canonicalize().ok())
+        .map(|path| normalize_path_for_receipt(&path));
+    let execute_plan_path = path_from_json(execute_receipt, &["planReceiptPath"])
+        .and_then(|path| path.canonicalize().ok())
+        .map(|path| normalize_path_for_receipt(&path));
+    execute_workspace.as_deref() == Some(grant.workspace_identity.as_str())
+        && string_from_json(execute_receipt, &["item"]).as_deref() == Some(grant.item.as_str())
+        && execute_plan_path.as_deref() == Some(grant.plan_receipt_path.as_str())
+        && string_from_json(execute_receipt, &["adoptionAuthority", "mindReviewId"]).as_deref()
+            == Some(mind.review_id.as_str())
+        && string_from_json(execute_receipt, &["adoptionAuthority", "handsGrantId"]).as_deref()
+            == Some(grant.grant_id.as_str())
+        && string_from_json(execute_receipt, &["adoptionAuthority", "planId"]).as_deref()
+            == Some(grant.plan_id.as_str())
+        && string_from_json(execute_receipt, &["adoptionAuthority", "planSha256"]).as_deref()
+            == Some(grant.plan_sha256.as_str())
+        && string_from_json(execute_receipt, &["adoptionAuthority", "runReceiptPath"]).as_deref()
+            == Some(grant.run_receipt_path.as_str())
+        && string_from_json(execute_receipt, &["adoptionAuthority", "runReceiptSha256"]).as_deref()
+            == Some(grant.run_receipt_sha256.as_str())
+        && string_from_json(execute_receipt, &["adoptionAuthority", "actionId"]).as_deref()
+            == Some(grant.action_id.as_str())
+        && string_from_json(execute_receipt, &["adoptionAuthority", "handsIntentId"]).as_deref()
+            == Some(grant.hands_intent_id.as_str())
+        && string_from_json(
+            execute_receipt,
+            &["adoptionAuthority", "approvedHandsReviewId"],
+        )
+        .as_deref()
+            == Some(grant.approved_hands_review_id.as_str())
+        && string_from_json(
+            execute_receipt,
+            &["adoptionAuthority", "substrateGrantReceiptId"],
+        )
+        .as_deref()
+            == Some(grant.substrate_grant_receipt_id.as_str())
+        && string_array_from_json(execute_receipt, &["changedPaths"]) == grant.changed_paths
+        && string_from_json(execute_receipt, &["command"]).as_deref()
+            == Some(grant.action_command.as_str())
 }
 
 fn record_repo_work_map_admission(
@@ -8246,459 +8221,142 @@ fn write_plan_receipt(
 }
 
 fn run_adopt(args: AdoptArgs) -> Result<Value> {
-    let workspace = args
-        .workspace
-        .canonicalize()
-        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
+    let workspace = args.workspace.canonicalize()?;
     ensure_git_repo(&workspace)?;
-    let _epiphany_root = args
-        .epiphany_root
-        .canonicalize()
-        .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
-    let run_receipt_path = resolve_run_receipt(&workspace, args.item.as_deref(), args.run_receipt)?;
-    let run_receipt = read_json(&run_receipt_path)?;
-    let plan_receipt_path = if let Some(path) = args.plan_receipt {
-        Some(path)
-    } else {
-        None
-    };
-    let plan_receipt = if let Some(path) = plan_receipt_path.as_ref() {
-        Some(read_json(path)?)
-    } else {
-        None
-    };
-    let runtime_store = args.runtime_store.unwrap_or_else(|| {
-        path_from_json(&run_receipt, &["runtimeStore"]).unwrap_or_else(|| {
-            workspace
-                .join(".epiphany")
-                .join("state")
-                .join("runtime-spine.msgpack")
-        })
-    });
-    let artifact_dir = args
-        .artifact_dir
-        .unwrap_or_else(|| workspace.join(".epiphany").join("work"));
-    fs::create_dir_all(&artifact_dir)
-        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
-    let gate = run_receipt
+    let run_path =
+        resolve_run_receipt(&workspace, args.item.as_deref(), args.run_receipt)?.canonicalize()?;
+    let plan_path = args
+        .plan_receipt
+        .ok_or_else(|| anyhow!("adopt requires --from-plan"))?
+        .canonicalize()?;
+    let run = read_json(&run_path)?;
+    let plan = read_json(&plan_path)?;
+    let store = args
+        .runtime_store
+        .or_else(|| path_from_json(&run, &["runtimeStore"]))
+        .unwrap_or_else(|| workspace.join(".epiphany/state/runtime-spine.msgpack"));
+    let gate = run
         .get("handsActionGate")
         .ok_or_else(|| anyhow!("run receipt has no handsActionGate"))?;
-    let intent_id = gate
-        .get("intentId")
-        .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("run receipt handsActionGate has no intentId"))?;
-    let review_id = gate
-        .get("reviewId")
-        .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("run receipt handsActionGate has no reviewId"))?;
-    let intent = runtime_hands_action_intent(&runtime_store, intent_id)?
-        .ok_or_else(|| anyhow!("runtime-spine has no Hands intent {intent_id}"))?;
-    let queued_review = runtime_hands_action_review(&runtime_store, review_id)?
-        .ok_or_else(|| anyhow!("runtime-spine has no Hands review {review_id}"))?;
-    if queued_review.intent_id != intent.intent_id {
+    let intent_id =
+        string_from_value(gate, "intentId").ok_or_else(|| anyhow!("run gate has no intentId"))?;
+    let queued_id =
+        string_from_value(gate, "reviewId").ok_or_else(|| anyhow!("run gate has no reviewId"))?;
+    let intent = runtime_hands_action_intent(&store, &intent_id)?
+        .ok_or_else(|| anyhow!("missing Hands intent"))?;
+    let queued = runtime_hands_action_review(&store, &queued_id)?
+        .ok_or_else(|| anyhow!("missing queued Hands review"))?;
+    if queued.intent_id != intent.intent_id || queued.decision != "queued-for-adoption" {
+        return Err(anyhow!("invalid queued Hands review"));
+    }
+    let mind = runtime_repo_work_plan_adoption_review(&store, &args.mind_review_id)?
+        .ok_or_else(|| anyhow!("missing typed Mind adoption review {}", args.mind_review_id))?;
+    if mind.decision != RepoWorkPlanAdoptionDecision::Adopt {
+        return Err(anyhow!("Mind did not adopt this plan"));
+    }
+    let workspace_id = normalize_path_for_receipt(&workspace);
+    let item = string_from_json(&run, &["item"]).ok_or_else(|| anyhow!("run has no item"))?;
+    let plan_schema = string_from_json(&plan, &["schemaVersion"])
+        .ok_or_else(|| anyhow!("plan has no schemaVersion"))?;
+    if plan_schema != "epiphany.repo_work_action_plan_receipt.v0" {
+        return Err(anyhow!("unsupported repo-work plan schema {plan_schema}"));
+    }
+    let plan_id =
+        string_from_json(&plan, &["planId"]).ok_or_else(|| anyhow!("plan has no planId"))?;
+    let action = first_plan_action(&plan).ok_or_else(|| anyhow!("plan has no action"))?;
+    let action_id =
+        string_from_value(action, "actionId").ok_or_else(|| anyhow!("action has no actionId"))?;
+    let action_command =
+        string_from_value(action, "command").ok_or_else(|| anyhow!("action has no command"))?;
+    let action_commit_message = string_from_value(action, "commitMessage")
+        .ok_or_else(|| anyhow!("action has no commitMessage"))?;
+    let raw_paths = string_array_field(action, "changedPaths");
+    let paths = strict_repo_work_paths(raw_paths)?;
+    let plan_hash = file_sha256(&plan_path)?;
+    let run_hash = file_sha256(&run_path)?;
+    let plan_path_id = normalize_path_for_receipt(&plan_path);
+    let run_path_id = normalize_path_for_receipt(&run_path);
+    if mind.workspace_identity != workspace_id
+        || mind.item != item
+        || mind.plan_schema_version != plan_schema
+        || mind.plan_id != plan_id
+        || mind.plan_sha256 != plan_hash
+        || mind.run_receipt_sha256 != run_hash
+        || mind.plan_receipt_path != plan_path_id
+        || mind.run_receipt_path != run_path_id
+        || mind.hands_intent_id != intent.intent_id
+        || mind.queued_hands_review_id != queued.review_id
+        || mind.substrate_grant_receipt_id != intent.substrate_gate_grant_receipt_id
+        || mind.action_id != action_id
+        || mind.action_command != action_command
+        || mind.action_commit_message != action_commit_message
+        || mind.changed_paths != paths
+    {
         return Err(anyhow!(
-            "Hands review {} belongs to {}, not {}",
-            queued_review.review_id,
-            queued_review.intent_id,
-            intent.intent_id
+            "Mind review does not exactly bind current plan/run bytes and authority chain"
         ));
     }
-    if queued_review.decision != "queued-for-adoption" {
-        return Err(anyhow!(
-            "Hands review {} decision is {}, not queued-for-adoption",
-            queued_review.review_id,
-            queued_review.decision
-        ));
-    }
-    let item = run_receipt
-        .get("item")
-        .and_then(Value::as_str)
-        .unwrap_or("work-item")
-        .to_string();
-    let item_slug = sanitize(&item);
     let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let plan_summary = if let Some(summary) = args.plan_summary {
-        summary
-    } else if let Some(plan) = plan_receipt.as_ref() {
-        string_from_json(plan, &["planSummary"])
-            .ok_or_else(|| anyhow!("plan receipt has no planSummary"))?
-    } else {
-        return Err(anyhow!("missing --plan-summary or --from-plan"));
-    };
-    let mut adoption_evidence_refs = args.adoption_evidence_refs;
-    if let Some(plan) = plan_receipt.as_ref() {
-        adoption_evidence_refs.extend(string_array_from_json(plan, &["adoptionEvidenceRefs"]));
-        if adoption_evidence_refs.is_empty() {
-            adoption_evidence_refs.push(format!(
-                "repo-work-plan:{}",
-                plan.get("planId")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown")
-            ));
-        }
-    }
-    let adopted_action_item = plan_receipt
-        .as_ref()
-        .map(adopted_action_item_from_plan)
-        .unwrap_or(Value::Null);
-    let action_item_receipt_id = adopted_action_item
-        .get("receiptId")
-        .and_then(Value::as_str)
-        .unwrap_or("manual-plan");
-    let action_item_summary = adopted_action_item
-        .get("summary")
-        .and_then(Value::as_str)
-        .unwrap_or(&plan_summary);
-    let action_item_safe_family = adopted_action_item
-        .get("safeActionFamily")
-        .and_then(Value::as_str)
-        .unwrap_or("manual-plan");
-    let requested_path_count = adopted_action_item
-        .get("requestedPaths")
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or(0);
-    let requested_paths = sorted_normalized_paths(string_array_from_json(
-        &adopted_action_item,
-        &["requestedPaths"],
-    ));
-    let plan_changed_paths = plan_receipt
-        .as_ref()
-        .and_then(|plan| first_plan_action(plan))
-        .map(|action| sorted_normalized_paths(string_array_field(action, "changedPaths")))
-        .unwrap_or_default();
-    let requested_paths_match_plan = plan_receipt.is_none()
-        || (!requested_paths.is_empty() && requested_paths == plan_changed_paths);
-    let planning_facets_present = adopted_action_item
-        .get("planningFacets")
-        .is_some_and(|value| !value.is_null());
-    let verification_asks = string_array_from_json(&adopted_action_item, &["verificationAsks"]);
-    let verification_asks_present = !verification_asks.is_empty();
-    let verification_ask_count = verification_asks.len();
-    let evidence_needs =
-        string_array_from_json(&adopted_action_item, &["planningFacets", "evidenceNeeds"]);
-    let evidence_needs_present = !evidence_needs.is_empty();
-    let evidence_need_count = evidence_needs.len();
-    let action_item_model_authored = adopted_action_item
-        .get("modelAuthored")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let evidence_ref_count = adoption_evidence_refs.len();
-    let safe_family_recognized = repo_work_safe_family_is_recognized(action_item_safe_family);
-    let unsupported_plan_family = plan_receipt.is_some() && !safe_family_recognized;
-    let path_scope_mismatch = plan_receipt.is_some() && !requested_paths_match_plan;
-    let evidence_readiness_missing =
-        plan_receipt.is_some() && (!verification_asks_present || !evidence_needs_present);
-    let mut refusal_reasons = Vec::new();
-    if unsupported_plan_family {
-        refusal_reasons.push(format!(
-            "Unsupported repo-work safe action family {action_item_safe_family}; Mind refused to convert this plan into branch-local Hands authority."
-        ));
-    }
-    if path_scope_mismatch {
-        refusal_reasons.push(format!(
-            "Requested paths {:?} do not match plan changed paths {:?}; Mind refused to convert this plan into branch-local Hands authority.",
-            requested_paths, plan_changed_paths
-        ));
-    }
-    if evidence_readiness_missing {
-        refusal_reasons.push(format!(
-            "Action item lacks verification or evidence needs; Mind refused to convert this plan into branch-local Hands authority until Soul proof targets are explicit. verificationAsksPresent={verification_asks_present}, evidenceNeedsPresent={evidence_needs_present}."
-        ));
-    }
-    let mind_refused_adoption =
-        unsupported_plan_family || path_scope_mismatch || evidence_readiness_missing;
-    let mind_interpretation = json!({
-        "schemaVersion": "epiphany.repo_work_mind_interpretation.v0",
-        "owner": "Mind",
-        "interpreter": "Mind",
-        "router": "Self",
-        "source": if plan_receipt.is_some() { "plan-receipt" } else { "manual-adoption-evidence" },
-        "inputSummary": {
-            "planReceiptPresent": plan_receipt.is_some(),
-            "runReceiptPresent": true,
-            "actionItemReceiptId": action_item_receipt_id,
-            "safeActionFamily": action_item_safe_family,
-            "requestedPathCount": requested_path_count,
-            "requestedPaths": requested_paths,
-            "planChangedPaths": plan_changed_paths,
-            "modelAuthored": action_item_model_authored,
-            "planningFacetsPresent": planning_facets_present,
-            "verificationAsks": verification_asks,
-            "verificationAskCount": verification_ask_count,
-            "evidenceNeeds": evidence_needs,
-            "evidenceNeedCount": evidence_need_count,
-            "adoptionEvidenceRefCount": evidence_ref_count
-        },
-        "classification": {
-            "decisionKind": "branch-local-hands-adoption",
-            "actionItemAccepted": !mind_refused_adoption,
-            "safeFamilyRecognized": safe_family_recognized,
-            "requestedPathsDeclared": requested_path_count > 0,
-            "requestedPathsMatchPlan": requested_paths_match_plan,
-            "verificationAsksPresent": verification_asks_present,
-            "evidenceNeedsPresent": evidence_needs_present,
-            "evidenceRefsPresent": evidence_ref_count > 0,
-            "durableStateAdmission": "not-admitted",
-            "publicationGate": "Bifrost",
-            "closureGate": "Soul",
-            "privateStateSeal": true
-        },
-        "allowedTransitions": [
-            "hands.branch_local_action"
-        ],
-        "forbiddenTransitions": [
-            "mind.durable_state_commit",
-            "bifrost.publication",
-            "git.merge",
-            "idunn.service_lifecycle",
-            "cross_body_mutation",
-            "private_verse_export"
-        ],
-        "refusalReasons": refusal_reasons,
-        "privateStateExposed": false
-    });
-    let mind_adoption_id = format!("repo-work-mind-adoption-{item_slug}");
-    if mind_refused_adoption {
-        let status = if unsupported_plan_family {
-            "refused-unsupported-safe-family"
-        } else if evidence_readiness_missing {
-            "refused-missing-evidence-needs"
-        } else {
-            "refused-requested-path-mismatch"
-        };
-        let next_gate = if unsupported_plan_family {
-            "imagination.replan_with_allowed_safe_family"
-        } else if evidence_readiness_missing {
-            "imagination.replan_with_explicit_soul_evidence_needs"
-        } else {
-            "imagination.replan_with_matching_requested_paths"
-        };
-        let next_safe_move = if unsupported_plan_family {
-            "Ask Imagination for an allowed repo-work safe family before Hands authority can be granted."
-        } else if evidence_readiness_missing {
-            "Ask Imagination to add explicit verification asks and evidence needs before Hands authority can be granted."
-        } else {
-            "Ask Imagination for an action item whose requested paths exactly match the plan changed paths before Hands authority can be granted."
-        };
-        let refusal_decision = json!({
-            "schemaVersion": "epiphany.repo_work_mind_adoption_decision.v0",
-            "createdAt": now,
-            "workspace": workspace,
-            "runtimeId": run_receipt["runtimeId"],
-            "runtimeStore": runtime_store,
-            "decisionId": mind_adoption_id,
-            "item": item,
-            "status": status,
-            "owner": "Mind",
-            "interpreter": "Mind",
-            "router": "Self",
-            "sourcePlanReceiptPath": plan_receipt_path,
-            "sourceRunReceiptPath": run_receipt_path,
-            "adoptedActionItemReceiptId": action_item_receipt_id,
-            "adoptedActionItem": adopted_action_item,
-            "adoptionEvidenceRefs": adoption_evidence_refs,
-            "interpretation": mind_interpretation,
-            "rationale": refusal_reasons.join(" "),
-            "gates": {
-                "selfPresentedActionItem": true,
-                "mindReviewedEvidence": true,
-                "mindInterpretedActionItem": true,
-                "safeFamilyRequired": true,
-                "safeFamilyRecognized": safe_family_recognized,
-                "requestedPathsMatchPlan": requested_paths_match_plan,
-                "verificationAsksPresent": verification_asks_present,
-                "evidenceNeedsPresent": evidence_needs_present,
-                "branchLocalOnly": false,
-                "bifrostPublicationRequired": true,
-                "soulClosureRequired": true
-            },
-            "authority": {
-                "durableStateAdmitted": false,
-                "handsAuthorityGranted": false,
-                "publicationAuthorized": false,
-                "mergeAuthorized": false,
-                "serviceLifecycleAuthority": false,
-                "crossRepoMutation": false,
-                "privateStateExposed": false,
-                "nextGate": next_gate
-            },
-            "privateStateExposed": false,
-            "nextSafeMove": next_safe_move
-        });
-        let mind_adoption_path = artifact_dir.join(format!("work-mind-adopt-{item_slug}.json"));
-        write_json(&mind_adoption_path, &refusal_decision)?;
-        if unsupported_plan_family {
-            return Err(anyhow!(
-                "Mind refused adoption for unsupported repo-work safe family {action_item_safe_family}: {}; refusal decision written to {}",
-                refusal_reasons.join(" "),
-                mind_adoption_path.display()
-            ));
-        }
-        return Err(anyhow!(
-            "Mind refused adoption: {}; refusal decision written to {}",
-            refusal_reasons.join(" "),
-            mind_adoption_path.display()
-        ));
-    }
-    let mind_adoption_rationale = args.mind_adoption_rationale.unwrap_or_else(|| {
-        format!(
-            "Mind adopted the selected Imagination action item for branch-local Hands work because Self presented explicit adoption evidence and the safe family remains bounded: {}",
-            compact_line(action_item_summary)
-        )
-    });
-    let mind_adoption_decision = json!({
-        "schemaVersion": "epiphany.repo_work_mind_adoption_decision.v0",
-        "createdAt": now,
-        "workspace": workspace,
-        "runtimeId": run_receipt["runtimeId"],
-        "runtimeStore": runtime_store,
-        "decisionId": mind_adoption_id,
-        "item": item,
-        "status": "adopted-for-branch-local-hands",
-        "owner": "Mind",
-        "interpreter": "Mind",
-        "router": "Self",
-        "sourcePlanReceiptPath": plan_receipt_path,
-        "sourceRunReceiptPath": run_receipt_path,
-        "adoptedActionItemReceiptId": action_item_receipt_id,
-        "adoptedActionItem": adopted_action_item,
-        "adoptionEvidenceRefs": adoption_evidence_refs,
-        "interpretation": mind_interpretation,
-        "rationale": mind_adoption_rationale,
-        "gates": {
-            "selfPresentedActionItem": true,
-            "mindReviewedEvidence": true,
-            "mindInterpretedActionItem": true,
-            "safeFamilyRequired": true,
-            "branchLocalOnly": true,
-            "bifrostPublicationRequired": true,
-            "soulClosureRequired": true
-        },
-        "authority": {
-            "durableStateAdmitted": false,
-            "handsAuthorityGranted": false,
-            "publicationAuthorized": false,
-            "mergeAuthorized": false,
-            "serviceLifecycleAuthority": false,
-            "crossRepoMutation": false,
-            "privateStateExposed": false,
-            "nextGate": "hands.branch_local_action"
-        },
-        "privateStateExposed": false,
-        "nextSafeMove": "The adoption decision may be cited by the Hands review; it does not itself execute, publish, merge, or mutate durable project state."
-    });
-    let mind_adoption_path = artifact_dir.join(format!("work-mind-adopt-{item_slug}.json"));
-    write_json(&mind_adoption_path, &mind_adoption_decision)?;
-    let reread_mind_adoption = read_json(&mind_adoption_path)?;
-    if reread_mind_adoption["schemaVersion"] != "epiphany.repo_work_mind_adoption_decision.v0" {
-        return Err(anyhow!(
-            "Mind adoption decision {} failed reread schema verification",
-            mind_adoption_path.display()
-        ));
-    }
-    if reread_mind_adoption["privateStateExposed"] != json!(false) {
-        return Err(anyhow!(
-            "Mind adoption decision {} exposed private state",
-            mind_adoption_path.display()
-        ));
-    }
-    let mut approved_review = hands_action_review_for_intent(
-        review_id.to_string(),
+    let approved_id = format!("{}-approved-by-{}", queued.review_id, mind.review_id);
+    let operations = vec!["patch".into(), "command".into(), "commit".into()];
+    let mut approved = hands_action_review_for_intent(
+        approved_id.clone(),
         &intent,
-        "approved".to_string(),
-        vec![
-            "patch".to_string(),
-            "command".to_string(),
-            "commit".to_string(),
-        ],
-        vec![
-            format!("Adopted plan: {plan_summary}"),
-            format!(
-                "Adoption evidence refs: {}",
-                adoption_evidence_refs.join(", ")
-            ),
-            "Bifrost still gates publication and merge.".to_string(),
-        ],
+        "approved".into(),
+        operations.clone(),
+        vec![format!("Mind review {}", mind.review_id)],
         now.clone(),
     );
-    approved_review.required_receipts = vec![
-        HANDS_PATCH_RECEIPT_TYPE.to_string(),
-        HANDS_COMMAND_RECEIPT_TYPE.to_string(),
-        HANDS_COMMIT_RECEIPT_TYPE.to_string(),
+    approved.required_receipts = vec![
+        HANDS_PATCH_RECEIPT_TYPE.into(),
+        HANDS_COMMAND_RECEIPT_TYPE.into(),
+        HANDS_COMMIT_RECEIPT_TYPE.into(),
     ];
-    put_hands_action_review(&runtime_store, &approved_review)?;
-
-    let adoption_receipt = json!({
-        "schemaVersion": "epiphany.repo_work_adoption_receipt.v0",
-        "createdAt": now,
-        "workspace": workspace,
-        "runtimeId": run_receipt["runtimeId"],
-        "runtimeStore": runtime_store,
-        "runReceiptPath": run_receipt_path,
-        "planReceiptPath": plan_receipt_path,
-        "item": item,
-        "status": "approved-for-branch-local-hands-action",
-        "planSummary": plan_summary,
-        "adoptionEvidenceRefs": adoption_evidence_refs,
-        "mindAdoptionDecision": {
-            "decisionId": mind_adoption_decision["decisionId"],
-            "receiptPath": mind_adoption_path,
-            "schemaVersion": mind_adoption_decision["schemaVersion"],
-            "status": mind_adoption_decision["status"],
-            "owner": mind_adoption_decision["owner"],
-            "interpreter": mind_adoption_decision["interpreter"],
-            "interpretation": mind_adoption_decision["interpretation"],
-            "rationale": mind_adoption_decision["rationale"],
-            "gates": mind_adoption_decision["gates"],
-            "authority": mind_adoption_decision["authority"],
-            "privateStateExposed": false
-        },
-        "adoptedActionItem": adopted_action_item,
-        "handsActionGate": {
-            "intentId": intent.intent_id,
-            "reviewId": approved_review.review_id,
-            "runtimeJobId": intent.runtime_job_id,
-            "substrateGateGrantReceiptId": intent.substrate_gate_grant_receipt_id,
-            "decision": approved_review.decision,
-            "allowedOperations": approved_review.allowed_operations,
-            "requiredReceipts": approved_review.required_receipts,
-            "recordPassCommand": format!(
-                "epiphany-hands-action --store {} record-pass --intent-id {} --review-id {} --summary <summary> --changed-path <path> --command <command> --exit-code <code> --stdout-artifact <stdout> --stderr-artifact <stderr> --commit-sha <sha> --branch <branch>",
-                runtime_store.display(),
-                intent.intent_id,
-                approved_review.review_id
-            )
-        },
-        "authority": {
-            "handsAuthorityGranted": true,
-            "durableStateAdmitted": false,
-            "publicationAuthorized": false,
-            "publicationGate": "Bifrost",
-            "requiredReceiptsBeforeCompletion": approved_review.required_receipts
-        },
-        "privateStateExposed": false,
-        "nextSafeMove": "Execute branch-local work through Hands and record patch/command/commit receipts; Bifrost still gates publish/merge."
-    });
-    let receipt_path = artifact_dir.join(format!("work-adopt-{item_slug}.json"));
-    write_json(&receipt_path, &adoption_receipt)?;
-    Ok(json!({
-        "schemaVersion": "epiphany.repo_work_adoption.v0",
-        "status": "approved-for-branch-local-hands-action",
-        "workspace": adoption_receipt["workspace"],
-        "runtimeId": adoption_receipt["runtimeId"],
-        "runtimeStore": adoption_receipt["runtimeStore"],
-        "receiptPath": receipt_path,
-        "item": adoption_receipt["item"],
-        "mindAdoptionDecision": adoption_receipt["mindAdoptionDecision"],
-        "adoptedActionItem": adoption_receipt["adoptedActionItem"],
-        "handsActionGate": adoption_receipt["handsActionGate"],
-        "authority": adoption_receipt["authority"],
-        "privateStateExposed": adoption_receipt["privateStateExposed"],
-        "nextSafeMove": adoption_receipt["nextSafeMove"],
-    }))
+    let grant_id = format!("repo-work-hands-grant-{}", mind.review_id);
+    let grant = RepoWorkHandsGrant {
+        schema_version: REPO_WORK_HANDS_GRANT_SCHEMA_VERSION.into(),
+        grant_id: grant_id.clone(),
+        adoption_review_id: mind.review_id.clone(),
+        adoption_review_sha256: format!("{:x}", Sha256::digest(serde_json::to_vec(&mind)?)),
+        workspace_identity: workspace_id.clone(),
+        item: item.clone(),
+        plan_id: plan_id.clone(),
+        plan_sha256: plan_hash.clone(),
+        run_receipt_sha256: run_hash.clone(),
+        plan_receipt_path: plan_path_id,
+        run_receipt_path: run_path_id,
+        hands_intent_id: intent.intent_id.clone(),
+        queued_hands_review_id: queued.review_id.clone(),
+        approved_hands_review_id: approved_id.clone(),
+        substrate_grant_receipt_id: intent.substrate_gate_grant_receipt_id.clone(),
+        action_id,
+        action_command,
+        action_commit_message,
+        allowed_operations: operations,
+        changed_paths: paths,
+        granted_at: now.clone(),
+        private_state_exposed: false,
+    };
+    commit_repo_work_hands_grant(&store, &grant, &approved)?;
+    let dir = args
+        .artifact_dir
+        .unwrap_or_else(|| workspace.join(".epiphany/work"));
+    fs::create_dir_all(&dir)?;
+    let receipt_path = dir.join(format!("work-adopt-{}.json", sanitize(&item)));
+    let receipt = json!({"schemaVersion":"epiphany.repo_work_adoption_receipt.v1","createdAt":now,
+        "workspace":workspace_id,"runtimeStore":store,"runReceiptPath":run_path,"runReceiptSha256":run_hash,
+        "planReceiptPath":plan_path,"planId":plan_id,"planSha256":plan_hash,"item":item,
+        "status":"approved-for-branch-local-hands-action","mindReviewId":mind.review_id,"handsGrantId":grant_id,
+        "handsActionGate":{"intentId":intent.intent_id,"queuedReviewId":queued.review_id,"reviewId":approved_id,
+        "substrateGateGrantReceiptId":intent.substrate_gate_grant_receipt_id},
+        "authority":{"handsAuthorityGranted":true,"publicationAuthorized":false,"publicationGate":"Bifrost"},"privateStateExposed":false});
+    write_json(&receipt_path, &receipt)?;
+    Ok(
+        json!({"schemaVersion":"epiphany.repo_work_adoption.v1","status":receipt["status"],"workspace":receipt["workspace"],
+        "runtimeStore":receipt["runtimeStore"],"receiptPath":receipt_path,"item":receipt["item"],"mindReviewId":receipt["mindReviewId"],
+        "handsGrantId":receipt["handsGrantId"],"handsActionGate":receipt["handsActionGate"],"authority":receipt["authority"],"privateStateExposed":false}),
+    )
 }
-
 fn run_execute(args: ExecuteArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -8750,6 +8408,42 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
         .ok_or_else(|| anyhow!("runtime-spine has no Hands intent {intent_id}"))?;
     let review = runtime_hands_action_review(&runtime_store, review_id)?
         .ok_or_else(|| anyhow!("runtime-spine has no Hands review {review_id}"))?;
+    let grant_id = string_from_json(&adopt_receipt, &["handsGrantId"])
+        .ok_or_else(|| anyhow!("adopt receipt has no typed Hands grant id"))?;
+    let mind_review_id = string_from_json(&adopt_receipt, &["mindReviewId"])
+        .ok_or_else(|| anyhow!("adopt receipt has no typed Mind review id"))?;
+    let grant = runtime_repo_work_hands_grant(&runtime_store, &grant_id)?
+        .ok_or_else(|| anyhow!("runtime-spine has no repo-work Hands grant {grant_id}"))?;
+    let mind = runtime_repo_work_plan_adoption_review(&runtime_store, &mind_review_id)?
+        .ok_or_else(|| anyhow!("runtime-spine has no Mind adoption review {mind_review_id}"))?;
+    if mind.decision != RepoWorkPlanAdoptionDecision::Adopt
+        || grant.adoption_review_id != mind.review_id
+        || grant.approved_hands_review_id != review.review_id
+        || grant.hands_intent_id != intent.intent_id
+        || grant.workspace_identity != normalize_path_for_receipt(&workspace)
+        || grant.adoption_review_sha256
+            != format!("{:x}", Sha256::digest(serde_json::to_vec(&mind)?))
+    {
+        return Err(anyhow!(
+            "execute authority is not bound to its typed Mind review and Hands grant"
+        ));
+    }
+    let plan_path = plan_receipt_path
+        .as_ref()
+        .ok_or_else(|| anyhow!("execute requires the exact reviewed plan receipt"))?;
+    let run_path = path_from_json(&adopt_receipt, &["runReceiptPath"])
+        .ok_or_else(|| anyhow!("adopt receipt has no reviewed run receipt path"))?;
+    let canonical_plan_path = plan_path.canonicalize()?;
+    let canonical_run_path = run_path.canonicalize()?;
+    if file_sha256(plan_path)? != grant.plan_sha256
+        || file_sha256(&run_path)? != grant.run_receipt_sha256
+        || normalize_path_for_receipt(&canonical_plan_path) != grant.plan_receipt_path
+        || normalize_path_for_receipt(&canonical_run_path) != grant.run_receipt_path
+    {
+        return Err(anyhow!(
+            "reviewed plan or run receipt bytes changed after Mind adoption"
+        ));
+    }
     ensure_hands_review_allows(&intent, &review, "patch")?;
     ensure_hands_review_allows(&intent, &review, "command")?;
     ensure_hands_review_allows(&intent, &review, "commit")?;
@@ -8770,6 +8464,11 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
     } else {
         args.changed_paths
     };
+    if strict_repo_work_paths(changed_paths.clone())? != grant.changed_paths {
+        return Err(anyhow!(
+            "execute changed paths differ from the typed Hands grant scope"
+        ));
+    }
     if changed_paths.is_empty() {
         return Err(anyhow!(
             "execute requires at least one changed path from --changed-path or --from-plan"
@@ -8783,7 +8482,47 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
     } else {
         return Err(anyhow!("missing --commit-message or --from-plan"));
     };
+    let plan = plan_receipt
+        .as_ref()
+        .ok_or_else(|| anyhow!("execute requires reviewed plan"))?;
+    let item = string_from_json(&adopt_receipt, &["item"])
+        .ok_or_else(|| anyhow!("adopt receipt has no item"))?;
+    let action = planned_action
+        .as_ref()
+        .ok_or_else(|| anyhow!("reviewed plan has no action"))?;
+    if string_from_json(plan, &["schemaVersion"]).as_deref()
+        != Some("epiphany.repo_work_action_plan_receipt.v0")
+        || string_from_json(plan, &["planId"]).as_deref() != Some(grant.plan_id.as_str())
+        || item != grant.item
+        || mind.item != grant.item
+        || mind.plan_receipt_path != grant.plan_receipt_path
+        || mind.run_receipt_path != grant.run_receipt_path
+        || mind.action_id != grant.action_id
+        || string_from_value(action, "actionId").as_deref() != Some(grant.action_id.as_str())
+        || command != grant.action_command
+        || commit_message != grant.action_commit_message
+        || intent.requested_paths != grant.changed_paths
+        || grant.queued_hands_review_id
+            != string_from_json(&adopt_receipt, &["handsActionGate", "queuedReviewId"])
+                .unwrap_or_default()
+        || grant.substrate_grant_receipt_id != intent.substrate_gate_grant_receipt_id
+    {
+        return Err(anyhow!(
+            "execute inputs or authority bindings differ from the reviewed action"
+        ));
+    }
     validate_paths_within_gate(&intent, &changed_paths)?;
+    for operation in ["patch", "command", "commit"] {
+        validate_hands_action_authority(
+            &runtime_store,
+            &intent.intent_id,
+            &review.review_id,
+            &intent.runtime_job_id,
+            operation,
+            &changed_paths,
+            &grant.substrate_grant_receipt_id,
+        )?;
+    }
     let branch = git_output(&workspace, &["branch", "--show-current"])?;
     if !branch.starts_with("epiphany/") {
         return Err(anyhow!(
@@ -8791,11 +8530,6 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
         ));
     }
 
-    let item = adopt_receipt
-        .get("item")
-        .and_then(Value::as_str)
-        .unwrap_or("work-item")
-        .to_string();
     let item_slug = sanitize(&item);
     let stdout_artifact = artifact_dir.join(format!("work-execute-{item_slug}.stdout.log"));
     let stderr_artifact = artifact_dir.join(format!("work-execute-{item_slug}.stderr.log"));
@@ -8914,6 +8648,18 @@ fn run_execute(args: ExecuteArgs) -> Result<Value> {
             "commandReceiptId": command_receipt.receipt_id,
             "commitReceiptId": commit_receipt.receipt_id,
             "commitSha": commit_receipt.commit_sha
+        },
+        "adoptionAuthority": {
+            "mindReviewId": mind.review_id,
+            "handsGrantId": grant.grant_id,
+            "planId": grant.plan_id,
+            "planSha256": grant.plan_sha256,
+            "runReceiptPath": grant.run_receipt_path,
+            "runReceiptSha256": grant.run_receipt_sha256,
+            "actionId": grant.action_id,
+            "handsIntentId": grant.hands_intent_id,
+            "approvedHandsReviewId": grant.approved_hands_review_id,
+            "substrateGrantReceiptId": grant.substrate_grant_receipt_id
         },
         "authority": {
             "branchLocalCommitCreated": true,
@@ -10516,7 +10262,7 @@ fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value>
             "deployment-config-receipt-contract",
             parsed_config.as_ref().is_some_and(|config| {
                 let receipts = &config.required_receipts;
-                receipts.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+                receipts.mind_adoption == "epiphany.repo_work_plan_adoption_review.v0"
                     && receipts.soul_review == "epiphany.repo_work_closure_review.v0"
                     && receipts.maintainer_review == "gamecult.maintainer.review_receipt.v0"
                     && receipts.secret_policy == "epiphany.repo_secret_policy_request.v0"
@@ -12152,34 +11898,11 @@ fn run_tick(args: TickArgs) -> Result<Value> {
             next_safe_move =
                 "Write an Imagination/Self action plan before adopting Hands authority."
                     .to_string();
-        } else if args.dry_run {
-            action = "adopt-from-plan".to_string();
-            status = "would-advance".to_string();
-            reason = "queued run packet and plan receipt exist".to_string();
-            next_safe_move =
-                "Rerun without --dry-run to adopt the plan into branch-local Hands authority."
-                    .to_string();
         } else {
-            action = "adopt-from-plan".to_string();
-            advanced_result = run_adopt(AdoptArgs {
-                workspace: workspace.clone(),
-                epiphany_root: epiphany_root.clone(),
-                item: Some(item.clone()),
-                run_receipt: Some(run_receipt_path.clone()),
-                plan_receipt: Some(plan_receipt_path.clone()),
-                runtime_store: args.runtime_store.clone(),
-                artifact_dir: Some(artifact_dir.clone()),
-                plan_summary: None,
-                adoption_evidence_refs: vec![format!("self.scheduler:repo-work-tick-{item_slug}")],
-                mind_adoption_rationale: Some(format!(
-                    "Mind adopted the scheduler-presented plan for item {item} after Self found a queued run packet and matching Imagination plan receipt."
-                )),
-            })?;
-            status = "advanced".to_string();
-            reason = "adopted queued Hands run packet from typed action plan".to_string();
-            next_safe_move =
-                "Run another scheduler pulse to execute the approved branch-local plan."
-                    .to_string();
+            action = "await-mind-review".to_string();
+            status = "awaiting-mind-review".to_string();
+            reason = "Self found a queued run and plan, but no typed Mind adoption review has granted authority".to_string();
+            next_safe_move = "Mind must persist an exact epiphany.repo_work_plan_adoption_review.v0 receipt; the scheduler cannot manufacture its verdict.".to_string();
         }
     } else if plan_receipt_path.exists() {
         let plan_receipt = read_json(&plan_receipt_path)?;
@@ -13157,6 +12880,24 @@ fn sorted_normalized_paths(paths: Vec<String>) -> Vec<String> {
     normalized
 }
 
+fn strict_repo_work_paths(paths: Vec<String>) -> Result<Vec<String>> {
+    let original_count = paths.len();
+    let normalized = sorted_normalized_paths(paths);
+    if normalized.len() != original_count
+        || normalized.iter().any(|path| {
+            Path::new(path).is_absolute()
+                || Path::new(path)
+                    .components()
+                    .any(|part| matches!(part, std::path::Component::ParentDir))
+        })
+    {
+        return Err(anyhow!(
+            "repo-work paths must be non-empty, unique, normalized relative paths without traversal"
+        ));
+    }
+    Ok(normalized)
+}
+
 fn powershell_single_quoted(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
@@ -13407,6 +13148,7 @@ mod authority_tests {
     use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
     use epiphany_core::RepoWorkModelingFinding;
     use epiphany_core::put_repo_work_modeling_finding;
+    use tempfile::tempdir;
 
     fn deployment_config_fixture() -> String {
         r#"
@@ -13439,7 +13181,7 @@ aftercare_contract = "gamecult.idunn.deployment_aftercare_audit.v0"
 daemon_owns_execution = true
 
 [required_receipts]
-mind_adoption = "epiphany.repo_work_mind_adoption_decision.v0"
+mind_adoption = "epiphany.repo_work_plan_adoption_review.v0"
 soul_review = "epiphany.repo_work_closure_review.v0"
 maintainer_review = "gamecult.maintainer.review_receipt.v0"
 secret_policy = "epiphany.repo_secret_policy_request.v0"
@@ -13647,7 +13389,7 @@ bifrost_publication_review_required = true
 [required_receipts]
 source_grounding = "epiphany.eyes.evidence_packet"
 soul_review = "epiphany.repo_work_closure_review.v0"
-mind_adoption = "epiphany.repo_work_mind_adoption_decision.v0"
+mind_adoption = "epiphany.repo_work_plan_adoption_review.v0"
 maintainer_review = "gamecult.maintainer.review_receipt.v0"
 bifrost_publication_review = "gamecult.bifrost.publication_review_receipt.v0"
 
@@ -13732,7 +13474,7 @@ bifrost_publication_review_required = true
 [required_receipts]
 source_grounding = "epiphany.eyes.evidence_packet"
 soul_review = "epiphany.repo_work_closure_review.v0"
-mind_adoption = "epiphany.repo_work_mind_adoption_decision.v0"
+mind_adoption = "epiphany.repo_work_plan_adoption_review.v0"
 maintainer_review = "gamecult.maintainer.review_receipt.v0"
 bifrost_publication_review = "gamecult.bifrost.publication_review_receipt.v0"
 dependency_audit = "gamecult.supply_chain.dependency_audit_receipt.v0"
@@ -13817,7 +13559,7 @@ secret_policy_review_required = true
 bifrost_publication_review_required = true
 [required_receipts]
 source_grounding = "epiphany.eyes.evidence_packet"
-mind_adoption = "epiphany.repo_work_mind_adoption_decision.v0"
+mind_adoption = "epiphany.repo_work_plan_adoption_review.v0"
 soul_review = "epiphany.repo_work_closure_review.v0"
 maintainer_review = "gamecult.maintainer.review_receipt.v0"
 secret_policy = "epiphany.repo_secret_policy_request.v0"
@@ -13962,6 +13704,140 @@ idunn_deployment_authority_required = true
         assert!(production.contains("schemaPreflightPassed"));
         assert!(!source.contains(&["RepoWork", "MapStore"].concat()));
         assert!(!source.contains(&["repo-work-map", ".msgpack"].concat()));
+    }
+
+    #[test]
+    fn repo_work_routing_cannot_author_mind_adoption_or_approve_hands_directly() {
+        let source = include_str!("epiphany-work.rs");
+        let adopt_start = source.find("fn run_adopt").expect("run_adopt");
+        let adopt_end = source[adopt_start..]
+            .find("\nfn run_execute")
+            .map(|offset| adopt_start + offset)
+            .expect("run_execute follows run_adopt");
+        let adopt = &source[adopt_start..adopt_end];
+        assert!(adopt.contains("runtime_repo_work_plan_adoption_review"));
+        assert!(adopt.contains("commit_repo_work_hands_grant"));
+        assert!(!adopt.contains("put_repo_work_plan_adoption_review"));
+        assert!(!adopt.contains("put_hands_action_review"));
+        assert!(!adopt.contains("RepoWorkPlanAdoptionReview {"));
+        assert!(!adopt.contains("mind_interpretation"));
+        assert!(!adopt.contains("\"owner\": \"Mind\""));
+
+        let tick_start = source.find("fn run_tick").expect("run_tick");
+        let tick_end = source[tick_start..]
+            .find("\nfn resolve_accept_receipt")
+            .map(|offset| tick_start + offset)
+            .expect("receipt helpers follow run_tick");
+        let tick = &source[tick_start..tick_end];
+        assert!(!tick.contains("run_adopt("));
+        assert!(!tick.contains("put_repo_work_plan_adoption_review"));
+        assert!(!tick.contains("RepoWorkPlanAdoptionReview {"));
+    }
+
+    #[test]
+    fn closure_rejects_swapped_valid_adoption_chain() -> Result<()> {
+        let temp = tempdir()?;
+        let workspace = temp.path().canonicalize()?;
+        let plan_path = workspace.join("plan.json");
+        write_json(&plan_path, &json!({"plan": true}))?;
+        let mind = epiphany_core::RepoWorkPlanAdoptionReview {
+            schema_version: epiphany_core::REPO_WORK_PLAN_ADOPTION_REVIEW_SCHEMA_VERSION.into(),
+            review_id: "mind-review-a".into(),
+            decision: RepoWorkPlanAdoptionDecision::Adopt,
+            workspace_identity: normalize_path_for_receipt(&workspace),
+            item: "item-a".into(),
+            plan_schema_version: "epiphany.repo_work_action_plan_receipt.v0".into(),
+            plan_id: "plan-a".into(),
+            plan_sha256: "a".repeat(64),
+            run_receipt_sha256: "b".repeat(64),
+            plan_receipt_path: normalize_path_for_receipt(&plan_path.canonicalize()?),
+            run_receipt_path: normalize_path_for_receipt(&workspace.join("run.json")),
+            hands_intent_id: "intent-a".into(),
+            queued_hands_review_id: "queued-a".into(),
+            substrate_grant_receipt_id: "substrate-a".into(),
+            action_id: "action-a".into(),
+            action_command: "cargo test --lib".into(),
+            action_commit_message: "Test adoption".into(),
+            changed_paths: vec!["src/lib.rs".into()],
+            reviewed_at: "2026-07-13T00:00:00Z".into(),
+            private_state_exposed: false,
+        };
+        let grant = RepoWorkHandsGrant {
+            schema_version: REPO_WORK_HANDS_GRANT_SCHEMA_VERSION.into(),
+            grant_id: "grant-a".into(),
+            adoption_review_id: mind.review_id.clone(),
+            adoption_review_sha256: "c".repeat(64),
+            workspace_identity: mind.workspace_identity.clone(),
+            item: mind.item.clone(),
+            plan_id: mind.plan_id.clone(),
+            plan_sha256: mind.plan_sha256.clone(),
+            run_receipt_sha256: mind.run_receipt_sha256.clone(),
+            plan_receipt_path: mind.plan_receipt_path.clone(),
+            run_receipt_path: mind.run_receipt_path.clone(),
+            hands_intent_id: mind.hands_intent_id.clone(),
+            queued_hands_review_id: mind.queued_hands_review_id.clone(),
+            approved_hands_review_id: "approved-a".into(),
+            substrate_grant_receipt_id: mind.substrate_grant_receipt_id.clone(),
+            action_id: mind.action_id.clone(),
+            action_command: mind.action_command.clone(),
+            action_commit_message: mind.action_commit_message.clone(),
+            allowed_operations: vec!["patch".into(), "command".into(), "commit".into()],
+            changed_paths: mind.changed_paths.clone(),
+            granted_at: "2026-07-13T00:00:01Z".into(),
+            private_state_exposed: false,
+        };
+        let execute = json!({
+            "workspace": workspace,
+            "item": grant.item,
+            "planReceiptPath": plan_path,
+            "changedPaths": grant.changed_paths,
+            "command": grant.action_command,
+            "adoptionAuthority": {
+                "mindReviewId": mind.review_id,
+                "handsGrantId": grant.grant_id,
+                "planId": grant.plan_id,
+                "planSha256": grant.plan_sha256,
+                "runReceiptPath": grant.run_receipt_path,
+                "runReceiptSha256": grant.run_receipt_sha256,
+                "actionId": grant.action_id,
+                "handsIntentId": grant.hands_intent_id,
+                "approvedHandsReviewId": grant.approved_hands_review_id,
+                "substrateGrantReceiptId": grant.substrate_grant_receipt_id
+            }
+        });
+        assert!(execute_receipt_binds_adoption_chain(
+            &execute, &mind, &grant
+        ));
+        let mut unrelated_mind = mind.clone();
+        unrelated_mind.review_id = "mind-review-b".into();
+        let mut unrelated_grant = grant.clone();
+        unrelated_grant.grant_id = "grant-b".into();
+        unrelated_grant.adoption_review_id = unrelated_mind.review_id.clone();
+        assert!(!execute_receipt_binds_adoption_chain(
+            &execute,
+            &unrelated_mind,
+            &unrelated_grant
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn adopt_cli_rejects_removed_caller_authored_mind_rationale() {
+        let error = parse_adopt_args(
+            [
+                "--workspace".to_string(),
+                ".".to_string(),
+                "--from-plan".to_string(),
+                "plan.json".to_string(),
+                "--mind-review-id".to_string(),
+                "mind-review-1".to_string(),
+                "--mind-adoption-rationale".to_string(),
+                "I, the caller, decree adoption.".to_string(),
+            ]
+            .into_iter(),
+        )
+        .expect_err("caller-authored Mind rationale must remain deleted");
+        assert!(error.to_string().contains("unexpected adopt argument"));
     }
 
     #[test]
@@ -14648,105 +14524,6 @@ direct_hands_authority = true
     }
 }
 
-fn adopted_action_item_from_plan(plan: &Value) -> Value {
-    let action_item = plan
-        .get("derivation")
-        .and_then(|value| value.get("actionItemReceipt"));
-    let plan_action = plan
-        .get("actions")
-        .and_then(Value::as_array)
-        .and_then(|actions| actions.first());
-    json!({
-        "source": "plan.derivation.actionItemReceipt",
-        "planId": plan.get("planId").cloned().unwrap_or(Value::Null),
-        "receiptId": action_item
-            .and_then(|value| value.get("receiptId"))
-            .cloned()
-            .unwrap_or(Value::Null),
-        "receiptPath": action_item
-            .and_then(|value| value.get("receiptPath"))
-            .cloned()
-            .unwrap_or(Value::Null),
-        "schemaVersion": action_item
-            .and_then(|value| value.get("schemaVersion"))
-            .cloned()
-            .unwrap_or(Value::Null),
-        "status": action_item
-            .and_then(|value| value.get("status"))
-            .cloned()
-            .unwrap_or(Value::Null),
-        "modelAuthored": action_item
-            .and_then(|value| value.get("modelAuthored"))
-            .cloned()
-            .unwrap_or(json!(false)),
-        "safeActionFamily": action_item
-            .and_then(|value| value.get("safeActionFamily"))
-            .cloned()
-            .unwrap_or(Value::Null),
-        "requestedPaths": action_item
-            .and_then(|value| value.get("requestedPaths"))
-            .or_else(|| plan_action.and_then(|value| value.get("changedPaths")))
-            .cloned()
-            .unwrap_or(json!([])),
-        "verificationAsks": action_item
-            .and_then(|value| value.get("verificationAsks"))
-            .or_else(|| plan_action.and_then(|value| value.get("verificationAsks")))
-            .cloned()
-            .unwrap_or(json!([])),
-        "summary": plan.get("planSummary").cloned().unwrap_or(Value::Null),
-        "planningFacets": action_item
-            .and_then(|value| value.get("planningFacets"))
-            .cloned()
-            .unwrap_or(Value::Null),
-        "adoptionEvidenceRefs": plan
-            .get("adoptionEvidenceRefs")
-            .cloned()
-            .unwrap_or(json!([])),
-        "handsCommandAuthority": false,
-        "durableStateAuthority": false,
-        "publicationAuthorized": false,
-        "mergeAuthorized": false,
-        "serviceLifecycleAuthority": false,
-        "crossRepoMutation": false,
-        "privateStateExposed": false
-    })
-}
-
-fn repo_work_safe_family_is_recognized(safe_family: &str) -> bool {
-    matches!(
-        safe_family,
-        "repo.append_worklog"
-            | "repo.markdown_planning_note"
-            | "repo.checklist_note"
-            | "repo.markdown_managed_section"
-            | "repo.status_section"
-            | "repo.task_card"
-            | "repo.tool_request"
-            | "repo.collaboration_policy"
-            | "repo.collaboration_topic"
-            | "repo.consensus_brief"
-            | "repo.interpreter_brief"
-            | "repo.objective_draft"
-            | "repo.adoption_request"
-            | "repo.scheduling_request"
-            | "repo.work_order"
-            | "repo.verification_request"
-            | "repo.publication_request"
-            | "repo.sync_request"
-            | "repo.maintainer_review_request"
-            | "repo.pr_request"
-            | "repo.credit_request"
-            | "repo.artifact_acceptance_request"
-            | "repo.metrics_request"
-            | "repo.readiness_review_request"
-            | "repo.doctrine_update_request"
-            | "repo.secret_policy_request"
-            | "repo.dependency_policy_request"
-            | "repo.deployment_config"
-            | "repo.deployment_request"
-    )
-}
-
 fn compact_text(text: &str, limit: usize) -> String {
     let compact = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if compact.chars().count() <= limit {
@@ -14866,7 +14643,7 @@ fn print_usage() {
          derive-plan --workspace <repo> [--item <id>] [--accept-receipt <path>] [--action-family append-worklog|planning-note|checklist-note|section-note|repo-status-section|task-card|repo-tool-request|repo-collaboration-policy|repo-collaboration-topic|repo-consensus-brief|repo-interpreter-brief|repo-objective-draft|repo-adoption-request|repo-scheduling-request|repo-work-order|repo-verification-request|repo-publication-request|repo-sync-request|repo-maintainer-review-request|repo-pr-request|repo-credit-request|repo-artifact-acceptance-request|repo-metrics-request|repo-readiness-review-request|repo-doctrine-update-request|repo-secret-policy-request|repo-dependency-policy-request|repo-deployment-config|repo-deployment-request] [--target-path <path>] [--model-ref <ref>] [--model-authored] [--action-summary <text>] [--verification-ask <text>] [--stop-condition <text>] [--escalation-reason <text>] [--assumption <text>] [--constraint <text>] [--non-goal <text>] [--open-question <text>] [--decision-point <text>] [--evidence-need <text>]\n\
          plan --workspace <repo> [--item <id>] --objective <text> --plan-summary <text> --command <command> --changed-path <path> --commit-message <text> [--adoption-evidence-ref <ref>]\n\
          run --workspace <repo> [--item <id>] [--accept-receipt <path>] [--runtime-store <path>] [--requested-path <path>]\n\
-         adopt --workspace <repo> [--item <id>] [--run-receipt <path>] [--from-plan <path>] [--plan-summary <text>] [--adoption-evidence-ref <ref>] [--mind-adoption-rationale <text>]\n\
+         adopt --workspace <repo> [--item <id>] [--run-receipt <path>] --from-plan <path> --mind-review-id <persisted-review-id>\n\
          execute --workspace <repo> [--item <id>] [--from-plan <path>] [--command <command>] [--changed-path <path>] [--commit-message <text>]\n\
          close --workspace <repo> [--item <id>] [--execute-receipt <path>]\n\
          overview --workspace <repo> [--item <id>] [--accept-receipt <path>] [--no-write]\n\

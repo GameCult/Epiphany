@@ -22,6 +22,118 @@ pub const MIND_STATE_REJECTION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.state_rejection_receipt.v0";
 pub const MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.verse_adoption_receipt.v0";
+pub const REPO_WORK_PLAN_ADOPTION_REVIEW_TYPE: &str = "epiphany.repo_work.plan_adoption_review";
+pub const REPO_WORK_PLAN_ADOPTION_REVIEW_SCHEMA_VERSION: &str =
+    "epiphany.repo_work_plan_adoption_review.v0";
+pub const REPO_WORK_HANDS_GRANT_TYPE: &str = "epiphany.repo_work.hands_grant";
+pub const REPO_WORK_HANDS_GRANT_SCHEMA_VERSION: &str = "epiphany.repo_work_hands_grant.v0";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RepoWorkPlanAdoptionDecision {
+    Adopt,
+    Refuse,
+    Hold,
+}
+
+/// Mind-authored review of one immutable repo-work plan and its complete authority chain.
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.repo_work.plan_adoption_review",
+    schema = "RepoWorkPlanAdoptionReview"
+)]
+pub struct RepoWorkPlanAdoptionReview {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub review_id: String,
+    #[cultcache(key = 2)]
+    pub decision: RepoWorkPlanAdoptionDecision,
+    #[cultcache(key = 3)]
+    pub workspace_identity: String,
+    #[cultcache(key = 4)]
+    pub item: String,
+    #[cultcache(key = 5)]
+    pub plan_schema_version: String,
+    #[cultcache(key = 6)]
+    pub plan_id: String,
+    #[cultcache(key = 7)]
+    pub plan_sha256: String,
+    #[cultcache(key = 8)]
+    pub run_receipt_sha256: String,
+    #[cultcache(key = 9)]
+    pub plan_receipt_path: String,
+    #[cultcache(key = 10)]
+    pub run_receipt_path: String,
+    #[cultcache(key = 11)]
+    pub hands_intent_id: String,
+    #[cultcache(key = 12)]
+    pub queued_hands_review_id: String,
+    #[cultcache(key = 13)]
+    pub substrate_grant_receipt_id: String,
+    #[cultcache(key = 14)]
+    pub action_id: String,
+    #[cultcache(key = 15)]
+    pub action_command: String,
+    #[cultcache(key = 16)]
+    pub action_commit_message: String,
+    #[cultcache(key = 17)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 18)]
+    pub reviewed_at: String,
+    #[cultcache(key = 19)]
+    pub private_state_exposed: bool,
+}
+
+/// The only capability that converts an accepted Mind review into Hands authority.
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(type = "epiphany.repo_work.hands_grant", schema = "RepoWorkHandsGrant")]
+pub struct RepoWorkHandsGrant {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub grant_id: String,
+    #[cultcache(key = 2)]
+    pub adoption_review_id: String,
+    #[cultcache(key = 3)]
+    pub adoption_review_sha256: String,
+    #[cultcache(key = 4)]
+    pub workspace_identity: String,
+    #[cultcache(key = 5)]
+    pub item: String,
+    #[cultcache(key = 6)]
+    pub plan_id: String,
+    #[cultcache(key = 7)]
+    pub plan_sha256: String,
+    #[cultcache(key = 8)]
+    pub run_receipt_sha256: String,
+    #[cultcache(key = 9)]
+    pub plan_receipt_path: String,
+    #[cultcache(key = 10)]
+    pub run_receipt_path: String,
+    #[cultcache(key = 11)]
+    pub hands_intent_id: String,
+    #[cultcache(key = 12)]
+    pub queued_hands_review_id: String,
+    #[cultcache(key = 13)]
+    pub approved_hands_review_id: String,
+    #[cultcache(key = 14)]
+    pub substrate_grant_receipt_id: String,
+    #[cultcache(key = 15)]
+    pub action_id: String,
+    #[cultcache(key = 16)]
+    pub action_command: String,
+    #[cultcache(key = 17)]
+    pub action_commit_message: String,
+    #[cultcache(key = 18)]
+    pub allowed_operations: Vec<String>,
+    #[cultcache(key = 19)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 20)]
+    pub granted_at: String,
+    #[cultcache(key = 21)]
+    pub private_state_exposed: bool,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

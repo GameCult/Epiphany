@@ -63,10 +63,23 @@ validator; missing/changed node, edge, or link anchors stale their summaries.
 There is still no production semantic index for graph claims, so Modeling index
 availability is honestly unavailable rather than inferred from code search.
 
-Next P0 cut: `epiphany-work run_adopt` currently synthesizes Mind ownership and
-an approved Hands review from local JSON predicates. Route adoption through the
-existing typed Mind gateway, immutably bound to the exact plan, and delete the
-scheduler's ability to author Mind/Hands consequence.
+The repo-work adoption authority rebuild is now implemented. `run_adopt`
+consumes an immutable typed `RepoWorkPlanAdoptionReview` bound to exact
+workspace, plan/run paths and SHA-256 bytes, action, command, commit message,
+changed paths, queued Hands review, and Substrate grant. It atomically creates
+an immutable `RepoWorkHandsGrant` plus approved Hands review; Refuse/Hold,
+counterfeit digests, swapped paths, and same-ID replacement are rejected.
+`run_tick` can only report `awaiting-mind-review`. `run_execute` rereads the
+whole chain and revalidates persisted Substrate authority before PowerShell.
+Soul closure now reloads typed runtime truth and cross-binds it to the execute
+receipt; a swapped valid adoption chain fails. Six compiled smokes that taught
+the deleted caller-writable `mindAdoptionDecision` model were removed.
+
+Next architectural cut: finish the Aetheria lesson rather than polishing this
+gate. Modeling needs a production semantic index over typed graph claims and a
+durable frontier projection that automatically targets later Eyes/Hands
+prompts. Memory-graph freshness is substrate; the living migration map is the
+organ.
 
 Epiphany is in an authority-provenance purification pass. The live question is not whether a command can produce a plausible document; it is whether the subsystem writing that document owns the fact it asserts.
 

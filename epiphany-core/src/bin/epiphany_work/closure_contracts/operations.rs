@@ -45,7 +45,7 @@ impl RepoDeploymentConfig {
 
     pub(super) fn has_required_receipt_contract(&self) -> bool {
         let receipts = &self.required_receipts;
-        receipts.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+        receipts.mind_adoption == "epiphany.repo_work_plan_adoption_review.v0"
             && receipts.soul_review == "epiphany.repo_work_closure_review.v0"
             && receipts.maintainer_review == "gamecult.maintainer.review_receipt.v0"
             && receipts.secret_policy == "epiphany.repo_secret_policy_request.v0"
@@ -226,7 +226,7 @@ impl RepoSecretPolicyRequest {
         let receipts = &self.required_receipts;
         receipts.source_grounding == "epiphany.eyes.evidence_packet"
             && receipts.soul_review == "epiphany.repo_work_closure_review.v0"
-            && receipts.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+            && receipts.mind_adoption == "epiphany.repo_work_plan_adoption_review.v0"
             && receipts.maintainer_review == "gamecult.maintainer.review_receipt.v0"
             && receipts.bifrost_publication_review
                 == "gamecult.bifrost.publication_review_receipt.v0"
@@ -382,7 +382,7 @@ impl RepoDependencyPolicyRequest {
         let value = &self.required_receipts;
         value.source_grounding == "epiphany.eyes.evidence_packet"
             && value.soul_review == "epiphany.repo_work_closure_review.v0"
-            && value.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+            && value.mind_adoption == "epiphany.repo_work_plan_adoption_review.v0"
             && value.maintainer_review == "gamecult.maintainer.review_receipt.v0"
             && value.bifrost_publication_review == "gamecult.bifrost.publication_review_receipt.v0"
             && value.dependency_audit == "gamecult.supply_chain.dependency_audit_receipt.v0"
@@ -536,7 +536,7 @@ impl RepoDeploymentRequest {
     pub(super) fn has_receipt_contract(&self) -> bool {
         let value = &self.required_receipts;
         value.source_grounding == "epiphany.eyes.evidence_packet"
-            && value.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+            && value.mind_adoption == "epiphany.repo_work_plan_adoption_review.v0"
             && value.soul_review == "epiphany.repo_work_closure_review.v0"
             && value.maintainer_review == "gamecult.maintainer.review_receipt.v0"
             && value.secret_policy == "epiphany.repo_secret_policy_request.v0"
@@ -626,7 +626,7 @@ impl RepoDoctrineUpdateRequest {
             ),
             (
                 "mind_adoption",
-                "epiphany.repo_work_mind_adoption_decision.v0",
+                "epiphany.repo_work_plan_adoption_review.v0",
             ),
             ("soul_review", "epiphany.repo_work_closure_review.v0"),
             ("maintainer_review", "gamecult.maintainer.review_receipt.v0"),

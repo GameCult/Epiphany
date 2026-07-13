@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_work_hands_grant.schema.json",
+  "title": "Repo Work Hands Grant",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion","grantId","adoptionReviewId","adoptionReviewSha256","workspaceIdentity","item","planId","planSha256","runReceiptSha256","planReceiptPath","runReceiptPath","handsIntentId","queuedHandsReviewId","approvedHandsReviewId","substrateGrantReceiptId","actionId","actionCommand","actionCommitMessage","allowedOperations","changedPaths","grantedAt","privateStateExposed"],
+  "properties": {
+    "schemaVersion":{"const":"epiphany.repo_work_hands_grant.v0"}, "grantId":{"type":"string","minLength":1},
+    "adoptionReviewId":{"type":"string","minLength":1}, "adoptionReviewSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "workspaceIdentity":{"type":"string","minLength":1}, "item":{"type":"string","minLength":1}, "planId":{"type":"string","minLength":1},
+    "planSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"}, "runReceiptSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "planReceiptPath":{"type":"string","minLength":1}, "runReceiptPath":{"type":"string","minLength":1},
+    "handsIntentId":{"type":"string","minLength":1}, "queuedHandsReviewId":{"type":"string","minLength":1}, "approvedHandsReviewId":{"type":"string","minLength":1},
+    "substrateGrantReceiptId":{"type":"string","minLength":1}, "actionId":{"type":"string","minLength":1},
+    "actionCommand":{"type":"string","minLength":1}, "actionCommitMessage":{"type":"string","minLength":1},
+    "allowedOperations":{"type":"array","minItems":1,"uniqueItems":true,"items":{"enum":["patch","command","commit"]}},
+    "changedPaths":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},
+    "grantedAt":{"type":"string","format":"date-time"}, "privateStateExposed":{"const":false}
+  }
+}

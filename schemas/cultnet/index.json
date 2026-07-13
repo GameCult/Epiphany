@@ -2,6 +2,20 @@
   "schemaVersion": "epiphany.cultnet_catalog.v0",
   "schemas": [
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_work_plan_adoption_review.schema.json",
+      "kind": "document_payload", "wireContracts": ["cultnet.schema.v0"],
+      "schemaVersion": "epiphany.repo_work_plan_adoption_review.v0",
+      "documentType": "epiphany.repo_work.plan_adoption_review",
+      "title": "Repo Work Plan Adoption Review", "path": "epiphany.repo_work_plan_adoption_review.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_work_hands_grant.schema.json",
+      "kind": "document_payload", "wireContracts": ["cultnet.schema.v0"],
+      "schemaVersion": "epiphany.repo_work_hands_grant.v0",
+      "documentType": "epiphany.repo_work.hands_grant",
+      "title": "Repo Work Hands Grant", "path": "epiphany.repo_work_hands_grant.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.identity.schema.json",
       "kind": "document_payload",
       "wireContracts": [
