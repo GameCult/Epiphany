@@ -8055,20 +8055,23 @@ fn bifrost_accounting_rows(
         latest_metrics,
     );
 
+    let matching_consensus = latest_feedback.and_then(|feedback| {
+        latest_consensus.filter(|receipt| receipt.feedback_id == feedback.feedback_id)
+    });
     let collaboration_private = latest_feedback
         .map(|feedback| feedback.private_state_included)
         .unwrap_or(false)
-        || latest_consensus
+        || matching_consensus
             .map(|receipt| receipt.private_state_exposed)
             .unwrap_or(false);
     let collaboration_public_count = latest_feedback
         .map(|feedback| feedback.public_discussion_refs.len())
         .unwrap_or(0)
-        + latest_consensus
+        + matching_consensus
             .map(|receipt| receipt.public_feedback_refs.len())
             .unwrap_or(0);
     let collaboration_closed =
-        latest_feedback.is_some() && latest_consensus.is_some() && !collaboration_private;
+        latest_feedback.is_some() && matching_consensus.is_some() && !collaboration_private;
     push_bifrost_accounting_row(
         &mut rows,
         &mut tui_rows,
@@ -8083,11 +8086,11 @@ fn bifrost_accounting_rows(
             closure: format!(
                 "feedback={} consensus={} publicRefs={}",
                 present_word(latest_feedback.is_some()),
-                present_word(latest_consensus.is_some()),
+                present_word(matching_consensus.is_some()),
                 collaboration_public_count
             ),
             ledger_entry_id: "none".to_string(),
-            latest_receipt_id: latest_consensus
+            latest_receipt_id: matching_consensus
                 .map(|receipt| receipt.receipt_id.clone())
                 .or_else(|| latest_feedback.map(|feedback| feedback.feedback_id.clone()))
                 .unwrap_or_else(|| "none".to_string()),
@@ -9501,6 +9504,45 @@ mod lifecycle_projection_tests {
         }
     }
 
+    fn collaboration_feedback(id: &str) -> EpiphanyCultMeshBifrostCollaborationFeedbackEntry {
+        EpiphanyCultMeshBifrostCollaborationFeedbackEntry {
+            schema_version:
+                epiphany_core::EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION
+                    .to_string(),
+            feedback_id: id.to_string(),
+            source_persona_id: "persona-1".to_string(),
+            source_cluster_id: "persona".to_string(),
+            public_room_id: "room-1".to_string(),
+            eve_connection_receipt_id: "eve-1".to_string(),
+            collaboration_topic: "test".to_string(),
+            feedback_summary: "test".to_string(),
+            public_discussion_refs: vec!["discussion-1".to_string()],
+            requested_consensus_route: "imagination.consensus".to_string(),
+            candidate_action_refs: Vec::new(),
+            private_state_included: false,
+            notes: Vec::new(),
+        }
+    }
+
+    fn consensus(feedback_id: &str) -> EpiphanyCultMeshImaginationConsensusReceiptEntry {
+        EpiphanyCultMeshImaginationConsensusReceiptEntry {
+            schema_version:
+                epiphany_core::EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION
+                    .to_string(),
+            receipt_id: "consensus-1".to_string(),
+            feedback_id: feedback_id.to_string(),
+            source_persona_id: "persona-1".to_string(),
+            consensus_route: "imagination.consensus".to_string(),
+            status: "accepted".to_string(),
+            imagination_agent_ids: vec!["imagination-1".to_string()],
+            consensus_packet_ref: "packet-1".to_string(),
+            adoption_gate: "mind-review".to_string(),
+            public_feedback_refs: vec!["public-feedback-1".to_string()],
+            private_state_exposed: false,
+            notes: Vec::new(),
+        }
+    }
+
     fn receipt(
         id: &str,
         status: &str,
@@ -9590,5 +9632,40 @@ mod lifecycle_projection_tests {
         assert_eq!(mismatched[0].status, "open");
         assert!(mismatched[0].closure.contains("publication=missing"));
         assert!(mismatched[0].closure.contains("github=missing"));
+    }
+
+    #[test]
+    fn collaboration_accounting_closes_only_matching_feedback_consensus() {
+        let feedback = collaboration_feedback("feedback-1");
+        let matching_consensus = consensus("feedback-1");
+        let (matching, _) = bifrost_accounting_rows(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(&feedback),
+            Some(&matching_consensus),
+            &[],
+        );
+        assert_eq!(matching.last().unwrap().status, "closed");
+
+        let unrelated_consensus = consensus("another-feedback");
+        let (mismatched, _) = bifrost_accounting_rows(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(&feedback),
+            Some(&unrelated_consensus),
+            &[],
+        );
+        let row = mismatched.last().unwrap();
+        assert_eq!(row.status, "open");
+        assert!(row.closure.contains("consensus=missing"));
+        assert_eq!(row.public_artifact_count, 1);
     }
 }

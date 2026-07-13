@@ -168,6 +168,11 @@ The confirmed conceptual substitutions have been cut:
 - Bifrost prompt/accounting chains follow typed intent -> publication -> GitHub
   receipt identity. Independent latest documents cannot close publication,
   lend review/credit counts, or supply a counterfeit public reference.
+- Collaboration accounting follows consensus `feedback_id`; unrelated latest
+  consensus cannot close another Persona feedback lane or lend public refs.
+- Artifact-acceptance and metrics receipts still lack an explicit repo-work
+  request/map identity. Do not infer it from item/workspace/branch/commit;
+  repair the Bifrost-owned contracts before claiming concurrent-safe closure.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 

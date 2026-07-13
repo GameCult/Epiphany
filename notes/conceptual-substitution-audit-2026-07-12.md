@@ -671,6 +671,25 @@ Composition now follows the existing typed edges: publication
 omits unmatched descendants, and accounting reports the lane open with missing
 links instead of blessing adjacency as completion.
 
+## Independent collaboration mirrors substituted for consensus
+
+The collaboration accounting lane closed whenever any latest Persona feedback
+and any latest Imagination consensus receipt coexisted. It ignored the typed
+`consensus.feedback_id -> feedback.feedback_id` edge, so consensus for another
+conversation could complete the current lane and donate unrelated public refs.
+Closure and consensus-derived counts now use only a receipt whose feedback ID
+matches the displayed feedback. An unmatched receipt remains visible to raw
+diagnostics but the lane stays open and names the missing consensus link.
+
+## Unresolved: artifact and metrics receipts lack request identity
+
+Bifrost artifact-acceptance and metrics accounting combine latest repo-work
+requests with latest provider receipts, but those receipt contracts carry no
+repo-work map/request ID. Item, workspace, branch, and commit fields are not a
+stable causal identity and must not be promoted into one by consumer inference.
+The provider contracts need an explicit request/map identity edge before these
+lanes can truthfully claim request-to-receipt closure under concurrency.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their
