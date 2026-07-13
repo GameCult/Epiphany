@@ -1141,7 +1141,7 @@ fn short_id() -> String {
 
 fn scoped_temp_dir(prefix: &str) -> Result<PathBuf> {
     let path = env::temp_dir().join(format!("{prefix}-{}", Uuid::new_v4()));
-    fs::create_dir_all(&path).with_context(|| format!("failed to create {}", path.display()))?;
+    fs::create_dir(&path).with_context(|| format!("failed to claim {}", path.display()))?;
     Ok(path)
 }
 

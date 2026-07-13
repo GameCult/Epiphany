@@ -516,7 +516,7 @@ fn run_smoke() -> Result<Value> {
         "epiphany-void-memory-smoke-{}",
         uuid::Uuid::new_v4()
     ));
-    fs::create_dir_all(&dir)?;
+    fs::create_dir(&dir)?;
     let archive_path = dir.join("messages.json");
     fs::write(
         &archive_path,

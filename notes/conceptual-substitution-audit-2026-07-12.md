@@ -860,6 +860,15 @@ junction. These smokes now claim the fresh leaf with `create_dir` and fail
 closed on collision. They have no reset path and therefore no recursive-delete
 authority to redirect.
 
+## UUID uniqueness substituted for temporary-directory ownership
+
+Seven smoke/temp helpers generated UUID leaf names with `create_dir_all`, then
+later recursively removed those paths. UUID improbability does not prove
+exclusive ownership; `create_dir_all` silently adopts an occupied leaf. These
+helpers now use `create_dir`, so cleanup authority exists only after exclusive
+creation succeeds. Source search finds no remaining `env::temp_dir()` helper
+that adopts its generated leaf with `create_dir_all`.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

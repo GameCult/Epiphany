@@ -919,7 +919,7 @@ fn sanitize_file_stem(value: &str) -> String {
 
 fn scoped_temp_dir(prefix: &str) -> Result<PathBuf> {
     let dir = env::temp_dir().join(format!("{prefix}-{}", Uuid::new_v4()));
-    fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
+    fs::create_dir(&dir).with_context(|| format!("failed to claim {}", dir.display()))?;
     Ok(dir)
 }
 
