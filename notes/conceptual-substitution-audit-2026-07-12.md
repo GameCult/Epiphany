@@ -1304,3 +1304,19 @@ on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.
 Production library/binary compilation proves the provider writers remain absent
 from production while their tests continue to compile and pass.
+
+## Policy participation is not policy ownership
+
+Secret and dependency policy requests encoded `Maintainer/Soul/Bifrost` as a
+single requested owner, then accepted a Maintainer-or-Soul authority seal. That
+substituted a participant list for an owner and made independent obligations
+interchangeable. Self now owns routing, Mind owns policy admission, and the
+typed request names Maintainer review, Soul verification, Mind admission, and
+Bifrost publication review as conjunctive requirements. Dependency policy also
+requires its supply-chain audit independently. None of these request documents
+grants secret, write, package, network, CI, deployment, or publication effects.
+
+The wider scan still finds composite decision fields in external governance
+(artifact acceptance, operator/maintainer consequence, PR authority, readiness)
+and composite labels in operator projections. These are the next named scars;
+they are not evidence that every slash in prose is an owner.

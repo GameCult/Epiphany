@@ -5265,7 +5265,9 @@ fn derive_repo_secret_policy_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         "status = \"awaiting-security-review\"".to_string(),
-        "requested_owner = \"Maintainer/Soul/Bifrost\"".to_string(),
+        "routing_owner = \"Self\"".to_string(),
+        "required_reviewers = [\"Maintainer\", \"Soul\", \"Mind\", \"Bifrost\"]".to_string(),
+        "policy_admission_owner = \"Mind\"".to_string(),
         "requested_effect = \"review-repo-secret-and-write-permission-policy\"".to_string(),
         "security_scope = \"secrets, credentials, write permissions, public/private export, and deployment authority\"".to_string(),
         "requires_secret_inventory_without_values = true".to_string(),
@@ -5306,7 +5308,10 @@ fn derive_repo_secret_policy_request_plan(
         "service_lifecycle_authority = false".to_string(),
         "cross_body_mutation_authorized = false".to_string(),
         "private_verse_rummaging = false".to_string(),
-        "maintainer_or_soul_security_authority_required = true".to_string(),
+        "maintainer_security_review_required = true".to_string(),
+        "soul_security_verification_required = true".to_string(),
+        "mind_policy_admission_required = true".to_string(),
+        "bifrost_publication_review_required = true".to_string(),
         String::new(),
         "[verification]".to_string(),
         "asks = [".to_string(),
@@ -5395,7 +5400,9 @@ fn derive_repo_dependency_policy_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         "status = \"awaiting-dependency-policy-review\"".to_string(),
-        "requested_owner = \"Maintainer/Soul/Bifrost\"".to_string(),
+        "routing_owner = \"Self\"".to_string(),
+        "required_reviewers = [\"Maintainer\", \"Soul\", \"Mind\", \"Bifrost\"]".to_string(),
+        "policy_admission_owner = \"Mind\"".to_string(),
         "requested_effect = \"review-repo-dependency-and-supply-chain-policy\"".to_string(),
         "dependency_scope = \"dependency manifests, lockfiles, package-manager commands, vendored code, update cadence, license posture, vulnerability review, and provenance requirements\"".to_string(),
         "requires_manifest_inventory = true".to_string(),
@@ -5448,7 +5455,11 @@ fn derive_repo_dependency_policy_request_plan(
         "service_lifecycle_authority = false".to_string(),
         "cross_body_mutation_authorized = false".to_string(),
         "private_verse_rummaging = false".to_string(),
-        "maintainer_or_soul_dependency_authority_required = true".to_string(),
+        "maintainer_dependency_review_required = true".to_string(),
+        "soul_dependency_verification_required = true".to_string(),
+        "mind_policy_admission_required = true".to_string(),
+        "bifrost_publication_review_required = true".to_string(),
+        "supply_chain_audit_required = true".to_string(),
         String::new(),
         "[verification]".to_string(),
         "asks = [".to_string(),
@@ -13524,7 +13535,9 @@ private_state_exposed = false
 
 [request]
 status = "awaiting-security-review"
-requested_owner = "Maintainer/Soul/Bifrost"
+routing_owner = "Self"
+required_reviewers = ["Maintainer", "Soul", "Mind", "Bifrost"]
+policy_admission_owner = "Mind"
 requested_effect = "review-repo-secret-and-write-permission-policy"
 requires_secret_inventory_without_values = true
 requires_write_permission_scope = true
@@ -13562,7 +13575,10 @@ merge_authorized = false
 service_lifecycle_authority = false
 cross_body_mutation_authorized = false
 private_verse_rummaging = false
-maintainer_or_soul_security_authority_required = true
+maintainer_security_review_required = true
+soul_security_verification_required = true
+mind_policy_admission_required = true
+bifrost_publication_review_required = true
 "#
         .to_string()
     }
@@ -13601,7 +13617,9 @@ summary = "test summary"
 private_state_exposed = false
 [request]
 status = "awaiting-dependency-policy-review"
-requested_owner = "Maintainer/Soul/Bifrost"
+routing_owner = "Self"
+required_reviewers = ["Maintainer", "Soul", "Mind", "Bifrost"]
+policy_admission_owner = "Mind"
 requested_effect = "review-repo-dependency-and-supply-chain-policy"
 requires_manifest_inventory = true
 requires_lockfile_policy = true
@@ -13646,7 +13664,11 @@ deployment_authority = false
 service_lifecycle_authority = false
 cross_body_mutation_authorized = false
 private_verse_rummaging = false
-maintainer_or_soul_dependency_authority_required = true
+maintainer_dependency_review_required = true
+soul_dependency_verification_required = true
+mind_policy_admission_required = true
+bifrost_publication_review_required = true
+supply_chain_audit_required = true
 "#
         .to_string()
     }

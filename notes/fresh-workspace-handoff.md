@@ -458,3 +458,11 @@ review-load receipts are required observations without authorizing spend or
 ledger mutation. Contract catalogue and operator rows use the same ownership.
 
 The last completed code pass had 259 library tests passing and all binaries compiling. Re-run focused checks for the next touched surface; use the full library/binary baseline before committing a new architectural cut.
+
+Secret and dependency policy requests no longer use a
+`Maintainer/Soul/Bifrost` pseudo-owner or Maintainer-or-Soul seal. Self routes,
+Mind admits policy, and Maintainer review, Soul verification, Mind admission,
+and Bifrost publication review are separately required. Dependency policy also
+requires supply-chain audit evidence. The next conceptual-substitution targets
+are the surviving composite decision fields in external governance and the
+composite owner labels in operator projections.

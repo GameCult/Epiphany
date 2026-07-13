@@ -214,10 +214,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "safe_action_family = \"repo.secret_policy_request\"",
     )?;
     require_text(&request_text, "status = \"awaiting-security-review\"")?;
-    require_text(
-        &request_text,
-        "requested_owner = \"Maintainer/Soul/Bifrost\"",
-    )?;
+    require_text(&request_text, "routing_owner = \"Self\"")?;
     require_text(
         &request_text,
         "requires_secret_inventory_without_values = true",

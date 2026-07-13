@@ -228,10 +228,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         &request_text,
         "status = \"awaiting-dependency-policy-review\"",
     )?;
-    require_text(
-        &request_text,
-        "requested_owner = \"Maintainer/Soul/Bifrost\"",
-    )?;
+    require_text(&request_text, "routing_owner = \"Self\"")?;
     require_text(&request_text, "requires_manifest_inventory = true")?;
     require_text(&request_text, "requires_lockfile_policy = true")?;
     require_text(

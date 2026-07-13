@@ -141,7 +141,9 @@ pub(super) struct RepoSecretPolicyRequest {
 #[derive(Debug, Deserialize)]
 pub(super) struct RepoSecretPolicyRequestBody {
     pub(super) status: String,
-    pub(super) requested_owner: String,
+    pub(super) routing_owner: String,
+    pub(super) required_reviewers: Vec<String>,
+    pub(super) policy_admission_owner: String,
     pub(super) requested_effect: String,
     pub(super) requires_secret_inventory_without_values: bool,
     pub(super) requires_write_permission_scope: bool,
@@ -187,7 +189,10 @@ pub(super) struct RepoSecretPolicyAuthority {
     pub(super) service_lifecycle_authority: bool,
     pub(super) cross_body_mutation_authorized: bool,
     pub(super) private_verse_rummaging: bool,
-    pub(super) maintainer_or_soul_security_authority_required: bool,
+    pub(super) maintainer_security_review_required: bool,
+    pub(super) soul_security_verification_required: bool,
+    pub(super) mind_policy_admission_required: bool,
+    pub(super) bifrost_publication_review_required: bool,
 }
 
 impl RepoSecretPolicyRequest {
@@ -199,7 +204,9 @@ impl RepoSecretPolicyRequest {
     pub(super) fn awaits_security_review(&self) -> bool {
         let request = &self.request;
         request.status == "awaiting-security-review"
-            && request.requested_owner == "Maintainer/Soul/Bifrost"
+            && request.routing_owner == "Self"
+            && request.required_reviewers == ["Maintainer", "Soul", "Mind", "Bifrost"]
+            && request.policy_admission_owner == "Mind"
             && request.requested_effect == "review-repo-secret-and-write-permission-policy"
             && request.requires_secret_inventory_without_values
             && request.requires_write_permission_scope
@@ -246,7 +253,10 @@ impl RepoSecretPolicyRequest {
             && !authority.service_lifecycle_authority
             && !authority.cross_body_mutation_authorized
             && !authority.private_verse_rummaging
-            && authority.maintainer_or_soul_security_authority_required
+            && authority.maintainer_security_review_required
+            && authority.soul_security_verification_required
+            && authority.mind_policy_admission_required
+            && authority.bifrost_publication_review_required
     }
 }
 
@@ -270,7 +280,9 @@ pub(super) struct RepoDependencyPolicyRequest {
 #[derive(Debug, Deserialize)]
 pub(super) struct RepoDependencyPolicyRequestBody {
     pub(super) status: String,
-    pub(super) requested_owner: String,
+    pub(super) routing_owner: String,
+    pub(super) required_reviewers: Vec<String>,
+    pub(super) policy_admission_owner: String,
     pub(super) requested_effect: String,
     pub(super) requires_manifest_inventory: bool,
     pub(super) requires_lockfile_policy: bool,
@@ -327,7 +339,11 @@ pub(super) struct RepoDependencyPolicyAuthority {
     pub(super) service_lifecycle_authority: bool,
     pub(super) cross_body_mutation_authorized: bool,
     pub(super) private_verse_rummaging: bool,
-    pub(super) maintainer_or_soul_dependency_authority_required: bool,
+    pub(super) maintainer_dependency_review_required: bool,
+    pub(super) soul_dependency_verification_required: bool,
+    pub(super) mind_policy_admission_required: bool,
+    pub(super) bifrost_publication_review_required: bool,
+    pub(super) supply_chain_audit_required: bool,
 }
 
 impl RepoDependencyPolicyRequest {
@@ -339,7 +355,9 @@ impl RepoDependencyPolicyRequest {
     pub(super) fn awaits_review(&self) -> bool {
         let request = &self.request;
         request.status == "awaiting-dependency-policy-review"
-            && request.requested_owner == "Maintainer/Soul/Bifrost"
+            && request.routing_owner == "Self"
+            && request.required_reviewers == ["Maintainer", "Soul", "Mind", "Bifrost"]
+            && request.policy_admission_owner == "Mind"
             && request.requested_effect == "review-repo-dependency-and-supply-chain-policy"
             && request.requires_manifest_inventory
             && request.requires_lockfile_policy
@@ -396,7 +414,11 @@ impl RepoDependencyPolicyRequest {
             && !value.service_lifecycle_authority
             && !value.cross_body_mutation_authorized
             && !value.private_verse_rummaging
-            && value.maintainer_or_soul_dependency_authority_required
+            && value.maintainer_dependency_review_required
+            && value.soul_dependency_verification_required
+            && value.mind_policy_admission_required
+            && value.bifrost_publication_review_required
+            && value.supply_chain_audit_required
     }
 }
 
