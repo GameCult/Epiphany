@@ -799,6 +799,15 @@ parses through `closure_contracts.rs` and checks exact request, CultMesh, Odin,
 and authority semantics. A regression fixture proves commented denial text
 cannot conceal `direct_tool_execution = true`.
 
+## Metrics-request prose substituted for accounting contracts
+
+`repo.metrics_request` closure inferred request identity, prerequisite receipt
+contracts, packet requirements, and denied accounting authority from arbitrary
+substrings. The typed metrics contract now owns those meanings. Closure checks
+exact fields and accepted-summary equality; a comment claiming
+`spend_authorized = false` cannot conceal an actual spend grant. Bifrost or the
+Maintainer remains the required accounting authority.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

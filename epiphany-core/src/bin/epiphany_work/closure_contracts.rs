@@ -93,6 +93,151 @@ pub(super) fn parse_repo_tool_request(text: &str) -> Result<RepoToolRequest> {
     toml::from_str(text).context("tool request is not valid typed TOML")
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoMetricsRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoMetricsRequestBody,
+    antecedents: RepoMetricsAntecedents,
+    required_receipts: RepoMetricsReceipts,
+    metrics_packet: RepoMetricsPacket,
+    authority: RepoMetricsAuthority,
+}
+
+impl RepoMetricsRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_metrics_request.v0"
+            && self.safe_action_family == "repo.metrics_request"
+    }
+
+    pub(super) fn awaits_owned_review(&self) -> bool {
+        self.request.status == "awaiting-metrics-review"
+            && self.request.requested_owner == "Bifrost/Maintainer"
+            && self.request.requested_effect == "record-compute-review-and-artifact-accounting"
+            && !self.request.publication_request_ref.is_empty()
+            && !self.request.credit_request_ref.is_empty()
+            && !self.request.artifact_acceptance_request_ref.is_empty()
+    }
+
+    pub(super) fn has_antecedent_contract(&self) -> bool {
+        let a = &self.antecedents;
+        a.closure_review_required
+            && a.soul_verdict_required
+            && a.mind_commit_required
+            && a.public_proof_required
+            && a.accepted_artifact_required
+            && a.credit_request_required
+    }
+
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        let r = &self.required_receipts;
+        r.closure_review == "epiphany.repo_work_closure_review.v0"
+            && r.soul_verdict == "epiphany.soul.verification_verdict"
+            && r.mind_commit == "epiphany.mind.state_commit_receipt"
+            && r.public_proof == "epiphany.repo_work_public_proof_bundle.v0"
+            && r.accepted_artifact == "gamecult.artifact.acceptance_receipt.v0"
+            && r.model_spend == "gamecult.metrics.model_spend_receipt.v0"
+            && r.review_load == "gamecult.metrics.review_load_receipt.v0"
+            && r.credit_readback == "gamecult.bifrost.credit_readback_receipt.v0"
+    }
+
+    pub(super) fn has_metrics_packet(&self) -> bool {
+        let p = &self.metrics_packet;
+        p.requires_model_call_count
+            && p.requires_token_or_cost_summary
+            && p.requires_review_minutes_or_count
+            && p.requires_accepted_artifact_ref
+            && p.requires_public_proof_ref
+            && p.requires_credit_readback_ref
+            && p.requires_private_state_redaction_check
+    }
+
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let a = &self.authority;
+        a.branch_local_only
+            && !a.metrics_ledger_authorized
+            && !a.spend_authorized
+            && !a.review_load_authorized
+            && !a.credit_ledger_authorized
+            && !a.github_pr_authorized
+            && !a.merge_authorized
+            && !a.publication_authorized
+            && !a.upstream_sync_authorized
+            && !a.hands_action_authorized
+            && !a.service_lifecycle_authority
+            && !a.cross_body_mutation_authorized
+            && !a.private_verse_rummaging
+            && a.bifrost_or_maintainer_metrics_authority_required
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoMetricsRequestBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    publication_request_ref: String,
+    credit_request_ref: String,
+    artifact_acceptance_request_ref: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoMetricsAntecedents {
+    closure_review_required: bool,
+    soul_verdict_required: bool,
+    mind_commit_required: bool,
+    public_proof_required: bool,
+    accepted_artifact_required: bool,
+    credit_request_required: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoMetricsReceipts {
+    closure_review: String,
+    soul_verdict: String,
+    mind_commit: String,
+    public_proof: String,
+    accepted_artifact: String,
+    model_spend: String,
+    review_load: String,
+    credit_readback: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoMetricsPacket {
+    requires_model_call_count: bool,
+    requires_token_or_cost_summary: bool,
+    requires_review_minutes_or_count: bool,
+    requires_accepted_artifact_ref: bool,
+    requires_public_proof_ref: bool,
+    requires_credit_readback_ref: bool,
+    requires_private_state_redaction_check: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoMetricsAuthority {
+    branch_local_only: bool,
+    metrics_ledger_authorized: bool,
+    spend_authorized: bool,
+    review_load_authorized: bool,
+    credit_ledger_authorized: bool,
+    github_pr_authorized: bool,
+    merge_authorized: bool,
+    publication_authorized: bool,
+    upstream_sync_authorized: bool,
+    hands_action_authorized: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    bifrost_or_maintainer_metrics_authority_required: bool,
+}
+
+pub(super) fn parse_repo_metrics_request(text: &str) -> Result<RepoMetricsRequest> {
+    toml::from_str(text).context("metrics request is not valid typed TOML")
+}
+
 #[cfg(test)]
 mod tool_request_tests {
     use super::*;
@@ -132,6 +277,65 @@ private_verse_rummaging = false
 "#;
         let request = parse_repo_tool_request(text).expect("fixture is typed TOML");
         assert!(request.authority.direct_tool_execution);
+        assert!(!request.has_authority_seals());
+    }
+
+    #[test]
+    fn metrics_comment_cannot_counterfeit_spend_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_metrics_request.v0"
+safe_action_family = "repo.metrics_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-metrics-review"
+requested_owner = "Bifrost/Maintainer"
+requested_effect = "record-compute-review-and-artifact-accounting"
+publication_request_ref = "publication"
+credit_request_ref = "credit"
+artifact_acceptance_request_ref = "artifact"
+[antecedents]
+closure_review_required = true
+soul_verdict_required = true
+mind_commit_required = true
+public_proof_required = true
+accepted_artifact_required = true
+credit_request_required = true
+[required_receipts]
+closure_review = "epiphany.repo_work_closure_review.v0"
+soul_verdict = "epiphany.soul.verification_verdict"
+mind_commit = "epiphany.mind.state_commit_receipt"
+public_proof = "epiphany.repo_work_public_proof_bundle.v0"
+accepted_artifact = "gamecult.artifact.acceptance_receipt.v0"
+model_spend = "gamecult.metrics.model_spend_receipt.v0"
+review_load = "gamecult.metrics.review_load_receipt.v0"
+credit_readback = "gamecult.bifrost.credit_readback_receipt.v0"
+[metrics_packet]
+requires_model_call_count = true
+requires_token_or_cost_summary = true
+requires_review_minutes_or_count = true
+requires_accepted_artifact_ref = true
+requires_public_proof_ref = true
+requires_credit_readback_ref = true
+requires_private_state_redaction_check = true
+[authority]
+branch_local_only = true
+metrics_ledger_authorized = false
+# spend_authorized = false
+spend_authorized = true
+review_load_authorized = false
+credit_ledger_authorized = false
+github_pr_authorized = false
+merge_authorized = false
+publication_authorized = false
+upstream_sync_authorized = false
+hands_action_authorized = false
+service_lifecycle_authority = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+bifrost_or_maintainer_metrics_authority_required = true
+"#;
+        let request = parse_repo_metrics_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());
     }
 }

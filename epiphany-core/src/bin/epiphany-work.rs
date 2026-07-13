@@ -8279,114 +8279,82 @@ fn closure_family_assertions(
             );
         }
         "repo.metrics_request" => {
+            let request = parse_repo_metrics_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "metrics-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_metrics_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMetricsRequest::has_canonical_identity),
                 "Committed metrics request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "metrics-request-family-present",
-                content.contains("safe_action_family = \"repo.metrics_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMetricsRequest::has_canonical_identity),
                 "Committed metrics request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "metrics-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed metrics request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "metrics-request-awaits-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-metrics-review\"")
-                    && content.contains("requested_owner = \"Bifrost/Maintainer\"")
-                    && content.contains(
-                        "requested_effect = \"record-compute-review-and-artifact-accounting\"",
-                    )
-                    && content.contains("publication_request_ref = ")
-                    && content.contains("credit_request_ref = ")
-                    && content.contains("artifact_acceptance_request_ref = "),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMetricsRequest::awaits_owned_review),
                 "Committed metrics request waits for Bifrost/maintainer review before consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "metrics-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("closure_review_required = true")
-                    && content.contains("soul_verdict_required = true")
-                    && content.contains("mind_commit_required = true")
-                    && content.contains("public_proof_required = true")
-                    && content.contains("accepted_artifact_required = true")
-                    && content.contains("credit_request_required = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMetricsRequest::has_antecedent_contract),
                 "Committed metrics request requires closure, Soul, Mind, proof, accepted artifact, and credit request antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "metrics-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains(
-                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
-                    )
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains(
-                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
-                    )
-                    && content.contains(
-                        "accepted_artifact = \"gamecult.artifact.acceptance_receipt.v0\"",
-                    )
-                    && content.contains("model_spend = \"gamecult.metrics.model_spend_receipt.v0\"")
-                    && content.contains("review_load = \"gamecult.metrics.review_load_receipt.v0\"")
-                    && content.contains(
-                        "credit_readback = \"gamecult.bifrost.credit_readback_receipt.v0\"",
-                    ),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMetricsRequest::has_receipt_contract),
                 "Committed metrics request names closure, proof, artifact, spend, review-load, and credit readback receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "metrics-request-packet-contract",
-                content.contains("[metrics_packet]")
-                    && content.contains("requires_model_call_count = true")
-                    && content.contains("requires_token_or_cost_summary = true")
-                    && content.contains("requires_review_minutes_or_count = true")
-                    && content.contains("requires_accepted_artifact_ref = true")
-                    && content.contains("requires_public_proof_ref = true")
-                    && content.contains("requires_credit_readback_ref = true")
-                    && content.contains("requires_private_state_redaction_check = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMetricsRequest::has_metrics_packet),
                 "Committed metrics request names model-call, cost, review-load, artifact, proof, credit, and redaction requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "metrics-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("metrics_ledger_authorized = false")
-                    && content.contains("spend_authorized = false")
-                    && content.contains("review_load_authorized = false")
-                    && content.contains("credit_ledger_authorized = false")
-                    && content.contains("github_pr_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("upstream_sync_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content
-                        .contains("bifrost_or_maintainer_metrics_authority_required = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoMetricsRequest::has_authority_seals),
                 "Committed metrics request denies metrics/spend/review/credit/PR/merge/publication/sync/action/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "metrics-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed metrics request preserves the private-state seal.".to_string(),
             );
         }
