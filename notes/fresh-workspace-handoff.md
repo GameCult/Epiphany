@@ -185,6 +185,9 @@ The confirmed conceptual substitutions have been cut:
   longer substitute for valid deployment configuration.
 - Repo-work deployment closure uses that same typed model and semantic
   predicates; the duplicate substring validator is deleted.
+- Secret-policy request closure parses typed TOML and validates request,
+  antecedent, receipt, security-packet, and authority semantics. Comment prose
+  cannot counterfeit secret/write/deployment denials.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 

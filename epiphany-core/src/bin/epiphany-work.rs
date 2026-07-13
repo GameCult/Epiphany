@@ -8637,107 +8637,77 @@ fn closure_family_assertions(
             );
         }
         "repo.secret_policy_request" => {
+            let parsed = parse_repo_secret_policy_request(&content);
+            let request = parsed.as_ref().ok();
+            push_assertion(
+                &mut assertions,
+                "secret-policy-request-typed-toml",
+                parsed.is_ok(),
+                match parsed.as_ref() {
+                    Ok(_) => "Committed secret policy request parses as typed TOML.".to_string(),
+                    Err(error) => {
+                        format!("Committed secret policy request parse failed: {error:#}")
+                    }
+                },
+            );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_secret_policy_request.v0\""),
+                request.is_some_and(RepoSecretPolicyRequest::has_canonical_identity),
                 "Committed secret policy request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-family-present",
-                content.contains("safe_action_family = \"repo.secret_policy_request\""),
+                request.is_some_and(RepoSecretPolicyRequest::has_canonical_identity),
                 "Committed secret policy request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-summary-present",
-                content.contains(&compact_summary),
+                request.is_some_and(|request| request.summary == compact_summary),
                 "Committed secret policy request contains the accepted pressure summary."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-awaits-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-security-review\"")
-                    && content.contains("requested_owner = \"Maintainer/Soul/Bifrost\"")
-                    && content.contains(
-                        "requested_effect = \"review-repo-secret-and-write-permission-policy\"",
-                    )
-                    && content.contains("requires_secret_inventory_without_values = true")
-                    && content.contains("requires_write_permission_scope = true")
-                    && content.contains("requires_public_private_export_boundary = true"),
+                request.is_some_and(RepoSecretPolicyRequest::awaits_security_review),
                 "Committed secret policy request waits for security review before consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("source_grounding_required = true")
-                    && content.contains("soul_review_required = true")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("maintainer_review_required = true")
-                    && content.contains("bifrost_publication_review_required = true"),
+                request.is_some_and(RepoSecretPolicyRequest::has_review_antecedents),
                 "Committed secret policy request requires source grounding, Soul, Mind, maintainer, and Bifrost review antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains("source_grounding = \"epiphany.eyes.evidence_packet\"")
-                    && content.contains(
-                        "soul_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"",
-                    )
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains(
-                        "bifrost_publication_review = \"gamecult.bifrost.publication_review_receipt.v0\"",
-                    ),
+                request.is_some_and(RepoSecretPolicyRequest::has_receipt_contract),
                 "Committed secret policy request names Eyes, Soul, Mind, maintainer, and Bifrost review receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-packet-contract",
-                content.contains("[security_packet]")
-                    && content.contains("requires_secret_locations_without_values = true")
-                    && content.contains("requires_credential_owner = true")
-                    && content.contains("requires_write_scope_matrix = true")
-                    && content.contains("requires_public_export_redaction_rules = true")
-                    && content.contains("requires_deployment_authority_owner = true")
-                    && content.contains("requires_incident_rollback_plan = true"),
+                request.is_some_and(RepoSecretPolicyRequest::has_security_packet_contract),
                 "Committed secret policy request names secret-location, credential-owner, write-scope, export, deployment, and rollback requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("direct_secret_access_authority = false")
-                    && content.contains("secret_value_materialization = false")
-                    && content.contains("write_permission_authority = false")
-                    && content.contains("deployment_authority = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("service_lifecycle_authority = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("private_verse_rummaging = false")
-                    && content
-                        .contains("maintainer_or_soul_security_authority_required = true"),
+                request.is_some_and(RepoSecretPolicyRequest::has_authority_seals),
                 "Committed secret policy request denies secret/write/deployment/publication/service/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "secret-policy-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request.is_some_and(|request| !request.private_state_exposed),
                 "Committed secret policy request preserves the private-state seal.".to_string(),
             );
         }
@@ -12342,6 +12312,135 @@ fn parse_repo_deployment_config(text: &str) -> Result<RepoDeploymentConfig> {
     toml::from_str(text).context("deployment config is not valid typed TOML")
 }
 
+#[derive(Debug, Deserialize)]
+struct RepoSecretPolicyRequest {
+    schema_version: String,
+    safe_action_family: String,
+    summary: String,
+    private_state_exposed: bool,
+    request: RepoSecretPolicyRequestBody,
+    antecedents: RepoSecretPolicyAntecedents,
+    required_receipts: RepoSecretPolicyReceipts,
+    security_packet: RepoSecretPolicyPacket,
+    authority: RepoSecretPolicyAuthority,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoSecretPolicyRequestBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    requires_secret_inventory_without_values: bool,
+    requires_write_permission_scope: bool,
+    requires_public_private_export_boundary: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoSecretPolicyAntecedents {
+    source_grounding_required: bool,
+    soul_review_required: bool,
+    mind_adoption_required: bool,
+    maintainer_review_required: bool,
+    bifrost_publication_review_required: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoSecretPolicyReceipts {
+    source_grounding: String,
+    soul_review: String,
+    mind_adoption: String,
+    maintainer_review: String,
+    bifrost_publication_review: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoSecretPolicyPacket {
+    requires_secret_locations_without_values: bool,
+    requires_credential_owner: bool,
+    requires_write_scope_matrix: bool,
+    requires_public_export_redaction_rules: bool,
+    requires_deployment_authority_owner: bool,
+    requires_incident_rollback_plan: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoSecretPolicyAuthority {
+    direct_secret_access_authority: bool,
+    secret_value_materialization: bool,
+    write_permission_authority: bool,
+    deployment_authority: bool,
+    publication_authorized: bool,
+    merge_authorized: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    maintainer_or_soul_security_authority_required: bool,
+}
+
+impl RepoSecretPolicyRequest {
+    fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_secret_policy_request.v0"
+            && self.safe_action_family == "repo.secret_policy_request"
+    }
+
+    fn awaits_security_review(&self) -> bool {
+        let request = &self.request;
+        request.status == "awaiting-security-review"
+            && request.requested_owner == "Maintainer/Soul/Bifrost"
+            && request.requested_effect == "review-repo-secret-and-write-permission-policy"
+            && request.requires_secret_inventory_without_values
+            && request.requires_write_permission_scope
+            && request.requires_public_private_export_boundary
+    }
+
+    fn has_review_antecedents(&self) -> bool {
+        let antecedents = &self.antecedents;
+        antecedents.source_grounding_required
+            && antecedents.soul_review_required
+            && antecedents.mind_adoption_required
+            && antecedents.maintainer_review_required
+            && antecedents.bifrost_publication_review_required
+    }
+
+    fn has_receipt_contract(&self) -> bool {
+        let receipts = &self.required_receipts;
+        receipts.source_grounding == "epiphany.eyes.evidence_packet"
+            && receipts.soul_review == "epiphany.repo_work_closure_review.v0"
+            && receipts.mind_adoption == "epiphany.repo_work_mind_adoption_decision.v0"
+            && receipts.maintainer_review == "gamecult.maintainer.review_receipt.v0"
+            && receipts.bifrost_publication_review
+                == "gamecult.bifrost.publication_review_receipt.v0"
+    }
+
+    fn has_security_packet_contract(&self) -> bool {
+        let packet = &self.security_packet;
+        packet.requires_secret_locations_without_values
+            && packet.requires_credential_owner
+            && packet.requires_write_scope_matrix
+            && packet.requires_public_export_redaction_rules
+            && packet.requires_deployment_authority_owner
+            && packet.requires_incident_rollback_plan
+    }
+
+    fn has_authority_seals(&self) -> bool {
+        let authority = &self.authority;
+        !authority.direct_secret_access_authority
+            && !authority.secret_value_materialization
+            && !authority.write_permission_authority
+            && !authority.deployment_authority
+            && !authority.publication_authorized
+            && !authority.merge_authorized
+            && !authority.service_lifecycle_authority
+            && !authority.cross_body_mutation_authorized
+            && !authority.private_verse_rummaging
+            && authority.maintainer_or_soul_security_authority_required
+    }
+}
+
+fn parse_repo_secret_policy_request(text: &str) -> Result<RepoSecretPolicyRequest> {
+    toml::from_str(text).context("secret policy request is not valid typed TOML")
+}
+
 fn run_deployment_config_audit(args: DeploymentConfigAuditArgs) -> Result<Value> {
     let workspace = args
         .workspace
@@ -15514,6 +15613,84 @@ idunn_deployment_authority_required = true
         let branch = &source[start..end];
         assert!(branch.contains("parse_repo_deployment_config"));
         assert!(branch.contains("has_authority_seals"));
+        assert!(!branch.contains("content.contains"));
+    }
+
+    fn secret_policy_fixture() -> String {
+        r#"
+schema_version = "epiphany.repo_secret_policy_request.v0"
+safe_action_family = "repo.secret_policy_request"
+summary = "test summary"
+private_state_exposed = false
+
+[request]
+status = "awaiting-security-review"
+requested_owner = "Maintainer/Soul/Bifrost"
+requested_effect = "review-repo-secret-and-write-permission-policy"
+requires_secret_inventory_without_values = true
+requires_write_permission_scope = true
+requires_public_private_export_boundary = true
+
+[antecedents]
+source_grounding_required = true
+soul_review_required = true
+mind_adoption_required = true
+maintainer_review_required = true
+bifrost_publication_review_required = true
+
+[required_receipts]
+source_grounding = "epiphany.eyes.evidence_packet"
+soul_review = "epiphany.repo_work_closure_review.v0"
+mind_adoption = "epiphany.repo_work_mind_adoption_decision.v0"
+maintainer_review = "gamecult.maintainer.review_receipt.v0"
+bifrost_publication_review = "gamecult.bifrost.publication_review_receipt.v0"
+
+[security_packet]
+requires_secret_locations_without_values = true
+requires_credential_owner = true
+requires_write_scope_matrix = true
+requires_public_export_redaction_rules = true
+requires_deployment_authority_owner = true
+requires_incident_rollback_plan = true
+
+[authority]
+direct_secret_access_authority = false
+secret_value_materialization = false
+write_permission_authority = false
+deployment_authority = false
+publication_authorized = false
+merge_authorized = false
+service_lifecycle_authority = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+maintainer_or_soul_security_authority_required = true
+"#
+        .to_string()
+    }
+
+    #[test]
+    fn secret_policy_closure_refuses_comment_authority_seals() {
+        let valid = parse_repo_secret_policy_request(&secret_policy_fixture()).unwrap();
+        assert!(valid.has_authority_seals());
+
+        let counterfeit = secret_policy_fixture().replace(
+            "direct_secret_access_authority = false",
+            "# direct_secret_access_authority = false\ndirect_secret_access_authority = true",
+        );
+        let parsed = parse_repo_secret_policy_request(&counterfeit).unwrap();
+        assert!(parsed.authority.direct_secret_access_authority);
+        assert!(!parsed.has_authority_seals());
+
+        let source = include_str!("epiphany-work.rs");
+        let start = source
+            .find("\"repo.secret_policy_request\" => {")
+            .expect("secret policy closure branch");
+        let end = source[start..]
+            .find("\n        \"repo.dependency_policy_request\" => {")
+            .map(|offset| start + offset)
+            .expect("end of secret policy closure branch");
+        let branch = &source[start..end];
+        assert!(branch.contains("parse_repo_secret_policy_request"));
         assert!(!branch.contains("content.contains"));
     }
 

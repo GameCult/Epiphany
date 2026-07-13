@@ -735,6 +735,17 @@ summary equality. Closure cannot bless a config that only mentions the desired
 values in comments or unrelated tables, and no deployment closure branch uses
 `content.contains` as authority.
 
+## Secret-policy prose substituted for security authority
+
+`repo.secret_policy_request` closure used substring checks for secret-access,
+write-permission, deployment, publication, service, cross-body, and private
+Verse denials. A comment containing the desired `false` line could coexist with
+an actual `true` authority value and still satisfy closure. The family now has
+a typed TOML model for request scope, antecedents, receipt contracts, security
+packet, and authority seals. Closure requires semantic predicates and exact
+accepted-summary equality; the branch contains no substring authority. A
+commented denial cannot conceal granted secret access.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their
