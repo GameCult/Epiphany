@@ -275,6 +275,10 @@ Sync-request closure is now typed within external governance and guarded
 against substring fallback. Current count: ten typed high-authority families
 and 667 remaining closure substring assertions.
 
+External-governance counterfeit fixtures now live in the dedicated lexical
+`external_governance_tests.rs`; production contract anatomy is 668 lines and
+the five semantic counterfeit tests remain private and passing.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

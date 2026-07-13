@@ -910,6 +910,14 @@ Ten high-authority families are now typed; 667 substring assertions remain in
 the measured closure region. External governance is 933 lines and remains a
 bounded physical domain rather than returning to the facade slab.
 
+## Verification fixtures separated from governance anatomy
+
+External governance carried 267 lines of counterfeit fixtures inline under the
+misleading name `tool_request_tests`. They now live in
+`external_governance_tests.rs` and retain lexical access through a test-only
+include. Production governance is 668 lines; the five counterfeit-seal tests
+remain intact without widening visibility or creating a test API.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their
