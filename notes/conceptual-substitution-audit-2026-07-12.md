@@ -658,6 +658,19 @@ only when their `intent_id` values match. Unmatched receipts remain persisted
 for identity-aware diagnostics; adjacency in two convenience mirrors no longer
 manufactures causality in the Mind's context.
 
+## Independent Bifrost mirrors substituted for publication closure
+
+The Bifrost prompt projection and accounting directory treated the latest body
+change intent, latest Bifrost publication receipt, and latest GitHub receipt as
+one closed chain merely because all three existed. Under concurrent or delayed
+publication work, unrelated documents could therefore manufacture a closed
+gate, borrowed review/credit counts, and a false public artifact reference.
+Composition now follows the existing typed edges: publication
+`intent_id -> intent.intent_id`, then GitHub
+`bifrost_publication_receipt_id -> publication.receipt_id`. Prompt rendering
+omits unmatched descendants, and accounting reports the lane open with missing
+links instead of blessing adjacency as completion.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

@@ -226,6 +226,7 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
             .local_verse
             .latest_bifrost_body_change_publication_receipt
             .as_ref()
+            .filter(|receipt| receipt.intent_id == intent.intent_id)
         {
             lines.push(format!(
                 "- Receipt `{}`: status={}, ledger={}, github_receipt={}, private_state_exposed={}",
@@ -235,20 +236,21 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
                 receipt.github_publication_receipt_id,
                 receipt.private_state_exposed
             ));
-        }
-        if let Some(github) = input
-            .local_verse
-            .latest_bifrost_github_publication_receipt
-            .as_ref()
-        {
-            lines.push(format!(
-                "- GitHub `{}`: pr={}, hands_pr={}, ledger={}, private_state_exposed={}",
-                github.receipt_id,
-                github.pull_request_url,
-                github.hands_pr_receipt_id,
-                github.ledger_entry_id,
-                github.private_state_exposed
-            ));
+            if let Some(github) = input
+                .local_verse
+                .latest_bifrost_github_publication_receipt
+                .as_ref()
+                .filter(|github| github.bifrost_publication_receipt_id == receipt.receipt_id)
+            {
+                lines.push(format!(
+                    "- GitHub `{}`: pr={}, hands_pr={}, ledger={}, private_state_exposed={}",
+                    github.receipt_id,
+                    github.pull_request_url,
+                    github.hands_pr_receipt_id,
+                    github.ledger_entry_id,
+                    github.private_state_exposed
+                ));
+            }
         }
     }
 
@@ -660,11 +662,20 @@ mod tests {
             .as_mut()
             .expect("Eve receipt remains available for mismatch probe")
             .intent_id = "another-eve-intent".to_string();
+        prompt_input
+            .local_verse
+            .latest_bifrost_body_change_publication_receipt
+            .as_mut()
+            .expect("Bifrost receipt remains available for mismatch probe")
+            .intent_id = "another-bifrost-intent".to_string();
         let mismatched = render_epiphany_prompt_context(&prompt_input);
         assert!(mismatched.contains("daemon-tool-intent-prompt-test"));
         assert!(!mismatched.contains("receipt_contract=epiphany.hands.action_review"));
         assert!(mismatched.contains("eve-intent-prompt-test"));
         assert!(!mismatched.contains("eve-receipt-prompt-test"));
+        assert!(mismatched.contains("bifrost-publication-intent-prompt-test"));
+        assert!(!mismatched.contains("bifrost-publication-receipt-prompt-test"));
+        assert!(!mismatched.contains("github-publication-receipt-prompt-test"));
         Ok(())
     }
 }

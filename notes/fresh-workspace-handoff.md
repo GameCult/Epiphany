@@ -165,6 +165,9 @@ The confirmed conceptual substitutions have been cut:
 - Prompt assembly joins Eve and daemon-tool receipts to intents only by matching
   `intent_id`; independent latest mirrors can no longer fabricate a causal
   completion in model context.
+- Bifrost prompt/accounting chains follow typed intent -> publication -> GitHub
+  receipt identity. Independent latest documents cannot close publication,
+  lend review/credit counts, or supply a counterfeit public reference.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 

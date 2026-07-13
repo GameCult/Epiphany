@@ -7924,27 +7924,35 @@ fn bifrost_accounting_rows(
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
 
+    let body_publication = latest_intent.and_then(|intent| {
+        latest_publication.filter(|receipt| receipt.intent_id == intent.intent_id)
+    });
+    let body_github = body_publication.and_then(|publication| {
+        latest_github
+            .filter(|receipt| receipt.bifrost_publication_receipt_id == publication.receipt_id)
+    });
+
     let body_private = latest_intent
         .map(|intent| intent.private_state_included)
         .unwrap_or(false)
-        || latest_publication
+        || body_publication
             .map(|receipt| receipt.private_state_exposed)
             .unwrap_or(false)
-        || latest_github
+        || body_github
             .map(|receipt| receipt.private_state_exposed)
             .unwrap_or(false);
-    let body_review_count = latest_publication
+    let body_review_count = body_publication
         .map(|receipt| receipt.reviewer_ids.len())
         .or_else(|| latest_intent.map(|intent| intent.review_receipt_ids.len()))
         .unwrap_or(0);
-    let body_credit_count = latest_github
+    let body_credit_count = body_github
         .map(|receipt| receipt.credit_receipt_ids.len())
-        .or_else(|| latest_publication.map(|receipt| receipt.credit_receipt_ids.len()))
+        .or_else(|| body_publication.map(|receipt| receipt.credit_receipt_ids.len()))
         .or_else(|| latest_intent.map(|intent| intent.credit_subjects.len()))
         .unwrap_or(0);
     let body_chain_closed = latest_intent.is_some()
-        && latest_publication.is_some()
-        && latest_github.is_some()
+        && body_publication.is_some()
+        && body_github.is_some()
         && body_review_count > 0
         && body_credit_count > 0
         && !body_private;
@@ -7962,28 +7970,28 @@ fn bifrost_accounting_rows(
             closure: format!(
                 "intent={} publication={} github={} review={} credit={}",
                 present_word(latest_intent.is_some()),
-                present_word(latest_publication.is_some()),
-                present_word(latest_github.is_some()),
+                present_word(body_publication.is_some()),
+                present_word(body_github.is_some()),
                 body_review_count,
                 body_credit_count
             ),
-            ledger_entry_id: latest_publication
+            ledger_entry_id: body_publication
                 .map(|receipt| receipt.bifrost_ledger_entry_id.clone())
-                .or_else(|| latest_github.map(|receipt| receipt.ledger_entry_id.clone()))
+                .or_else(|| body_github.map(|receipt| receipt.ledger_entry_id.clone()))
                 .unwrap_or_else(|| "none".to_string()),
-            latest_receipt_id: latest_github
+            latest_receipt_id: body_github
                 .map(|receipt| receipt.receipt_id.clone())
-                .or_else(|| latest_publication.map(|receipt| receipt.receipt_id.clone()))
+                .or_else(|| body_publication.map(|receipt| receipt.receipt_id.clone()))
                 .or_else(|| latest_intent.map(|intent| intent.intent_id.clone()))
                 .unwrap_or_else(|| "none".to_string()),
-            public_ref: latest_github
+            public_ref: body_github
                 .map(|receipt| receipt.pull_request_url.clone())
-                .or_else(|| latest_publication.map(|receipt| receipt.publication_url.clone()))
+                .or_else(|| body_publication.map(|receipt| receipt.publication_url.clone()))
                 .or_else(|| latest_intent.map(|intent| intent.target_branch.clone()))
                 .unwrap_or_else(|| "none".to_string()),
             review_receipt_count: body_review_count,
             credit_receipt_count: body_credit_count,
-            public_artifact_count: usize::from(latest_github.is_some()),
+            public_artifact_count: usize::from(body_github.is_some()),
             private_state_exposed: body_private,
         },
     );
@@ -9426,6 +9434,73 @@ fn required_list(values: &Option<Vec<String>>, message: &str) -> Result<Vec<Stri
 mod lifecycle_projection_tests {
     use super::*;
 
+    fn bifrost_intent(id: &str) -> EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry {
+        EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry {
+            schema_version: epiphany_core::EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: id.to_string(),
+            source_cluster_id: "hands".to_string(),
+            source_agent_id: "epiphany.Hands".to_string(),
+            body_domain: "repo:test".to_string(),
+            target_repository: "test/repo".to_string(),
+            target_branch: "main".to_string(),
+            change_summary: "test".to_string(),
+            justification: "test".to_string(),
+            changed_paths: vec!["src/lib.rs".to_string()],
+            verification_receipt_ids: vec!["verify-1".to_string()],
+            review_receipt_ids: vec!["review-1".to_string()],
+            authorship_agent_ids: vec!["epiphany.Hands".to_string()],
+            credit_subjects: vec!["epiphany.Hands".to_string()],
+            github_publication_requested: true,
+            private_state_included: false,
+            notes: Vec::new(),
+        }
+    }
+
+    fn bifrost_publication(
+        id: &str,
+        intent_id: &str,
+    ) -> EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry {
+        EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry {
+            schema_version: epiphany_core::EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: id.to_string(),
+            intent_id: intent_id.to_string(),
+            status: "accepted".to_string(),
+            bifrost_ledger_entry_id: "ledger-1".to_string(),
+            github_publication_receipt_id: "github-1".to_string(),
+            credit_receipt_ids: vec!["credit-1".to_string()],
+            accepted_changed_paths: vec!["src/lib.rs".to_string()],
+            reviewer_ids: vec!["reviewer-1".to_string()],
+            publication_url: "https://example.invalid/publication".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        }
+    }
+
+    fn github_publication(
+        publication_id: &str,
+    ) -> EpiphanyCultMeshBifrostGithubPublicationReceiptEntry {
+        EpiphanyCultMeshBifrostGithubPublicationReceiptEntry {
+            schema_version:
+                epiphany_core::EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_SCHEMA_VERSION
+                    .to_string(),
+            receipt_id: "github-1".to_string(),
+            bifrost_publication_receipt_id: publication_id.to_string(),
+            hands_pr_receipt_id: "hands-pr-1".to_string(),
+            target_repository: "test/repo".to_string(),
+            target_branch: "main".to_string(),
+            pull_request_url: "https://example.invalid/pr/1".to_string(),
+            pull_request_number: "1".to_string(),
+            commit_sha: "abc123".to_string(),
+            changed_paths: vec!["src/lib.rs".to_string()],
+            ledger_entry_id: "ledger-1".to_string(),
+            credit_receipt_ids: vec!["credit-1".to_string()],
+            published_by_agent_id: "epiphany.Hands".to_string(),
+            publication_status: "published".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        }
+    }
+
     fn receipt(
         id: &str,
         status: &str,
@@ -9479,5 +9554,41 @@ mod lifecycle_projection_tests {
         let selected = service_lifecycle_receipt_for_directory(&receipts, false).unwrap();
         assert_eq!(selected.receipt_id, "new-failure");
         assert!(service_lifecycle_status_needs_attention(&selected.status));
+    }
+
+    #[test]
+    fn bifrost_accounting_closes_only_a_typed_identity_chain() {
+        let intent = bifrost_intent("intent-1");
+        let publication = bifrost_publication("publication-1", "intent-1");
+        let github = github_publication("publication-1");
+        let (matching, _) = bifrost_accounting_rows(
+            Some(&intent),
+            Some(&publication),
+            Some(&github),
+            None,
+            None,
+            None,
+            None,
+            None,
+            &[],
+        );
+        assert_eq!(matching[0].status, "closed");
+
+        let unrelated_publication = bifrost_publication("publication-2", "another-intent");
+        let unrelated_github = github_publication("another-publication");
+        let (mismatched, _) = bifrost_accounting_rows(
+            Some(&intent),
+            Some(&unrelated_publication),
+            Some(&unrelated_github),
+            None,
+            None,
+            None,
+            None,
+            None,
+            &[],
+        );
+        assert_eq!(mismatched[0].status, "open");
+        assert!(mismatched[0].closure.contains("publication=missing"));
+        assert!(mismatched[0].closure.contains("github=missing"));
     }
 }
