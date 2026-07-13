@@ -7723,97 +7723,76 @@ fn closure_family_assertions(
             );
         }
         "repo.sync_request" => {
+            let request = parse_repo_sync_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "sync-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_sync_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoSyncRequest::has_canonical_identity),
                 "Committed sync request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "sync-request-family-present",
-                content.contains("safe_action_family = \"repo.sync_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoSyncRequest::has_canonical_identity),
                 "Committed sync request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "sync-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed sync request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "sync-request-awaits-upstream-proof",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-upstream-main-proof\"")
-                    && content.contains("requested_owner = \"Bifrost\"")
-                    && content.contains(
-                        "requested_effect = \"prove-published-commit-contained-by-upstream-main\"",
-                    )
-                    && content.contains("publication_request_ref = "),
+                request
+                    .as_ref()
+                    .is_some_and(RepoSyncRequest::awaits_upstream_proof),
                 "Committed sync request waits for upstream-main proof instead of performing sync."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "sync-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("publication_receipt_required = true")
-                    && content.contains("github_publication_required = true")
-                    && content.contains("maintainer_review_required = true")
-                    && content.contains("credit_ledger_required = true")
-                    && content.contains("public_proof_required = true"),
+                request.as_ref().is_some_and(RepoSyncRequest::has_antecedent_contract),
                 "Committed sync request requires publication, maintainer review, credit, and proof antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "sync-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains("bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\"")
-                    && content.contains("github_publication = \"gamecult.github.publication_receipt.v0\"")
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains("credit_ledger = \"gamecult.bifrost.credit_receipt.v0\"")
-                    && content.contains(
-                        "upstream_sync = \"epiphany.repo_work_upstream_main_sync.v0\"",
-                    )
-                    && content.contains("ancestry_proof = \"git.merge_base_is_ancestor\""),
+                request.as_ref().is_some_and(RepoSyncRequest::has_receipt_contract),
                 "Committed sync request names publication, review, credit, sync, and ancestry proof receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "sync-request-proof-contract",
-                content.contains("[sync_proof]")
-                    && content.contains("target_ref = \"origin/main\"")
-                    && content.contains("requires_fetch_before_check = true")
-                    && content.contains("requires_merge_base_ancestor_check = true")
-                    && content.contains("requires_clean_public_proof_readback = true")
-                    && content.contains("records_upstream_main_sha = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoSyncRequest::has_proof_contract),
                 "Committed sync request names the upstream-main ancestry proof contract."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "sync-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("push_authorized = false")
-                    && content.contains("upstream_sync_authorized = false")
-                    && content.contains("github_publication_authorized = false")
-                    && content.contains("credit_ledger_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("operator_or_maintainer_authority_required = true"),
+                request.as_ref().is_some_and(RepoSyncRequest::has_authority_seals),
                 "Committed sync request denies merge/push/sync/publication/credit/action/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "sync-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed sync request preserves the private-state seal.".to_string(),
             );
         }
@@ -15478,6 +15457,7 @@ idunn_deployment_authority_required = true
         for family in [
             "repo.tool_request",
             "repo.publication_request",
+            "repo.sync_request",
             "repo.credit_request",
             "repo.artifact_acceptance_request",
             "repo.metrics_request",

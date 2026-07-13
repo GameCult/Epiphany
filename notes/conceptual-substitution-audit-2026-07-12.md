@@ -897,6 +897,19 @@ accounting/publication requests and their counterfeit-seal tests;
 `include!` preserves the original parent-private `pub(super)` boundary; the
 split introduces no registry, generic validator, or wider crate API.
 
+## Sync-request prose substituted for ancestry evidence
+
+`repo.sync_request` closure previously treated matching text as Bifrost review,
+publication receipts, Git ancestry requirements, and denied sync authority. It
+now parses exact typed semantics inside external governance. Upstream
+containment remains evidence produced through the named fetch/merge-base proof;
+the request grants no merge, push, sync, publication, credit, Hands, lifecycle,
+or cross-body authority. The class-level guard prevents substring fallback.
+
+Ten high-authority families are now typed; 667 substring assertions remain in
+the measured closure region. External governance is 933 lines and remains a
+bounded physical domain rather than returning to the facade slab.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

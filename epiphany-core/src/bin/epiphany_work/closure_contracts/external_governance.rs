@@ -637,6 +637,33 @@ pub(super) fn parse_repo_publication_request(text: &str) -> Result<RepoPublicati
     toml::from_str(text).context("publication request is not valid typed TOML")
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoSyncRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoSyncRequestBody,
+    antecedents: RepoSyncAntecedents,
+    required_receipts: RepoSyncReceipts,
+    sync_proof: RepoSyncProof,
+    authority: RepoSyncAuthority,
+}
+impl RepoSyncRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool { self.schema_version == "epiphany.repo_sync_request.v0" && self.safe_action_family == "repo.sync_request" }
+    pub(super) fn awaits_upstream_proof(&self) -> bool { self.request.status == "awaiting-upstream-main-proof" && self.request.requested_owner == "Bifrost" && self.request.requested_effect == "prove-published-commit-contained-by-upstream-main" && !self.request.publication_request_ref.is_empty() }
+    pub(super) fn has_antecedent_contract(&self) -> bool { let a=&self.antecedents; a.publication_receipt_required && a.github_publication_required && a.maintainer_review_required && a.credit_ledger_required && a.public_proof_required }
+    pub(super) fn has_receipt_contract(&self) -> bool { let r=&self.required_receipts; r.bifrost_publication == "gamecult.bifrost.public_proof_publication_receipt.v0" && r.github_publication == "gamecult.github.publication_receipt.v0" && r.maintainer_review == "gamecult.maintainer.review_receipt.v0" && r.credit_ledger == "gamecult.bifrost.credit_receipt.v0" && r.upstream_sync == "epiphany.repo_work_upstream_main_sync.v0" && r.ancestry_proof == "git.merge_base_is_ancestor" }
+    pub(super) fn has_proof_contract(&self) -> bool { let p=&self.sync_proof; p.target_ref == "origin/main" && p.requires_fetch_before_check && p.requires_merge_base_ancestor_check && p.requires_clean_public_proof_readback && p.records_upstream_main_sha }
+    pub(super) fn has_authority_seals(&self) -> bool { let a=&self.authority; a.branch_local_only && !a.merge_authorized && !a.push_authorized && !a.upstream_sync_authorized && !a.github_publication_authorized && !a.credit_ledger_authorized && !a.hands_action_authorized && !a.service_lifecycle_authority && !a.cross_body_mutation_authorized && !a.private_verse_rummaging && a.operator_or_maintainer_authority_required }
+}
+#[derive(Debug, Deserialize)] struct RepoSyncRequestBody { status:String, requested_owner:String, requested_effect:String, publication_request_ref:String }
+#[derive(Debug, Deserialize)] struct RepoSyncAntecedents { publication_receipt_required:bool, github_publication_required:bool, maintainer_review_required:bool, credit_ledger_required:bool, public_proof_required:bool }
+#[derive(Debug, Deserialize)] struct RepoSyncReceipts { bifrost_publication:String, github_publication:String, maintainer_review:String, credit_ledger:String, upstream_sync:String, ancestry_proof:String }
+#[derive(Debug, Deserialize)] struct RepoSyncProof { target_ref:String, requires_fetch_before_check:bool, requires_merge_base_ancestor_check:bool, requires_clean_public_proof_readback:bool, records_upstream_main_sha:bool }
+#[derive(Debug, Deserialize)] struct RepoSyncAuthority { branch_local_only:bool, merge_authorized:bool, push_authorized:bool, upstream_sync_authorized:bool, github_publication_authorized:bool, credit_ledger_authorized:bool, hands_action_authorized:bool, service_lifecycle_authority:bool, cross_body_mutation_authorized:bool, private_verse_rummaging:bool, operator_or_maintainer_authority_required:bool }
+pub(super) fn parse_repo_sync_request(text:&str)->Result<RepoSyncRequest>{toml::from_str(text).context("sync request is not valid typed TOML")}
+
 #[cfg(test)]
 mod tool_request_tests {
     use super::*;

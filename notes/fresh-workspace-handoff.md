@@ -271,6 +271,10 @@ facade over `closure_contracts/external_governance.rs` and
 `closure_contracts/operations.rs`. Keep new contracts with their consequence
 owner; do not reunify the slab or widen its parent-private API.
 
+Sync-request closure is now typed within external governance and guarded
+against substring fallback. Current count: ten typed high-authority families
+and 667 remaining closure substring assertions.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every
