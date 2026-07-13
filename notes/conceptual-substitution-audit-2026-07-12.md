@@ -1164,6 +1164,18 @@ Do not replace the family with another catalog-shaped document. If a later
 planning artifact is needed, it must contain actual candidate action records
 and reference a separately owned contract/catalog.
 
+## Planning false witness deleted
+
+The entire `repo.planning_brief` authority seam is gone: safe-family dispatch,
+generator, closure branch, `safeFamilyPlanning` readback, readiness row, Verse
+classification, CLI help, dedicated 679-line smoke, and all production source
+references. Readiness can no longer be satisfied by closing a file containing
+copied catalog constants. The cut removed 1,393 source lines and no replacement
+adapter.
+
+Direct source inventory now reports 183 substring occurrences across twelve
+remaining families.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

@@ -375,6 +375,12 @@ Remove the family, generator, closure/readback, dedicated smoke, and readiness
 dependency together. Preserve consensus -> interpretation request -> objective
 draft -> Mind adoption. Do not replace it with another per-item catalog dump.
 
+That deletion is complete. The generator, closure/readback, readiness row,
+Verse classification, CLI advertisement, and 679-line dedicated smoke are
+gone; 1,393 source lines were removed without an adapter. No production source
+references remain. Direct inventory now reports 183 substring occurrences
+across twelve families.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment

@@ -5055,7 +5055,6 @@ fn repo_work_stage_for_family(safe_action_family: &str) -> (String, String) {
         | "repo.status_section"
         | "repo.task_card"
         | "repo.consensus_brief"
-        | "repo.planning_brief"
         | "repo.objective_draft" => "imagination-planning",
         "repo.body_manifest"
         | "repo.tool_capabilities"
