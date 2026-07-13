@@ -172,7 +172,9 @@ The confirmed conceptual substitutions have been cut:
   consensus cannot close another Persona feedback lane or lend public refs.
 - Artifact-acceptance and metrics receipts still lack an explicit repo-work
   request/map identity. Do not infer it from item/workspace/branch/commit;
-  repair the Bifrost-owned contracts before claiming concurrent-safe closure.
+  accounting keeps these lanes open with `requestIdentity=missing` while still
+  showing provider receipt proof completeness. Repair the Bifrost-owned
+  contracts before claiming concurrent-safe closure.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 

@@ -689,6 +689,10 @@ repo-work map/request ID. Item, workspace, branch, and commit fields are not a
 stable causal identity and must not be promoted into one by consumer inference.
 The provider contracts need an explicit request/map identity edge before these
 lanes can truthfully claim request-to-receipt closure under concurrency.
+Accounting therefore no longer marks either lane closed: it reports provider
+receipt proof completeness separately while naming `requestIdentity=missing`.
+Historical private requests also no longer contaminate the currently selected
+request; request-side privacy is derived from that request alone.
 
 ## Unresolved: provider receipts without chronology
 

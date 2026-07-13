@@ -8122,7 +8122,9 @@ fn push_artifact_acceptance_accounting_row(
             .cmp(&right.admitted_at)
             .then_with(|| left.map_entry_id.cmp(&right.map_entry_id))
     });
-    let request_private = matching.iter().any(|entry| entry.private_state_exposed);
+    let request_private = latest_request
+        .map(|entry| entry.private_state_exposed)
+        .unwrap_or(false);
     let receipt_private = latest_receipt
         .map(|receipt| receipt.private_state_exposed)
         .unwrap_or(false);
@@ -8146,7 +8148,7 @@ fn push_artifact_acceptance_accounting_row(
         .or_else(|| latest_request.map(|entry| entry.changed_paths.len()))
         .unwrap_or(0);
     let private = request_private || receipt_private;
-    let receipt_closed = latest_receipt
+    let receipt_proof_complete = latest_receipt
         .map(|receipt| {
             !receipt.artifact_ref.trim().is_empty()
                 && !receipt.public_proof_ref.trim().is_empty()
@@ -8164,14 +8166,19 @@ fn push_artifact_acceptance_accounting_row(
             lane: "artifact-acceptance-request".to_string(),
             owner: "Maintainer/Bifrost".to_string(),
             status: bifrost_accounting_status(
-                receipt_closed,
+                false,
                 latest_request.is_some() || latest_receipt.is_some(),
                 private,
             ),
             closure: format!(
-                "request={} acceptance={} review={} artifacts={}",
+                "request={} acceptance={} requestIdentity=missing receiptProof={} review={} artifacts={}",
                 present_word(latest_request.is_some()),
                 present_word(latest_receipt.is_some()),
+                if receipt_proof_complete {
+                    "complete"
+                } else {
+                    "incomplete"
+                },
                 review_receipt_count,
                 public_artifact_count
             ),
@@ -8218,7 +8225,9 @@ fn push_metrics_accounting_row(
             .cmp(&right.admitted_at)
             .then_with(|| left.map_entry_id.cmp(&right.map_entry_id))
     });
-    let request_private = matching.iter().any(|entry| entry.private_state_exposed);
+    let request_private = latest_request
+        .map(|entry| entry.private_state_exposed)
+        .unwrap_or(false);
     let receipt_private = latest_receipt
         .map(|receipt| receipt.private_state_exposed)
         .unwrap_or(false);
@@ -8253,7 +8262,7 @@ fn push_metrics_accounting_row(
         request_review_count
     };
     let private = request_private || receipt_private;
-    let receipt_closed = latest_receipt
+    let receipt_proof_complete = latest_receipt
         .map(|receipt| {
             !receipt.artifact_acceptance_receipt_id.trim().is_empty()
                 && model_spend_count > 0
@@ -8271,14 +8280,19 @@ fn push_metrics_accounting_row(
             lane: "metrics-request".to_string(),
             owner: "Bifrost/Maintainer".to_string(),
             status: bifrost_accounting_status(
-                receipt_closed,
+                false,
                 latest_request.is_some() || latest_receipt.is_some(),
                 private,
             ),
             closure: format!(
-                "request={} metrics={} modelSpend={} reviewLoad={} credit={}",
+                "request={} metrics={} requestIdentity=missing receiptProof={} modelSpend={} reviewLoad={} credit={}",
                 present_word(latest_request.is_some()),
                 present_word(latest_receipt.is_some()),
+                if receipt_proof_complete {
+                    "complete"
+                } else {
+                    "incomplete"
+                },
                 model_spend_count,
                 review_load_count,
                 credit_count
@@ -9543,6 +9557,79 @@ mod lifecycle_projection_tests {
         }
     }
 
+    fn repo_request(family: &str, id: &str, private: bool) -> EpiphanyCultMeshRepoWorkMapEntry {
+        EpiphanyCultMeshRepoWorkMapEntry {
+            schema_version: epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_SCHEMA_VERSION
+                .to_string(),
+            runtime_id: "test".to_string(),
+            verse_id: "gamecult-local".to_string(),
+            map_entry_id: id.to_string(),
+            admitted_at: "2026-07-13T00:00:00Z".to_string(),
+            mirrored_at: "2026-07-13T00:00:01Z".to_string(),
+            workspace: "E:/test".to_string(),
+            item: "test-item".to_string(),
+            branch: "main".to_string(),
+            changed_paths: vec!["src/lib.rs".to_string()],
+            commit_sha: "abc123".to_string(),
+            safe_action_family: family.to_string(),
+            modeling_summary: "modeled".to_string(),
+            soul_verdict_receipt_id: "soul-1".to_string(),
+            mind_gateway_review_id: "mind-review-1".to_string(),
+            mind_state_commit_receipt_id: "mind-commit-1".to_string(),
+            publication_gate: "bifrost".to_string(),
+            durable_state_admitted: true,
+            source_store_path: "state/thread.cc".to_string(),
+            tui_rows: Vec::new(),
+            private_state_exposed: private,
+            notes: Vec::new(),
+            modeling_finding_receipt_id: "modeling-1".to_string(),
+            modeling_route_id: "route-1".to_string(),
+            modeling_generation: 1,
+        }
+    }
+
+    fn artifact_receipt() -> EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry {
+        EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry {
+            schema_version:
+                epiphany_core::EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_SCHEMA_VERSION
+                    .to_string(),
+            receipt_id: "artifact-receipt-1".to_string(),
+            item: "test-item".to_string(),
+            source_workspace: "E:/test".to_string(),
+            source_branch: "main".to_string(),
+            commit_sha: "abc123".to_string(),
+            changed_paths: vec!["src/lib.rs".to_string()],
+            artifact_ref: "artifact://1".to_string(),
+            public_proof_ref: "proof://1".to_string(),
+            maintainer_review_receipt_ids: vec!["review-1".to_string()],
+            bifrost_ledger_entry_id: "ledger-1".to_string(),
+            status: "accepted".to_string(),
+            accepted_by: "maintainer-1".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        }
+    }
+
+    fn metrics_receipt() -> EpiphanyCultMeshBifrostMetricsReceiptEntry {
+        EpiphanyCultMeshBifrostMetricsReceiptEntry {
+            schema_version: epiphany_core::EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION
+                .to_string(),
+            receipt_id: "metrics-receipt-1".to_string(),
+            item: "test-item".to_string(),
+            source_workspace: "E:/test".to_string(),
+            source_branch: "main".to_string(),
+            artifact_acceptance_receipt_id: "artifact-receipt-1".to_string(),
+            model_spend_receipt_ids: vec!["spend-1".to_string()],
+            review_load_receipt_ids: vec!["load-1".to_string()],
+            credit_readback_receipt_ids: vec!["credit-1".to_string()],
+            public_proof_ref: "proof://1".to_string(),
+            metrics_summary: "complete metrics".to_string(),
+            status: "complete".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        }
+    }
+
     fn receipt(
         id: &str,
         status: &str,
@@ -9667,5 +9754,34 @@ mod lifecycle_projection_tests {
         assert_eq!(row.status, "open");
         assert!(row.closure.contains("consensus=missing"));
         assert_eq!(row.public_artifact_count, 1);
+    }
+
+    #[test]
+    fn request_accounting_stays_open_without_typed_receipt_identity() {
+        let old_private = repo_request("repo.artifact_acceptance_request", "old", true);
+        let mut current = repo_request("repo.artifact_acceptance_request", "current", false);
+        current.admitted_at = "2026-07-13T01:00:00Z".to_string();
+        let artifact = artifact_receipt();
+        let mut rows = Vec::new();
+        let mut tui = Vec::new();
+        push_artifact_acceptance_accounting_row(
+            &mut rows,
+            &mut tui,
+            &[old_private, current],
+            Some(&artifact),
+        );
+        assert_eq!(rows[0].status, "open");
+        assert!(rows[0].closure.contains("requestIdentity=missing"));
+        assert!(rows[0].closure.contains("receiptProof=complete"));
+        assert!(!rows[0].private_state_exposed);
+
+        let request = repo_request("repo.metrics_request", "metrics", false);
+        let metrics = metrics_receipt();
+        rows.clear();
+        tui.clear();
+        push_metrics_accounting_row(&mut rows, &mut tui, &[request], Some(&metrics));
+        assert_eq!(rows[0].status, "open");
+        assert!(rows[0].closure.contains("requestIdentity=missing"));
+        assert!(rows[0].closure.contains("receiptProof=complete"));
     }
 }
