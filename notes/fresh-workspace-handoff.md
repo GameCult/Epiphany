@@ -541,3 +541,9 @@ This permits honest unavailable pricing without treating cost and tokens—or
 duration and event count—as interchangeable. Next inspect projected accounting
 status to ensure receipt presence cannot close a row whose required dimensions
 are absent.
+
+That projection check is implemented. Bifrost metrics receipts now expose the
+four typed dimensions; old receipts deserialize with absent optional fields but
+remain incomplete. A negative projection test proves a receipt with IDs and
+summary but no token evidence cannot report complete proof. Continue with
+scheduler/cache projections that derive consequential status from presence.

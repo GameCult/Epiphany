@@ -1442,3 +1442,10 @@ explicit cost availability status, review duration, and review-event count.
 Unknown vendor pricing may be reported as unavailable rather than fabricated;
 it may not erase token accounting. A review count may not erase elapsed load,
 and duration may not erase how many review events occurred.
+
+The Bifrost metrics receipt and accounting projection now enforce the same
+model. The receipt carries token-summary ref, cost availability plus either a
+cost ref or unavailable reason, review duration, and review-event count.
+Fields are optional on the stored v0 shape so older receipts remain readable,
+but missing legacy dimensions make `receiptProof=incomplete`. Receipt IDs and a
+free-text metrics summary can no longer counterfeit measurement completeness.

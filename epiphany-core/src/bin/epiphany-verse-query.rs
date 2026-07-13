@@ -8310,6 +8310,32 @@ fn push_metrics_accounting_row(
                 && credit_count > 0
                 && !receipt.public_proof_ref.trim().is_empty()
                 && !receipt.metrics_summary.trim().is_empty()
+                && !receipt
+                    .token_summary_ref
+                    .as_deref()
+                    .unwrap_or_default()
+                    .trim()
+                    .is_empty()
+                && matches!(
+                    receipt.cost_availability_status.as_deref(),
+                    Some("known" | "unavailable")
+                )
+                && ((receipt.cost_availability_status.as_deref() == Some("known")
+                    && !receipt
+                        .cost_summary_ref
+                        .as_deref()
+                        .unwrap_or_default()
+                        .trim()
+                        .is_empty())
+                    || (receipt.cost_availability_status.as_deref() == Some("unavailable")
+                        && !receipt
+                            .cost_unavailable_reason
+                            .as_deref()
+                            .unwrap_or_default()
+                            .trim()
+                            .is_empty()))
+                && receipt.review_duration_ms.unwrap_or_default() > 0
+                && receipt.review_event_count.unwrap_or_default() > 0
                 && !receipt.private_state_exposed
         })
         .unwrap_or(false);
@@ -9785,6 +9811,12 @@ mod lifecycle_projection_tests {
             metrics_summary: "complete metrics".to_string(),
             status: "complete".to_string(),
             private_state_exposed: false,
+            token_summary_ref: Some("metrics://tokens/1".to_string()),
+            cost_availability_status: Some("known".to_string()),
+            cost_summary_ref: Some("metrics://cost/1".to_string()),
+            cost_unavailable_reason: None,
+            review_duration_ms: Some(1_000),
+            review_event_count: Some(1),
             notes: Vec::new(),
         }
     }
@@ -9938,9 +9970,27 @@ mod lifecycle_projection_tests {
         let metrics = metrics_receipt();
         rows.clear();
         tui.clear();
-        push_metrics_accounting_row(&mut rows, &mut tui, &[request], Some(&metrics));
+        push_metrics_accounting_row(
+            &mut rows,
+            &mut tui,
+            std::slice::from_ref(&request),
+            Some(&metrics),
+        );
         assert_eq!(rows[0].status, "open");
         assert!(rows[0].closure.contains("requestIdentity=missing"));
         assert!(rows[0].closure.contains("receiptProof=complete"));
+
+        let mut incomplete_metrics = metrics_receipt();
+        incomplete_metrics.token_summary_ref = None;
+        rows.clear();
+        tui.clear();
+        push_metrics_accounting_row(
+            &mut rows,
+            &mut tui,
+            std::slice::from_ref(&request),
+            Some(&incomplete_metrics),
+        );
+        assert_eq!(rows[0].status, "open");
+        assert!(rows[0].closure.contains("receiptProof=incomplete"));
     }
 }

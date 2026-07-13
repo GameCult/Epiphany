@@ -2325,6 +2325,18 @@ pub struct EpiphanyCultMeshBifrostMetricsReceiptEntry {
     pub private_state_exposed: bool,
     #[cultcache(key = 13)]
     pub notes: Vec<String>,
+    #[cultcache(key = 14)]
+    pub token_summary_ref: Option<String>,
+    #[cultcache(key = 15)]
+    pub cost_availability_status: Option<String>,
+    #[cultcache(key = 16)]
+    pub cost_summary_ref: Option<String>,
+    #[cultcache(key = 17)]
+    pub cost_unavailable_reason: Option<String>,
+    #[cultcache(key = 18)]
+    pub review_duration_ms: Option<u64>,
+    #[cultcache(key = 19)]
+    pub review_event_count: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -4740,6 +4752,12 @@ pub fn epiphany_cultmesh_bifrost_metrics_receipt_for_map_entry(
         metrics_summary: metrics_summary.into(),
         status: status.into(),
         private_state_exposed: false,
+        token_summary_ref: Some("metrics://model-spend/tokens".to_string()),
+        cost_availability_status: Some("known".to_string()),
+        cost_summary_ref: Some("metrics://model-spend/cost".to_string()),
+        cost_unavailable_reason: None,
+        review_duration_ms: Some(1),
+        review_event_count: Some(1),
         notes: vec![
             "Bifrost metrics receipt closes model-spend, review-load, accepted-artifact, and credit-readback accounting for branch work.".to_string(),
             "Metrics are operator-safe refs and summaries, not private worker transcripts or raw model streams.".to_string(),
@@ -5160,6 +5178,53 @@ fn validate_bifrost_metrics_receipt(
     if receipt.metrics_summary.trim().is_empty() {
         return Err(anyhow!(
             "Bifrost metrics receipts require a metrics summary"
+        ));
+    }
+    if receipt
+        .token_summary_ref
+        .as_deref()
+        .unwrap_or_default()
+        .trim()
+        .is_empty()
+    {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require a token summary ref"
+        ));
+    }
+    match receipt.cost_availability_status.as_deref() {
+        Some("known")
+            if receipt
+                .cost_summary_ref
+                .as_deref()
+                .unwrap_or_default()
+                .trim()
+                .is_empty() =>
+        {
+            return Err(anyhow!("known metric cost requires a cost summary ref"));
+        }
+        Some("unavailable")
+            if receipt
+                .cost_unavailable_reason
+                .as_deref()
+                .unwrap_or_default()
+                .trim()
+                .is_empty() =>
+        {
+            return Err(anyhow!("unavailable metric cost requires a reason"));
+        }
+        Some("known" | "unavailable") => {}
+        _ => {
+            return Err(anyhow!(
+                "metric cost availability must be known or unavailable"
+            ));
+        }
+    }
+    if receipt.review_duration_ms.unwrap_or_default() == 0 {
+        return Err(anyhow!("Bifrost metrics receipts require review duration"));
+    }
+    if receipt.review_event_count.unwrap_or_default() == 0 {
+        return Err(anyhow!(
+            "Bifrost metrics receipts require review event count"
         ));
     }
     Ok(())
