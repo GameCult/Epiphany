@@ -196,6 +196,8 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_text(&request_text, "safe_action_family = \"repo.tool_request\"")?;
     require_text(&request_text, "[request]")?;
+    require_text(&request_text, "routing_owner = \"Self\"")?;
+    require_text(&request_text, "pressure_source = \"Persona\"")?;
     require_text(
         &request_text,
         "target_directory = \"gamecult-local/daemon-tool-directory\"",
@@ -215,7 +217,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "receipt_contract = \"epiphany.cultmesh.daemon_tool_invocation_receipt.v0\"",
     )?;
     require_text(&request_text, "host_daemon_owns_execution = true")?;
-    require_text(&request_text, "requester_owns_request = false")?;
+    require_text(&request_text, "requester_owns_execution = false")?;
     require_text(&request_text, "requires_host_liveness_ready = true")?;
     require_text(&request_text, "requires_cultmesh_receipts = true")?;
     require_text(&request_text, "[odin]")?;

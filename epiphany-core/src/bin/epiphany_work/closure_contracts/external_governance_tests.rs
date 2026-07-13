@@ -47,6 +47,9 @@ safe_action_family = "repo.tool_request"
 summary = "summary"
 private_state_exposed = false
 [request]
+requester_body = "repo:test"
+routing_owner = "Self"
+pressure_source = "Persona"
 target_directory = "gamecult-local/daemon-tool-directory"
 target_capability = "daemon-tool-capability:selected-by-review"
 operation = "submitTypedToolIntent"
@@ -54,7 +57,7 @@ operation = "submitTypedToolIntent"
 intent_contract = "epiphany.cultmesh.daemon_tool_invocation_intent.v0"
 receipt_contract = "epiphany.cultmesh.daemon_tool_invocation_receipt.v0"
 host_daemon_owns_execution = true
-requester_owns_request = false
+requester_owns_execution = false
 requires_host_liveness_ready = true
 requires_cultmesh_receipts = true
 [odin]

@@ -1389,3 +1389,16 @@ ledger rows name the actual source Persona id as owner and retain the requested
 Imagination consensus route. Bifrost owns collaboration-consensus accounting;
 the Persona-to-Imagination chain is what Bifrost observes, not who Bifrost is.
 Production source now contains no arrow-shaped owner value.
+
+## Request ownership is not execution ownership
+
+The repo tool request encoded `requesting_agent="repo Persona/Self"`, while its
+typed closure ignored requester identity entirely and declared
+`requester_owns_request=false`. This merged Persona pressure, Self routing, and
+host execution, then denied ownership of the request because the requester did
+not own execution.
+
+The request now carries a concrete requester body, `routing_owner=Self`, and
+`pressure_source=Persona`. CultMesh separately states that the target host
+daemon owns execution and the requester does not. The typed closure validates
+all of these fields. Persona supplies pressure; Self routes; the provider acts.

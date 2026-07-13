@@ -509,3 +509,11 @@ publishes the Persona-to-Imagination handoff separately; feedback ledger rows
 use their source Persona id; Bifrost owns consensus accounting. Continue the
 conceptual-substitution scan beyond owner strings: look for status, route,
 receipt, or cache fields that borrow consequence authority from another organ.
+
+The first non-owner substitution is cut in `repo.tool_request`. The old
+`requesting_agent="repo Persona/Self"` and `requester_owns_request=false` shape
+is replaced by requester body identity, Self routing, Persona pressure
+provenance, target-host execution ownership, and requester execution denial.
+The typed closure now validates the identity and authority split. Continue
+looking for fields where observation, request, admission, and effect ownership
+are collapsed under innocent-sounding status or cache names.

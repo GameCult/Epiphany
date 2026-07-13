@@ -2721,7 +2721,8 @@ fn derive_repo_tool_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         format!("requester_body = {}", toml_basic_string(&requester_body)),
-        "requesting_agent = \"repo Persona/Self\"".to_string(),
+        "routing_owner = \"Self\"".to_string(),
+        "pressure_source = \"Persona\"".to_string(),
         "target_directory = \"gamecult-local/daemon-tool-directory\"".to_string(),
         "target_capability = \"daemon-tool-capability:selected-by-review\"".to_string(),
         "operation = \"submitTypedToolIntent\"".to_string(),
@@ -2736,7 +2737,7 @@ fn derive_repo_tool_request_plan(
             toml_basic_string(receipt_contract)
         ),
         "host_daemon_owns_execution = true".to_string(),
-        "requester_owns_request = false".to_string(),
+        "requester_owns_execution = false".to_string(),
         "requires_host_liveness_ready = true".to_string(),
         "requires_cultmesh_receipts = true".to_string(),
         String::new(),

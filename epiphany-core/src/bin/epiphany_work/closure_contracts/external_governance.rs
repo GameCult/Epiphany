@@ -20,7 +20,10 @@ impl RepoToolRequest {
     }
 
     pub(super) fn has_request_contract(&self) -> bool {
-        self.request.target_directory == "gamecult-local/daemon-tool-directory"
+        !self.request.requester_body.is_empty()
+            && self.request.routing_owner == "Self"
+            && self.request.pressure_source == "Persona"
+            && self.request.target_directory == "gamecult-local/daemon-tool-directory"
             && self.request.target_capability == "daemon-tool-capability:selected-by-review"
             && self.request.operation == "submitTypedToolIntent"
     }
@@ -30,7 +33,7 @@ impl RepoToolRequest {
             && self.cultmesh.receipt_contract
                 == "epiphany.cultmesh.daemon_tool_invocation_receipt.v0"
             && self.cultmesh.host_daemon_owns_execution
-            && !self.cultmesh.requester_owns_request
+            && !self.cultmesh.requester_owns_execution
             && self.cultmesh.requires_host_liveness_ready
             && self.cultmesh.requires_cultmesh_receipts
     }
@@ -55,6 +58,9 @@ impl RepoToolRequest {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct RepoToolRequestBody {
+    requester_body: String,
+    routing_owner: String,
+    pressure_source: String,
     target_directory: String,
     target_capability: String,
     operation: String,
@@ -65,7 +71,7 @@ pub(super) struct RepoToolRequestCultMesh {
     intent_contract: String,
     receipt_contract: String,
     host_daemon_owns_execution: bool,
-    requester_owns_request: bool,
+    requester_owns_execution: bool,
     requires_host_liveness_ready: bool,
     requires_cultmesh_receipts: bool,
 }
