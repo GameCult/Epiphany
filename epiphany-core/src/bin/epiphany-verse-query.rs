@@ -5055,11 +5055,11 @@ fn repo_work_stage_for_family(safe_action_family: &str) -> (String, String) {
         | "repo.status_section"
         | "repo.task_card"
         | "repo.consensus_brief"
+        | "repo.interpreter_brief"
         | "repo.objective_draft" => "imagination-planning",
-        "repo.body_manifest"
-        | "repo.tool_request"
-        | "repo.collaboration_policy"
-        | "repo.collaboration_topic" => "repo-body-collaboration",
+        "repo.tool_request" | "repo.collaboration_policy" | "repo.collaboration_topic" => {
+            "repo-body-collaboration"
+        }
         "repo.adoption_request" => "mind-adoption-request",
         "repo.scheduling_request" => "self-scheduling-request",
         "repo.work_order" => "hands-execution-request",

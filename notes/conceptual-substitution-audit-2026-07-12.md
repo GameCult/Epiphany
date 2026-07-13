@@ -1211,6 +1211,27 @@ publication remain the live paths. Downstream composition remains downstream.
 Direct source inventory now reports 71 substring occurrences across eight
 remaining families.
 
+## Body manifest as a daemon diorama
+
+`repo.body_manifest` deterministically invented a Body domain, private Verse
+identity, Eve surface, and advertised capabilities in `epiphany.toml`. No
+runtime consumed that file; its only witnesses were its own closure and
+371-line smoke. It was neither observed Body state nor an admitted birth
+configuration, so the complete safe family is deleted without replacement.
+Runtime state, typed provider advertisements, and repo birth receipts remain
+the authorities.
+
+The inspection also found and repaired a fresh patch-placement error: the new
+collaboration `[policy]` proposal block had landed in the manifest generator
+because a generic metadata context matched first. A direct generator unit test
+now proves those fields belong to collaboration policy and proves
+`repo-manifest` is rejected. The old recursive family smoke was not accepted as
+evidence after twice exceeding bounded execution and spawning nested Cargo
+trees.
+
+Direct source inventory now reports 56 substring occurrences across seven
+remaining families.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

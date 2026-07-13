@@ -294,9 +294,6 @@ markers, defaulting to `notes/epiphany-work/<item>-section.md`; and
 operator-safe status section in the repo Body, defaulting to `README.md`; and
 `--action-family task-card` writes a structured TOML task card, defaulting to
 `notes/epiphany-work/<item>-task-card.toml`; and
-`--action-family repo-manifest` writes a structured Epiphany Body manifest,
-defaulting to `epiphany.toml`, with body domain, private/local/public Verse ids,
-Eve surface id, capability hints, and authority seals; and
 `--action-family repo-tool-request` writes a structured daemon-hosted tool
 request under `.epiphany/tool-requests/<item>.toml`, naming the local
 CultMesh/Odin tool directory, selected daemon capability, typed invocation

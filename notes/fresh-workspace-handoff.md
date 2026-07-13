@@ -397,6 +397,15 @@ are gone—1,188 source lines, no adapters. Real tool requests/host receipts,
 Odin discovery, Eve connection receipts, and provider-owned composition remain.
 Direct inventory is 71 occurrences across eight families.
 
+`repo.body_manifest` is deleted as a daemon diorama: it invented Body/Verse/Eve
+identity and capabilities in an unconsumed `epiphany.toml`. Runtime state,
+provider advertisements, and repo birth receipts remain authoritative. A fresh
+patch-placement error that put collaboration `[policy]` fields in the manifest
+generator was repaired; a direct generator unit test proves the fields now
+belong to collaboration policy and the deleted manifest family is rejected.
+The recursive legacy smoke timed out and spawned nested Cargo trees, so it was
+not treated as proof. Direct inventory is 56 occurrences across seven families.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment
