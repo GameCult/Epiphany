@@ -665,4 +665,26 @@ impl RepoSyncRequest {
 pub(super) fn parse_repo_sync_request(text:&str)->Result<RepoSyncRequest>{toml::from_str(text).context("sync request is not valid typed TOML")}
 
 
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoPrRequest {
+    pub(super) schema_version:String, pub(super) safe_action_family:String,
+    pub(super) summary:String, pub(super) private_state_exposed:bool,
+    request:RepoPrRequestBody, antecedents:RepoPrAntecedents,
+    required_receipts:RepoPrReceipts, pr_packet:RepoPrPacket, authority:RepoPrAuthority,
+}
+impl RepoPrRequest {
+    pub(super) fn has_canonical_identity(&self)->bool{self.schema_version=="epiphany.repo_pr_request.v0"&&self.safe_action_family=="repo.pr_request"}
+    pub(super) fn awaits_owned_review(&self)->bool{let r=&self.request;r.status=="awaiting-pr-publication-review"&&r.requested_owner=="Bifrost/GitHub"&&r.requested_effect=="open-or-update-review-pr-from-redacted-proof-and-maintainer-context"&&!r.maintainer_review_request_ref.is_empty()&&!r.publication_request_ref.is_empty()&&!r.sync_request_ref.is_empty()}
+    pub(super) fn has_antecedent_contract(&self)->bool{let a=&self.antecedents;a.closure_review_required&&a.soul_verdict_required&&a.mind_commit_required&&a.public_proof_required&&a.maintainer_review_required&&a.bifrost_publication_required&&a.credit_ledger_required}
+    pub(super) fn has_receipt_contract(&self)->bool{let r=&self.required_receipts;r.closure_review=="epiphany.repo_work_closure_review.v0"&&r.soul_verdict=="epiphany.soul.verification_verdict"&&r.mind_commit=="epiphany.mind.state_commit_receipt"&&r.public_proof=="epiphany.repo_work_public_proof_bundle.v0"&&r.maintainer_review=="gamecult.maintainer.review_receipt.v0"&&r.bifrost_publication=="gamecult.bifrost.public_proof_publication_receipt.v0"&&r.credit_ledger=="gamecult.bifrost.credit_receipt.v0"&&r.pr_publication=="gamecult.github.pull_request_publication_receipt.v0"}
+    pub(super) fn has_packet_contract(&self)->bool{let p=&self.pr_packet;p.base_ref=="origin/main"&&p.requires_branch_name&&p.requires_title&&p.requires_body&&p.requires_changed_path_list&&p.requires_public_proof_ref&&p.requires_maintainer_review_ref&&p.requires_credit_ref&&p.requires_private_state_redaction_check}
+    pub(super) fn has_authority_seals(&self)->bool{let a=&self.authority;a.branch_local_only&&!a.github_pr_authorized&&!a.branch_push_authorized&&!a.merge_authorized&&!a.publication_authorized&&!a.upstream_sync_authorized&&!a.hands_action_authorized&&!a.service_lifecycle_authority&&!a.cross_body_mutation_authorized&&!a.private_verse_rummaging&&a.bifrost_or_maintainer_authority_required}
+}
+#[derive(Debug,Deserialize)] struct RepoPrRequestBody{status:String,requested_owner:String,requested_effect:String,maintainer_review_request_ref:String,publication_request_ref:String,sync_request_ref:String}
+#[derive(Debug,Deserialize)] struct RepoPrAntecedents{closure_review_required:bool,soul_verdict_required:bool,mind_commit_required:bool,public_proof_required:bool,maintainer_review_required:bool,bifrost_publication_required:bool,credit_ledger_required:bool}
+#[derive(Debug,Deserialize)] struct RepoPrReceipts{closure_review:String,soul_verdict:String,mind_commit:String,public_proof:String,maintainer_review:String,bifrost_publication:String,credit_ledger:String,pr_publication:String}
+#[derive(Debug,Deserialize)] struct RepoPrPacket{base_ref:String,requires_branch_name:bool,requires_title:bool,requires_body:bool,requires_changed_path_list:bool,requires_public_proof_ref:bool,requires_maintainer_review_ref:bool,requires_credit_ref:bool,requires_private_state_redaction_check:bool}
+#[derive(Debug,Deserialize)] struct RepoPrAuthority{branch_local_only:bool,github_pr_authorized:bool,branch_push_authorized:bool,merge_authorized:bool,publication_authorized:bool,upstream_sync_authorized:bool,hands_action_authorized:bool,service_lifecycle_authority:bool,cross_body_mutation_authorized:bool,private_verse_rummaging:bool,bifrost_or_maintainer_authority_required:bool}
+pub(super) fn parse_repo_pr_request(text:&str)->Result<RepoPrRequest>{toml::from_str(text).context("PR request is not valid typed TOML")}
+
 include!("external_governance_tests.rs");

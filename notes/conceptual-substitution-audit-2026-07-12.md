@@ -964,6 +964,17 @@ names must remain absent, while exactly seven persisted Bifrost `/latest` key
 strings must remain. This prevents either semantic regression or accidental
 storage-contract churn.
 
+## PR-request prose substituted for GitHub authority
+
+`repo.pr_request` closure now parses exact typed request ownership,
+antecedents, receipt chain, PR packet, and authority seals inside external
+governance. Bifrost/GitHub and Maintainer remain consequence owners; the
+request grants no PR, push, merge, publication, sync, Hands, lifecycle, or
+cross-body authority. The class-level guard prevents substring fallback.
+
+Eleven high-authority closure families are now typed; 620 substring assertions
+remain in the measured closure region.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

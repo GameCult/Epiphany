@@ -7898,111 +7898,74 @@ fn closure_family_assertions(
             );
         }
         "repo.pr_request" => {
+            let request = parse_repo_pr_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "pr-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_pr_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoPrRequest::has_canonical_identity),
                 "Committed PR request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "pr-request-family-present",
-                content.contains("safe_action_family = \"repo.pr_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoPrRequest::has_canonical_identity),
                 "Committed PR request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "pr-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed PR request contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "pr-request-awaits-publication-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-pr-publication-review\"")
-                    && content.contains("requested_owner = \"Bifrost/GitHub\"")
-                    && content.contains(
-                        "requested_effect = \"open-or-update-review-pr-from-redacted-proof-and-maintainer-context\"",
-                    )
-                    && content.contains("maintainer_review_request_ref = ")
-                    && content.contains("publication_request_ref = ")
-                    && content.contains("sync_request_ref = "),
+                request
+                    .as_ref()
+                    .is_some_and(RepoPrRequest::awaits_owned_review),
                 "Committed PR request waits for Bifrost/GitHub review before consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "pr-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("closure_review_required = true")
-                    && content.contains("soul_verdict_required = true")
-                    && content.contains("mind_commit_required = true")
-                    && content.contains("public_proof_required = true")
-                    && content.contains("maintainer_review_required = true")
-                    && content.contains("bifrost_publication_required = true")
-                    && content.contains("credit_ledger_required = true"),
+                request.as_ref().is_some_and(RepoPrRequest::has_antecedent_contract),
                 "Committed PR request requires closure, Soul, Mind, proof, review, Bifrost, and credit antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "pr-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains(
-                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
-                    )
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains(
-                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
-                    )
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains("bifrost_publication = \"gamecult.bifrost.public_proof_publication_receipt.v0\"")
-                    && content.contains("credit_ledger = \"gamecult.bifrost.credit_receipt.v0\"")
-                    && content.contains("pr_publication = \"gamecult.github.pull_request_publication_receipt.v0\""),
+                request.as_ref().is_some_and(RepoPrRequest::has_receipt_contract),
                 "Committed PR request names closure, proof, review, Bifrost, credit, and PR publication receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "pr-request-packet-contract",
-                content.contains("[pr_packet]")
-                    && content.contains("base_ref = \"origin/main\"")
-                    && content.contains("requires_branch_name = true")
-                    && content.contains("requires_title = true")
-                    && content.contains("requires_body = true")
-                    && content.contains("requires_changed_path_list = true")
-                    && content.contains("requires_public_proof_ref = true")
-                    && content.contains("requires_maintainer_review_ref = true")
-                    && content.contains("requires_credit_ref = true")
-                    && content.contains("requires_private_state_redaction_check = true"),
+                request.as_ref().is_some_and(RepoPrRequest::has_packet_contract),
                 "Committed PR request names branch, title/body, path, proof, review, credit, and redaction requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "pr-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("github_pr_authorized = false")
-                    && content.contains("branch_push_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("upstream_sync_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("bifrost_or_maintainer_authority_required = true"),
+                request.as_ref().is_some_and(RepoPrRequest::has_authority_seals),
                 "Committed PR request denies PR/push/merge/publication/sync/action/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "pr-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed PR request preserves the private-state seal.".to_string(),
             );
         }
@@ -15458,6 +15421,7 @@ idunn_deployment_authority_required = true
             "repo.tool_request",
             "repo.publication_request",
             "repo.sync_request",
+            "repo.pr_request",
             "repo.credit_request",
             "repo.artifact_acceptance_request",
             "repo.metrics_request",
