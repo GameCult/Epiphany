@@ -310,7 +310,7 @@ explicit malicious maintainer-approval fixture now passes as a negative proof.
 
 Verification-request closure is now typed and class-guarded. Current count:
 thirteen typed high-authority families and 543 remaining substring assertions.
-Add the explicit malicious Soul-verdict fixture next.
+The explicit malicious Soul-verdict fixture now passes as a negative proof.
 
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
