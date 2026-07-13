@@ -888,6 +888,15 @@ closure region contains 704 remaining substring assertions, and the contract
 organ is 1,458 lines. The warning against blind struct-forest growth remains in
 force.
 
+## Closure contract organ split by authority
+
+The 1,458-line contract slab is now a two-line private lexical facade over two
+physical domains: `external_governance.rs` owns tooling plus Bifrost
+accounting/publication requests and their counterfeit-seal tests;
+`operations.rs` owns deployment, secret policy, and dependency policy. Lexical
+`include!` preserves the original parent-private `pub(super)` boundary; the
+split introduces no registry, generic validator, or wider crate API.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

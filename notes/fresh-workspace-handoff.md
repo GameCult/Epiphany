@@ -266,6 +266,11 @@ substring authority. Current structural count: nine typed high-authority
 families, 704 remaining closure substring assertions, and 1,458 contract-organ
 lines.
 
+The former 1,458-line `closure_contracts.rs` slab is now a two-line private
+facade over `closure_contracts/external_governance.rs` and
+`closure_contracts/operations.rs`. Keep new contracts with their consequence
+owner; do not reunify the slab or widen its parent-private API.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every
