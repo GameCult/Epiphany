@@ -238,6 +238,148 @@ pub(super) fn parse_repo_metrics_request(text: &str) -> Result<RepoMetricsReques
     toml::from_str(text).context("metrics request is not valid typed TOML")
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoArtifactAcceptanceRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoArtifactAcceptanceRequestBody,
+    antecedents: RepoArtifactAcceptanceAntecedents,
+    required_receipts: RepoArtifactAcceptanceReceipts,
+    artifact_packet: RepoArtifactAcceptancePacket,
+    authority: RepoArtifactAcceptanceAuthority,
+}
+
+impl RepoArtifactAcceptanceRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_artifact_acceptance_request.v0"
+            && self.safe_action_family == "repo.artifact_acceptance_request"
+    }
+
+    pub(super) fn awaits_owned_review(&self) -> bool {
+        let r = &self.request;
+        r.status == "awaiting-artifact-acceptance-review"
+            && r.requested_owner == "Maintainer/Bifrost"
+            && r.requested_effect == "record-accepted-artifact-for-reviewed-branch-work"
+            && !r.verification_request_ref.is_empty()
+            && !r.maintainer_review_request_ref.is_empty()
+            && !r.publication_request_ref.is_empty()
+    }
+
+    pub(super) fn has_antecedent_contract(&self) -> bool {
+        let a = &self.antecedents;
+        a.closure_review_required
+            && a.soul_verdict_required
+            && a.mind_commit_required
+            && a.public_proof_required
+            && a.maintainer_review_required
+            && a.hands_commit_required
+    }
+
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        let r = &self.required_receipts;
+        r.closure_review == "epiphany.repo_work_closure_review.v0"
+            && r.soul_verdict == "epiphany.soul.verification_verdict"
+            && r.mind_commit == "epiphany.mind.state_commit_receipt"
+            && r.public_proof == "epiphany.repo_work_public_proof_bundle.v0"
+            && r.maintainer_review == "gamecult.maintainer.review_receipt.v0"
+            && r.hands_commit == "epiphany.hands.commit_receipt"
+            && r.accepted_artifact == "gamecult.artifact.acceptance_receipt.v0"
+    }
+
+    pub(super) fn has_artifact_packet(&self) -> bool {
+        let p = &self.artifact_packet;
+        p.requires_artifact_ref
+            && p.requires_commit_sha
+            && p.requires_changed_path_list
+            && p.requires_review_verdict
+            && p.requires_public_proof_ref
+            && p.requires_acceptance_rationale
+            && p.requires_private_state_redaction_check
+    }
+
+    pub(super) fn has_authority_seals(&self) -> bool {
+        let a = &self.authority;
+        a.branch_local_only
+            && !a.artifact_acceptance_authorized
+            && !a.credit_ledger_authorized
+            && !a.github_pr_authorized
+            && !a.merge_authorized
+            && !a.publication_authorized
+            && !a.upstream_sync_authorized
+            && !a.hands_action_authorized
+            && !a.service_lifecycle_authority
+            && !a.cross_body_mutation_authorized
+            && !a.private_verse_rummaging
+            && a.maintainer_or_bifrost_acceptance_authority_required
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoArtifactAcceptanceRequestBody {
+    status: String,
+    requested_owner: String,
+    requested_effect: String,
+    verification_request_ref: String,
+    maintainer_review_request_ref: String,
+    publication_request_ref: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoArtifactAcceptanceAntecedents {
+    closure_review_required: bool,
+    soul_verdict_required: bool,
+    mind_commit_required: bool,
+    public_proof_required: bool,
+    maintainer_review_required: bool,
+    hands_commit_required: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoArtifactAcceptanceReceipts {
+    closure_review: String,
+    soul_verdict: String,
+    mind_commit: String,
+    public_proof: String,
+    maintainer_review: String,
+    hands_commit: String,
+    accepted_artifact: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoArtifactAcceptancePacket {
+    requires_artifact_ref: bool,
+    requires_commit_sha: bool,
+    requires_changed_path_list: bool,
+    requires_review_verdict: bool,
+    requires_public_proof_ref: bool,
+    requires_acceptance_rationale: bool,
+    requires_private_state_redaction_check: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoArtifactAcceptanceAuthority {
+    branch_local_only: bool,
+    artifact_acceptance_authorized: bool,
+    credit_ledger_authorized: bool,
+    github_pr_authorized: bool,
+    merge_authorized: bool,
+    publication_authorized: bool,
+    upstream_sync_authorized: bool,
+    hands_action_authorized: bool,
+    service_lifecycle_authority: bool,
+    cross_body_mutation_authorized: bool,
+    private_verse_rummaging: bool,
+    maintainer_or_bifrost_acceptance_authority_required: bool,
+}
+
+pub(super) fn parse_repo_artifact_acceptance_request(
+    text: &str,
+) -> Result<RepoArtifactAcceptanceRequest> {
+    toml::from_str(text).context("artifact acceptance request is not valid typed TOML")
+}
+
 #[cfg(test)]
 mod tool_request_tests {
     use super::*;
@@ -336,6 +478,62 @@ private_verse_rummaging = false
 bifrost_or_maintainer_metrics_authority_required = true
 "#;
         let request = parse_repo_metrics_request(text).expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
+    }
+
+    #[test]
+    fn artifact_comment_cannot_counterfeit_acceptance_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_artifact_acceptance_request.v0"
+safe_action_family = "repo.artifact_acceptance_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-artifact-acceptance-review"
+requested_owner = "Maintainer/Bifrost"
+requested_effect = "record-accepted-artifact-for-reviewed-branch-work"
+verification_request_ref = "verification"
+maintainer_review_request_ref = "review"
+publication_request_ref = "publication"
+[antecedents]
+closure_review_required = true
+soul_verdict_required = true
+mind_commit_required = true
+public_proof_required = true
+maintainer_review_required = true
+hands_commit_required = true
+[required_receipts]
+closure_review = "epiphany.repo_work_closure_review.v0"
+soul_verdict = "epiphany.soul.verification_verdict"
+mind_commit = "epiphany.mind.state_commit_receipt"
+public_proof = "epiphany.repo_work_public_proof_bundle.v0"
+maintainer_review = "gamecult.maintainer.review_receipt.v0"
+hands_commit = "epiphany.hands.commit_receipt"
+accepted_artifact = "gamecult.artifact.acceptance_receipt.v0"
+[artifact_packet]
+requires_artifact_ref = true
+requires_commit_sha = true
+requires_changed_path_list = true
+requires_review_verdict = true
+requires_public_proof_ref = true
+requires_acceptance_rationale = true
+requires_private_state_redaction_check = true
+[authority]
+branch_local_only = true
+# artifact_acceptance_authorized = false
+artifact_acceptance_authorized = true
+credit_ledger_authorized = false
+github_pr_authorized = false
+merge_authorized = false
+publication_authorized = false
+upstream_sync_authorized = false
+hands_action_authorized = false
+service_lifecycle_authority = false
+cross_body_mutation_authorized = false
+private_verse_rummaging = false
+maintainer_or_bifrost_acceptance_authority_required = true
+"#;
+        let request = parse_repo_artifact_acceptance_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());
     }
 }

@@ -234,9 +234,10 @@ Historical implementation detail belongs in git history, smoke artifacts, and th
 
 ## Next real move
 
-Continue the modeling pass beyond receipt writers. Tool-request and
-metrics-request closure now use typed family contracts and cannot accept
-comment-counterfeit execution or spend seals.
+Continue the modeling pass beyond receipt writers. Tool-request,
+metrics-request, and artifact-acceptance-request closure now use typed family
+contracts and cannot accept comment-counterfeit execution, spend, or acceptance
+seals.
 Inventory remaining substring closure families and production paths where a
 projection, cache, adapter, scheduler, coordinator, or compatibility surface
 asserts a fact owned elsewhere. For each candidate, name the owner, allowed

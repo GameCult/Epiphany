@@ -808,6 +808,15 @@ exact fields and accepted-summary equality; a comment claiming
 `spend_authorized = false` cannot conceal an actual spend grant. Bifrost or the
 Maintainer remains the required accounting authority.
 
+## Artifact-request prose substituted for acceptance contracts
+
+`repo.artifact_acceptance_request` closure previously accepted matching prose
+as request identity, evidence contracts, packet requirements, and denied
+acceptance authority. The family now parses typed TOML and checks exact
+semantics. A commented denial cannot conceal
+`artifact_acceptance_authorized = true`; Maintainer/Bifrost remains the only
+named acceptance owner.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

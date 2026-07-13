@@ -8166,114 +8166,83 @@ fn closure_family_assertions(
             );
         }
         "repo.artifact_acceptance_request" => {
+            let request = parse_repo_artifact_acceptance_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-schema-present",
-                content
-                    .contains("schema_version = \"epiphany.repo_artifact_acceptance_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoArtifactAcceptanceRequest::has_canonical_identity),
                 "Committed artifact acceptance request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-family-present",
-                content.contains("safe_action_family = \"repo.artifact_acceptance_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoArtifactAcceptanceRequest::has_canonical_identity),
                 "Committed artifact acceptance request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|request| request.summary == compact_summary),
                 "Committed artifact acceptance request contains the accepted pressure summary."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-awaits-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-artifact-acceptance-review\"")
-                    && content.contains("requested_owner = \"Maintainer/Bifrost\"")
-                    && content.contains(
-                        "requested_effect = \"record-accepted-artifact-for-reviewed-branch-work\"",
-                    )
-                    && content.contains("verification_request_ref = ")
-                    && content.contains("maintainer_review_request_ref = ")
-                    && content.contains("publication_request_ref = "),
+                request
+                    .as_ref()
+                    .is_some_and(RepoArtifactAcceptanceRequest::awaits_owned_review),
                 "Committed artifact acceptance request waits for maintainer/Bifrost review before consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("closure_review_required = true")
-                    && content.contains("soul_verdict_required = true")
-                    && content.contains("mind_commit_required = true")
-                    && content.contains("public_proof_required = true")
-                    && content.contains("maintainer_review_required = true")
-                    && content.contains("hands_commit_required = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoArtifactAcceptanceRequest::has_antecedent_contract),
                 "Committed artifact acceptance request requires closure, Soul, Mind, proof, review, and Hands commit antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains(
-                        "closure_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "soul_verdict = \"epiphany.soul.verification_verdict\"",
-                    )
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\"")
-                    && content.contains(
-                        "public_proof = \"epiphany.repo_work_public_proof_bundle.v0\"",
-                    )
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains("hands_commit = \"epiphany.hands.commit_receipt\"")
-                    && content.contains(
-                        "accepted_artifact = \"gamecult.artifact.acceptance_receipt.v0\"",
-                    ),
+                request
+                    .as_ref()
+                    .is_some_and(RepoArtifactAcceptanceRequest::has_receipt_contract),
                 "Committed artifact acceptance request names closure, proof, review, Hands commit, and accepted artifact receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-packet-contract",
-                content.contains("[artifact_packet]")
-                    && content.contains("requires_artifact_ref = true")
-                    && content.contains("requires_commit_sha = true")
-                    && content.contains("requires_changed_path_list = true")
-                    && content.contains("requires_review_verdict = true")
-                    && content.contains("requires_public_proof_ref = true")
-                    && content.contains("requires_acceptance_rationale = true")
-                    && content.contains("requires_private_state_redaction_check = true"),
+                request
+                    .as_ref()
+                    .is_some_and(RepoArtifactAcceptanceRequest::has_artifact_packet),
                 "Committed artifact acceptance request names artifact, commit, path, review, proof, rationale, and redaction requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("artifact_acceptance_authorized = false")
-                    && content.contains("credit_ledger_authorized = false")
-                    && content.contains("github_pr_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("upstream_sync_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains(
-                        "maintainer_or_bifrost_acceptance_authority_required = true",
-                    ),
+                request
+                    .as_ref()
+                    .is_some_and(RepoArtifactAcceptanceRequest::has_authority_seals),
                 "Committed artifact acceptance request denies acceptance/credit/PR/merge/publication/sync/action/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "artifact-acceptance-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|request| !request.private_state_exposed),
                 "Committed artifact acceptance request preserves the private-state seal."
                     .to_string(),
             );
