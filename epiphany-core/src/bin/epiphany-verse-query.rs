@@ -6738,7 +6738,11 @@ fn receipt_directory_report(
         &mut tui_rows,
         ReceiptDirectoryRow {
             family: "eve-connection".to_string(),
-            owner: "Odin/Eve".to_string(),
+            owner: context
+                .latest_eve_connection_receipt
+                .as_ref()
+                .map(|receipt| receipt.target_cluster_id.clone())
+                .unwrap_or_else(|| "target-provider".to_string()),
             document_kind: "epiphany.cultmesh.eve_connection_receipt.v0".to_string(),
             latest_id: context
                 .latest_eve_connection_receipt
@@ -7014,7 +7018,7 @@ fn receipt_directory_report(
         &mut tui_rows,
         ReceiptDirectoryRow {
             family: "work-loop".to_string(),
-            owner: "Hands/Soul/Modeling".to_string(),
+            owner: "Self".to_string(),
             document_kind: "epiphany.cultmesh.work_loop_telemetry.v0".to_string(),
             latest_id: context
                 .latest_work_loop_summary

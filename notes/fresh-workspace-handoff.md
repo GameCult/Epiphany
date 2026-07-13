@@ -482,3 +482,10 @@ requires Maintainer review evidence. The fictional operator-or-maintainer gate
 is removed; the request still denies merge, push, sync, and Hands authority.
 Next inspect composite owner labels in operator projections, starting with rows
 that may be interpreted as decision or execution ownership.
+
+Receipt-directory projection cleanup has started. Eve connection rows now name
+the target provider cluster rather than `Odin/Eve`; work-loop telemetry names
+Self rather than its Hands/Soul/Modeling stage route. The next projection scar
+is `repo_work_stage_for_family`: it groups distinct collaboration and governance
+families under composite owners. Split those stage groups by actual family
+authority; do not merely rename the composites.

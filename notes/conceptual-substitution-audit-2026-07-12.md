@@ -1340,3 +1340,21 @@ contained by `origin/main`; it explicitly denies merge, push, and sync. The
 operator half of the old OR seal was fictional. The contract now names Bifrost
 as proof owner and independently requires the Maintainer review receipt. Actual
 publication and push remain outside this request family.
+
+## Projection labels are not topology diagrams
+
+The receipt directory labeled Eve connection receipts `Odin/Eve`, although the
+receipt belongs to its target provider and Odin only supplies rendezvous. The
+row now uses the receipt's target cluster id, falling back to `target-provider`
+when absent. Downstream Eve/CultUI lowering remains provider-owned and Epiphany
+does not infer a presentation runtime from the receipt family name.
+
+Work-loop telemetry was labeled `Hands/Soul/Modeling`, turning its stage route
+into a pseudo-owner. Self's coordinator/nervous-system path writes the telemetry;
+the source and target stages remain in status/route fields. The row now reports
+Self as owner.
+
+The repo-work stage lens still contains composite labels for grouped safe-action
+families (`Persona/Odin/Eve` and `Mind/Soul/Maintainer`). Those groups combine
+families with different authorities and need to be split by family rather than
+given a more attractive shared label.
