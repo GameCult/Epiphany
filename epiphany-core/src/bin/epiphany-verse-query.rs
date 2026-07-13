@@ -920,12 +920,12 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 intent.clone(),
             )?;
-            let latest_intent =
+            let arrival_latest_intent =
                 load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
                     &args.store,
                     args.runtime_id.clone(),
                 )?;
-            if latest_intent
+            if arrival_latest_intent
                 .as_ref()
                 .map(|intent| intent.intent_id.as_str())
                 != Some(written_intent.intent_id.as_str())
@@ -974,7 +974,7 @@ fn run_cli() -> Result<()> {
 
             require_query_bootstrap(&args)?;
 
-            let (latest_public_proof, public_proofs) = load_repo_work_public_proofs(&args)?;
+            let (arrival_latest_public_proof, public_proofs) = load_repo_work_public_proofs(&args)?;
             let selected_public_proof = if let Some(public_proof_id) = args.public_proof_id.as_ref()
             {
                 public_proofs
@@ -985,7 +985,7 @@ fn run_cli() -> Result<()> {
                         format!("bifrost-public-proof could not find --public-proof-id {public_proof_id}")
                     })?
             } else {
-                latest_public_proof
+                arrival_latest_public_proof
                     .context("bifrost-public-proof requires a repo work public proof in local Verse or --public-proof-id")?
             };
             println!(
@@ -1139,13 +1139,13 @@ fn run_cli() -> Result<()> {
                     "accountingRowCount": report.accounting_rows.len(),
                     "closedAccountingRowCount": report.closed_accounting_row_count,
                     "attentionAccountingRowCount": report.attention_accounting_row_count,
-                    "latestBifrostPublicationIntent": report.latest_publication_intent_id,
-                    "latestBifrostPublicationReceipt": report.latest_publication_receipt_id,
-                    "latestBifrostGithubReceipt": report.latest_github_receipt_id,
-                    "latestBifrostPublicProofPublicationReceipt": report.latest_public_proof_publication_receipt_id,
-                    "latestBifrostArtifactAcceptanceReceipt": report.latest_artifact_acceptance_receipt_id,
-                    "latestBifrostMetricsReceipt": report.latest_metrics_receipt_id,
-                    "latestBifrostCollaborationFeedback": report.latest_feedback_id,
+                    "arrivalLatestBifrostPublicationIntent": report.arrival_latest_publication_intent_id,
+                    "arrivalLatestBifrostPublicationReceipt": report.arrival_latest_publication_receipt_id,
+                    "arrivalLatestBifrostGithubReceipt": report.arrival_latest_github_receipt_id,
+                    "arrivalLatestBifrostPublicProofPublicationReceipt": report.arrival_latest_public_proof_publication_receipt_id,
+                    "arrivalLatestBifrostArtifactAcceptanceReceipt": report.arrival_latest_artifact_acceptance_receipt_id,
+                    "arrivalLatestBifrostMetricsReceipt": report.arrival_latest_metrics_receipt_id,
+                    "arrivalLatestBifrostCollaborationFeedback": report.arrival_latest_feedback_id,
                     "latestImaginationConsensusReceipt": report.latest_consensus_receipt_id,
                     "accountingTuiRows": report.accounting_tui_rows,
                     "accountingRows": report.accounting_rows,
@@ -1240,12 +1240,12 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 feedback.clone(),
             )?;
-            let latest_feedback =
+            let arrival_latest_feedback =
                 load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
                     &args.store,
                     args.runtime_id.clone(),
                 )?;
-            if latest_feedback
+            if arrival_latest_feedback
                 .as_ref()
                 .map(|feedback| feedback.feedback_id.as_str())
                 != Some(written_feedback.feedback_id.as_str())
@@ -2468,12 +2468,16 @@ fn run_cli() -> Result<()> {
                 );
             }
             let bifrost_ledger_report = load_bifrost_ledger_report(&args)?;
-            if bifrost_ledger_report.latest_publication_intent_id.is_none()
+            if bifrost_ledger_report
+                .arrival_latest_publication_intent_id
+                .is_none()
                 || bifrost_ledger_report
-                    .latest_publication_receipt_id
+                    .arrival_latest_publication_receipt_id
                     .is_some()
-                || bifrost_ledger_report.latest_github_receipt_id.is_some()
-                || bifrost_ledger_report.latest_feedback_id.is_none()
+                || bifrost_ledger_report
+                    .arrival_latest_github_receipt_id
+                    .is_some()
+                || bifrost_ledger_report.arrival_latest_feedback_id.is_none()
                 || bifrost_ledger_report.latest_consensus_receipt_id.is_some()
                 || bifrost_ledger_report.private_state_exposed
             {
@@ -2910,10 +2914,10 @@ fn run_cli() -> Result<()> {
                     "latestToolInvocationReceipt": context.latest_daemon_tool_invocation_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "latestDaemonPokeIntent": context.latest_daemon_poke_intent.as_ref().map(|intent| intent.intent_id.clone()),
                     "latestDaemonPokeReceipt": context.latest_daemon_poke_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
-                    "latestBifrostPublicationIntent": context.latest_bifrost_body_change_publication_intent.as_ref().map(|intent| intent.intent_id.clone()),
-                    "latestBifrostPublicationReceipt": context.latest_bifrost_body_change_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
-                    "latestBifrostGithubReceipt": context.latest_bifrost_github_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
-                    "latestBifrostCollaborationFeedback": context.latest_bifrost_collaboration_feedback.as_ref().map(|feedback| feedback.feedback_id.clone()),
+                    "arrivalLatestBifrostPublicationIntent": context.latest_bifrost_body_change_publication_intent.as_ref().map(|intent| intent.intent_id.clone()),
+                    "arrivalLatestBifrostPublicationReceipt": context.latest_bifrost_body_change_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
+                    "arrivalLatestBifrostGithubReceipt": context.latest_bifrost_github_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
+                    "arrivalLatestBifrostCollaborationFeedback": context.latest_bifrost_collaboration_feedback.as_ref().map(|feedback| feedback.feedback_id.clone()),
                     "latestImaginationConsensusReceipt": context.latest_imagination_consensus_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "latestWorkLoopTelemetry": context.latest_work_loop_summary.as_ref().map(|summary| summary.telemetry_id.clone()),
                     "latestAgentStateSoaSummary": context.latest_agent_state_soa_summary.as_ref().map(|summary| summary.summary_id.clone()),
@@ -4192,13 +4196,13 @@ struct BifrostLedgerReport {
     collaboration_chain_count: usize,
     closed_accounting_row_count: usize,
     attention_accounting_row_count: usize,
-    latest_publication_intent_id: Option<String>,
-    latest_publication_receipt_id: Option<String>,
-    latest_github_receipt_id: Option<String>,
-    latest_public_proof_publication_receipt_id: Option<String>,
-    latest_artifact_acceptance_receipt_id: Option<String>,
-    latest_metrics_receipt_id: Option<String>,
-    latest_feedback_id: Option<String>,
+    arrival_latest_publication_intent_id: Option<String>,
+    arrival_latest_publication_receipt_id: Option<String>,
+    arrival_latest_github_receipt_id: Option<String>,
+    arrival_latest_public_proof_publication_receipt_id: Option<String>,
+    arrival_latest_artifact_acceptance_receipt_id: Option<String>,
+    arrival_latest_metrics_receipt_id: Option<String>,
+    arrival_latest_feedback_id: Option<String>,
     latest_consensus_receipt_id: Option<String>,
     repo_work_accounting_request_count: usize,
     private_state_exposed: bool,
@@ -6092,11 +6096,11 @@ fn load_repo_work_public_proofs(
     Option<EpiphanyCultMeshRepoWorkPublicProofEntry>,
     Vec<EpiphanyCultMeshRepoWorkPublicProofEntry>,
 )> {
-    let latest_public_proof =
+    let arrival_latest_public_proof =
         load_latest_epiphany_cultmesh_repo_work_public_proof(&args.store, args.runtime_id.clone())?;
     let mut public_proofs =
         load_epiphany_cultmesh_repo_work_public_proofs(&args.store, args.runtime_id.clone())?;
-    if let Some(latest) = latest_public_proof.as_ref() {
+    if let Some(latest) = arrival_latest_public_proof.as_ref() {
         if !public_proofs
             .iter()
             .any(|proof| proof.public_proof_id == latest.public_proof_id)
@@ -6109,7 +6113,7 @@ fn load_repo_work_public_proofs(
             });
         }
     }
-    Ok((latest_public_proof, public_proofs))
+    Ok((arrival_latest_public_proof, public_proofs))
 }
 
 fn load_repo_work_readiness_reports(
@@ -7628,38 +7632,40 @@ fn service_lifecycle_receipt_sort_key(
 }
 
 fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
-    let latest_intent =
+    let arrival_latest_intent =
         load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent(
             &args.store,
             args.runtime_id.clone(),
         )?;
-    let latest_publication =
+    let arrival_latest_publication =
         load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt(
             &args.store,
             args.runtime_id.clone(),
         )?;
-    let latest_github = load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-    )?;
-    let latest_public_proof_publication =
+    let arrival_latest_github =
+        load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt(
+            &args.store,
+            args.runtime_id.clone(),
+        )?;
+    let arrival_latest_public_proof_publication =
         load_arrival_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt(
             &args.store,
             args.runtime_id.clone(),
         )?;
-    let latest_artifact_acceptance =
+    let arrival_latest_artifact_acceptance =
         load_arrival_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt(
             &args.store,
             args.runtime_id.clone(),
         )?;
-    let latest_metrics = load_arrival_latest_epiphany_cultmesh_bifrost_metrics_receipt(
+    let arrival_latest_metrics = load_arrival_latest_epiphany_cultmesh_bifrost_metrics_receipt(
         &args.store,
         args.runtime_id.clone(),
     )?;
-    let latest_feedback = load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
-        &args.store,
-        args.runtime_id.clone(),
-    )?;
+    let arrival_latest_feedback =
+        load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
+            &args.store,
+            args.runtime_id.clone(),
+        )?;
     let latest_consensus = load_latest_epiphany_cultmesh_imagination_consensus_receipt(
         &args.store,
         args.runtime_id.clone(),
@@ -7667,35 +7673,37 @@ fn load_bifrost_ledger_report(args: &Args) -> Result<BifrostLedgerReport> {
     let repo_work_map_entries =
         load_epiphany_cultmesh_repo_work_map_entries(&args.store, args.runtime_id.clone())?;
     Ok(bifrost_ledger_report(
-        latest_intent.as_ref(),
-        latest_publication.as_ref(),
-        latest_github.as_ref(),
-        latest_public_proof_publication.as_ref(),
-        latest_artifact_acceptance.as_ref(),
-        latest_metrics.as_ref(),
-        latest_feedback.as_ref(),
+        arrival_latest_intent.as_ref(),
+        arrival_latest_publication.as_ref(),
+        arrival_latest_github.as_ref(),
+        arrival_latest_public_proof_publication.as_ref(),
+        arrival_latest_artifact_acceptance.as_ref(),
+        arrival_latest_metrics.as_ref(),
+        arrival_latest_feedback.as_ref(),
         latest_consensus.as_ref(),
         &repo_work_map_entries,
     ))
 }
 
 fn bifrost_ledger_report(
-    latest_intent: Option<&EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
-    latest_publication: Option<&EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
-    latest_github: Option<&EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
-    latest_public_proof_publication: Option<
+    arrival_latest_intent: Option<&EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
+    arrival_latest_publication: Option<&EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
+    arrival_latest_github: Option<&EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
+    arrival_latest_public_proof_publication: Option<
         &EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry,
     >,
-    latest_artifact_acceptance: Option<&EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry>,
-    latest_metrics: Option<&EpiphanyCultMeshBifrostMetricsReceiptEntry>,
-    latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
+    arrival_latest_artifact_acceptance: Option<
+        &EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry,
+    >,
+    arrival_latest_metrics: Option<&EpiphanyCultMeshBifrostMetricsReceiptEntry>,
+    arrival_latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
     repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
 ) -> BifrostLedgerReport {
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
 
-    if let Some(intent) = latest_intent {
+    if let Some(intent) = arrival_latest_intent {
         let status = if intent.github_publication_requested {
             "github-publication-requested"
         } else {
@@ -7717,7 +7725,7 @@ fn bifrost_ledger_report(
             },
         );
     }
-    if let Some(receipt) = latest_publication {
+    if let Some(receipt) = arrival_latest_publication {
         push_bifrost_ledger_row(
             &mut rows,
             &mut tui_rows,
@@ -7734,7 +7742,7 @@ fn bifrost_ledger_report(
             },
         );
     }
-    if let Some(receipt) = latest_github {
+    if let Some(receipt) = arrival_latest_github {
         push_bifrost_ledger_row(
             &mut rows,
             &mut tui_rows,
@@ -7751,7 +7759,7 @@ fn bifrost_ledger_report(
             },
         );
     }
-    if let Some(receipt) = latest_public_proof_publication {
+    if let Some(receipt) = arrival_latest_public_proof_publication {
         push_bifrost_ledger_row(
             &mut rows,
             &mut tui_rows,
@@ -7768,7 +7776,7 @@ fn bifrost_ledger_report(
             },
         );
     }
-    if let Some(receipt) = latest_artifact_acceptance {
+    if let Some(receipt) = arrival_latest_artifact_acceptance {
         push_bifrost_ledger_row(
             &mut rows,
             &mut tui_rows,
@@ -7785,7 +7793,7 @@ fn bifrost_ledger_report(
             },
         );
     }
-    if let Some(receipt) = latest_metrics {
+    if let Some(receipt) = arrival_latest_metrics {
         push_bifrost_ledger_row(
             &mut rows,
             &mut tui_rows,
@@ -7802,7 +7810,7 @@ fn bifrost_ledger_report(
             },
         );
     }
-    if let Some(feedback) = latest_feedback {
+    if let Some(feedback) = arrival_latest_feedback {
         push_bifrost_ledger_row(
             &mut rows,
             &mut tui_rows,
@@ -7837,22 +7845,24 @@ fn bifrost_ledger_report(
         );
     }
 
-    let publication_chain_count = usize::from(latest_intent.is_some())
-        + usize::from(latest_publication.is_some())
-        + usize::from(latest_github.is_some());
-    let public_proof_publication_count = usize::from(latest_public_proof_publication.is_some());
-    let artifact_acceptance_receipt_count = usize::from(latest_artifact_acceptance.is_some());
-    let metrics_receipt_count = usize::from(latest_metrics.is_some());
+    let publication_chain_count = usize::from(arrival_latest_intent.is_some())
+        + usize::from(arrival_latest_publication.is_some())
+        + usize::from(arrival_latest_github.is_some());
+    let public_proof_publication_count =
+        usize::from(arrival_latest_public_proof_publication.is_some());
+    let artifact_acceptance_receipt_count =
+        usize::from(arrival_latest_artifact_acceptance.is_some());
+    let metrics_receipt_count = usize::from(arrival_latest_metrics.is_some());
     let collaboration_chain_count =
-        usize::from(latest_feedback.is_some()) + usize::from(latest_consensus.is_some());
+        usize::from(arrival_latest_feedback.is_some()) + usize::from(latest_consensus.is_some());
     let (accounting_rows, accounting_tui_rows) = bifrost_accounting_rows(
-        latest_intent,
-        latest_publication,
-        latest_github,
-        latest_public_proof_publication,
-        latest_artifact_acceptance,
-        latest_metrics,
-        latest_feedback,
+        arrival_latest_intent,
+        arrival_latest_publication,
+        arrival_latest_github,
+        arrival_latest_public_proof_publication,
+        arrival_latest_artifact_acceptance,
+        arrival_latest_metrics,
+        arrival_latest_feedback,
         latest_consensus,
         repo_work_map_entries,
     );
@@ -7888,15 +7898,20 @@ fn bifrost_ledger_report(
         collaboration_chain_count,
         closed_accounting_row_count,
         attention_accounting_row_count,
-        latest_publication_intent_id: latest_intent.map(|intent| intent.intent_id.clone()),
-        latest_publication_receipt_id: latest_publication.map(|receipt| receipt.receipt_id.clone()),
-        latest_github_receipt_id: latest_github.map(|receipt| receipt.receipt_id.clone()),
-        latest_public_proof_publication_receipt_id: latest_public_proof_publication
+        arrival_latest_publication_intent_id: arrival_latest_intent
+            .map(|intent| intent.intent_id.clone()),
+        arrival_latest_publication_receipt_id: arrival_latest_publication
             .map(|receipt| receipt.receipt_id.clone()),
-        latest_artifact_acceptance_receipt_id: latest_artifact_acceptance
+        arrival_latest_github_receipt_id: arrival_latest_github
             .map(|receipt| receipt.receipt_id.clone()),
-        latest_metrics_receipt_id: latest_metrics.map(|receipt| receipt.receipt_id.clone()),
-        latest_feedback_id: latest_feedback.map(|feedback| feedback.feedback_id.clone()),
+        arrival_latest_public_proof_publication_receipt_id: arrival_latest_public_proof_publication
+            .map(|receipt| receipt.receipt_id.clone()),
+        arrival_latest_artifact_acceptance_receipt_id: arrival_latest_artifact_acceptance
+            .map(|receipt| receipt.receipt_id.clone()),
+        arrival_latest_metrics_receipt_id: arrival_latest_metrics
+            .map(|receipt| receipt.receipt_id.clone()),
+        arrival_latest_feedback_id: arrival_latest_feedback
+            .map(|feedback| feedback.feedback_id.clone()),
         latest_consensus_receipt_id: latest_consensus.map(|receipt| receipt.receipt_id.clone()),
         repo_work_accounting_request_count: repo_work_map_entries
             .iter()
@@ -7932,30 +7947,32 @@ fn push_bifrost_ledger_row(
 }
 
 fn bifrost_accounting_rows(
-    latest_intent: Option<&EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
-    latest_publication: Option<&EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
-    latest_github: Option<&EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
-    latest_public_proof_publication: Option<
+    arrival_latest_intent: Option<&EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry>,
+    arrival_latest_publication: Option<&EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry>,
+    arrival_latest_github: Option<&EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
+    arrival_latest_public_proof_publication: Option<
         &EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry,
     >,
-    latest_artifact_acceptance: Option<&EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry>,
-    latest_metrics: Option<&EpiphanyCultMeshBifrostMetricsReceiptEntry>,
-    latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
+    arrival_latest_artifact_acceptance: Option<
+        &EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry,
+    >,
+    arrival_latest_metrics: Option<&EpiphanyCultMeshBifrostMetricsReceiptEntry>,
+    arrival_latest_feedback: Option<&EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
     latest_consensus: Option<&EpiphanyCultMeshImaginationConsensusReceiptEntry>,
     repo_work_map_entries: &[EpiphanyCultMeshRepoWorkMapEntry],
 ) -> (Vec<BifrostAccountingRow>, Vec<String>) {
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
 
-    let body_publication = latest_intent.and_then(|intent| {
-        latest_publication.filter(|receipt| receipt.intent_id == intent.intent_id)
+    let body_publication = arrival_latest_intent.and_then(|intent| {
+        arrival_latest_publication.filter(|receipt| receipt.intent_id == intent.intent_id)
     });
     let body_github = body_publication.and_then(|publication| {
-        latest_github
+        arrival_latest_github
             .filter(|receipt| receipt.bifrost_publication_receipt_id == publication.receipt_id)
     });
 
-    let body_private = latest_intent
+    let body_private = arrival_latest_intent
         .map(|intent| intent.private_state_included)
         .unwrap_or(false)
         || body_publication
@@ -7966,14 +7983,14 @@ fn bifrost_accounting_rows(
             .unwrap_or(false);
     let body_review_count = body_publication
         .map(|receipt| receipt.reviewer_ids.len())
-        .or_else(|| latest_intent.map(|intent| intent.review_receipt_ids.len()))
+        .or_else(|| arrival_latest_intent.map(|intent| intent.review_receipt_ids.len()))
         .unwrap_or(0);
     let body_credit_count = body_github
         .map(|receipt| receipt.credit_receipt_ids.len())
         .or_else(|| body_publication.map(|receipt| receipt.credit_receipt_ids.len()))
-        .or_else(|| latest_intent.map(|intent| intent.credit_subjects.len()))
+        .or_else(|| arrival_latest_intent.map(|intent| intent.credit_subjects.len()))
         .unwrap_or(0);
-    let body_chain_closed = latest_intent.is_some()
+    let body_chain_closed = arrival_latest_intent.is_some()
         && body_publication.is_some()
         && body_github.is_some()
         && body_review_count > 0
@@ -7987,12 +8004,14 @@ fn bifrost_accounting_rows(
             owner: "Bifrost".to_string(),
             status: bifrost_accounting_status(
                 body_chain_closed,
-                latest_intent.is_some() || latest_publication.is_some() || latest_github.is_some(),
+                arrival_latest_intent.is_some()
+                    || arrival_latest_publication.is_some()
+                    || arrival_latest_github.is_some(),
                 body_private,
             ),
             closure: format!(
                 "intent={} publication={} github={} review={} credit={}",
-                present_word(latest_intent.is_some()),
+                present_word(arrival_latest_intent.is_some()),
                 present_word(body_publication.is_some()),
                 present_word(body_github.is_some()),
                 body_review_count,
@@ -8005,12 +8024,12 @@ fn bifrost_accounting_rows(
             latest_receipt_id: body_github
                 .map(|receipt| receipt.receipt_id.clone())
                 .or_else(|| body_publication.map(|receipt| receipt.receipt_id.clone()))
-                .or_else(|| latest_intent.map(|intent| intent.intent_id.clone()))
+                .or_else(|| arrival_latest_intent.map(|intent| intent.intent_id.clone()))
                 .unwrap_or_else(|| "none".to_string()),
             public_ref: body_github
                 .map(|receipt| receipt.pull_request_url.clone())
                 .or_else(|| body_publication.map(|receipt| receipt.publication_url.clone()))
-                .or_else(|| latest_intent.map(|intent| intent.target_branch.clone()))
+                .or_else(|| arrival_latest_intent.map(|intent| intent.target_branch.clone()))
                 .unwrap_or_else(|| "none".to_string()),
             review_receipt_count: body_review_count,
             credit_receipt_count: body_credit_count,
@@ -8019,16 +8038,16 @@ fn bifrost_accounting_rows(
         },
     );
 
-    let proof_private = latest_public_proof_publication
+    let proof_private = arrival_latest_public_proof_publication
         .map(|receipt| receipt.private_state_exposed)
         .unwrap_or(false);
-    let proof_review_count = latest_public_proof_publication
+    let proof_review_count = arrival_latest_public_proof_publication
         .map(|receipt| receipt.reviewer_ids.len())
         .unwrap_or(0);
-    let proof_credit_count = latest_public_proof_publication
+    let proof_credit_count = arrival_latest_public_proof_publication
         .map(|receipt| receipt.credit_receipt_ids.len())
         .unwrap_or(0);
-    let proof_closed = latest_public_proof_publication.is_some()
+    let proof_closed = arrival_latest_public_proof_publication.is_some()
         && proof_review_count > 0
         && proof_credit_count > 0
         && !proof_private;
@@ -8040,27 +8059,27 @@ fn bifrost_accounting_rows(
             owner: "Bifrost".to_string(),
             status: bifrost_accounting_status(
                 proof_closed,
-                latest_public_proof_publication.is_some(),
+                arrival_latest_public_proof_publication.is_some(),
                 proof_private,
             ),
             closure: format!(
                 "proof={} review={} credit={}",
-                present_word(latest_public_proof_publication.is_some()),
+                present_word(arrival_latest_public_proof_publication.is_some()),
                 proof_review_count,
                 proof_credit_count
             ),
-            ledger_entry_id: latest_public_proof_publication
+            ledger_entry_id: arrival_latest_public_proof_publication
                 .map(|receipt| receipt.bifrost_ledger_entry_id.clone())
                 .unwrap_or_else(|| "none".to_string()),
-            latest_receipt_id: latest_public_proof_publication
+            latest_receipt_id: arrival_latest_public_proof_publication
                 .map(|receipt| receipt.receipt_id.clone())
                 .unwrap_or_else(|| "none".to_string()),
-            public_ref: latest_public_proof_publication
+            public_ref: arrival_latest_public_proof_publication
                 .map(|receipt| receipt.publication_url.clone())
                 .unwrap_or_else(|| "none".to_string()),
             review_receipt_count: proof_review_count,
             credit_receipt_count: proof_credit_count,
-            public_artifact_count: usize::from(latest_public_proof_publication.is_some()),
+            public_artifact_count: usize::from(arrival_latest_public_proof_publication.is_some()),
             private_state_exposed: proof_private,
         },
     );
@@ -8069,32 +8088,32 @@ fn bifrost_accounting_rows(
         &mut rows,
         &mut tui_rows,
         repo_work_map_entries,
-        latest_artifact_acceptance,
+        arrival_latest_artifact_acceptance,
     );
     push_metrics_accounting_row(
         &mut rows,
         &mut tui_rows,
         repo_work_map_entries,
-        latest_metrics,
+        arrival_latest_metrics,
     );
 
-    let matching_consensus = latest_feedback.and_then(|feedback| {
+    let matching_consensus = arrival_latest_feedback.and_then(|feedback| {
         latest_consensus.filter(|receipt| receipt.feedback_id == feedback.feedback_id)
     });
-    let collaboration_private = latest_feedback
+    let collaboration_private = arrival_latest_feedback
         .map(|feedback| feedback.private_state_included)
         .unwrap_or(false)
         || matching_consensus
             .map(|receipt| receipt.private_state_exposed)
             .unwrap_or(false);
-    let collaboration_public_count = latest_feedback
+    let collaboration_public_count = arrival_latest_feedback
         .map(|feedback| feedback.public_discussion_refs.len())
         .unwrap_or(0)
         + matching_consensus
             .map(|receipt| receipt.public_feedback_refs.len())
             .unwrap_or(0);
     let collaboration_closed =
-        latest_feedback.is_some() && matching_consensus.is_some() && !collaboration_private;
+        arrival_latest_feedback.is_some() && matching_consensus.is_some() && !collaboration_private;
     push_bifrost_accounting_row(
         &mut rows,
         &mut tui_rows,
@@ -8103,21 +8122,21 @@ fn bifrost_accounting_rows(
             owner: "Persona->Imagination".to_string(),
             status: bifrost_accounting_status(
                 collaboration_closed,
-                latest_feedback.is_some() || latest_consensus.is_some(),
+                arrival_latest_feedback.is_some() || latest_consensus.is_some(),
                 collaboration_private,
             ),
             closure: format!(
                 "feedback={} consensus={} publicRefs={}",
-                present_word(latest_feedback.is_some()),
+                present_word(arrival_latest_feedback.is_some()),
                 present_word(matching_consensus.is_some()),
                 collaboration_public_count
             ),
             ledger_entry_id: "none".to_string(),
             latest_receipt_id: matching_consensus
                 .map(|receipt| receipt.receipt_id.clone())
-                .or_else(|| latest_feedback.map(|feedback| feedback.feedback_id.clone()))
+                .or_else(|| arrival_latest_feedback.map(|feedback| feedback.feedback_id.clone()))
                 .unwrap_or_else(|| "none".to_string()),
-            public_ref: latest_feedback
+            public_ref: arrival_latest_feedback
                 .map(|feedback| feedback.public_room_id.clone())
                 .unwrap_or_else(|| "none".to_string()),
             review_receipt_count: 0,

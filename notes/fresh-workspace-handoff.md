@@ -290,6 +290,8 @@ All seven Bifrost/GitHub mirror loader APIs are now named
 `load_arrival_latest_*`; no misleading `load_latest_*` aliases remain. The
 persisted `/latest` key spelling is retained as external storage compatibility,
 not interpreted as provider chronology.
+The Bifrost ledger report also uses `arrival_latest_*` typed fields and
+`arrivalLatestBifrost*` JSON keys; no old report aliases remain.
 
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in

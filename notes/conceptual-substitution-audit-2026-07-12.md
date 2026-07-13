@@ -942,6 +942,12 @@ deleted without compatibility aliases. Persisted `/latest` keys remain the
 provider-facing storage contract, but Rust callers can no longer confuse their
 meaning with provider event order.
 
+The Bifrost ledger report now carries the same truth through its typed fields
+and JSON surface: provider-derived IDs use `arrival_latest_*` and
+`arrivalLatestBifrost*`. The old `latestBifrost*` report fields are deleted,
+while locally ordered Imagination consensus retains its legitimate `latest`
+name.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.
