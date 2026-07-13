@@ -592,3 +592,14 @@ missing-proof pressure in operator and Persona readback. Readiness writes now
 require valid RFC3339 generation time and advance `latest` by `(generation
 time, readiness ID)`. The authority denials remain intact: this projection
 still cannot approve readiness, publish, run Hands, or own service lifecycle.
+
+## Writerless readiness-review family presented as authority
+
+`epiphany.cultmesh.repo_work_readiness_review.v0` had a schema, public exports,
+latest/history loaders, receipt-directory row, swarm overview/TUI surfaces, and
+Bifrost accounting closure logic—but no constructor, validator, or writer
+anywhere in the body. It was a control-panel organ with no nerve, satisfiable
+only by generic store injection. The entire family and every downstream
+projection are deleted. Maintainer, Soul, Mind, and Bifrost review receipts
+remain in their owning contract families; no composite counterfeit review is
+manufactured to summarize them.
