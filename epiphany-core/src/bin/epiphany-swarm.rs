@@ -561,7 +561,6 @@ fn classify_run_stop(
             refreshed_overview.and_then(|overview| non_empty_string(overview.get("currentGate")))
         })
         .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("gate"))))
-        .or_else(|| compact_row_field(selected_row, "gate"))
         .unwrap_or_else(|| "none".to_string());
     let selected_blocker = selected_output
         .and_then(|output| non_empty_string(output.get("blockerBefore")))
@@ -569,7 +568,6 @@ fn classify_run_stop(
             refreshed_overview.and_then(|overview| non_empty_string(overview.get("blocker")))
         })
         .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("blocker"))))
-        .or_else(|| compact_row_field(selected_row, "blocker"))
         .unwrap_or_else(|| "none".to_string());
     let selected_next_safe_move = selected_output
         .and_then(|output| output.get("tick"))
@@ -578,17 +576,14 @@ fn classify_run_stop(
             refreshed_overview.and_then(|overview| non_empty_string(overview.get("nextSafeMove")))
         })
         .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("nextSafeMove"))))
-        .or_else(|| compact_row_field(selected_row, "next"))
         .unwrap_or_else(|| next_safe_move.to_string());
     let selected_item = selected_output
         .and_then(|output| non_empty_string(output.get("item")))
         .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("item"))))
-        .or_else(|| compact_row_field(selected_row, "item"))
         .unwrap_or_else(|| "none".to_string());
     let selected_branch = refreshed_overview
         .and_then(|overview| non_empty_string(overview.get("branch")))
         .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("branch"))))
-        .or_else(|| compact_row_field(selected_row, "branch"))
         .unwrap_or_else(|| "none".to_string());
 
     let (category, owner, gate, blocker, recommended_command, mutates_state, requires_elevation) =
@@ -693,19 +688,6 @@ fn classify_run_stop(
 fn non_empty_string(value: Option<&Value>) -> Option<String> {
     value
         .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
-}
-
-fn compact_row_field(row: Option<&Value>, field: &str) -> Option<String> {
-    let prefix = format!("{field}=");
-    row.and_then(Value::as_str)
-        .and_then(|row| {
-            row.split('|')
-                .map(str::trim)
-                .find_map(|part| part.strip_prefix(&prefix))
-        })
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
@@ -942,4 +924,56 @@ fn print_usage() {
          online --workspace <repo> [--epiphany-root <path>] [--store <local-verse.ccmp>] [--state-dir <path>] [--artifact-dir <path>] [--runtime-id <id>] [--init-receipt <path>] [--agent-template-store <agents.msgpack>]\n\
          run --workspace <repo> [--epiphany-root <path>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--until blocked-or-published] [--max-iterations <n>] [--max-items <n>] [--dry-run]"
     );
+}
+
+#[cfg(test)]
+mod classification_tests {
+    use super::*;
+
+    #[test]
+    fn stop_classification_reads_typed_rows_not_tui_prose() {
+        let typed = vec![json!({
+            "queueRunStatus": "would-advance",
+            "actionableCount": 1,
+            "queueCount": 1,
+            "selectedRows": [{
+                "item": "item-1",
+                "branch": "main",
+                "gate": "ready-to-run",
+                "blocker": "none",
+                "nextSafeMove": "run it"
+            }],
+            "outputs": []
+        })];
+        let typed_result = classify_run_stop(
+            "dry-run-preview-complete",
+            "preview",
+            "blocked-or-published",
+            true,
+            1,
+            &typed,
+            "fallback",
+        );
+        assert_eq!(typed_result["authorityGate"], "ready-to-run");
+        assert_eq!(typed_result["selectedItem"], "item-1");
+
+        let prose = vec![json!({
+            "queueRunStatus": "would-advance",
+            "actionableCount": 1,
+            "queueCount": 1,
+            "selectedRows": ["QUEUE-RUN | item=counterfeit | gate=published | blocker=none"],
+            "outputs": []
+        })];
+        let prose_result = classify_run_stop(
+            "dry-run-preview-complete",
+            "preview",
+            "blocked-or-published",
+            true,
+            1,
+            &prose,
+            "fallback",
+        );
+        assert_eq!(prose_result["authorityGate"], "none");
+        assert_eq!(prose_result["selectedItem"], "none");
+    }
 }

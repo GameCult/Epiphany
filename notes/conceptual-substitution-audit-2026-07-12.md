@@ -694,6 +694,18 @@ receipt proof completeness separately while naming `requestIdentity=missing`.
 Historical private requests also no longer contaminate the currently selected
 request; request-side privacy is derived from that request alone.
 
+## TUI queue prose substituted for scheduler state
+
+`epiphany-work queue-run` embedded queue and selected rows as formatted
+`QUEUE-RUN | item=... | gate=...` strings inside its receipt. `epiphany-swarm`
+then split those strings and recovered authority gate, blocker, next move, item,
+and branch for stop classification. A presentation row had become a hidden
+string protocol controlling scheduler interpretation. Queue receipts now carry
+typed row objects sourced directly from repo-work overview fields, including
+overview identity and branch. Swarm classification reads only typed fields;
+the compact-row parser and every prose fallback are deleted. A hostile legacy
+string containing `gate=published` and `item=counterfeit` is inert.
+
 ## Unresolved: provider receipts without chronology
 
 Bifrost body-change/GitHub publication receipts are externally owned and their

@@ -14850,22 +14850,23 @@ fn normalize_path_text(value: &str) -> String {
 fn repo_work_queue_selection_rows(
     overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
     workspace: &Path,
-) -> Vec<String> {
+) -> Vec<Value> {
     overviews
         .iter()
         .map(|overview| {
             let workspace_match = overview_workspace_matches(overview, workspace);
             let tick_actionable = repo_work_gate_is_tick_actionable(&overview.current_gate);
-            format!(
-                "QUEUE-RUN | item={} | gate={} | blocker={} | actionable={} | workspaceMatch={} | next={} | private={}",
-                overview.item,
-                overview.current_gate,
-                overview.blocker,
-                tick_actionable,
-                workspace_match,
-                overview.next_safe_move,
-                overview.private_state_exposed
-            )
+            json!({
+                "overviewId": overview.overview_id,
+                "item": overview.item,
+                "branch": overview.branch,
+                "gate": overview.current_gate,
+                "blocker": overview.blocker,
+                "actionable": tick_actionable,
+                "workspaceMatch": workspace_match,
+                "nextSafeMove": overview.next_safe_move,
+                "privateStateExposed": overview.private_state_exposed,
+            })
         })
         .collect()
 }
@@ -15308,6 +15309,41 @@ mod authority_tests {
     use epiphany_core::REPO_WORK_MODELING_FINDING_SCHEMA_VERSION;
     use epiphany_core::RepoWorkModelingFinding;
     use epiphany_core::put_repo_work_modeling_finding;
+
+    #[test]
+    fn queue_selection_rows_preserve_typed_scheduler_state() {
+        let overview = EpiphanyCultMeshRepoWorkOverviewEntry {
+            schema_version: epiphany_core::EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_SCHEMA_VERSION
+                .to_string(),
+            runtime_id: "test".to_string(),
+            verse_id: "gamecult-local".to_string(),
+            overview_id: "overview-1".to_string(),
+            generated_at: "2026-07-13T00:00:00Z".to_string(),
+            workspace: "E:/test".to_string(),
+            item: "item-1".to_string(),
+            branch: "main".to_string(),
+            current_gate: "ready-to-run".to_string(),
+            blocker: "none".to_string(),
+            next_safe_move: "run it".to_string(),
+            changed_paths: Vec::new(),
+            commit_sha: "none".to_string(),
+            soul_verdict: "pending".to_string(),
+            publication_status: "not-requested".to_string(),
+            sync_status: "local".to_string(),
+            receipt_refs: Vec::new(),
+            tui_rows: vec!["misleading display text".to_string()],
+            proof_bundle_ref: "none".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        };
+        let rows = repo_work_queue_selection_rows(&[overview], Path::new("E:/test"));
+        assert!(rows[0].is_object());
+        assert_eq!(rows[0]["item"], "item-1");
+        assert_eq!(rows[0]["branch"], "main");
+        assert_eq!(rows[0]["gate"], "ready-to-run");
+        assert_eq!(rows[0]["actionable"], true);
+        assert_ne!(rows[0], "misleading display text");
+    }
 
     #[test]
     fn close_rejects_caller_authored_verification_and_modeling_authority() -> Result<()> {

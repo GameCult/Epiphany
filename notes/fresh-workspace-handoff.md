@@ -175,6 +175,9 @@ The confirmed conceptual substitutions have been cut:
   accounting keeps these lanes open with `requestIdentity=missing` while still
   showing provider receipt proof completeness. Repair the Bifrost-owned
   contracts before claiming concurrent-safe closure.
+- Repo-work queue receipts carry typed queue/selected row objects. Swarm stop
+  classification no longer reparses `QUEUE-RUN | key=value` TUI prose; legacy
+  or hostile strings cannot steer gate, blocker, item, branch, or next move.
 - Bifrost provider receipt contracts still lack provider timestamp/revision.
   Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
