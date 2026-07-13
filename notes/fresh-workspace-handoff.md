@@ -406,6 +406,12 @@ belong to collaboration policy and the deleted manifest family is rejected.
 The recursive legacy smoke timed out and spawned nested Cargo trees, so it was
 not treated as proof. Direct inventory is 56 occurrences across seven families.
 
+Doctrine review no longer has a `Maintainer/Mind` composite owner or OR gate.
+Imagination authors, Self routes, Maintainer reviews, Soul verifies, Mind admits
+doctrine state, and Hands mutates `AGENTS.md` under receipts. Typed operations
+closure and a counterfeit-Hands fixture protect the chain. The remaining
+source inventory is 17 occurrences across six presentation families.
+
 Consensus Brief keeps its honest draft/unconverged semantics but no longer
 proves them with substring presence. Preparation owns its typed consensus,
 Imagination route, inputs, authority, and privacy closure; a malicious comment

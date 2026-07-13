@@ -1232,6 +1232,19 @@ trees.
 Direct source inventory now reports 56 substring occurrences across seven
 remaining families.
 
+## Reviewer OR-gate as doctrine authority
+
+`repo.doctrine_update_request` named `Maintainer/Mind` as one owner and
+required `maintainer_or_mind` doctrine authority, collapsing review and
+admission into an ambiguous OR gate. Typed operations closure now requires the
+actual chain: Imagination authors, Self routes, Maintainer reviews, Soul
+verifies, Mind admits doctrine state, and Hands performs the `AGENTS.md`
+mutation under receipts. A comment cannot counterfeit Hands denial.
+
+All remaining substring-backed families are presentation-only. Direct source
+inventory is 17 occurrences across worklog, planning/checklist notes,
+managed/status sections, and task cards.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.

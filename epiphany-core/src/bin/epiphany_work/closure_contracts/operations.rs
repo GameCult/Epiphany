@@ -549,3 +549,110 @@ impl RepoDeploymentRequest {
 pub(super) fn parse_repo_deployment_request(text: &str) -> Result<RepoDeploymentRequest> {
     toml::from_str(text).context("deployment request is not valid typed TOML")
 }
+
+#[derive(Debug, Deserialize)]
+pub(super) struct RepoDoctrineUpdateRequest {
+    pub(super) schema_version: String,
+    pub(super) safe_action_family: String,
+    pub(super) summary: String,
+    pub(super) private_state_exposed: bool,
+    request: RepoDoctrineRequestBody,
+    antecedents: std::collections::BTreeMap<String, bool>,
+    required_receipts: std::collections::BTreeMap<String, String>,
+    doctrine_packet: std::collections::BTreeMap<String, bool>,
+    authority: std::collections::BTreeMap<String, bool>,
+}
+impl RepoDoctrineUpdateRequest {
+    pub(super) fn has_canonical_identity(&self) -> bool {
+        self.schema_version == "epiphany.repo_doctrine_update_request.v0"
+            && self.safe_action_family == "repo.doctrine_update_request"
+    }
+    pub(super) fn has_coherent_routing(&self) -> bool {
+        let r = &self.request;
+        r.status == "awaiting-doctrine-review"
+            && r.routing_owner == "Self"
+            && r.required_reviewers == ["Maintainer", "Mind", "Soul"]
+            && r.doctrine_admission_owner == "Mind"
+            && r.mutation_owner == "Hands"
+            && r.requested_effect == "review-repo-agent-doctrine-update"
+            && r.doctrine_target == "AGENTS.md"
+            && r.requires_source_grounding
+            && r.requires_human_or_maintainer_review
+    }
+    pub(super) fn has_antecedent_contract(&self) -> bool {
+        [
+            "persona_or_human_feedback_required",
+            "imagination_plan_required",
+            "mind_adoption_required",
+            "soul_review_required",
+            "maintainer_review_required",
+        ]
+        .iter()
+        .all(|key| self.antecedents.get(*key) == Some(&true))
+    }
+    pub(super) fn has_receipt_contract(&self) -> bool {
+        [
+            (
+                "imagination_plan",
+                "epiphany.repo_work_imagination_action_items_receipt.v0",
+            ),
+            (
+                "mind_adoption",
+                "epiphany.repo_work_mind_adoption_decision.v0",
+            ),
+            ("soul_review", "epiphany.repo_work_closure_review.v0"),
+            ("maintainer_review", "gamecult.maintainer.review_receipt.v0"),
+            ("hands_commit", "epiphany.hands.commit_receipt"),
+        ]
+        .iter()
+        .all(|(key, value)| self.required_receipts.get(*key).is_some_and(|v| v == value))
+    }
+    pub(super) fn has_packet_contract(&self) -> bool {
+        [
+            "requires_current_doctrine_ref",
+            "requires_proposed_change_summary",
+            "requires_invariant_impact",
+            "requires_rehydration_impact",
+            "requires_rollback_plan",
+            "requires_private_state_redaction_check",
+        ]
+        .iter()
+        .all(|key| self.doctrine_packet.get(*key) == Some(&true))
+    }
+    pub(super) fn has_authority_seals(&self) -> bool {
+        [
+            "direct_doctrine_mutation_authority",
+            "direct_hands_authority",
+            "direct_mind_state_commit",
+            "publication_authorized",
+            "merge_authorized",
+            "service_lifecycle_authority",
+            "cross_body_mutation_authorized",
+            "private_verse_rummaging",
+        ]
+        .iter()
+        .all(|key| self.authority.get(*key) == Some(&false))
+            && [
+                "maintainer_review_required",
+                "mind_admission_required",
+                "hands_receipts_required",
+            ]
+            .iter()
+            .all(|key| self.authority.get(*key) == Some(&true))
+    }
+}
+#[derive(Debug, Deserialize)]
+struct RepoDoctrineRequestBody {
+    status: String,
+    routing_owner: String,
+    required_reviewers: Vec<String>,
+    doctrine_admission_owner: String,
+    mutation_owner: String,
+    requested_effect: String,
+    doctrine_target: String,
+    requires_source_grounding: bool,
+    requires_human_or_maintainer_review: bool,
+}
+pub(super) fn parse_repo_doctrine_update_request(text: &str) -> Result<RepoDoctrineUpdateRequest> {
+    toml::from_str(text).context("doctrine update request is not valid typed TOML")
+}

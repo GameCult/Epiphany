@@ -5123,7 +5123,10 @@ fn derive_repo_doctrine_update_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         "status = \"awaiting-doctrine-review\"".to_string(),
-        "requested_owner = \"Maintainer/Mind\"".to_string(),
+        "routing_owner = \"Self\"".to_string(),
+        "required_reviewers = [\"Maintainer\", \"Mind\", \"Soul\"]".to_string(),
+        "doctrine_admission_owner = \"Mind\"".to_string(),
+        "mutation_owner = \"Hands\"".to_string(),
         "requested_effect = \"review-repo-agent-doctrine-update\"".to_string(),
         format!("doctrine_target = {}", toml_basic_string(doctrine_target)),
         "change_surface = \"repo-local agent instructions and operating doctrine\"".to_string(),
@@ -5163,7 +5166,9 @@ fn derive_repo_doctrine_update_request_plan(
         "service_lifecycle_authority = false".to_string(),
         "cross_body_mutation_authorized = false".to_string(),
         "private_verse_rummaging = false".to_string(),
-        "maintainer_or_mind_doctrine_authority_required = true".to_string(),
+        "maintainer_review_required = true".to_string(),
+        "mind_admission_required = true".to_string(),
+        "hands_receipts_required = true".to_string(),
         String::new(),
         "[verification]".to_string(),
         "asks = [".to_string(),
@@ -7194,106 +7199,73 @@ fn closure_family_assertions(
             );
         }
         "repo.doctrine_update_request" => {
+            let request = parse_repo_doctrine_update_request(&content).ok();
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-schema-present",
-                content.contains("schema_version = \"epiphany.repo_doctrine_update_request.v0\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoDoctrineUpdateRequest::has_canonical_identity),
                 "Committed doctrine update request carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-family-present",
-                content.contains("safe_action_family = \"repo.doctrine_update_request\""),
+                request
+                    .as_ref()
+                    .is_some_and(RepoDoctrineUpdateRequest::has_canonical_identity),
                 "Committed doctrine update request carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-summary-present",
-                content.contains(&compact_summary),
+                request
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed doctrine update request contains the accepted pressure summary."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-awaits-review",
-                content.contains("[request]")
-                    && content.contains("status = \"awaiting-doctrine-review\"")
-                    && content.contains("requested_owner = \"Maintainer/Mind\"")
-                    && content.contains(
-                        "requested_effect = \"review-repo-agent-doctrine-update\"",
-                    )
-                    && content.contains("doctrine_target = \"AGENTS.md\"")
-                    && content.contains("requires_source_grounding = true")
-                    && content.contains("requires_human_or_maintainer_review = true"),
+                request.as_ref().is_some_and(RepoDoctrineUpdateRequest::has_coherent_routing),
                 "Committed doctrine update request waits for Mind/maintainer review before doctrine consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("persona_or_human_feedback_required = true")
-                    && content.contains("imagination_plan_required = true")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("soul_review_required = true")
-                    && content.contains("maintainer_review_required = true"),
+                request.as_ref().is_some_and(RepoDoctrineUpdateRequest::has_antecedent_contract),
                 "Committed doctrine update request requires feedback, Imagination, Mind, Soul, and maintainer antecedents."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains(
-                        "imagination_plan = \"epiphany.repo_work_imagination_action_items_receipt.v0\"",
-                    )
-                    && content.contains(
-                        "mind_adoption = \"epiphany.repo_work_mind_adoption_decision.v0\"",
-                    )
-                    && content.contains(
-                        "soul_review = \"epiphany.repo_work_closure_review.v0\"",
-                    )
-                    && content.contains(
-                        "maintainer_review = \"gamecult.maintainer.review_receipt.v0\"",
-                    )
-                    && content.contains("hands_commit = \"epiphany.hands.commit_receipt\""),
+                request.as_ref().is_some_and(RepoDoctrineUpdateRequest::has_receipt_contract),
                 "Committed doctrine update request names Imagination, Mind, Soul, maintainer, and Hands receipts."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-packet-contract",
-                content.contains("[doctrine_packet]")
-                    && content.contains("requires_current_doctrine_ref = true")
-                    && content.contains("requires_proposed_change_summary = true")
-                    && content.contains("requires_invariant_impact = true")
-                    && content.contains("requires_rehydration_impact = true")
-                    && content.contains("requires_rollback_plan = true")
-                    && content.contains("requires_private_state_redaction_check = true"),
+                request.as_ref().is_some_and(RepoDoctrineUpdateRequest::has_packet_contract),
                 "Committed doctrine update request names doctrine diff, invariant, rehydration, rollback, and redaction requirements."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("direct_doctrine_mutation_authority = false")
-                    && content.contains("direct_hands_authority = false")
-                    && content.contains("direct_mind_state_commit = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("merge_authorized = false")
-                    && content.contains("service_lifecycle_authority = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("private_verse_rummaging = false")
-                    && content
-                        .contains("maintainer_or_mind_doctrine_authority_required = true"),
+                request.as_ref().is_some_and(RepoDoctrineUpdateRequest::has_authority_seals),
                 "Committed doctrine update request denies doctrine/action/state/publication/service/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "doctrine-update-request-private-seal",
-                content.contains("private_state_exposed = false"),
+                request
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed doctrine update request preserves the private-state seal.".to_string(),
             );
         }
@@ -13978,6 +13950,7 @@ idunn_deployment_authority_required = true
             "repo.artifact_acceptance_request",
             "repo.metrics_request",
             "repo.readiness_review_request",
+            "repo.doctrine_update_request",
             "repo.secret_policy_request",
             "repo.dependency_policy_request",
             "repo.deployment_config",
@@ -14030,6 +14003,35 @@ idunn_deployment_authority_required = true
             })
             .is_err()
         );
+    }
+
+    #[test]
+    fn doctrine_comment_cannot_counterfeit_hands_authority_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_doctrine_update_request.v0"
+safe_action_family = "repo.doctrine_update_request"
+summary = "summary"
+private_state_exposed = false
+[request]
+status = "awaiting-doctrine-review"
+routing_owner = "Self"
+required_reviewers = ["Maintainer", "Mind", "Soul"]
+doctrine_admission_owner = "Mind"
+mutation_owner = "Hands"
+requested_effect = "review-repo-agent-doctrine-update"
+doctrine_target = "AGENTS.md"
+requires_source_grounding = true
+requires_human_or_maintainer_review = true
+[antecedents]
+[required_receipts]
+[doctrine_packet]
+[authority]
+direct_doctrine_mutation_authority = false
+# direct_hands_authority = false
+direct_hands_authority = true
+"#;
+        let request = parse_repo_doctrine_update_request(text).expect("fixture is typed TOML");
+        assert!(!request.has_authority_seals());
     }
 
     #[test]

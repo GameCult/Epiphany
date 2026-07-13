@@ -222,7 +222,13 @@ fn run_smoke(args: Args) -> Result<Value> {
     )?;
     require_text(&request_text, "[request]")?;
     require_text(&request_text, "status = \"awaiting-doctrine-review\"")?;
-    require_text(&request_text, "requested_owner = \"Maintainer/Mind\"")?;
+    require_text(&request_text, "routing_owner = \"Self\"")?;
+    require_text(
+        &request_text,
+        "required_reviewers = [\"Maintainer\", \"Mind\", \"Soul\"]",
+    )?;
+    require_text(&request_text, "doctrine_admission_owner = \"Mind\"")?;
+    require_text(&request_text, "mutation_owner = \"Hands\"")?;
     require_text(
         &request_text,
         "requested_effect = \"review-repo-agent-doctrine-update\"",
@@ -276,10 +282,9 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&request_text, "service_lifecycle_authority = false")?;
     require_text(&request_text, "cross_body_mutation_authorized = false")?;
     require_text(&request_text, "private_verse_rummaging = false")?;
-    require_text(
-        &request_text,
-        "maintainer_or_mind_doctrine_authority_required = true",
-    )?;
+    require_text(&request_text, "maintainer_review_required = true")?;
+    require_text(&request_text, "mind_admission_required = true")?;
+    require_text(&request_text, "hands_receipts_required = true")?;
     require_text(&request_text, "private_state_exposed = false")?;
     require_text(
         &agents_text,
