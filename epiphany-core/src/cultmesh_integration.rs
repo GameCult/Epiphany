@@ -5278,10 +5278,17 @@ pub fn write_epiphany_cultmesh_agent_state_soa_summary(
     validate_agent_state_soa_summary(&summary)?;
     let mut node = open_epiphany_cultmesh_node(&store_path, summary.runtime_id.clone())?;
     let written = node.put(summary.summary_id.clone(), &summary)?;
-    node.put(
+    let current_latest = node.get::<EpiphanyCultMeshAgentStateSoaSummaryEntry>(
         EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY,
-        &written,
     )?;
+    if current_latest.as_ref().is_none_or(|current| {
+        agent_state_soa_generation_key(&written) >= agent_state_soa_generation_key(current)
+    }) {
+        node.put(
+            EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY,
+            &written,
+        )?;
+    }
     node.flush()?;
     Ok(written)
 }
@@ -5308,6 +5315,13 @@ fn validate_agent_state_soa_summary(
             EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION
         ));
     }
+    if summary.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID {
+        return Err(anyhow!(
+            "agent state SoA summary belongs in the local-area Verse"
+        ));
+    }
+    DateTime::parse_from_rfc3339(&summary.generated_at)
+        .map_err(|error| anyhow!("agent state SoA summary has invalid generated_at: {error}"))?;
     let len = summary.role_ids.len();
     if summary.row_count as usize != len {
         return Err(anyhow!(
@@ -5344,6 +5358,16 @@ fn validate_agent_state_soa_summary(
         return Err(anyhow!("agent state SoA summary contains an empty role id"));
     }
     Ok(())
+}
+
+fn agent_state_soa_generation_key(
+    summary: &EpiphanyCultMeshAgentStateSoaSummaryEntry,
+) -> (DateTime<FixedOffset>, &str) {
+    (
+        DateTime::parse_from_rfc3339(&summary.generated_at)
+            .expect("validated agent state SoA generation timestamp"),
+        summary.summary_id.as_str(),
+    )
 }
 
 pub fn write_epiphany_cultmesh_repo_work_overview(
@@ -8315,6 +8339,34 @@ mod tests {
         assert!(serialized.contains("gamecult.persona_state.v0"));
         assert!(!serialized.contains("privateNotes"));
         assert!(!summary.private_state_exposed);
+
+        let mut newer = summary.clone();
+        newer.summary_id = "agent-state-soa-summary-newer".to_string();
+        newer.generated_at = "2026-06-18T01:00:00Z".to_string();
+        write_epiphany_cultmesh_agent_state_soa_summary(&store, newer.clone())?;
+
+        let mut delayed = summary.clone();
+        delayed.summary_id = "agent-state-soa-summary-delayed".to_string();
+        delayed.generated_at = "2026-06-17T23:00:00Z".to_string();
+        write_epiphany_cultmesh_agent_state_soa_summary(&store, delayed)?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_agent_state_soa_summary(&store, "epiphany-test")?,
+            Some(newer)
+        );
+
+        let mut invalid_time = summary.clone();
+        invalid_time.summary_id = "agent-state-soa-summary-invalid".to_string();
+        invalid_time.generated_at = "not-a-time".to_string();
+        let err = write_epiphany_cultmesh_agent_state_soa_summary(&store, invalid_time)
+            .expect_err("invalid agent summary time must be refused");
+        assert!(err.to_string().contains("invalid generated_at"));
+
+        let mut wrong_verse = summary.clone();
+        wrong_verse.summary_id = "agent-state-soa-summary-wrong-verse".to_string();
+        wrong_verse.verse_id = EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string();
+        let err = write_epiphany_cultmesh_agent_state_soa_summary(&store, wrong_verse)
+            .expect_err("agent summary outside local-area Verse must be refused");
+        assert!(err.to_string().contains("local-area Verse"));
 
         let mut leaked = summary.clone();
         leaked.private_state_exposed = true;

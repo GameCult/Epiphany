@@ -613,3 +613,21 @@ replace the current proof projection with an older commit/hash. Public-proof
 writes now require valid RFC3339 generation time and advance `latest` by
 `(generation time, public proof ID)`. Publication receipts still bind their
 specific proof ID and SHA; the directory mirror can no longer drift backward.
+
+## Mirror arrival presented as current agent-state summary
+
+`agent-state-soa-summary/latest` shapes local swarm discovery and prompt context
+but was arrival-owned despite carrying `generated_at`. Summaries now require a
+valid RFC3339 generation time, are confined to the local-area Verse, and
+advance `latest` by `(generation time, summary ID)`. Delayed stale summaries
+cannot replace current swarm self-knowledge.
+
+## Unresolved: provider receipts without chronology
+
+Bifrost body-change/GitHub publication receipts are externally owned and their
+local constructors/writers are test-only, but the current receipt contracts
+carry no provider timestamp or monotonic revision while exposing global
+`latest` mirrors. Epiphany cannot truthfully order delayed provider receipts
+without inventing chronology from receipt IDs or consumer arrival. The coherent
+future fix is a Bifrost-owned contract revision carrying provider event order;
+no consumer-side compensator was added.

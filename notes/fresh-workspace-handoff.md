@@ -154,6 +154,10 @@ The confirmed conceptual substitutions have been cut:
   TUI, and Bifrost accounting. Real review receipts retain their owners.
 - Repo-work public-proof global `latest` is generation-time-owned. Delayed
   proof transport cannot replace the current commit/hash evidence projection.
+- Agent-state SoA `latest` is generation-time-owned and local-area confined;
+  delayed summaries cannot rewind prompt/swarm self-knowledge.
+- Bifrost provider receipt contracts still lack provider timestamp/revision.
+  Do not invent consumer-side ordering; repair that in a Bifrost-owned schema.
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
