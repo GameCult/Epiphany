@@ -1449,3 +1449,18 @@ cost ref or unavailable reason, review duration, and review-event count.
 Fields are optional on the stored v0 shape so older receipts remain readable,
 but missing legacy dimensions make `receiptProof=incomplete`. Receipt IDs and a
 free-text metrics summary can no longer counterfeit measurement completeness.
+
+## Readable heartbeat state is not scheduler readiness
+
+The heartbeat status projection returned `status=ready` whenever the state
+document could be loaded. That proved storage presence and deserialization, not
+that any participant was configured, active, or free of a non-running pending
+turn. The cache had quietly inherited the scheduler's authority.
+
+The projection now reports `status=loaded` for readable state and exposes a
+separate `schedulerStatus`. Missing state is `missing`; an empty participant set
+is `unconfigured`; active participants whose pending turns are running are
+`active`; all other loaded physiology is `attention`. The native heartbeat
+smoke asserts the distinction at the emitted projection layer. State loading
+owns readability. Participant physiology derives scheduler status. Presence
+alone owns no readiness verdict.

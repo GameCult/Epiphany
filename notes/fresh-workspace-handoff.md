@@ -547,3 +547,11 @@ four typed dimensions; old receipts deserialize with absent optional fields but
 remain incomplete. A negative projection test proves a receipt with IDs and
 summary but no token evidence cannot report complete proof. Continue with
 scheduler/cache projections that derive consequential status from presence.
+
+The first scheduler substitution is cut. `heartbeat_status_projection` no
+longer translates a readable state document into `status=ready`. It reports
+store state as `missing` or `loaded` and derives separate scheduler physiology
+as `unconfigured`, `active`, or `attention` from participants and pending-turn
+state. The focused library suite, all-bin check, and native heartbeat smoke pass.
+Continue through cache/freshness projections; do not let existence, successful
+decode, or a latest mirror impersonate current consequence authority.

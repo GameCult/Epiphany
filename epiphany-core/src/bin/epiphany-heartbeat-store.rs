@@ -699,6 +699,11 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
 
     let validation_errors = validate_agent_memory_store(&temp_agent_store)?;
     let status = heartbeat_status_projection(&store_path, &artifact_dir, 1.0, 8)?;
+    if status["status"] != "loaded" || status["schedulerStatus"] != "active" {
+        anyhow::bail!(
+            "heartbeat status must distinguish loaded state from active scheduler physiology"
+        );
+    }
     let routine = run_void_routine_store(
         &store_path,
         &artifact_dir,

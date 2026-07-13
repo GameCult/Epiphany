@@ -34,6 +34,7 @@ pub fn heartbeat_status_projection(
             "schema_version": HEARTBEAT_STATUS_SCHEMA_VERSION,
             "ok": true,
             "status": "missing",
+            "schedulerStatus": "missing",
             "stateFile": null,
             "storeFile": store_path,
             "cultCacheStore": cultcache_status(store_path),
@@ -48,6 +49,19 @@ pub fn heartbeat_status_projection(
         }));
     };
     let cognition = load_heartbeat_cognition_entry(store_path)?;
+    let scheduler_status = if state.participants.is_empty() {
+        "unconfigured"
+    } else if state.participants.iter().all(|participant| {
+        participant.status == "active"
+            && participant
+                .pending_turn
+                .as_ref()
+                .is_none_or(|turn| turn.status == "running")
+    }) {
+        "active"
+    } else {
+        "attention"
+    };
     let history: Vec<_> = state
         .history
         .iter()
@@ -62,7 +76,8 @@ pub fn heartbeat_status_projection(
     Ok(serde_json::json!({
         "schema_version": HEARTBEAT_STATUS_SCHEMA_VERSION,
         "ok": true,
-        "status": "ready",
+        "status": "loaded",
+        "schedulerStatus": scheduler_status,
         "stateFile": null,
         "storeFile": store_path,
         "cultCacheStore": cultcache_status(store_path),
