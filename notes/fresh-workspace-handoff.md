@@ -322,6 +322,13 @@ workflow rather than feeding the external drawer. External governance should
 converge on tooling plus publication/accounting; operations retains
 policy/deployment.
 
+Work-order closure is now typed inside that workflow owner. The old substring
+path could accept a commented Hands denial beside a real authority grant; the
+malicious fixture and generic class guard now make that impossible. Fourteen
+high-authority families are typed and 507 substring assertions remain. Next
+inspect adoption versus scheduling and convert the authority-bearing family
+with its own negative proof.
+
 The latest structural count is 32 closure family branches, 744 remaining
 substring assertions in the closure region, and 1,284 lines in
 `closure_contracts.rs`. Do not blindly generate a struct forest for every

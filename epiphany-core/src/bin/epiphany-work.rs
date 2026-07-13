@@ -7468,89 +7468,79 @@ fn closure_family_assertions(
             );
         }
         "repo.work_order" => {
+            let work_order = parse_repo_work_order(&content).ok();
             push_assertion(
                 &mut assertions,
                 "work-order-schema-present",
-                content.contains("schema_version = \"epiphany.repo_work_order.v0\""),
+                work_order
+                    .as_ref()
+                    .is_some_and(RepoWorkOrder::has_canonical_identity),
                 "Committed work order carries the schema version.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "work-order-family-present",
-                content.contains("safe_action_family = \"repo.work_order\""),
+                work_order
+                    .as_ref()
+                    .is_some_and(RepoWorkOrder::has_canonical_identity),
                 "Committed work order carries the safe action family.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "work-order-summary-present",
-                content.contains(&compact_summary),
+                work_order
+                    .as_ref()
+                    .is_some_and(|value| value.summary == compact_summary),
                 "Committed work order contains the accepted pressure summary.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "work-order-awaits-hands-review",
-                content.contains("[work_order]")
-                    && content.contains("status = \"awaiting-hands-review\"")
-                    && content.contains("requested_owner = \"Hands\"")
-                    && content.contains("requested_effect = \"branch-local-implementation\""),
+                work_order
+                    .as_ref()
+                    .is_some_and(RepoWorkOrder::awaits_hands_review),
                 "Committed work order waits for Hands review before implementation consequence."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "work-order-antecedents-present",
-                content.contains("[antecedents]")
-                    && content.contains("objective_draft_ref = ")
-                    && content.contains("adoption_request_ref = ")
-                    && content.contains("scheduling_request_ref = ")
-                    && content.contains("mind_adoption_required = true")
-                    && content.contains("self_queue_selection_required = true"),
+                work_order
+                    .as_ref()
+                    .is_some_and(RepoWorkOrder::has_antecedent_contract),
                 "Committed work order preserves adoption and scheduling antecedents.".to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "work-order-receipt-contract",
-                content.contains("[required_receipts]")
-                    && content.contains("substrate_gate = \"epiphany.substrate_gate.grant\"")
-                    && content.contains("hands_intent = \"epiphany.hands.action_intent\"")
-                    && content.contains("hands_review = \"epiphany.hands.action_review\"")
-                    && content.contains("hands_patch = \"epiphany.hands.patch_receipt\"")
-                    && content.contains("hands_command = \"epiphany.hands.command_receipt\"")
-                    && content.contains("hands_commit = \"epiphany.hands.commit_receipt\"")
-                    && content.contains("soul_verdict = \"epiphany.soul.verification_verdict\"")
-                    && content.contains("mind_commit = \"epiphany.mind.state_commit_receipt\""),
+                work_order
+                    .as_ref()
+                    .is_some_and(RepoWorkOrder::has_receipt_contract),
                 "Committed work order names the Substrate/Hands/Soul/Mind receipt chain."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "work-order-scope-bounded",
-                content.contains("[scope]")
-                    && content.contains("branch_required = true")
-                    && content.contains("allowed_branch_prefix = \"epiphany/\"")
-                    && content.contains("max_changed_paths = 3")
-                    && content.contains("requires_reviewable_diff = true"),
+                work_order
+                    .as_ref()
+                    .is_some_and(RepoWorkOrder::has_bounded_scope),
                 "Committed work order scopes later action to bounded branch-local reviewable work."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "work-order-authority-seals",
-                content.contains("[authority]")
-                    && content.contains("substrate_access_authorized = false")
-                    && content.contains("hands_action_authorized = false")
-                    && content.contains("shell_command_authorized = false")
-                    && content.contains("commit_authorized = false")
-                    && content.contains("publication_authorized = false")
-                    && content.contains("cross_body_mutation_authorized = false")
-                    && content.contains("bifrost_publication_required = true"),
+                work_order.as_ref().is_some_and(RepoWorkOrder::has_authority_seals),
                 "Committed work order denies substrate/shell/commit/action/publication/cross-body authority."
                     .to_string(),
             );
             push_assertion(
                 &mut assertions,
                 "work-order-private-seal",
-                content.contains("private_state_exposed = false"),
+                work_order
+                    .as_ref()
+                    .is_some_and(|value| !value.private_state_exposed),
                 "Committed work order preserves the private-state seal.".to_string(),
             );
         }
@@ -15380,6 +15370,7 @@ idunn_deployment_authority_required = true
             "repo.sync_request",
             "repo.pr_request",
             "repo.maintainer_review_request",
+            "repo.work_order",
             "repo.verification_request",
             "repo.credit_request",
             "repo.artifact_acceptance_request",

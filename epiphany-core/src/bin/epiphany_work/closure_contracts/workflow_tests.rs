@@ -3,6 +3,52 @@ mod workflow_tests {
     use super::*;
 
     #[test]
+    fn work_order_comment_cannot_counterfeit_hands_authority_seal() {
+        let text = r#"
+schema_version = "epiphany.repo_work_order.v0"
+safe_action_family = "repo.work_order"
+summary = "summary"
+private_state_exposed = false
+[work_order]
+status = "awaiting-hands-review"
+requested_owner = "Hands"
+requested_effect = "branch-local-implementation"
+[antecedents]
+objective_draft_ref = "objective"
+adoption_request_ref = "adoption"
+scheduling_request_ref = "schedule"
+mind_adoption_required = true
+self_queue_selection_required = true
+[required_receipts]
+substrate_gate = "epiphany.substrate_gate.grant"
+hands_intent = "epiphany.hands.action_intent"
+hands_review = "epiphany.hands.action_review"
+hands_patch = "epiphany.hands.patch_receipt"
+hands_command = "epiphany.hands.command_receipt"
+hands_commit = "epiphany.hands.commit_receipt"
+soul_verdict = "epiphany.soul.verification_verdict"
+mind_commit = "epiphany.mind.state_commit_receipt"
+[scope]
+branch_required = true
+allowed_branch_prefix = "epiphany/"
+max_changed_paths = 3
+requires_reviewable_diff = true
+[authority]
+branch_local_only = true
+substrate_access_authorized = false
+# hands_action_authorized = false
+hands_action_authorized = true
+shell_command_authorized = false
+commit_authorized = false
+publication_authorized = false
+cross_body_mutation_authorized = false
+bifrost_publication_required = true
+"#;
+        let work_order = parse_repo_work_order(text).expect("fixture is typed TOML");
+        assert!(!work_order.has_authority_seals());
+    }
+
+    #[test]
     fn verification_comment_cannot_counterfeit_soul_verdict_seal() {
         let text = r#"
 schema_version = "epiphany.repo_verification_request.v0"

@@ -1028,6 +1028,19 @@ walk does not discover these lexically included modules. Expanded line counts
 therefore measure readable source, not architectural growth. Ownership and
 imports remain the useful measures.
 
+## Presentation text as work-order authority
+
+`repo.work_order` closure previously inferred schema, antecedents, receipt
+chain, bounded scope, and authority denials with `content.contains`. A comment
+containing `hands_action_authorized = false` could therefore conceal a real
+grant. Work-order closure now parses typed TOML inside the workflow owner and
+checks the actual fields. Its malicious fixture proves the counterfeit comment
+cannot bless Hands authority, and the class guard prevents the family from
+regaining substring authority.
+
+Fourteen high-authority closure families are typed; 507 substring assertions
+remain. Adoption and scheduling are the next workflow-shaped candidates.
+
 The same inspection found 33 consecutive duplicate `#[cfg(test)]` attributes
 on provider constructors/writers and their re-exports. One gate already makes
 each item test-only; the second owned nothing. The duplicates are removed.
