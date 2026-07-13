@@ -674,7 +674,7 @@ impl RepoSyncRequest {
     }
     pub(super) fn awaits_upstream_proof(&self) -> bool {
         self.request.status == "awaiting-upstream-main-proof"
-            && self.request.requested_owner == "Bifrost"
+            && self.request.proof_owner == "Bifrost"
             && self.request.requested_effect == "prove-published-commit-contained-by-upstream-main"
             && !self.request.publication_request_ref.is_empty()
     }
@@ -715,13 +715,14 @@ impl RepoSyncRequest {
             && !a.service_lifecycle_authority
             && !a.cross_body_mutation_authorized
             && !a.private_verse_rummaging
-            && a.operator_or_maintainer_authority_required
+            && a.bifrost_upstream_proof_required
+            && a.maintainer_review_receipt_required
     }
 }
 #[derive(Debug, Deserialize)]
 struct RepoSyncRequestBody {
     status: String,
-    requested_owner: String,
+    proof_owner: String,
     requested_effect: String,
     publication_request_ref: String,
 }
@@ -762,7 +763,8 @@ struct RepoSyncAuthority {
     service_lifecycle_authority: bool,
     cross_body_mutation_authorized: bool,
     private_verse_rummaging: bool,
-    operator_or_maintainer_authority_required: bool,
+    bifrost_upstream_proof_required: bool,
+    maintainer_review_receipt_required: bool,
 }
 pub(super) fn parse_repo_sync_request(text: &str) -> Result<RepoSyncRequest> {
     toml::from_str(text).context("sync request is not valid typed TOML")

@@ -198,7 +198,7 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&request_text, "safe_action_family = \"repo.sync_request\"")?;
     require_text(&request_text, "[request]")?;
     require_text(&request_text, "status = \"awaiting-upstream-main-proof\"")?;
-    require_text(&request_text, "requested_owner = \"Bifrost\"")?;
+    require_text(&request_text, "proof_owner = \"Bifrost\"")?;
     require_text(
         &request_text,
         "requested_effect = \"prove-published-commit-contained-by-upstream-main\"",
@@ -252,6 +252,8 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_text(&request_text, "credit_ledger_authorized = false")?;
     require_text(&request_text, "hands_action_authorized = false")?;
     require_text(&request_text, "cross_body_mutation_authorized = false")?;
+    require_text(&request_text, "bifrost_upstream_proof_required = true")?;
+    require_text(&request_text, "maintainer_review_receipt_required = true")?;
     require_text(&request_text, "private_state_exposed = false")?;
 
     let summary = json!({

@@ -1333,3 +1333,10 @@ unresolved rather than mechanically renamed. Operator authority and Maintainer
 policy consent may be genuinely different inputs, but the current field does
 not say whether either may execute, approve, or merely request synchronization.
 Map the actual sync consequence path before cutting it.
+
+The sync trace found no synchronization consequence path at all. The family is
+a branch-local request for Bifrost to prove that an already-published commit is
+contained by `origin/main`; it explicitly denies merge, push, and sync. The
+operator half of the old OR seal was fictional. The contract now names Bifrost
+as proof owner and independently requires the Maintainer review receipt. Actual
+publication and push remain outside this request family.

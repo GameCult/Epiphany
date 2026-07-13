@@ -4107,7 +4107,7 @@ fn derive_repo_sync_request_plan(
         "[request]".to_string(),
         format!("id = {}", toml_basic_string(&request_id)),
         "status = \"awaiting-upstream-main-proof\"".to_string(),
-        "requested_owner = \"Bifrost\"".to_string(),
+        "proof_owner = \"Bifrost\"".to_string(),
         "requested_effect = \"prove-published-commit-contained-by-upstream-main\"".to_string(),
         format!(
             "publication_request_ref = {}",
@@ -4150,7 +4150,8 @@ fn derive_repo_sync_request_plan(
         "service_lifecycle_authority = false".to_string(),
         "cross_body_mutation_authorized = false".to_string(),
         "private_verse_rummaging = false".to_string(),
-        "operator_or_maintainer_authority_required = true".to_string(),
+        "bifrost_upstream_proof_required = true".to_string(),
+        "maintainer_review_receipt_required = true".to_string(),
         String::new(),
         "[verification]".to_string(),
         "asks = [".to_string(),

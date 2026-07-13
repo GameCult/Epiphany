@@ -320,7 +320,7 @@ summary = "summary"
 private_state_exposed = false
 [request]
 status = "awaiting-upstream-main-proof"
-requested_owner = "Bifrost"
+proof_owner = "Bifrost"
 requested_effect = "prove-published-commit-contained-by-upstream-main"
 publication_request_ref = "publication"
 [antecedents]
@@ -354,7 +354,8 @@ hands_action_authorized = false
 service_lifecycle_authority = false
 cross_body_mutation_authorized = false
 private_verse_rummaging = false
-operator_or_maintainer_authority_required = true
+bifrost_upstream_proof_required = true
+maintainer_review_receipt_required = true
 "#;
         let request = parse_repo_sync_request(text).expect("fixture is typed TOML");
         assert!(!request.has_authority_seals());

@@ -475,3 +475,10 @@ owned instead of ownerless. The unresolved external-governance field is
 upstream sync's `operator_or_maintainer_authority_required`; trace its actual
 effect owner before deciding whether it is alternate human authority or another
 collapsed obligation.
+
+That trace is complete: `repo.sync_request` performs no sync effect. It asks
+Bifrost for an upstream ancestry proof after publication and separately
+requires Maintainer review evidence. The fictional operator-or-maintainer gate
+is removed; the request still denies merge, push, sync, and Hands authority.
+Next inspect composite owner labels in operator projections, starting with rows
+that may be interpreted as decision or execution ownership.
