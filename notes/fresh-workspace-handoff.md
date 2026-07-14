@@ -1,5 +1,34 @@
 # Fresh Workspace Handoff
 
+## Eyes-to-Modeling claim correction nerve complete - 2026-07-15
+
+The Aetheria-shaped corrective nerve is now closed from immutable Eyes
+contradiction through Modeling proposal to Mind admission. A claim repair launch
+may produce one immutable role-worker result carrying the exclusive
+`claimRepairRequestId` echo and `RepairClaim` purpose. Result schema and worker
+output contract are versioned v1; admission receipts and their contract are v3.
+Malformed RepairClaim results carrying proposal/frontier echoes, Verification
+authority, state patches, or self patches are rejected before persistence.
+
+Mind replays the current repair request, challenge, Eyes packet and admissions,
+the unique coordinator launch binding, exact worker launch document hash and
+typed projection, runtime/thread identity, model base, target node hash, and
+exact evidence set. It permits exactly one `ReviseNode`; the challenged `claim`
+text must change while id, domain, profile, kind, creation time, and lifecycle
+remain invariant. Review, next model, and receipt still share the model CAS.
+Challenge resolution is derived from the target node hash changing; there is no
+repair flag or cleanup writer. Exact retry validates the persisted receipt and
+current admitted model. Hostiles cover swapped request, adjacent/missing
+evidence, extra operation, wrong target, unchanged/timestamp-only claim,
+identity/lifecycle mutation, state/self authority smuggling, forged launch hash,
+and counterfeit retry receipt with byte-identical refusal. Soul passed the
+final boundary; the core library is green at 318 passed, one ignored.
+
+Next: bind Self's existing frontier planning request to a real Imagination result
+and Mind Adopt/Refuse/Hold admission, then build the production semantic index
+over typed graph claims so Modeling's persistent map becomes searchable body
+knowledge rather than a scan-heavy archive.
+
 ## Runtime worker results are actually immutable - 2026-07-14
 
 Eyes found that the document called an immutable role-worker result was still

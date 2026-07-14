@@ -171,7 +171,7 @@ pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
-    "epiphany.runtime.role_worker_result.v0";
+    "epiphany.runtime.role_worker_result.v1";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.reorient_worker_result.v0";
 pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v0";
@@ -403,6 +403,8 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub repo_frontier_modeling_request_id: Option<String>,
     #[cultcache(key = 24, default)]
     pub proposal_modeling_request_id: Option<String>,
+    #[cultcache(key = 25, default)]
+    pub claim_repair_request_id: Option<String>,
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
@@ -1429,11 +1431,22 @@ pub fn put_runtime_role_worker_result(
             "only Modeling results may echo a proposal Modeling request"
         ));
     }
-    let is_modeling = result.role_id.eq_ignore_ascii_case("modeling");
-    if is_modeling
-        && result.repo_frontier_modeling_request_id.is_some()
-        && result.proposal_modeling_request_id.is_some()
+    if result.claim_repair_request_id.is_some() && !result.role_id.eq_ignore_ascii_case("modeling")
     {
+        return Err(anyhow!(
+            "only Modeling results may echo a claim repair request"
+        ));
+    }
+    let is_modeling = result.role_id.eq_ignore_ascii_case("modeling");
+    let modeling_echo_count = [
+        result.repo_frontier_modeling_request_id.is_some(),
+        result.proposal_modeling_request_id.is_some(),
+        result.claim_repair_request_id.is_some(),
+    ]
+    .into_iter()
+    .filter(|present| *present)
+    .count();
+    if is_modeling && modeling_echo_count > 1 {
         return Err(anyhow!(
             "Modeling result authority echoes are mutually exclusive"
         ));
@@ -1445,10 +1458,7 @@ pub fn put_runtime_role_worker_result(
             "Modeling result cannot claim Verification route authority"
         ));
     }
-    if is_modeling
-        && (result.repo_frontier_modeling_request_id.is_some()
-            || result.proposal_modeling_request_id.is_some())
-    {
+    if is_modeling && (modeling_echo_count == 1 || result.repo_model_patch_msgpack.is_some()) {
         let patch_bytes = result
             .repo_model_patch_msgpack
             .as_deref()
@@ -1457,20 +1467,34 @@ pub fn put_runtime_role_worker_result(
             .context("decode Modeling authority echo repoModelPatch")?;
         match patch.purpose {
             crate::RepoModelPatchPurpose::Evolution
-                if result.repo_frontier_modeling_request_id.is_some() =>
+                if result.repo_frontier_modeling_request_id.is_some()
+                    || result.claim_repair_request_id.is_some() =>
             {
                 return Err(anyhow!(
-                    "Evolution result cannot echo a verdict-incorporation request"
+                    "Evolution result may only echo a proposal Modeling request"
                 ));
             }
             crate::RepoModelPatchPurpose::IncorporateFrontierVerdict { .. }
                 if result.proposal_modeling_request_id.is_some()
+                    || result.claim_repair_request_id.is_some()
                     || result.repo_frontier_modeling_request_id.is_none() =>
             {
                 return Err(anyhow!(
                     "verdict incorporation requires only its frontier Modeling request echo"
                 ));
             }
+            crate::RepoModelPatchPurpose::RepairClaim
+                if result.claim_repair_request_id.is_none()
+                    || result.repo_frontier_modeling_request_id.is_some()
+                    || result.proposal_modeling_request_id.is_some()
+                    || result.state_patch_msgpack.is_some()
+                    || result.self_patch_msgpack.is_some() =>
+            {
+                return Err(anyhow!(
+                    "claim repair requires only its claim repair request echo"
+                ));
+            }
+            crate::RepoModelPatchPurpose::RepairClaim => {}
             _ => {}
         }
     }
@@ -1656,13 +1680,215 @@ pub fn commit_repo_model_admission(
         ));
     }
 
+    let receipt_id = format!("repo-model-admission-{}", review.review_id);
+    if patch.purpose == crate::RepoModelPatchPurpose::RepairClaim {
+        match (
+            cache.get::<RepoModelAdmissionReview>(&review.review_id)?,
+            cache.get::<RepoModelAdmissionReceipt>(&receipt_id)?,
+        ) {
+            (Some(existing_review), Some(existing_receipt)) if existing_review == *review => {
+                let repair_request_id = result
+                    .claim_repair_request_id
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("RepairClaim retry is missing its request echo"))?;
+                let repair_request = cache
+                    .get::<RepoModelClaimRepairRequest>(repair_request_id)?
+                    .ok_or_else(|| anyhow!("RepairClaim retry request disappeared"))?;
+                let current_entry = cache
+                    .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+                    .ok_or_else(|| anyhow!("RepairClaim retry requires canonical RepoModel"))?;
+                let current_model = current_entry.snapshot()?;
+                let current_hash = crate::memory_graph_model_hash(&current_model)?;
+                if existing_receipt.receipt_id != receipt_id
+                    || existing_receipt.review_id != review.review_id
+                    || existing_receipt.result_id != result_id
+                    || existing_receipt.patch_id != patch.patch_id
+                    || existing_receipt.patch_sha256 != patch_sha256
+                    || existing_receipt.contract != REPO_MODEL_ADMISSION_CONTRACT
+                    || existing_receipt.schema_version
+                        != REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                    || existing_receipt.purpose != patch.purpose
+                    || existing_receipt.claim_repair_request_id != repair_request_id
+                    || existing_receipt.previous_revision != repair_request.model_revision
+                    || existing_receipt.previous_hash != repair_request.model_hash
+                    || existing_receipt.admitted_revision != current_model.model_revision
+                    || existing_receipt.admitted_revision
+                        != existing_receipt.previous_revision.saturating_add(1)
+                    || existing_receipt.admitted_hash != current_hash
+                    || existing_receipt.admitted_at != review.reviewed_at
+                    || !existing_receipt.frontier_route_id.is_empty()
+                    || !existing_receipt.verification_request_id.is_empty()
+                    || !existing_receipt.soul_verdict_receipt_id.is_empty()
+                    || !existing_receipt.frontier_modeling_request_id.is_empty()
+                    || !existing_receipt.proposal_modeling_request_id.is_empty()
+                {
+                    return Err(anyhow!("repo model admission receipt identity collision"));
+                }
+                return Ok(existing_receipt);
+            }
+            (None, None) => {}
+            _ => return Err(anyhow!("repo model admission companion identity collision")),
+        }
+    }
+
     let (
         frontier_route_id,
         verification_request_id,
         soul_verdict_receipt_id,
         frontier_modeling_request_id,
         proposal_modeling_request_id,
+        claim_repair_request_id,
     ) = match &patch.purpose {
+        crate::RepoModelPatchPurpose::RepairClaim => {
+            if result.repo_frontier_modeling_request_id.is_some()
+                || result.proposal_modeling_request_id.is_some()
+                || result.verification_request_id.is_some()
+                || result.frontier_route_id.is_some()
+                || result.state_patch_msgpack.is_some()
+                || result.self_patch_msgpack.is_some()
+            {
+                return Err(anyhow!(
+                    "claim repair result may carry only its repair request echo"
+                ));
+            }
+            let request_id = result
+                .claim_repair_request_id
+                .as_deref()
+                .ok_or_else(|| anyhow!("RepairClaim requires its exact repair request echo"))?;
+            let request = cache
+                .get::<RepoModelClaimRepairRequest>(request_id)?
+                .ok_or_else(|| anyhow!("RepairClaim requires its persisted repair request"))?;
+            validate_current_repo_model_claim_repair_request(&cache, &request)?;
+            let challenge = cache
+                .get::<RepoModelClaimChallenge>(&request.challenge_id)?
+                .ok_or_else(|| anyhow!("RepairClaim requires its exact challenge"))?;
+            let bindings = cache
+                .get_all::<RepoModelClaimRepairLaunchBinding>()?
+                .into_iter()
+                .filter(|binding| binding.repair_request_id == request.request_id)
+                .collect::<Vec<_>>();
+            if bindings.len() != 1 {
+                return Err(anyhow!(
+                    "RepairClaim requires exactly one coordinator launch binding"
+                ));
+            }
+            let binding = &bindings[0];
+            let worker_launch = cache
+                .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+                .ok_or_else(|| anyhow!("RepairClaim requires its runtime worker launch"))?;
+            let launch_document = worker_launch.launch_document()?;
+            let launch_projection = match &launch_document {
+                EpiphanyWorkerLaunchDocument::Role(document) => {
+                    document.claim_repair_context.as_ref()
+                }
+                EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+            };
+            let identity = require_identity(&cache)?;
+            let thread = cache
+                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+                .ok_or_else(|| anyhow!("RepairClaim requires authoritative thread state"))?;
+            let expected_projection =
+                crate::RepoModelClaimRepairContextProjection::from_request(&request);
+            let launch_hash = format!(
+                "{:x}",
+                Sha256::digest(&worker_launch.launch_document_msgpack)
+            );
+            chrono::DateTime::parse_from_rfc3339(&binding.launched_at)
+                .map_err(|_| anyhow!("RepairClaim launch binding timestamp must be RFC3339"))?;
+            if binding.schema_version
+                != crate::REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_SCHEMA_VERSION
+                || binding.contract != crate::REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_CONTRACT
+                || binding.repair_request_id != request.request_id
+                || binding.challenge_id != request.challenge_id
+                || binding.challenge_sha256 != request.challenge_sha256
+                || binding.job_id != result.job_id
+                || binding.binding_id != crate::EPIPHANY_MODELING_ROLE_BINDING_ID
+                || binding.runtime_id != request.runtime_id
+                || binding.thread_id != request.thread_id
+                || binding.worker_launch_document_sha256 != launch_hash
+                || worker_launch.job_id != result.job_id
+                || worker_launch.role != crate::EPIPHANY_MODELING_OWNER_ROLE
+                || worker_launch.binding_id != crate::EPIPHANY_MODELING_ROLE_BINDING_ID
+                || worker_launch.claim_repair_request_id.as_deref()
+                    != Some(request.request_id.as_str())
+                || worker_launch.proposal_modeling_request_id.is_some()
+                || launch_projection != Some(&expected_projection)
+                || identity.runtime_id != request.runtime_id
+                || thread.thread_id != request.thread_id
+                || patch.base_revision != request.model_revision
+                || patch.base_hash != request.model_hash
+            {
+                return Err(anyhow!(
+                    "RepairClaim does not exactly bind request, launch, runtime, thread, and model"
+                ));
+            }
+            if patch.operations.len() != 1 {
+                return Err(anyhow!("RepairClaim permits exactly one node revision"));
+            }
+            let crate::RepoModelPatchOperation::ReviseNode { node } = &patch.operations[0] else {
+                return Err(anyhow!("RepairClaim permits only ReviseNode"));
+            };
+            if node.id != request.target_claim_id {
+                return Err(anyhow!("RepairClaim revision targets the wrong claim"));
+            }
+            let current_entry = cache
+                .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+                .ok_or_else(|| anyhow!("RepairClaim requires canonical RepoModel"))?;
+            let current_model = current_entry.snapshot()?;
+            let current_node = current_model
+                .nodes
+                .iter()
+                .find(|candidate| candidate.id == request.target_claim_id)
+                .ok_or_else(|| anyhow!("RepairClaim target claim disappeared"))?;
+            let current_node_hash = format!(
+                "{:x}",
+                Sha256::digest(rmp_serde::to_vec_named(current_node)?)
+            );
+            let revised_node_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(node)?));
+            if current_node_hash != request.target_claim_sha256
+                || revised_node_hash == request.target_claim_sha256
+                || node.claim == current_node.claim
+                || node.id != current_node.id
+                || node.domain_id != current_node.domain_id
+                || node.profile != current_node.profile
+                || node.kind != current_node.kind
+                || node.created_at != current_node.created_at
+                || node.lifecycle != current_node.lifecycle
+            {
+                return Err(anyhow!(
+                    "RepairClaim must change the exact challenged claim while preserving identity anatomy"
+                ));
+            }
+            let mut expected_evidence = challenge.evidence_ids.clone();
+            expected_evidence.push(challenge.challenge_id.clone());
+            expected_evidence.push(request.eyes_evidence_packet_id.clone());
+            expected_evidence.sort();
+            expected_evidence.dedup();
+            if result_evidence != expected_evidence {
+                return Err(anyhow!(
+                    "RepairClaim evidence must exactly cite its challenge and Eyes evidence chain"
+                ));
+            }
+            if cache
+                .get_all::<RepoModelAdmissionReceipt>()?
+                .iter()
+                .any(|receipt| {
+                    receipt.claim_repair_request_id == request.request_id
+                        && (receipt.review_id != review.review_id
+                            || receipt.result_id != result.result_id)
+                })
+            {
+                return Err(anyhow!("claim repair request is already incorporated"));
+            }
+            (
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                request.request_id,
+            )
+        }
         crate::RepoModelPatchPurpose::Evolution => {
             if result.repo_frontier_modeling_request_id.is_some()
                 || result.verification_request_id.is_some()
@@ -1934,6 +2160,7 @@ pub fn commit_repo_model_admission(
                 String::new(),
                 String::new(),
                 request_id,
+                String::new(),
             )
         }
         crate::RepoModelPatchPurpose::IncorporateFrontierVerdict {
@@ -2107,11 +2334,11 @@ pub fn commit_repo_model_admission(
                 verdict.receipt_id,
                 modeling_request.request_id,
                 String::new(),
+                String::new(),
             )
         }
     };
 
-    let receipt_id = format!("repo-model-admission-{}", review.review_id);
     let existing_review = cache.get::<RepoModelAdmissionReview>(&review.review_id)?;
     let existing_receipt = cache.get::<RepoModelAdmissionReceipt>(&receipt_id)?;
     match (existing_review, existing_receipt) {
@@ -2128,6 +2355,7 @@ pub fn commit_repo_model_admission(
                 || existing_receipt.soul_verdict_receipt_id != soul_verdict_receipt_id
                 || existing_receipt.frontier_modeling_request_id != frontier_modeling_request_id
                 || existing_receipt.proposal_modeling_request_id != proposal_modeling_request_id
+                || existing_receipt.claim_repair_request_id != claim_repair_request_id
             {
                 return Err(anyhow!("repo model admission receipt identity collision"));
             }
@@ -2246,6 +2474,7 @@ pub fn commit_repo_model_admission(
         soul_verdict_receipt_id,
         frontier_modeling_request_id,
         proposal_modeling_request_id,
+        claim_repair_request_id,
     };
     let (next_model_envelope, _) = cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &next_entry)?;
     let (review_envelope, _) = cache.prepare_entry(&review.review_id, review)?;
@@ -6617,6 +6846,7 @@ pub(crate) mod tests {
             frontier_route_id: None,
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: Some(selection.request_id),
+            claim_repair_request_id: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -6664,6 +6894,285 @@ pub(crate) mod tests {
             &format!("proposal-review-{suffix}"),
         )?;
         Ok((store, result, review))
+    }
+
+    fn claim_repair_admission_fixture(
+        root: &Path,
+        suffix: &str,
+    ) -> Result<(
+        PathBuf,
+        EpiphanyRuntimeRoleWorkerResult,
+        RepoModelAdmissionReview,
+        RepoModelClaimRepairRequest,
+    )> {
+        let (store, state, launch, repair) =
+            crate::coordinator_launch::tests::claim_repair_launch_fixture(root, suffix)?;
+        let job_id = format!("claim-repair-job-{suffix}");
+        let plan = crate::plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            format!("claim-repair-launcher-{suffix}"),
+            job_id.clone(),
+        )?;
+        crate::commit_coordinator_job_launch(
+            &store,
+            &repair.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-14T09:00:03Z".into(),
+        )?;
+        let current = runtime_current_repo_model(&store)?.expect("claim repair model");
+        let mut node = current
+            .nodes
+            .iter()
+            .find(|node| node.id == repair.target_claim_id)
+            .cloned()
+            .expect("challenged node");
+        node.claim = format!("{} Corrected by exact Eyes evidence.", node.claim);
+        node.updated_at = Some("2026-07-14T09:00:04Z".into());
+        let patch = crate::RepoModelPatch {
+            patch_id: format!("claim-repair-patch-{suffix}"),
+            base_revision: current.model_revision,
+            base_hash: crate::memory_graph_model_hash(&current)?,
+            applied_at: "2026-07-14T09:00:04Z".into(),
+            purpose: crate::RepoModelPatchPurpose::RepairClaim,
+            operations: vec![crate::RepoModelPatchOperation::ReviseNode { node }],
+        };
+        let patch_bytes = rmp_serde::to_vec_named(&patch)?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let challenge = cache.get_required::<RepoModelClaimChallenge>(&repair.challenge_id)?;
+        let mut evidence_ids = challenge.evidence_ids.clone();
+        evidence_ids.push(challenge.challenge_id);
+        evidence_ids.push(repair.eyes_evidence_packet_id.clone());
+        evidence_ids.sort();
+        evidence_ids.dedup();
+        let result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: format!("claim-repair-result-{suffix}"),
+            job_id,
+            role_id: "modeling".into(),
+            verdict: "checkpoint-ready".into(),
+            summary: "Proposed the exact challenged claim correction.".into(),
+            next_safe_move: "Mind admission".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: vec![repair.target_claim_id.clone()],
+            evidence_ids: evidence_ids.clone(),
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: BTreeMap::new(),
+            repo_model_patch_msgpack: Some(patch_bytes.clone()),
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: Some(repair.request_id.clone()),
+        };
+        let review = RepoModelAdmissionReview {
+            schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
+            review_id: format!("claim-repair-review-{suffix}"),
+            result_id: result.result_id.clone(),
+            job_id: result.job_id.clone(),
+            patch_id: patch.patch_id,
+            patch_sha256: format!("{:x}", Sha256::digest(&patch_bytes)),
+            base_revision: patch.base_revision,
+            base_hash: patch.base_hash,
+            decision: MindGatewayDecision::Accept,
+            evidence_ids,
+            reviewed_at: "2026-07-14T09:00:05Z".into(),
+            contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+        };
+        Ok((store, result, review, repair))
+    }
+
+    #[test]
+    fn claim_repair_admission_replays_launch_and_changes_only_the_challenged_node() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, result, review, repair) = claim_repair_admission_fixture(root.path(), "admit")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let receipt = commit_repo_model_admission(&store, &result.result_id, &review)?;
+        assert_eq!(receipt.claim_repair_request_id, repair.request_id);
+        assert_eq!(receipt.purpose, crate::RepoModelPatchPurpose::RepairClaim);
+        assert_eq!(
+            commit_repo_model_admission(&store, &result.result_id, &review)?,
+            receipt
+        );
+        let current = runtime_current_repo_model(&store)?.expect("repaired model");
+        let repaired = current
+            .nodes
+            .iter()
+            .find(|node| node.id == repair.target_claim_id)
+            .expect("repaired claim remains present");
+        assert_ne!(
+            format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(repaired)?)),
+            repair.target_claim_sha256
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let current_hash = crate::memory_graph_model_hash(&current)?;
+        assert!(current_repo_model_claim_challenges(&cache, &current, &current_hash)?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn claim_repair_admission_refuses_substitution_without_model_writes() -> Result<()> {
+        for mutation in [
+            "swapped-request",
+            "missing-evidence",
+            "extra-operation",
+            "wrong-target",
+            "unchanged-claim",
+            "timestamp-only",
+            "identity-mutation",
+            "lifecycle-mutation",
+            "state-patch-smuggling",
+            "self-patch-smuggling",
+            "launch-hash",
+            "counterfeit-retry-receipt",
+        ] {
+            let root = tempfile::tempdir()?;
+            let (store, mut result, mut review, repair) =
+                claim_repair_admission_fixture(root.path(), mutation)?;
+            match mutation {
+                "swapped-request" => {
+                    result.claim_repair_request_id = Some("adjacent-repair-request".into())
+                }
+                "missing-evidence" => {
+                    result.evidence_ids.pop();
+                    review.evidence_ids = result.evidence_ids.clone();
+                }
+                "launch-hash" => {
+                    let mut cache = runtime_spine_cache(&store)?;
+                    cache.pull_all_backing_stores()?;
+                    let key = format!("repo-model-claim-repair-launch-{}", repair.request_id);
+                    let mut binding =
+                        cache.get_required::<RepoModelClaimRepairLaunchBinding>(&key)?;
+                    binding.worker_launch_document_sha256 = "00".repeat(32);
+                    overwrite_test_entry(&store, &key, &binding)?;
+                }
+                "state-patch-smuggling" => {
+                    result.state_patch_msgpack = Some(vec![0x80]);
+                }
+                "self-patch-smuggling" => {
+                    result.self_patch_msgpack = Some(vec![0x80]);
+                }
+                "counterfeit-retry-receipt" => {
+                    overwrite_test_entry(&store, &review.review_id, &review)?;
+                    let receipt_id = format!("repo-model-admission-{}", review.review_id);
+                    overwrite_test_entry(
+                        &store,
+                        &receipt_id,
+                        &RepoModelAdmissionReceipt {
+                            schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
+                            receipt_id: receipt_id.clone(),
+                            review_id: review.review_id.clone(),
+                            result_id: result.result_id.clone(),
+                            patch_id: review.patch_id.clone(),
+                            patch_sha256: review.patch_sha256.clone(),
+                            previous_revision: repair.model_revision,
+                            previous_hash: repair.model_hash.clone(),
+                            admitted_revision: repair.model_revision + 1,
+                            admitted_hash: "counterfeit-admitted-hash".into(),
+                            admitted_at: review.reviewed_at.clone(),
+                            contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+                            purpose: crate::RepoModelPatchPurpose::RepairClaim,
+                            frontier_route_id: String::new(),
+                            verification_request_id: String::new(),
+                            soul_verdict_receipt_id: String::new(),
+                            frontier_modeling_request_id: String::new(),
+                            proposal_modeling_request_id: String::new(),
+                            claim_repair_request_id: repair.request_id.clone(),
+                        },
+                    )?;
+                }
+                _ => {
+                    let mut patch: crate::RepoModelPatch =
+                        rmp_serde::from_slice(result.repo_model_patch_msgpack.as_deref().unwrap())?;
+                    let current = runtime_current_repo_model(&store)?.expect("current model");
+                    let current_node = current
+                        .nodes
+                        .iter()
+                        .find(|node| node.id == repair.target_claim_id)
+                        .cloned()
+                        .expect("challenged node");
+                    match mutation {
+                        "extra-operation" => patch.operations.push(patch.operations[0].clone()),
+                        "wrong-target" => {
+                            let crate::RepoModelPatchOperation::ReviseNode { node } =
+                                &mut patch.operations[0]
+                            else {
+                                unreachable!()
+                            };
+                            node.id = "wrong-target-claim".into();
+                        }
+                        "unchanged-claim" => {
+                            patch.operations[0] =
+                                crate::RepoModelPatchOperation::ReviseNode { node: current_node };
+                        }
+                        "timestamp-only" => {
+                            let mut timestamp_only = current_node;
+                            timestamp_only.updated_at = Some("2026-07-14T09:00:04Z".into());
+                            patch.operations[0] = crate::RepoModelPatchOperation::ReviseNode {
+                                node: timestamp_only,
+                            };
+                        }
+                        "identity-mutation" => {
+                            let crate::RepoModelPatchOperation::ReviseNode { node } =
+                                &mut patch.operations[0]
+                            else {
+                                unreachable!()
+                            };
+                            node.domain_id = "other-domain".into();
+                        }
+                        "lifecycle-mutation" => {
+                            let crate::RepoModelPatchOperation::ReviseNode { node } =
+                                &mut patch.operations[0]
+                            else {
+                                unreachable!()
+                            };
+                            node.lifecycle = crate::EpiphanyMemoryLifecycle::Retired;
+                        }
+                        _ => unreachable!(),
+                    }
+                    let bytes = rmp_serde::to_vec_named(&patch)?;
+                    result.repo_model_patch_msgpack = Some(bytes.clone());
+                    review.patch_id = patch.patch_id;
+                    review.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));
+                    review.base_revision = patch.base_revision;
+                    review.base_hash = patch.base_hash;
+                }
+            }
+            if matches!(mutation, "state-patch-smuggling" | "self-patch-smuggling") {
+                let before = std::fs::read(&store)?;
+                assert!(
+                    put_runtime_role_worker_result(&store, &result).is_err(),
+                    "mutation {mutation} must be refused at immutable result ingestion"
+                );
+                assert_eq!(std::fs::read(&store)?, before);
+                continue;
+            }
+            put_runtime_role_worker_result(&store, &result)?;
+            let before = std::fs::read(&store)?;
+            assert!(
+                commit_repo_model_admission(&store, &result.result_id, &review).is_err(),
+                "mutation {mutation} must be refused"
+            );
+            assert_eq!(
+                std::fs::read(&store)?,
+                before,
+                "mutation {mutation} wrote partial admission state"
+            );
+        }
+        Ok(())
     }
 
     fn assert_proposal_admission_refused_without_state_mutation(
@@ -7038,6 +7547,7 @@ pub(crate) mod tests {
                         soul_verdict_receipt_id: String::new(),
                         frontier_modeling_request_id: String::new(),
                         proposal_modeling_request_id: "wrong-proposal-request".into(),
+                        claim_repair_request_id: String::new(),
                     };
                     overwrite_test_entry(&store, &review.review_id, &review)?;
                     overwrite_test_entry(&store, &receipt_id, &receipt)?;
@@ -7731,6 +8241,7 @@ pub(crate) mod tests {
             frontier_route_id: Some(route.route_id.clone()),
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
         };
         put_runtime_role_worker_result(&store, &verification_result)?;
         let verdict = SoulVerdictReceipt {
@@ -7849,6 +8360,7 @@ pub(crate) mod tests {
             frontier_route_id: None,
             repo_frontier_modeling_request_id: Some(fixture.modeling_request.request_id.clone()),
             proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -8124,6 +8636,7 @@ pub(crate) mod tests {
             frontier_route_id: Some(fixture.route.route_id.clone()),
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
         };
         put_runtime_role_worker_result(&fixture.store, &adjacent)?;
         put_soul_verdict_receipt(
@@ -8180,6 +8693,7 @@ pub(crate) mod tests {
                     ..
                 } => vec![soul_verdict_receipt_id.clone()],
                 crate::RepoModelPatchPurpose::Evolution => vec!["evolution".to_string()],
+                crate::RepoModelPatchPurpose::RepairClaim => vec!["repair".to_string()],
             };
             review.patch_id = patch.patch_id.clone();
             review.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));
@@ -9440,11 +9954,11 @@ pub(crate) mod tests {
                         churn: None,
                     },
                 ),
-                output_contract_id: "epiphany.worker.role_result.v0".to_string(),
+                output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
                 organ_launch_contract: crate::default_launch_organ_contract(
                     "epiphany.role.modeling",
                     "role",
-                    "epiphany.worker.role_result.v0",
+                    crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
                 max_runtime_seconds: Some(60),
                 runtime_job_id: "turn-1".to_string(),

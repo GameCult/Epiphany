@@ -315,6 +315,12 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                                         "soul_verdict_receipt_id": {"type": "string", "minLength": 1}
                                     },
                                     "additionalProperties": false
+                                },
+                                {
+                                    "type": "object",
+                                    "required": ["kind"],
+                                    "properties": {"kind": {"const": "repair_claim"}},
+                                    "additionalProperties": false
                                 }
                             ]
                         },
@@ -333,6 +339,14 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                     "type": "string",
                     "minLength": 1,
                     "description": "Exact echo of an explicit typed repo-frontier proposal Modeling request, when supplied."
+                }),
+            );
+            map.insert(
+                "claimRepairRequestId".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Exact echo of the coordinator-bound claim repair request; valid only with purpose repair_claim."
                 }),
             );
             map.insert(
@@ -358,23 +372,42 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         "additionalProperties": true
     });
     if role_id == EpiphanyRoleResultRoleId::Modeling {
-        schema["allOf"] = serde_json::json!([{
-            "if": {
-                "properties": {
-                    "repoModelPatch": {
-                        "properties": {
-                            "purpose": {
-                                "properties": {"kind": {"const": "incorporate_frontier_verdict"}},
-                                "required": ["kind"]
-                            }
-                        },
-                        "required": ["purpose"]
-                    }
+        schema["allOf"] = serde_json::json!([
+            {
+                "if": {
+                    "properties": {
+                        "repoModelPatch": {
+                            "properties": {
+                                "purpose": {
+                                    "properties": {"kind": {"const": "incorporate_frontier_verdict"}},
+                                    "required": ["kind"]
+                                }
+                            },
+                            "required": ["purpose"]
+                        }
+                    },
+                    "required": ["repoModelPatch"]
                 },
-                "required": ["repoModelPatch"]
+                "then": {"required": ["repoFrontierModelingRequestId"]}
             },
-            "then": {"required": ["repoFrontierModelingRequestId"]}
-        }]);
+            {
+                "if": {
+                    "properties": {
+                        "repoModelPatch": {
+                            "properties": {
+                                "purpose": {
+                                    "properties": {"kind": {"const": "repair_claim"}},
+                                    "required": ["kind"]
+                                }
+                            }
+                            ,"required": ["purpose"]
+                        }
+                    },
+                    "required": ["repoModelPatch"]
+                },
+                "then": {"required": ["claimRepairRequestId"]}
+            }
+        ]);
     }
     schema
 }
@@ -891,12 +924,12 @@ mod tests {
     }
 
     #[test]
-    fn modeling_schema_exposes_only_typed_evolution_or_verdict_incorporation() {
+    fn modeling_schema_exposes_only_typed_authority_purposes() {
         let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
         let purposes = schema["properties"]["repoModelPatch"]["properties"]["purpose"]["oneOf"]
             .as_array()
             .expect("typed Modeling purpose alternatives");
-        assert_eq!(purposes.len(), 2);
+        assert_eq!(purposes.len(), 3);
         assert_eq!(purposes[0]["properties"]["kind"]["const"], "evolution");
         assert_eq!(
             purposes[1]["properties"]["kind"]["const"],
@@ -912,6 +945,11 @@ mod tests {
         assert_eq!(
             schema["allOf"][0]["then"]["required"][0],
             "repoFrontierModelingRequestId"
+        );
+        assert_eq!(purposes[2]["properties"]["kind"]["const"], "repair_claim");
+        assert_eq!(
+            schema["allOf"][1]["then"]["required"][0],
+            "claimRepairRequestId"
         );
     }
 

@@ -7,11 +7,11 @@ pub const REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_model_admission_review.v0";
 pub const REPO_MODEL_ADMISSION_RECEIPT_TYPE: &str = "epiphany.mind.repo_model_admission_receipt";
 pub const REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.mind.repo_model_admission_receipt.v2";
+    "epiphany.mind.repo_model_admission_receipt.v3";
 pub const REPO_MODEL_MIGRATION_RECEIPT_TYPE: &str = "epiphany.mind.repo_model_migration_receipt";
 pub const REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_model_migration_receipt.v0";
-pub const REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v2";
+pub const REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v3";
 pub const REPO_MODEL_MIGRATION_CONTRACT: &str = "epiphany.repo_model_migration.v0";
 pub const REPO_FRONTIER_ROUTE_TYPE: &str = "epiphany.self.repo_frontier_route";
 pub const REPO_FRONTIER_ROUTE_SCHEMA_VERSION: &str = "epiphany.self.repo_frontier_route.v0";
@@ -636,6 +636,8 @@ pub struct RepoModelAdmissionReceipt {
     pub frontier_modeling_request_id: String,
     #[cultcache(key = 17, default)]
     pub proposal_modeling_request_id: String,
+    #[cultcache(key = 18, default)]
+    pub claim_repair_request_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

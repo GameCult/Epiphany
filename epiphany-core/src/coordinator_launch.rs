@@ -87,7 +87,7 @@ fn commit_coordinator_job_launch_in_cache(
     let claim_repair_launch = if let Some(request_id) = request.claim_repair_request_id.as_deref() {
         let (repair, challenge, identity) =
             validate_claim_repair_launch(cache, current_state, request, request_id)?;
-        let projection = build_claim_repair_context_projection(&repair);
+        let projection = RepoModelClaimRepairContextProjection::from_request(&repair);
         match &mut effective_launch_document {
             EpiphanyWorkerLaunchDocument::Role(document) => {
                 if document.proposal_modeling_context.is_some() {
@@ -335,32 +335,6 @@ pub fn plan_coordinator_job_launch(
     })
 }
 
-fn build_claim_repair_context_projection(
-    request: &RepoModelClaimRepairRequest,
-) -> RepoModelClaimRepairContextProjection {
-    RepoModelClaimRepairContextProjection {
-        schema_version: REPO_MODEL_CLAIM_REPAIR_CONTEXT_SCHEMA_VERSION.into(),
-        contract: REPO_MODEL_CLAIM_REPAIR_CONTEXT_CONTRACT.into(),
-        request_id: request.request_id.clone(),
-        challenge_id: request.challenge_id.clone(),
-        challenge_sha256: request.challenge_sha256.clone(),
-        eyes_evidence_packet_id: request.eyes_evidence_packet_id.clone(),
-        eyes_evidence_packet_sha256: request.eyes_evidence_packet_sha256.clone(),
-        source_result_id: request.source_result_id.clone(),
-        source_job_id: request.source_job_id.clone(),
-        original_admission_receipt_id: request.original_admission_receipt_id.clone(),
-        current_admission_receipt_id: request.current_admission_receipt_id.clone(),
-        model_revision: request.model_revision,
-        model_hash: request.model_hash.clone(),
-        target_claim_id: request.target_claim_id.clone(),
-        target_claim_sha256: request.target_claim_sha256.clone(),
-        runtime_id: request.runtime_id.clone(),
-        thread_id: request.thread_id.clone(),
-        affected_frontier: request.affected_frontier.clone(),
-        requested_at: request.requested_at.clone(),
-    }
-}
-
 fn validate_claim_repair_launch(
     cache: &CultCache,
     state: &EpiphanyThreadState,
@@ -548,7 +522,7 @@ fn terminal_runtime_link_for_binding(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn proposal_launch_fixture(
@@ -647,7 +621,7 @@ mod tests {
         Ok((store, state, request, selection))
     }
 
-    fn claim_repair_launch_fixture(
+    pub(crate) fn claim_repair_launch_fixture(
         root: &Path,
         suffix: &str,
     ) -> Result<(
@@ -961,7 +935,7 @@ mod tests {
                         &mut forged.launch_document
                     {
                         document.claim_repair_context =
-                            Some(build_claim_repair_context_projection(&repair));
+                            Some(RepoModelClaimRepairContextProjection::from_request(&repair));
                     }
                 }
                 _ => forged.proposal_modeling_request_id = Some("dual-proposal".into()),

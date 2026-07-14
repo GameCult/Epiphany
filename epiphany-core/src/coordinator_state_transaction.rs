@@ -2,9 +2,9 @@ use crate::{
     EpiphanyThreadStateEntry, THREAD_STATE_KEY, THREAD_STATE_TYPE, coordinator_acceptance_cache,
 };
 use anyhow::{Result, anyhow};
-use cultcache_rs::{
-    CacheBackingStore, CultCache, CultCacheEnvelope, SingleFileMessagePackBackingStore,
-};
+#[cfg(test)]
+use cultcache_rs::CacheBackingStore;
+use cultcache_rs::{CultCache, CultCacheEnvelope, SingleFileMessagePackBackingStore};
 use epiphany_state_model::EpiphanyThreadState;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};

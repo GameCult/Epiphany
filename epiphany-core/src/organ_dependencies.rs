@@ -385,7 +385,7 @@ mod tests {
         let contract = default_launch_organ_contract(
             "epiphany.role.verification",
             "role",
-            "epiphany.worker.role_result.v0",
+            "epiphany.worker.role_result.v1",
         );
         assert_eq!(contract.owner_organ, "soul");
         assert_eq!(contract.dependencies.len(), EPIPHANY_STANDING_ORGANS.len());
@@ -446,7 +446,7 @@ mod tests {
         let contract = default_launch_organ_contract(
             "epiphany.role.research",
             "role",
-            "epiphany.worker.role_result.v0",
+            "epiphany.worker.role_result.v1",
         );
         let evaluations = evaluate_receipt_proof_profiles(
             &contract,

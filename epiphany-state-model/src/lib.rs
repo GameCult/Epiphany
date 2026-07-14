@@ -835,6 +835,7 @@ pub enum RepoModelPatchPurpose {
         route_id: String,
         soul_verdict_receipt_id: String,
     },
+    RepairClaim,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
