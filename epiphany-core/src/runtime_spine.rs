@@ -63,6 +63,7 @@ use crate::repo_model_gateway::{
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
     RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoFrontierWorkProposal,
     RepoModelAdmissionReceipt, RepoModelAdmissionReview, RepoModelClaimChallenge,
+    RepoModelClaimRepairFrontierRef, RepoModelClaimRepairLaunchBinding,
     RepoModelClaimRepairRequest, RepoModelMigrationReceipt,
 };
 use crate::soul_gateway::SoulVerdictReceipt;
@@ -325,6 +326,8 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub organ_launch_contract: EpiphanyLaunchOrganContract,
     #[cultcache(key = 11, default)]
     pub proposal_modeling_request_id: Option<String>,
+    #[cultcache(key = 12, default)]
+    pub claim_repair_request_id: Option<String>,
 }
 
 impl EpiphanyRuntimeWorkerLaunchRequest {
@@ -677,6 +680,7 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub output_contract_id: String,
     pub organ_launch_contract: EpiphanyLaunchOrganContract,
     pub proposal_modeling_request_id: Option<String>,
+    pub claim_repair_request_id: Option<String>,
     pub created_at: String,
 }
 
@@ -725,6 +729,7 @@ pub struct EpiphanyJobLaunchRequest {
     pub organ_launch_contract: EpiphanyLaunchOrganContract,
     pub max_runtime_seconds: Option<u64>,
     pub proposal_modeling_request_id: Option<String>,
+    pub claim_repair_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -771,6 +776,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoModelMigrationReceipt>()?;
     cache.register_entry_type::<RepoModelClaimChallenge>()?;
     cache.register_entry_type::<RepoModelClaimRepairRequest>()?;
+    cache.register_entry_type::<RepoModelClaimRepairLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierRoute>()?;
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
@@ -1040,6 +1046,12 @@ pub fn open_runtime_spine_heartbeat_job(
         options.proposal_modeling_request_id.as_deref(),
         &options.launch_document,
     )?;
+    validate_claim_repair_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.claim_repair_request_id.as_deref(),
+        &options.launch_document,
+    )?;
     validate_non_empty(&options.binding_id, "binding id")?;
     validate_non_empty(&options.authority_scope, "authority scope")?;
     validate_non_empty(&options.instruction, "instruction")?;
@@ -1124,6 +1136,7 @@ pub fn open_runtime_spine_heartbeat_job(
         metadata: BTreeMap::new(),
         organ_launch_contract,
         proposal_modeling_request_id: options.proposal_modeling_request_id,
+        claim_repair_request_id: options.claim_repair_request_id,
     };
     cache.put(&job_id, &request)?;
     Ok(job)
@@ -1143,6 +1156,12 @@ pub fn prepare_runtime_spine_heartbeat_job(
         &options.role,
         &options.binding_id,
         options.proposal_modeling_request_id.as_deref(),
+        &options.launch_document,
+    )?;
+    validate_claim_repair_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.claim_repair_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_non_empty(&options.binding_id, "binding id")?;
@@ -1255,6 +1274,7 @@ pub fn prepare_runtime_spine_heartbeat_job(
         metadata: BTreeMap::new(),
         organ_launch_contract: options.organ_launch_contract,
         proposal_modeling_request_id: options.proposal_modeling_request_id,
+        claim_repair_request_id: options.claim_repair_request_id,
     };
     let envelopes = vec![
         cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
@@ -1295,6 +1315,39 @@ fn validate_proposal_modeling_launch_carrier(
     })?;
     if projection.request_id != request_id {
         return Err(anyhow!("proposal Modeling context/request mismatch"));
+    }
+    Ok(())
+}
+
+fn validate_claim_repair_launch_carrier(
+    role: &str,
+    binding_id: &str,
+    claim_repair_request_id: Option<&str>,
+    launch_document: &EpiphanyWorkerLaunchDocument,
+) -> Result<()> {
+    let projection = match launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document.claim_repair_context.as_ref(),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let Some(request_id) = claim_repair_request_id else {
+        if projection.is_some() {
+            return Err(anyhow!(
+                "claim repair context requires its typed request id"
+            ));
+        }
+        return Ok(());
+    };
+    validate_non_empty(request_id, "claim repair request id")?;
+    if role != EPIPHANY_MODELING_OWNER_ROLE || binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID {
+        return Err(anyhow!(
+            "claim repair request id may only be transported by the Modeling role launch"
+        ));
+    }
+    let projection = projection.ok_or_else(|| {
+        anyhow!("claim repair request id requires coordinator-owned typed context")
+    })?;
+    if projection.request_id != request_id {
+        return Err(anyhow!("claim repair context/request mismatch"));
     }
     Ok(())
 }
@@ -2852,6 +2905,7 @@ pub fn commit_repo_model_claim_repair_request(
         requested_at: requested_at.to_string(),
         contract: REPO_MODEL_CLAIM_REPAIR_REQUEST_CONTRACT.into(),
     };
+    validate_current_repo_model_claim_repair_request(&cache, &request)?;
     if let Some(existing) = cache.get::<RepoModelClaimRepairRequest>(&request_id)? {
         return if existing == request {
             Ok(existing)
@@ -2929,6 +2983,105 @@ pub fn commit_repo_model_claim_repair_request(
         };
     }
     Ok(request)
+}
+
+pub(crate) fn validate_current_repo_model_claim_repair_request(
+    cache: &CultCache,
+    request: &RepoModelClaimRepairRequest,
+) -> Result<()> {
+    chrono::DateTime::parse_from_rfc3339(&request.requested_at)
+        .map_err(|_| anyhow!("claim repair request timestamp must be RFC3339"))?;
+    let entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("claim repair request requires canonical model"))?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let challenge = cache
+        .get::<RepoModelClaimChallenge>(&request.challenge_id)?
+        .ok_or_else(|| anyhow!("claim repair request requires exact challenge"))?;
+    validate_repo_model_claim_challenge_chain(cache, &model, &model_hash, &challenge, false)?;
+    let packet = cache
+        .get::<EyesEvidencePacket>(&challenge.eyes_evidence_packet_id)?
+        .ok_or_else(|| anyhow!("claim repair request requires exact Eyes packet"))?;
+    let original_admission = cache
+        .get::<RepoModelAdmissionReceipt>(&challenge.admission_receipt_id)?
+        .ok_or_else(|| anyhow!("claim repair request requires original challenge admission"))?;
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("claim repair request requires runtime identity"))?;
+    let thread = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("claim repair request requires authoritative thread"))?;
+    let claim = model
+        .nodes
+        .iter()
+        .find(|node| node.id == challenge.target_claim_id)
+        .ok_or_else(|| anyhow!("claim repair target is no longer present"))?;
+    if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(claim)?))
+        != challenge.target_claim_sha256
+    {
+        return Err(anyhow!(
+            "claim repair challenge is already resolved by a changed claim"
+        ));
+    }
+    let receipts = cache
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
+                && receipt.admitted_revision == model.model_revision
+                && receipt.admitted_hash == model_hash
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 {
+        return Err(anyhow!(
+            "claim repair request requires unique current admission receipt"
+        ));
+    }
+    let mut affected_frontier = model
+        .frontier
+        .iter()
+        .filter(|item| item.target_claim_ids.contains(&challenge.target_claim_id))
+        .map(|item| {
+            Ok(RepoModelClaimRepairFrontierRef {
+                frontier_item_id: item.id.clone(),
+                frontier_item_sha256: format!(
+                    "{:x}",
+                    Sha256::digest(rmp_serde::to_vec_named(item)?)
+                ),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    affected_frontier.sort_by(|a, b| a.frontier_item_id.cmp(&b.frontier_item_id));
+    let expected = RepoModelClaimRepairRequest {
+        schema_version: REPO_MODEL_CLAIM_REPAIR_REQUEST_SCHEMA_VERSION.into(),
+        request_id: format!("repo-model-claim-repair-{}", challenge.challenge_id),
+        challenge_id: challenge.challenge_id.clone(),
+        challenge_sha256: format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&challenge)?)),
+        eyes_evidence_packet_id: packet.packet_id.clone(),
+        eyes_evidence_packet_sha256: challenge.eyes_evidence_packet_sha256.clone(),
+        source_result_id: challenge.source_result_id.clone(),
+        source_job_id: challenge.source_job_id.clone(),
+        original_admission_receipt_id: original_admission.receipt_id.clone(),
+        current_admission_receipt_id: receipts[0].receipt_id.clone(),
+        model_revision: model.model_revision,
+        model_hash,
+        target_claim_id: challenge.target_claim_id.clone(),
+        target_claim_sha256: challenge.target_claim_sha256.clone(),
+        runtime_id: identity.runtime_id.clone(),
+        thread_id: thread.thread_id.clone(),
+        affected_frontier,
+        requested_at: request.requested_at.clone(),
+        contract: REPO_MODEL_CLAIM_REPAIR_REQUEST_CONTRACT.into(),
+    };
+    if *request != expected {
+        return Err(anyhow!(
+            "claim repair request does not match the current canonical causal chain"
+        ));
+    }
+    Ok(())
 }
 
 pub fn put_repo_frontier_plan_candidate(
@@ -6295,7 +6448,7 @@ fn merge_refs(existing: &[String], incoming: &[String]) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use cultnet_rs::CultNetWireContract;
     use cultnet_rs::decode_cultnet_message_from_slice;
@@ -7103,7 +7256,7 @@ mod tests {
         );
     }
 
-    fn claim_challenge_fixture(
+    pub(crate) fn claim_challenge_fixture(
         root: &Path,
         suffix: &str,
         next_organ: &str,
@@ -9139,6 +9292,7 @@ mod tests {
                         objective: Some("Run heartbeat worker.".to_string()),
                         dynamic_prompt_context: None,
                         proposal_modeling_context: None,
+                        claim_repair_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["node-model".to_string()],
@@ -9161,6 +9315,7 @@ mod tests {
                     crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
                 proposal_modeling_request_id: None,
+                claim_repair_request_id: None,
                 created_at: "2026-05-06T00:02:00Z".to_string(),
             },
         )?;
@@ -9230,6 +9385,7 @@ mod tests {
                         objective: Some("keep state typed".to_string()),
                         dynamic_prompt_context: None,
                         proposal_modeling_context: None,
+                        claim_repair_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["runtime-spine".to_string()],
@@ -9315,6 +9471,7 @@ mod tests {
                         objective: None,
                         dynamic_prompt_context: None,
                         proposal_modeling_context: None,
+                        claim_repair_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),

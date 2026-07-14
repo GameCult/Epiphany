@@ -41,7 +41,7 @@ pub fn apply_coordinator_state_update_from_state(
     let mut cache = open_coordinator_state_transaction(store, current_state)?;
     let changed_fields = changed_fields(&update);
     let state = apply_coordinator_state_update_to_state(current_state, update, reference_turn_id)?;
-    commit_coordinator_state_transaction(&mut cache, thread_id, &state, Vec::new())?;
+    commit_coordinator_state_transaction(&mut cache, thread_id, &state, Vec::new(), Vec::new())?;
     Ok(EpiphanyCoordinatorStateApplied {
         revision: state.revision,
         changed_fields,

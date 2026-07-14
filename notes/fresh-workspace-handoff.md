@@ -1,5 +1,33 @@
 # Fresh Workspace Handoff
 
+## Modeling claim-repair launch authority landed - 2026-07-14
+
+The inert `RepoModelClaimRepairRequest` now reaches Modeling through one
+coordinator-owned typed context projection and one immutable, request-keyed
+launch binding. The coordinator reconstructs the projection from current
+canonical state; callers cannot prepopulate it, combine it with proposal
+Modeling authority, substitute any causal field, or spend one repair request
+twice. The launch document hash binds the exact effective document delivered to
+the worker. This slice still grants no RepoModel write authority.
+
+The launch race exposed a deeper state-transaction fault: two coordinators could
+validate the same logical state and both publish. `CoordinatorStateTransaction`
+now captures one exact typed cache image, validates the canonical state by
+polymorphic `(type, key)` identity, and commits state plus companions through one
+backing-store CAS. Immutable companions are absent-only or byte-equivalent
+retries with the persisted timestamp preserved. Explicit captured replacements
+may replace only the exact envelope observed at open. Imported nondefault host
+state may seed an absent store once. Focused hostile tests prove one race winner,
+no losing job/request/event/runtime link, immutable collision no-write behavior,
+captured-replacement contention, and same-key/different-type coexistence. Soul
+re-reviewed the repaired proof surface and passed it; the full core library is
+green at 314 passed, one ignored.
+
+Next: make the Modeling result echo this repair request exclusively, then add a
+dedicated narrow patch purpose and Mind admission that replays the full chain and
+requires the exact challenged claim bytes to change. No other result or model
+revision may clear challenge pressure.
+
 ## Modeling name authority correction - 2026-07-14
 
 Modeling is the standing embodied organ that models the Body. Proprioception is

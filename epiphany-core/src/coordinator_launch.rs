@@ -36,7 +36,7 @@ pub fn commit_coordinator_job_launch(
 }
 
 fn commit_coordinator_job_launch_in_cache(
-    cache: &mut CultCache,
+    cache: &mut coordinator_state_transaction::CoordinatorStateTransaction,
     thread_id: &str,
     current_state: &EpiphanyThreadState,
     request: &EpiphanyJobLaunchRequest,
@@ -44,6 +44,11 @@ fn commit_coordinator_job_launch_in_cache(
     created_at: String,
     injected_envelopes: Vec<CultCacheEnvelope>,
 ) -> Result<EpiphanyJobLaunchResult> {
+    if thread_id != request.launch_document.thread_id() {
+        return Err(anyhow!(
+            "coordinator commit thread id must match typed launch document"
+        ));
+    }
     let runtime_identity = cache
         .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("coordinator launch requires runtime identity"))?;
@@ -79,6 +84,33 @@ fn commit_coordinator_job_launch_in_cache(
     } else {
         None
     };
+    let claim_repair_launch = if let Some(request_id) = request.claim_repair_request_id.as_deref() {
+        let (repair, challenge, identity) =
+            validate_claim_repair_launch(cache, current_state, request, request_id)?;
+        let projection = build_claim_repair_context_projection(&repair);
+        match &mut effective_launch_document {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                if document.proposal_modeling_context.is_some() {
+                    return Err(anyhow!(
+                        "claim repair and proposal contexts are mutually exclusive"
+                    ));
+                }
+                document.claim_repair_context = Some(projection);
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => {
+                return Err(anyhow!("reorient launch cannot carry claim repair context"));
+            }
+        }
+        let bytes = rmp_serde::to_vec_named(&effective_launch_document)?;
+        Some((
+            repair,
+            challenge,
+            identity,
+            format!("{:x}", Sha256::digest(bytes)),
+        ))
+    } else {
+        None
+    };
     let prepared = prepare_runtime_spine_heartbeat_job(
         &cache,
         RuntimeSpineHeartbeatJobOptions {
@@ -102,10 +134,18 @@ fn commit_coordinator_job_launch_in_cache(
             output_contract_id: request.output_contract_id.clone(),
             organ_launch_contract: request.organ_launch_contract.clone(),
             proposal_modeling_request_id: request.proposal_modeling_request_id.clone(),
+            claim_repair_request_id: request.claim_repair_request_id.clone(),
             created_at: created_at.clone(),
         },
     )?;
     let mut batch = prepared.envelopes;
+    let runtime_identity_position = batch
+        .iter()
+        .position(|envelope| {
+            envelope.r#type == EpiphanyRuntimeIdentity::TYPE && envelope.key == RUNTIME_IDENTITY_KEY
+        })
+        .ok_or_else(|| anyhow!("prepared launch omitted its runtime identity replacement"))?;
+    let runtime_identity_replacement = batch.remove(runtime_identity_position);
     if let Some((selection, proposal, identity, worker_launch_document_sha256)) = proposal_launch {
         let launch_binding = RepoFrontierProposalModelingLaunchBinding {
             schema_version: REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
@@ -138,6 +178,36 @@ fn commit_coordinator_job_launch_in_cache(
                 .0,
         );
     }
+    if let Some((repair, challenge, identity, worker_launch_document_sha256)) = claim_repair_launch
+    {
+        let launch_binding = RepoModelClaimRepairLaunchBinding {
+            schema_version: REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+            binding_record_id: format!("repo-model-claim-repair-launch-{}", repair.request_id),
+            repair_request_id: repair.request_id,
+            challenge_id: challenge.challenge_id,
+            challenge_sha256: repair.challenge_sha256,
+            job_id: plan.backend_job_id.clone(),
+            binding_id: request.binding_id.clone(),
+            runtime_id: identity.runtime_id,
+            thread_id: repair.thread_id,
+            launched_at: created_at.clone(),
+            worker_launch_document_sha256,
+            contract: REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_CONTRACT.into(),
+        };
+        if cache
+            .get::<RepoModelClaimRepairLaunchBinding>(&launch_binding.binding_record_id)?
+            .is_some()
+        {
+            return Err(anyhow!(
+                "claim repair launch binding already exists for backend job"
+            ));
+        }
+        batch.push(
+            cache
+                .prepare_entry(&launch_binding.binding_record_id, &launch_binding)?
+                .0,
+        );
+    }
     if request.binding_id == EPIPHANY_RESEARCH_ROLE_BINDING_ID {
         let grant = substrate_gate_repo_access_grant_for_launch(
             format!("substrate-grant-{}", plan.backend_job_id),
@@ -153,6 +223,7 @@ fn commit_coordinator_job_launch_in_cache(
         thread_id,
         &next_state,
         batch,
+        vec![runtime_identity_replacement],
     )?;
     Ok(EpiphanyJobLaunchResult {
         epiphany_state: next_state,
@@ -169,13 +240,26 @@ pub fn plan_coordinator_job_launch(
     launcher_job_id: String,
     backend_job_id: String,
 ) -> Result<EpiphanyCoordinatorJobLaunchPlan> {
-    let caller_projection = match &request.launch_document {
-        EpiphanyWorkerLaunchDocument::Role(document) => document.proposal_modeling_context.as_ref(),
-        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    let (caller_proposal_projection, caller_repair_projection) = match &request.launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => (
+            document.proposal_modeling_context.as_ref(),
+            document.claim_repair_context.as_ref(),
+        ),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => (None, None),
     };
-    if caller_projection.is_some() {
+    if caller_proposal_projection.is_some() {
         return Err(anyhow!(
             "caller-prepopulated proposal Modeling context is forbidden; coordinator commit owns projection"
+        ));
+    }
+    if caller_repair_projection.is_some() {
+        return Err(anyhow!(
+            "caller-prepopulated claim repair context is forbidden; coordinator commit owns projection"
+        ));
+    }
+    if request.proposal_modeling_request_id.is_some() && request.claim_repair_request_id.is_some() {
+        return Err(anyhow!(
+            "proposal Modeling and claim repair launches are mutually exclusive"
         ));
     }
     if let Some(expected) = request.expected_revision
@@ -190,6 +274,10 @@ pub fn plan_coordinator_job_launch(
         let mut cache = runtime_spine_cache(runtime_store)?;
         cache.pull_all_backing_stores()?;
         validate_proposal_modeling_launch(&cache, state, request, request_id)?;
+    } else if let Some(request_id) = request.claim_repair_request_id.as_deref() {
+        let mut cache = runtime_spine_cache(runtime_store)?;
+        cache.pull_all_backing_stores()?;
+        validate_claim_repair_launch(&cache, state, request, request_id)?;
     } else if request.owner_role == EPIPHANY_MODELING_OWNER_ROLE {
         // Ordinary Modeling launches remain valid, but carry no proposal authority.
     }
@@ -245,6 +333,81 @@ pub fn plan_coordinator_job_launch(
         heartbeat_plan,
         state_update,
     })
+}
+
+fn build_claim_repair_context_projection(
+    request: &RepoModelClaimRepairRequest,
+) -> RepoModelClaimRepairContextProjection {
+    RepoModelClaimRepairContextProjection {
+        schema_version: REPO_MODEL_CLAIM_REPAIR_CONTEXT_SCHEMA_VERSION.into(),
+        contract: REPO_MODEL_CLAIM_REPAIR_CONTEXT_CONTRACT.into(),
+        request_id: request.request_id.clone(),
+        challenge_id: request.challenge_id.clone(),
+        challenge_sha256: request.challenge_sha256.clone(),
+        eyes_evidence_packet_id: request.eyes_evidence_packet_id.clone(),
+        eyes_evidence_packet_sha256: request.eyes_evidence_packet_sha256.clone(),
+        source_result_id: request.source_result_id.clone(),
+        source_job_id: request.source_job_id.clone(),
+        original_admission_receipt_id: request.original_admission_receipt_id.clone(),
+        current_admission_receipt_id: request.current_admission_receipt_id.clone(),
+        model_revision: request.model_revision,
+        model_hash: request.model_hash.clone(),
+        target_claim_id: request.target_claim_id.clone(),
+        target_claim_sha256: request.target_claim_sha256.clone(),
+        runtime_id: request.runtime_id.clone(),
+        thread_id: request.thread_id.clone(),
+        affected_frontier: request.affected_frontier.clone(),
+        requested_at: request.requested_at.clone(),
+    }
+}
+
+fn validate_claim_repair_launch(
+    cache: &CultCache,
+    state: &EpiphanyThreadState,
+    launch: &EpiphanyJobLaunchRequest,
+    request_id: &str,
+) -> Result<(
+    RepoModelClaimRepairRequest,
+    RepoModelClaimChallenge,
+    EpiphanyRuntimeIdentity,
+)> {
+    if launch.owner_role != EPIPHANY_MODELING_OWNER_ROLE
+        || launch.binding_id != EPIPHANY_MODELING_ROLE_BINDING_ID
+    {
+        return Err(anyhow!(
+            "claim repair may only be carried by the Modeling role launch"
+        ));
+    }
+    let repair = cache
+        .get::<RepoModelClaimRepairRequest>(request_id)?
+        .ok_or_else(|| anyhow!("claim repair request {request_id:?} does not exist"))?;
+    let challenge = cache
+        .get::<RepoModelClaimChallenge>(&repair.challenge_id)?
+        .ok_or_else(|| anyhow!("claim repair launch references a missing challenge"))?;
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("claim repair launch requires runtime identity"))?;
+    let persisted_state = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("claim repair launch requires authoritative thread state"))?;
+    let persisted_state_value = persisted_state.state()?;
+    crate::runtime_spine::validate_current_repo_model_claim_repair_request(cache, &repair)?;
+    if repair.request_id != request_id
+        || repair.runtime_id != identity.runtime_id
+        || repair.thread_id != persisted_state.thread_id
+        || persisted_state_value != *state
+        || launch.launch_document.thread_id() != repair.thread_id
+    {
+        return Err(anyhow!("claim repair launch provenance binding mismatch"));
+    }
+    if cache
+        .get_all::<RepoModelClaimRepairLaunchBinding>()?
+        .iter()
+        .any(|binding| binding.repair_request_id == request_id)
+    {
+        return Err(anyhow!("claim repair request is already bound to a launch"));
+    }
+    Ok((repair, challenge, identity))
 }
 
 fn build_proposal_modeling_context_projection(
@@ -484,6 +647,51 @@ mod tests {
         Ok((store, state, request, selection))
     }
 
+    fn claim_repair_launch_fixture(
+        root: &Path,
+        suffix: &str,
+    ) -> Result<(
+        std::path::PathBuf,
+        EpiphanyThreadState,
+        EpiphanyJobLaunchRequest,
+        RepoModelClaimRepairRequest,
+    )> {
+        let (store, challenge) =
+            crate::runtime_spine::tests::claim_challenge_fixture(root, suffix, "Hands")?;
+        crate::commit_repo_model_claim_challenge(&store, &challenge)?;
+        let repair = crate::commit_repo_model_claim_repair_request(
+            &store,
+            &challenge.challenge_id,
+            "2026-07-14T09:00:02Z",
+        )?;
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let mut state = cache
+            .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+            .state()?;
+        for link in &mut state.runtime_links {
+            if link.binding_id == EPIPHANY_MODELING_ROLE_BINDING_ID
+                && link.runtime_result_id.is_none()
+            {
+                link.runtime_result_id = Some(format!("prior-modeling-result-{suffix}"));
+            }
+        }
+        cache.put(
+            THREAD_STATE_KEY,
+            &EpiphanyThreadStateEntry::from_state(&repair.thread_id, &state)?,
+        )?;
+        let mut launch = build_epiphany_role_launch_request(
+            &repair.thread_id,
+            EpiphanyRoleResultRoleId::Modeling,
+            Some(state.revision),
+            Some(60),
+            &state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        launch.claim_repair_request_id = Some(repair.request_id.clone());
+        Ok((store, state, launch, repair))
+    }
+
     fn research_launch(state: &EpiphanyThreadState) -> EpiphanyJobLaunchRequest {
         build_epiphany_role_launch_request(
             "thread-1",
@@ -594,6 +802,8 @@ mod tests {
         let mut cache = coordinator_acceptance_cache(&store)?;
         let initial = EpiphanyThreadStateEntry::from_state("thread-1", &state)?;
         cache.put(THREAD_STATE_KEY, &initial)?;
+        let mut transaction =
+            coordinator_state_transaction::open_coordinator_state_transaction(&store, &state)?;
         let request = research_launch(&state);
         let plan = plan_coordinator_job_launch(
             &state,
@@ -611,7 +821,7 @@ mod tests {
         };
         assert!(
             commit_coordinator_job_launch_in_cache(
-                &mut cache,
+                &mut transaction,
                 "thread-1",
                 &state,
                 &request,
@@ -734,6 +944,247 @@ mod tests {
             .is_err()
         );
         assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn claim_repair_launch_is_coordinator_owned_bound_and_single_use() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, repair) = claim_repair_launch_fixture(root.path(), "exact")?;
+        for mutation in 0..4 {
+            let mut forged = launch.clone();
+            match mutation {
+                0 => forged.owner_role = "Eyes".into(),
+                1 => forged.binding_id = "wrong-binding".into(),
+                2 => {
+                    if let EpiphanyWorkerLaunchDocument::Role(document) =
+                        &mut forged.launch_document
+                    {
+                        document.claim_repair_context =
+                            Some(build_claim_repair_context_projection(&repair));
+                    }
+                }
+                _ => forged.proposal_modeling_request_id = Some("dual-proposal".into()),
+            }
+            let before = std::fs::read(&store)?;
+            assert!(
+                plan_coordinator_job_launch(
+                    &state,
+                    &forged,
+                    &store,
+                    format!("lf-{mutation}"),
+                    format!("bf-{mutation}")
+                )
+                .is_err()
+            );
+            assert_eq!(std::fs::read(&store)?, before);
+        }
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-repair".into(),
+            "backend-repair".into(),
+        )?;
+        let committed = commit_coordinator_job_launch(
+            &store,
+            &repair.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-14T09:00:03Z".into(),
+        )?;
+        let persisted =
+            runtime_worker_launch_request(&store, "backend-repair")?.expect("repair launch");
+        let projection = match persisted.launch_document()? {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                document.claim_repair_context.expect("typed repair context")
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => panic!("repair cannot reorient"),
+        };
+        assert_eq!(projection.request_id, repair.request_id);
+        assert!(projection.affected_frontier == repair.affected_frontier);
+        let cache = coordinator_acceptance_cache(&store)?;
+        let binding = cache
+            .get::<RepoModelClaimRepairLaunchBinding>(&format!(
+                "repo-model-claim-repair-launch-{}",
+                repair.request_id
+            ))?
+            .expect("repair binding");
+        assert_eq!(binding.challenge_id, repair.challenge_id);
+        assert_eq!(binding.runtime_id, repair.runtime_id);
+        assert_eq!(binding.thread_id, repair.thread_id);
+        assert_eq!(
+            binding.worker_launch_document_sha256,
+            format!("{:x}", Sha256::digest(&persisted.launch_document_msgpack))
+        );
+        let mut second = build_epiphany_role_launch_request(
+            &repair.thread_id,
+            EpiphanyRoleResultRoleId::Modeling,
+            Some(committed.epiphany_state.revision),
+            Some(60),
+            &committed.epiphany_state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        second.claim_repair_request_id = Some(repair.request_id);
+        let before = std::fs::read(&store)?;
+        assert!(
+            plan_coordinator_job_launch(
+                &committed.epiphany_state,
+                &second,
+                &store,
+                "launcher-second".into(),
+                "backend-second".into()
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn claim_repair_launch_refuses_every_swapped_causal_field_without_new_writes() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        for mutation in 0..8 {
+            let (store, state, launch, repair) =
+                claim_repair_launch_fixture(root.path(), &format!("causal-{mutation}"))?;
+            let mut corrupt = repair.clone();
+            match mutation {
+                0 => corrupt.model_hash = "swapped-model-hash".into(),
+                1 => corrupt.eyes_evidence_packet_id = "swapped-packet".into(),
+                2 => corrupt.eyes_evidence_packet_sha256 = "swapped-packet-hash".into(),
+                3 => corrupt.current_admission_receipt_id = "swapped-admission".into(),
+                4 => corrupt.target_claim_sha256 = "swapped-claim-hash".into(),
+                5 => {
+                    corrupt.affected_frontier[0].frontier_item_sha256 =
+                        "swapped-frontier-hash".into()
+                }
+                6 => corrupt.runtime_id = "swapped-runtime".into(),
+                _ => corrupt.thread_id = "swapped-thread".into(),
+            }
+            let mut cache = coordinator_acceptance_cache(&store)?;
+            cache.put(&corrupt.request_id, &corrupt)?;
+            let before = std::fs::read(&store)?;
+            assert!(
+                plan_coordinator_job_launch(
+                    &state,
+                    &launch,
+                    &store,
+                    format!("launcher-causal-{mutation}"),
+                    format!("backend-causal-{mutation}"),
+                )
+                .is_err(),
+                "causal mutation {mutation} must be refused"
+            );
+            assert_eq!(std::fs::read(&store)?, before);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn concurrent_claim_repair_launches_contend_on_one_request_key() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, repair) = claim_repair_launch_fixture(root.path(), "race")?;
+        let left_plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-left".into(),
+            "backend-left".into(),
+        )?;
+        let right_plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-right".into(),
+            "backend-right".into(),
+        )?;
+        let left_store = store.clone();
+        let right_store = store.clone();
+        let left_state = state.clone();
+        let right_state = state.clone();
+        let left_launch = launch.clone();
+        let right_launch = launch.clone();
+        let left_thread = repair.thread_id.clone();
+        let right_thread = repair.thread_id.clone();
+        let left = std::thread::spawn(move || {
+            commit_coordinator_job_launch(
+                &left_store,
+                &left_thread,
+                &left_state,
+                &left_launch,
+                &left_plan,
+                "2026-07-14T09:00:03Z".into(),
+            )
+        });
+        let right = std::thread::spawn(move || {
+            commit_coordinator_job_launch(
+                &right_store,
+                &right_thread,
+                &right_state,
+                &right_launch,
+                &right_plan,
+                "2026-07-14T09:00:04Z".into(),
+            )
+        });
+        let outcomes = [left.join().unwrap(), right.join().unwrap()];
+        assert_eq!(outcomes.iter().filter(|outcome| outcome.is_ok()).count(), 1);
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let bindings = cache
+            .get_all::<RepoModelClaimRepairLaunchBinding>()?
+            .into_iter()
+            .filter(|binding| binding.repair_request_id == repair.request_id)
+            .collect::<Vec<_>>();
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(
+            bindings[0].binding_record_id,
+            format!("repo-model-claim-repair-launch-{}", repair.request_id)
+        );
+        let winner = bindings[0].job_id.as_str();
+        let loser = if winner == "backend-left" {
+            "backend-right"
+        } else {
+            assert_eq!(winner, "backend-right");
+            "backend-left"
+        };
+        assert!(cache.get::<EpiphanyRuntimeJob>(winner)?.is_some());
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeWorkerLaunchRequest>(winner)?
+                .is_some()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>(&format!("event-job-opened-{winner}"))?
+                .is_some()
+        );
+        assert!(cache.get::<EpiphanyRuntimeJob>(loser)?.is_none());
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeWorkerLaunchRequest>(loser)?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>(&format!("event-job-opened-{loser}"))?
+                .is_none()
+        );
+        let persisted_state = cache
+            .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+            .state()?;
+        assert!(
+            persisted_state
+                .runtime_links
+                .iter()
+                .any(|link| link.runtime_job_id == winner)
+        );
+        assert!(
+            persisted_state
+                .runtime_links
+                .iter()
+                .all(|link| link.runtime_job_id != loser)
+        );
         Ok(())
     }
 }

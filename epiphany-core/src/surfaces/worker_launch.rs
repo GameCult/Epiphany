@@ -30,6 +30,10 @@ pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_proposal_modeling_context.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_proposal_modeling_context.v0";
+pub const REPO_MODEL_CLAIM_REPAIR_CONTEXT_SCHEMA_VERSION: &str =
+    "epiphany.worker.repo_model_claim_repair_context.v0";
+pub const REPO_MODEL_CLAIM_REPAIR_CONTEXT_CONTRACT: &str =
+    "epiphany.repo_model_claim_repair_context.v0";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "documentKind")]
@@ -82,6 +86,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub dynamic_prompt_context: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proposal_modeling_context: Option<RepoFrontierProposalModelingContextProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_repair_context: Option<RepoModelClaimRepairContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_subgoal_id: Option<String>,
     #[serde(default)]
@@ -200,6 +206,30 @@ pub struct RepoFrontierProposalModelingContextProjection {
     pub model_hash: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoModelClaimRepairContextProjection {
+    pub schema_version: String,
+    pub contract: String,
+    pub request_id: String,
+    pub challenge_id: String,
+    pub challenge_sha256: String,
+    pub eyes_evidence_packet_id: String,
+    pub eyes_evidence_packet_sha256: String,
+    pub source_result_id: String,
+    pub source_job_id: String,
+    pub original_admission_receipt_id: String,
+    pub current_admission_receipt_id: String,
+    pub model_revision: u64,
+    pub model_hash: String,
+    pub target_claim_id: String,
+    pub target_claim_sha256: String,
+    pub runtime_id: String,
+    pub thread_id: String,
+    pub affected_frontier: Vec<crate::RepoModelClaimRepairFrontierRef>,
+    pub requested_at: String,
+}
+
 pub fn build_reorient_job_launch_request(
     input: EpiphanyReorientLaunchRequestInput<'_>,
 ) -> EpiphanyJobLaunchRequest {
@@ -241,6 +271,7 @@ pub fn build_reorient_job_launch_request(
         organ_launch_contract,
         max_runtime_seconds: input.max_runtime_seconds,
         proposal_modeling_request_id: None,
+        claim_repair_request_id: None,
     }
 }
 

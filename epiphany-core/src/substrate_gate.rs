@@ -250,6 +250,7 @@ mod tests {
                     objective: None,
                     dynamic_prompt_context: None,
                     proposal_modeling_context: None,
+                    claim_repair_context: None,
                     active_subgoal_id: None,
                     active_subgoals: Vec::new(),
                     active_graph_node_ids: Vec::new(),
@@ -273,6 +274,7 @@ mod tests {
             ),
             max_runtime_seconds: None,
             proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
         };
         let grant = substrate_gate_repo_access_grant_for_launch(
             "grant-1".to_string(),

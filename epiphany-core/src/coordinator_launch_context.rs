@@ -1131,6 +1131,7 @@ mod tests {
                 output_contract_id: launch_request.output_contract_id.clone(),
                 organ_launch_contract: launch_request.organ_launch_contract.clone(),
                 proposal_modeling_request_id: None,
+                claim_repair_request_id: None,
                 created_at: "2026-06-02T00:00:00Z".to_string(),
             },
         )?;

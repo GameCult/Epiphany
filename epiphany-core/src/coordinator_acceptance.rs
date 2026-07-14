@@ -637,7 +637,11 @@ fn commit_state_with_mind_witness(
         });
     }
     coordinator_state_transaction::commit_coordinator_state_transaction(
-        &mut cache, thread_id, state, batch,
+        &mut cache,
+        thread_id,
+        state,
+        batch,
+        Vec::new(),
     )
 }
 

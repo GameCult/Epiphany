@@ -53,6 +53,10 @@ pub const REPO_MODEL_CLAIM_REPAIR_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.modeling.repo_model_claim_repair_request.v0";
 pub const REPO_MODEL_CLAIM_REPAIR_REQUEST_CONTRACT: &str =
     "epiphany.repo_model_claim_repair_request.v0";
+pub const REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_SCHEMA_VERSION: &str =
+    "epiphany.coordinator.repo_model_claim_repair_launch_binding.v0";
+pub const REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_CONTRACT: &str =
+    "epiphany.repo_model_claim_repair_launch_binding.v0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -149,6 +153,38 @@ pub struct RepoModelClaimRepairRequest {
     #[cultcache(key = 17)]
     pub requested_at: String,
     #[cultcache(key = 18)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.coordinator.repo_model_claim_repair_launch_binding",
+    schema = "RepoModelClaimRepairLaunchBinding"
+)]
+pub struct RepoModelClaimRepairLaunchBinding {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub binding_record_id: String,
+    #[cultcache(key = 2)]
+    pub repair_request_id: String,
+    #[cultcache(key = 3)]
+    pub challenge_id: String,
+    #[cultcache(key = 4)]
+    pub challenge_sha256: String,
+    #[cultcache(key = 5)]
+    pub job_id: String,
+    #[cultcache(key = 6)]
+    pub binding_id: String,
+    #[cultcache(key = 7)]
+    pub runtime_id: String,
+    #[cultcache(key = 8)]
+    pub thread_id: String,
+    #[cultcache(key = 9)]
+    pub launched_at: String,
+    #[cultcache(key = 10)]
+    pub worker_launch_document_sha256: String,
+    #[cultcache(key = 11)]
     pub contract: String,
 }
 

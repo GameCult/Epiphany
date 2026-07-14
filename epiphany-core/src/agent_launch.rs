@@ -569,6 +569,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         objective: state.objective.clone(),
         dynamic_prompt_context,
         proposal_modeling_context: None,
+        claim_repair_context: None,
         active_subgoal_id: state.active_subgoal_id.clone(),
         active_subgoals: state
             .subgoals
@@ -610,6 +611,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         organ_launch_contract,
         max_runtime_seconds,
         proposal_modeling_request_id: None,
+        claim_repair_request_id: None,
     })
 }
 
@@ -713,6 +715,7 @@ pub fn build_epiphany_job_launch_request(
         organ_launch_contract,
         max_runtime_seconds,
         proposal_modeling_request_id: None,
+        claim_repair_request_id: None,
     }
 }
 
