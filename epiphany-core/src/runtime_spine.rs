@@ -55,6 +55,7 @@ use crate::repo_model_gateway::{
     REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION, REPO_MODEL_ADMISSION_RECEIPT_TYPE,
     REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION, REPO_MODEL_ADMISSION_REVIEW_TYPE,
     REPO_MODEL_CLAIM_CHALLENGE_CONTRACT, REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION,
+    REPO_MODEL_CLAIM_REPAIR_REQUEST_CONTRACT, REPO_MODEL_CLAIM_REPAIR_REQUEST_SCHEMA_VERSION,
     REPO_MODEL_MIGRATION_CONTRACT, REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION,
     REPO_MODEL_MIGRATION_RECEIPT_TYPE, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
     RepoFrontierNextOrgan, RepoFrontierPlanAdoption, RepoFrontierPlanCandidate,
@@ -62,7 +63,7 @@ use crate::repo_model_gateway::{
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
     RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoFrontierWorkProposal,
     RepoModelAdmissionReceipt, RepoModelAdmissionReview, RepoModelClaimChallenge,
-    RepoModelMigrationReceipt,
+    RepoModelClaimRepairRequest, RepoModelMigrationReceipt,
 };
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
@@ -769,6 +770,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoModelAdmissionReceipt>()?;
     cache.register_entry_type::<RepoModelMigrationReceipt>()?;
     cache.register_entry_type::<RepoModelClaimChallenge>()?;
+    cache.register_entry_type::<RepoModelClaimRepairRequest>()?;
     cache.register_entry_type::<RepoFrontierRoute>()?;
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
@@ -2579,8 +2581,17 @@ fn current_repo_model_claim_challenges(
 ) -> Result<Vec<RepoModelClaimChallenge>> {
     let mut current = Vec::new();
     for challenge in cache.get_all::<RepoModelClaimChallenge>()? {
-        if challenge.model_revision == model.model_revision && challenge.model_hash == model_hash {
-            validate_repo_model_claim_challenge_chain(cache, model, model_hash, &challenge)?;
+        let Some(claim) = model
+            .nodes
+            .iter()
+            .find(|node| node.id == challenge.target_claim_id)
+        else {
+            continue;
+        };
+        if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(claim)?))
+            == challenge.target_claim_sha256
+        {
+            validate_repo_model_claim_challenge_chain(cache, model, model_hash, &challenge, false)?;
             current.push(challenge);
         }
     }
@@ -2592,6 +2603,7 @@ fn validate_repo_model_claim_challenge_chain(
     model: &crate::EpiphanyMemoryGraphSnapshot,
     model_hash: &str,
     challenge: &RepoModelClaimChallenge,
+    require_current_model: bool,
 ) -> Result<()> {
     if challenge.schema_version != REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION
         || challenge.contract != REPO_MODEL_CLAIM_CHALLENGE_CONTRACT
@@ -2619,7 +2631,9 @@ fn validate_repo_model_claim_challenge_chain(
     {
         return Err(anyhow!("claim challenge substituted Eyes evidence"));
     }
-    if challenge.model_revision != model.model_revision || challenge.model_hash != model_hash {
+    if require_current_model
+        && (challenge.model_revision != model.model_revision || challenge.model_hash != model_hash)
+    {
         return Err(anyhow!("claim challenge model revision is stale"));
     }
     let receipts = cache
@@ -2628,8 +2642,8 @@ fn validate_repo_model_claim_challenge_chain(
         .filter(|receipt| {
             receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
                 && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
-                && receipt.admitted_revision == model.model_revision
-                && receipt.admitted_hash == model_hash
+                && receipt.admitted_revision == challenge.model_revision
+                && receipt.admitted_hash == challenge.model_hash
         })
         .collect::<Vec<_>>();
     if receipts.len() != 1 || receipts[0].receipt_id != challenge.admission_receipt_id {
@@ -2684,7 +2698,7 @@ pub fn commit_repo_model_claim_challenge(
     if challenge.model_revision != model.model_revision || challenge.model_hash != model_hash {
         return Err(anyhow!("claim challenge model revision is stale"));
     }
-    validate_repo_model_claim_challenge_chain(&cache, &model, &model_hash, challenge)?;
+    validate_repo_model_claim_challenge_chain(&cache, &model, &model_hash, challenge, true)?;
     if let Some(existing) = cache.get::<RepoModelClaimChallenge>(&challenge.challenge_id)? {
         return if existing == *challenge {
             Ok(())
@@ -2731,6 +2745,190 @@ pub fn commit_repo_model_claim_challenge(
         };
     }
     Ok(())
+}
+
+pub fn commit_repo_model_claim_repair_request(
+    store_path: impl AsRef<Path>,
+    challenge_id: &str,
+    requested_at: &str,
+) -> Result<RepoModelClaimRepairRequest> {
+    validate_non_empty(challenge_id, "claim repair challenge id")?;
+    chrono::DateTime::parse_from_rfc3339(requested_at)
+        .map_err(|_| anyhow!("claim repair request timestamp must be RFC3339"))?;
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let envelopes = backing.pull_all()?;
+    let model_envelope = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("claim repair request requires canonical model"))?;
+    let entry: crate::EpiphanyMemoryGraphEntry = rmp_serde::from_slice(&model_envelope.payload)?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let challenge = cache
+        .get::<RepoModelClaimChallenge>(challenge_id)?
+        .ok_or_else(|| anyhow!("claim repair request requires exact challenge"))?;
+    validate_repo_model_claim_challenge_chain(&cache, &model, &model_hash, &challenge, false)?;
+    let packet = cache
+        .get::<EyesEvidencePacket>(&challenge.eyes_evidence_packet_id)?
+        .ok_or_else(|| anyhow!("claim repair request requires exact Eyes packet"))?;
+    let original_admission = cache
+        .get::<RepoModelAdmissionReceipt>(&challenge.admission_receipt_id)?
+        .ok_or_else(|| anyhow!("claim repair request requires original challenge admission"))?;
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("claim repair request requires runtime identity"))?;
+    let thread = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("claim repair request requires authoritative thread"))?;
+    let claim = model
+        .nodes
+        .iter()
+        .find(|node| node.id == challenge.target_claim_id)
+        .ok_or_else(|| anyhow!("claim repair target is no longer present"))?;
+    if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(claim)?))
+        != challenge.target_claim_sha256
+    {
+        return Err(anyhow!(
+            "claim repair challenge is already resolved by a changed claim"
+        ));
+    }
+    let receipts = cache
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
+                && receipt.admitted_revision == model.model_revision
+                && receipt.admitted_hash == model_hash
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 {
+        return Err(anyhow!(
+            "claim repair request requires unique current admission receipt"
+        ));
+    }
+    let challenge_sha256 = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&challenge)?));
+    let request_id = format!("repo-model-claim-repair-{challenge_id}");
+    let mut affected_frontier = model
+        .frontier
+        .iter()
+        .filter(|item| item.target_claim_ids.contains(&challenge.target_claim_id))
+        .map(|item| {
+            Ok(crate::RepoModelClaimRepairFrontierRef {
+                frontier_item_id: item.id.clone(),
+                frontier_item_sha256: format!(
+                    "{:x}",
+                    Sha256::digest(rmp_serde::to_vec_named(item)?)
+                ),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    affected_frontier.sort_by(|a, b| a.frontier_item_id.cmp(&b.frontier_item_id));
+    let request = RepoModelClaimRepairRequest {
+        schema_version: REPO_MODEL_CLAIM_REPAIR_REQUEST_SCHEMA_VERSION.into(),
+        request_id: request_id.clone(),
+        challenge_id: challenge.challenge_id.clone(),
+        challenge_sha256,
+        eyes_evidence_packet_id: packet.packet_id.clone(),
+        eyes_evidence_packet_sha256: challenge.eyes_evidence_packet_sha256.clone(),
+        source_result_id: challenge.source_result_id.clone(),
+        source_job_id: challenge.source_job_id.clone(),
+        original_admission_receipt_id: original_admission.receipt_id.clone(),
+        current_admission_receipt_id: receipts[0].receipt_id.clone(),
+        model_revision: model.model_revision,
+        model_hash,
+        target_claim_id: challenge.target_claim_id.clone(),
+        target_claim_sha256: challenge.target_claim_sha256.clone(),
+        runtime_id: identity.runtime_id.clone(),
+        thread_id: thread.thread_id.clone(),
+        affected_frontier,
+        requested_at: requested_at.to_string(),
+        contract: REPO_MODEL_CLAIM_REPAIR_REQUEST_CONTRACT.into(),
+    };
+    if let Some(existing) = cache.get::<RepoModelClaimRepairRequest>(&request_id)? {
+        return if existing == request {
+            Ok(existing)
+        } else {
+            Err(anyhow!("claim repair request identity collision"))
+        };
+    }
+    let challenge_envelope = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == "epiphany.eyes.repo_model_claim_challenge"
+                && entry.key == challenge.challenge_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("claim repair challenge envelope is missing"))?;
+    let packet_envelope = envelopes
+        .iter()
+        .find(|entry| entry.r#type == EYES_EVIDENCE_PACKET_TYPE && entry.key == packet.packet_id)
+        .cloned()
+        .ok_or_else(|| anyhow!("claim repair packet envelope is missing"))?;
+    let original_admission_envelope = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == REPO_MODEL_ADMISSION_RECEIPT_TYPE
+                && entry.key == original_admission.receipt_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("claim repair original admission envelope is missing"))?;
+    let current_admission_envelope = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == REPO_MODEL_ADMISSION_RECEIPT_TYPE && entry.key == receipts[0].receipt_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("claim repair current admission envelope is missing"))?;
+    let identity_envelope = envelopes
+        .iter()
+        .find(|entry| entry.r#type == RUNTIME_IDENTITY_TYPE && entry.key == RUNTIME_IDENTITY_KEY)
+        .cloned()
+        .ok_or_else(|| anyhow!("claim repair identity envelope is missing"))?;
+    let thread_envelope = envelopes
+        .iter()
+        .find(|entry| entry.r#type == THREAD_STATE_TYPE && entry.key == crate::THREAD_STATE_KEY)
+        .cloned()
+        .ok_or_else(|| anyhow!("claim repair thread envelope is missing"))?;
+    let (request_envelope, _) = cache.prepare_entry(&request_id, &request)?;
+    let mut expected = vec![
+        model_envelope.clone(),
+        challenge_envelope.clone(),
+        packet_envelope.clone(),
+        original_admission_envelope.clone(),
+        identity_envelope.clone(),
+        thread_envelope.clone(),
+    ];
+    let mut replacement = vec![
+        model_envelope,
+        challenge_envelope,
+        packet_envelope,
+        original_admission_envelope,
+        identity_envelope,
+        thread_envelope,
+    ];
+    if request.current_admission_receipt_id != request.original_admission_receipt_id {
+        expected.push(current_admission_envelope.clone());
+        replacement.push(current_admission_envelope);
+    }
+    replacement.push(request_envelope);
+    if !backing.compare_and_swap_batch(&expected, replacement)? {
+        let mut reloaded = runtime_spine_cache(store_path)?;
+        reloaded.pull_all_backing_stores()?;
+        return match reloaded.get::<RepoModelClaimRepairRequest>(&request_id)? {
+            Some(existing) if existing == request => Ok(existing),
+            Some(_) => Err(anyhow!("claim repair request immutable collision")),
+            None => Err(anyhow!("claim repair request lost exact causal CAS")),
+        };
+    }
+    Ok(request)
 }
 
 pub fn put_repo_frontier_plan_candidate(
@@ -7066,6 +7264,104 @@ mod tests {
                 .unwrap()
                 .id,
             "unrelated"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn immediate_claim_repair_request_deduplicates_shared_admission_companion() -> Result<()> {
+        let root = tempdir()?;
+        let (store, challenge) = claim_challenge_fixture(root.path(), "repair-immediate", "Hands")?;
+        commit_repo_model_claim_challenge(&store, &challenge)?;
+        let request = commit_repo_model_claim_repair_request(
+            &store,
+            &challenge.challenge_id,
+            "2026-07-13T04:02:00Z",
+        )?;
+        assert_eq!(
+            request.original_admission_receipt_id,
+            request.current_admission_receipt_id
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            cache.get_all::<RepoModelClaimRepairRequest>()?,
+            vec![request]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn claim_challenge_survives_unrelated_admission_and_emits_inert_exact_request() -> Result<()> {
+        let root = tempdir()?;
+        let (store, challenge) = claim_challenge_fixture(root.path(), "repair", "Hands")?;
+        commit_repo_model_claim_challenge(&store, &challenge)?;
+
+        // An unrelated proposal admission advances the model without changing the
+        // challenged claim. That must not launder the Eyes pressure away.
+        let before_unrelated = runtime_current_repo_model(&store)?.unwrap();
+        let (unrelated_result, unrelated_review) = repo_model_result_and_review(
+            &store,
+            "unrelated-after-challenge",
+            "unrelated-after-challenge-job",
+            &before_unrelated,
+            "unrelated-after-challenge-review",
+        )?;
+        put_runtime_role_worker_result(&store, &unrelated_result)?;
+        commit_repo_model_admission(&store, &unrelated_result.result_id, &unrelated_review)?;
+        let after_unrelated = runtime_current_repo_model(&store)?.unwrap();
+        let after_unrelated_hash = crate::memory_graph_model_hash(&after_unrelated)?;
+        let challenged_claim_after_unrelated = after_unrelated
+            .nodes
+            .iter()
+            .find(|node| node.id == challenge.target_claim_id)
+            .unwrap();
+        assert_eq!(
+            format!(
+                "{:x}",
+                Sha256::digest(rmp_serde::to_vec_named(challenged_claim_after_unrelated)?)
+            ),
+            challenge.target_claim_sha256
+        );
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert_eq!(
+            current_repo_model_claim_challenges(&cache, &after_unrelated, &after_unrelated_hash)?
+                .len(),
+            1
+        );
+
+        let request = commit_repo_model_claim_repair_request(
+            &store,
+            &challenge.challenge_id,
+            "2026-07-13T04:03:00Z",
+        )?;
+        assert_eq!(request.target_claim_id, challenge.target_claim_id);
+        assert_eq!(
+            commit_repo_model_claim_repair_request(
+                &store,
+                &challenge.challenge_id,
+                "2026-07-13T04:03:00Z"
+            )?,
+            request
+        );
+        assert_eq!(
+            request.eyes_evidence_packet_id,
+            challenge.eyes_evidence_packet_id
+        );
+        assert_eq!(
+            request.original_admission_receipt_id,
+            challenge.admission_receipt_id
+        );
+        assert_ne!(request.current_admission_receipt_id, "");
+        assert_eq!(request.runtime_id, "proposal-runtime-repair");
+        assert!(
+            commit_repo_model_claim_repair_request(
+                &store,
+                &challenge.challenge_id,
+                "2026-07-13T04:04:00Z"
+            )
+            .is_err()
         );
         Ok(())
     }

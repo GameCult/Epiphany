@@ -49,6 +49,17 @@ Soul review passes. Next build a typed Modeling challenge-repair request and
 Mind admission path so evidence can reshape the shared map, then let Self and
 Imagination revise the campaign from that repaired substrate.
 
+The first repair foundation is now inert and exact. A challenge remains live
+across unrelated RepoModel revisions while its target claim bytes are unchanged;
+an unrelated edit can no longer launder Eyes pressure away. Self can persist one
+`RepoModelClaimRepairRequest` binding the challenge and Eyes packet, original
+and unique current admissions, current model and claim, runtime/thread, and
+affected frontier hashes in one CAS. It deliberately has no repair patch
+purpose, result echo, worker launch authority, or Mind admission effect. Core
+proof is 306 passed/1 ignored and Soul passes. Next wire coordinator-owned typed
+Modeling launch projection/binding and exclusive result correlation before
+introducing any repair actuator.
+
 Do not substitute the first linear frontier identity proof for that larger
 lesson. `Modeling -> Mind -> Self -> Hands -> Soul -> Modeling` proves that one
 wound can retain causal identity. The awakened anatomy also needs typed backward

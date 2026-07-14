@@ -781,6 +781,7 @@ pub use runtime_spine::commit_repo_frontier_modeling_request;
 pub use runtime_spine::commit_repo_frontier_verification_request_for_chain;
 pub use runtime_spine::commit_repo_model_admission;
 pub use runtime_spine::commit_repo_model_claim_challenge;
+pub use runtime_spine::commit_repo_model_claim_repair_request;
 pub use runtime_spine::complete_runtime_job;
 pub use runtime_spine::create_runtime_job;
 pub use runtime_spine::create_runtime_session;

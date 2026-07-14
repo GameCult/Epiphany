@@ -49,6 +49,10 @@ pub const REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT: &str =
 pub const REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION: &str =
     "epiphany.eyes.repo_model_claim_challenge.v0";
 pub const REPO_MODEL_CLAIM_CHALLENGE_CONTRACT: &str = "epiphany.repo_model_claim_challenge.v0";
+pub const REPO_MODEL_CLAIM_REPAIR_REQUEST_SCHEMA_VERSION: &str =
+    "epiphany.modeling.repo_model_claim_repair_request.v0";
+pub const REPO_MODEL_CLAIM_REPAIR_REQUEST_CONTRACT: &str =
+    "epiphany.repo_model_claim_repair_request.v0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -100,6 +104,58 @@ pub struct RepoModelClaimChallenge {
     pub challenged_at: String,
     #[cultcache(key = 17)]
     pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.modeling.repo_model_claim_repair_request",
+    schema = "RepoModelClaimRepairRequest"
+)]
+pub struct RepoModelClaimRepairRequest {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub request_id: String,
+    #[cultcache(key = 2)]
+    pub challenge_id: String,
+    #[cultcache(key = 3)]
+    pub challenge_sha256: String,
+    #[cultcache(key = 4)]
+    pub eyes_evidence_packet_id: String,
+    #[cultcache(key = 5)]
+    pub eyes_evidence_packet_sha256: String,
+    #[cultcache(key = 6)]
+    pub source_result_id: String,
+    #[cultcache(key = 7)]
+    pub source_job_id: String,
+    #[cultcache(key = 8)]
+    pub original_admission_receipt_id: String,
+    #[cultcache(key = 9)]
+    pub current_admission_receipt_id: String,
+    #[cultcache(key = 10)]
+    pub model_revision: u64,
+    #[cultcache(key = 11)]
+    pub model_hash: String,
+    #[cultcache(key = 12)]
+    pub target_claim_id: String,
+    #[cultcache(key = 13)]
+    pub target_claim_sha256: String,
+    #[cultcache(key = 14)]
+    pub runtime_id: String,
+    #[cultcache(key = 15)]
+    pub thread_id: String,
+    #[cultcache(key = 16)]
+    pub affected_frontier: Vec<RepoModelClaimRepairFrontierRef>,
+    #[cultcache(key = 17)]
+    pub requested_at: String,
+    #[cultcache(key = 18)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RepoModelClaimRepairFrontierRef {
+    pub frontier_item_id: String,
+    pub frontier_item_sha256: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
