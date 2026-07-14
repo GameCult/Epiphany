@@ -805,8 +805,6 @@ pub use runtime_spine::put_hands_pr_receipt;
 pub use runtime_spine::put_mind_gateway_review;
 pub use runtime_spine::put_mind_state_commit_receipt;
 pub use runtime_spine::put_repo_frontier_hands_authority;
-pub use runtime_spine::put_repo_frontier_plan_adoption;
-pub use runtime_spine::put_repo_frontier_plan_candidate;
 pub use runtime_spine::put_repo_frontier_verification_request;
 pub use runtime_spine::put_repo_frontier_work_proposal;
 pub use runtime_spine::put_runtime_reorient_worker_result;

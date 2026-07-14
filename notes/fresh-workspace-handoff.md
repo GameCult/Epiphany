@@ -1,5 +1,26 @@
 # Fresh Workspace Handoff
 
+## Counterfeit planning writers cut - 2026-07-15
+
+Modeling and Eyes traced the repo-frontier planning family and found a typed but
+disconnected island. Self's deterministic planning request is real. The
+Imagination candidate and Mind Adopt/Refuse/Hold documents were only authored
+by tests or arbitrary callers through public persistence functions. Generic
+Imagination `statePatch.planning` is a separate thread-state vocabulary, not a
+repo-frontier candidate. Adopt suppressed future request selection but changed
+no RepoModel bytes and affected no Hands route.
+
+The public candidate/adoption writers are removed; their internal functions are
+temporary test scaffolding, not production authority. The full source-grounded
+replacement map is `notes/repo-frontier-planning-authority-map.md`. Build the
+real nerve using the claim-repair shape: Self request, coordinator-owned typed
+Imagination projection and request-keyed launch binding, exclusive immutable
+result echo containing the candidate, then Mind-only correlated
+Adopt/Refuse/Hold. Adopt must produce a narrow admitted model transition and
+downstream Hands truth; Refuse/Hold remain inert receipts. Delete the remaining
+fixture writers when that lands. Core verification is green at 319 passed, one
+ignored.
+
 ## Eyes-to-Modeling claim correction nerve complete - 2026-07-15
 
 The Aetheria-shaped corrective nerve is now closed from immutable Eyes

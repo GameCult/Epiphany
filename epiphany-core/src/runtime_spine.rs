@@ -3334,7 +3334,7 @@ pub(crate) fn validate_current_repo_model_claim_repair_request(
     Ok(())
 }
 
-pub fn put_repo_frontier_plan_candidate(
+pub(crate) fn put_repo_frontier_plan_candidate(
     store_path: impl AsRef<Path>,
     candidate: &RepoFrontierPlanCandidate,
 ) -> Result<()> {
@@ -3425,7 +3425,7 @@ impl RepoFrontierPlanCandidate {
     }
 }
 
-pub fn put_repo_frontier_plan_adoption(
+pub(crate) fn put_repo_frontier_plan_adoption(
     store_path: impl AsRef<Path>,
     adoption: &RepoFrontierPlanAdoption,
 ) -> Result<()> {
@@ -7203,6 +7203,13 @@ pub(crate) mod tests {
         assert!(error.to_string().contains("immutable"));
         assert_eq!(std::fs::read(&store)?, after_first);
         Ok(())
+    }
+
+    #[test]
+    fn frontier_candidate_and_mind_decision_have_no_public_counterfeit_writers() {
+        let public_surface = include_str!("lib.rs");
+        assert!(!public_surface.contains("put_repo_frontier_plan_candidate"));
+        assert!(!public_surface.contains("put_repo_frontier_plan_adoption"));
     }
 
     fn proposal_selection_fixture(root: &Path, suffix: &str) -> Result<(PathBuf, String)> {
