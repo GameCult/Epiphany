@@ -96,14 +96,16 @@ operation: one proposal-citing `UpsertFrontier`. This keeps the proposal mouth
 from becoming a hidden workflow engine while leaving later Eyes, Imagination,
 Self, Hands, and Soul artifacts free to challenge and reshape the contribution.
 
-## Next Deletion Line
+## Next Organ Line
 
-`RepoWorkModelingRequest`, `RepoWorkModelingRoute`, and
-`RepoWorkModelingFinding` describe post-execution workflow closure, not repository
-anatomy. Their item-slug route and `RepoWorkMapEntry` closure ledger must not
-remain a second Modeling/Self/Mind truth. Preserve useful repo-work planning and
-execution receipts only behind canonical `RepoFrontierRoute` and
-`RepoFrontierHandsAuthority`; use the canonical Hands/Soul/verdict-incorporation
-path; demote the old map to derived closure history or delete it. After that,
-admit typed Eyes challenges and Imagination campaign revisions so blocked
-frontier pressure can circulate to the correct organ.
+The parallel `RepoWorkModelingRequest`/route/finding/map authority has already
+been cut; remaining historical rows are sight-only and cannot feed gates,
+actions, closure, or publication. Do not resurrect that deletion as future
+work.
+
+The next live cut is corrective circulation: admit typed Eyes challenges that
+can invalidate or stale exact RepoModel claims and create evidence pressure
+without giving Eyes model-write authority. Then bind the existing Self planning
+request to a real Imagination worker result and Mind adoption. Only after those
+artifacts circulate cleanly should an adopted plan gain a distinct Self
+execution route.

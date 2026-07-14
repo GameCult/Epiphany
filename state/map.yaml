@@ -360,6 +360,23 @@ rejected_paths:
 
 current_status:
   summary: Epiphany state, prompts, coordinator policy, runtime spine, receipts, and operator surfaces are native typed Rust/CultCache/CultMesh/CultNet organs. Vendored Codex retains Codex-native app-server plus OpenAI-compatible auth/model transport only. Canonical state has one transaction owner and one coordinator store boundary; native status/coordinator JSON emits `state`, and the extinct Codex Epiphany routes, DTOs, bridge, migration, and compatibility field cannot decide or describe native truth.
+  selected_proposal_authority: >
+    Direct User intake and exact selection are coordinator/runtime-spine
+    artifacts. The coordinator launch transaction alone injects the typed
+    proposal projection into one persisted Modeling launch and atomically binds
+    its exact document hash to job, request, proposal, runtime, and thread.
+    Mind/runtime-spine admission alone changes RepoModel after replaying that
+    complete immutable chain. Prompt text, result echoes, caller request ids,
+    operator surfaces, and repository/workspace labels are correlation or
+    provenance only. Caller-prepopulated projection, Persona prose parsing,
+    evidence intersection, bootstrap objective, ordinary Evolution frontier
+    mutation, second launch/reuse, epiphany-work intake, metadata adapters, and
+    parallel RepoWork maps/routes are forbidden writers. The shared path is
+    User proposal -> exact coordinator selection -> atomic typed Modeling
+    launch projection/binding -> immutable result/review -> full-chain Mind
+    replay -> one proposal-citing frontier contribution. Verification: core
+    302 passed/1 ignored, OpenAI runtime 8 passed, hostile no-write proofs, and
+    independent Soul PASS.
   latest_cut: >
     The bridge host seam has been cut down: target-specific Hands prompt scar
     tissue was purged, bridge manifests carry the retained Codex websocket fork

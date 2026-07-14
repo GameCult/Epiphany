@@ -50,10 +50,14 @@ canonical `RepoFrontierItem`; it is not another repository model.
 
 ## Bootstrap
 
-Persona/intake emits an immutable proposal, not a work item. Ordinary Modeling
-may cite that proposal in an Evolution patch that creates the frontier item.
-Mind admission makes the wound real. Plan/adopt requires that admitted frontier
-identity; no CLI slug, filesystem path, or old close receipt may synthesize it.
+Direct User intake emits an immutable nonprivate proposal, not a work item.
+Explicit coordinator selection binds that exact proposal to one coordinator-
+owned typed Modeling launch projection and job. Ordinary Evolution cannot
+mutate frontier. Only the selected-proposal Evolution path may create exactly
+one proposal-citing frontier item, and Mind replays the complete persisted
+launch/result/review chain before making the wound real. Plan/adopt requires
+that admitted frontier identity; Persona prose, evidence intersection, CLI
+slug, filesystem path, or old close receipt may not synthesize it.
 
 ## Rebuild Order
 
@@ -64,9 +68,10 @@ identity; no CLI slug, filesystem path, or old close receipt may synthesize it.
    pending Bifrost requests, or accounting. Temporary workflow outage is honest.
 2. **Foundation landed:** immutable inert proposal, typed Self planning request,
    Imagination plan candidate, and Mind plan adoption exist with exact model,
-   admission, frontier, scope, candidate-byte, race, and retry proofs. The
-   selected-proposal Modeling launch and proposal-bound Evolution admission are
-   still absent and must be built explicitly.
+   admission, frontier, scope, candidate-byte, race, and retry proofs. Explicit
+   User intake, exact coordinator selection, coordinator-owned typed Modeling
+   launch projection, immutable job/request/proposal binding, and proposal-bound
+   Evolution admission are also landed and Soul-approved.
 3. Bind adopted plan identity into a distinct Self execution route plus Hands
    authority. Re-enable execution only through that chain.
 4. Rewire verification/closure through canonical Soul and verdict incorporation.
