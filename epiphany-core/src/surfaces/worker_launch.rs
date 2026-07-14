@@ -26,6 +26,10 @@ use crate::EpiphanyReorientReason;
 
 pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v0";
 pub const REORIENT_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.reorient_result.v0";
+pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
+    "epiphany.worker.repo_frontier_proposal_modeling_context.v0";
+pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT: &str =
+    "epiphany.repo_frontier_proposal_modeling_context.v0";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "documentKind")]
@@ -76,6 +80,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub objective: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dynamic_prompt_context: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proposal_modeling_context: Option<RepoFrontierProposalModelingContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_subgoal_id: Option<String>,
     #[serde(default)]
@@ -165,6 +171,35 @@ pub struct EpiphanyReorientLaunchRequestInput<'a> {
     pub dynamic_prompt_context: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoFrontierProposalModelingContextProjection {
+    pub schema_version: String,
+    pub contract: String,
+    pub request_id: String,
+    pub proposal_id: String,
+    pub proposal_payload_sha256: String,
+    pub runtime_id: String,
+    pub thread_id: String,
+    pub repository: String,
+    pub workspace: String,
+    pub source_kind: crate::RepoFrontierProposalSourceKind,
+    pub source_actor: String,
+    pub source_ref: String,
+    pub title: String,
+    pub body: String,
+    pub desired_outcome: String,
+    #[serde(default)]
+    pub constraints: Vec<String>,
+    #[serde(default)]
+    pub scope_hints: Vec<String>,
+    #[serde(default)]
+    pub evidence_refs: Vec<String>,
+    pub private_state_included: bool,
+    pub model_revision: u64,
+    pub model_hash: String,
+}
+
 pub fn build_reorient_job_launch_request(
     input: EpiphanyReorientLaunchRequestInput<'_>,
 ) -> EpiphanyJobLaunchRequest {
@@ -205,6 +240,7 @@ pub fn build_reorient_job_launch_request(
         output_contract_id,
         organ_launch_contract,
         max_runtime_seconds: input.max_runtime_seconds,
+        proposal_modeling_request_id: None,
     }
 }
 

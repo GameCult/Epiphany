@@ -38,6 +38,25 @@ impl EpiphanyCoordinatorService {
     pub fn store(&self) -> &Path {
         &self.store
     }
+
+    pub fn intake_user_repo_frontier_proposal(
+        &self,
+        input: crate::RepoFrontierUserProposalInput,
+    ) -> Result<crate::RepoFrontierWorkProposal> {
+        crate::intake_user_repo_frontier_proposal(&self.store, input)
+    }
+
+    pub fn select_repo_frontier_proposal_for_modeling(
+        &self,
+        proposal_id: &str,
+        selected_at: &str,
+    ) -> Result<crate::RepoFrontierProposalModelingRequest> {
+        crate::select_repo_frontier_work_proposal_for_modeling(
+            &self.store,
+            proposal_id,
+            selected_at,
+        )
+    }
     pub fn state(&self) -> Result<Option<EpiphanyThreadState>> {
         read_coordinator_state(&self.store)
     }

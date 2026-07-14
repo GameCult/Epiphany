@@ -144,5 +144,8 @@ pub use worker_launch::EpiphanyReorientWorkerLaunchDocument;
 pub use worker_launch::EpiphanyRoleWorkerLaunchDocument;
 pub use worker_launch::EpiphanyWorkerLaunchDocument;
 pub use worker_launch::REORIENT_WORKER_OUTPUT_CONTRACT_ID;
+pub use worker_launch::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_CONTRACT;
+pub use worker_launch::REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION;
 pub use worker_launch::ROLE_WORKER_OUTPUT_CONTRACT_ID;
+pub use worker_launch::RepoFrontierProposalModelingContextProjection;
 pub use worker_launch::build_reorient_job_launch_request;

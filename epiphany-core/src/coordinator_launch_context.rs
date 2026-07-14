@@ -831,6 +831,64 @@ mod tests {
         let legacy = store.with_extension("context-legacy.msgpack");
         let (current, _) =
             crate::ensure_runtime_repo_model(store, legacy, &bootstrap, "2026-06-12T00:00:00Z")?;
+        let thread_id = "context-proposal-thread";
+        let state = EpiphanyThreadState::default();
+        let mut cache = crate::runtime_spine_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        cache.put(
+            crate::THREAD_STATE_KEY,
+            &crate::EpiphanyThreadStateEntry::from_state(thread_id, &state)?,
+        )?;
+        let proposal_id = "context-route-proposal";
+        crate::intake_user_repo_frontier_proposal(
+            store,
+            crate::RepoFrontierUserProposalInput {
+                proposal_id: proposal_id.to_string(),
+                source_actor: "context-test".to_string(),
+                source_ref: "test:verification-context".to_string(),
+                repository: "EpiphanyAgent".to_string(),
+                workspace: "E:/Projects/EpiphanyAgent".to_string(),
+                thread_id: thread_id.to_string(),
+                runtime_id: "epiphany-hands-context-test".to_string(),
+                title: "Verify routed Hands receipts".to_string(),
+                body: "The verification context needs one admitted frontier.".to_string(),
+                desired_outcome: "Bind verification to the exact Hands chain.".to_string(),
+                constraints: vec!["No direct execution authority".to_string()],
+                scope_hints: intent.requested_paths.clone(),
+                evidence_refs: vec!["context-route-evidence".to_string()],
+                private_state_included: false,
+                proposed_at: "2026-06-12T00:00:01Z".to_string(),
+            },
+        )?;
+        let selection = crate::select_repo_frontier_work_proposal_for_modeling(
+            store,
+            proposal_id,
+            "2026-06-12T00:00:02Z",
+        )?;
+        let mut launch = crate::build_epiphany_role_launch_request(
+            thread_id,
+            crate::EpiphanyRoleResultRoleId::Modeling,
+            Some(state.revision),
+            Some(60),
+            &state,
+        )
+        .map_err(anyhow::Error::msg)?;
+        launch.proposal_modeling_request_id = Some(selection.request_id.clone());
+        let plan = crate::plan_coordinator_job_launch(
+            &state,
+            &launch,
+            store,
+            "context-route-launcher".to_string(),
+            "context-route-job".to_string(),
+        )?;
+        crate::commit_coordinator_job_launch(
+            store,
+            thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-06-12T00:00:03Z".to_string(),
+        )?;
         let patch = crate::RepoModelPatch {
             patch_id: "context-route-patch".to_string(),
             base_revision: current.model_revision,
@@ -846,6 +904,7 @@ mod tests {
                     target_claim_ids: vec!["claim-context-hands".to_string()],
                     source_scope: intent.requested_paths.clone(),
                     recommended_next_organ: "Hands".to_string(),
+                    evidence_refs: vec![proposal_id.to_string()],
                     status: RepoFrontierStatus::Active,
                     ..Default::default()
                 },
@@ -864,7 +923,7 @@ mod tests {
             scratch_summary: None,
             files_inspected: vec!["epiphany-core/src/runtime_spine.rs".to_string()],
             frontier_node_ids: vec!["claim-context-hands".to_string()],
-            evidence_ids: vec!["context-route-evidence".to_string()],
+            evidence_ids: vec![proposal_id.to_string()],
             artifact_refs: Vec::new(),
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
@@ -877,6 +936,7 @@ mod tests {
             verification_request_id: None,
             frontier_route_id: None,
             repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: Some(selection.request_id),
         };
         crate::put_runtime_role_worker_result(store, &result)?;
         crate::commit_repo_model_admission(
@@ -1070,6 +1130,7 @@ mod tests {
                 launch_document: launch_request.launch_document.clone(),
                 output_contract_id: launch_request.output_contract_id.clone(),
                 organ_launch_contract: launch_request.organ_launch_contract.clone(),
+                proposal_modeling_request_id: None,
                 created_at: "2026-06-02T00:00:00Z".to_string(),
             },
         )?;
@@ -1353,6 +1414,7 @@ mod tests {
             verification_request_id: Some(verification_request.request_id.clone()),
             frontier_route_id: Some(verification_request.route_id.clone()),
             repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
         };
         crate::put_runtime_role_worker_result(&runtime_store, &verification_result)?;
         crate::put_soul_verdict_receipt(

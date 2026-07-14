@@ -7,11 +7,11 @@ pub const REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_model_admission_review.v0";
 pub const REPO_MODEL_ADMISSION_RECEIPT_TYPE: &str = "epiphany.mind.repo_model_admission_receipt";
 pub const REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.mind.repo_model_admission_receipt.v1";
+    "epiphany.mind.repo_model_admission_receipt.v2";
 pub const REPO_MODEL_MIGRATION_RECEIPT_TYPE: &str = "epiphany.mind.repo_model_migration_receipt";
 pub const REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_model_migration_receipt.v0";
-pub const REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v1";
+pub const REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v2";
 pub const REPO_MODEL_MIGRATION_CONTRACT: &str = "epiphany.repo_model_migration.v0";
 pub const REPO_FRONTIER_ROUTE_TYPE: &str = "epiphany.self.repo_frontier_route";
 pub const REPO_FRONTIER_ROUTE_SCHEMA_VERSION: &str = "epiphany.self.repo_frontier_route.v0";
@@ -38,6 +38,14 @@ pub const REPO_FRONTIER_PLAN_ADOPTION_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v0";
 pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
     "epiphany.repo_frontier_work_proposal.inert.v0";
+pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION: &str =
+    "epiphany.coordinator.repo_frontier_proposal_modeling_request.v0";
+pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT: &str =
+    "epiphany.repo_frontier_proposal_modeling_request.v0";
+pub const REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
+    "epiphany.coordinator.repo_frontier_proposal_modeling_launch_binding.v1";
+pub const REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT: &str =
+    "epiphany.repo_frontier_proposal_modeling_launch_binding.v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -45,6 +53,25 @@ pub enum RepoFrontierProposalSourceKind {
     User,
     Persona,
     Bifrost,
+}
+
+#[derive(Debug, Clone)]
+pub struct RepoFrontierUserProposalInput {
+    pub proposal_id: String,
+    pub source_actor: String,
+    pub source_ref: String,
+    pub repository: String,
+    pub workspace: String,
+    pub thread_id: String,
+    pub runtime_id: String,
+    pub title: String,
+    pub body: String,
+    pub desired_outcome: String,
+    pub constraints: Vec<String>,
+    pub scope_hints: Vec<String>,
+    pub evidence_refs: Vec<String>,
+    pub proposed_at: String,
+    pub private_state_included: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -72,7 +99,7 @@ pub struct RepoFrontierWorkProposal {
     #[cultcache(key = 8)]
     pub runtime_id: String,
     #[cultcache(key = 9)]
-    pub content_sha256: String,
+    pub payload_sha256: String,
     #[cultcache(key = 10)]
     pub title: String,
     #[cultcache(key = 11)]
@@ -90,6 +117,66 @@ pub struct RepoFrontierWorkProposal {
     #[cultcache(key = 17)]
     pub proposed_at: String,
     #[cultcache(key = 18)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.coordinator.repo_frontier_proposal_modeling_request",
+    schema = "RepoFrontierProposalModelingRequest"
+)]
+pub struct RepoFrontierProposalModelingRequest {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub request_id: String,
+    #[cultcache(key = 2)]
+    pub proposal_id: String,
+    #[cultcache(key = 3)]
+    pub proposal_payload_sha256: String,
+    #[cultcache(key = 4)]
+    pub runtime_id: String,
+    #[cultcache(key = 5)]
+    pub thread_id: String,
+    #[cultcache(key = 6)]
+    pub repository: String,
+    #[cultcache(key = 7)]
+    pub workspace: String,
+    #[cultcache(key = 8)]
+    pub selected_at: String,
+    #[cultcache(key = 9)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.coordinator.repo_frontier_proposal_modeling_launch_binding",
+    schema = "RepoFrontierProposalModelingLaunchBinding"
+)]
+pub struct RepoFrontierProposalModelingLaunchBinding {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub binding_record_id: String,
+    #[cultcache(key = 2)]
+    pub proposal_modeling_request_id: String,
+    #[cultcache(key = 3)]
+    pub proposal_id: String,
+    #[cultcache(key = 4)]
+    pub proposal_payload_sha256: String,
+    #[cultcache(key = 5)]
+    pub job_id: String,
+    #[cultcache(key = 6)]
+    pub binding_id: String,
+    #[cultcache(key = 7)]
+    pub runtime_id: String,
+    #[cultcache(key = 8)]
+    pub thread_id: String,
+    #[cultcache(key = 9)]
+    pub launched_at: String,
+    #[cultcache(key = 10)]
+    pub worker_launch_document_sha256: String,
+    #[cultcache(key = 11)]
     pub contract: String,
 }
 
@@ -400,6 +487,8 @@ pub struct RepoModelAdmissionReceipt {
     pub soul_verdict_receipt_id: String,
     #[cultcache(key = 16, default)]
     pub frontier_modeling_request_id: String,
+    #[cultcache(key = 17, default)]
+    pub proposal_modeling_request_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

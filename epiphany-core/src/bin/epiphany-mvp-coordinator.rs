@@ -95,6 +95,7 @@ struct Args {
     simulate_continue_implementation: bool,
     simulate_source_drift: bool,
     dry_compact: bool,
+    proposal_modeling_request_id: Option<String>,
 }
 
 impl Args {
@@ -133,6 +134,7 @@ impl Args {
             simulate_continue_implementation: false,
             simulate_source_drift: false,
             dry_compact: false,
+            proposal_modeling_request_id: None,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -152,6 +154,10 @@ impl Args {
                     parsed.model_provider = take_string(&mut args, "--model-provider")?;
                 }
                 "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
+                "--proposal-modeling-request-id" => {
+                    parsed.proposal_modeling_request_id =
+                        Some(take_string(&mut args, "--proposal-modeling-request-id")?);
+                }
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
                 "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
                 "--artifact-dir" => parsed.artifact_dir = take_path(&mut args, "--artifact-dir")?,
@@ -488,6 +494,11 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     role_id,
                     revision,
                     args.max_runtime_seconds,
+                    if role_id == "modeling" {
+                        args.proposal_modeling_request_id.as_deref()
+                    } else {
+                        None
+                    },
                 )?;
                 let worker_job_id = worker_job_id_from_launch(&launch)?;
                 push_event(
@@ -937,6 +948,7 @@ fn launch_role(
     role_id: &str,
     expected_revision: Option<i64>,
     max_runtime_seconds: u64,
+    proposal_modeling_request_id: Option<&str>,
 ) -> Result<Value> {
     let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
     let state = service
@@ -965,7 +977,7 @@ fn launch_role(
         )
         .map_err(anyhow::Error::msg)?;
     }
-    let request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
+    let mut request = epiphany_core::build_epiphany_role_launch_request_with_dynamic_context(
         thread_id,
         role,
         expected_revision,
@@ -974,6 +986,7 @@ fn launch_role(
         Some(context),
     )
     .map_err(anyhow::Error::msg)?;
+    request.proposal_modeling_request_id = proposal_modeling_request_id.map(str::to_string);
     let launched = service.launch_job(
         thread_id,
         &state,

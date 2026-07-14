@@ -328,6 +328,14 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                 serde_json::json!({"type": "string", "minLength": 1}),
             );
             map.insert(
+                "proposalModelingRequestId".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Exact echo of an explicit typed repo-frontier proposal Modeling request, when supplied."
+                }),
+            );
+            map.insert(
                 "statePatch".to_string(),
                 serde_json::json!({
                     "type": "object",
@@ -560,6 +568,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         state_revision: state.revision,
         objective: state.objective.clone(),
         dynamic_prompt_context,
+        proposal_modeling_context: None,
         active_subgoal_id: state.active_subgoal_id.clone(),
         active_subgoals: state
             .subgoals
@@ -600,6 +609,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         output_contract_id,
         organ_launch_contract,
         max_runtime_seconds,
+        proposal_modeling_request_id: None,
     })
 }
 
@@ -702,6 +712,7 @@ pub fn build_epiphany_job_launch_request(
         output_contract_id,
         organ_launch_contract,
         max_runtime_seconds,
+        proposal_modeling_request_id: None,
     }
 }
 

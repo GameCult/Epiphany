@@ -130,13 +130,25 @@ revalidate current state. Nothing in this foundation emits an execution route,
 Hands authority, or frontier lifecycle change. Full core proof is 296 passed
 and 1 ignored; independent Soul verdict is PASS.
 
-Proposal-to-frontier admission is deliberately still absent. Do not infer a
-selected proposal by intersecting arbitrary evidence or add patch metadata.
-Add one explicit coordinator/user proposal intake and one typed selected-
-proposal Modeling launch identity. Modeling's Evolution patch must cite that
-proposal in result evidence and exactly one UpsertFrontier evidence_refs; Mind
-reloads the immutable proposal and verifies content/repo binding before
-admission. Only the admitted frontier becomes anatomy.
+Proposal-to-frontier admission is now explicit and Soul-approved. Direct User
+intake writes one immutable, payload-hashed, nonprivate proposal bound to the
+persisted runtime and thread; repository/workspace remain provenance, not
+counterfeit authority. Coordinator selection is immutable, exact-time, and
+race-safe. The coordinator launch transaction is the sole writer of a typed
+`proposalModelingContext` projection inside the persisted Modeling launch
+document; it atomically seals that document's MessagePack SHA-256 in an
+immutable job/request/proposal launch binding. Prompt prose and result echoes
+are correlation only. Admission reconstructs and compares the exact proposal,
+selection, projection, patch base, launch hash, job, binding, runtime, and
+thread chain. Ordinary Evolution cannot mutate frontier. Proposal Evolution
+gets exactly one frontier operation and it must be one proposal-citing
+`UpsertFrontier`; it emits no plan, route, Hands authority, or lifecycle
+decision. Core proof is 302 passed/1 ignored, OpenAI runtime proof is 8 passed,
+and final independent Soul verdict is PASS. Hostile proofs cover privacy
+laundering, changed selection time, concurrent selection, corrupt persisted
+contracts and hashes, caller-prepopulated context, stale base, swapped launch
+and companions, duplicate backend binding, dual authority echoes, request
+reuse, delimiter injection, and byte-identical no-write refusals.
 
 The next artifact-contract audit then cut `epiphany.persona_chat.v0`: its live
 writer and catalog had disagreed on field vocabulary, evidence fields, and
@@ -187,10 +199,14 @@ receipt; a swapped valid adoption chain fails. Six compiled smokes that taught
 the deleted caller-writable `mindAdoptionDecision` model were removed.
 
 Next architectural cut: finish the Aetheria lesson rather than polishing this
-gate. Modeling needs a production semantic index over typed graph claims and a
-durable frontier projection that automatically targets later Eyes/Hands
-prompts. Memory-graph freshness is substrate; the living migration map is the
-organ.
+gate. The proposal now reaches Modeling as an exact contestable artifact, but
+the larger corrective ecology is still incomplete. Add typed Eyes challenges
+that can invalidate model claims and create evidence pressure without direct
+RepoModel write authority; then bind the existing planning request to an
+Imagination worker result and Mind adoption. A production semantic index over
+typed graph claims remains required so those organs can retrieve the living
+migration map instead of rediscovering it from files. Memory-graph freshness is
+substrate; durable multi-organ correction is the organism.
 
 Epiphany is in an authority-provenance purification pass. The live question is not whether a command can produce a plausible document; it is whether the subsystem writing that document owns the fact it asserts.
 

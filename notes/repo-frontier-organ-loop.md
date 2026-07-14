@@ -78,6 +78,24 @@ authority.
    split-retry, and terminal nonselection proofs pass, and independent Soul review
    accepts this slice.
 
+## Selected Proposal Ingress
+
+The first upstream contribution path now preserves the same causal discipline.
+A User proposal is inert evidence. Coordinator selection does not make it true,
+and a request ID is not a bearer token. The coordinator launch transaction
+atomically binds one selection to one Modeling job and injects the exact typed
+proposal projection into that job's persisted launch document. The binding
+seals the worker-visible document hash. Modeling may contribute one contestable
+frontier interpretation; Mind admits it only after replaying the exact
+proposal/request/projection/job/result/review chain. No plan, route, Hands
+authority, or frontier lifecycle decision is created by this ingress.
+
+Ordinary Modeling Evolution may revise repository anatomy but cannot mutate
+frontier. Selected-proposal Evolution may perform exactly one frontier
+operation: one proposal-citing `UpsertFrontier`. This keeps the proposal mouth
+from becoming a hidden workflow engine while leaving later Eyes, Imagination,
+Self, Hands, and Soul artifacts free to challenge and reshape the contribution.
+
 ## Next Deletion Line
 
 `RepoWorkModelingRequest`, `RepoWorkModelingRoute`, and

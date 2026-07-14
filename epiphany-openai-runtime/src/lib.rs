@@ -1354,6 +1354,7 @@ struct RoleWorkerResultIngress {
     verification_request_id: Option<String>,
     frontier_route_id: Option<String>,
     repo_frontier_modeling_request_id: Option<String>,
+    proposal_modeling_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -1483,6 +1484,9 @@ fn role_worker_result_from_ingress(
         frontier_route_id: clean_optional_string(result.frontier_route_id.as_deref()),
         repo_frontier_modeling_request_id: clean_optional_string(
             result.repo_frontier_modeling_request_id.as_deref(),
+        ),
+        proposal_modeling_request_id: clean_optional_string(
+            result.proposal_modeling_request_id.as_deref(),
         ),
     }
 }
@@ -1621,6 +1625,7 @@ mod tests {
                 "role",
                 epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
             ),
+            proposal_modeling_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -1812,6 +1817,7 @@ mod tests {
                             "<epiphany_dynamic_context>\nlocal Verse: bounded\n</epiphany_dynamic_context>"
                                 .to_string(),
                         ),
+                        proposal_modeling_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -1833,6 +1839,7 @@ mod tests {
                     "role",
                     epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
+                proposal_modeling_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -1937,6 +1944,7 @@ mod tests {
                             "<verification_work_loop_telemetry>hands receipts</verification_work_loop_telemetry>"
                                 .to_string(),
                         ),
+                        proposal_modeling_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -1958,6 +1966,7 @@ mod tests {
                     "role",
                     epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
+                proposal_modeling_request_id: None,
                 created_at: now(),
             },
         )?;

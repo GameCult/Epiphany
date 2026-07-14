@@ -1169,6 +1169,7 @@ mod tests {
                 verification_request_id: String::new(),
                 soul_verdict_receipt_id: String::new(),
                 frontier_modeling_request_id: String::new(),
+                proposal_modeling_request_id: String::new(),
             },
         )?;
         let mut fresh = existing.clone();
