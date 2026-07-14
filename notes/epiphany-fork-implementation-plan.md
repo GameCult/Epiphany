@@ -78,7 +78,7 @@ Exit evidence:
   chosen explicit store contract;
 - `EpiphanyCoordinatorService` path names match real ownership.
 
-### 1. Repair Proprioception
+### 1. Repair Modeling
 
 - Keep `notes/epiphany-current-algorithmic-map.md` aligned with source.
 - Distinguish historical evidence from current mechanism in long handoffs.

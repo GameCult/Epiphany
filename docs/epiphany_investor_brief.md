@@ -50,7 +50,7 @@ Epiphany is already more than a pitch deck. The current repo contains:
   contract surfaces
 - local operator commands for status, coordinator runs, smoke checks, and
   CultMesh/Verse context
-- a Proprioception whitepaper that maps the body, owners, inputs, outputs,
+- a Modeling whitepaper that maps the body, owners, inputs, outputs,
   invariants, bridges, and current cut line
 
 The key architectural move is extraction: Epiphany began as a Codex-derived

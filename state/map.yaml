@@ -360,6 +360,16 @@ rejected_paths:
 
 current_status:
   summary: Epiphany state, prompts, coordinator policy, runtime spine, receipts, and operator surfaces are native typed Rust/CultCache/CultMesh/CultNet organs. Vendored Codex retains Codex-native app-server plus OpenAI-compatible auth/model transport only. Canonical state has one transaction owner and one coordinator store boundary; native status/coordinator JSON emits `state`, and the extinct Codex Epiphany routes, DTOs, bridge, migration, and compatibility field cannot decide or describe native truth.
+  organ_naming_authority: >
+    Modeling is the standing embodied organ that models the Body: architecture,
+    dataflow, seams, invariants, graph/checkpoint anatomy, and source-grounded
+    self-sensing. Proprioception is a retired legacy name, not a second organ,
+    task posture, worker title, prompt stage, telemetry target, or whitepaper
+    authority. The global Codex doctrine, runtime Modeling telemetry projection,
+    live implementation plan, README, and packaged docs use Modeling. Legacy
+    string migration may still recognize Proprioception only to rewrite old
+    persisted agent identity into Modeling; archived/historical evidence may
+    retain the former name as provenance.
   selected_proposal_authority: >
     Direct User intake and exact selection are coordinator/runtime-spine
     artifacts. The coordinator launch transaction alone injects the typed

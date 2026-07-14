@@ -138,7 +138,7 @@ What exists now is enough to evaluate the thesis:
 - heartbeat, sleep, memory, and Persona-state machinery inherited from live
   VoidBot lessons
 - Hands, Eyes, Soul, Mind, Continuity, and Substrate Gate receipt families
-- a Proprioception whitepaper mapping Epiphany's body, owners, invariants, and
+- a Modeling whitepaper mapping Epiphany's body, owners, invariants, and
   cut lines
 - an investor brief tying Epiphany to the Bifrost-first proof loop
 

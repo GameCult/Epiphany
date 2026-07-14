@@ -297,13 +297,13 @@ pub fn append_modeling_work_loop_telemetry_context(
         telemetry.telemetry_id = format!("{}-soul-{}", telemetry.telemetry_id, state.revision);
         telemetry.produced_at_utc = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
         telemetry.source_stage = "hands+soul".to_string();
-        telemetry.target_stages = vec!["proprioception".to_string()];
+        telemetry.target_stages = vec!["modeling".to_string()];
         telemetry.soul_receipt_ids = soul_receipts
             .iter()
             .map(|receipt| receipt.id.clone())
             .collect();
         telemetry.summary = format!(
-            "{} Soul acceptance telemetry attached for Proprioception model update.",
+            "{} Soul acceptance telemetry attached for Modeling model update.",
             telemetry.summary
         );
         write_epiphany_cultmesh_work_loop_telemetry(&store, telemetry.clone()).map_err(
@@ -315,9 +315,9 @@ pub fn append_modeling_work_loop_telemetry_context(
             },
         )?;
     }
-    context.push_str("\n\n<proprioception_work_loop_telemetry>\n");
+    context.push_str("\n\n<modeling_work_loop_telemetry>\n");
     context.push_str(
-        "Proprioception is modeling the machine after Soul has reviewed the latest Hands consequence telemetry. This packet is loaded from the internal CultMesh Verse, not reconstructed from chat memory.\n",
+        "Modeling is updating the machine model after Soul has reviewed the latest Hands consequence telemetry. This packet is loaded from the internal CultMesh Verse, not reconstructed from chat memory.\n",
     );
     context.push_str(&render_work_loop_telemetry(&telemetry));
     if !soul_receipts.is_empty() {
@@ -336,7 +336,7 @@ pub fn append_modeling_work_loop_telemetry_context(
     context.push_str(
         "Update the machine model from this verified consequence before another Hands turn. Do not request a new Eyes step merely to rediscover this already-typed telemetry.\n",
     );
-    context.push_str("</proprioception_work_loop_telemetry>");
+    context.push_str("</modeling_work_loop_telemetry>");
     Ok(context)
 }
 
@@ -418,7 +418,7 @@ fn work_loop_telemetry_from_hands_chain(
         thread_id: state.last_updated_turn_id.clone().unwrap_or_default(),
         produced_at_utc: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
         source_stage: "hands".to_string(),
-        target_stages: vec!["soul".to_string(), "proprioception".to_string()],
+        target_stages: vec!["soul".to_string(), "modeling".to_string()],
         lower_bound_receipt_at: lower_bound_receipt_at.to_string(),
         hands_intent_id: chain.intent_id.clone(),
         hands_review_id: chain.review_id.clone(),
@@ -1355,7 +1355,7 @@ mod tests {
         assert_eq!(telemetry.hands_commit_receipt_id, "hands-commit-context");
         assert_eq!(
             telemetry.target_stages,
-            vec!["soul".to_string(), "proprioception".to_string()]
+            vec!["soul".to_string(), "modeling".to_string()]
         );
         assert!(
             telemetry
@@ -1446,7 +1446,7 @@ mod tests {
             &state,
         )
         .map_err(anyhow::Error::msg)?;
-        assert!(modeling_context.contains("<proprioception_work_loop_telemetry>"));
+        assert!(modeling_context.contains("<modeling_work_loop_telemetry>"));
         assert!(modeling_context.contains("hands-patch-context"));
         assert!(modeling_context.contains("accept-verification-context"));
         assert!(modeling_context.contains("Soul acceptance telemetry"));
@@ -1464,7 +1464,7 @@ mod tests {
         )?
         .expect("Modeling launch should preserve enriched CultMesh telemetry");
         assert_eq!(telemetry.source_stage, "hands+soul");
-        assert_eq!(telemetry.target_stages, vec!["proprioception".to_string()]);
+        assert_eq!(telemetry.target_stages, vec!["modeling".to_string()]);
         assert_eq!(
             telemetry.soul_receipt_ids,
             vec!["accept-verification-context".to_string()]

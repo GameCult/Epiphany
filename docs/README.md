@@ -8,7 +8,7 @@ outside the working notes.
 - [Epiphany investor brief](./epiphany_investor_brief.md): one-page value
   summary for investors, partners, and design-partner conversations.
 - [Epiphany Body whitepaper](./epiphany_body_whitepaper.tex): source TeX for
-  the Proprioception architecture overview.
+  the Modeling architecture overview.
 - [Epiphany Body whitepaper PDF](./epiphany_body_whitepaper.pdf): compiled
   whitepaper for sharing.
 

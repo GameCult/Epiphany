@@ -1,5 +1,15 @@
 # Fresh Workspace Handoff
 
+## Modeling name authority correction - 2026-07-14
+
+Modeling is the standing embodied organ that models the Body. Proprioception is
+a retired legacy name, not a parallel faculty or worker posture. The global
+Codex doctrine had missed this migration and could still force Self to dispatch
+`Proprioception` workers; runtime work-loop telemetry also targeted the retired
+stage name. Both are corrected to Modeling. Keep legacy string handling only
+where it migrates old persisted agent identity into Modeling, and keep old prose
+only where it is clearly historical evidence.
+
 ## Current orientation — 2026-07-12
 
 ### Aetheria organ-structure evidence — 2026-07-13
