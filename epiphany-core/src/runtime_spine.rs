@@ -54,13 +54,15 @@ use crate::repo_model_gateway::{
     REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION, REPO_MODEL_ADMISSION_CONTRACT,
     REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION, REPO_MODEL_ADMISSION_RECEIPT_TYPE,
     REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION, REPO_MODEL_ADMISSION_REVIEW_TYPE,
+    REPO_MODEL_CLAIM_CHALLENGE_CONTRACT, REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION,
     REPO_MODEL_MIGRATION_CONTRACT, REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION,
     REPO_MODEL_MIGRATION_RECEIPT_TYPE, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
     RepoFrontierNextOrgan, RepoFrontierPlanAdoption, RepoFrontierPlanCandidate,
     RepoFrontierPlanDecision, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
     RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoFrontierWorkProposal,
-    RepoModelAdmissionReceipt, RepoModelAdmissionReview, RepoModelMigrationReceipt,
+    RepoModelAdmissionReceipt, RepoModelAdmissionReview, RepoModelClaimChallenge,
+    RepoModelMigrationReceipt,
 };
 use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
@@ -766,6 +768,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoModelAdmissionReview>()?;
     cache.register_entry_type::<RepoModelAdmissionReceipt>()?;
     cache.register_entry_type::<RepoModelMigrationReceipt>()?;
+    cache.register_entry_type::<RepoModelClaimChallenge>()?;
     cache.register_entry_type::<RepoFrontierRoute>()?;
     cache.register_entry_type::<RepoFrontierHandsAuthority>()?;
     cache.register_entry_type::<RepoFrontierModelingRequest>()?;
@@ -2466,7 +2469,8 @@ pub fn select_and_commit_repo_frontier_planning_request(
             "planning requires exactly one current admission receipt"
         ));
     }
-    let item = actionable_imagination_frontier_item(&model)
+    let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
+    let item = actionable_imagination_frontier_item(&model, &challenges)
         .ok_or_else(|| anyhow!("planning requires an actionable Imagination frontier"))?;
     let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
     if cache
@@ -2525,9 +2529,10 @@ pub fn select_and_commit_repo_frontier_planning_request(
     Ok(request)
 }
 
-fn actionable_imagination_frontier_item(
-    model: &crate::EpiphanyMemoryGraphSnapshot,
-) -> Option<&crate::RepoFrontierItem> {
+fn actionable_imagination_frontier_item<'a>(
+    model: &'a crate::EpiphanyMemoryGraphSnapshot,
+    challenges: &[RepoModelClaimChallenge],
+) -> Option<&'a crate::RepoFrontierItem> {
     let terminal = |id: &str| {
         model
             .frontier
@@ -2550,11 +2555,182 @@ fn actionable_imagination_frontier_item(
                 && item.recommended_next_organ == "Imagination"
                 && !item.source_scope.is_empty()
                 && safe_sorted_unique_paths(&item.source_scope)
+                && frontier_target_claims_unchallenged(item, challenges)
                 && item.dependency_item_ids.iter().all(|id| terminal(id))
         })
         .collect::<Vec<_>>();
     eligible.sort_by(|a, b| a.id.cmp(&b.id));
     eligible.into_iter().next()
+}
+
+fn frontier_target_claims_unchallenged(
+    item: &crate::RepoFrontierItem,
+    challenges: &[RepoModelClaimChallenge],
+) -> bool {
+    !challenges
+        .iter()
+        .any(|challenge| item.target_claim_ids.contains(&challenge.target_claim_id))
+}
+
+fn current_repo_model_claim_challenges(
+    cache: &CultCache,
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+    model_hash: &str,
+) -> Result<Vec<RepoModelClaimChallenge>> {
+    let mut current = Vec::new();
+    for challenge in cache.get_all::<RepoModelClaimChallenge>()? {
+        if challenge.model_revision == model.model_revision && challenge.model_hash == model_hash {
+            validate_repo_model_claim_challenge_chain(cache, model, model_hash, &challenge)?;
+            current.push(challenge);
+        }
+    }
+    Ok(current)
+}
+
+fn validate_repo_model_claim_challenge_chain(
+    cache: &CultCache,
+    model: &crate::EpiphanyMemoryGraphSnapshot,
+    model_hash: &str,
+    challenge: &RepoModelClaimChallenge,
+) -> Result<()> {
+    if challenge.schema_version != REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION
+        || challenge.contract != REPO_MODEL_CLAIM_CHALLENGE_CONTRACT
+        || challenge.challenge_id.trim().is_empty()
+        || challenge.finding.trim().is_empty()
+        || challenge.uncertainty.trim().is_empty()
+        || challenge.source_refs.is_empty()
+        || challenge.evidence_ids.is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&challenge.challenged_at).is_err()
+    {
+        return Err(anyhow!("invalid repo model claim challenge"));
+    }
+    let packet = cache
+        .get::<EyesEvidencePacket>(&challenge.eyes_evidence_packet_id)?
+        .ok_or_else(|| anyhow!("claim challenge requires exact Eyes evidence packet"))?;
+    if packet.schema_version != EYES_EVIDENCE_PACKET_SCHEMA_VERSION
+        || packet.contract.trim().is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&packet.emitted_at).is_err()
+        || packet.source_result_id != challenge.source_result_id
+        || packet.source_job_id != challenge.source_job_id
+        || packet.source_refs != challenge.source_refs
+        || packet.evidence_ids != challenge.evidence_ids
+        || format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&packet)?))
+            != challenge.eyes_evidence_packet_sha256
+    {
+        return Err(anyhow!("claim challenge substituted Eyes evidence"));
+    }
+    if challenge.model_revision != model.model_revision || challenge.model_hash != model_hash {
+        return Err(anyhow!("claim challenge model revision is stale"));
+    }
+    let receipts = cache
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
+                && receipt.admitted_revision == model.model_revision
+                && receipt.admitted_hash == model_hash
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 || receipts[0].receipt_id != challenge.admission_receipt_id {
+        return Err(anyhow!(
+            "claim challenge requires the unique current admission receipt"
+        ));
+    }
+    let claim = model
+        .nodes
+        .iter()
+        .find(|node| node.id == challenge.target_claim_id)
+        .ok_or_else(|| anyhow!("claim challenge target claim is missing"))?;
+    if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(claim)?))
+        != challenge.target_claim_sha256
+    {
+        return Err(anyhow!("claim challenge target claim identity mismatch"));
+    }
+    Ok(())
+}
+
+pub fn commit_repo_model_claim_challenge(
+    store_path: impl AsRef<Path>,
+    challenge: &RepoModelClaimChallenge,
+) -> Result<()> {
+    if challenge.schema_version != REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION
+        || challenge.contract != REPO_MODEL_CLAIM_CHALLENGE_CONTRACT
+        || challenge.challenge_id.trim().is_empty()
+        || challenge.finding.trim().is_empty()
+        || challenge.uncertainty.trim().is_empty()
+        || challenge.source_refs.is_empty()
+        || challenge.evidence_ids.is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&challenge.challenged_at).is_err()
+    {
+        return Err(anyhow!("invalid repo model claim challenge"));
+    }
+    let store_path = store_path.as_ref();
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let envelopes = backing.pull_all()?;
+    let model_envelope = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == crate::MEMORY_GRAPH_TYPE && entry.key == crate::MEMORY_GRAPH_KEY
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("claim challenge requires canonical model"))?;
+    let entry: crate::EpiphanyMemoryGraphEntry = rmp_serde::from_slice(&model_envelope.payload)?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    if challenge.model_revision != model.model_revision || challenge.model_hash != model_hash {
+        return Err(anyhow!("claim challenge model revision is stale"));
+    }
+    validate_repo_model_claim_challenge_chain(&cache, &model, &model_hash, challenge)?;
+    if let Some(existing) = cache.get::<RepoModelClaimChallenge>(&challenge.challenge_id)? {
+        return if existing == *challenge {
+            Ok(())
+        } else {
+            Err(anyhow!("claim challenge ids are immutable"))
+        };
+    }
+    let packet_envelope = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == EYES_EVIDENCE_PACKET_TYPE
+                && entry.key == challenge.eyes_evidence_packet_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("claim challenge packet envelope is missing"))?;
+    let admission_envelope = envelopes
+        .iter()
+        .find(|entry| {
+            entry.r#type == REPO_MODEL_ADMISSION_RECEIPT_TYPE
+                && entry.key == challenge.admission_receipt_id
+        })
+        .cloned()
+        .ok_or_else(|| anyhow!("claim challenge admission envelope is missing"))?;
+    let (challenge_envelope, _) = cache.prepare_entry(&challenge.challenge_id, challenge)?;
+    if !backing.compare_and_swap_batch(
+        &[
+            model_envelope.clone(),
+            packet_envelope.clone(),
+            admission_envelope.clone(),
+        ],
+        vec![
+            model_envelope,
+            packet_envelope,
+            admission_envelope,
+            challenge_envelope,
+        ],
+    )? {
+        let mut reloaded = runtime_spine_cache(store_path)?;
+        reloaded.pull_all_backing_stores()?;
+        return match reloaded.get::<RepoModelClaimChallenge>(&challenge.challenge_id)? {
+            Some(existing) if existing == *challenge => Ok(()),
+            Some(_) => Err(anyhow!("claim challenge immutable collision")),
+            None => Err(anyhow!("claim challenge lost exact model/packet CAS")),
+        };
+    }
+    Ok(())
 }
 
 pub fn put_repo_frontier_plan_candidate(
@@ -2775,7 +2951,8 @@ pub fn select_and_commit_repo_frontier_route(
         ));
     }
     let receipt = &receipts[0];
-    let item = actionable_hands_frontier_item(&current)
+    let challenges = current_repo_model_claim_challenges(&cache, &current, &current_hash)?;
+    let item = actionable_hands_frontier_item(&current, &challenges)
         .ok_or_else(|| anyhow!("current repo model has no eligible Hands frontier route"))?;
     if !safe_sorted_unique_paths(&item.source_scope) || item.source_scope.is_empty() {
         return Err(anyhow!(
@@ -2828,9 +3005,10 @@ pub fn select_and_commit_repo_frontier_route(
     Ok(route)
 }
 
-fn actionable_hands_frontier_item(
-    model: &crate::EpiphanyMemoryGraphSnapshot,
-) -> Option<&crate::RepoFrontierItem> {
+fn actionable_hands_frontier_item<'a>(
+    model: &'a crate::EpiphanyMemoryGraphSnapshot,
+    challenges: &[RepoModelClaimChallenge],
+) -> Option<&'a crate::RepoFrontierItem> {
     let terminal = |status: crate::RepoFrontierStatus| {
         matches!(
             status,
@@ -2844,6 +3022,7 @@ fn actionable_hands_frontier_item(
             && item.recommended_next_organ == "Hands"
             && !item.source_scope.is_empty()
             && safe_sorted_unique_paths(&item.source_scope)
+            && frontier_target_claims_unchallenged(item, challenges)
             && item.dependency_item_ids.iter().all(|dependency_id| {
                 model
                     .frontier
@@ -2879,7 +3058,8 @@ pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) ->
                 && receipt.admitted_hash == model_hash
         })
         .count();
-    Ok(admission_count == 1 && actionable_hands_frontier_item(&model).is_some())
+    let challenges = current_repo_model_claim_challenges(&cache, &model, &model_hash)?;
+    Ok(admission_count == 1 && actionable_hands_frontier_item(&model, &challenges).is_some())
 }
 
 pub fn put_runtime_reorient_worker_result(
@@ -6711,14 +6891,183 @@ mod tests {
             item("b-ready", vec![]),
         ];
         assert_eq!(
-            actionable_imagination_frontier_item(&model).unwrap().id,
+            actionable_imagination_frontier_item(&model, &[])
+                .unwrap()
+                .id,
             "b-ready"
         );
         model.frontier[2].status = crate::RepoFrontierStatus::Resolved;
         assert_eq!(
-            actionable_imagination_frontier_item(&model).unwrap().id,
+            actionable_imagination_frontier_item(&model, &[])
+                .unwrap()
+                .id,
             "a-blocked"
         );
+    }
+
+    fn claim_challenge_fixture(
+        root: &Path,
+        suffix: &str,
+        next_organ: &str,
+    ) -> Result<(PathBuf, RepoModelClaimChallenge)> {
+        let (store, result, review) = proposal_admission_fixture(root, suffix)?;
+        let mut result = result;
+        if next_organ != "Hands" {
+            let mut patch: crate::RepoModelPatch =
+                rmp_serde::from_slice(result.repo_model_patch_msgpack.as_deref().unwrap())?;
+            let crate::RepoModelPatchOperation::UpsertFrontier { item } = &mut patch.operations[0]
+            else {
+                unreachable!()
+            };
+            item.recommended_next_organ = next_organ.into();
+            let bytes = rmp_serde::to_vec_named(&patch)?;
+            result.repo_model_patch_msgpack = Some(bytes.clone());
+            let mut amended = review;
+            amended.patch_sha256 = format!("{:x}", Sha256::digest(&bytes));
+            put_runtime_role_worker_result(&store, &result)?;
+            commit_repo_model_admission(&store, &result.result_id, &amended)?;
+        } else {
+            put_runtime_role_worker_result(&store, &result)?;
+            commit_repo_model_admission(&store, &result.result_id, &review)?;
+        }
+        let model = runtime_current_repo_model(&store)?.unwrap();
+        let model_hash = crate::memory_graph_model_hash(&model)?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let admission = cache
+            .get_all::<RepoModelAdmissionReceipt>()?
+            .into_iter()
+            .find(|receipt| {
+                receipt.admitted_revision == model.model_revision
+                    && receipt.admitted_hash == model_hash
+            })
+            .unwrap();
+        let packet = EyesEvidencePacket {
+            schema_version: EYES_EVIDENCE_PACKET_SCHEMA_VERSION.into(),
+            packet_id: format!("eyes-packet-{suffix}"),
+            source_result_id: format!("eyes-result-{suffix}"),
+            source_job_id: format!("eyes-job-{suffix}"),
+            source_role_id: "research".into(),
+            evidence_ids: vec![format!("evidence-{suffix}")],
+            observation_ids: vec![format!("observation-{suffix}")],
+            source_refs: vec!["epiphany-core/src/runtime_spine.rs:1".into()],
+            summary: "The exact claim is challenged by inspected source.".into(),
+            uncertainty: "Bounded to the cited source.".into(),
+            emitted_at: "2026-07-13T04:01:00Z".into(),
+            contract: "Eyes packet emitted from a reviewed Research lane finding; it makes the source-gathering evidence claim citable before Mind admission.".into(),
+        };
+        put_eyes_evidence_packet(&store, &packet)?;
+        let claim = model
+            .nodes
+            .iter()
+            .find(|node| node.id == "claim-runtime-model")
+            .unwrap();
+        let challenge = RepoModelClaimChallenge {
+            schema_version: REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION.into(),
+            challenge_id: format!("claim-challenge-{suffix}"),
+            eyes_evidence_packet_id: packet.packet_id.clone(),
+            eyes_evidence_packet_sha256: format!(
+                "{:x}",
+                Sha256::digest(rmp_serde::to_vec_named(&packet)?)
+            ),
+            source_result_id: packet.source_result_id,
+            source_job_id: packet.source_job_id,
+            model_revision: model.model_revision,
+            model_hash,
+            admission_receipt_id: admission.receipt_id,
+            target_claim_id: claim.id.clone(),
+            target_claim_sha256: format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(claim)?)),
+            disposition: crate::RepoModelClaimChallengeDisposition::Contradicted,
+            finding: "The exact admitted claim is contradicted.".into(),
+            uncertainty: packet.uncertainty,
+            source_refs: packet.source_refs,
+            evidence_ids: packet.evidence_ids,
+            challenged_at: "2026-07-13T04:01:01Z".into(),
+            contract: REPO_MODEL_CLAIM_CHALLENGE_CONTRACT.into(),
+        };
+        Ok((store, challenge))
+    }
+
+    #[test]
+    fn claim_challenge_is_exact_immutable_and_rejects_substitution() -> Result<()> {
+        let root = tempdir()?;
+        let (store, challenge) = claim_challenge_fixture(root.path(), "exact", "Hands")?;
+        commit_repo_model_claim_challenge(&store, &challenge)?;
+        commit_repo_model_claim_challenge(&store, &challenge)?;
+        let mut collision = challenge.clone();
+        collision.finding = "substituted finding".into();
+        assert!(commit_repo_model_claim_challenge(&store, &collision).is_err());
+
+        for (suffix, mutate) in [
+            "packet-id",
+            "packet-hash",
+            "provenance",
+            "admission",
+            "claim",
+            "claim-hash",
+            "revision",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (hostile_store, mut hostile) =
+                claim_challenge_fixture(root.path(), &format!("hostile-{suffix}"), "Hands")?;
+            match mutate {
+                "packet-id" => hostile.eyes_evidence_packet_id = "swapped-packet".into(),
+                "packet-hash" => hostile.eyes_evidence_packet_sha256 = "00".repeat(32),
+                "provenance" => hostile.source_job_id = "swapped-job".into(),
+                "admission" => hostile.admission_receipt_id = "swapped-admission".into(),
+                "claim" => hostile.target_claim_id = "swapped-claim".into(),
+                "claim-hash" => hostile.target_claim_sha256 = "11".repeat(32),
+                "revision" => hostile.model_revision += 1,
+                _ => unreachable!(),
+            }
+            let before = std::fs::read(&hostile_store)?;
+            assert!(commit_repo_model_claim_challenge(&hostile_store, &hostile).is_err());
+            assert_eq!(std::fs::read(&hostile_store)?, before);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn current_claim_challenge_withholds_planning_and_hands_but_not_unrelated_frontier()
+    -> Result<()> {
+        let root = tempdir()?;
+        let (hands_store, hands_challenge) =
+            claim_challenge_fixture(root.path(), "hands-gate", "Hands")?;
+        commit_repo_model_claim_challenge(&hands_store, &hands_challenge)?;
+        assert!(!runtime_has_actionable_hands_frontier(&hands_store)?);
+        assert!(
+            select_and_commit_repo_frontier_route(&hands_store, "2026-07-13T04:02:00Z").is_err()
+        );
+
+        let (planning_store, planning_challenge) =
+            claim_challenge_fixture(root.path(), "planning-gate", "Imagination")?;
+        commit_repo_model_claim_challenge(&planning_store, &planning_challenge)?;
+        assert!(
+            select_and_commit_repo_frontier_planning_request(
+                &planning_store,
+                "2026-07-13T04:02:00Z"
+            )
+            .is_err()
+        );
+
+        let mut unrelated = repo_model_bootstrap();
+        unrelated.frontier = vec![crate::RepoFrontierItem {
+            id: "unrelated".into(),
+            target_claim_ids: vec!["another-claim".into()],
+            source_scope: vec!["epiphany-core/src".into()],
+            recommended_next_organ: "Hands".into(),
+            status: crate::RepoFrontierStatus::Active,
+            ..Default::default()
+        }];
+        assert_eq!(
+            actionable_hands_frontier_item(&unrelated, &[hands_challenge])
+                .unwrap()
+                .id,
+            "unrelated"
+        );
+        Ok(())
     }
 
     fn admit_route_and_authorize_hands(

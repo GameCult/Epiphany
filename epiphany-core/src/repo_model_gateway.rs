@@ -46,6 +46,61 @@ pub const REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
     "epiphany.coordinator.repo_frontier_proposal_modeling_launch_binding.v1";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT: &str =
     "epiphany.repo_frontier_proposal_modeling_launch_binding.v1";
+pub const REPO_MODEL_CLAIM_CHALLENGE_SCHEMA_VERSION: &str =
+    "epiphany.eyes.repo_model_claim_challenge.v0";
+pub const REPO_MODEL_CLAIM_CHALLENGE_CONTRACT: &str = "epiphany.repo_model_claim_challenge.v0";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepoModelClaimChallengeDisposition {
+    Contradicted,
+    Stale,
+    EvidenceInsufficient,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.eyes.repo_model_claim_challenge",
+    schema = "RepoModelClaimChallenge"
+)]
+pub struct RepoModelClaimChallenge {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub challenge_id: String,
+    #[cultcache(key = 2)]
+    pub eyes_evidence_packet_id: String,
+    #[cultcache(key = 3)]
+    pub eyes_evidence_packet_sha256: String,
+    #[cultcache(key = 4)]
+    pub source_result_id: String,
+    #[cultcache(key = 5)]
+    pub source_job_id: String,
+    #[cultcache(key = 6)]
+    pub model_revision: u64,
+    #[cultcache(key = 7)]
+    pub model_hash: String,
+    #[cultcache(key = 8)]
+    pub admission_receipt_id: String,
+    #[cultcache(key = 9)]
+    pub target_claim_id: String,
+    #[cultcache(key = 10)]
+    pub target_claim_sha256: String,
+    #[cultcache(key = 11)]
+    pub disposition: RepoModelClaimChallengeDisposition,
+    #[cultcache(key = 12)]
+    pub finding: String,
+    #[cultcache(key = 13)]
+    pub uncertainty: String,
+    #[cultcache(key = 14)]
+    pub source_refs: Vec<String>,
+    #[cultcache(key = 15)]
+    pub evidence_ids: Vec<String>,
+    #[cultcache(key = 16)]
+    pub challenged_at: String,
+    #[cultcache(key = 17)]
+    pub contract: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

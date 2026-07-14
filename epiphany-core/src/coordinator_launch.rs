@@ -409,7 +409,7 @@ mod tests {
             },
         )?;
         let state = EpiphanyThreadState::default();
-        let cache = coordinator_acceptance_cache(&store)?;
+        let mut cache = coordinator_acceptance_cache(&store)?;
         cache.put(
             THREAD_STATE_KEY,
             &EpiphanyThreadStateEntry::from_state(&thread_id, &state)?,
@@ -700,7 +700,7 @@ mod tests {
             projection.proposal_payload_sha256,
             selection.proposal_payload_sha256
         );
-        let mut cache = coordinator_acceptance_cache(&store)?;
+        let cache = coordinator_acceptance_cache(&store)?;
         let binding = cache
             .get::<RepoFrontierProposalModelingLaunchBinding>(
                 "repo-frontier-proposal-modeling-launch-backend-first",

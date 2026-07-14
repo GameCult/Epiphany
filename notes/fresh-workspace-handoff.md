@@ -27,6 +27,18 @@ roadmap mythology, and Self preserved dependency order without flattening those
 different judgments into one running narrative. This is positive evidence for
 durable organ-to-organ cognition, not merely for role-flavored prompting.
 
+That lesson now has a concrete corrective nerve. Eyes can persist an immutable
+`RepoModelClaimChallenge` against one serialized claim at one exact admitted
+model revision. Runtime-spine admission replays the canonical Eyes packet,
+unique current Mind receipt, model identity, and claim hash in one absent-only
+CAS. Self uses the same validated challenge predicate for Imagination planning,
+Hands route selection, and actionable-Hands status; only frontier targeting the
+challenged claim is withheld. Eyes never writes RepoModel, and no challenge ids
+were stuffed into the graph. Core proof is 304 passed/1 ignored and independent
+Soul review passes. Next build a typed Modeling challenge-repair request and
+Mind admission path so evidence can reshape the shared map, then let Self and
+Imagination revise the campaign from that repaired substrate.
+
 Do not substitute the first linear frontier identity proof for that larger
 lesson. `Modeling -> Mind -> Self -> Hands -> Soul -> Modeling` proves that one
 wound can retain causal identity. The awakened anatomy also needs typed backward
