@@ -1396,6 +1396,7 @@ pub fn put_runtime_role_worker_result(
     store_path: impl AsRef<Path>,
     result: &EpiphanyRuntimeRoleWorkerResult,
 ) -> Result<()> {
+    let store_path = store_path.as_ref();
     validate_non_empty(&result.job_id, "role worker result job id")?;
     validate_non_empty(&result.result_id, "role worker result id")?;
     validate_non_empty(&result.role_id, "role worker result role id")?;
@@ -1475,8 +1476,28 @@ pub fn put_runtime_role_worker_result(
     }
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
-    cache.put(&result.job_id, result)?;
-    Ok(())
+    if let Some(existing) = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)? {
+        return if existing == *result {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "role worker result is immutable for its runtime job"
+            ))
+        };
+    }
+    let (envelope, _) = cache.prepare_entry(&result.job_id, result)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    if backing.insert_entry_if_absent(envelope)? {
+        return Ok(());
+    }
+    let mut reloaded = runtime_spine_cache(store_path)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)? {
+        Some(existing) if existing == *result => Ok(()),
+        _ => Err(anyhow!(
+            "role worker result lost immutable insertion to a different result"
+        )),
+    }
 }
 
 pub fn runtime_role_worker_result(
@@ -6654,6 +6675,24 @@ pub(crate) mod tests {
         let before = std::fs::read(store)?;
         assert!(commit_repo_model_admission(store, &result.result_id, review).is_err());
         assert_eq!(std::fs::read(store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn role_worker_result_is_absent_only_with_exact_retry() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, result, _) = proposal_admission_fixture(root.path(), "immutable-result")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let after_first = std::fs::read(&store)?;
+        put_runtime_role_worker_result(&store, &result)?;
+        assert_eq!(std::fs::read(&store)?, after_first);
+
+        let mut counterfeit = result.clone();
+        counterfeit.summary = "Rewritten after persistence".into();
+        let error = put_runtime_role_worker_result(&store, &counterfeit)
+            .expect_err("a runtime job may publish only one immutable result");
+        assert!(error.to_string().contains("immutable"));
+        assert_eq!(std::fs::read(&store)?, after_first);
         Ok(())
     }
 

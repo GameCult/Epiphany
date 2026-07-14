@@ -1,5 +1,16 @@
 # Fresh Workspace Handoff
 
+## Runtime worker results are actually immutable - 2026-07-14
+
+Eyes found that the document called an immutable role-worker result was still
+published through ordinary CultCache `put`, allowing a second payload at the
+same runtime job identity to replace the thought before Mind admission. The
+writer is now absent-only: an exact retry converges without rewriting bytes;
+any different result at the same job fails without mutation; concurrent loss
+reloads and accepts only exact equality. The full core library passes at 316
+passed, one ignored. Claim-repair result correlation may now rely on one
+persisted worker result rather than a politely named mutable slot.
+
 ## Modeling claim-repair launch authority landed - 2026-07-14
 
 The inert `RepoModelClaimRepairRequest` now reaches Modeling through one
