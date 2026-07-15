@@ -718,5 +718,35 @@ Future audit frontier, not established anatomy: sibling Bifrost subprocess JSON
 used by readiness needs a focused identity/schema/provenance audit before any
 cut or confirmed finding.
 
+## Freshness -> reorientation authority (2026-07-15)
+
+```text
+canonical retrieval state -----------------------> retrieval judgment --+
+graph checkpoint + churn assertion + frontier ---> graph judgment -------+--> reorientation decision --> CRRC/coordinator/launch
+positive watcher changes ------------------------> watcher judgment -----+
+durable investigation checkpoint ---------------------------------------+
+```
+
+`derive_freshness` owns the first three judgments. Retrieval Ready becomes
+Clean only with an empty dirty-path set; otherwise it derives Stale. Graph
+Clean/Ready requires a checkpoint, a recognized-current assertion, and zero
+dirty/question/gap pressure. Missing evidence stays Missing/Unknown. Watcher silence stays
+Unavailable/Unknown because no continuity receipt exists; Changed is positive
+evidence. `surfaces/jobs.rs` consumes the same graph judgment for remap work.
+
+`recommend_reorientation` alone owns Resume/Regather. Resume requires a
+resume-ready investigation checkpoint, retrieval Clean, graph Clean, and a
+watcher that is Clean or Unknown. Any retrieval/graph non-clean value or
+watcher Dirty/Stale/Changed forces Regather. Path matches, status labels,
+worker-launch documents, coordinator rows, and CRRC recommendations are derived
+consumers and forbidden decision writers.
+
+The remaining deletion line is architectural rather than behavioral:
+`churn.graph_freshness` is a free string, and the typed graph checkpoint's
+revision is not correlated with graph mutation. Replace both authorities with
+one typed, revision-bearing Modeling freshness receipt. Until then the strict
+conjunction prevents false readiness but must not be mistaken for final typed
+ownership.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

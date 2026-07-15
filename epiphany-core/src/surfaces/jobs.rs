@@ -1,3 +1,4 @@
+use super::freshness::{EpiphanyGraphFreshnessStatus, graph_freshness};
 use epiphany_state_model::EpiphanyJobBinding;
 use epiphany_state_model::EpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -245,27 +246,8 @@ fn remap_job(state: Option<&EpiphanyThreadState>) -> EpiphanyJobView {
         );
     };
 
-    let frontier = state.graph_frontier.as_ref();
-    let dirty_path_count = frontier
-        .map(|frontier| frontier.dirty_paths.len())
-        .unwrap_or_default();
-    let open_count = frontier
-        .map(|frontier| frontier.open_question_ids.len() + frontier.open_gap_ids.len())
-        .unwrap_or_default();
-    let graph_freshness = state
-        .churn
-        .as_ref()
-        .and_then(|churn| churn.graph_freshness.as_deref());
-    let freshness_needs_work = graph_freshness
-        .is_some_and(|freshness| !matches!(freshness, "fresh" | "ready" | "current" | "ok"));
-    let needs_work = dirty_path_count > 0 || open_count > 0 || freshness_needs_work;
-    let progress_note = if needs_work {
-        format!(
-            "Graph frontier has {dirty_path_count} dirty path(s) and {open_count} open question/gap id(s)."
-        )
-    } else {
-        "Graph frontier has no reflected remap pressure.".to_string()
-    };
+    let freshness = graph_freshness(Some(state));
+    let needs_work = freshness.status != EpiphanyGraphFreshnessStatus::Ready;
 
     EpiphanyJobView {
         id: "graph-remap".to_string(),
@@ -281,7 +263,7 @@ fn remap_job(state: Option<&EpiphanyThreadState>) -> EpiphanyJobView {
         },
         items_processed: None,
         items_total: None,
-        progress_note: Some(progress_note),
+        progress_note: Some(freshness.note),
         last_checkpoint_at_unix_seconds: None,
         blocking_reason: None,
         active_thread_ids: Vec::new(),
@@ -397,6 +379,8 @@ fn latest_runtime_link_for_binding<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_state_model::EpiphanyChurnState;
+    use epiphany_state_model::EpiphanyGraphCheckpoint;
     use epiphany_state_model::EpiphanyGraphFrontier;
     use epiphany_state_model::EpiphanyInvariant;
     use std::path::PathBuf;
@@ -467,6 +451,45 @@ mod tests {
         assert_eq!(verification.status, EpiphanyJobStatus::Needed);
         assert_eq!(verification.items_processed, Some(1));
         assert_eq!(verification.items_total, Some(2));
+    }
+
+    #[test]
+    fn remap_job_consumes_graph_freshness_authority() {
+        let incomplete = EpiphanyThreadState::default();
+        let jobs = derive_jobs(EpiphanyJobsInput {
+            state: Some(&incomplete),
+            retrieval_override: None,
+        });
+        assert_eq!(
+            jobs.iter()
+                .find(|job| job.id == "graph-remap")
+                .unwrap()
+                .status,
+            EpiphanyJobStatus::Needed
+        );
+
+        let ready = EpiphanyThreadState {
+            graph_checkpoint: Some(EpiphanyGraphCheckpoint {
+                checkpoint_id: "graph-1".to_string(),
+                ..Default::default()
+            }),
+            churn: Some(EpiphanyChurnState {
+                graph_freshness: Some("ok".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let jobs = derive_jobs(EpiphanyJobsInput {
+            state: Some(&ready),
+            retrieval_override: None,
+        });
+        assert_eq!(
+            jobs.iter()
+                .find(|job| job.id == "graph-remap")
+                .unwrap()
+                .status,
+            EpiphanyJobStatus::Idle
+        );
     }
 
     #[test]

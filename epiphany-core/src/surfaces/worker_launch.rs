@@ -504,6 +504,9 @@ fn reorient_reason_label(reason: EpiphanyReorientReason) -> &'static str {
         EpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
             "unanchoredCheckpointWhileStateStale"
         }
+        EpiphanyReorientReason::RetrievalFreshnessBlocked => "retrievalFreshnessBlocked",
+        EpiphanyReorientReason::GraphFreshnessBlocked => "graphFreshnessBlocked",
+        EpiphanyReorientReason::WatcherFreshnessBlocked => "watcherFreshnessBlocked",
         EpiphanyReorientReason::CheckpointReady => "checkpointReady",
     }
 }

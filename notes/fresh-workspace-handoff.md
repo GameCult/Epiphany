@@ -1569,3 +1569,45 @@ scheduled tasks and the tunnel return after logon, establish a fresh reconciler
 -> exactly-one-projector chain and launch-correlated heartbeat, then obtain
 semantic ranking from packaged Mind and Modeling queries using the explicit
 Qdrant and Ollama endpoints.
+
+## Freshness and reorientation authority repair (2026-07-15)
+
+The freshness surface no longer converts missing evidence into confidence.
+Retrieval `Ready` is Clean only when `dirty_paths` is empty; a Ready label with
+one or more dirty paths derives Stale and therefore cannot authorize Resume.
+Graph `Ready` requires all of: a typed graph checkpoint, an explicitly
+recognized current `churn.graph_freshness` value, and no dirty paths, open
+questions, or open gaps. Missing checkpoint or freshness is unknown/missing,
+not ready. A watcher with no buffered changes is also unknown/unavailable:
+there is no watcher generation, cursor, start boundary, or continuity receipt
+from which silence could prove cleanliness. Observed changes remain valid
+positive evidence.
+
+`recommend_reorientation` now owns the whole Resume/Regather verdict. Resume
+requires a resume-ready investigation checkpoint, retrieval Clean, graph
+Clean, and watcher Clean or Unknown. Retrieval or graph values other than
+Clean, and watcher Dirty/Stale/Changed, force Regather with explicit reasons.
+Path overlap remains explanatory derived state; it cannot rescue a stale or
+unknown map. `epiphany-mvp-status`, worker launch, coordinator, and CRRC all
+consume this decision. `surfaces/jobs.rs` consumes the same derived graph
+freshness judgment for graph-remap work instead of maintaining a second churn
+string tribunal.
+
+Authority map: `derive_freshness` owns freshness judgment from canonical
+retrieval state, graph checkpoint, churn assertion, frontier pressure, and
+positive watcher observations. `recommend_reorientation` owns the action.
+Their outputs are derived read projections and one reorientation decision.
+Watcher silence, MVP mappings, jobs, worker launch, coordinator, and CRRC are
+forbidden readiness/action writers. All launch and operator paths share the
+same derivation and decision primitives.
+
+The immediate invariant is repaired, but the final owner is not yet pure.
+`churn.graph_freshness` remains an `Option<String>`, while
+`graph_checkpoint.graph_revision` is not authenticated against graph mutation.
+Modeling must eventually replace that split opinion with one typed,
+revision-bearing freshness receipt that binds the graph generation, checkpoint,
+freshness verdict, and pressure basis.
+
+The deployment next action is unchanged and permission-bound. Do not reboot
+without exact live operator approval. With that approval, run the real
+reboot/logon recovery proof already specified above.

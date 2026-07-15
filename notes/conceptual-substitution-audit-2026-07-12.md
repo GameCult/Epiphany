@@ -1757,3 +1757,35 @@ metadata only. A surface earns readmission only through an owning provider's
 provenance-bearing typed CultMesh contract that survives Snapshot, schema
 validation, and Eve lowering; advertised actions additionally require a real
 typed dispatcher and receipt path.
+
+## Missing freshness evidence substituted for cleanliness (2026-07-15)
+
+Confirmed and cut. The graph freshness projection previously asked only
+whether any known stale signal was present. A default typed state with no graph
+checkpoint and no freshness assertion therefore became `Ready`. The watcher
+made the same inversion: an available watcher with an empty transient event
+buffer became `Clean`, despite carrying no generation, cursor, start boundary,
+or continuity receipt. Reorientation then ignored its retrieval, graph, and
+watcher status fields when deciding Resume; path overlap heuristics were the
+actual hidden owner.
+
+The repaired authority is conjunctive. `derive_freshness` owns judgments from
+canonical retrieval state, graph checkpoint, churn assertion, frontier
+pressure, and positive watcher changes. Retrieval Ready with any dirty path
+derives Stale rather than Clean. Graph Ready requires checkpoint plus
+recognized-current assertion plus zero dirty/question/gap pressure. Missing
+evidence is Missing/Unknown, watcher silence is Unavailable/Unknown, and
+observed Changed remains positive evidence. `recommend_reorientation` alone
+owns Resume/Regather: checkpoint ResumeReady, retrieval Clean, graph Clean, and
+watcher Clean/Unknown are required to Resume. Other retrieval/graph states and
+watcher Dirty/Stale/Changed force Regather. Jobs, MVP mappings, worker launch,
+coordinator, and CRRC are derived consumers; graph-remap jobs now consume the
+same graph judgment instead of re-parsing the churn string.
+
+One scar remains open rather than laundered into completion:
+`churn.graph_freshness` is still free-form text and
+`graph_checkpoint.graph_revision` is not correlated with graph mutation. The
+final cut is one typed, revision-bearing Modeling freshness receipt that binds
+generation, checkpoint, verdict, and pressure basis. The immediate repair
+prevents absence from masquerading as readiness; it does not make split
+authority sacred.

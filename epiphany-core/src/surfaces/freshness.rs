@@ -145,7 +145,7 @@ fn retrieval_freshness(retrieval: Option<&EpiphanyRetrievalState>) -> EpiphanyRe
             "Retrieval catalog is ready.".to_string()
         }
         EpiphanyRetrievalStatus::Ready => {
-            format!("Retrieval catalog is ready with {dirty_path_count} dirty path(s) noted.")
+            format!("Retrieval catalog is stale because {dirty_path_count} dirty path(s) remain.")
         }
         EpiphanyRetrievalStatus::Stale => {
             format!("Retrieval catalog is stale; {dirty_path_count} dirty path(s) need refresh.")
@@ -156,7 +156,10 @@ fn retrieval_freshness(retrieval: Option<&EpiphanyRetrievalState>) -> EpiphanyRe
 
     EpiphanyRetrievalFreshness {
         status: match retrieval.status {
-            EpiphanyRetrievalStatus::Ready => EpiphanyRetrievalFreshnessStatus::Ready,
+            EpiphanyRetrievalStatus::Ready if dirty_path_count == 0 => {
+                EpiphanyRetrievalFreshnessStatus::Ready
+            }
+            EpiphanyRetrievalStatus::Ready => EpiphanyRetrievalFreshnessStatus::Stale,
             EpiphanyRetrievalStatus::Stale => EpiphanyRetrievalFreshnessStatus::Stale,
             EpiphanyRetrievalStatus::Indexing => EpiphanyRetrievalFreshnessStatus::Indexing,
             EpiphanyRetrievalStatus::Unavailable => EpiphanyRetrievalFreshnessStatus::Unavailable,
@@ -170,7 +173,7 @@ fn retrieval_freshness(retrieval: Option<&EpiphanyRetrievalState>) -> EpiphanyRe
     }
 }
 
-fn graph_freshness(state: Option<&EpiphanyThreadState>) -> EpiphanyGraphFreshness {
+pub(super) fn graph_freshness(state: Option<&EpiphanyThreadState>) -> EpiphanyGraphFreshness {
     let Some(state) = state else {
         return EpiphanyGraphFreshness {
             status: EpiphanyGraphFreshnessStatus::Missing,
@@ -199,32 +202,38 @@ fn graph_freshness(state: Option<&EpiphanyThreadState>) -> EpiphanyGraphFreshnes
         .churn
         .as_ref()
         .and_then(|churn| churn.graph_freshness.clone());
-    let freshness_hint_stale = graph_freshness
-        .as_deref()
-        .is_some_and(|freshness| !matches!(freshness, "fresh" | "ready" | "current" | "ok"));
-    let is_stale = dirty_path_count > 0
-        || open_question_count > 0
-        || open_gap_count > 0
-        || freshness_hint_stale;
-    let note = if is_stale {
+    let freshness_hint_current = graph_freshness.as_deref().is_some_and(|freshness| {
+        matches!(
+            freshness.trim().to_ascii_lowercase().as_str(),
+            "fresh" | "ready" | "current" | "ok"
+        )
+    });
+    let has_pressure = dirty_path_count > 0 || open_question_count > 0 || open_gap_count > 0;
+    let checkpoint_id = state
+        .graph_checkpoint
+        .as_ref()
+        .map(|checkpoint| checkpoint.checkpoint_id.clone());
+    let status = if has_pressure || (graph_freshness.is_some() && !freshness_hint_current) {
+        EpiphanyGraphFreshnessStatus::Stale
+    } else if checkpoint_id.is_none() || graph_freshness.is_none() {
+        EpiphanyGraphFreshnessStatus::Missing
+    } else {
+        EpiphanyGraphFreshnessStatus::Ready
+    };
+    let note = if status == EpiphanyGraphFreshnessStatus::Stale {
         format!(
             "Graph freshness is stale; frontier has {dirty_path_count} dirty path(s), {open_question_count} open question id(s), and {open_gap_count} open gap id(s)."
         )
+    } else if status == EpiphanyGraphFreshnessStatus::Missing {
+        "Graph freshness requires both an explicit current hint and a graph checkpoint.".to_string()
     } else {
         "Graph freshness is ready.".to_string()
     };
 
     EpiphanyGraphFreshness {
-        status: if is_stale {
-            EpiphanyGraphFreshnessStatus::Stale
-        } else {
-            EpiphanyGraphFreshnessStatus::Ready
-        },
+        status,
         graph_freshness,
-        checkpoint_id: state
-            .graph_checkpoint
-            .as_ref()
-            .map(|checkpoint| checkpoint.checkpoint_id.clone()),
+        checkpoint_id,
         dirty_path_count,
         dirty_paths,
         open_question_count,
@@ -270,14 +279,14 @@ fn invalidation_input(
 
     if changed_paths.is_empty() {
         return EpiphanyInvalidationInput {
-            status: EpiphanyInvalidationStatus::Clean,
+            status: EpiphanyInvalidationStatus::Unavailable,
             watched_root,
             observed_at_unix_seconds: watcher.observed_at_unix_seconds,
             changed_path_count,
             changed_paths,
             graph_node_ids: Vec::new(),
             active_frontier_node_ids: Vec::new(),
-            note: "Watcher has not observed recent filesystem changes under the workspace root."
+            note: "Watcher supplied no observation; absence of changed paths is not proof of a clean workspace."
                 .to_string(),
         };
     }
@@ -397,7 +406,9 @@ fn epiphany_path_key(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_state_model::EpiphanyChurnState;
     use epiphany_state_model::EpiphanyCodeRef;
+    use epiphany_state_model::EpiphanyGraphCheckpoint;
     use epiphany_state_model::EpiphanyGraphFrontier;
     use epiphany_state_model::EpiphanyGraphNode;
     use epiphany_state_model::EpiphanyGraphs;
@@ -416,6 +427,110 @@ mod tests {
             EpiphanyRetrievalFreshnessStatus::Missing
         );
         assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Missing);
+        assert_eq!(view.watcher.status, EpiphanyInvalidationStatus::Unavailable);
+    }
+
+    #[test]
+    fn default_state_is_not_graph_ready() {
+        let state = EpiphanyThreadState::default();
+        let view = derive_freshness(EpiphanyFreshnessInput {
+            state: Some(&state),
+            retrieval_override: None,
+            watcher: None,
+        });
+
+        assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Missing);
+    }
+
+    #[test]
+    fn graph_ready_requires_checkpoint_explicit_current_hint_and_no_pressure() {
+        let state = EpiphanyThreadState {
+            graph_checkpoint: Some(EpiphanyGraphCheckpoint {
+                checkpoint_id: "graph-1".to_string(),
+                ..Default::default()
+            }),
+            churn: Some(EpiphanyChurnState {
+                graph_freshness: Some(" CURRENT ".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let view = derive_freshness(EpiphanyFreshnessInput {
+            state: Some(&state),
+            retrieval_override: None,
+            watcher: None,
+        });
+
+        assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Ready);
+    }
+
+    #[test]
+    fn graph_missing_checkpoint_or_hint_is_missing() {
+        let checkpoint_only = EpiphanyThreadState {
+            graph_checkpoint: Some(EpiphanyGraphCheckpoint {
+                checkpoint_id: "graph-1".to_string(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let hint_only = EpiphanyThreadState {
+            churn: Some(EpiphanyChurnState {
+                graph_freshness: Some("fresh".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        for state in [&checkpoint_only, &hint_only] {
+            let view = derive_freshness(EpiphanyFreshnessInput {
+                state: Some(state),
+                retrieval_override: None,
+                watcher: None,
+            });
+            assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Missing);
+        }
+    }
+
+    #[test]
+    fn graph_pressure_overrides_current_hint_and_checkpoint() {
+        let state = EpiphanyThreadState {
+            graph_checkpoint: Some(EpiphanyGraphCheckpoint {
+                checkpoint_id: "graph-1".to_string(),
+                ..Default::default()
+            }),
+            churn: Some(EpiphanyChurnState {
+                graph_freshness: Some("fresh".to_string()),
+                ..Default::default()
+            }),
+            graph_frontier: Some(EpiphanyGraphFrontier {
+                open_question_ids: vec!["q-1".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let view = derive_freshness(EpiphanyFreshnessInput {
+            state: Some(&state),
+            retrieval_override: None,
+            watcher: None,
+        });
+
+        assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Stale);
+    }
+
+    #[test]
+    fn available_watcher_without_observation_is_not_clean() {
+        let changed_paths = Vec::new();
+        let view = derive_freshness(EpiphanyFreshnessInput {
+            state: None,
+            retrieval_override: None,
+            watcher: Some(EpiphanyFreshnessWatcherInput {
+                available: true,
+                workspace_root: None,
+                observed_at_unix_seconds: None,
+                changed_paths: &changed_paths,
+            }),
+        });
+
         assert_eq!(view.watcher.status, EpiphanyInvalidationStatus::Unavailable);
     }
 
@@ -453,6 +568,30 @@ mod tests {
         assert_eq!(view.retrieval.indexed_file_count, Some(12));
         assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Stale);
         assert_eq!(view.graph.open_gap_count, 1);
+    }
+
+    #[test]
+    fn ready_retrieval_with_dirty_paths_is_stale() {
+        let state = EpiphanyThreadState {
+            retrieval: Some(EpiphanyRetrievalState {
+                workspace_root: PathBuf::from("E:/repo"),
+                status: EpiphanyRetrievalStatus::Ready,
+                dirty_paths: vec![PathBuf::from("src/dirty.rs")],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let view = derive_freshness(EpiphanyFreshnessInput {
+            state: Some(&state),
+            retrieval_override: None,
+            watcher: None,
+        });
+
+        assert_eq!(
+            view.retrieval.status,
+            EpiphanyRetrievalFreshnessStatus::Stale
+        );
     }
 
     #[test]

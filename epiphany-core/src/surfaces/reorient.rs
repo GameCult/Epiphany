@@ -39,6 +39,9 @@ pub enum EpiphanyReorientReason {
     CheckpointPathsChanged,
     FrontierChanged,
     UnanchoredCheckpointWhileStateStale,
+    RetrievalFreshnessBlocked,
+    GraphFreshnessBlocked,
+    WatcherFreshnessBlocked,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -228,13 +231,33 @@ pub fn recommend_reorientation(
     if unanchored_checkpoint_while_state_stale {
         reasons.push(EpiphanyReorientReason::UnanchoredCheckpointWhileStateStale);
     }
+    let retrieval_blocked = input.retrieval_status != EpiphanyReorientFreshnessStatus::Clean;
+    let graph_blocked = input.graph_status != EpiphanyReorientFreshnessStatus::Clean;
+    let watcher_blocked = matches!(
+        input.watcher_status,
+        EpiphanyReorientFreshnessStatus::Dirty
+            | EpiphanyReorientFreshnessStatus::Stale
+            | EpiphanyReorientFreshnessStatus::Changed
+    );
+    if retrieval_blocked {
+        reasons.push(EpiphanyReorientReason::RetrievalFreshnessBlocked);
+    }
+    if graph_blocked {
+        reasons.push(EpiphanyReorientReason::GraphFreshnessBlocked);
+    }
+    if watcher_blocked {
+        reasons.push(EpiphanyReorientReason::WatcherFreshnessBlocked);
+    }
 
     let should_regather = checkpoint.disposition
         == EpiphanyInvestigationDisposition::RegatherRequired
         || !checkpoint_dirty_paths.is_empty()
         || !checkpoint_changed_paths.is_empty()
         || frontier_changed
-        || unanchored_checkpoint_while_state_stale;
+        || unanchored_checkpoint_while_state_stale
+        || retrieval_blocked
+        || graph_blocked
+        || watcher_blocked;
 
     if !should_regather {
         reasons.push(EpiphanyReorientReason::CheckpointReady);
@@ -285,6 +308,24 @@ pub fn recommend_reorientation(
             "the checkpoint has no code refs while freshness signals already show drift"
                 .to_string(),
         );
+    }
+    if retrieval_blocked {
+        note_fragments.push(format!(
+            "retrieval freshness is {:?}, not clean",
+            input.retrieval_status
+        ));
+    }
+    if graph_blocked {
+        note_fragments.push(format!(
+            "graph freshness is {:?}, not clean",
+            input.graph_status
+        ));
+    }
+    if watcher_blocked {
+        note_fragments.push(format!(
+            "watcher freshness is {:?} and reports invalidation pressure",
+            input.watcher_status
+        ));
     }
 
     (
@@ -416,12 +457,93 @@ mod tests {
         assert_eq!(decision.action, EpiphanyReorientAction::Regather);
         assert_eq!(
             decision.reasons,
-            vec![EpiphanyReorientReason::CheckpointPathsChanged]
+            vec![
+                EpiphanyReorientReason::CheckpointPathsChanged,
+                EpiphanyReorientReason::WatcherFreshnessBlocked,
+            ]
         );
         assert_eq!(
             decision.checkpoint_changed_paths,
             vec![PathBuf::from("./src/lib.rs")]
         );
+    }
+
+    #[test]
+    fn freshness_authorities_block_resume_but_unknown_watcher_does_not() {
+        let checkpoint = checkpoint();
+        for (field, status, reason) in [
+            (
+                "retrieval",
+                EpiphanyReorientFreshnessStatus::Unknown,
+                EpiphanyReorientReason::RetrievalFreshnessBlocked,
+            ),
+            (
+                "retrieval",
+                EpiphanyReorientFreshnessStatus::Dirty,
+                EpiphanyReorientReason::RetrievalFreshnessBlocked,
+            ),
+            (
+                "retrieval",
+                EpiphanyReorientFreshnessStatus::Stale,
+                EpiphanyReorientReason::RetrievalFreshnessBlocked,
+            ),
+            (
+                "retrieval",
+                EpiphanyReorientFreshnessStatus::Changed,
+                EpiphanyReorientReason::RetrievalFreshnessBlocked,
+            ),
+            (
+                "graph",
+                EpiphanyReorientFreshnessStatus::Unknown,
+                EpiphanyReorientReason::GraphFreshnessBlocked,
+            ),
+            (
+                "graph",
+                EpiphanyReorientFreshnessStatus::Dirty,
+                EpiphanyReorientReason::GraphFreshnessBlocked,
+            ),
+            (
+                "graph",
+                EpiphanyReorientFreshnessStatus::Stale,
+                EpiphanyReorientReason::GraphFreshnessBlocked,
+            ),
+            (
+                "graph",
+                EpiphanyReorientFreshnessStatus::Changed,
+                EpiphanyReorientReason::GraphFreshnessBlocked,
+            ),
+            (
+                "watcher",
+                EpiphanyReorientFreshnessStatus::Dirty,
+                EpiphanyReorientReason::WatcherFreshnessBlocked,
+            ),
+            (
+                "watcher",
+                EpiphanyReorientFreshnessStatus::Stale,
+                EpiphanyReorientReason::WatcherFreshnessBlocked,
+            ),
+            (
+                "watcher",
+                EpiphanyReorientFreshnessStatus::Changed,
+                EpiphanyReorientReason::WatcherFreshnessBlocked,
+            ),
+        ] {
+            let mut candidate = input(Some(&checkpoint));
+            match field {
+                "retrieval" => candidate.retrieval_status = status,
+                "graph" => candidate.graph_status = status,
+                "watcher" => candidate.watcher_status = status,
+                _ => unreachable!(),
+            }
+            let (_, decision) = recommend_reorientation(candidate);
+            assert_eq!(decision.action, EpiphanyReorientAction::Regather);
+            assert!(decision.reasons.contains(&reason));
+        }
+
+        let mut candidate = input(Some(&checkpoint));
+        candidate.watcher_status = EpiphanyReorientFreshnessStatus::Unknown;
+        let (_, decision) = recommend_reorientation(candidate);
+        assert_eq!(decision.action, EpiphanyReorientAction::Resume);
     }
 
     #[test]
