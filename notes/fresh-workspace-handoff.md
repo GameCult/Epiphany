@@ -1763,6 +1763,39 @@ managed policy, Qdrant contents, and process guesses are forbidden recovery
 authority. If Body advanced, terminalize the obsolete claim and acquire a fresh
 plan; never resurrect it.
 
+## Dedicated workspace coverage service proof (2026-07-16)
+
+The dedicated service, binary, reserved supervisor policy, and specialized
+CultMesh launch contract now exist. Generic policy and caller-selected command,
+workspace, Body store, collection, or dimensions are rejected. Launch receipt,
+PID, executable hash, runtime identity, immutable Body route, and host singleton
+are authenticated before projection.
+
+The service resolves the configured Ollama tag to its installed immutable
+artifact digest on every pulse, probes its dimensions, and uses an exact Current
+fast path that reads no repository files. Needed projection uses one
+authenticated Body read session, verifies source bytes/chunks, embeds only after
+claim acquisition, whole-scrolls Qdrant payloads plus vectors, and binds exact
+point/payload/vector observations into the receipt before terminal CAS. Body
+history owns retirement of terminal non-current claim collections; deletion is
+metadata-gated and idempotent. Raw backend/filesystem errors no longer leak into
+the operator-safe pulse projection.
+
+Proof: 424 library tests passed, one ignored; core and OpenAI runtime all-target
+checks passed. The ignored live smoke then passed against local Qdrant 1.17.1
+and Ollama `qwen3-embedding:0.6b` (artifact digest
+`ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d`,
+1024 dimensions), proved exact vector observation and Current classification,
+deleted its GUID-scoped collection, verified no coverage collection remained,
+and restored the preflight-stopped Qdrant container state.
+
+Recovery remains absent on purpose. A newer launch plus ready heartbeat is not
+death evidence. Next build: strengthen native process observation with host+
+boot and process-instance identity, then let the supervisor publish one
+immutable termination observation bound to the exact old launch/PID/executable/
+policy/heartbeat/provider. Only that proof plus a current replacement launch may
+authorize one Body-store recovery CAS. Do not add timeout recovery.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.

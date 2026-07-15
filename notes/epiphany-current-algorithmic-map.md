@@ -911,5 +911,33 @@ not abandonment authority. If Body advanced, recovery terminalizes the stale
 claim and lets normal acquisition derive a new plan; it never resurrects stale
 work.
 
+### Dedicated service and exact semantic proof
+
+The dedicated service is now a real reserved managed body, not a generic job.
+Its policy fixes the packaged sibling executable and exact runtime/Verse/
+Qdrant/Ollama arguments. Startup authenticates the policy-bound launch receipt,
+PID, executable hash, runtime identity, immutable Body-store route, and one
+host-wide singleton. Claims and attempts bind that executor incarnation and
+startup receipt.
+
+Each pulse reloads only the persisted current Body basis, resolves the mutable
+Ollama tag to its installed artifact digest, and probes dimensions. An exact
+head/obligation/plan/receipt fast path returns Current without reading worktree
+files. Needed work opens one authenticated Body read session, verifies every
+eligible file and chunk, embeds only after claim acquisition, and observes both
+typed payloads and exact stored vectors. Receipt identity includes the vector-
+binding set; wrong, missing, nonfinite, or wrong-dimensional vectors cannot mint
+success. Body history derives retirement candidates for terminal non-current
+claim collections; current and running collections are preserved, and Qdrant
+deletion requires exact managed metadata.
+
+Recovery is deliberately not present. A newer launch and ready heartbeat prove
+a successor exists, not that the old writer died. Honest recovery first needs a
+supervisor-owned termination observation bound to host+boot incarnation,
+process-instance identity, exact old launch/PID/executable/policy, and the old
+launch-correlated heartbeat/provider incarnation. The existing process observer
+collapses access failure/PID reuse too aggressively and cannot issue that proof.
+Timeouts remain inadmissible.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

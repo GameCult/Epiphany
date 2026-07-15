@@ -30,6 +30,18 @@ pub(crate) struct OllamaConfig {
     pub(crate) query_instruction: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct OllamaModelArtifact {
+    pub(crate) tag: String,
+    pub(crate) digest: String,
+}
+
+impl OllamaModelArtifact {
+    pub(crate) fn canonical_identity(&self) -> String {
+        format!("{}@{}", self.tag, self.digest)
+    }
+}
+
 /// Exact identity of a managed semantic projection.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -60,6 +72,7 @@ pub(crate) struct SemanticCandidate<P> {
 pub(crate) struct SemanticStoredPoint<P> {
     pub(crate) id: String,
     pub(crate) payload: Option<P>,
+    pub(crate) vector: Option<Vec<f32>>,
 }
 
 pub(crate) struct QdrantBackend {
@@ -164,6 +177,31 @@ impl QdrantBackend {
         if self.collection_compatibility(name)? != *contract {
             anyhow::bail!("managed Qdrant collection {name} has incompatible metadata");
         }
+        Ok(())
+    }
+
+    /// Deletes only the exact managed projection named by `contract`.
+    /// Absence is already the retired state; incompatible metadata is never
+    /// overwritten or deleted merely because its name collides.
+    pub(crate) fn retire_exact_collection(
+        &self,
+        name: &str,
+        contract: &CollectionCompatibility,
+    ) -> Result<()> {
+        if !self.collection_exists(name)? {
+            return Ok(());
+        }
+        if self.collection_compatibility(name)? != *contract {
+            anyhow::bail!("refusing to retire Qdrant collection {name} with incompatible metadata");
+        }
+        let response = self
+            .client
+            .delete(format!("{}/collections/{name}", self.base_url))
+            .query(&[("timeout", self.timeout_seconds)])
+            .send()
+            .with_context(|| format!("failed to retire Qdrant collection {name}"))?;
+        parse_response::<bool>(response)
+            .with_context(|| format!("failed to decode Qdrant retirement response for {name}"))?;
         Ok(())
     }
 
@@ -317,7 +355,7 @@ impl QdrantBackend {
                     "limit": POINT_BATCH_SIZE,
                     "offset": offset,
                     "with_payload": true,
-                    "with_vector": false,
+                    "with_vector": true,
                 }))
                 .send()
                 .with_context(|| format!("failed to observe Qdrant scope in {name}"))?;
@@ -331,6 +369,7 @@ impl QdrantBackend {
                     .map(|point| SemanticStoredPoint {
                         id: point.id,
                         payload: point.payload,
+                        vector: point.vector,
                     }),
             );
             offset = envelope.result.next_page_offset;
@@ -378,11 +417,68 @@ impl OllamaEmbedder {
         Ok(embeddings)
     }
 
+    /// Resolves the configured mutable Ollama tag to the immutable artifact
+    /// digest currently installed behind it. Projection identity must use this
+    /// value; embedding requests continue to use the configured tag.
+    pub(crate) fn model_artifact(&self) -> Result<OllamaModelArtifact> {
+        let response = self
+            .client
+            .get(format!("{}/api/tags", self.base_url))
+            .send()
+            .with_context(|| format!("failed to inspect Ollama models at {}", self.base_url))?;
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().unwrap_or_default();
+            anyhow::bail!("Ollama model inspection failed with {status}: {body}");
+        }
+        let tags: OllamaTagsResponse = response.json().with_context(|| {
+            format!("failed to decode Ollama model tags from {}", self.base_url)
+        })?;
+        let mut matches = tags
+            .models
+            .into_iter()
+            .filter(|candidate| candidate.name == self.model || candidate.model == self.model)
+            .collect::<Vec<_>>();
+        if matches.len() != 1 {
+            anyhow::bail!(
+                "configured Ollama model {} resolved to {} installed artifacts",
+                self.model,
+                matches.len()
+            );
+        }
+        let candidate = matches.pop().expect("validated one artifact");
+        let digest = normalize_ollama_digest(&candidate.digest)?;
+        Ok(OllamaModelArtifact {
+            tag: self.model.clone(),
+            digest,
+        })
+    }
+
     pub(crate) fn embed_query(&self, query: &str) -> Result<Vec<f32>> {
         let formatted = format!("Instruct: {}\nQuery: {}", self.query_instruction, query);
         let mut embeddings = self.embed_batch(&[formatted])?;
         validate_embedding_batch(&embeddings, 1)?;
         Ok(embeddings.pop().expect("validated one embedding"))
+    }
+
+    pub(crate) fn embedding_dimensions(&self) -> Result<u32> {
+        const DIMENSION_PROBE: &str = "epiphany embedding dimension probe v0";
+
+        let embeddings = self.embed_batch(&[DIMENSION_PROBE.to_string()])?;
+        if embeddings.len() != 1 {
+            anyhow::bail!(
+                "Ollama dimension probe returned {} vectors instead of one",
+                embeddings.len()
+            );
+        }
+        let vector = &embeddings[0];
+        if vector.is_empty() {
+            anyhow::bail!("Ollama dimension probe returned an empty vector");
+        }
+        if vector.iter().any(|value| !value.is_finite()) {
+            anyhow::bail!("Ollama dimension probe returned a non-finite value");
+        }
+        u32::try_from(vector.len()).context("Ollama embedding dimensions exceed u32")
     }
 
     fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
@@ -501,10 +597,32 @@ struct PayloadScrollResult<P> {
 struct PayloadScrollPoint<P> {
     id: String,
     payload: Option<P>,
+    vector: Option<Vec<f32>>,
 }
 #[derive(Deserialize)]
 struct EmbedResponse {
     embeddings: Option<Vec<Vec<f32>>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OllamaTagsResponse {
+    models: Vec<OllamaTag>,
+}
+
+#[derive(Deserialize)]
+struct OllamaTag {
+    name: String,
+    model: String,
+    digest: String,
+}
+
+fn normalize_ollama_digest(value: &str) -> Result<String> {
+    let hex = value.strip_prefix("sha256:").unwrap_or(value);
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        anyhow::bail!("Ollama model artifact digest is not a SHA-256 digest");
+    }
+    Ok(format!("sha256:{}", hex.to_ascii_lowercase()))
 }
 
 fn parse_response<T: DeserializeOwned>(response: Response) -> Result<Envelope<T>> {
@@ -523,4 +641,82 @@ fn normalize_base_url(value: &str) -> String {
 }
 fn timeout_seconds(timeout_ms: u64) -> u64 {
     timeout_ms.div_ceil(1000).max(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn embedder(base_url: String, model: &str) -> Result<OllamaEmbedder> {
+        OllamaEmbedder::new(OllamaConfig {
+            base_url,
+            model: model.into(),
+            timeout_ms: 5_000,
+            query_instruction: String::new(),
+        })
+    }
+
+    #[test]
+    fn ollama_model_identity_is_bound_to_exact_installed_digest() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
+        let server_a = runtime.block_on(MockServer::start());
+        let server_b = runtime.block_on(MockServer::start());
+        for (server, digest) in [(&server_a, "aa".repeat(32)), (&server_b, "bb".repeat(32))] {
+            runtime.block_on(
+                Mock::given(method("GET"))
+                    .and(path("/api/tags"))
+                    .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                        "models": [{
+                            "name": "nomic-embed-text:latest",
+                            "model": "nomic-embed-text:latest",
+                            "digest": digest
+                        }]
+                    })))
+                    .mount(server),
+            );
+        }
+        let identity_a = embedder(server_a.uri(), "nomic-embed-text:latest")?
+            .model_artifact()?
+            .canonical_identity();
+        let identity_b = embedder(server_b.uri(), "nomic-embed-text:latest")?
+            .model_artifact()?
+            .canonical_identity();
+        assert_ne!(identity_a, identity_b);
+        assert_eq!(
+            identity_a,
+            format!("nomic-embed-text:latest@sha256:{}", "aa".repeat(32))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ollama_model_identity_refuses_absent_ambiguous_and_invalid_digest() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
+        for models in [
+            json!([]),
+            json!([
+                {"name":"m","model":"m","digest":"aa".repeat(32)},
+                {"name":"m","model":"m","digest":"bb".repeat(32)}
+            ]),
+            json!([{"name":"m","model":"m","digest":"not-a-digest"}]),
+        ] {
+            let server = runtime.block_on(MockServer::start());
+            runtime.block_on(
+                Mock::given(method("GET"))
+                    .and(path("/api/tags"))
+                    .respond_with(
+                        ResponseTemplate::new(200).set_body_json(json!({"models": models})),
+                    )
+                    .mount(&server),
+            );
+            assert!(embedder(server.uri(), "m")?.model_artifact().is_err());
+        }
+        Ok(())
+    }
 }

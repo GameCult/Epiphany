@@ -142,6 +142,13 @@ pub struct WorkspaceCoveragePointBinding {
     pub payload_sha256: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceCoverageVectorBinding {
+    pub point_id: String,
+    pub vector_sha256: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "gamecult.epiphany.workspace_coverage_projection_plan",
@@ -212,6 +219,8 @@ pub(crate) struct WorkspaceCoverageReceipt {
     pub claim_id: String,
     #[cultcache(key = 14)]
     pub claim_epoch: u64,
+    #[cultcache(key = 15)]
+    pub observed_vector_binding_set_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -251,7 +260,7 @@ pub(crate) fn derive_workspace_coverage_obligation(
     derive_workspace_coverage_obligation_from_authenticated_manifest(basis, &manifest, policy)
 }
 
-fn derive_workspace_coverage_obligation_from_authenticated_manifest(
+pub(crate) fn derive_workspace_coverage_obligation_from_authenticated_manifest(
     basis: &RepositoryBodyObservationBasis,
     manifest: &RepositoryBodyManifest,
     policy: &WorkspaceCoveragePolicy,
@@ -533,6 +542,7 @@ pub(crate) fn validate_workspace_coverage_receipt(
         || receipt.vector_dimensions != plan.vector_dimensions
         || receipt.observed_at.trim().is_empty()
         || receipt.observation_method != "qdrant_scroll_exact_point_bindings"
+        || !sha256_hex(&receipt.observed_vector_binding_set_sha256)
     {
         bail!("workspace coverage receipt lacks exact observed-index authority");
     }
@@ -795,6 +805,31 @@ mod tests {
     }
 
     #[test]
+    fn immutable_model_artifact_identity_changes_projection_plan() -> Result<()> {
+        let obligation = coverage_obligation("obligation-model-artifact");
+        let first = derive_workspace_coverage_projection_plan(
+            &obligation,
+            "projection-v0",
+            "chunker-v0",
+            "provider",
+            &format!("model:latest@sha256:{}", "aa".repeat(32)),
+            3,
+            chunks(),
+        )?;
+        let second = derive_workspace_coverage_projection_plan(
+            &obligation,
+            "projection-v0",
+            "chunker-v0",
+            "provider",
+            &format!("model:latest@sha256:{}", "bb".repeat(32)),
+            3,
+            chunks(),
+        )?;
+        assert_ne!(first.plan_id, second.plan_id);
+        Ok(())
+    }
+
+    #[test]
     fn receipt_and_head_cannot_substitute_payload_or_claim_authority() -> Result<()> {
         let obligation = coverage_obligation("obligation-1");
         let plan = derive_workspace_coverage_projection_plan(
@@ -828,6 +863,7 @@ mod tests {
             observed_point_binding_set_sha256: plan.point_binding_set_sha256.clone(),
             claim_id: claim_id.clone(),
             claim_epoch,
+            observed_vector_binding_set_sha256: "55".repeat(32),
         };
         assert!(validate_workspace_coverage_receipt(&obligation, &plan, &receipt).is_ok());
         let mut head = WorkspaceCoverageHead {

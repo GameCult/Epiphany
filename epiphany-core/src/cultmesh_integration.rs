@@ -163,6 +163,10 @@ pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE: &str =
 pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.managed_service_policy.v0";
 const EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID: &str = "epiphany-memory-semantic-projector-service";
+pub const EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID: &str =
+    "epiphany-workspace-coverage-projector-service";
+pub const EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID: &str =
+    "epiphany-workspace-coverage-projector";
 pub const EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.idunn.deployment_receipt.v0";
 pub const EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY: &str =
@@ -4147,12 +4151,21 @@ pub fn write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
     let (receipt_envelope, written) = node.cache().prepare_entry(receipt_key, &receipt)?;
     let mut expected = Vec::new();
     let mut replacements = vec![receipt_envelope];
-    if written.service_id == EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID && written.action == "launch" {
+    if matches!(
+        written.service_id.as_str(),
+        EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID | EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID
+    ) && written.action == "launch"
+    {
+        let reserved_name = if written.service_id == EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID {
+            "semantic projector"
+        } else {
+            "workspace coverage projector"
+        };
         let policy_key = epiphany_cultmesh_managed_service_policy_key(&written.service_id);
         let policy_envelope = node
             .cache()
             .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&policy_key)?
-            .ok_or_else(|| anyhow!("reserved semantic projector managed policy is absent"))?;
+            .ok_or_else(|| anyhow!("reserved {reserved_name} managed policy is absent"))?;
         let mut digest = Sha256::new();
         digest.update(policy_envelope.r#type.as_bytes());
         digest.update([0]);
@@ -4161,7 +4174,7 @@ pub fn write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
         digest.update(&policy_envelope.payload);
         if written.managed_policy_digest != format!("sha256-{:x}", digest.finalize()) {
             return Err(anyhow!(
-                "reserved semantic projector launch receipt has stale managed policy digest"
+                "reserved {reserved_name} launch receipt has stale managed policy digest"
             ));
         }
         expected.push(policy_envelope.clone());
@@ -4285,6 +4298,39 @@ pub fn authenticate_epiphany_cultmesh_semantic_projector_launch(
     Ok(receipt)
 }
 
+pub fn authenticate_epiphany_cultmesh_workspace_coverage_projector_launch(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt_id: &str,
+) -> Result<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
+    let runtime_id = runtime_id.into();
+    let receipt = load_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+        store_path.as_ref(),
+        runtime_id.clone(),
+        receipt_id,
+    )?
+    .ok_or_else(|| anyhow!("workspace coverage projector startup launch receipt is absent"))?;
+    validate_workspace_coverage_projector_launch_receipt(&receipt)?;
+    let (policy, digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+        store_path,
+        runtime_id,
+        EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
+    )?
+    .ok_or_else(|| anyhow!("workspace coverage projector managed policy is absent"))?;
+    validate_workspace_coverage_projector_managed_service_policy(&policy)?;
+    if receipt.managed_policy_id != policy.policy_id
+        || receipt.managed_policy_digest != digest
+        || receipt.command != policy.command
+        || receipt.args != policy.args
+        || receipt.cwd != policy.cwd
+    {
+        return Err(anyhow!(
+            "workspace coverage projector startup launch receipt disagrees with current managed policy"
+        ));
+    }
+    Ok(receipt)
+}
+
 pub fn load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -4328,6 +4374,11 @@ pub fn write_epiphany_cultmesh_managed_service_policy(
             "reserved semantic projector policy requires its specialized writer"
         ));
     }
+    if policy.service_id == EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
+        return Err(anyhow!(
+            "reserved workspace coverage projector policy requires its specialized writer"
+        ));
+    }
     validate_managed_service_policy(&policy)?;
     write_validated_managed_service_policy(store_path, runtime_id, policy)
 }
@@ -4344,6 +4395,21 @@ pub fn write_epiphany_cultmesh_semantic_projector_service_policy(
         ));
     }
     validate_semantic_projector_managed_service_policy(&policy)?;
+    write_validated_managed_service_policy(store_path, runtime_id, policy)
+}
+
+pub fn write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    policy: EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<EpiphanyCultMeshManagedServicePolicyEntry> {
+    validate_managed_service_policy(&policy)?;
+    if policy.service_id != EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
+        return Err(anyhow!(
+            "workspace coverage projector policy writer requires its reserved service id"
+        ));
+    }
+    validate_workspace_coverage_projector_managed_service_policy(&policy)?;
     write_validated_managed_service_policy(store_path, runtime_id, policy)
 }
 
@@ -4806,6 +4872,55 @@ fn validate_semantic_projector_managed_service_policy(
     Ok(())
 }
 
+fn validate_workspace_coverage_projector_managed_service_policy(
+    policy: &EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<()> {
+    let expected_binary = if cfg!(windows) {
+        "epiphany-workspace-coverage-projector.exe"
+    } else {
+        "epiphany-workspace-coverage-projector"
+    };
+    let expected_command = std::env::current_exe()
+        .context("cannot resolve current executable for packaged projector policy")?
+        .with_file_name(expected_binary);
+    if Path::new(&policy.command) != expected_command {
+        return Err(anyhow!(
+            "reserved workspace coverage projector policy requires the packaged projector executable"
+        ));
+    }
+    if policy.policy_id != "managed-service-policy-epiphany-workspace-coverage-projector-service"
+        || policy.service_id != EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID
+        || policy.owner_daemon_id != "epiphany-daemon-supervisor"
+        || !policy.enabled
+        || policy.restart_mode != "always"
+        || policy.args.len() != 15
+        || policy.args[0] != "serve"
+        || policy.args[1] != "--runtime-store"
+        || policy.args[2].trim().is_empty()
+        || policy.args[3] != "--local-verse-store"
+        || policy.args[4].trim().is_empty()
+        || policy.args[5] != "--runtime-id"
+        || policy.args[6].trim().is_empty()
+        || policy.args[7] != "--interval-seconds"
+        || policy.args[8]
+            .parse::<u64>()
+            .ok()
+            .filter(|value| *value > 0)
+            .is_none()
+        || policy.args[9] != "--qdrant-url"
+        || policy.args[10].trim().is_empty()
+        || policy.args[11] != "--ollama-base-url"
+        || policy.args[12].trim().is_empty()
+        || policy.args[13] != "--ollama-model"
+        || policy.args[14].trim().is_empty()
+    {
+        return Err(anyhow!(
+            "reserved workspace coverage projector policy must bind one packaged process to its authenticated runtime Body route"
+        ));
+    }
+    Ok(())
+}
+
 fn validate_daemon_scheduler_receipt(
     receipt: &EpiphanyCultMeshDaemonSchedulerReceiptEntry,
 ) -> Result<()> {
@@ -4909,6 +5024,11 @@ fn validate_daemon_service_lifecycle_receipt(
     if receipt.service_id == EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID && receipt.action == "launch" {
         validate_semantic_projector_launch_receipt(receipt)?;
     }
+    if receipt.service_id == EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID
+        && receipt.action == "launch"
+    {
+        validate_workspace_coverage_projector_launch_receipt(receipt)?;
+    }
     Ok(())
 }
 
@@ -4931,6 +5051,31 @@ fn validate_semantic_projector_launch_receipt(
     {
         return Err(anyhow!(
             "reserved semantic projector launch receipt must bind completed spawn to exact managed policy and provider identity"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_workspace_coverage_projector_launch_receipt(
+    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> Result<()> {
+    if receipt.schema_version != EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+        || receipt.service_id != EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID
+        || receipt.action != "launch"
+        || receipt.status != "launched"
+        || receipt.process_id.is_none()
+        || receipt.exit_code.is_some()
+        || receipt.completed_at_utc.is_none()
+        || !receipt.executable_sha256.starts_with("sha256-")
+        || receipt.managed_policy_id
+            != "managed-service-policy-epiphany-workspace-coverage-projector-service"
+        || !receipt.managed_policy_digest.starts_with("sha256-")
+        || receipt.provider_daemon_id != EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID
+        || receipt.startup_correlation_id != receipt.receipt_id
+        || Uuid::parse_str(&receipt.receipt_id).is_err()
+    {
+        return Err(anyhow!(
+            "reserved workspace coverage projector launch receipt must bind completed spawn to exact managed policy and provider identity"
         ));
     }
     Ok(())
@@ -8173,6 +8318,175 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("identity collision")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn reserved_workspace_coverage_projector_contract_is_exact_and_policy_bound() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.ccmp");
+        let binary = std::env::current_exe()?.with_file_name(if cfg!(windows) {
+            "epiphany-workspace-coverage-projector.exe"
+        } else {
+            "epiphany-workspace-coverage-projector"
+        });
+        let exact = EpiphanyCultMeshManagedServicePolicyEntry {
+            schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
+            policy_id: "managed-service-policy-epiphany-workspace-coverage-projector-service"
+                .into(),
+            service_id: EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.into(),
+            owner_daemon_id: "epiphany-daemon-supervisor".into(),
+            command: binary.display().to_string(),
+            args: vec![
+                "serve",
+                "--runtime-store",
+                "runtime.ccmp",
+                "--local-verse-store",
+                "verse.ccmp",
+                "--runtime-id",
+                "local",
+                "--interval-seconds",
+                "60",
+                "--qdrant-url",
+                "http://127.0.0.1:6333",
+                "--ollama-base-url",
+                "http://127.0.0.1:11434",
+                "--ollama-model",
+                "qwen3-embedding:0.6b",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+            cwd: None,
+            enabled: true,
+            restart_mode: "always".into(),
+            cooldown_seconds: 0,
+            backoff_multiplier: 1,
+            stdout_artifact: "workspace-projector.stdout.log".into(),
+            stderr_artifact: "workspace-projector.stderr.log".into(),
+            updated_at_utc: "2026-07-15T12:00:00Z".into(),
+            private_state_exposed: false,
+            notes: vec![],
+        };
+        assert!(
+            write_epiphany_cultmesh_managed_service_policy(&store, "local", exact.clone()).is_err()
+        );
+        let mut arbitrary_binary = exact.clone();
+        arbitrary_binary.command = "arbitrary-projector.exe".into();
+        assert!(
+            write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+                &store,
+                "local",
+                arbitrary_binary,
+            )
+            .is_err()
+        );
+        let mut injected_workspace = exact.clone();
+        injected_workspace.args.insert(3, "--workspace".into());
+        injected_workspace.args.insert(4, "stolen".into());
+        assert!(
+            write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+                &store,
+                "local",
+                injected_workspace,
+            )
+            .is_err()
+        );
+        write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+            &store,
+            "local",
+            exact.clone(),
+        )?;
+        let (_, digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+            &store,
+            "local",
+            EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
+        )?
+        .context("workspace coverage policy missing")?;
+        let receipt_id = "fd3b7be9-02b0-4ac7-a47e-2d25097ff1f5";
+        let receipt = EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                .into(),
+            receipt_id: receipt_id.into(),
+            service_id: EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.into(),
+            scheduler_id: "epiphany-daemon-supervisor".into(),
+            runtime_id: "local".into(),
+            daemon_selector: "epiphany-daemon-supervisor".into(),
+            action: "launch".into(),
+            status: "launched".into(),
+            command: exact.command.clone(),
+            args: exact.args.clone(),
+            cwd: exact.cwd.clone(),
+            process_id: Some(4242),
+            exit_code: None,
+            started_at_utc: "2026-07-15T12:00:00Z".into(),
+            completed_at_utc: Some("2026-07-15T12:00:01Z".into()),
+            operator_artifact_ref: "service://workspace-coverage-projector/launch".into(),
+            private_state_exposed: false,
+            notes: vec![],
+            executable_sha256: "sha256-test-workspace-projector".into(),
+            preflight_witness_id: String::new(),
+            required_document_types: vec![],
+            schema_preflight_passed: false,
+            schema_catalog_sha256: String::new(),
+            managed_policy_id: exact.policy_id.clone(),
+            managed_policy_digest: digest.clone(),
+            provider_daemon_id: EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID.into(),
+            startup_correlation_id: receipt_id.into(),
+        };
+        let mut wrong_provider = receipt.clone();
+        wrong_provider.receipt_id = "f6d454dd-3765-44cb-930a-bae0d47487aa".into();
+        wrong_provider.startup_correlation_id = wrong_provider.receipt_id.clone();
+        wrong_provider.provider_daemon_id = "epiphany-memory-semantic-projector".into();
+        assert!(
+            write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &store,
+                "local",
+                wrong_provider,
+            )
+            .is_err()
+        );
+        let mut stale = receipt.clone();
+        stale.receipt_id = "a0ea76d1-9a9a-4dc7-a8bc-a56ab1d8079a".into();
+        stale.startup_correlation_id = stale.receipt_id.clone();
+        stale.managed_policy_digest = "sha256-stale".into();
+        assert!(
+            write_epiphany_cultmesh_daemon_service_lifecycle_receipt(&store, "local", stale)
+                .is_err()
+        );
+        let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            &store,
+            "local",
+            receipt.clone(),
+        )?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
+                &store,
+                "local",
+                EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
+            )?,
+            Some(written.clone())
+        );
+        assert_eq!(
+            authenticate_epiphany_cultmesh_workspace_coverage_projector_launch(
+                &store, "local", receipt_id,
+            )?,
+            written
+        );
+
+        let mut advanced = exact;
+        advanced.updated_at_utc = "2026-07-15T12:00:02Z".into();
+        write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+            &store, "local", advanced,
+        )?;
+        assert!(
+            authenticate_epiphany_cultmesh_workspace_coverage_projector_launch(
+                &store, "local", receipt_id,
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("disagrees with current managed policy")
         );
         Ok(())
     }

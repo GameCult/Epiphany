@@ -35,11 +35,8 @@ mod substrate_gate;
 mod surfaces;
 mod thread_state_store;
 mod weksa_interlingua;
-// Sealed foundation: intentionally unreachable until terminal success and
-// abandoned-claim recovery exist. Keeping the lint local makes that boundary
-// explicit without exporting mutation authority merely to silence dead-code.
-#[allow(dead_code)]
 mod workspace_coverage_projector;
+mod workspace_coverage_projector_service;
 #[allow(dead_code)]
 mod workspace_retrieval_coverage;
 
@@ -335,6 +332,8 @@ pub use cultmesh_integration::EPIPHANY_CULTMESH_WEKSA_LOWERING_RECEIPT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_TYPE;
+pub use cultmesh_integration::EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID;
+pub use cultmesh_integration::EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID;
 pub use cultmesh_integration::EpiphanyCultMeshAgentStateSoaSummaryEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry;
@@ -394,6 +393,7 @@ pub use cultmesh_integration::EpiphanyLocalVerseWorkLoopSummary;
 pub use cultmesh_integration::EpiphanyServiceExecutionAuditCheck;
 pub use cultmesh_integration::EpiphanyServiceExecutionAuditReport;
 pub use cultmesh_integration::authenticate_epiphany_cultmesh_semantic_projector_launch;
+pub use cultmesh_integration::authenticate_epiphany_cultmesh_workspace_coverage_projector_launch;
 pub use cultmesh_integration::default_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::epiphany_cluster_service_execution_audit_report;
 pub use cultmesh_integration::epiphany_cultmesh_agent_state_soa_summary_from_entry;
@@ -557,6 +557,7 @@ pub use cultmesh_integration::write_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::write_epiphany_cultmesh_verse_policies;
 pub use cultmesh_integration::write_epiphany_cultmesh_weksa_lowering_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_work_loop_telemetry;
+pub use cultmesh_integration::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
 pub use distillation::EpiphanyDistillInput;
 pub use distillation::EpiphanyDistillProposal;
 pub use distillation::distill_observation;
@@ -1139,4 +1140,8 @@ pub use weksa_interlingua::build_weksa_interlingua_packet;
 pub use weksa_interlingua::build_weksa_lowering_prompt;
 pub use weksa_interlingua::build_weksa_target_lowering_request;
 pub use weksa_interlingua::record_weksa_target_lowering_receipt;
+pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
+pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;
+pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServiceBody;
+pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServicePulse;
 pub use workspace_retrieval_coverage::*;

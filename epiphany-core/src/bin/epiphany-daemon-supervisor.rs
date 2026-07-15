@@ -45,6 +45,7 @@ use epiphany_core::write_epiphany_cultmesh_daemon_scheduler_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
+use epiphany_core::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
 use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
@@ -58,6 +59,9 @@ use uuid::Uuid;
 
 const SEMANTIC_PROJECTOR_SERVICE_ID: &str = "epiphany-memory-semantic-projector-service";
 const SEMANTIC_PROJECTOR_EXECUTOR_ID: &str = "epiphany-memory-semantic-projector";
+const WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID: &str =
+    "epiphany-workspace-coverage-projector-service";
+const WORKSPACE_COVERAGE_PROJECTOR_EXECUTOR_ID: &str = "epiphany-workspace-coverage-projector";
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -93,6 +97,9 @@ fn dispatch(args: Args) -> Result<()> {
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
         "managed-service-policy" | "service-desired-state" => managed_service_policy(args),
         "semantic-projector-service-policy" => semantic_projector_service_policy(args),
+        "workspace-coverage-projector-service-policy" => {
+            workspace_coverage_projector_service_policy(args)
+        }
         "managed-service-read" | "service-desired-state-read" => managed_service_read(args),
         "managed-service-reconcile" | "service-desired-state-reconcile" => {
             managed_service_reconcile(args)
@@ -787,39 +794,43 @@ fn service_launch(args: Args) -> Result<()> {
     let started_at = Utc::now();
     let command_path = service_command_path(&args)?;
     let service_args = service_serve_args(&args);
-    let reserved_launch = if args.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
+    let reserved_executor_id = match args.service_id.as_str() {
+        SEMANTIC_PROJECTOR_SERVICE_ID => Some(SEMANTIC_PROJECTOR_EXECUTOR_ID),
+        WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID => Some(WORKSPACE_COVERAGE_PROJECTOR_EXECUTOR_ID),
+        _ => None,
+    };
+    let reserved_launch = if let Some(executor_id) = reserved_executor_id {
         let (policy, digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
             &args.store,
             args.runtime_id.clone(),
-            SEMANTIC_PROJECTOR_SERVICE_ID,
+            &args.service_id,
         )?
-        .context("reserved semantic projector managed policy is absent")?;
+        .context("reserved projector managed policy is absent")?;
         if command_path != PathBuf::from(&policy.command)
             || service_args != policy.args
             || args.cwd.as_ref().map(|path| path.display().to_string()) != policy.cwd
         {
-            anyhow::bail!(
-                "reserved semantic projector launch must use the exact current managed policy"
-            );
+            anyhow::bail!("reserved projector launch must use the exact current managed policy");
         }
         if args.wait_child {
-            anyhow::bail!("reserved semantic projector launch is an infinite managed child");
+            anyhow::bail!("reserved projector launch is an infinite managed child");
         }
         let executable_sha256 = local_file_sha256(&command_path.display().to_string())
             .map(|digest| format!("sha256-{digest}"))
-            .context("reserved semantic projector executable cannot be fingerprinted")?;
+            .context("reserved projector executable cannot be fingerprinted")?;
         Some((
             policy.policy_id,
             digest,
             Uuid::new_v4().to_string(),
             executable_sha256,
+            executor_id.to_string(),
         ))
     } else {
         None
     };
     let mut command = Command::new(&command_path);
     command.args(&service_args);
-    if let Some((_, _, receipt_id, _)) = &reserved_launch {
+    if let Some((_, _, receipt_id, _, _)) = &reserved_launch {
         command.env("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID", receipt_id);
     }
     if let Some(stdout_path) = &args.stdout_artifact {
@@ -878,11 +889,13 @@ fn service_launch(args: Args) -> Result<()> {
             .as_ref()
             .map(|path| path.display().to_string()),
     );
-    if let Some((policy_id, policy_digest, receipt_id, executable_sha256)) = reserved_launch {
+    if let Some((policy_id, policy_digest, receipt_id, executable_sha256, executor_id)) =
+        reserved_launch
+    {
         receipt.receipt_id = receipt_id.clone();
         receipt.managed_policy_id = policy_id;
         receipt.managed_policy_digest = policy_digest;
-        receipt.provider_daemon_id = SEMANTIC_PROJECTOR_EXECUTOR_ID.to_string();
+        receipt.provider_daemon_id = executor_id;
         receipt.startup_correlation_id = receipt_id;
         receipt.executable_sha256 = executable_sha256;
     }
@@ -893,7 +906,7 @@ fn service_launch(args: Args) -> Result<()> {
     ) {
         Ok(written) => written,
         Err(error) => {
-            if args.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
+            if reserved_executor_id.is_some() {
                 let _ = child.kill();
                 let _ = child.wait();
             }
@@ -919,10 +932,10 @@ fn service_launch(args: Args) -> Result<()> {
 }
 
 fn managed_service_policy(args: Args) -> Result<()> {
-    if args.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
-        anyhow::bail!(
-            "reserved semantic projector service policy must use semantic-projector-service-policy"
-        );
+    if args.service_id == SEMANTIC_PROJECTOR_SERVICE_ID
+        || args.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID
+    {
+        anyhow::bail!("reserved projector service policy must use its specialized policy command");
     }
     write_managed_service_policy(args)
 }
@@ -978,6 +991,12 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
     };
     let written = if policy.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
         write_epiphany_cultmesh_semantic_projector_service_policy(
+            &args.store,
+            args.runtime_id.clone(),
+            policy,
+        )?
+    } else if policy.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
+        write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
             &args.store,
             args.runtime_id.clone(),
             policy,
@@ -1055,6 +1074,93 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
         anyhow::bail!("semantic projector managed service must not have a finite iteration limit");
     }
     write_managed_service_policy(args)
+}
+
+fn workspace_coverage_projector_service_policy(mut args: Args) -> Result<()> {
+    if args.service_command.is_some() {
+        anyhow::bail!(
+            "workspace-coverage-projector-service-policy derives its packaged executable; --service-command is forbidden"
+        );
+    }
+    let runtime_store = args
+        .runtime_store
+        .as_ref()
+        .context("workspace-coverage-projector-service-policy requires --runtime-store")?;
+    let qdrant_url = args
+        .qdrant_url
+        .as_deref()
+        .context("workspace-coverage-projector-service-policy requires --qdrant-url")?;
+    let ollama_base_url = args
+        .ollama_base_url
+        .as_deref()
+        .context("workspace-coverage-projector-service-policy requires --ollama-base-url")?;
+    args.service_id = WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.to_string();
+    args.policy_id = Some(format!(
+        "managed-service-policy-{WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID}"
+    ));
+    args.restart_mode = "always".to_string();
+    args.service_command = Some(workspace_coverage_projector_command_path()?);
+    args.service_args = workspace_coverage_projector_service_args(
+        runtime_store,
+        &args.store,
+        &args.runtime_id,
+        args.loop_interval_seconds,
+        qdrant_url,
+        ollama_base_url,
+        &args.ollama_model,
+    );
+    if args.max_iterations != 0 {
+        anyhow::bail!(
+            "workspace coverage projector managed service must not have a finite iteration limit"
+        );
+    }
+    write_managed_service_policy(args)
+}
+
+fn workspace_coverage_projector_command_path() -> Result<PathBuf> {
+    let binary = if cfg!(windows) {
+        "epiphany-workspace-coverage-projector.exe"
+    } else {
+        "epiphany-workspace-coverage-projector"
+    };
+    let path = env::current_exe()
+        .map(|path| path.with_file_name(binary))
+        .context("failed to derive packaged workspace coverage projector executable")?;
+    if !path.is_file() {
+        anyhow::bail!(
+            "packaged workspace coverage projector executable is missing at {}; build both supervisor and projector together",
+            path.display()
+        );
+    }
+    Ok(path)
+}
+
+fn workspace_coverage_projector_service_args(
+    runtime_store: &Path,
+    local_verse_store: &Path,
+    runtime_id: &str,
+    interval_seconds: i64,
+    qdrant_url: &str,
+    ollama_base_url: &str,
+    ollama_model: &str,
+) -> Vec<String> {
+    vec![
+        "serve".to_string(),
+        "--runtime-store".to_string(),
+        runtime_store.display().to_string(),
+        "--local-verse-store".to_string(),
+        local_verse_store.display().to_string(),
+        "--runtime-id".to_string(),
+        runtime_id.to_string(),
+        "--interval-seconds".to_string(),
+        interval_seconds.to_string(),
+        "--qdrant-url".to_string(),
+        qdrant_url.to_string(),
+        "--ollama-base-url".to_string(),
+        ollama_base_url.to_string(),
+        "--ollama-model".to_string(),
+        ollama_model.to_string(),
+    ]
 }
 
 fn semantic_projector_command_path() -> Result<PathBuf> {
@@ -2650,6 +2756,48 @@ mod semantic_projector_authority_tests {
             ]
         );
         assert_eq!(args.iter().filter(|arg| arg.as_str() == "serve").count(), 1);
+    }
+
+    #[test]
+    fn managed_workspace_coverage_projector_has_one_body_derived_runtime_input() {
+        let args = workspace_coverage_projector_service_args(
+            Path::new("runtime.ccmp"),
+            Path::new("local-verse.ccmp"),
+            "local-runtime",
+            60,
+            "http://127.0.0.1:16333",
+            "http://10.77.0.1:11435",
+            "qwen3-embedding:0.6b",
+        );
+        assert_eq!(
+            args,
+            vec![
+                "serve",
+                "--runtime-store",
+                "runtime.ccmp",
+                "--local-verse-store",
+                "local-verse.ccmp",
+                "--runtime-id",
+                "local-runtime",
+                "--interval-seconds",
+                "60",
+                "--qdrant-url",
+                "http://127.0.0.1:16333",
+                "--ollama-base-url",
+                "http://10.77.0.1:11435",
+                "--ollama-model",
+                "qwen3-embedding:0.6b",
+            ]
+        );
+        for forbidden in [
+            "--agent-store",
+            "--body-store",
+            "--workspace",
+            "--collection",
+            "--dimensions",
+        ] {
+            assert!(!args.iter().any(|arg| arg == forbidden));
+        }
     }
 
     #[test]

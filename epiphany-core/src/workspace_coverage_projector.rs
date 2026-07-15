@@ -1,5 +1,6 @@
+use crate::repository_body_observer::RepositoryBodyReadSession;
 use crate::semantic_backend::{
-    CollectionCompatibility, QdrantBackend, SemanticPoint, SemanticStoredPoint,
+    CollectionCompatibility, OllamaEmbedder, QdrantBackend, SemanticPoint, SemanticStoredPoint,
 };
 use crate::{
     BODY_BINDING_KEY, BODY_BINDING_TYPE, BODY_HEAD_KEY, BODY_HEAD_TYPE, BODY_MANIFEST_TYPE,
@@ -7,11 +8,11 @@ use crate::{
     WORKSPACE_COVERAGE_HEAD_SCHEMA_VERSION, WORKSPACE_COVERAGE_RECEIPT_SCHEMA_VERSION,
     WorkspaceCoverageChunkDescriptor, WorkspaceCoverageHead, WorkspaceCoverageObligation,
     WorkspaceCoveragePointBinding, WorkspaceCoveragePointPayload, WorkspaceCoveragePolicy,
-    WorkspaceCoverageProjectionPlan, WorkspaceCoverageReceipt,
-    derive_workspace_coverage_obligation, derive_workspace_coverage_projection_plan,
-    read_verified_repository_body_bytes, refine_workspace_coverage_obligation_utf8,
+    WorkspaceCoverageProjectionPlan, WorkspaceCoverageReceipt, WorkspaceCoverageVectorBinding,
+    derive_workspace_coverage_obligation_from_authenticated_manifest,
+    derive_workspace_coverage_projection_plan, refine_workspace_coverage_obligation_utf8,
     runtime_repository_body_store_binding, validate_workspace_coverage_head,
-    workspace_coverage_execution_collection,
+    validate_workspace_coverage_projection_plan, workspace_coverage_execution_collection,
 };
 use anyhow::{Result, anyhow, bail};
 use cultcache_rs::{
@@ -34,9 +35,11 @@ const CHUNK_OVERLAP_LINES: usize = 8;
 const RECEIPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_receipt";
 const HEAD_TYPE: &str = "gamecult.epiphany.workspace_coverage_head";
 const HEAD_KEY: &str = "current";
+const OBLIGATION_TYPE: &str = "gamecult.epiphany.workspace_coverage_obligation";
+const PLAN_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_plan";
 
 #[derive(Clone, Debug)]
-pub(crate) struct WorkspaceCoverageProjectionInput {
+struct WorkspaceCoverageProjectionInput {
     pub point_id: String,
     pub text: String,
     pub vector: Vec<f32>,
@@ -48,6 +51,7 @@ pub(crate) struct WorkspaceCoverageObservedBinding {
     point_count: u64,
     point_set_sha256: String,
     point_binding_set_sha256: String,
+    vector_binding_set_sha256: String,
 }
 
 pub(crate) trait WorkspaceCoverageProjectionPort {
@@ -65,6 +69,30 @@ pub(crate) trait WorkspaceCoverageProjectionPort {
         &mut self,
         collection: &str,
     ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>>;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct WorkspaceCoverageRetirementCandidate {
+    pub collection_name: String,
+    pub compatibility: CollectionCompatibility,
+}
+
+pub(crate) trait WorkspaceCoverageRetirementPort {
+    fn retire_exact(
+        &mut self,
+        collection: &str,
+        compatibility: &CollectionCompatibility,
+    ) -> Result<()>;
+}
+
+impl WorkspaceCoverageRetirementPort for QdrantBackend {
+    fn retire_exact(
+        &mut self,
+        collection: &str,
+        compatibility: &CollectionCompatibility,
+    ) -> Result<()> {
+        self.retire_exact_collection(collection, compatibility)
+    }
 }
 
 impl WorkspaceCoverageProjectionPort for QdrantBackend {
@@ -116,6 +144,87 @@ pub(crate) struct WorkspaceCoverageProjectionClaim {
     manifest_root_sha256: String,
     #[cultcache(key = 9)]
     status: String,
+    #[cultcache(key = 10)]
+    executor_id: String,
+    #[cultcache(key = 11)]
+    executor_incarnation: String,
+    #[cultcache(key = 12)]
+    startup_lifecycle_receipt_id: String,
+}
+
+fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim) -> Result<()> {
+    if claim.schema_version != CLAIM_SCHEMA
+        || claim.claim_id.trim().is_empty()
+        || claim.claim_epoch == 0
+        || claim.plan_id.trim().is_empty()
+        || claim.attempt_id.trim().is_empty()
+        || claim.obligation_id.trim().is_empty()
+        || claim.body_observation_id.trim().is_empty()
+        || claim.manifest_root_sha256.trim().is_empty()
+        || claim.executor_id.trim().is_empty()
+        || claim.executor_incarnation.trim().is_empty()
+        || claim.startup_lifecycle_receipt_id.trim().is_empty()
+        || !matches!(claim.status.as_str(), "running" | "failed" | "succeeded")
+    {
+        bail!("invalid workspace coverage projection claim");
+    }
+    Ok(())
+}
+
+fn validate_projection_attempt(attempt: &WorkspaceCoverageProjectionAttempt) -> Result<()> {
+    if attempt.schema_version != ATTEMPT_SCHEMA
+        || attempt.attempt_id.trim().is_empty()
+        || attempt.claim_id.trim().is_empty()
+        || attempt.claim_epoch == 0
+        || attempt.plan_id.trim().is_empty()
+        || attempt.started_at.trim().is_empty()
+        || attempt.executor_id.trim().is_empty()
+        || attempt.executor_incarnation.trim().is_empty()
+        || attempt.startup_lifecycle_receipt_id.trim().is_empty()
+        || !matches!(attempt.status.as_str(), "running" | "failed" | "succeeded")
+    {
+        bail!("invalid workspace coverage projection attempt");
+    }
+    chrono::DateTime::parse_from_rfc3339(&attempt.started_at)?;
+    match attempt.status.as_str() {
+        "running" if attempt.completed_at.is_some() || attempt.error.is_some() => {
+            bail!("running workspace coverage attempt is already terminal")
+        }
+        "failed"
+            if attempt.completed_at.is_none()
+                || attempt.error.as_deref().is_none_or(str::is_empty) =>
+        {
+            bail!("failed workspace coverage attempt lacks terminal evidence")
+        }
+        "succeeded" if attempt.completed_at.is_none() || attempt.error.is_some() => {
+            bail!("successful workspace coverage attempt has invalid terminal evidence")
+        }
+        _ => {}
+    }
+    if let Some(value) = &attempt.completed_at {
+        chrono::DateTime::parse_from_rfc3339(value)?;
+    }
+    Ok(())
+}
+
+fn validate_claim_attempt_link(
+    claim: &WorkspaceCoverageProjectionClaim,
+    attempt: &WorkspaceCoverageProjectionAttempt,
+) -> Result<()> {
+    validate_projection_claim(claim)?;
+    validate_projection_attempt(attempt)?;
+    if claim.claim_id != attempt.claim_id
+        || claim.claim_epoch != attempt.claim_epoch
+        || claim.attempt_id != attempt.attempt_id
+        || claim.plan_id != attempt.plan_id
+        || claim.status != attempt.status
+        || claim.executor_id != attempt.executor_id
+        || claim.executor_incarnation != attempt.executor_incarnation
+        || claim.startup_lifecycle_receipt_id != attempt.startup_lifecycle_receipt_id
+    {
+        bail!("workspace coverage claim/attempt authority is split");
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -142,6 +251,27 @@ pub(crate) struct WorkspaceCoverageProjectionAttempt {
     completed_at: Option<String>,
     #[cultcache(key = 8)]
     error: Option<String>,
+    #[cultcache(key = 9)]
+    executor_id: String,
+    #[cultcache(key = 10)]
+    executor_incarnation: String,
+    #[cultcache(key = 11)]
+    startup_lifecycle_receipt_id: String,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct WorkspaceCoveragePreparedPoint {
+    pub point_id: String,
+    pub text: String,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PreparedWorkspaceCoverageProjection {
+    pub body_store: PathBuf,
+    pub basis: RepositoryBodyObservationBasis,
+    pub obligation: WorkspaceCoverageObligation,
+    pub plan: WorkspaceCoverageProjectionPlan,
+    pub points: Vec<WorkspaceCoveragePreparedPoint>,
 }
 
 #[derive(Clone, Debug)]
@@ -154,15 +284,214 @@ pub(crate) struct WorkspaceCoverageAcquisition {
     prior_head: Option<CultCacheEnvelope>,
 }
 
-pub(crate) fn acquire_workspace_coverage_projection(
+#[derive(Clone, Debug)]
+pub(crate) enum WorkspaceCoverageAcquireResult {
+    Current(WorkspaceCoverageReceipt),
+    Contended,
+    Acquired(WorkspaceCoverageAcquisition),
+}
+
+pub(crate) enum WorkspaceCoverageCurrentState {
+    Current(WorkspaceCoverageReceipt),
+    NeedsPreparation,
+}
+
+fn collection_compatibility(plan: &WorkspaceCoverageProjectionPlan) -> CollectionCompatibility {
+    CollectionCompatibility {
+        managed_by: "epiphany-workspace-coverage-projector".into(),
+        corpus_kind: "repository_body_workspace_coverage".into(),
+        schema_version: 0,
+        projection_version: plan.plan_id.clone(),
+        embedding_provider_id: plan.embedding_provider_id.clone(),
+        embedding_model: plan.embedding_model.clone(),
+        vector_size: plan.vector_dimensions as usize,
+    }
+}
+
+/// Derives disposable Qdrant collections exclusively from sealed Body-store
+/// history. Every attempt is validated before any candidate is returned: one
+/// malformed historical row refuses the whole GC pass.
+pub(crate) fn workspace_coverage_retirement_candidates(
+    body_store: impl AsRef<Path>,
+) -> Result<Vec<WorkspaceCoverageRetirementCandidate>> {
+    let opening = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
+
+    let attempts = opening
+        .iter()
+        .filter(|entry| entry.r#type == ATTEMPT_TYPE)
+        .map(decode::<WorkspaceCoverageProjectionAttempt>)
+        .collect::<Result<Vec<_>>>()?;
+
+    let mut protected_collection = None;
+    if let Some(head_env) = find(&opening, HEAD_TYPE, HEAD_KEY) {
+        let head: WorkspaceCoverageHead = decode(head_env)?;
+        let obligation: WorkspaceCoverageObligation = decode(
+            find(&opening, OBLIGATION_TYPE, &head.obligation_id)
+                .ok_or_else(|| anyhow!("workspace coverage head names missing obligation"))?,
+        )?;
+        let plan: WorkspaceCoverageProjectionPlan = decode(
+            find(&opening, PLAN_TYPE, &head.plan_id)
+                .ok_or_else(|| anyhow!("workspace coverage head names missing plan"))?,
+        )?;
+        let receipt: WorkspaceCoverageReceipt = decode(
+            find(&opening, RECEIPT_TYPE, &head.receipt_id)
+                .ok_or_else(|| anyhow!("workspace coverage head names missing receipt"))?,
+        )?;
+        validate_workspace_coverage_head(&obligation, &plan, &receipt, &head)?;
+        protected_collection = Some(receipt.collection_name);
+    }
+
+    for claim_env in opening.iter().filter(|entry| entry.r#type == CLAIM_TYPE) {
+        let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
+        let attempt = attempts
+            .iter()
+            .find(|attempt| attempt.attempt_id == claim.attempt_id)
+            .ok_or_else(|| anyhow!("workspace coverage claim names missing attempt"))?;
+        validate_claim_attempt_link(&claim, attempt)?;
+        let plan: WorkspaceCoverageProjectionPlan = decode(
+            find(&opening, PLAN_TYPE, &claim.plan_id)
+                .ok_or_else(|| anyhow!("workspace coverage claim names missing plan"))?,
+        )?;
+        if plan.obligation_id != claim.obligation_id {
+            bail!("workspace coverage claim/plan authority is split");
+        }
+    }
+
+    let mut candidates = std::collections::BTreeMap::new();
+    for attempt in attempts {
+        validate_projection_attempt(&attempt)?;
+        let plan: WorkspaceCoverageProjectionPlan = decode(
+            find(&opening, PLAN_TYPE, &attempt.plan_id)
+                .ok_or_else(|| anyhow!("workspace coverage attempt names missing plan"))?,
+        )?;
+        let obligation: WorkspaceCoverageObligation = decode(
+            find(&opening, OBLIGATION_TYPE, &plan.obligation_id)
+                .ok_or_else(|| anyhow!("workspace coverage plan names missing obligation"))?,
+        )?;
+        validate_workspace_coverage_projection_plan(&obligation, &plan)?;
+        if attempt.status == "running" {
+            continue;
+        }
+        let name = workspace_coverage_execution_collection(
+            &plan.plan_id,
+            &attempt.claim_id,
+            attempt.claim_epoch,
+        )?;
+        if protected_collection.as_deref() == Some(&name) {
+            continue;
+        }
+        candidates.insert(
+            name.clone(),
+            WorkspaceCoverageRetirementCandidate {
+                collection_name: name,
+                compatibility: collection_compatibility(&plan),
+            },
+        );
+    }
+    Ok(candidates.into_values().collect())
+}
+
+pub(crate) fn retire_workspace_coverage_collections(
+    body_store: impl AsRef<Path>,
+    port: &mut impl WorkspaceCoverageRetirementPort,
+) -> Result<usize> {
+    let candidates = workspace_coverage_retirement_candidates(body_store)?;
+    for candidate in &candidates {
+        port.retire_exact(&candidate.collection_name, &candidate.compatibility)?;
+    }
+    Ok(candidates.len())
+}
+
+/// Classifies the persisted projection using typed authority only. This is the
+/// service's idle path: no Repository Body file is opened or materialized.
+pub(crate) fn classify_current_workspace_coverage(
     runtime_store: &Path,
     basis: &RepositoryBodyObservationBasis,
     embedding_provider_id: &str,
     embedding_model: &str,
     vector_dimensions: u32,
-) -> Result<WorkspaceCoverageAcquisition> {
+) -> Result<WorkspaceCoverageCurrentState> {
+    if embedding_provider_id.trim().is_empty()
+        || embedding_model.trim().is_empty()
+        || vector_dimensions == 0
+    {
+        bail!("workspace coverage classification requires exact embedding identity");
+    }
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let opening = SingleFileMessagePackBackingStore::new(&route.body_store_path).pull_all()?;
+    exact_body_authority(&opening, basis)?;
+    let Some(head_env) = find(&opening, HEAD_TYPE, HEAD_KEY) else {
+        return Ok(WorkspaceCoverageCurrentState::NeedsPreparation);
+    };
+    let head: WorkspaceCoverageHead = decode(head_env)?;
+    let obligation: WorkspaceCoverageObligation = decode(
+        find(
+            &opening,
+            "gamecult.epiphany.workspace_coverage_obligation",
+            &head.obligation_id,
+        )
+        .ok_or_else(|| anyhow!("current workspace coverage head names a missing obligation"))?,
+    )?;
+    let plan: WorkspaceCoverageProjectionPlan = decode(
+        find(
+            &opening,
+            "gamecult.epiphany.workspace_coverage_projection_plan",
+            &head.plan_id,
+        )
+        .ok_or_else(|| anyhow!("current workspace coverage head names a missing plan"))?,
+    )?;
+    let receipt: WorkspaceCoverageReceipt = decode(
+        find(&opening, RECEIPT_TYPE, &head.receipt_id)
+            .ok_or_else(|| anyhow!("current workspace coverage head names a missing receipt"))?,
+    )?;
+    validate_workspace_coverage_head(&obligation, &plan, &receipt, &head)?;
     let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
-    let raw_obligation = derive_workspace_coverage_obligation(runtime_store, basis, &policy)?;
+    let policy_sha256 = format!(
+        "{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(&policy).map_err(|error| anyhow!(error))?)
+    );
+    let exact = head.workspace_id == basis.workspace_id
+        && head.body_observation_id == basis.observation_id
+        && head.body_generation == basis.generation
+        && head.manifest_root_sha256 == basis.manifest_root_sha256
+        && obligation.workspace_id == basis.workspace_id
+        && obligation.swarm_id == basis.swarm_id
+        && obligation.runtime_id == basis.runtime_id
+        && obligation.body_binding_sha256 == basis.body_binding_sha256
+        && obligation.body_observation_id == basis.observation_id
+        && obligation.body_generation == basis.generation
+        && obligation.manifest_root_sha256 == basis.manifest_root_sha256
+        && obligation.policy_id == policy.policy_id
+        && obligation.policy_sha256 == policy_sha256
+        && plan.projection_schema_version == PROJECTION_SCHEMA
+        && plan.chunker_id == CHUNKER_ID
+        && plan.embedding_provider_id == embedding_provider_id
+        && plan.embedding_model == embedding_model
+        && plan.vector_dimensions == vector_dimensions
+        && receipt.embedding_provider_id == embedding_provider_id
+        && receipt.embedding_model == embedding_model
+        && receipt.vector_dimensions == vector_dimensions;
+    Ok(if exact {
+        WorkspaceCoverageCurrentState::Current(receipt)
+    } else {
+        WorkspaceCoverageCurrentState::NeedsPreparation
+    })
+}
+
+pub(crate) fn prepare_workspace_coverage_projection(
+    body: &RepositoryBodyReadSession,
+    embedding_provider_id: &str,
+    embedding_model: &str,
+    vector_dimensions: u32,
+) -> Result<PreparedWorkspaceCoverageProjection> {
+    let basis = body.basis();
+    let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+    let raw_obligation = derive_workspace_coverage_obligation_from_authenticated_manifest(
+        basis,
+        body.manifest(),
+        &policy,
+    )?;
     let mut verified_text = Vec::new();
     let mut non_utf8_paths = Vec::new();
     for entry in &raw_obligation.classifications {
@@ -172,7 +501,7 @@ pub(crate) fn acquire_workspace_coverage_projection(
         ) {
             continue;
         }
-        let verified = read_verified_repository_body_bytes(runtime_store, basis, &entry.path)?;
+        let verified = body.read_regular_file(&entry.path)?;
         if verified.relative_path != entry.path || verified.raw_sha256 != entry.raw_sha256 {
             bail!("verified Body bytes lost their manifest identity");
         }
@@ -184,12 +513,23 @@ pub(crate) fn acquire_workspace_coverage_projection(
     }
     let obligation = refine_workspace_coverage_obligation_utf8(&raw_obligation, &non_utf8_paths)?;
     let mut descriptors = Vec::new();
+    let mut prepared_points = Vec::new();
     for verified in verified_text {
-        descriptors.extend(chunk_descriptors(
+        let file_descriptors = chunk_descriptors(
             &verified.relative_path,
             &verified.raw_sha256,
             &verified.bytes,
-        )?);
+        )?;
+        for descriptor in &file_descriptors {
+            prepared_points.push(WorkspaceCoveragePreparedPoint {
+                point_id: String::new(),
+                text: std::str::from_utf8(
+                    &verified.bytes[descriptor.byte_start as usize..descriptor.byte_end as usize],
+                )?
+                .to_string(),
+            });
+        }
+        descriptors.extend(file_descriptors);
     }
     let plan = derive_workspace_coverage_projection_plan(
         &obligation,
@@ -200,18 +540,58 @@ pub(crate) fn acquire_workspace_coverage_projection(
         vector_dimensions,
         descriptors,
     )?;
-    let route = runtime_repository_body_store_binding(runtime_store)?
-        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
-    let body_store = PathBuf::from(route.body_store_path);
+    let body_store = body.body_store().to_path_buf();
+    if prepared_points.len() != plan.planned_points.len() {
+        bail!("prepared workspace text lost its sealed plan cardinality");
+    }
+    for (prepared, planned) in prepared_points.iter_mut().zip(&plan.planned_points) {
+        prepared.point_id = planned.point_id.clone();
+        if format!("{:x}", Sha256::digest(prepared.text.as_bytes())) != planned.chunk_sha256 {
+            bail!("prepared workspace text lost its sealed chunk identity");
+        }
+    }
+    Ok(PreparedWorkspaceCoverageProjection {
+        body_store,
+        basis: basis.clone(),
+        obligation,
+        plan,
+        points: prepared_points,
+    })
+}
+
+pub(crate) fn acquire_workspace_coverage_projection(
+    prepared: &PreparedWorkspaceCoverageProjection,
+    executor_id: &str,
+    executor_incarnation: &str,
+    startup_lifecycle_receipt_id: &str,
+) -> Result<WorkspaceCoverageAcquireResult> {
+    if executor_id.trim().is_empty()
+        || executor_incarnation.trim().is_empty()
+        || startup_lifecycle_receipt_id.trim().is_empty()
+    {
+        bail!("workspace coverage acquisition requires exact executor lifecycle identity");
+    }
+    let body_store = prepared.body_store.clone();
+    let obligation = prepared.obligation.clone();
+    let plan = prepared.plan.clone();
     let backing = SingleFileMessagePackBackingStore::new(&body_store);
     let opening = backing.pull_all()?;
+    let basis = &prepared.basis;
     let authority = exact_body_authority(&opening, basis)?;
+    if let Some(receipt) = validate_current_projection(&opening, prepared)? {
+        return Ok(WorkspaceCoverageAcquireResult::Current(receipt));
+    }
     let existing_claim = find(&opening, CLAIM_TYPE, CLAIM_KEY);
     let claim_epoch = match existing_claim {
         Some(envelope) => {
             let prior: WorkspaceCoverageProjectionClaim = decode(envelope)?;
+            validate_projection_claim(&prior)?;
+            let prior_attempt_env = find(&opening, ATTEMPT_TYPE, &prior.attempt_id)
+                .ok_or_else(|| anyhow!("existing workspace coverage claim attempt missing"))?;
+            let prior_attempt: WorkspaceCoverageProjectionAttempt = decode(prior_attempt_env)?;
+            validate_claim_attempt_link(&prior, &prior_attempt)?;
             if prior.status == "running" {
-                bail!("workspace coverage projection already has a running claim");
+                return Ok(WorkspaceCoverageAcquireResult::Contended);
             }
             prior
                 .claim_epoch
@@ -233,6 +613,9 @@ pub(crate) fn acquire_workspace_coverage_projection(
         body_generation: basis.generation,
         manifest_root_sha256: basis.manifest_root_sha256.clone(),
         status: "running".into(),
+        executor_id: executor_id.into(),
+        executor_incarnation: executor_incarnation.into(),
+        startup_lifecycle_receipt_id: startup_lifecycle_receipt_id.into(),
     };
     let attempt = WorkspaceCoverageProjectionAttempt {
         schema_version: ATTEMPT_SCHEMA.into(),
@@ -244,6 +627,9 @@ pub(crate) fn acquire_workspace_coverage_projection(
         started_at: chrono::Utc::now().to_rfc3339(),
         completed_at: None,
         error: None,
+        executor_id: executor_id.into(),
+        executor_incarnation: executor_incarnation.into(),
+        startup_lifecycle_receipt_id: startup_lifecycle_receipt_id.into(),
     };
     let mut expected = authority.clone();
     if let Some(existing) = existing_claim {
@@ -267,14 +653,49 @@ pub(crate) fn acquire_workspace_coverage_projection(
     if !backing.compare_and_swap_batch(&expected, replacements)? {
         bail!("workspace coverage acquisition lost exact Body/claim CAS");
     }
-    Ok(WorkspaceCoverageAcquisition {
-        body_store,
-        obligation,
-        plan,
-        claim,
-        attempt,
-        prior_head: find(&opening, HEAD_TYPE, HEAD_KEY).cloned(),
-    })
+    Ok(WorkspaceCoverageAcquireResult::Acquired(
+        WorkspaceCoverageAcquisition {
+            body_store,
+            obligation,
+            plan,
+            claim,
+            attempt,
+            prior_head: find(&opening, HEAD_TYPE, HEAD_KEY).cloned(),
+        },
+    ))
+}
+
+fn validate_current_projection(
+    opening: &[CultCacheEnvelope],
+    prepared: &PreparedWorkspaceCoverageProjection,
+) -> Result<Option<WorkspaceCoverageReceipt>> {
+    let Some(head_env) = find(opening, HEAD_TYPE, HEAD_KEY) else {
+        return Ok(None);
+    };
+    let head: WorkspaceCoverageHead = decode(head_env)?;
+    let obligation_env = find(
+        opening,
+        "gamecult.epiphany.workspace_coverage_obligation",
+        &head.obligation_id,
+    )
+    .ok_or_else(|| anyhow!("current workspace coverage head names a missing obligation"))?;
+    let plan_env = find(
+        opening,
+        "gamecult.epiphany.workspace_coverage_projection_plan",
+        &head.plan_id,
+    )
+    .ok_or_else(|| anyhow!("current workspace coverage head names a missing plan"))?;
+    let receipt_env = find(opening, RECEIPT_TYPE, &head.receipt_id)
+        .ok_or_else(|| anyhow!("current workspace coverage head names a missing receipt"))?;
+    let obligation: WorkspaceCoverageObligation = decode(obligation_env)?;
+    let plan: WorkspaceCoverageProjectionPlan = decode(plan_env)?;
+    let receipt: WorkspaceCoverageReceipt = decode(receipt_env)?;
+    validate_workspace_coverage_head(&obligation, &plan, &receipt, &head)?;
+    if obligation == prepared.obligation && plan == prepared.plan {
+        Ok(Some(receipt))
+    } else {
+        Ok(None)
+    }
 }
 
 pub(crate) fn fail_workspace_coverage_projection(
@@ -338,10 +759,57 @@ pub(crate) fn fail_workspace_coverage_projection(
 
 pub(crate) fn execute_workspace_coverage_projection(
     acquisition: &WorkspaceCoverageAcquisition,
+    prepared: &PreparedWorkspaceCoverageProjection,
+    embedder: &OllamaEmbedder,
+    port: &mut impl WorkspaceCoverageProjectionPort,
+) -> Result<WorkspaceCoverageReceipt> {
+    let result = (|| {
+        if prepared.body_store != acquisition.body_store
+            || prepared.obligation != acquisition.obligation
+            || prepared.plan != acquisition.plan
+        {
+            bail!("execution refuses a prepared projection other than the acquired projection");
+        }
+        let texts = prepared
+            .points
+            .iter()
+            .map(|point| point.text.clone())
+            .collect::<Vec<_>>();
+        let vectors = if texts.is_empty() {
+            Vec::new()
+        } else {
+            embedder.embed_documents(&texts)?
+        };
+        let inputs = prepared
+            .points
+            .iter()
+            .cloned()
+            .zip(vectors)
+            .map(|(point, vector)| WorkspaceCoverageProjectionInput {
+                point_id: point.point_id,
+                text: point.text,
+                vector,
+            })
+            .collect();
+        execute_and_commit(acquisition, inputs, port)
+    })();
+    terminalize_execution_result(acquisition, result)
+}
+
+#[cfg(test)]
+fn execute_preembedded_workspace_coverage_projection(
+    acquisition: &WorkspaceCoverageAcquisition,
     inputs: Vec<WorkspaceCoverageProjectionInput>,
     port: &mut impl WorkspaceCoverageProjectionPort,
 ) -> Result<WorkspaceCoverageReceipt> {
     let result = execute_and_commit(acquisition, inputs, port);
+    terminalize_execution_result(acquisition, result)
+}
+
+fn terminalize_execution_result(
+    acquisition: &WorkspaceCoverageAcquisition,
+    result: Result<WorkspaceCoverageReceipt>,
+) -> Result<WorkspaceCoverageReceipt> {
     match result {
         Ok(receipt) => Ok(receipt),
         Err(error) => {
@@ -368,13 +836,19 @@ fn execute_and_commit(
         bail!("projection inputs do not equal the sealed plan point count");
     }
     let mut points = Vec::with_capacity(planned.len());
+    let mut submitted_vector_bindings = Vec::with_capacity(planned.len());
     for (input, expected) in inputs.into_iter().zip(&planned) {
         if input.point_id != expected.point_id
             || input.vector.len() != acquisition.plan.vector_dimensions as usize
+            || input.vector.iter().any(|value| !value.is_finite())
             || format!("{:x}", Sha256::digest(input.text.as_bytes())) != expected.chunk_sha256
         {
             bail!("projection input does not match its sealed point descriptor");
         }
+        submitted_vector_bindings.push(WorkspaceCoverageVectorBinding {
+            point_id: expected.point_id.clone(),
+            vector_sha256: digest(&input.vector)?,
+        });
         points.push(SemanticPoint {
             id: expected.point_id.clone(),
             vector: input.vector,
@@ -386,15 +860,7 @@ fn execute_and_commit(
         &acquisition.claim.claim_id,
         acquisition.claim.claim_epoch,
     )?;
-    let compatibility = CollectionCompatibility {
-        managed_by: "epiphany-workspace-coverage-projector".into(),
-        corpus_kind: "repository_body_workspace_coverage".into(),
-        schema_version: 0,
-        projection_version: acquisition.plan.plan_id.clone(),
-        embedding_provider_id: acquisition.plan.embedding_provider_id.clone(),
-        embedding_model: acquisition.plan.embedding_model.clone(),
-        vector_size: acquisition.plan.vector_dimensions as usize,
-    };
+    let compatibility = collection_compatibility(&acquisition.plan);
     port.ensure_exact_collection(&collection_name, &compatibility)?;
     if !points.is_empty() {
         port.upsert(&collection_name, &points)?;
@@ -403,6 +869,7 @@ fn execute_and_commit(
         acquisition,
         &collection_name,
         port.observe_all(&collection_name)?,
+        &submitted_vector_bindings,
     )?;
     commit_workspace_coverage_success(acquisition, observed)
 }
@@ -411,15 +878,29 @@ fn observe_exact_bindings(
     acquisition: &WorkspaceCoverageAcquisition,
     collection_name: &str,
     observed: Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>,
+    submitted_vector_bindings: &[WorkspaceCoverageVectorBinding],
 ) -> Result<WorkspaceCoverageObservedBinding> {
     let mut bindings = Vec::with_capacity(observed.len());
+    let mut vector_bindings = Vec::with_capacity(observed.len());
     for point in observed {
         let payload = point
             .payload
             .ok_or_else(|| anyhow!("observed workspace point omitted payload"))?;
         bindings.push(WorkspaceCoveragePointBinding {
-            point_id: point.id,
+            point_id: point.id.clone(),
             payload_sha256: digest(&payload)?,
+        });
+        let vector = point
+            .vector
+            .ok_or_else(|| anyhow!("observed workspace point omitted vector"))?;
+        if vector.len() != acquisition.plan.vector_dimensions as usize
+            || vector.iter().any(|value| !value.is_finite())
+        {
+            bail!("observed workspace point has an invalid vector");
+        }
+        vector_bindings.push(WorkspaceCoverageVectorBinding {
+            point_id: point.id,
+            vector_sha256: digest(&vector)?,
         });
     }
     bindings.sort_by(|left, right| left.point_id.cmp(&right.point_id));
@@ -432,6 +913,10 @@ fn observe_exact_bindings(
     if bindings != acquisition.plan.point_bindings {
         bail!("observed workspace point bindings do not equal the sealed plan");
     }
+    vector_bindings.sort_by(|left, right| left.point_id.cmp(&right.point_id));
+    if vector_bindings != submitted_vector_bindings {
+        bail!("observed workspace vectors do not equal the submitted vectors");
+    }
     let ids = bindings
         .iter()
         .map(|binding| binding.point_id.clone())
@@ -441,6 +926,7 @@ fn observe_exact_bindings(
         point_count: bindings.len() as u64,
         point_set_sha256: digest(&ids)?,
         point_binding_set_sha256: digest(&bindings)?,
+        vector_binding_set_sha256: digest(&vector_bindings)?,
     })
 }
 
@@ -489,6 +975,7 @@ fn commit_workspace_coverage_success(
         &acquisition.plan.plan_id,
         &observed.collection_name,
         &observed.point_binding_set_sha256,
+        &observed.vector_binding_set_sha256,
         &acquisition.claim.claim_id,
         acquisition.claim.claim_epoch,
     ))?;
@@ -508,6 +995,7 @@ fn commit_workspace_coverage_success(
         observed_point_binding_set_sha256: observed.point_binding_set_sha256,
         claim_id: acquisition.claim.claim_id.clone(),
         claim_epoch: acquisition.claim.claim_epoch,
+        observed_vector_binding_set_sha256: observed.vector_binding_set_sha256,
     };
     let head = WorkspaceCoverageHead {
         schema_version: WORKSPACE_COVERAGE_HEAD_SCHEMA_VERSION.into(),
@@ -742,6 +1230,10 @@ mod tests {
         Extra,
         Missing,
         Duplicate,
+        MissingVector,
+        WrongVector,
+        WrongVectorDimension,
+        NonFiniteVector,
     }
 
     struct FakeProjectionPort {
@@ -778,6 +1270,7 @@ mod tests {
                 .map(|point| SemanticStoredPoint {
                     id: point.id.clone(),
                     payload: Some(point.payload.clone()),
+                    vector: Some(point.vector.clone()),
                 })
                 .collect();
             Ok(())
@@ -793,14 +1286,158 @@ mod tests {
                 Hostility::Extra => points.push(SemanticStoredPoint {
                     id: uuid::Uuid::new_v4().to_string(),
                     payload: points[0].payload.clone(),
+                    vector: points[0].vector.clone(),
                 }),
                 Hostility::Missing => {
                     points.pop();
                 }
                 Hostility::Duplicate => points.push(points[0].clone()),
+                Hostility::MissingVector => points[0].vector = None,
+                Hostility::WrongVector => points[0].vector.as_mut().unwrap()[0] += 0.5,
+                Hostility::WrongVectorDimension => {
+                    points[0].vector.as_mut().unwrap().pop();
+                }
+                Hostility::NonFiniteVector => {
+                    points[0].vector.as_mut().unwrap()[0] = f32::NAN;
+                }
             }
             Ok(points)
         }
+    }
+
+    #[derive(Default)]
+    struct FakeRetirementPort {
+        present: std::collections::BTreeMap<String, CollectionCompatibility>,
+        retired: Vec<String>,
+    }
+
+    impl WorkspaceCoverageRetirementPort for FakeRetirementPort {
+        fn retire_exact(
+            &mut self,
+            collection: &str,
+            compatibility: &CollectionCompatibility,
+        ) -> Result<()> {
+            let Some(actual) = self.present.get(collection) else {
+                return Ok(());
+            };
+            if actual != compatibility {
+                bail!("incompatible same-name collection");
+            }
+            self.present.remove(collection);
+            self.retired.push(collection.into());
+            Ok(())
+        }
+    }
+
+    fn coverage_fixture() -> Result<(
+        tempfile::TempDir,
+        tempfile::TempDir,
+        PathBuf,
+        RepositoryBodyObservationBasis,
+    )> {
+        let repo = tempfile::tempdir()?;
+        let state = tempfile::tempdir()?;
+        git(repo.path(), &["init"])?;
+        std::fs::write(repo.path().join("source.rs"), "fn one() {}\n")?;
+        git(repo.path(), &["add", "."])?;
+        let runtime = state.path().join("runtime.cc");
+        let agents = state.path().join("agents.cc");
+        let body = state.path().join("body.cc");
+        crate::initialize_runtime_spine(
+            &runtime,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "retirement-runtime".into(),
+                display_name: "retirement".into(),
+                created_at: "2026-07-16T00:00:00Z".into(),
+            },
+        )?;
+        crate::ensure_agent_memory_swarm_identity(&agents, "retirement-swarm")?;
+        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-16T00:00:01Z")?;
+        crate::bind_repository_body(repo.path(), &body, &runtime, "retirement-workspace")?;
+        let basis = crate::observe_runtime_repository_body_basis(&runtime)?;
+        Ok((repo, state, runtime, basis))
+    }
+
+    #[test]
+    fn retirement_collects_failed_retry_but_preserves_running_attempt() -> Result<()> {
+        let (_repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, failed) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let failed_name = workspace_coverage_execution_collection(
+            &failed.plan.plan_id,
+            &failed.claim.claim_id,
+            failed.claim.claim_epoch,
+        )?;
+        fail_workspace_coverage_projection(&failed, "backend refused")?;
+        let (_, running) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let candidates = workspace_coverage_retirement_candidates(&running.body_store)?;
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|c| c.collection_name.as_str())
+                .collect::<Vec<_>>(),
+            vec![failed_name]
+        );
+        assert!(!candidates.iter().any(|c| {
+            c.collection_name
+                == workspace_coverage_execution_collection(
+                    &running.plan.plan_id,
+                    &running.claim.claim_id,
+                    running.claim.claim_epoch,
+                )
+                .unwrap()
+        }));
+        Ok(())
+    }
+
+    #[test]
+    fn prior_success_retires_only_after_new_head_commits() -> Result<()> {
+        let (repo, _state, runtime, basis_a) = coverage_fixture()?;
+        let (_, acquired_a) = acquire_test(&runtime, &basis_a, "provider", "model", 3)?;
+        let receipt_a = execute_preembedded_workspace_coverage_projection(
+            &acquired_a,
+            projection_inputs(&acquired_a, repo.path())?,
+            &mut FakeProjectionPort::new(Hostility::Honest),
+        )?;
+        assert!(workspace_coverage_retirement_candidates(&acquired_a.body_store)?.is_empty());
+
+        std::fs::write(repo.path().join("source.rs"), "fn two() {}\n")?;
+        let basis_b = crate::observe_runtime_repository_body_basis(&runtime)?;
+        let (_, acquired_b) = acquire_test(&runtime, &basis_b, "provider", "model", 3)?;
+        assert!(workspace_coverage_retirement_candidates(&acquired_b.body_store)?.is_empty());
+        execute_preembedded_workspace_coverage_projection(
+            &acquired_b,
+            projection_inputs(&acquired_b, repo.path())?,
+            &mut FakeProjectionPort::new(Hostility::Honest),
+        )?;
+        let candidates = workspace_coverage_retirement_candidates(&acquired_b.body_store)?;
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].collection_name, receipt_a.collection_name);
+        Ok(())
+    }
+
+    #[test]
+    fn retirement_refuses_incompatible_collection_and_absence_is_idempotent() -> Result<()> {
+        let (_repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, acquired) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        fail_workspace_coverage_projection(&acquired, "failed")?;
+        let candidate = workspace_coverage_retirement_candidates(&acquired.body_store)?.remove(0);
+        let mut port = FakeRetirementPort::default();
+        let mut incompatible = candidate.compatibility.clone();
+        incompatible.embedding_model.push_str("-alien");
+        port.present
+            .insert(candidate.collection_name.clone(), incompatible);
+        assert!(retire_workspace_coverage_collections(&acquired.body_store, &mut port).is_err());
+        port.present.clear();
+        assert_eq!(
+            retire_workspace_coverage_collections(&acquired.body_store, &mut port)?,
+            1
+        );
+        assert_eq!(
+            retire_workspace_coverage_collections(&acquired.body_store, &mut port)?,
+            1
+        );
+        assert!(port.retired.is_empty());
+        Ok(())
     }
 
     fn projection_inputs(
@@ -824,6 +1461,35 @@ mod tests {
                 })
             })
             .collect()
+    }
+
+    fn acquire_test(
+        runtime: &Path,
+        basis: &RepositoryBodyObservationBasis,
+        provider: &str,
+        model: &str,
+        dimensions: u32,
+    ) -> Result<(
+        PreparedWorkspaceCoverageProjection,
+        WorkspaceCoverageAcquisition,
+    )> {
+        let body = RepositoryBodyReadSession::open(runtime, basis)?;
+        let prepared = prepare_workspace_coverage_projection(&body, provider, model, dimensions)?;
+        let acquisition = match acquire_workspace_coverage_projection(
+            &prepared,
+            "test-executor",
+            "test-incarnation",
+            "test-startup-receipt",
+        )? {
+            WorkspaceCoverageAcquireResult::Acquired(acquisition) => acquisition,
+            WorkspaceCoverageAcquireResult::Current(_) => {
+                bail!("test unexpectedly found a current projection")
+            }
+            WorkspaceCoverageAcquireResult::Contended => {
+                bail!("test unexpectedly found a contended projection")
+            }
+        };
+        Ok((prepared, acquisition))
     }
     #[test]
     fn named_chunker_preserves_utf8_boundaries_and_eight_line_overlap() -> Result<()> {
@@ -864,6 +1530,73 @@ mod tests {
     }
 
     #[test]
+    fn preparation_authenticates_body_store_constant_times_and_current_path_reads_no_files()
+    -> Result<()> {
+        let repo = tempfile::tempdir()?;
+        let state = tempfile::tempdir()?;
+        git(repo.path(), &["init"])?;
+        for index in 0..12 {
+            std::fs::write(
+                repo.path().join(format!("source-{index}.rs")),
+                format!("fn f{index}() {{}}\n"),
+            )?;
+        }
+        git(repo.path(), &["add", "."])?;
+        let runtime = state.path().join("runtime.cc");
+        let agents = state.path().join("agents.cc");
+        let body_store = state.path().join("body.cc");
+        crate::initialize_runtime_spine(
+            &runtime,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "read-session-runtime".into(),
+                display_name: "read session".into(),
+                created_at: "2026-07-16T00:00:00Z".into(),
+            },
+        )?;
+        crate::ensure_agent_memory_swarm_identity(&agents, "read-session-swarm")?;
+        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-16T00:00:01Z")?;
+        crate::bind_repository_body(repo.path(), &body_store, &runtime, "read-session-workspace")?;
+        let basis = crate::observe_runtime_repository_body_basis(&runtime)?;
+
+        crate::repository_body_observer::reset_repository_body_read_counters();
+        let body = RepositoryBodyReadSession::open(&runtime, &basis)?;
+        let prepared = prepare_workspace_coverage_projection(&body, "provider", "model", 3)?;
+        let (store_loads, file_reads) =
+            crate::repository_body_observer::repository_body_read_counters();
+        assert_eq!(store_loads, 2, "Body store validation count changed");
+        assert_eq!(file_reads, 12);
+
+        let acquisition = match acquire_workspace_coverage_projection(
+            &prepared,
+            "test-executor",
+            "test-incarnation",
+            "test-startup-receipt",
+        )? {
+            WorkspaceCoverageAcquireResult::Acquired(value) => value,
+            _ => bail!("initial projection was not acquired"),
+        };
+        let inputs = projection_inputs(&acquisition, repo.path())?;
+        let receipt = execute_preembedded_workspace_coverage_projection(
+            &acquisition,
+            inputs,
+            &mut FakeProjectionPort::new(Hostility::Honest),
+        )?;
+        crate::repository_body_observer::reset_repository_body_read_counters();
+        match classify_current_workspace_coverage(&runtime, &basis, "provider", "model", 3)? {
+            WorkspaceCoverageCurrentState::Current(current) => assert_eq!(current, receipt),
+            WorkspaceCoverageCurrentState::NeedsPreparation => {
+                bail!("exact projection was not current")
+            }
+        }
+        assert_eq!(
+            crate::repository_body_observer::repository_body_read_counters().1,
+            0,
+            "current classification rematerialized Repository Body files"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn acquisition_is_exclusive_and_failure_can_terminalize_after_body_advance() -> Result<()> {
         let repo = tempfile::tempdir()?;
         let state = tempfile::tempdir()?;
@@ -886,21 +1619,16 @@ mod tests {
         crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "projector-workspace")?;
         let basis = crate::observe_runtime_repository_body_basis(&runtime)?;
-        let first =
-            acquire_workspace_coverage_projection(&runtime, &basis, "provider", "model", 3)?;
+        let (_, first) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
         assert!(first.obligation.classifications.iter().any(|entry| {
             entry.path == "binary.dat"
                 && entry.disposition
                     == crate::WorkspaceCoverageDisposition::ExcludeNonUtf8RegularFile
         }));
         assert_eq!(first.obligation.included_entry_count, 1);
-        assert!(
-            acquire_workspace_coverage_projection(&runtime, &basis, "provider", "model", 3)
-                .is_err()
-        );
+        assert!(acquire_test(&runtime, &basis, "provider", "model", 3).is_err());
         fail_workspace_coverage_projection(&first, "expected test failure")?;
-        let second =
-            acquire_workspace_coverage_projection(&runtime, &basis, "provider", "model", 3)?;
+        let (_, second) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
         assert_eq!(second.claim.claim_epoch, first.claim.claim_epoch + 1);
         std::fs::write(repo.path().join("source.rs"), "fn two() {}")?;
         let advanced = crate::observe_runtime_repository_body_basis(&runtime)?;
@@ -935,6 +1663,10 @@ mod tests {
             Hostility::Extra,
             Hostility::Missing,
             Hostility::Duplicate,
+            Hostility::MissingVector,
+            Hostility::WrongVector,
+            Hostility::WrongVectorDimension,
+            Hostility::NonFiniteVector,
         ] {
             let repo = tempfile::tempdir()?;
             let state = tempfile::tempdir()?;
@@ -961,10 +1693,9 @@ mod tests {
                 "projection-execution-workspace",
             )?;
             let basis = crate::observe_runtime_repository_body_basis(&runtime)?;
-            let acquisition =
-                acquire_workspace_coverage_projection(&runtime, &basis, "provider", "model", 3)?;
+            let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
             let inputs = projection_inputs(&acquisition, repo.path())?;
-            let result = execute_workspace_coverage_projection(
+            let result = execute_preembedded_workspace_coverage_projection(
                 &acquisition,
                 inputs,
                 &mut FakeProjectionPort::new(hostility),
@@ -976,6 +1707,45 @@ mod tests {
                     let receipt = result?;
                     assert!(find(&entries, RECEIPT_TYPE, &receipt.receipt_id).is_some());
                     assert!(find(&entries, HEAD_TYPE, HEAD_KEY).is_some());
+                    let body = RepositoryBodyReadSession::open(&runtime, &basis)?;
+                    let prepared =
+                        prepare_workspace_coverage_projection(&body, "provider", "model", 3)?;
+                    match acquire_workspace_coverage_projection(
+                        &prepared,
+                        "replacement-executor",
+                        "replacement-incarnation",
+                        "replacement-startup-receipt",
+                    )? {
+                        WorkspaceCoverageAcquireResult::Current(current) => {
+                            assert_eq!(current, receipt)
+                        }
+                        WorkspaceCoverageAcquireResult::Acquired(_) => {
+                            bail!("exact current projection was claimed again")
+                        }
+                        WorkspaceCoverageAcquireResult::Contended => {
+                            bail!("exact current projection was contended")
+                        }
+                    }
+                    let backing = SingleFileMessagePackBackingStore::new(&acquisition.body_store);
+                    let before_corruption = backing.pull_all()?;
+                    let receipt_env = find(&before_corruption, RECEIPT_TYPE, &receipt.receipt_id)
+                        .unwrap()
+                        .clone();
+                    let mut substituted = receipt.clone();
+                    substituted.observed_point_count += 1;
+                    assert!(backing.compare_and_swap_batch(
+                        std::slice::from_ref(&receipt_env),
+                        vec![envelope(RECEIPT_TYPE, &receipt.receipt_id, &substituted)?],
+                    )?);
+                    assert!(
+                        acquire_workspace_coverage_projection(
+                            &prepared,
+                            "replacement-executor",
+                            "replacement-incarnation",
+                            "replacement-startup-receipt",
+                        )
+                        .is_err()
+                    );
                 }
                 _ => {
                     assert!(result.is_err());
@@ -1011,13 +1781,12 @@ mod tests {
         crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "body-advance-workspace")?;
         let basis = crate::observe_runtime_repository_body_basis(&runtime)?;
-        let acquisition =
-            acquire_workspace_coverage_projection(&runtime, &basis, "provider", "model", 3)?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
         let inputs = projection_inputs(&acquisition, repo.path())?;
         std::fs::write(repo.path().join("source.rs"), "fn two() {}\n")?;
         crate::observe_runtime_repository_body_basis(&runtime)?;
         assert!(
-            execute_workspace_coverage_projection(
+            execute_preembedded_workspace_coverage_projection(
                 &acquisition,
                 inputs,
                 &mut FakeProjectionPort::new(Hostility::Honest)
@@ -1054,8 +1823,7 @@ mod tests {
         crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "cas-loser-workspace")?;
         let basis = crate::observe_runtime_repository_body_basis(&runtime)?;
-        let acquisition =
-            acquire_workspace_coverage_projection(&runtime, &basis, "provider", "model", 3)?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
         let collection_name = workspace_coverage_execution_collection(
             &acquisition.plan.plan_id,
             &acquisition.claim.claim_id,
@@ -1066,6 +1834,7 @@ mod tests {
             point_count: acquisition.plan.expected_point_count,
             point_set_sha256: acquisition.plan.expected_point_set_sha256.clone(),
             point_binding_set_sha256: "ff".repeat(32),
+            vector_binding_set_sha256: "ee".repeat(32),
         };
         assert!(commit_workspace_coverage_success(&acquisition, forged).is_err());
         fail_workspace_coverage_projection(&acquisition, "another terminal writer won")?;
@@ -1074,6 +1843,7 @@ mod tests {
             point_count: acquisition.plan.expected_point_count,
             point_set_sha256: acquisition.plan.expected_point_set_sha256.clone(),
             point_binding_set_sha256: acquisition.plan.point_binding_set_sha256.clone(),
+            vector_binding_set_sha256: "ee".repeat(32),
         };
         assert!(commit_workspace_coverage_success(&acquisition, exact_but_late).is_err());
         let entries = SingleFileMessagePackBackingStore::new(&acquisition.body_store).pull_all()?;
@@ -1104,11 +1874,11 @@ mod tests {
         crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
         crate::bind_repository_body(repo.path(), &body, &runtime, "empty-workspace")?;
         let basis = crate::observe_runtime_repository_body_basis(&runtime)?;
-        let acquisition =
-            acquire_workspace_coverage_projection(&runtime, &basis, "provider", "model", 3)?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
         assert!(acquisition.plan.planned_points.is_empty());
         let mut port = FakeProjectionPort::new(Hostility::Honest);
-        let receipt = execute_workspace_coverage_projection(&acquisition, Vec::new(), &mut port)?;
+        let receipt =
+            execute_preembedded_workspace_coverage_projection(&acquisition, Vec::new(), &mut port)?;
         assert_eq!(port.upsert_calls, 0);
         assert_eq!(receipt.observed_point_count, 0);
         Ok(())
@@ -1137,10 +1907,9 @@ mod tests {
         crate::bind_repository_body(repo.path(), &body, &runtime, "head-cas-workspace")?;
 
         let basis_a = crate::observe_runtime_repository_body_basis(&runtime)?;
-        let acquisition_a =
-            acquire_workspace_coverage_projection(&runtime, &basis_a, "provider", "model", 3)?;
+        let (_, acquisition_a) = acquire_test(&runtime, &basis_a, "provider", "model", 3)?;
         let inputs_a = projection_inputs(&acquisition_a, repo.path())?;
-        execute_workspace_coverage_projection(
+        execute_preembedded_workspace_coverage_projection(
             &acquisition_a,
             inputs_a,
             &mut FakeProjectionPort::new(Hostility::Honest),
@@ -1151,11 +1920,10 @@ mod tests {
 
         std::fs::write(repo.path().join("source.rs"), "fn b() {}\n")?;
         let basis_b = crate::observe_runtime_repository_body_basis(&runtime)?;
-        let acquisition_b =
-            acquire_workspace_coverage_projection(&runtime, &basis_b, "provider", "model", 3)?;
+        let (_, acquisition_b) = acquire_test(&runtime, &basis_b, "provider", "model", 3)?;
         assert_eq!(acquisition_b.prior_head.as_ref(), Some(&head_a));
         let inputs_b = projection_inputs(&acquisition_b, repo.path())?;
-        execute_workspace_coverage_projection(
+        execute_preembedded_workspace_coverage_projection(
             &acquisition_b,
             inputs_b,
             &mut FakeProjectionPort::new(Hostility::Honest),
@@ -1167,13 +1935,12 @@ mod tests {
 
         std::fs::write(repo.path().join("source.rs"), "fn c() {}\n")?;
         let basis_c = crate::observe_runtime_repository_body_basis(&runtime)?;
-        let acquisition_c =
-            acquire_workspace_coverage_projection(&runtime, &basis_c, "provider", "model", 3)?;
+        let (_, acquisition_c) = acquire_test(&runtime, &basis_c, "provider", "model", 3)?;
         assert_eq!(acquisition_c.prior_head.as_ref(), Some(&head_b));
         assert!(backing.compare_and_swap_batch(&[head_b], vec![head_a.clone()])?);
         let inputs_c = projection_inputs(&acquisition_c, repo.path())?;
         assert!(
-            execute_workspace_coverage_projection(
+            execute_preembedded_workspace_coverage_projection(
                 &acquisition_c,
                 inputs_c,
                 &mut FakeProjectionPort::new(Hostility::Honest)
@@ -1189,6 +1956,84 @@ mod tests {
                 .any(|entry| decode::<WorkspaceCoverageReceipt>(entry)
                     .is_ok_and(|receipt| receipt.claim_id == acquisition_c.claim.claim_id))
         );
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "requires live local Qdrant and Ollama"]
+    fn live_qdrant_ollama_projection_proves_vectors_and_currentness() -> Result<()> {
+        let (_repo, _state, runtime, basis) = coverage_fixture()?;
+        let ollama_url = std::env::var("EPIPHANY_OLLAMA_BASE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:11434".into());
+        let qdrant_url =
+            std::env::var("EPIPHANY_QDRANT_URL").unwrap_or_else(|_| "http://127.0.0.1:6333".into());
+        let model = std::env::var("EPIPHANY_OLLAMA_MODEL")
+            .unwrap_or_else(|_| "qwen3-embedding:0.6b".into());
+        let embedder = OllamaEmbedder::new(crate::semantic_backend::OllamaConfig {
+            base_url: ollama_url,
+            model,
+            timeout_ms: 30_000,
+            query_instruction: String::new(),
+        })?;
+        let model_identity = embedder.model_artifact()?.canonical_identity();
+        let dimensions = embedder.embedding_dimensions()?;
+        let body = RepositoryBodyReadSession::open(&runtime, &basis)?;
+        let prepared = prepare_workspace_coverage_projection(
+            &body,
+            "gamecult-ollama-embedding",
+            &model_identity,
+            dimensions,
+        )?;
+        let acquisition = match acquire_workspace_coverage_projection(
+            &prepared,
+            "epiphany-workspace-coverage-projector",
+            &uuid::Uuid::new_v4().to_string(),
+            &uuid::Uuid::new_v4().to_string(),
+        )? {
+            WorkspaceCoverageAcquireResult::Acquired(value) => value,
+            _ => bail!("isolated live smoke did not acquire its projection"),
+        };
+        let compatibility = CollectionCompatibility {
+            managed_by: "epiphany-workspace-coverage-projector".into(),
+            corpus_kind: "repository_body_workspace_coverage".into(),
+            schema_version: 0,
+            projection_version: acquisition.plan.plan_id.clone(),
+            embedding_provider_id: acquisition.plan.embedding_provider_id.clone(),
+            embedding_model: acquisition.plan.embedding_model.clone(),
+            vector_size: acquisition.plan.vector_dimensions as usize,
+        };
+        let mut qdrant = QdrantBackend::new(crate::semantic_backend::QdrantConfig {
+            url: qdrant_url,
+            api_key: None,
+            timeout_ms: 30_000,
+        })?;
+        let result =
+            execute_workspace_coverage_projection(&acquisition, &prepared, &embedder, &mut qdrant);
+        let collection = workspace_coverage_execution_collection(
+            &acquisition.plan.plan_id,
+            &acquisition.claim.claim_id,
+            acquisition.claim.claim_epoch,
+        )?;
+        let receipt = match result {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                let _ = qdrant.retire_exact_collection(&collection, &compatibility);
+                return Err(error);
+            }
+        };
+        assert_eq!(receipt.collection_name, collection);
+        assert!(matches!(
+            classify_current_workspace_coverage(
+                &runtime,
+                &basis,
+                "gamecult-ollama-embedding",
+                &model_identity,
+                dimensions,
+            )?,
+            WorkspaceCoverageCurrentState::Current(_)
+        ));
+        qdrant.retire_exact_collection(&collection, &compatibility)?;
+        assert!(!qdrant.collection_exists(&collection)?);
         Ok(())
     }
 }

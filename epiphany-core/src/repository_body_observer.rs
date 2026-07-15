@@ -9,6 +9,8 @@ use cultcache_rs::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+#[cfg(test)]
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use uuid::Uuid;
@@ -22,6 +24,22 @@ pub const BODY_BINDING_KEY: &str = "binding";
 pub const BODY_HEAD_KEY: &str = "current";
 pub const RUNTIME_BODY_STORE_BINDING_KEY: &str = "repository-body-store";
 pub const BODY_SCHEMA_VERSION: &str = "epiphany.repository_body.v2";
+#[cfg(test)]
+thread_local! {
+    static BODY_STORE_LOADS: Cell<usize> = const { Cell::new(0) };
+    static BODY_FILE_READS: Cell<usize> = const { Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_repository_body_read_counters() {
+    BODY_STORE_LOADS.set(0);
+    BODY_FILE_READS.set(0);
+}
+
+#[cfg(test)]
+pub(crate) fn repository_body_read_counters() -> (usize, usize) {
+    (BODY_STORE_LOADS.get(), BODY_FILE_READS.get())
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -183,6 +201,90 @@ pub(crate) struct VerifiedRepositoryBodyBytes {
     pub bytes: Vec<u8>,
 }
 
+/// One authenticated view of a persisted Repository Body generation.
+///
+/// Opening the session authenticates the runtime route and the complete
+/// binding/head/observation/manifest chain once. Reads reuse that sealed view;
+/// they never reload the whole CultCache store for each file.
+pub(crate) struct RepositoryBodyReadSession {
+    basis: RepositoryBodyObservationBasis,
+    manifest: RepositoryBodyManifest,
+    root: PathBuf,
+    body_store: PathBuf,
+}
+
+impl RepositoryBodyReadSession {
+    pub(crate) fn open(
+        runtime_store: &Path,
+        basis: &RepositoryBodyObservationBasis,
+    ) -> Result<Self> {
+        let route = runtime_repository_body_store_binding(runtime_store)?
+            .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+        let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
+        let binding: RepositoryBodyBinding = decode(
+            find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+                .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?,
+        )?;
+        let head: RepositoryBodyHead = decode(
+            find(&entries, BODY_HEAD_TYPE, BODY_HEAD_KEY)
+                .ok_or_else(|| anyhow!("runtime repository Body store has no current Body head"))?,
+        )?;
+        let (observation, manifest) = validate_body_chain(&entries, &binding, &head)?;
+        if basis.schema_version != BODY_SCHEMA_VERSION
+            || binding.runtime_id != route.runtime_id
+            || binding.swarm_id != route.swarm_id
+            || binding.workspace_id != route.workspace_id
+            || body_binding_sha256(&binding)? != route.body_binding_sha256
+            || basis.runtime_id != binding.runtime_id
+            || basis.swarm_id != binding.swarm_id
+            || basis.workspace_id != binding.workspace_id
+            || basis.scope != binding.scope
+            || basis.body_binding_sha256 != route.body_binding_sha256
+            || head.workspace_id != basis.workspace_id
+            || head.observation_id != basis.observation_id
+            || head.generation != basis.generation
+            || head.manifest_root_sha256 != basis.manifest_root_sha256
+            || observation.observation_id != basis.observation_id
+            || observation.generation != basis.generation
+            || observation.manifest_root_sha256 != basis.manifest_root_sha256
+            || observation.scan_started_at != basis.scan_started_at
+            || observation.scan_finished_at != basis.scan_finished_at
+        {
+            bail!("repository Body read session disagrees with its authenticated route or basis");
+        }
+        let root = std::fs::canonicalize(&binding.git_top_level)
+            .context("bound repository root is missing")?;
+        if root != PathBuf::from(&binding.git_top_level) {
+            bail!("bound repository root is no longer canonical");
+        }
+        Ok(Self {
+            basis: basis.clone(),
+            manifest,
+            root,
+            body_store: PathBuf::from(route.body_store_path),
+        })
+    }
+
+    pub(crate) fn basis(&self) -> &RepositoryBodyObservationBasis {
+        &self.basis
+    }
+
+    pub(crate) fn manifest(&self) -> &RepositoryBodyManifest {
+        &self.manifest
+    }
+
+    pub(crate) fn body_store(&self) -> &Path {
+        &self.body_store
+    }
+
+    pub(crate) fn read_regular_file(
+        &self,
+        relative_path: &str,
+    ) -> Result<VerifiedRepositoryBodyBytes> {
+        read_verified_repository_body_bytes_from_session(self, relative_path)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.repository_body.head", schema = "RepositoryBodyHead")]
 pub struct RepositoryBodyHead {
@@ -293,6 +395,45 @@ pub fn observe_runtime_repository_body_basis(
     })
 }
 
+/// Loads the authenticated current Repository Body basis already persisted for
+/// a runtime without observing the worktree or advancing the Body generation.
+pub fn load_current_runtime_repository_body_basis(
+    runtime_store: &Path,
+) -> Result<RepositoryBodyObservationBasis> {
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
+    let binding: RepositoryBodyBinding = decode(
+        find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+            .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?,
+    )?;
+    let head: RepositoryBodyHead = decode(
+        find(&entries, BODY_HEAD_TYPE, BODY_HEAD_KEY)
+            .ok_or_else(|| anyhow!("runtime repository Body store has no current Body head"))?,
+    )?;
+    let (observation, _) = validate_body_chain(&entries, &binding, &head)?;
+    if binding.runtime_id != route.runtime_id
+        || binding.swarm_id != route.swarm_id
+        || binding.workspace_id != route.workspace_id
+        || body_binding_sha256(&binding)? != route.body_binding_sha256
+    {
+        bail!("current repository Body basis disagrees with its authenticated runtime route");
+    }
+    Ok(RepositoryBodyObservationBasis {
+        schema_version: BODY_SCHEMA_VERSION.into(),
+        workspace_id: binding.workspace_id,
+        swarm_id: binding.swarm_id,
+        runtime_id: binding.runtime_id,
+        scope: binding.scope,
+        body_binding_sha256: route.body_binding_sha256,
+        observation_id: observation.observation_id,
+        generation: observation.generation,
+        manifest_root_sha256: observation.manifest_root_sha256,
+        scan_started_at: observation.scan_started_at,
+        scan_finished_at: observation.scan_finished_at,
+    })
+}
+
 pub fn validate_repository_body_observation_basis(
     runtime_store: &Path,
     basis: &RepositoryBodyObservationBasis,
@@ -358,9 +499,16 @@ pub(crate) fn read_verified_repository_body_bytes(
     basis: &RepositoryBodyObservationBasis,
     relative_path: &str,
 ) -> Result<VerifiedRepositoryBodyBytes> {
-    let manifest = authenticated_repository_body_manifest(runtime_store, basis)?;
+    RepositoryBodyReadSession::open(runtime_store, basis)?.read_regular_file(relative_path)
+}
+
+fn read_verified_repository_body_bytes_from_session(
+    session: &RepositoryBodyReadSession,
+    relative_path: &str,
+) -> Result<VerifiedRepositoryBodyBytes> {
     validate_portable_relative_path(relative_path)?;
-    let entry = manifest
+    let entry = session
+        .manifest
         .entries
         .iter()
         .find(|entry| entry.path == relative_path)
@@ -379,19 +527,8 @@ pub(crate) fn read_verified_repository_body_bytes(
         bail!("historical Body entry {relative_path:?} is not an authenticated regular file");
     }
 
-    let route = runtime_repository_body_store_binding(runtime_store)?
-        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
-    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
-    let binding: RepositoryBodyBinding = decode(
-        find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
-            .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?,
-    )?;
-    let root = std::fs::canonicalize(&binding.git_top_level)
-        .context("bound repository root is missing")?;
-    if root != PathBuf::from(&binding.git_top_level) {
-        bail!("bound repository root is no longer canonical");
-    }
-    let path = safe_worktree_path(&root, relative_path)?;
+    let root = &session.root;
+    let path = safe_worktree_path(root, relative_path)?;
     reject_reparse_or_symlink_components(&root, relative_path)?;
     let resolved = std::fs::canonicalize(&path)
         .with_context(|| format!("historical Body path {relative_path:?} is missing"))?;
@@ -405,6 +542,8 @@ pub(crate) fn read_verified_repository_body_bytes(
     if !before.file_type().is_file() || metadata_is_reparse_point(&before) {
         bail!("historical Body path {relative_path:?} is no longer a regular file");
     }
+    #[cfg(test)]
+    BODY_FILE_READS.set(BODY_FILE_READS.get() + 1);
     let bytes = std::fs::read(&path)
         .with_context(|| format!("cannot read historical Body path {relative_path:?}"))?;
     let after = std::fs::symlink_metadata(&path)?;
@@ -989,6 +1128,8 @@ fn require_id(name: &str, value: &str) -> Result<()> {
     Ok(())
 }
 fn load_body_envelopes(store: &Path) -> Result<Vec<CultCacheEnvelope>> {
+    #[cfg(test)]
+    BODY_STORE_LOADS.set(BODY_STORE_LOADS.get() + 1);
     if !store.exists() {
         return Ok(Vec::new());
     }
@@ -1352,6 +1493,101 @@ mod tests {
             _ => bail!("expected delete"),
         };
         assert_ne!(b.tree_oid, c.tree_oid);
+        Ok(())
+    }
+    #[test]
+    fn persisted_current_basis_load_is_read_only_and_does_not_scan() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (store, runtime) = bound(d.path(), state.path(), "loaded", "runtime", "swarm")?;
+        write(&d.path().join("tracked.txt"), "one")?;
+        run(d.path(), &["add", "."])?;
+        let observed = observe_runtime_repository_body_basis(&runtime)?;
+        let before = std::fs::read(&store)?;
+
+        write(&d.path().join("tracked.txt"), "two")?;
+        let first = load_current_runtime_repository_body_basis(&runtime)?;
+        let second = load_current_runtime_repository_body_basis(&runtime)?;
+        assert_eq!(first, observed);
+        assert_eq!(second, observed);
+        assert_eq!(std::fs::read(&store)?, before);
+
+        let advanced = observe_runtime_repository_body_basis(&runtime)?;
+        assert!(advanced.generation > observed.generation);
+        assert_ne!(advanced.manifest_root_sha256, observed.manifest_root_sha256);
+        assert_eq!(
+            load_current_runtime_repository_body_basis(&runtime)?,
+            advanced
+        );
+        Ok(())
+    }
+    #[test]
+    fn persisted_current_basis_refuses_substituted_runtime_route() -> Result<()> {
+        let first_repo = repo()?;
+        let first_state = tempfile::tempdir()?;
+        let (_, first_runtime) = bound(
+            first_repo.path(),
+            first_state.path(),
+            "first",
+            "first-runtime",
+            "first-swarm",
+        )?;
+        write(&first_repo.path().join("first.txt"), "first")?;
+        observe_runtime_repository_body_basis(&first_runtime)?;
+
+        let second_repo = repo()?;
+        let second_state = tempfile::tempdir()?;
+        let (_, second_runtime) = bound(
+            second_repo.path(),
+            second_state.path(),
+            "second",
+            "second-runtime",
+            "second-swarm",
+        )?;
+        write(&second_repo.path().join("second.txt"), "second")?;
+        observe_runtime_repository_body_basis(&second_runtime)?;
+        let substituted = runtime_repository_body_store_binding(&second_runtime)?.unwrap();
+
+        let backing = SingleFileMessagePackBackingStore::new(&first_runtime);
+        let opening = backing.pull_all()?;
+        let original = find(
+            &opening,
+            RUNTIME_BODY_STORE_BINDING_TYPE,
+            RUNTIME_BODY_STORE_BINDING_KEY,
+        )
+        .unwrap()
+        .clone();
+        assert!(backing.compare_and_swap_batch(
+            &[original],
+            vec![envelope(
+                RUNTIME_BODY_STORE_BINDING_TYPE,
+                RUNTIME_BODY_STORE_BINDING_KEY,
+                &substituted,
+            )?],
+        )?);
+        assert!(load_current_runtime_repository_body_basis(&first_runtime).is_err());
+        Ok(())
+    }
+    #[test]
+    fn persisted_current_basis_refuses_substituted_body_binding() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (store, runtime) = bound(d.path(), state.path(), "body", "runtime", "swarm")?;
+        write(&d.path().join("tracked.txt"), "body")?;
+        observe_runtime_repository_body_basis(&runtime)?;
+
+        let backing = SingleFileMessagePackBackingStore::new(&store);
+        let opening = backing.pull_all()?;
+        let original = find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+            .unwrap()
+            .clone();
+        let mut substituted: RepositoryBodyBinding = decode(&original)?;
+        substituted.workspace_id = "attacker-workspace".into();
+        assert!(backing.compare_and_swap_batch(
+            &[original],
+            vec![envelope(BODY_BINDING_TYPE, BODY_BINDING_KEY, &substituted)?],
+        )?);
+        assert!(load_current_runtime_repository_body_basis(&runtime).is_err());
         Ok(())
     }
     #[test]
