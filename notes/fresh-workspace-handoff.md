@@ -1069,3 +1069,23 @@ Next: schedule projection refresh as completion-gated physiology, publish typed
 projection health through CultMesh/Eve, and refresh the stale source anchors
 that leave the current Body map honestly thin. Do not let the scheduler,
 Qdrant, Yggdrasil, or presentation become state authority.
+
+## Semantic completion-law correction (2026-07-15)
+
+The first scheduling map exposed two surviving substitutions before daemon
+work began. Persona recall derived a swarm namespace from fixed organ agent
+ids, which are identical across Epiphany swarms; and Qdrant failure still used
+the unconstrained canonical planner. Both are cut. `state/agents.msgpack` now
+contains the immutable typed swarm identity `gamecult.epiphany.main`; Persona
+recall and the semantic CLI require that exact document, and the Mind
+collection was rebuilt under that scope with 43 documents. Canonical fallback
+uses the same partition-constrained planner as semantic success.
+
+`memory_graph::semantic_index` now defines typed projection obligation and
+attempt documents, exact source-head and receipt causality fields, and pure
+derived `pending|failed|stale|ready` health/query-eligibility law with hostile
+mismatch tests. These types are foundation, not a readiness claim: runtime
+admission does not yet atomically emit obligations, indexing does not yet claim
+and discharge them, queries do not yet require the newest exact success, and
+CultMesh/Idunn wiring deliberately remains absent. The next cut is canonical
+admission ownership, not a polling loop.

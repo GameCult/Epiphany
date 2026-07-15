@@ -180,3 +180,71 @@ Local proof indexed 43 Mind documents and 3 currently fresh Modeling documents
 with `qwen3-embedding:0.6b` at 1024 dimensions. The thin Modeling count is
 honest pressure: several imported thread-state claims have missing or changed
 source anchors and remain stale rather than being made searchable by optimism.
+
+## Completion-Gated Projection Physiology
+
+The landed projection has an indexing command and immutable index receipts, but
+no durable reflex from canonical admission to projection completion. Calling
+the command from a timer would make elapsed time a substitute for causality.
+
+### Owner And Inputs
+
+- The canonical admission transaction owns projection pressure. A RepoModel
+  admission already commits a `RepoModelAdmissionReceipt` with the admitted
+  revision and hash. An agent-Mind mutation must likewise commit the exact
+  `EpiphanyAgentMemoryEntry` generation and a typed Mind commit witness in one
+  CAS; the current direct `cache.put` writers in `agent_memory.rs` are not yet a
+  sufficient completion boundary.
+- That transaction emits one immutable semantic-projection obligation as a
+  companion, keyed by swarm, partition, canonical source identity, and exact
+  canonical generation/content-set hash. The obligation carries no claim text
+  and grants no memory authority.
+- The projector reads only the obligation plus the canonical CultCache source,
+  derives projection documents again, and refuses any generation mismatch.
+
+### Completion Signal And Outputs
+
+- `MemorySemanticIndexReceipt` is the completion signal only when it binds the
+  exact obligation, canonical source generation/content-set hash, collection
+  compatibility, indexed count, and terminal status. Its present shape lacks
+  the obligation/source-commit reference and therefore proves an indexing run,
+  not discharge of admission pressure.
+- Projection health is derived: `ready` means the newest canonical obligation
+  has one exact successful receipt; `pending` means it has none; `failed` means
+  the latest attempt receipt failed while the obligation remains open; `stale`
+  means a newer canonical generation exists. Counts, timestamps, vectors, and
+  retry attempts remain notification/cache state.
+- Semantic query correctness never waits for health. A missing or non-ready
+  receipt selects canonical BM25; a matching receipt permits Qdrant ranking
+  followed by canonical candidate revalidation.
+
+### Nervous System, Idunn, And CultMesh
+
+- The admission companion is the reflex. A scheduler may immediately queue it;
+  a periodic pulse may rediscover an uncompleted obligation after restart.
+  Neither timer nor heartbeat may invent an obligation, declare it complete,
+  advance its canonical generation, or suppress BM25 fallback.
+- Idunn owns survival, restart, executable identity, and aftercare for the
+  projector daemon. It may report that the worker is unavailable or restart
+  it; it does not own canonical memory, projection demand, indexed truth, or
+  completion judgment.
+- CultMesh carries typed obligation, attempt/receipt, and derived-health
+  projections for operators and consumers. It does not host a second queue or
+  writable health flag. Provider-owned CultCache documents remain the source;
+  CultMesh publication is a lowering of those documents, and Eve/Gjallar only
+  render them downstream.
+
+### Forbidden Writers, Shared Paths, And Cut Line
+
+- Forbidden completion writers: wall-clock timers, collection existence,
+  Qdrant point counts, payload prose, Idunn liveness, CultMesh mirrors, Eve or
+  Gjallar, and manual status commands.
+- RepoModel repair/evolution/verdict admission and every reviewed agent-Mind
+  mutation must share the same `canonical commit + projection obligation`
+  primitive. Bootstrap/import may use it once; raw `cache.put` paths may not
+  bypass it.
+- Cut first: replace direct agent-memory writes with an atomic admitted
+  generation/commit witness; extend the index receipt to bind an obligation;
+  then add the Idunn-hosted consumer and CultMesh health projection. Do not add
+  polling flags, file-mtime inference, or a reconciliation cache around the
+  current unwitnessed writes.

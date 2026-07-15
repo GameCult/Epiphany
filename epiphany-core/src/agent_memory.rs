@@ -17,20 +17,83 @@ use std::path::Path;
 
 pub const AGENT_MEMORY_TYPE: &str = "epiphany.agent_memory";
 pub const AGENT_MEMORY_SCHEMA_VERSION: &str = "ghostlight.agent_state.v0";
+pub const AGENT_MEMORY_SWARM_IDENTITY_TYPE: &str = "epiphany.agent_memory_swarm_identity";
+pub const AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION: &str =
+    "epiphany.agent_memory_swarm_identity.v0";
+pub const AGENT_MEMORY_SWARM_IDENTITY_KEY: &str = "swarm-identity";
 pub const AGENT_STATE_SOA_TYPE: &str = "epiphany.agent_state_soa";
 pub const AGENT_STATE_SOA_SCHEMA_VERSION: &str = "epiphany.agent_state_soa.v0";
 pub const AGENT_STATE_SOA_KEY: &str = "swarm";
 
-pub fn swarm_identity_from_agent_memories(entries: &[EpiphanyAgentMemoryEntry]) -> String {
-    let mut identities = entries
-        .iter()
-        .map(|entry| format!("{}:{}", entry.role_id, entry.agent.agent_id))
-        .collect::<Vec<_>>();
-    identities.sort();
-    format!(
-        "swarm-{}",
-        uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, identities.join("\n").as_bytes(),)
-    )
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.agent_memory_swarm_identity",
+    schema = "AgentMemorySwarmIdentity"
+)]
+pub struct AgentMemorySwarmIdentity {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub swarm_id: String,
+}
+
+pub fn load_agent_memory_swarm_identity(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<AgentMemorySwarmIdentity>> {
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(None);
+    }
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get(AGENT_MEMORY_SWARM_IDENTITY_KEY)
+}
+
+pub fn ensure_agent_memory_swarm_identity(
+    store_path: impl AsRef<Path>,
+    swarm_id: &str,
+) -> Result<AgentMemorySwarmIdentity> {
+    let swarm_id = swarm_id.trim();
+    if swarm_id.is_empty() {
+        return Err(anyhow!(
+            "agent memory swarm identity requires a non-empty swarm_id"
+        ));
+    }
+    let store_path = store_path.as_ref();
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    if let Some(existing) =
+        cache.get::<AgentMemorySwarmIdentity>(AGENT_MEMORY_SWARM_IDENTITY_KEY)?
+    {
+        if existing.swarm_id == swarm_id
+            && existing.schema_version == AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION
+        {
+            return Ok(existing);
+        }
+        return Err(anyhow!(
+            "agent memory swarm identity collision: store owns {:?}, refused {:?}",
+            existing.swarm_id,
+            swarm_id
+        ));
+    }
+    let identity = AgentMemorySwarmIdentity {
+        schema_version: AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION.to_string(),
+        swarm_id: swarm_id.to_string(),
+    };
+    let envelope = cache
+        .prepare_entry(AGENT_MEMORY_SWARM_IDENTITY_KEY, &identity)?
+        .0;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    if !backing.compare_and_swap_batch(&[], vec![envelope])? {
+        let raced = load_agent_memory_swarm_identity(store_path)?;
+        if raced.as_ref() == Some(&identity) {
+            return Ok(identity);
+        }
+        return Err(anyhow!(
+            "agent memory swarm identity lost immutable compare-and-swap"
+        ));
+    }
+    Ok(identity)
 }
 
 const ROLE_TARGETS: &[(&str, &str, &str)] = &[
@@ -1466,6 +1529,14 @@ pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
         });
     }
     let errors = validate_agent_memory_store(store_path)?;
+    let swarm_identity = cache
+        .get::<AgentMemorySwarmIdentity>(AGENT_MEMORY_SWARM_IDENTITY_KEY)?
+        .map(|identity| {
+            serde_json::json!({
+                "schemaVersion": identity.schema_version,
+                "swarmId": identity.swarm_id,
+            })
+        });
     let agent_state_soa = project_agent_state_soa_from_cache(store_path, &cache)?;
     let persisted_agent_state_soa = cache
         .get::<EpiphanyAgentStateSoaEntry>(AGENT_STATE_SOA_KEY)?
@@ -1482,6 +1553,8 @@ pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
         "store": store_path,
         "present": true,
         "entryType": AGENT_MEMORY_TYPE,
+        "swarmIdentityEntryType": AGENT_MEMORY_SWARM_IDENTITY_TYPE,
+        "swarmIdentity": swarm_identity,
         "agentStateSoaEntryType": AGENT_STATE_SOA_TYPE,
         "errors": errors,
         "agentStateSoa": {
@@ -1901,6 +1974,7 @@ pub fn project_agent_memory_to_json_dir(
 
 fn agent_memory_cache(store_path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
+    cache.register_entry_type::<AgentMemorySwarmIdentity>()?;
     cache.register_entry_type::<EpiphanyAgentMemoryEntry>()?;
     cache.register_entry_type::<EpiphanyAgentStateSoaEntry>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
@@ -2995,4 +3069,40 @@ mod tests {
         })
         .to_string()
     }
+}
+#[test]
+fn immutable_swarm_identity_separates_stores_and_refuses_collision() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let first_store = temp.path().join("first.msgpack");
+    let second_store = temp.path().join("second.msgpack");
+    let first = ensure_agent_memory_swarm_identity(&first_store, "swarm-alpha")?;
+    let second = ensure_agent_memory_swarm_identity(&second_store, "swarm-beta")?;
+    assert_eq!(
+        load_agent_memory_swarm_identity(&first_store)?,
+        Some(first.clone())
+    );
+    assert_eq!(
+        ensure_agent_memory_swarm_identity(&first_store, "swarm-alpha")?,
+        first
+    );
+    let collision = ensure_agent_memory_swarm_identity(&first_store, "swarm-beta")
+        .expect_err("immutable store identity must refuse substitution");
+    assert!(collision.to_string().contains("collision"));
+    assert_ne!(
+        crate::semantic_point_id(
+            &first.swarm_id,
+            crate::SemanticPartition::Mind,
+            AGENT_MEMORY_TYPE,
+            "Persona",
+            "memory-1"
+        ),
+        crate::semantic_point_id(
+            &second.swarm_id,
+            crate::SemanticPartition::Mind,
+            AGENT_MEMORY_TYPE,
+            "Persona",
+            "memory-1"
+        )
+    );
+    Ok(())
 }

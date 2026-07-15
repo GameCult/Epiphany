@@ -1,7 +1,7 @@
 use super::{
     EpiphanyMemoryContextPacket, EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot,
     SEMANTIC_PROJECTION_SCHEMA_VERSION, SemanticPartition, SemanticProjectionCandidate,
-    SemanticProjectionDocument, derive_semantic_projection, plan_memory_graph_context_cut,
+    SemanticProjectionDocument, derive_semantic_projection,
     plan_memory_graph_context_cut_for_partition, resolve_semantic_candidate,
 };
 use crate::semantic_backend::{
@@ -18,6 +18,10 @@ use std::path::Path;
 
 pub const MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_index_receipt.v0";
+pub const MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION: &str =
+    "gamecult.epiphany.memory_semantic_projection_obligation.v0";
+pub const MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION: &str =
+    "gamecult.epiphany.memory_semantic_projection_attempt.v0";
 const MODELING_COLLECTION_DEFAULT: &str = "epiphany_modeling_v1";
 const MIND_COLLECTION_DEFAULT: &str = "epiphany_mind_v1";
 const QUERY_LIMIT_MAX: usize = 64;
@@ -102,6 +106,93 @@ struct MemorySemanticPointPayload {
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
+    type = "gamecult.epiphany.memory_semantic_projection_obligation",
+    schema = "MemorySemanticProjectionObligation"
+)]
+pub struct MemorySemanticProjectionObligation {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub obligation_id: String,
+    #[cultcache(key = 2)]
+    pub swarm_id: String,
+    #[cultcache(key = 3)]
+    pub partition: String,
+    #[cultcache(key = 4)]
+    pub canonical_source_id: String,
+    #[cultcache(key = 5)]
+    pub source_commit_id: String,
+    #[cultcache(key = 6)]
+    pub graph_id: String,
+    #[cultcache(key = 7)]
+    pub source_generation: u64,
+    #[cultcache(key = 8)]
+    pub source_model_hash: String,
+    #[cultcache(key = 9)]
+    pub canonical_content_set_hash: String,
+    #[cultcache(key = 10)]
+    pub projection_schema_version: String,
+    #[cultcache(key = 11)]
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.epiphany.memory_semantic_projection_attempt",
+    schema = "MemorySemanticProjectionAttempt"
+)]
+pub struct MemorySemanticProjectionAttempt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub attempt_id: String,
+    #[cultcache(key = 2)]
+    pub obligation_id: String,
+    #[cultcache(key = 3)]
+    pub started_at: String,
+    #[cultcache(key = 4)]
+    pub completed_at: Option<String>,
+    #[cultcache(key = 5)]
+    pub status: String,
+    #[cultcache(key = 6)]
+    pub error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MemorySemanticProjectionHealthStatus {
+    Pending,
+    Failed,
+    Stale,
+    Ready,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MemorySemanticProjectionSourceHead {
+    pub swarm_id: String,
+    pub partition: String,
+    pub canonical_source_id: String,
+    pub source_commit_id: String,
+    pub graph_id: String,
+    pub source_generation: u64,
+    pub source_model_hash: String,
+    pub canonical_content_set_hash: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MemorySemanticProjectionHealth {
+    pub status: MemorySemanticProjectionHealthStatus,
+    pub obligation_id: String,
+    pub receipt_id: Option<String>,
+    pub latest_attempt_id: Option<String>,
+    pub latest_error: Option<String>,
+    pub query_eligible: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
     type = "gamecult.epiphany.memory_semantic_index_receipt",
     schema = "MemorySemanticIndexReceipt"
 )]
@@ -138,6 +229,200 @@ pub struct MemorySemanticIndexReceipt {
     pub indexed_at: String,
     #[cultcache(key = 15)]
     pub status: String,
+    #[cultcache(key = 16)]
+    pub obligation_id: String,
+    #[cultcache(key = 17)]
+    pub canonical_source_id: String,
+    #[cultcache(key = 18)]
+    pub source_commit_id: String,
+    #[cultcache(key = 19)]
+    pub source_generation: u64,
+    #[cultcache(key = 20)]
+    pub projection_schema_version: String,
+}
+
+pub fn validate_memory_semantic_projection_obligation(
+    obligation: &MemorySemanticProjectionObligation,
+) -> Result<()> {
+    if obligation.schema_version != MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported semantic projection obligation schema"));
+    }
+    for (label, value) in [
+        ("obligation_id", obligation.obligation_id.as_str()),
+        ("swarm_id", obligation.swarm_id.as_str()),
+        ("partition", obligation.partition.as_str()),
+        (
+            "canonical_source_id",
+            obligation.canonical_source_id.as_str(),
+        ),
+        ("source_commit_id", obligation.source_commit_id.as_str()),
+        ("graph_id", obligation.graph_id.as_str()),
+        ("source_model_hash", obligation.source_model_hash.as_str()),
+        (
+            "canonical_content_set_hash",
+            obligation.canonical_content_set_hash.as_str(),
+        ),
+        ("created_at", obligation.created_at.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("semantic projection obligation missing {label}"));
+        }
+    }
+    if !matches!(obligation.partition.as_str(), "mind" | "modeling") {
+        return Err(anyhow!(
+            "semantic projection obligation has invalid partition"
+        ));
+    }
+    if obligation.projection_schema_version != SEMANTIC_PROJECTION_SCHEMA_VERSION {
+        return Err(anyhow!("semantic projection obligation schema mismatch"));
+    }
+    Ok(())
+}
+
+pub fn validate_memory_semantic_projection_attempt(
+    attempt: &MemorySemanticProjectionAttempt,
+) -> Result<()> {
+    if attempt.schema_version != MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported semantic projection attempt schema"));
+    }
+    if attempt.attempt_id.trim().is_empty()
+        || attempt.obligation_id.trim().is_empty()
+        || attempt.started_at.trim().is_empty()
+    {
+        return Err(anyhow!(
+            "semantic projection attempt is missing identity or time"
+        ));
+    }
+    match attempt.status.as_str() {
+        "running" if attempt.completed_at.is_none() && attempt.error.is_none() => Ok(()),
+        "failed" if attempt.completed_at.is_some() && attempt.error.is_some() => Ok(()),
+        _ => Err(anyhow!(
+            "semantic projection attempt status does not match its terminal fields"
+        )),
+    }
+}
+
+pub fn derive_memory_semantic_projection_health(
+    obligation: &MemorySemanticProjectionObligation,
+    current: &MemorySemanticProjectionSourceHead,
+    attempts: &[MemorySemanticProjectionAttempt],
+    receipts: &[MemorySemanticIndexReceipt],
+) -> Result<MemorySemanticProjectionHealth> {
+    validate_memory_semantic_projection_obligation(obligation)?;
+    for attempt in attempts
+        .iter()
+        .filter(|attempt| attempt.obligation_id == obligation.obligation_id)
+    {
+        validate_memory_semantic_projection_attempt(attempt)?;
+    }
+    let stale = !obligation_matches_source(obligation, current);
+    let mut matching_receipts = receipts
+        .iter()
+        .filter(|receipt| receipt_matches_obligation(receipt, obligation))
+        .collect::<Vec<_>>();
+    matching_receipts.sort_by(|left, right| left.indexed_at.cmp(&right.indexed_at));
+    let receipt = matching_receipts.last().copied();
+    let mut matching_attempts = attempts
+        .iter()
+        .filter(|attempt| attempt.obligation_id == obligation.obligation_id)
+        .collect::<Vec<_>>();
+    matching_attempts.sort_by(|left, right| {
+        left.completed_at
+            .as_deref()
+            .unwrap_or(left.started_at.as_str())
+            .cmp(
+                right
+                    .completed_at
+                    .as_deref()
+                    .unwrap_or(right.started_at.as_str()),
+            )
+    });
+    let latest_attempt = matching_attempts.last().copied();
+    let status = if stale {
+        MemorySemanticProjectionHealthStatus::Stale
+    } else if receipt.is_some() {
+        MemorySemanticProjectionHealthStatus::Ready
+    } else if latest_attempt.is_some_and(|attempt| attempt.status == "failed") {
+        MemorySemanticProjectionHealthStatus::Failed
+    } else {
+        MemorySemanticProjectionHealthStatus::Pending
+    };
+    Ok(MemorySemanticProjectionHealth {
+        status,
+        obligation_id: obligation.obligation_id.clone(),
+        receipt_id: receipt.map(|receipt| receipt.receipt_id.clone()),
+        latest_attempt_id: latest_attempt.map(|attempt| attempt.attempt_id.clone()),
+        latest_error: latest_attempt.and_then(|attempt| attempt.error.clone()),
+        query_eligible: status == MemorySemanticProjectionHealthStatus::Ready,
+    })
+}
+
+pub fn memory_semantic_projection_query_eligible(
+    obligation: &MemorySemanticProjectionObligation,
+    current: &MemorySemanticProjectionSourceHead,
+    receipt: &MemorySemanticIndexReceipt,
+) -> bool {
+    validate_memory_semantic_projection_obligation(obligation).is_ok()
+        && obligation_matches_source(obligation, current)
+        && receipt_matches_obligation(receipt, obligation)
+}
+
+pub fn bind_memory_semantic_index_receipt(
+    mut receipt: MemorySemanticIndexReceipt,
+    obligation: &MemorySemanticProjectionObligation,
+) -> Result<MemorySemanticIndexReceipt> {
+    validate_memory_semantic_projection_obligation(obligation)?;
+    if receipt.swarm_id != obligation.swarm_id
+        || receipt.partition != obligation.partition
+        || receipt.graph_id != obligation.graph_id
+        || receipt.model_revision != obligation.source_generation
+        || receipt.model_hash != obligation.source_model_hash
+        || receipt.canonical_content_set_hash != obligation.canonical_content_set_hash
+        || receipt.status != "ready"
+    {
+        return Err(anyhow!(
+            "semantic index result does not match the exact projection obligation"
+        ));
+    }
+    receipt.obligation_id = obligation.obligation_id.clone();
+    receipt.canonical_source_id = obligation.canonical_source_id.clone();
+    receipt.source_commit_id = obligation.source_commit_id.clone();
+    receipt.source_generation = obligation.source_generation;
+    receipt.projection_schema_version = obligation.projection_schema_version.clone();
+    Ok(receipt)
+}
+
+fn obligation_matches_source(
+    obligation: &MemorySemanticProjectionObligation,
+    current: &MemorySemanticProjectionSourceHead,
+) -> bool {
+    obligation.swarm_id == current.swarm_id
+        && obligation.partition == current.partition
+        && obligation.canonical_source_id == current.canonical_source_id
+        && obligation.source_commit_id == current.source_commit_id
+        && obligation.graph_id == current.graph_id
+        && obligation.source_generation == current.source_generation
+        && obligation.source_model_hash == current.source_model_hash
+        && obligation.canonical_content_set_hash == current.canonical_content_set_hash
+}
+
+fn receipt_matches_obligation(
+    receipt: &MemorySemanticIndexReceipt,
+    obligation: &MemorySemanticProjectionObligation,
+) -> bool {
+    receipt.schema_version == MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION
+        && receipt.status == "ready"
+        && receipt.obligation_id == obligation.obligation_id
+        && receipt.swarm_id == obligation.swarm_id
+        && receipt.partition == obligation.partition
+        && receipt.canonical_source_id == obligation.canonical_source_id
+        && receipt.source_commit_id == obligation.source_commit_id
+        && receipt.graph_id == obligation.graph_id
+        && receipt.source_generation == obligation.source_generation
+        && receipt.model_revision == obligation.source_generation
+        && receipt.model_hash == obligation.source_model_hash
+        && receipt.canonical_content_set_hash == obligation.canonical_content_set_hash
+        && receipt.projection_schema_version == obligation.projection_schema_version
 }
 
 pub fn index_memory_semantic_partition(
@@ -230,6 +515,11 @@ pub fn index_memory_semantic_partition(
         canonical_content_set_hash: content_set_hash,
         indexed_at: indexed_at.to_string(),
         status: "ready".to_string(),
+        obligation_id: String::new(),
+        canonical_source_id: snapshot.graph_id.clone(),
+        source_commit_id: String::new(),
+        source_generation: snapshot.model_revision,
+        projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
     })
 }
 
@@ -255,7 +545,8 @@ pub fn semantic_memory_context(
     match try_semantic_memory_context(snapshot, swarm_id, partition, query, config) {
         Ok(packet) => packet,
         Err(error) => {
-            let mut packet = plan_memory_graph_context_cut(snapshot, query);
+            let mut packet =
+                plan_memory_graph_context_cut_for_partition(snapshot, query, &[], partition);
             packet.warnings.push(format!(
                 "semantic projection unavailable; used canonical BM25 fallback: {error}"
             ));
@@ -479,7 +770,12 @@ mod tests {
             text: Some("canonical qdrant semantic".to_string()),
             ..Default::default()
         };
-        let expected = plan_memory_graph_context_cut(&snapshot, &query);
+        let expected = plan_memory_graph_context_cut_for_partition(
+            &snapshot,
+            &query,
+            &[],
+            SemanticPartition::Modeling,
+        );
         let mut config = MemorySemanticIndexConfig::from_env();
         config.qdrant_url = "http://127.0.0.1:1".to_string();
         config.qdrant_timeout_ms = 25;
@@ -512,5 +808,183 @@ mod tests {
             config.query_instruction(SemanticPartition::Mind),
             config.query_instruction(SemanticPartition::Modeling)
         );
+    }
+
+    fn obligation() -> MemorySemanticProjectionObligation {
+        MemorySemanticProjectionObligation {
+            schema_version: MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION.to_string(),
+            obligation_id: "projection:swarm:modeling:commit-7".to_string(),
+            swarm_id: "swarm".to_string(),
+            partition: "modeling".to_string(),
+            canonical_source_id: "runtime-spine".to_string(),
+            source_commit_id: "commit-7".to_string(),
+            graph_id: "graph".to_string(),
+            source_generation: 7,
+            source_model_hash: "model-hash".to_string(),
+            canonical_content_set_hash: "content-hash".to_string(),
+            projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
+            created_at: "2026-07-15T10:00:00Z".to_string(),
+        }
+    }
+
+    fn source_head() -> MemorySemanticProjectionSourceHead {
+        let obligation = obligation();
+        MemorySemanticProjectionSourceHead {
+            swarm_id: obligation.swarm_id,
+            partition: obligation.partition,
+            canonical_source_id: obligation.canonical_source_id,
+            source_commit_id: obligation.source_commit_id,
+            graph_id: obligation.graph_id,
+            source_generation: obligation.source_generation,
+            source_model_hash: obligation.source_model_hash,
+            canonical_content_set_hash: obligation.canonical_content_set_hash,
+        }
+    }
+
+    fn receipt() -> MemorySemanticIndexReceipt {
+        let obligation = obligation();
+        MemorySemanticIndexReceipt {
+            schema_version: MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "receipt-7".to_string(),
+            swarm_id: obligation.swarm_id,
+            partition: obligation.partition,
+            collection_name: "epiphany_modeling_v1".to_string(),
+            graph_id: obligation.graph_id,
+            model_revision: obligation.source_generation,
+            model_hash: obligation.source_model_hash,
+            embedding_provider_id: "provider".to_string(),
+            embedding_model: "model".to_string(),
+            vector_dimensions: 1024,
+            indexed_document_count: 3,
+            deleted_document_count: 0,
+            canonical_content_set_hash: obligation.canonical_content_set_hash,
+            indexed_at: "2026-07-15T10:01:00Z".to_string(),
+            status: "ready".to_string(),
+            obligation_id: obligation.obligation_id,
+            canonical_source_id: obligation.canonical_source_id,
+            source_commit_id: obligation.source_commit_id,
+            source_generation: obligation.source_generation,
+            projection_schema_version: obligation.projection_schema_version,
+        }
+    }
+
+    fn failed_attempt() -> MemorySemanticProjectionAttempt {
+        MemorySemanticProjectionAttempt {
+            schema_version: MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION.to_string(),
+            attempt_id: "attempt-1".to_string(),
+            obligation_id: obligation().obligation_id,
+            started_at: "2026-07-15T10:00:30Z".to_string(),
+            completed_at: Some("2026-07-15T10:00:31Z".to_string()),
+            status: "failed".to_string(),
+            error: Some("qdrant unavailable".to_string()),
+        }
+    }
+
+    #[test]
+    fn projection_health_is_derived_from_exact_canonical_causality() {
+        let obligation = obligation();
+        let current = source_head();
+        let pending =
+            derive_memory_semantic_projection_health(&obligation, &current, &[], &[]).unwrap();
+        assert_eq!(
+            pending.status,
+            MemorySemanticProjectionHealthStatus::Pending
+        );
+        assert!(!pending.query_eligible);
+
+        let failed = derive_memory_semantic_projection_health(
+            &obligation,
+            &current,
+            &[failed_attempt()],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(failed.status, MemorySemanticProjectionHealthStatus::Failed);
+        assert_eq!(failed.latest_error.as_deref(), Some("qdrant unavailable"));
+
+        let ready = derive_memory_semantic_projection_health(
+            &obligation,
+            &current,
+            &[failed_attempt()],
+            &[receipt()],
+        )
+        .unwrap();
+        assert_eq!(ready.status, MemorySemanticProjectionHealthStatus::Ready);
+        assert!(ready.query_eligible);
+
+        let mut newer = current.clone();
+        newer.source_generation += 1;
+        newer.source_commit_id = "commit-8".to_string();
+        let stale = derive_memory_semantic_projection_health(
+            &obligation,
+            &newer,
+            &[failed_attempt()],
+            &[receipt()],
+        )
+        .unwrap();
+        assert_eq!(stale.status, MemorySemanticProjectionHealthStatus::Stale);
+        assert!(!stale.query_eligible);
+    }
+
+    #[test]
+    fn hostile_receipt_mismatches_never_grant_query_eligibility() {
+        let obligation = obligation();
+        let current = source_head();
+        for field in [
+            "obligation",
+            "swarm",
+            "partition",
+            "source",
+            "commit",
+            "graph",
+            "generation",
+            "revision",
+            "model",
+            "content",
+            "projection-schema",
+            "status",
+        ] {
+            let mut hostile = receipt();
+            match field {
+                "obligation" => hostile.obligation_id = "other".to_string(),
+                "swarm" => hostile.swarm_id = "other".to_string(),
+                "partition" => hostile.partition = "mind".to_string(),
+                "source" => hostile.canonical_source_id = "other".to_string(),
+                "commit" => hostile.source_commit_id = "other".to_string(),
+                "graph" => hostile.graph_id = "other".to_string(),
+                "generation" => hostile.source_generation += 1,
+                "revision" => hostile.model_revision += 1,
+                "model" => hostile.model_hash = "other".to_string(),
+                "content" => hostile.canonical_content_set_hash = "other".to_string(),
+                "projection-schema" => hostile.projection_schema_version = "other".to_string(),
+                "status" => hostile.status = "failed".to_string(),
+                _ => unreachable!(),
+            }
+            assert!(
+                !memory_semantic_projection_query_eligible(&obligation, &current, &hostile),
+                "hostile {field} substitution was accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn unbound_index_result_is_not_ready_until_exact_obligation_binding() {
+        let obligation = obligation();
+        let current = source_head();
+        let mut result = receipt();
+        result.obligation_id.clear();
+        result.canonical_source_id.clear();
+        result.source_commit_id.clear();
+        assert!(!memory_semantic_projection_query_eligible(
+            &obligation,
+            &current,
+            &result
+        ));
+        let bound = bind_memory_semantic_index_receipt(result, &obligation).unwrap();
+        assert!(memory_semantic_projection_query_eligible(
+            &obligation,
+            &current,
+            &bound
+        ));
     }
 }

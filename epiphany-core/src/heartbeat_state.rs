@@ -1112,6 +1112,28 @@ fn persona_memory_recall_for_scheduled_turn(
         });
     };
 
+    let swarm_identity = match crate::load_agent_memory_swarm_identity(agent_store) {
+        Ok(Some(identity)) => identity,
+        Ok(None) => {
+            return serde_json::json!({
+                "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
+                "status": "unavailable",
+                "cacheStatus": "swarm-identity-missing",
+                "renderedRecall": "- semantic Persona memory recall unavailable: agent store has no immutable swarm identity",
+                "privateStateExposed": false,
+            });
+        }
+        Err(error) => {
+            return serde_json::json!({
+                "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
+                "status": "unavailable",
+                "cacheStatus": "swarm-identity-load-failed",
+                "renderedRecall": format!("- semantic Persona memory recall unavailable: {}", compact_heartbeat_line(&format!("{error:#}"), 320)),
+                "privateStateExposed": false,
+            });
+        }
+    };
+
     let entry = match crate::agent_memory::load_agent_memory_entry_for_role(agent_store, "Persona")
     {
         Ok(Some(entry)) => entry,
@@ -1142,7 +1164,7 @@ fn persona_memory_recall_for_scheduled_turn(
             entries.push(role_entry);
         }
     }
-    let swarm_id = crate::swarm_identity_from_agent_memories(&entries);
+    let swarm_id = swarm_identity.swarm_id;
     let graph = crate::memory_graph_from_agent_memories(&format!("{swarm_id}-mind"), &entries);
     let persona_domain_id =
         crate::memory_graph_domain_id(crate::EpiphanyMemoryProfile::RoleSelf, "role", "Persona");
@@ -3845,6 +3867,7 @@ mod tests {
         let agent_store = temp.path().join("agents.msgpack");
         let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
+        crate::ensure_agent_memory_swarm_identity(&agent_store, "swarm-persona-memory-test")?;
         crate::write_agent_memory_entry_for_role(&agent_store, &persona_memory_entry())?;
         queue_heartbeat_pending_mention_store(
             &store_path,

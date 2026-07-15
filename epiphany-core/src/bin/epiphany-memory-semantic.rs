@@ -167,16 +167,17 @@ impl Options {
             if entries.is_empty() {
                 return Err(anyhow!("agent store has no admitted organ memory"));
             }
-            let derived_swarm_id = epiphany_core::swarm_identity_from_agent_memories(&entries);
-            if self.swarm_id != derived_swarm_id {
+            let identity = epiphany_core::load_agent_memory_swarm_identity(path)?
+                .ok_or_else(|| anyhow!("agent store has no immutable swarm identity; run epiphany-agent-memory-store set-swarm-identity"))?;
+            if self.swarm_id != identity.swarm_id {
                 return Err(anyhow!(
                     "--swarm-id {:?} does not match the canonical agent-store swarm identity {:?}",
                     self.swarm_id,
-                    derived_swarm_id
+                    identity.swarm_id
                 ));
             }
             return Ok(memory_graph_from_agent_memories(
-                format!("{derived_swarm_id}-mind"),
+                format!("{}-mind", identity.swarm_id),
                 &entries,
             ));
         }
