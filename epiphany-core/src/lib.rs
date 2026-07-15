@@ -690,6 +690,8 @@ pub use memory_graph::SemanticLifecycle;
 pub use memory_graph::SemanticPartition;
 pub use memory_graph::SemanticProjectionCandidate;
 pub use memory_graph::SemanticProjectionDocument;
+#[cfg(feature = "semantic-recovery-smoke")]
+pub use memory_graph::SemanticRecoverySmokeInspection;
 pub use memory_graph::SemanticVectorIndex;
 pub use memory_graph::SemanticVisibility;
 pub use memory_graph::bind_memory_semantic_index_receipt;
@@ -699,6 +701,8 @@ pub use memory_graph::derive_memory_semantic_projection_health;
 pub use memory_graph::derive_memory_semantic_projection_obligation;
 pub use memory_graph::derive_repo_model_patch;
 pub use memory_graph::derive_semantic_projection;
+#[cfg(feature = "semantic-recovery-smoke")]
+pub use memory_graph::inspect_memory_semantic_recovery_for_smoke;
 pub use memory_graph::lifecycle_allowed_for_profile;
 pub use memory_graph::load_memory_graph_entry;
 pub use memory_graph::load_memory_graph_snapshot;

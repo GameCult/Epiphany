@@ -9,6 +9,14 @@ license-file = "../LICENSE"
 name = "epiphany_core"
 path = "src/lib.rs"
 
+[features]
+semantic-recovery-smoke = []
+
+[[bin]]
+name = "epiphany-semantic-recovery-smoke"
+path = "src/bin/epiphany-semantic-recovery-smoke.rs"
+required-features = ["semantic-recovery-smoke"]
+
 [dependencies]
 anyhow = "1"
 bm25 = "2.3.2"

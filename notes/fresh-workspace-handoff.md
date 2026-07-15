@@ -1409,9 +1409,34 @@ startup correlation. Tunnel recurrence killed SSH PID 22652 and observed PID
 30444 start at 11:37:44 with Qdrant REST healthy.
 
 The limitation is part of the contract: this is after-login recovery, not
-pre-login, boot-time, machine-wide, or Windows-service operation. The next
+pre-login, boot-time, machine-wide, or Windows-service operation. The remaining
 Soul proof is a real reboot/logon cycle showing both scheduled tasks running,
 the tunnel ports restored, one Idunn-managed projector child, and a fresh
-launch-correlated ready heartbeat. After that, use an isolated exact
-abandoned-claim fixture to prove recovery/resumption without forging canonical
-Mind or Modeling work. Do not spend another pass polishing the dead SCM rite.
+launch-correlated ready heartbeat. Do not spend another pass polishing the dead
+SCM rite.
+
+## Isolated semantic abandoned-claim recovery proof (2026-07-15)
+
+The feature-gated native `epiphany-semantic-recovery-smoke` closes the recovery
+fixture wound without forging canonical Mind or Modeling work. It creates
+GUID-scoped Mind, Modeling, and Verse stores. A real projector acquires epoch 1,
+stalls against a fixture-local endpoint, and is killed. The supervisor then
+consumes the exact current semantic policy, managed-service lifecycle receipt,
+and provider heartbeat to recover epoch 2. A replacement real projector
+consumes that recovery authorization through the common execution path.
+
+Typed read-only inspection proves the abandoned attempt is failed, the recovery
+authorization is consumed, the epoch-2 claim remains running under the
+replacement incarnation, and the old owner cannot authenticate it. Actual
+semantic readiness and query eligibility are present. Wrong-heartbeat and
+single-use attempts fail without changing canonical fixture bytes.
+
+The Qdrant collections use GUID names, are preflighted absent, and are deleted
+and verified absent by exact 404. The smoke accepts no live/default Mind,
+Modeling, or Verse stores and exposes no fixture-only mutation mouth. Passing
+artifact:
+`C:\Users\Meta\AppData\Local\Temp\epiphany-semantic-recovery-1152736f-b8a2-4cf0-ab24-c8a3993a0eb7\proof.json`.
+
+This proves the exact recovery/resumption and fencing path. It does not prove
+global deployability. The remaining deployment evidence is still the real
+reboot/logon survival cycle above.

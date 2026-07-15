@@ -1094,6 +1094,101 @@ pub fn observe_memory_semantic_projection(
     })
 }
 
+#[cfg(feature = "semantic-recovery-smoke")]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticRecoverySmokeInspection {
+    pub claim_id: String,
+    pub claim_epoch: u64,
+    pub claim_status: String,
+    pub executor_id: String,
+    pub executor_incarnation: String,
+    pub attempt_status: String,
+    pub attempt_completed: bool,
+    pub recovery_authorization_id: Option<String>,
+    pub recovery_authorization_status: Option<String>,
+    pub recovery_authorization_consumed: bool,
+    pub abandoned_attempt_failed: bool,
+    pub old_owner_authenticates_current_claim: bool,
+}
+
+/// Read-only, feature-sealed witness for the native recovery smoke. It decodes
+/// and validates the same typed authority documents used by production; it
+/// cannot acquire, recover, complete, fail, or otherwise mutate a claim.
+#[cfg(feature = "semantic-recovery-smoke")]
+pub fn inspect_memory_semantic_recovery_for_smoke(
+    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
+    old_executor_id: &str,
+    old_executor_incarnation: &str,
+) -> Result<SemanticRecoverySmokeInspection> {
+    let store_path = store_path.as_ref();
+    observe_memory_semantic_projection(store_path, input)?;
+    let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    let scope_id = projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?;
+    let claim = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)?
+        .ok_or_else(|| anyhow!("semantic recovery smoke found no current claim"))?;
+    validate_memory_semantic_projection_claim(&claim)?;
+    let attempts = decode_all::<MemorySemanticProjectionAttempt>(&envelopes)?;
+    for attempt in &attempts {
+        validate_memory_semantic_projection_attempt(attempt)?;
+    }
+    let attempt = attempts
+        .iter()
+        .find(|attempt| attempt.attempt_id == claim.attempt_id)
+        .ok_or_else(|| anyhow!("semantic recovery smoke current claim lost its attempt"))?;
+    let authorizations = decode_all::<MemorySemanticProjectorRecoveryAuthorization>(&envelopes)?;
+    for authorization in &authorizations {
+        validate_memory_semantic_projector_recovery_authorization(authorization)?;
+    }
+    let authorization = authorizations
+        .iter()
+        .find(|authorization| authorization.resulting_claim_id.as_deref() == Some(&claim.claim_id));
+    let abandoned_attempt_failed = authorization.is_some_and(|authorization| {
+        attempts.iter().any(|attempt| {
+            attempt.attempt_id == authorization.attempt_id
+                && attempt.claim_id == authorization.claim_id
+                && attempt.claim_epoch == authorization.claim_epoch
+                && attempt.status == "failed"
+                && attempt.completed_at.is_some()
+        })
+    });
+    let old_owner_authenticates_current_claim = owned_running_memory_semantic_projection_claim(
+        store_path,
+        input,
+        old_executor_id,
+        old_executor_incarnation,
+    )?
+    .is_some();
+    Ok(SemanticRecoverySmokeInspection {
+        claim_id: claim.claim_id,
+        claim_epoch: claim.epoch,
+        claim_status: claim.status,
+        executor_id: claim.executor_id,
+        executor_incarnation: claim.executor_incarnation,
+        attempt_status: attempt.status.clone(),
+        attempt_completed: attempt.completed_at.is_some(),
+        recovery_authorization_id: authorization.map(|row| row.authorization_id.clone()),
+        recovery_authorization_status: authorization.map(|row| row.status.clone()),
+        recovery_authorization_consumed: authorization
+            .is_some_and(|row| row.status == "consumed" && row.consumed_at.is_some()),
+        abandoned_attempt_failed,
+        old_owner_authenticates_current_claim,
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn semantic_recovery_smoke_exposes_no_raw_mutation_authority() {
+    let source = include_str!("semantic_projector.rs");
+    assert!(source.contains("pub(crate) fn idunn_acquire_memory_semantic_projection("));
+    let public_acquire = ["pub fn idunn_", "acquire_memory_semantic_projection("].concat();
+    let fixture_seed = ["seed_abandoned_memory_semantic_projection", "_for_smoke"].concat();
+    assert!(!source.contains(&public_acquire));
+    assert!(!source.contains(&fixture_seed));
+    assert!(source.contains("pub fn inspect_memory_semantic_recovery_for_smoke("));
+}
+
 pub(crate) fn projection_scope_id(swarm_id: &str, partition: &str) -> Result<String> {
     if swarm_id.trim().is_empty() || !matches!(partition, "mind" | "modeling") {
         return Err(anyhow!("semantic projection scope identity is invalid"));
