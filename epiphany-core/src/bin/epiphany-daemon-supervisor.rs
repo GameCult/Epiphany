@@ -558,19 +558,34 @@ fn semantic_projector_service_status(args: Args) -> Result<()> {
         "{}",
         serde_json::to_string_pretty(&json!({
             "schemaVersion": "epiphany.memory_semantic_projector_service_status.v0",
-            "status": if correlation_matches && heartbeat.status == "ready" { "ready" } else { "degraded" },
+            "status": semantic_projector_observation_status(correlation_matches, &heartbeat.status),
             "processId": receipt.process_id,
             "launchReceiptId": receipt.receipt_id,
+            "launchStartedAtUtc": receipt.started_at_utc,
             "executableSha256": receipt.executable_sha256,
             "heartbeatId": heartbeat.heartbeat_id,
+            "heartbeatAt": heartbeat.heartbeat_at,
             "providerIncarnation": heartbeat.provider_incarnation,
             "heartbeatStatus": heartbeat.status,
             "startupCorrelationMatches": correlation_matches,
+            "readinessAuthority": "semantic-query-admission",
+            "semanticReadiness": "not-asserted-by-this-status",
             "privateStateExposed": false,
             "authoritative": false,
         }))?
     );
     Ok(())
+}
+
+fn semantic_projector_observation_status(
+    correlation_matches: bool,
+    heartbeat_status: &str,
+) -> &'static str {
+    if correlation_matches && heartbeat_status == "ready" {
+        "provider-correlated"
+    } else {
+        "provider-degraded"
+    }
 }
 
 fn semantic_projection_input(args: &Args) -> Result<(MemorySemanticProjectionInput, &Path)> {
@@ -2516,6 +2531,22 @@ struct RestartOutput {
 #[cfg(test)]
 mod provider_status_ownership_tests {
     use super::*;
+
+    #[test]
+    fn provider_correlation_never_claims_semantic_readiness() {
+        assert_eq!(
+            semantic_projector_observation_status(true, "ready"),
+            "provider-correlated"
+        );
+        assert_eq!(
+            semantic_projector_observation_status(false, "ready"),
+            "provider-degraded"
+        );
+        assert_eq!(
+            semantic_projector_observation_status(true, "degraded"),
+            "provider-degraded"
+        );
+    }
 
     #[test]
     fn successful_command_awaits_provider_heartbeat_instead_of_minting_readiness() {

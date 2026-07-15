@@ -25,7 +25,7 @@ one process per partition.
 
 ```powershell
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
-cargo build --release --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-memory-semantic-projector --bin epiphany-daemon-supervisor
+cargo build --release --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-memory-semantic-projector --bin epiphany-memory-semantic --bin epiphany-daemon-supervisor
 ```
 
 ## Transport configuration
@@ -124,3 +124,73 @@ projector resumes its own recovered claim on the next pulse.
 - Stop the process once, let Idunn restart it, and verify a newer provider
   heartbeat names the startup lifecycle receipt. Do not use command exit zero as
   readiness.
+
+## Reboot and logon proof
+
+This is an operator-authorized host boundary. Do not reboot Starfire without
+explicit live approval. Before reboot, record the current boot time, task
+definitions, task process IDs, launch receipt, heartbeat, provider incarnation,
+and projector PID. After the operator logs in again, prove the following from
+the repository root:
+
+```powershell
+Get-CimInstance Win32_OperatingSystem | Select-Object LastBootUpTime
+Get-ScheduledTask -TaskName GameCult-Yggdrasil-Tunnel,Epiphany-Idunn-Managed-Service-Reconciler |
+  Select-Object TaskName, State
+E:\Projects\gamecult-ops\scripts\check-yggdrasil-tunnel.ps1
+curl.exe -fsS http://127.0.0.1:16333/collections
+Get-CimInstance Win32_Process |
+  Where-Object { $_.CommandLine -match 'managed-service-serve|memory-semantic-projector' } |
+  Select-Object ProcessId, ParentProcessId, CreationDate, CommandLine
+C:\Users\Meta\.cargo-target-codex\release\epiphany-daemon-supervisor.exe `
+  semantic-projector-service-status `
+  --store .\.epiphany-run\cultmesh\local-verse.ccmp `
+  --runtime-id epiphany-local
+```
+
+The status command proves only a provider launch/heartbeat correlation. Its
+`status` must be `provider-correlated`, `authoritative` must be `false`, and the
+launch receipt, heartbeat, provider incarnation, process creation time, and
+receipt timestamps must all belong to the post-boot process chain. The status
+projection exposes those typed times as `launchStartedAtUtc` and `heartbeatAt`.
+Make the lineage assertion exact:
+
+```powershell
+$idunn = @(Get-CimInstance Win32_Process | Where-Object {
+  $_.Name -eq 'epiphany-daemon-supervisor.exe' -and
+  $_.CommandLine -match '\bmanaged-service-serve\b'
+})
+$projector = @(Get-CimInstance Win32_Process | Where-Object {
+  $_.Name -eq 'epiphany-memory-semantic-projector.exe'
+})
+if ($idunn.Count -ne 1) { throw "expected exactly one Idunn reconciler" }
+if ($projector.Count -ne 1) { throw "expected exactly one semantic projector" }
+if ($projector[0].ParentProcessId -ne $idunn[0].ProcessId) {
+  throw "semantic projector is not a direct child of the post-boot Idunn reconciler"
+}
+```
+
+Task Scheduler
+`LastTaskResult=0x800710E0` can be the expected refused duplicate recurrence
+while an `IgnoreNew` foreground task is already Running; it is not readiness.
+
+Finally use the packaged query gate with explicit deployment endpoints. Omitting
+these variables selects developer defaults and may legitimately fall back to
+BM25, which is a failed deployment proof rather than semantic readiness:
+
+```powershell
+$env:EPIPHANY_QDRANT_URL='http://127.0.0.1:16333'
+$env:EPIPHANY_OLLAMA_BASE_URL='http://10.77.0.1:11435'
+$semantic='C:\Users\Meta\.cargo-target-codex\release\epiphany-memory-semantic.exe'
+& $semantic context --agent-store .\state\agents.msgpack --partition mind `
+  --text 'current Epiphany doctrine and memory' --query-id reboot-proof-mind --budget 8
+& $semantic context --runtime-store .\state\runtime-spine.msgpack --partition modeling `
+  --text 'current repository architecture and deployment frontier' `
+  --query-id reboot-proof-modeling --budget 8
+```
+
+Both results must report `semantic projection ranked ... canonical ...
+candidates` and must not report `semantic projection unavailable` or BM25
+fallback. That query admission is the readiness proof. A Running task, open TCP
+port, Qdrant collection listing, provider heartbeat, or health projection is
+only a prerequisite observation.

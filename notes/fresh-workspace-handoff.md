@@ -1409,12 +1409,34 @@ incarnation `projector-59217a66-e3e2-44c3-b000-36af3d43b043` and the exact
 startup correlation. Tunnel recurrence killed SSH PID 22652 and observed PID
 30444 start at 11:37:44 with Qdrant REST healthy.
 
+The pre-reboot deployment repair then packaged
+`epiphany-memory-semantic.exe` beside the release supervisor and projector,
+deployed the rebuilt supervisor, and left
+`Epiphany-Idunn-Managed-Service-Reconciler` Running. Deployment queries must
+receive the real transport coordinates explicitly through
+`EPIPHANY_QDRANT_URL` and `EPIPHANY_OLLAMA_BASE_URL`; ambient defaults are not
+deployment proof. With those variables set, both packaged Mind and Modeling
+queries returned semantic ranking. The provider status command no longer calls
+that sight `ready`: it returns `provider-correlated` or `provider-degraded`, is
+explicitly non-authoritative, and points to semantic query admission as the
+only readiness owner.
+
+One process-lifecycle scar matters for the reboot audit. Stopping the Task
+Scheduler reconciler leaves its already-detached projector child alive. A
+current parent PID is therefore derived process sight, not durable custody, and
+a stop/start rehearsal can accidentally reuse the old child. The real proof
+must observe a fresh post-boot scheduler -> reconciler -> exactly-one-projector
+chain, a new launch-correlated provider heartbeat, and successful packaged
+Mind and Modeling query admission after the tunnel returns.
+
 The limitation is part of the contract: this is after-login recovery, not
 pre-login, boot-time, machine-wide, or Windows-service operation. The remaining
 Soul proof is a real reboot/logon cycle showing both scheduled tasks running,
 the tunnel ports restored, one Idunn-managed projector child, and a fresh
-launch-correlated ready heartbeat. Do not spend another pass polishing the dead
-SCM rite.
+launch-correlated provider heartbeat followed by semantically ranked packaged
+Mind and Modeling queries. Reboot remains a host-wide action requiring exact
+live operator permission. Do not spend another pass polishing the dead SCM
+rite.
 
 ## Isolated semantic abandoned-claim recovery proof (2026-07-15)
 

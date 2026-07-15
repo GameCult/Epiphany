@@ -644,14 +644,30 @@ authentication, evidence field substitution, lifecycle/heartbeat causal
 ordering, recovery single use, and the inability of the recovery command to
 execute projection work itself.
 
-Remaining limits are physical deployment, not permission for another adapter.
-There is no open-obligation daemon pulse or packaged single projector owner
-yet. The low-level mint and recovery primitives are crate-private. Their public
-local-supervisor ports generate incarnations internally, but remain trusted
-in-process ports rather than an OS-authenticated Idunn service boundary.
-Deployment must keep those ports inside one configured Idunn body until a
-durable authenticated service identity owns them. Canonical store and Qdrant
-placement must be chosen as one topology; dual projectors are forbidden.
+The packaged workstation body now contains the single projector owner, Idunn
+supervisor, and semantic query verifier. Task Scheduler owns current-user
+after-login presence of the foreground Idunn reconciler; the reserved typed
+policy owns the exact projector launch shape; Idunn seals the launch receipt;
+and the projector authenticates that receipt before taking the host-wide
+canonical-store-pair singleton. `gamecult-ops` separately owns the foreground
+Yggdrasil tunnel that exposes Qdrant on workstation loopback. Canonical store
+and Qdrant placement remain one topology; dual projectors are forbidden.
+
+Provider correlation is derived sight. The service-status projection reports
+`provider-correlated` or `provider-degraded`, never semantic readiness. Query
+admission authenticates the newest exact obligation/current/success chain and
+alone owns readiness. Deployment proof uses the packaged verifier with explicit
+`EPIPHANY_QDRANT_URL` and `EPIPHANY_OLLAMA_BASE_URL`; both Mind and Modeling
+queries have returned semantic ranking under those explicit coordinates.
+
+Stopping the scheduled reconciler does not kill its detached projector child.
+Process ancestry is therefore current observation, not durable ownership, and
+a task restart can reuse an already-running child. The missing proof is a real
+operator-approved reboot/logon cycle that observes both tasks restored, the
+tunnel ports live, a fresh post-boot reconciler -> exactly-one-projector chain,
+a new launch-correlated provider heartbeat, and semantic ranking from both
+packaged queries. This proves after-login physiology only. Reboot is outside
+agent authority until the operator grants that exact host-wide action.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.
