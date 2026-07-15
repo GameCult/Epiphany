@@ -17,8 +17,10 @@ pub const BODY_BINDING_TYPE: &str = "epiphany.repository_body.binding";
 pub const BODY_OBSERVATION_TYPE: &str = "epiphany.repository_body.observation";
 pub const BODY_HEAD_TYPE: &str = "epiphany.repository_body.head";
 pub const BODY_MANIFEST_TYPE: &str = "epiphany.repository_body.manifest";
+pub const RUNTIME_BODY_STORE_BINDING_TYPE: &str = "epiphany.runtime.repository_body_store_binding";
 pub const BODY_BINDING_KEY: &str = "binding";
 pub const BODY_HEAD_KEY: &str = "current";
+pub const RUNTIME_BODY_STORE_BINDING_KEY: &str = "repository-body-store";
 pub const BODY_SCHEMA_VERSION: &str = "epiphany.repository_body.v2";
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -49,6 +51,28 @@ pub struct RepositoryBodyBinding {
     pub object_format: String,
     #[cultcache(key = 10)]
     pub global_excludes_policy: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.repository_body_store_binding",
+    schema = "RuntimeRepositoryBodyStoreBinding"
+)]
+pub struct RuntimeRepositoryBodyStoreBinding {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub binding_id: String,
+    #[cultcache(key = 2)]
+    pub runtime_id: String,
+    #[cultcache(key = 3)]
+    pub swarm_id: String,
+    #[cultcache(key = 4)]
+    pub workspace_id: String,
+    #[cultcache(key = 5)]
+    pub body_store_path: String,
+    #[cultcache(key = 6)]
+    pub body_binding_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -181,17 +205,36 @@ pub fn bind_repository_body(
     };
     let opening = load_body_envelopes(store)?;
     validate_binding(&opening, &binding)?;
-    if find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY).is_some() {
-        return Ok(binding);
-    }
-    if !SingleFileMessagePackBackingStore::new(store).insert_entry_if_absent(envelope(
-        BODY_BINDING_TYPE,
-        BODY_BINDING_KEY,
-        &binding,
-    )?)? {
+    if find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY).is_none()
+        && !SingleFileMessagePackBackingStore::new(store).insert_entry_if_absent(envelope(
+            BODY_BINDING_TYPE,
+            BODY_BINDING_KEY,
+            &binding,
+        )?)?
+    {
         bail!("repository Body immutable binding lost insert race; reload before retrying");
     }
+    bind_runtime_body_store(runtime_store, store, &binding)?;
     Ok(binding)
+}
+
+pub fn runtime_repository_body_store_binding(
+    runtime_store: &Path,
+) -> Result<Option<RuntimeRepositoryBodyStoreBinding>> {
+    if !runtime_store.exists() {
+        return Ok(None);
+    }
+    let entries = SingleFileMessagePackBackingStore::new(runtime_store).pull_all()?;
+    let Some(env) = find(
+        &entries,
+        RUNTIME_BODY_STORE_BINDING_TYPE,
+        RUNTIME_BODY_STORE_BINDING_KEY,
+    ) else {
+        return Ok(None);
+    };
+    let binding: RuntimeRepositoryBodyStoreBinding = decode(env)?;
+    validate_runtime_body_store_binding(runtime_store, &binding)?;
+    Ok(Some(binding))
 }
 
 pub fn observe_repository_body(
@@ -750,6 +793,93 @@ fn validate_stored_binding(binding: &RepositoryBodyBinding) -> Result<()> {
     }
     Ok(())
 }
+fn bind_runtime_body_store(
+    runtime_store: &Path,
+    body_store: &Path,
+    body: &RepositoryBodyBinding,
+) -> Result<RuntimeRepositoryBodyStoreBinding> {
+    let runtime = load_valid_runtime_binding(runtime_store)?;
+    require_runtime_matches(body, &runtime)?;
+    let body_store_path = std::fs::canonicalize(body_store)
+        .context("failed to canonicalize bound repository Body store")?
+        .to_string_lossy()
+        .into_owned();
+    let binding = RuntimeRepositoryBodyStoreBinding {
+        schema_version: BODY_SCHEMA_VERSION.into(),
+        binding_id: RUNTIME_BODY_STORE_BINDING_KEY.into(),
+        runtime_id: runtime.runtime_id,
+        swarm_id: runtime.swarm_id,
+        workspace_id: body.workspace_id.clone(),
+        body_store_path,
+        body_binding_sha256: body_binding_sha256(body)?,
+    };
+    let backing = SingleFileMessagePackBackingStore::new(runtime_store);
+    let opening = backing.pull_all()?;
+    if let Some(env) = find(
+        &opening,
+        RUNTIME_BODY_STORE_BINDING_TYPE,
+        RUNTIME_BODY_STORE_BINDING_KEY,
+    ) {
+        let existing: RuntimeRepositoryBodyStoreBinding = decode(env)?;
+        if existing != binding {
+            bail!("runtime repository Body-store immutable binding collision");
+        }
+        validate_runtime_body_store_binding(runtime_store, &existing)?;
+        return Ok(existing);
+    }
+    if !backing.insert_entry_if_absent(envelope(
+        RUNTIME_BODY_STORE_BINDING_TYPE,
+        RUNTIME_BODY_STORE_BINDING_KEY,
+        &binding,
+    )?)? {
+        bail!("runtime repository Body-store binding lost insert race; reload before retrying");
+    }
+    validate_runtime_body_store_binding(runtime_store, &binding)?;
+    Ok(binding)
+}
+fn validate_runtime_body_store_binding(
+    runtime_store: &Path,
+    binding: &RuntimeRepositoryBodyStoreBinding,
+) -> Result<()> {
+    if binding.schema_version != BODY_SCHEMA_VERSION
+        || binding.binding_id != RUNTIME_BODY_STORE_BINDING_KEY
+        || binding.runtime_id.trim().is_empty()
+        || binding.swarm_id.trim().is_empty()
+        || binding.workspace_id.trim().is_empty()
+        || binding.body_store_path.trim().is_empty()
+        || binding.body_binding_sha256.trim().is_empty()
+    {
+        bail!("runtime repository Body-store binding is invalid");
+    }
+    let runtime = load_valid_runtime_binding(runtime_store)?;
+    if binding.runtime_id != runtime.runtime_id || binding.swarm_id != runtime.swarm_id {
+        bail!("runtime repository Body-store binding disagrees with runtime identity");
+    }
+    let body_store = PathBuf::from(&binding.body_store_path);
+    let canonical =
+        std::fs::canonicalize(&body_store).context("runtime repository Body store is missing")?;
+    if canonical.to_string_lossy() != binding.body_store_path {
+        bail!("runtime repository Body-store locator is not canonical");
+    }
+    let entries = load_body_envelopes(&body_store)?;
+    let env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
+    let body: RepositoryBodyBinding = decode(env)?;
+    validate_stored_binding(&body)?;
+    require_runtime_matches(&body, &runtime)?;
+    if body.workspace_id != binding.workspace_id
+        || body_binding_sha256(&body)? != binding.body_binding_sha256
+    {
+        bail!("runtime repository Body-store binding hash collision");
+    }
+    Ok(())
+}
+fn body_binding_sha256(binding: &RepositoryBodyBinding) -> Result<String> {
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(binding)?)
+    ))
+}
 fn validate_body_chain(
     entries: &[CultCacheEnvelope],
     binding: &RepositoryBodyBinding,
@@ -933,6 +1063,13 @@ mod tests {
         crate::ensure_agent_memory_swarm_identity(&agents, swarm_id)?;
         crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-15T00:00:01Z")?;
         bind_repository_body(repo, &store, &runtime, workspace)?;
+        let route = runtime_repository_body_store_binding(&runtime)?
+            .ok_or_else(|| anyhow!("runtime lost repository Body-store binding"))?;
+        assert_eq!(route.workspace_id, workspace);
+        assert_eq!(
+            PathBuf::from(route.body_store_path),
+            std::fs::canonicalize(&store)?
+        );
         Ok((store, runtime))
     }
     #[test]
@@ -1036,6 +1173,34 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn runtime_body_store_route_is_immutable_and_validated() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (store, runtime) = bound(d.path(), state.path(), "w", "r", "s")?;
+        let route = runtime_repository_body_store_binding(&runtime)?.unwrap();
+        let second = state.path().join("second-body.cc");
+        assert!(
+            bind_repository_body(d.path(), &second, &runtime, "w")
+                .unwrap_err()
+                .to_string()
+                .contains("immutable binding collision")
+        );
+        let moved = state.path().join("moved-body.cc");
+        std::fs::rename(&store, &moved)?;
+        assert!(
+            runtime_repository_body_store_binding(&runtime)
+                .unwrap_err()
+                .to_string()
+                .contains("Body store is missing")
+        );
+        std::fs::rename(&moved, &store)?;
+        assert_eq!(
+            runtime_repository_body_store_binding(&runtime)?.unwrap(),
+            route
+        );
+        Ok(())
+    }
+    #[test]
     fn stale_head_cannot_overwrite() -> Result<()> {
         let d = repo()?;
         let state = tempfile::tempdir()?;
@@ -1103,8 +1268,14 @@ mod tests {
                 .contains("outside")
         );
         assert!(!d.path().join("body.cc").exists());
-        let store = state.path().join("corrupt-body.cc");
-        bind_repository_body(d.path(), &store, &runtime, "corrupt")?;
+        let corrupt_state = tempfile::tempdir()?;
+        let (store, runtime) = bound(
+            d.path(),
+            corrupt_state.path(),
+            "corrupt",
+            "corrupt-runtime",
+            "corrupt-swarm",
+        )?;
         write(&d.path().join(".git").join("HEAD"), "not-a-ref")?;
         assert!(observe_repository_body(d.path(), &store, &runtime).is_err());
         assert!(load_repository_body_status(&store)?.is_none());

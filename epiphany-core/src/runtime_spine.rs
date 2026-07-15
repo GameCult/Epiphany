@@ -821,6 +821,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoModelAdmissionReview>()?;
     cache.register_entry_type::<RepoModelAdmissionReceipt>()?;
     cache.register_entry_type::<RepoModelMigrationReceipt>()?;
+    cache.register_entry_type::<crate::RuntimeRepositoryBodyStoreBinding>()?;
     cache.register_entry_type::<RepoModelClaimChallenge>()?;
     cache.register_entry_type::<RepoModelClaimRepairRequest>()?;
     cache.register_entry_type::<RepoModelClaimRepairLaunchBinding>()?;

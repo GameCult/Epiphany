@@ -792,6 +792,14 @@ SHA-256 root over workspace, scope policy, and those entries is authoritative
 Body identity. Manifest, observation, and manifest-root head land in one CAS.
 Gitlinks remain nonrecursive. Unsafe or unrepresentable paths fail closed.
 
+The bind rite also writes one immutable runtime-side
+`RuntimeRepositoryBodyStoreBinding`. It names the canonical external Body-store
+locator and hashes the exact Body binding while repeating runtime, swarm, and
+workspace identity. Every read reopens the Body store and validates that chain.
+One runtime cannot silently switch between Body stores; relocation or replacement
+requires a future explicit migration receipt. This is routing authority only. It
+does not claim that a Modeling launch, result, or admission is grounded yet.
+
 ## Mind readiness join boundary (2026-07-15)
 
 A truthful whole-repository readiness join does not yet exist. Mind must own a

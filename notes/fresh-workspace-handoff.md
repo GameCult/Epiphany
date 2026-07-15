@@ -1652,6 +1652,11 @@ clean-filtered tree OID is auxiliary. Raw file bytes (or non-followed symlink
 target bytes) feed an ordered manifest whose domain-separated SHA-256 root is
 the authoritative Body identity. Manifest, observation, and manifest-root head
 commit atomically. Gitlinks are nonrecursive; unrepresentable paths fail closed.
+Bind now installs one immutable runtime-side Body-store route containing the
+canonical external locator and exact Body-binding hash. Reads validate runtime,
+swarm, workspace, path, and Body binding; a runtime cannot substitute a second
+Body store. The route is the missing nerve needed by launch/admission, not proof
+that any current RepoModel was grounded through it.
 
 ## Readiness join remains deliberately impossible (2026-07-15)
 

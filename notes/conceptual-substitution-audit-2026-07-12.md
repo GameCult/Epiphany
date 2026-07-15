@@ -1844,3 +1844,7 @@ identity is a domain-separated raw-content manifest root over workspace/scope/
 policy plus ordered UTF-8 paths, modes/kinds, byte lengths, raw SHA-256 hashes,
 non-followed symlink-target hashes, and nonrecursive gitlink OIDs. Manifest and
 manifest-root head share the observation CAS.
+The runtime now holds one immutable route to that external store, bound by
+canonical locator plus exact Body-binding hash and revalidated on read. The route
+does not substitute for a pre-thought Body observation basis or model grounding;
+it merely prevents later callers from choosing whichever store flatters them.
