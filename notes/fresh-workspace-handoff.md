@@ -1503,3 +1503,42 @@ need a real dispatcher and receipt path.
 This does not replace the current deployment next action: complete the real
 Windows reboot/logon proof for Task Scheduler, the Yggdrasil tunnel, Idunn, and
 the launch-correlated semantic projector heartbeat.
+
+## Production coordinator fixture authority cut (2026-07-15)
+
+The production `epiphany-mvp-coordinator` is again a scheduler, not a smoke
+ventriloquist. Typed coordinator status and accepted evidence own the selected
+action. The normal `continueImplementation` arm remains the single shared path
+that may produce a Hands gate, but caller fixture text can no longer force that
+arm or suppress review.
+
+- Owner: typed coordinator status plus accepted role/evidence state owns the
+  next action; Hands/Substrate review owns implementation permission.
+- Inputs: the selected runtime store, current typed thread state, accepted role
+  results, and explicit review state.
+- Outputs: coordinator steps, final action, run receipt, and a Hands gate only
+  when the typed action reaches the shared implementation arm.
+- Derived state: smoke scenarios, fixture workspaces, forced pressure, source
+  drift, and dry-compaction observations are verification cargo only.
+- Forbidden writers: production CLI flags, callers, wrappers, and fixture
+  helpers cannot choose coordinator action, mark it auto-runnable, waive
+  review, seed canonical scheduler state, or manufacture a Hands gate.
+- Shared paths: production and smoke exercise the same typed status/action and
+  Hands-gate machinery after their inputs exist; the smoke does not add a
+  second decision owner.
+- Cut line: all production fixture flags, overrides, and helpers were deleted.
+  Fixture assembly lives in `epiphany-mvp-coordinator-smoke`, confined to
+  `.epiphany-smoke/mvp-coordinator`.
+
+Negative proof rejects all seven retired flags at the production mouth while
+the dedicated smoke remains inside its fixed root. No legacy flag can target a
+caller-selected runtime store. Eyes has banked one adjacent candidate, not a
+completed finding: sibling Bifrost subprocess JSON still participates in a
+readiness view and needs a focused audit for typed provider identity and
+provenance before any cut is justified.
+
+The deployment next action is unchanged and permission-bound: only with exact
+live operator approval may the real reboot/logon proof run. It must establish
+the restored tasks and tunnel, a fresh reconciler -> exactly-one-projector
+chain, launch-correlated provider sight, and admitted semantic queries. Do not
+infer reboot authority from this scheduler cleanup.

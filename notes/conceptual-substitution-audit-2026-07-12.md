@@ -1698,6 +1698,35 @@ Real Reddit and Other artifacts exist but are not registered as output
 contracts. Rebuild that surface around typed discriminated artifact references,
 register the real outputs, or stop advertising them as typed surface outputs.
 
+## Production smoke controls substituted for coordinator authority
+
+The production coordinator formerly accepted fixture/bootstrap and simulation
+flags beside arbitrary runtime-store selection. They could seed typed thread
+state, replace the derived action, assert `canAutoRun`, waive review, and enter
+the ordinary implementation arm that writes a real Hands gate.
+
+- Owner: typed coordinator status and accepted evidence own action selection;
+  Hands/Substrate review owns implementation permission.
+- Inputs: current typed thread state, accepted role results, and review evidence.
+- Outputs: action and run receipt; the shared implementation arm may emit a
+  Hands gate.
+- Derived state: bootstrap, forced pressure/continuation/source drift, and dry
+  compaction are smoke-only scenario state.
+- Forbidden writers: production flags, callers, wrappers, and fixture helpers
+  cannot choose action, waive review, or mint permission.
+- Shared paths: smoke and production consume the same typed status/action and
+  Hands-gate machinery; smoke owns only isolated fixture preparation.
+- Cut line: delete fixture flags, overrides, and helpers from production; bind
+  the smoke to `.epiphany-smoke/mvp-coordinator`.
+
+Negative proof: production deleted all fixture flags/overrides/helpers; smoke
+is fixed beneath that root and rejects all seven legacy flags. Typed
+status/evidence alone now reaches the action arm and Hands gate.
+
+Eyes' next candidate is unconfirmed: sibling Bifrost subprocess JSON consumed
+by readiness needs a typed identity/provenance audit before deciding whether it
+borrows provider authority.
+
 ### Closure update (2026-07-15)
 
 Commit `65445623` closed the local Persona projection wound: the MVP-status

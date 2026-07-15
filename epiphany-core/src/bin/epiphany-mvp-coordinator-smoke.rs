@@ -25,7 +25,7 @@ impl Args {
     fn parse() -> Result<Self> {
         let root = env::current_dir().context("failed to resolve current dir")?;
         let mut parsed = Self {
-            artifact_root: root.join(".epiphany-dogfood").join("coordinator-smoke"),
+            artifact_root: root.join(".epiphany-smoke").join("mvp-coordinator"),
             coordinator_exe: None,
         };
         let mut args = env::args().skip(1);
@@ -55,9 +55,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
         Some(path) => absolute_path(path)?,
         None => sibling_exe("epiphany-mvp-coordinator")?,
     };
-    let hands_action = sibling_exe("epiphany-hands-action")?;
     ensure_coordinator_built(&root, &coordinator)?;
-    ensure_epiphany_bin_built(&root, &hands_action, "epiphany-hands-action")?;
 
     let cold = run_coordinator(
         &root,
@@ -66,11 +64,6 @@ fn run_smoke(args: &Args) -> Result<Value> {
         RunOptions {
             name: "cold",
             mode: "plan",
-            bootstrap_smoke_state: false,
-            bootstrap_local_state: false,
-            simulate_high_pressure: false,
-            simulate_continue_implementation: false,
-            dry_compact: false,
             max_steps: 1,
         },
     )?;
@@ -81,99 +74,27 @@ fn run_smoke(args: &Args) -> Result<Value> {
     require_artifacts(&cold)?;
     require_operator_safe(&cold, "$")?;
 
-    let local = run_coordinator(
-        &root,
-        &coordinator,
-        &artifact_root,
-        RunOptions {
-            name: "local-bootstrap",
-            mode: "plan",
-            bootstrap_smoke_state: false,
-            bootstrap_local_state: true,
-            simulate_high_pressure: false,
-            simulate_continue_implementation: false,
-            dry_compact: false,
-            max_steps: 1,
-        },
-    )?;
-    require(
-        local.pointer("/finalAction/action").and_then(Value::as_str) != Some("prepareCheckpoint"),
-        "local bootstrap should provide enough checkpoint state to move past prepareCheckpoint",
-    )?;
-    require_artifacts(&local)?;
-    require_operator_safe(&local, "$")?;
-
-    let pressure = run_coordinator(
-        &root,
-        &coordinator,
-        &artifact_root,
-        RunOptions {
-            name: "pressure",
-            mode: "run",
-            bootstrap_smoke_state: true,
-            bootstrap_local_state: false,
-            simulate_high_pressure: true,
-            simulate_continue_implementation: false,
-            dry_compact: true,
-            max_steps: 1,
-        },
-    )?;
-    require(
-        pressure.pointer("/steps/0/action").and_then(Value::as_str)
-            == Some("compactRehydrateReorient"),
-        "simulated high pressure should select compact/rehydrate/reorient",
-    )?;
-    require(
-        pressure
-            .pointer("/steps/0/events/0/type")
-            .and_then(Value::as_str)
-            == Some("dryCompact"),
-        "dry compact smoke should record the compaction action",
-    )?;
-    require_artifacts(&pressure)?;
-    require_operator_safe(&pressure, "$")?;
-
-    let hands_gate = run_coordinator(
-        &root,
-        &coordinator,
-        &artifact_root,
-        RunOptions {
-            name: "hands-gate",
-            mode: "run",
-            bootstrap_smoke_state: false,
-            bootstrap_local_state: true,
-            simulate_high_pressure: false,
-            simulate_continue_implementation: true,
-            dry_compact: false,
-            max_steps: 1,
-        },
-    )?;
-    require(
-        hands_gate
-            .pointer("/finalAction/action")
-            .and_then(Value::as_str)
-            == Some("continueImplementation"),
-        "simulated implementation continuation should select continueImplementation",
-    )?;
-    require(
-        hands_gate
-            .pointer("/finalAction/handsActionGate/intentId")
-            .and_then(Value::as_str)
-            .is_some(),
-        "implementation continuation should emit a Hands action gate",
-    )?;
-    require_artifacts(&hands_gate)?;
-    require_operator_safe(&hands_gate, "$")?;
-    let hands_pass = record_hands_pass(&hands_action, &hands_gate)?;
-    require(
-        hands_pass.pointer("/patch/status").and_then(Value::as_str) == Some("ok")
-            && hands_pass
-                .pointer("/command/status")
-                .and_then(Value::as_str)
-                == Some("ok")
-            && hands_pass.pointer("/commit/status").and_then(Value::as_str) == Some("ok"),
-        "Hands record-pass should emit patch, command, and commit receipts",
-    )?;
+    let legacy_flags = [
+        "--bootstrap-smoke-state",
+        "--bootstrap-local-state",
+        "--bootstrap-objective",
+        "--simulate-high-pressure",
+        "--simulate-continue-implementation",
+        "--simulate-source-drift",
+        "--dry-compact",
+    ];
+    for flag in legacy_flags {
+        let rejected = Command::new(&coordinator)
+            .current_dir(&root)
+            .arg(flag)
+            .output()
+            .with_context(|| format!("failed to check rejected coordinator flag {flag}"))?;
+        require(
+            !rejected.status.success()
+                && String::from_utf8_lossy(&rejected.stderr).contains("unknown argument"),
+            &format!("production coordinator accepted fixture-only flag {flag}"),
+        )?;
+    }
 
     let rejected = Command::new(&coordinator)
         .current_dir(&root)
@@ -191,12 +112,9 @@ fn run_smoke(args: &Args) -> Result<Value> {
     let result = json!({
         "artifactRoot": artifact_root,
         "coldAction": cold["finalAction"]["action"],
-        "localBootstrapAction": local["finalAction"]["action"],
-        "pressureAction": pressure["steps"][0]["action"],
-        "handsGateAction": hands_gate["finalAction"]["action"],
-        "handsPass": hands_pass,
+        "rejectedFixtureFlags": legacy_flags,
         "directBackendCompletionRejected": true,
-        "note": "Native smoke does not fake specialist completion by mutating Codex state storage; full completion smoke needs live workers while execution is cauterized into CultNet.",
+        "note": "The smoke owns only its .epiphany-smoke fixture body. Production coordinator state and Hands authority come from typed runtime evidence.",
     });
     write_json(
         &artifact_root.join("coordinator-smoke-summary.json"),
@@ -208,11 +126,6 @@ fn run_smoke(args: &Args) -> Result<Value> {
 struct RunOptions {
     name: &'static str,
     mode: &'static str,
-    bootstrap_smoke_state: bool,
-    bootstrap_local_state: bool,
-    simulate_high_pressure: bool,
-    simulate_continue_implementation: bool,
-    dry_compact: bool,
     max_steps: usize,
 }
 
@@ -242,24 +155,6 @@ fn run_coordinator(
         .arg("0.1")
         .arg("--timeout-seconds")
         .arg("3");
-    if options.bootstrap_smoke_state {
-        command.arg("--bootstrap-smoke-state");
-    }
-    if options.bootstrap_local_state {
-        command
-            .arg("--bootstrap-local-state")
-            .arg("--bootstrap-objective")
-            .arg("Smoke the local MVP bootstrap checkpoint.");
-    }
-    if options.simulate_high_pressure {
-        command.arg("--simulate-high-pressure");
-    }
-    if options.simulate_continue_implementation {
-        command.arg("--simulate-continue-implementation");
-    }
-    if options.dry_compact {
-        command.arg("--dry-compact");
-    }
     let output = command
         .output()
         .context("failed to run native coordinator")?;
@@ -271,70 +166,6 @@ fn run_coordinator(
         ));
     }
     serde_json::from_slice(&output.stdout).context("failed to decode coordinator summary")
-}
-
-fn record_hands_pass(hands_action: &Path, summary: &Value) -> Result<Value> {
-    let artifact_dir = PathBuf::from(
-        summary
-            .get("artifactDir")
-            .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("summary missing artifactDir"))?,
-    );
-    let stdout_artifact = artifact_dir.join("hands-pass-command.stdout.log");
-    let stderr_artifact = artifact_dir.join("hands-pass-command.stderr.log");
-    fs::write(&stdout_artifact, "hands pass smoke command output\n")?;
-    fs::write(&stderr_artifact, "")?;
-    let commit = Command::new("git")
-        .args([
-            "log",
-            "-1",
-            "--format=%H",
-            "--",
-            "tools/epiphany_local_run.ps1",
-        ])
-        .output()
-        .context("failed to locate a real commit for the Hands smoke path")?;
-    require(
-        commit.status.success(),
-        "failed to resolve Hands smoke commit",
-    )?;
-    let commit_sha = String::from_utf8(commit.stdout)?.trim().to_string();
-    require(
-        !commit_sha.is_empty(),
-        "Hands smoke path has no commit history",
-    )?;
-    let output = Command::new(hands_action)
-        .arg("--store")
-        .arg(artifact_dir.join("runtime-spine.msgpack"))
-        .arg("record-pass")
-        .arg("--gate-summary")
-        .arg(artifact_dir.join("coordinator-summary.json"))
-        .arg("--summary")
-        .arg("Coordinator smoke recorded typed Hands consequence receipts.")
-        .arg("--changed-path")
-        .arg("tools/epiphany_local_run.ps1")
-        .arg("--command")
-        .arg("coordinator-smoke hands-pass synthetic command")
-        .arg("--exit-code")
-        .arg("0")
-        .arg("--stdout-artifact")
-        .arg(&stdout_artifact)
-        .arg("--stderr-artifact")
-        .arg(&stderr_artifact)
-        .arg("--commit-sha")
-        .arg(commit_sha)
-        .arg("--branch")
-        .arg("main")
-        .output()
-        .context("failed to run Hands action recorder")?;
-    if !output.status.success() {
-        return Err(anyhow!(
-            "Hands action recorder failed: {}{}",
-            String::from_utf8_lossy(&output.stderr),
-            String::from_utf8_lossy(&output.stdout)
-        ));
-    }
-    serde_json::from_slice(&output.stdout).context("failed to decode Hands pass summary")
 }
 
 fn require_artifacts(summary: &Value) -> Result<()> {
@@ -408,8 +239,8 @@ fn require_operator_safe(value: &Value, path: &str) -> Result<()> {
 }
 
 fn reset_artifact_root(root: &Path, path: &Path) -> Result<()> {
-    let dogfood_root = root.join(".epiphany-dogfood").canonicalize().or_else(|_| {
-        let dogfood_root = root.join(".epiphany-dogfood");
+    let dogfood_root = root.join(".epiphany-smoke").canonicalize().or_else(|_| {
+        let dogfood_root = root.join(".epiphany-smoke");
         fs::create_dir_all(&dogfood_root)?;
         dogfood_root.canonicalize()
     })?;

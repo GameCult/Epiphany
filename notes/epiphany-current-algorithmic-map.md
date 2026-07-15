@@ -669,5 +669,25 @@ a new launch-correlated provider heartbeat, and semantic ranking from both
 packaged queries. This proves after-login physiology only. Reboot is outside
 agent authority until the operator grants that exact host-wide action.
 
+## Coordinator action authority and smoke boundary (2026-07-15)
+
+The production coordinator now derives one path:
+`typed status/evidence -> coordinator action -> shared action arm -> optional Hands gate`.
+Typed status and accepted evidence own action selection; Hands/Substrate review
+owns permission. Current typed thread state, accepted role results, and review
+evidence are inputs. The action, run receipt, and optional Hands gate are
+outputs. Smoke fixtures and scenario controls are derived verification state.
+
+Production callers, wrappers, fixture flags, and smoke helpers are forbidden
+writers of action, `canAutoRun`, review requirements, bootstrap state, and Hands
+permission. The seven former production fixture flags and their override/helper
+paths are deleted. The dedicated smoke creates fixtures only under
+`.epiphany-smoke/mvp-coordinator`, then exercises the shared typed paths; it
+rejects attempts to reintroduce those flags.
+
+Future audit frontier, not established anatomy: sibling Bifrost subprocess JSON
+used by readiness needs a focused identity/schema/provenance audit before any
+cut or confirmed finding.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

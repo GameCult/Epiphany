@@ -36,8 +36,6 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::thread;
-use std::time::Duration;
 use uuid::Uuid;
 
 #[cfg(windows)]
@@ -57,8 +55,6 @@ mod status_cli;
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-codex-mcp-spine";
 const WORKER_AUTO_TOOL_MAX_ROUNDS: usize = 24;
-const GRAPH_NODE_ID: &str = "reorient-target";
-const WATCHED_RELATIVE_PATH: &str = "src/reorient_target.rs";
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
@@ -88,13 +84,6 @@ struct Args {
     auto_review: bool,
     supersede_failed_results: bool,
     auto_tools: bool,
-    bootstrap_smoke_state: bool,
-    bootstrap_local_state: bool,
-    bootstrap_objective: Option<String>,
-    simulate_high_pressure: bool,
-    simulate_continue_implementation: bool,
-    simulate_source_drift: bool,
-    dry_compact: bool,
     proposal_modeling_request_id: Option<String>,
 }
 
@@ -127,13 +116,6 @@ impl Args {
             auto_review: false,
             supersede_failed_results: false,
             auto_tools: true,
-            bootstrap_smoke_state: false,
-            bootstrap_local_state: false,
-            bootstrap_objective: None,
-            simulate_high_pressure: false,
-            simulate_continue_implementation: false,
-            simulate_source_drift: false,
-            dry_compact: false,
             proposal_modeling_request_id: None,
         };
         while let Some(arg) = args.next() {
@@ -196,18 +178,6 @@ impl Args {
                         "--test-complete-backend was removed: native coordinator refuses direct private state-store job mutation; use live workers or a future CultNet job-result API"
                     ));
                 }
-                "--bootstrap-smoke-state" => parsed.bootstrap_smoke_state = true,
-                "--bootstrap-local-state" => parsed.bootstrap_local_state = true,
-                "--bootstrap-objective" => {
-                    parsed.bootstrap_objective =
-                        Some(take_string(&mut args, "--bootstrap-objective")?);
-                }
-                "--simulate-high-pressure" => parsed.simulate_high_pressure = true,
-                "--simulate-continue-implementation" => {
-                    parsed.simulate_continue_implementation = true
-                }
-                "--simulate-source-drift" => parsed.simulate_source_drift = true,
-                "--dry-compact" => parsed.dry_compact = true,
                 other => return Err(anyhow!("unknown argument: {other}")),
             }
         }
@@ -219,7 +189,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
     let local_verse_store = status_cli::absolute_path(&args.local_verse_store)?;
     assert_local_verse_brake_released(&local_verse_store, "epiphany-mvp-coordinator")?;
-    let mut cwd = status_cli::absolute_path(&args.cwd)?;
+    let cwd = status_cli::absolute_path(&args.cwd)?;
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
     let tool_adapter_bin = resolve_model_runtime_bin(&root, &args.tool_adapter_bin)?;
     let codex_home = status_cli::absolute_path(&args.codex_home)?;
@@ -228,10 +198,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let runtime_store = status_cli::absolute_path(&args.runtime_store)?;
     reset_artifact_dir(&artifact_dir)?;
     fs::create_dir_all(&codex_home)?;
-    if args.bootstrap_smoke_state {
-        cwd = artifact_dir.join("workspace");
-        prepare_workspace(&cwd)?;
-    }
 
     let telemetry_path = artifact_dir.join("agent-function-telemetry.json");
     let steps_path = artifact_dir.join("coordinator-steps.jsonl");
@@ -303,48 +269,16 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "eventId": runtime_event.event_id,
     }));
 
-    if args.bootstrap_smoke_state {
-        apply_bootstrap_patch(&runtime_store, &thread_id, reorient_patch())?;
-        if args.simulate_source_drift {
-            fs::write(
-                cwd.join(WATCHED_RELATIVE_PATH),
-                "pub fn reorient_target() -> &'static str {\n    \"after\"\n}\n",
-            )?;
-            thread::sleep(Duration::from_millis(500));
-        }
-    } else if args.bootstrap_local_state {
-        apply_bootstrap_patch(
-            &runtime_store,
-            &thread_id,
-            local_mvp_checkpoint_patch(&cwd, args.bootstrap_objective.as_deref()),
-        )?;
-    }
-
     for index in 0..args.max_steps {
         let status = collect_coordinator_status(&runtime_store, &thread_id)?;
         let mut coordinator = status
             .get("coordinator")
             .cloned()
             .unwrap_or_else(|| json!({"action": "regatherManually"}));
-        let mut action = coordinator["action"]
+        let action = coordinator["action"]
             .as_str()
             .unwrap_or("regatherManually")
             .to_string();
-        if args.simulate_high_pressure && index == 0 {
-            action = "compactRehydrateReorient".to_string();
-            coordinator["action"] = json!(action);
-            coordinator["canAutoRun"] = json!(true);
-            coordinator["requiresReview"] = json!(false);
-            coordinator["reason"] = json!("Simulated high pressure requested by smoke test.");
-        } else if args.simulate_continue_implementation && index == 0 {
-            action = "continueImplementation".to_string();
-            coordinator["action"] = json!(action);
-            coordinator["canAutoRun"] = json!(true);
-            coordinator["requiresReview"] = json!(false);
-            coordinator["targetRole"] = json!("implementation");
-            coordinator["reason"] =
-                json!("Simulated implementation continuation requested by smoke test.");
-        }
 
         let snapshot_name = format!("step-{index:02}-{action}.txt");
         fs::write(
@@ -606,15 +540,6 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 }
             }
             "compactRehydrateReorient" => {
-                if args.dry_compact {
-                    push_event(
-                        &mut step,
-                        json!({"type": "dryCompact", "threadId": thread_id}),
-                    );
-                    append_operator_step_jsonl(&steps_path, &step)?;
-                    steps.push(step);
-                    continue;
-                }
                 push_event(
                     &mut step,
                     json!({"type": "compactUnsupportedInNativeSmoke"}),
@@ -761,32 +686,10 @@ fn collect_coordinator_status(runtime_store: &Path, thread_id: &str) -> Result<V
     let store = runtime_store.to_string_lossy();
     status_cli::native_json(
         "epiphany-mvp-status",
-        &[
-            "--native",
-            "--json",
-            "--thread-id",
-            thread_id,
-            "--store",
-            &store,
-        ],
+        &["--json", "--thread-id", thread_id, "--store", &store],
     )
 }
 
-fn apply_bootstrap_patch(runtime_store: &Path, thread_id: &str, patch: Value) -> Result<Value> {
-    let patch: epiphany_core::EpiphanyRoleStatePatchDocument =
-        serde_json::from_value(patch).context("failed to decode typed bootstrap state patch")?;
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
-    let applied = service.apply_state_update(
-        thread_id,
-        epiphany_core::state_update_from_role_patch(Some(0), patch),
-        None,
-    )?;
-    Ok(json!({
-        "revision": applied.revision,
-        "changedFields": applied.changed_fields.iter().map(|field| format!("{field:?}")).collect::<Vec<_>>(),
-        "state": applied.state,
-    }))
-}
 fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> {
     if configured.components().count() != 1 {
         return status_cli::absolute_path(configured);
@@ -1437,231 +1340,14 @@ fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
-fn reorient_patch() -> Value {
-    json!({
-        "objective": "Decide whether a durable checkpoint still deserves to be resumed after rehydrate.",
-        "activeSubgoalId": "phase6-reorient-smoke",
-        "subgoals": [{
-            "id": "phase6-reorient-smoke",
-            "title": "Live-smoke CRRC reorientation policy",
-            "status": "active",
-            "summary": "Resume when the checkpoint is still aligned; regather when the touched file proves it isn't.",
-        }],
-        "graphs": {
-            "architecture": {"nodes": [{
-                "id": GRAPH_NODE_ID,
-                "title": "Reorient target",
-                "purpose": "Map the file the watcher will touch so reorientation can notice drift.",
-                "code_refs": [{"path": WATCHED_RELATIVE_PATH, "start_line": 1, "end_line": 3, "symbol": "reorient_target"}],
-            }]},
-            "dataflow": {"nodes": []},
-            "links": [],
-        },
-        "graphFrontier": {"active_node_ids": [GRAPH_NODE_ID], "dirty_paths": []},
-        "graphCheckpoint": {
-            "checkpoint_id": "ck-reorient-1",
-            "graph_revision": 1,
-            "summary": "Reorientation smoke graph checkpoint",
-            "frontier_node_ids": [GRAPH_NODE_ID],
-        },
-        "investigationCheckpoint": {
-            "checkpoint_id": "ix-reorient-1",
-            "kind": "source_gathering",
-            "disposition": "resume_ready",
-            "focus": "Verify the touched file before broad edits.",
-            "summary": "This checkpoint should remain resumable until the watched source moves.",
-            "next_action": "Resume the bounded slice if the watched source still matches the checkpoint.",
-            "captured_at_turn_id": "turn-phase6-reorient",
-            "code_refs": [{"path": WATCHED_RELATIVE_PATH, "start_line": 1, "end_line": 3, "symbol": "reorient_target"}],
-        },
-        "churn": {
-            "understanding_status": "ready",
-            "diff_pressure": "low",
-            "graph_freshness": "fresh",
-            "unexplained_writes": 0,
-        },
-    })
-}
-
-fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
-    let objective = objective
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("Run the local Epiphany MVP cycle through Persona, coordinator, and sleep.");
-    let local_refs = local_mvp_code_refs(cwd);
-    let transport_refs = local_mvp_transport_code_refs(cwd);
-    let mut checkpoint_refs = local_refs.clone();
-    checkpoint_refs.extend(transport_refs.clone());
-    json!({
-        "objective": objective,
-        "activeSubgoalId": "local-mvp-cycle",
-        "subgoals": [{
-            "id": "local-mvp-cycle",
-            "title": "Local MVP cycle",
-            "status": "active",
-            "summary": "Use Persona as the human-facing entrypoint, run bounded coordinator/swarm work, and close with heartbeat sleep/dream maintenance.",
-        }],
-        "graphs": {
-            "architecture": {"nodes": [
-                {
-                    "id": "local-mvp-runner",
-                    "title": "Local MVP runner",
-                    "purpose": "One local operator cycle that enters through Persona, runs coordinator-owned work, and invokes Continuity/heartbeat sleep afterward.",
-                    "code_refs": local_refs,
-                },
-                {
-                    "id": "model-runtime-transport",
-                    "title": "Model runtime transport",
-                    "purpose": "Provider-neutral worker execution resolves the model runtime binary and then uses the quarantined Codex/OpenAI transport for model calls.",
-                    "code_refs": transport_refs,
-                },
-            ]},
-            "dataflow": {"nodes": [
-                {
-                    "id": "Persona-coordinator-sleep-cycle",
-                    "title": "Persona to coordinator to sleep",
-                    "purpose": "Persona expression is display state; coordinator owns lane routing; heartbeat owns sleep physiology.",
-                },
-                {
-                    "id": "coordinator-model-runtime-cycle",
-                    "title": "Coordinator to model runtime",
-                    "purpose": "Coordinator launches a typed worker request; epiphany-model-runtime chooses the provider/model and the Codex/OpenAI spine only transports the turn.",
-                },
-            ]},
-            "links": [
-                {
-                    "dataflow_node_id": "Persona-coordinator-sleep-cycle",
-                    "architecture_node_id": "local-mvp-runner",
-                },
-                {
-                    "dataflow_node_id": "coordinator-model-runtime-cycle",
-                    "architecture_node_id": "model-runtime-transport",
-                },
-            ],
-        },
-        "graphFrontier": {
-            "active_node_ids": ["local-mvp-runner", "Persona-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
-            "dirty_paths": [],
-        },
-        "graphCheckpoint": {
-            "checkpoint_id": "ck-local-mvp-cycle",
-            "graph_revision": 2,
-            "summary": "Local MVP runner checkpoint: Persona front door, coordinator run, model runtime transport, sleep maintenance.",
-            "frontier_node_ids": ["local-mvp-runner", "Persona-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
-        },
-        "investigationCheckpoint": {
-            "checkpoint_id": "ix-local-mvp-cycle",
-            "kind": "source_gathering",
-            "disposition": "resume_ready",
-            "focus": "Continue the local MVP cycle from the typed launcher/coordinator/model-runtime/sleep artifacts.",
-            "summary": "The local MVP path has enough startup state for the coordinator to route bounded work and for worker transport failures to be attributed to the provider/runtime seam instead of generic missing state.",
-            "next_action": "Run the coordinator's recommended bounded lane action, then review generated artifacts before accepting state changes.",
-            "captured_at_turn_id": "local-mvp-bootstrap",
-            "code_refs": checkpoint_refs,
-        },
-        "churn": {
-            "understanding_status": "ready",
-            "diff_pressure": "low",
-            "graph_freshness": "fresh",
-            "unexplained_writes": 0,
-        },
-    })
-}
-
-fn local_mvp_code_refs(cwd: &Path) -> Vec<Value> {
-    let candidates = [
-        (
-            "tools/epiphany_local_run.ps1",
-            1_u64,
-            30_u64,
-            "epiphany_local_run.ps1",
-        ),
-        ("README.md", 82, 111, "Run Locally"),
-        (
-            "notes/fresh-workspace-handoff.md",
-            33,
-            45,
-            "Current Orientation",
-        ),
-        ("state/map.yaml", 477, 487, "Runnability"),
-    ];
-    candidates
-        .into_iter()
-        .filter(|(path, _, _, _)| cwd.join(path).exists())
-        .map(|(path, start_line, end_line, symbol)| {
-            json!({
-                "path": path,
-                "start_line": start_line,
-                "end_line": end_line,
-                "symbol": symbol,
-            })
-        })
-        .collect()
-}
-
-fn local_mvp_transport_code_refs(cwd: &Path) -> Vec<Value> {
-    let candidates = [
-        (
-            "epiphany-core/src/bin/epiphany-mvp-coordinator.rs",
-            719_u64,
-            787_u64,
-            "resolve_model_runtime_bin / run_worker_runtime",
-        ),
-        (
-            "epiphany-openai-runtime/src/bin/epiphany-openai-runtime.rs",
-            431,
-            438,
-            "default_worker_model",
-        ),
-        (
-            "epiphany-openai-codex-spine/src/lib.rs",
-            146,
-            170,
-            "open_responses_stream",
-        ),
-        (
-            "epiphany-openai-codex-spine/src/lib.rs",
-            447,
-            463,
-            "attach_codex_auth_headers",
-        ),
-    ];
-    candidates
-        .into_iter()
-        .filter(|(path, _, _, _)| cwd.join(path).exists())
-        .map(|(path, start_line, end_line, symbol)| {
-            json!({
-                "path": path,
-                "start_line": start_line,
-                "end_line": end_line,
-                "symbol": symbol,
-            })
-        })
-        .collect()
-}
-
-fn prepare_workspace(workspace: &Path) -> Result<()> {
-    if workspace.exists() {
-        fs::remove_dir_all(workspace)?;
-    }
-    let watched = workspace.join(WATCHED_RELATIVE_PATH);
-    fs::create_dir_all(watched.parent().unwrap())?;
-    fs::write(
-        watched,
-        "pub fn reorient_target() -> &'static str {\n    \"before\"\n}\n",
-    )?;
-    Ok(())
-}
-
 fn reset_artifact_dir(path: &Path) -> Result<()> {
-    let root = env::current_dir()?
-        .join(".epiphany-dogfood")
-        .canonicalize()
-        .or_else(|_| {
-            let root = env::current_dir()?.join(".epiphany-dogfood");
-            fs::create_dir_all(&root)?;
-            root.canonicalize()
-        })?;
+    let cwd = env::current_dir()?;
+    let mut roots = Vec::new();
+    for name in [".epiphany-dogfood", ".epiphany-smoke"] {
+        let root = cwd.join(name);
+        fs::create_dir_all(&root)?;
+        roots.push(root.canonicalize()?);
+    }
     let resolved_parent = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(resolved_parent)?;
     let resolved = if path.exists() {
@@ -1671,9 +1357,12 @@ fn reset_artifact_dir(path: &Path) -> Result<()> {
             .canonicalize()?
             .join(path.file_name().unwrap())
     };
-    if resolved == root || !resolved.starts_with(&root) {
+    if !roots
+        .iter()
+        .any(|root| resolved != *root && resolved.starts_with(root))
+    {
         return Err(anyhow!(
-            "refusing to delete non-dogfood artifact dir: {}",
+            "refusing to delete artifact dir outside .epiphany-dogfood or .epiphany-smoke: {}",
             path.display()
         ));
     }
@@ -1779,7 +1468,7 @@ mod tests {
         let status_end = source.find("fn resolve_model_runtime_bin").unwrap();
         let status = &source[status_start..status_end];
         assert!(status.contains("epiphany-mvp-status"));
-        assert!(status.contains("--native"));
+        assert!(!status.contains("--native"));
         assert!(!status.contains("AppServerClient"));
         assert!(!status.contains("thread/epiphany/"));
 
