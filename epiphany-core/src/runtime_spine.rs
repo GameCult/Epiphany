@@ -846,6 +846,8 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::MemorySemanticProjectionClaim>()?;
     cache.register_entry_type::<crate::MemorySemanticProjectionAttempt>()?;
     cache.register_entry_type::<crate::MemorySemanticIndexReceipt>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectorExecutorGrant>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectorRecoveryAuthorization>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;

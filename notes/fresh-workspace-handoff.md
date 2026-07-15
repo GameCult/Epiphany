@@ -1333,3 +1333,46 @@ and Qdrant tunnel under durable Idunn/OS survival ownership. Live proof must
 cover real child handshake, bounded pulse, heartbeat and health, forced
 restart/correlation, singleton refusal, and safe exact recovery/resumption
 where an abandoned claim can be created without forging canonical work.
+
+## Live semantic projector proof and canonical purification (2026-07-15)
+
+The reserved policy is live against shared Yggdrasil Qdrant through
+`127.0.0.1:16333` and Yggdrasil Ollama through `10.77.0.1:11435`. Live launch
+pressure exposed three fossils that narrow tests had not reached:
+
+- local Verse still contained the deleted ownerless
+  `epiphany.cultmesh.operator_status`; an explicit backed-up migration removed
+  its one key instead of registering extinct authority;
+- both canonical stores contained v0 claims/attempts and index receipts from
+  before Idunn fencing; explicit migration atomically retired those rows from
+  active authority rather than inventing missing incarnation or grant fields;
+- Mind and Modeling canonical cache catalogs registered claims, attempts, and
+  receipts but not the executor-grant/recovery types now written into the same
+  physical stores; both readers now register the whole semantic authority
+  family.
+
+CultCache now provides an atomic exact-envelope batch deletion primitive for
+these migrations. The projector launch receipt also binds executable SHA-256,
+and the child verifies both its own PID and its bytes against that receipt
+before constructing the service body. Health publication errors are bounded in
+the pulse output instead of disappearing into a count.
+
+Fresh Idunn-granted projection rebuilt Mind (43 documents) and Modeling (3
+documents), both 1024-dimensional and query-eligible. Live semantic context
+queries ranked canonical documents for both partitions while ignoring Qdrant
+payload text. A clean steady pulse inspected both sources, remained idle, and
+published a ready heartbeat with no source or health faults. A second
+interactive projector was refused by the host singleton. Killing child PID
+22992 caused the reconciler to launch PID 29868 with receipt
+`daa89e4f-4301-40eb-aa87-5b52c5017221`; the typed service-status readback proved
+the new ready heartbeat names that exact receipt and executable hash.
+
+Full proof is 375 library tests passed/1 ignored, 7/7 supervisor tests, and all
+binaries compiling. The live child and reconciler remain running, but survival
+is not yet deployable physiology: reconciler PID 22072 and SSH tunnel PID 22728
+are detached processes, not durable OS-owned services. The existing generic
+Windows `sc.exe create` path is not sufficient because this console binary does
+not implement the Windows service-control handshake. Build a real service host
+or explicit Task Scheduler owner with restart policy, give the Qdrant tunnel
+the same durable treatment, and prove startup/reboot recovery. Live abandoned
+claim recovery remains unproven; use a safe fixture rather than forging work.

@@ -31,8 +31,15 @@ use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy_with_digest;
 use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::load_latest_epiphany_cultmesh_daemon_heartbeat;
+use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
+use epiphany_core::migrate_memory_semantic_projection_attempts_v0;
 use epiphany_core::observe_native_process as observe_process;
 use epiphany_core::query_epiphany_local_verse_context;
+use epiphany_core::retire_epiphany_cultmesh_operator_status_documents;
+use epiphany_core::retire_memory_semantic_projection_claims_v0;
+use epiphany_core::retire_orphaned_memory_semantic_projection_attempts_v0;
+use epiphany_core::retire_unowned_memory_semantic_index_receipts;
 use epiphany_core::runtime_modeling_semantic_projection_input;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
@@ -66,6 +73,9 @@ fn main() -> Result<()> {
         "tick" | "schedule" | "reconcile-all" => tick(args),
         "serve" | "loop" | "daemon" => serve(args),
         "managed-service-serve" | "service-desired-state-serve" => managed_service_serve(args),
+        "migrate-retired-operator-status" => migrate_retired_operator_status(args),
+        "migrate-semantic-attempts-v0" => migrate_semantic_attempts_v0(args),
+        "semantic-projector-service-status" => semantic_projector_service_status(args),
         "service-plan" => service_plan(args),
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
         "managed-service-policy" | "service-desired-state" => managed_service_policy(args),
@@ -145,6 +155,96 @@ fn main() -> Result<()> {
             "unknown command {other:?}; use reconcile, tick, serve, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, repo-work-service-audit, cluster-service-runbook, cluster-service-install-plan, cluster-service-audit, cluster-service-start, cluster-service-stop, cluster-service-execution-readiness, cluster-service-execution-runbook, cluster-service-execution-audit, windows-service-install, windows-service-execution-readiness, windows-service-execution-runbook, windows-service-execution-audit, service-execution-audit-smoke, windows-service-reconcile, windows-service-status, windows-service-start, windows-service-stop, policy, or semantic-recover"
         ),
     }
+}
+
+fn migrate_retired_operator_status(args: Args) -> Result<()> {
+    let removed_keys = retire_epiphany_cultmesh_operator_status_documents(&args.store)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.cultmesh.retired_document_migration.v0",
+            "status": "completed",
+            "retiredDocumentType": "epiphany.cultmesh.operator_status",
+            "removedKeys": removed_keys,
+            "privateStateExposed": false,
+        }))?
+    );
+    Ok(())
+}
+
+fn migrate_semantic_attempts_v0(args: Args) -> Result<()> {
+    let agent_store = args
+        .agent_store
+        .as_ref()
+        .context("migrate-semantic-attempts-v0 requires --agent-store")?;
+    let runtime_store = args
+        .runtime_store
+        .as_ref()
+        .context("migrate-semantic-attempts-v0 requires --runtime-store")?;
+    if agent_store == runtime_store {
+        anyhow::bail!("semantic Mind and Modeling stores must remain distinct");
+    }
+    let retired_mind_claim_ids = retire_memory_semantic_projection_claims_v0(agent_store)?;
+    let retired_modeling_claim_ids = retire_memory_semantic_projection_claims_v0(runtime_store)?;
+    let retired_mind_attempt_ids =
+        retire_orphaned_memory_semantic_projection_attempts_v0(agent_store)?;
+    let retired_modeling_attempt_ids =
+        retire_orphaned_memory_semantic_projection_attempts_v0(runtime_store)?;
+    let retired_mind_receipt_ids = retire_unowned_memory_semantic_index_receipts(agent_store)?;
+    let retired_modeling_receipt_ids =
+        retire_unowned_memory_semantic_index_receipts(runtime_store)?;
+    let mind_attempt_ids = migrate_memory_semantic_projection_attempts_v0(agent_store)?;
+    let modeling_attempt_ids = migrate_memory_semantic_projection_attempts_v0(runtime_store)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.memory_semantic_projection_attempt_migration.v0",
+            "status": "completed",
+            "retiredMindClaimIds": retired_mind_claim_ids,
+            "retiredModelingClaimIds": retired_modeling_claim_ids,
+            "retiredMindAttemptIds": retired_mind_attempt_ids,
+            "retiredModelingAttemptIds": retired_modeling_attempt_ids,
+            "retiredMindReceiptIds": retired_mind_receipt_ids,
+            "retiredModelingReceiptIds": retired_modeling_receipt_ids,
+            "mindAttemptIds": mind_attempt_ids,
+            "modelingAttemptIds": modeling_attempt_ids,
+            "privateStateExposed": false,
+        }))?
+    );
+    Ok(())
+}
+
+fn semantic_projector_service_status(args: Args) -> Result<()> {
+    let receipt = load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
+        &args.store,
+        args.runtime_id.clone(),
+        SEMANTIC_PROJECTOR_SERVICE_ID,
+    )?
+    .context("semantic projector launch receipt is absent")?;
+    let heartbeat = load_latest_epiphany_cultmesh_daemon_heartbeat(
+        &args.store,
+        args.runtime_id,
+        SEMANTIC_PROJECTOR_EXECUTOR_ID,
+    )?
+    .context("semantic projector heartbeat is absent")?;
+    let correlation_matches = heartbeat.startup_lifecycle_receipt_id == receipt.receipt_id;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.memory_semantic_projector_service_status.v0",
+            "status": if correlation_matches && heartbeat.status == "ready" { "ready" } else { "degraded" },
+            "processId": receipt.process_id,
+            "launchReceiptId": receipt.receipt_id,
+            "executableSha256": receipt.executable_sha256,
+            "heartbeatId": heartbeat.heartbeat_id,
+            "providerIncarnation": heartbeat.provider_incarnation,
+            "heartbeatStatus": heartbeat.status,
+            "startupCorrelationMatches": correlation_matches,
+            "privateStateExposed": false,
+            "authoritative": false,
+        }))?
+    );
+    Ok(())
 }
 
 fn semantic_projection_input(args: &Args) -> Result<(MemorySemanticProjectionInput, &Path)> {
@@ -389,13 +489,21 @@ fn service_launch(args: Args) -> Result<()> {
         if args.wait_child {
             anyhow::bail!("reserved semantic projector launch is an infinite managed child");
         }
-        Some((policy.policy_id, digest, Uuid::new_v4().to_string()))
+        let executable_sha256 = local_file_sha256(&command_path.display().to_string())
+            .map(|digest| format!("sha256-{digest}"))
+            .context("reserved semantic projector executable cannot be fingerprinted")?;
+        Some((
+            policy.policy_id,
+            digest,
+            Uuid::new_v4().to_string(),
+            executable_sha256,
+        ))
     } else {
         None
     };
     let mut command = Command::new(&command_path);
     command.args(&service_args);
-    if let Some((_, _, receipt_id)) = &reserved_launch {
+    if let Some((_, _, receipt_id, _)) = &reserved_launch {
         command.env("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID", receipt_id);
     }
     if let Some(stdout_path) = &args.stdout_artifact {
@@ -454,12 +562,13 @@ fn service_launch(args: Args) -> Result<()> {
             .as_ref()
             .map(|path| path.display().to_string()),
     );
-    if let Some((policy_id, policy_digest, receipt_id)) = reserved_launch {
+    if let Some((policy_id, policy_digest, receipt_id, executable_sha256)) = reserved_launch {
         receipt.receipt_id = receipt_id.clone();
         receipt.managed_policy_id = policy_id;
         receipt.managed_policy_digest = policy_digest;
         receipt.provider_daemon_id = SEMANTIC_PROJECTOR_EXECUTOR_ID.to_string();
         receipt.startup_correlation_id = receipt_id;
+        receipt.executable_sha256 = executable_sha256;
     }
     let written = match write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
         &args.store,
@@ -4131,6 +4240,9 @@ impl Args {
                     | "daemon"
                     | "managed-service-serve"
                     | "service-desired-state-serve"
+                    | "migrate-retired-operator-status"
+                    | "migrate-semantic-attempts-v0"
+                    | "semantic-projector-service-status"
                     | "service-plan"
                     | "install-service"
                     | "service-launch"

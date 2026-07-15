@@ -2675,6 +2675,26 @@ pub fn open_epiphany_cultmesh_node(
     )
 }
 
+/// Removes the extinct ownerless operator-status projection from an existing
+/// local Verse so the live schema catalog can open it again.
+///
+/// This is deliberately explicit migration, never implicit node bootstrap.
+pub fn retire_epiphany_cultmesh_operator_status_documents(
+    store_path: impl AsRef<Path>,
+) -> Result<Vec<String>> {
+    const RETIRED_TYPE: &str = "epiphany.cultmesh.operator_status";
+    let mut backing = SingleFileMessagePackBackingStore::new(store_path.as_ref());
+    let retired = backing
+        .pull_all()?
+        .into_iter()
+        .filter(|entry| entry.r#type == RETIRED_TYPE)
+        .collect::<Vec<_>>();
+    for entry in &retired {
+        backing.delete(entry)?;
+    }
+    Ok(retired.into_iter().map(|entry| entry.key).collect())
+}
+
 fn semantic_projection_health_scope_key(swarm_id: &str, partition: &str) -> String {
     use sha2::{Digest, Sha256};
     format!(
@@ -4251,6 +4271,15 @@ pub fn load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
     node.get(EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)
 }
 
+pub fn load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    service_id: &str,
+) -> Result<Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(&epiphany_cultmesh_daemon_service_lifecycle_receipt_latest_key(service_id))
+}
+
 pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -4871,6 +4900,7 @@ fn validate_semantic_projector_launch_receipt(
         || receipt.process_id.is_none()
         || receipt.exit_code.is_some()
         || receipt.completed_at_utc.is_none()
+        || !receipt.executable_sha256.starts_with("sha256-")
         || receipt.managed_policy_id.trim().is_empty()
         || !receipt.managed_policy_digest.starts_with("sha256-")
         || receipt.provider_daemon_id != "epiphany-memory-semantic-projector"
@@ -8035,7 +8065,39 @@ pub fn write_epiphany_cultmesh_bifrost_contracts(
 mod tests {
     use super::*;
     use cultcache_rs::CacheBackingStore;
+    use cultcache_rs::CultCacheEnvelope;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn explicit_migration_removes_only_retired_operator_status_documents() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.ccmp");
+        let mut backing = SingleFileMessagePackBackingStore::new(&store);
+        backing.push(&CultCacheEnvelope {
+            key: "epiphany-local/operator-status/latest".into(),
+            r#type: "epiphany.cultmesh.operator_status".into(),
+            payload: vec![0x80],
+            stored_at: "2026-07-15T10:00:00Z".into(),
+            schema_id: Some("epiphany.cultmesh.operator_status".into()),
+        })?;
+        backing.push(&CultCacheEnvelope {
+            key: "epiphany-local/status".into(),
+            r#type: EPIPHANY_CULTMESH_STATUS_TYPE.into(),
+            payload: vec![0x80],
+            stored_at: "2026-07-15T10:00:01Z".into(),
+            schema_id: Some(EPIPHANY_CULTMESH_STATUS_TYPE.into()),
+        })?;
+
+        assert_eq!(
+            retire_epiphany_cultmesh_operator_status_documents(&store)?,
+            vec!["epiphany-local/operator-status/latest"]
+        );
+        let remaining = backing.pull_all()?;
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].r#type, EPIPHANY_CULTMESH_STATUS_TYPE);
+        assert!(retire_epiphany_cultmesh_operator_status_documents(&store)?.is_empty());
+        Ok(())
+    }
 
     #[test]
     fn reserved_semantic_projector_policy_requires_specialized_exact_writer() -> Result<()> {
@@ -8128,7 +8190,7 @@ mod tests {
             operator_artifact_ref: "service://semantic-projector/launch".into(),
             private_state_exposed: false,
             notes: vec![],
-            executable_sha256: String::new(),
+            executable_sha256: "sha256-test-projector".into(),
             preflight_witness_id: String::new(),
             required_document_types: vec![],
             schema_preflight_passed: false,
@@ -8716,7 +8778,7 @@ mod tests {
             operator_artifact_ref: "artifact://service-lifecycle/first".to_string(),
             private_state_exposed: false,
             notes: Vec::new(),
-            executable_sha256: String::new(),
+            executable_sha256: "sha256-test-projector".into(),
             preflight_witness_id: String::new(),
             required_document_types: Vec::new(),
             schema_preflight_passed: false,
@@ -11546,7 +11608,7 @@ mod tests {
             operator_artifact_ref: "service://semantic-projector/launch".into(),
             private_state_exposed: false,
             notes: vec![],
-            executable_sha256: String::new(),
+            executable_sha256: "sha256-test-projector".into(),
             preflight_witness_id: String::new(),
             required_document_types: vec![],
             schema_preflight_passed: false,

@@ -1,15 +1,17 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
     EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION,
-    EpiphanyCultMeshDaemonHeartbeatEventEntry, MemorySemanticIndexConfig,
-    MemorySemanticProjectionInput, MemorySemanticProjectorPulseStatus,
+    EpiphanyCultMeshDaemonHeartbeatEventEntry, EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+    MemorySemanticIndexConfig, MemorySemanticProjectionInput, MemorySemanticProjectorPulseStatus,
     SemanticProjectorServiceBody, authenticate_epiphany_cultmesh_semantic_projector_launch,
     load_epiphany_cultmesh_daemon_service_lifecycle_receipt,
     publish_epiphany_cultmesh_semantic_projection_health,
     write_epiphany_cultmesh_daemon_heartbeat_event,
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
@@ -26,7 +28,27 @@ fn main() -> Result<()> {
                 "managed projector requires its startup launch receipt id"
             ));
         }
-        authenticate_managed_launch(&args)?;
+        let receipt = authenticate_managed_launch(&args)?;
+        if receipt.process_id != Some(std::process::id()) {
+            return Err(anyhow!(
+                "managed projector process disagrees with its launch receipt"
+            ));
+        }
+        let executable = env::current_exe().context("failed to resolve projector executable")?;
+        let executable_sha256 = format!(
+            "sha256-{:x}",
+            Sha256::digest(fs::read(&executable).with_context(|| {
+                format!(
+                    "failed to fingerprint projector executable {}",
+                    executable.display()
+                )
+            })?)
+        );
+        if receipt.executable_sha256 != executable_sha256 {
+            return Err(anyhow!(
+                "managed projector executable disagrees with its launch receipt"
+            ));
+        }
     }
     let mut semantic_config = MemorySemanticIndexConfig::from_env();
     semantic_config.qdrant_url = args.qdrant_url.clone();
@@ -48,21 +70,21 @@ fn main() -> Result<()> {
             .clone()
             .or_else(|| outcome.inspections.last().map(|row| row.scope_id.clone()));
 
-        let mut health_faults = 0_u32;
+        let mut health_publication_faults = Vec::new();
         for input in &inputs {
             let store = source_store(&args, input)?;
-            if publish_epiphany_cultmesh_semantic_projection_health(
+            if let Err(error) = publish_epiphany_cultmesh_semantic_projection_health(
                 &args.local_verse_store,
                 args.runtime_id.clone(),
                 store,
                 input,
                 &provider_incarnation,
-            )
-            .is_err()
-            {
-                health_faults += 1;
+            ) {
+                health_publication_faults
+                    .push(format!("{}: {error:#}", input.obligation().partition));
             }
         }
+        let health_faults = health_publication_faults.len() as u32;
         let degraded = source_faults > 0
             || health_faults > 0
             || matches!(
@@ -98,6 +120,7 @@ fn main() -> Result<()> {
                 "inspectedSourceCount": outcome.inspections.len(),
                 "sourceFaultCount": source_faults,
                 "healthPublicationFaultCount": health_faults,
+                "healthPublicationFaults": health_publication_faults,
                 "selectedScopeId": outcome.selected_scope_id,
                 "privateStateExposed": false,
                 "authoritative": false,
@@ -112,7 +135,9 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn authenticate_managed_launch(args: &Args) -> Result<()> {
+fn authenticate_managed_launch(
+    args: &Args,
+) -> Result<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         if load_epiphany_cultmesh_daemon_service_lifecycle_receipt(
@@ -122,12 +147,11 @@ fn authenticate_managed_launch(args: &Args) -> Result<()> {
         )?
         .is_some()
         {
-            authenticate_epiphany_cultmesh_semantic_projector_launch(
+            return authenticate_epiphany_cultmesh_semantic_projector_launch(
                 &args.local_verse_store,
                 args.runtime_id.clone(),
                 &args.startup_lifecycle_receipt_id,
-            )?;
-            return Ok(());
+            );
         }
         if Instant::now() >= deadline {
             return Err(anyhow!(

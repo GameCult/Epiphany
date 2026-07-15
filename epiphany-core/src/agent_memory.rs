@@ -2532,6 +2532,8 @@ fn agent_memory_cache(store_path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<crate::MemorySemanticProjectionClaim>()?;
     cache.register_entry_type::<crate::MemorySemanticProjectionAttempt>()?;
     cache.register_entry_type::<crate::MemorySemanticIndexReceipt>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectorExecutorGrant>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectorRecoveryAuthorization>()?;
     cache.register_entry_type::<EpiphanyAgentMemoryEntry>()?;
     cache.register_entry_type::<EpiphanyAgentStateSoaEntry>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
