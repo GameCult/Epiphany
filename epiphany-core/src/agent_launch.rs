@@ -21,6 +21,8 @@ use epiphany_state_model::EpiphanyThreadState;
 
 pub const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
 pub const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
+pub const EPIPHANY_MIND_ROLE_BINDING_ID: &str = "mind-admission-reviewer";
+pub const EPIPHANY_MIND_OWNER_ROLE: &str = "epiphany-mind-admission-review";
 pub const EPIPHANY_RESEARCH_ROLE_BINDING_ID: &str = "research-source-gather-worker";
 pub const EPIPHANY_RESEARCH_OWNER_ROLE: &str = "epiphany-eyes";
 pub const EPIPHANY_MODELING_ROLE_BINDING_ID: &str = "modeling-checkpoint-worker";
@@ -467,6 +469,32 @@ pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
     schema
 }
 
+pub fn epiphany_frontier_plan_mind_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "roleId": {"type": "string", "const": "mindAdmissionReview"},
+            "verdict": {"type": "string", "minLength": 1},
+            "summary": {"type": "string", "minLength": 1},
+            "nextSafeMove": {"type": "string", "minLength": 1},
+            "filesInspected": {"type": "array", "items": {"type": "string"}},
+            "frontierPlanMindRequestId": {"type": "string", "minLength": 1},
+            "frontierPlanMindDecision": {
+                "type": "object",
+                "required": ["mindRequestId", "planningRequestId", "imaginationResultId", "candidateId", "candidateSha256", "decision", "rationale", "decidedAt"],
+                "properties": {
+                    "mindRequestId": {"type": "string", "minLength": 1}, "planningRequestId": {"type": "string", "minLength": 1},
+                    "imaginationResultId": {"type": "string", "minLength": 1}, "candidateId": {"type": "string", "minLength": 1},
+                    "candidateSha256": {"type": "string", "minLength": 1}, "decision": {"type": "string", "enum": ["adopt", "refuse", "hold"]},
+                    "rationale": {"type": "string", "minLength": 1}, "decidedAt": {"type": "string", "minLength": 1}
+                }, "additionalProperties": false
+            }
+        },
+        "required": ["roleId", "verdict", "summary", "nextSafeMove", "filesInspected", "frontierPlanMindRequestId", "frontierPlanMindDecision"],
+        "additionalProperties": false
+    })
+}
+
 pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
@@ -530,6 +558,7 @@ pub struct EpiphanySharedPromptConfig {
 #[derive(Debug, serde::Deserialize)]
 pub struct EpiphanyRolePromptConfig {
     pub imagination: String,
+    pub mind: String,
     pub modeling: String,
     pub verification: String,
     #[allow(dead_code)]
@@ -613,6 +642,74 @@ pub fn build_epiphany_role_launch_request(
     )
 }
 
+pub fn build_epiphany_frontier_plan_mind_launch_request(
+    thread_id: &str,
+    expected_revision: Option<u64>,
+    max_runtime_seconds: Option<u64>,
+    state: &EpiphanyThreadState,
+    mind_request_id: String,
+) -> Result<EpiphanyJobLaunchRequest, String> {
+    let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
+    let linked_graph_node_ids = epiphany_active_graph_node_ids(Some(state));
+    let authority_scope = "epiphany.procedure.mind_admission_review";
+    let launch_document = EpiphanyWorkerLaunchDocument::Role(EpiphanyRoleWorkerLaunchDocument {
+        thread_id: thread_id.to_string(),
+        role_id: "mindAdmissionReview".to_string(),
+        state_revision: state.revision,
+        objective: state.objective.clone(),
+        dynamic_prompt_context: None,
+        proposal_modeling_context: None,
+        claim_repair_context: None,
+        frontier_planning_context: None,
+        frontier_plan_mind_context: None,
+        active_subgoal_id: state.active_subgoal_id.clone(),
+        active_subgoals: state
+            .subgoals
+            .iter()
+            .filter(|subgoal| Some(subgoal.id.as_str()) == state.active_subgoal_id.as_deref())
+            .cloned()
+            .collect(),
+        active_graph_node_ids: linked_graph_node_ids.clone(),
+        investigation_checkpoint: state.investigation_checkpoint.clone(),
+        scratch: state.scratch.clone(),
+        invariants: state.invariants.clone(),
+        graphs: Some(state.graphs.clone()),
+        recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
+        recent_observations: state.observations.iter().take(8).cloned().collect(),
+        graph_frontier: state.graph_frontier.clone(),
+        graph_checkpoint: state.graph_checkpoint.clone(),
+        planning: Some(state.planning.clone()),
+        churn: state.churn.clone(),
+    });
+    let output_contract_id = launch_document.output_contract_id().to_string();
+    let organ_launch_contract = default_launch_organ_contract(
+        authority_scope,
+        launch_document.document_kind(),
+        &output_contract_id,
+    );
+    Ok(EpiphanyJobLaunchRequest {
+        expected_revision,
+        binding_id: EPIPHANY_MIND_ROLE_BINDING_ID.to_string(),
+        kind: CoreEpiphanyJobKind::Specialist,
+        scope: "role-scoped frontier plan judgment".to_string(),
+        owner_role: EPIPHANY_MIND_OWNER_ROLE.to_string(),
+        authority_scope: authority_scope.to_string(),
+        linked_subgoal_ids,
+        linked_graph_node_ids,
+        instruction: epiphany_worker_prompt(
+            epiphany_specialist_prompt_config().roles.mind.as_str(),
+        ),
+        launch_document,
+        output_contract_id,
+        organ_launch_contract,
+        max_runtime_seconds,
+        proposal_modeling_request_id: None,
+        claim_repair_request_id: None,
+        frontier_planning_request_id: None,
+        frontier_plan_mind_request_id: Some(mind_request_id),
+    })
+}
+
 pub fn build_epiphany_role_launch_request_with_dynamic_context(
     thread_id: &str,
     role_id: EpiphanyRoleResultRoleId,
@@ -659,6 +756,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         proposal_modeling_context: None,
         claim_repair_context: None,
         frontier_planning_context: None,
+        frontier_plan_mind_context: None,
         active_subgoal_id: state.active_subgoal_id.clone(),
         active_subgoals: state
             .subgoals
@@ -702,6 +800,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         proposal_modeling_request_id: None,
         claim_repair_request_id: None,
         frontier_planning_request_id: None,
+        frontier_plan_mind_request_id: None,
     })
 }
 
@@ -807,6 +906,7 @@ pub fn build_epiphany_job_launch_request(
         proposal_modeling_request_id: None,
         claim_repair_request_id: None,
         frontier_planning_request_id: None,
+        frontier_plan_mind_request_id: None,
     }
 }
 
@@ -932,6 +1032,7 @@ mod tests {
                 prompts.shared.persistent_memory.as_str(),
             ),
             ("roles.imagination", prompts.roles.imagination.as_str()),
+            ("roles.mind", prompts.roles.mind.as_str()),
             ("roles.modeling", prompts.roles.modeling.as_str()),
             ("roles.verification", prompts.roles.verification.as_str()),
             ("roles.research", prompts.roles.research.as_str()),
@@ -979,6 +1080,42 @@ mod tests {
         assert!(prompt.contains("Act as the Epiphany modeling/checkpoint specialist"));
         assert!(!prompt.contains("## Epiphany Persistent Memory"));
         assert!(!prompt.contains("Heartbeat: every lane"));
+    }
+
+    #[test]
+    fn frontier_plan_mind_launch_is_a_real_prompted_role_with_strict_schema() {
+        let request = build_epiphany_frontier_plan_mind_launch_request(
+            "thread-mind",
+            Some(0),
+            Some(60),
+            &EpiphanyThreadState::default(),
+            "mind-request-1".into(),
+        )
+        .expect("Mind launch request");
+        assert_eq!(request.owner_role, EPIPHANY_MIND_OWNER_ROLE);
+        assert_eq!(request.binding_id, EPIPHANY_MIND_ROLE_BINDING_ID);
+        assert!(
+            request
+                .instruction
+                .contains("admission-review procedure serving Epiphany Mind")
+        );
+        assert_eq!(
+            request.frontier_plan_mind_request_id.as_deref(),
+            Some("mind-request-1")
+        );
+        let EpiphanyWorkerLaunchDocument::Role(document) = request.launch_document else {
+            panic!("Mind must use a role launch document")
+        };
+        assert_eq!(document.role_id, "mindAdmissionReview");
+        let schema = epiphany_frontier_plan_mind_output_schema();
+        assert_eq!(
+            schema["properties"]["roleId"]["const"],
+            "mindAdmissionReview"
+        );
+        assert_eq!(
+            schema["properties"]["frontierPlanMindDecision"]["properties"]["decision"]["enum"],
+            serde_json::json!(["adopt", "refuse", "hold"])
+        );
     }
 
     #[test]

@@ -222,6 +222,43 @@ pub fn derive_repo_model_patch(
             current_hash
         ));
     }
+    match &patch.purpose {
+        epiphany_state_model::RepoModelPatchPurpose::AdoptFrontierPlan {
+            planning_request_id,
+            result_id,
+            candidate_id,
+        } => {
+            if patch.operations.len() != 1 {
+                return Err(anyhow!(
+                    "AdoptFrontierPlan purpose requires exactly one dedicated operation"
+                ));
+            }
+            let RepoModelPatchOperation::AdoptFrontierPlan { adopted_plan, .. } =
+                &patch.operations[0]
+            else {
+                return Err(anyhow!(
+                    "AdoptFrontierPlan purpose requires its dedicated operation"
+                ));
+            };
+            if adopted_plan.planning_request_id != *planning_request_id
+                || adopted_plan.result_id != *result_id
+                || adopted_plan.candidate_id != *candidate_id
+            {
+                return Err(anyhow!(
+                    "AdoptFrontierPlan purpose and operation provenance mismatch"
+                ));
+            }
+        }
+        _ if patch.operations.iter().any(|operation| {
+            matches!(operation, RepoModelPatchOperation::AdoptFrontierPlan { .. })
+        }) =>
+        {
+            return Err(anyhow!(
+                "only AdoptFrontierPlan purpose may carry the dedicated adoption operation"
+            ));
+        }
+        _ => {}
+    }
     let mut next = current.clone();
     if next
         .lifecycle_receipts
@@ -231,7 +268,7 @@ pub fn derive_repo_model_patch(
         return Err(anyhow!("repo model patch_id has already been applied"));
     }
     for operation in &patch.operations {
-        apply_operation(&mut next, operation, &patch.applied_at)?;
+        apply_operation(&mut next, operation, &patch.purpose, &patch.applied_at)?;
     }
     next.model_revision = next
         .model_revision
@@ -288,6 +325,7 @@ pub fn derive_repo_model_patch(
 fn apply_operation(
     snapshot: &mut EpiphanyMemoryGraphSnapshot,
     operation: &RepoModelPatchOperation,
+    purpose: &epiphany_state_model::RepoModelPatchPurpose,
     applied_at: &str,
 ) -> Result<()> {
     match operation {
@@ -320,18 +358,55 @@ fn apply_operation(
                 .ok_or_else(|| anyhow!("cannot retire missing edge {edge_id}"))?;
             edge.lifecycle = EpiphanyMemoryLifecycle::Retired;
         }
-        RepoModelPatchOperation::UpsertFrontier { item } => insert_new(
-            &mut snapshot.frontier,
-            item.clone(),
-            |value| &value.id,
-            "frontier item",
-        )?,
-        RepoModelPatchOperation::ReviseFrontier { item } => revise(
-            &mut snapshot.frontier,
-            item.clone(),
-            |value| &value.id,
-            "frontier item",
-        )?,
+        RepoModelPatchOperation::UpsertFrontier { item } => {
+            if item.adopted_plan.is_some() {
+                return Err(anyhow!(
+                    "generic frontier upsert cannot author an adopted plan"
+                ));
+            }
+            insert_new(
+                &mut snapshot.frontier,
+                item.clone(),
+                |value| &value.id,
+                "frontier item",
+            )?
+        }
+        RepoModelPatchOperation::ReviseFrontier { item } => {
+            let existing = snapshot
+                .frontier
+                .iter()
+                .find(|existing| existing.id == item.id)
+                .ok_or_else(|| anyhow!("cannot revise missing frontier item {}", item.id))?;
+            let verdict_may_close_adopted = matches!(
+                purpose,
+                epiphany_state_model::RepoModelPatchPurpose::IncorporateFrontierVerdict { .. }
+            ) && existing.adopted_plan.is_some()
+                && item.adopted_plan == existing.adopted_plan
+                && item.migration_body == existing.migration_body
+                && item.question == existing.question
+                && item.target_claim_ids == existing.target_claim_ids
+                && item.source_scope == existing.source_scope
+                && item.recommended_next_organ == existing.recommended_next_organ
+                && item.dependency_item_ids == existing.dependency_item_ids
+                && item.created_at == existing.created_at
+                && item.retired_at == existing.retired_at
+                && item.superseded_by == existing.superseded_by;
+            if (existing.adopted_plan.is_some() && !verdict_may_close_adopted)
+                || item.adopted_plan != existing.adopted_plan
+                || (existing.recommended_next_organ == "Imagination"
+                    && item.recommended_next_organ == "Hands")
+            {
+                return Err(anyhow!(
+                    "generic frontier revision cannot alter adopted execution anatomy or own plan adoption"
+                ));
+            }
+            revise(
+                &mut snapshot.frontier,
+                item.clone(),
+                |value| &value.id,
+                "frontier item",
+            )?
+        }
         RepoModelPatchOperation::RetireFrontier {
             item_id,
             retired_at,
@@ -350,6 +425,56 @@ fn apply_operation(
             item.retired_at = retired_at.clone().or_else(|| Some(applied_at.to_string()));
             item.updated_at = Some(applied_at.to_string());
             item.superseded_by = superseded_by.clone();
+        }
+        RepoModelPatchOperation::AdoptFrontierPlan {
+            frontier_item_id,
+            expected_frontier_item_hash,
+            adopted_plan,
+        } => {
+            let item = snapshot
+                .frontier
+                .iter_mut()
+                .find(|item| &item.id == frontier_item_id)
+                .ok_or_else(|| {
+                    anyhow!("cannot adopt plan for missing frontier item {frontier_item_id}")
+                })?;
+            let current_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&*item)?));
+            let safe_paths_are_bounded = !adopted_plan.safe_paths.is_empty()
+                && adopted_plan
+                    .safe_paths
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1])
+                && adopted_plan.safe_paths.iter().all(|path| {
+                    item.source_scope.iter().any(|scope| {
+                        path == scope
+                            || path
+                                .starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+                    })
+                });
+            if current_hash != *expected_frontier_item_hash
+                || item.status != RepoFrontierStatus::Active
+                || item.recommended_next_organ != "Imagination"
+                || item.adopted_plan.is_some()
+                || adopted_plan.planning_request_id.trim().is_empty()
+                || adopted_plan.result_id.trim().is_empty()
+                || adopted_plan.job_id.trim().is_empty()
+                || adopted_plan.candidate_id.trim().is_empty()
+                || adopted_plan.candidate_sha256.trim().is_empty()
+                || adopted_plan.action.trim().is_empty()
+                || adopted_plan.command.trim().is_empty()
+                || adopted_plan.checks.is_empty()
+                || adopted_plan.stop_conditions.is_empty()
+                || adopted_plan.rollback_steps.is_empty()
+                || adopted_plan.commit_message.trim().is_empty()
+                || !safe_paths_are_bounded
+            {
+                return Err(anyhow!(
+                    "frontier plan adoption requires the exact active Imagination frontier and complete bounded plan"
+                ));
+            }
+            item.adopted_plan = Some(adopted_plan.clone());
+            item.recommended_next_organ = "Hands".to_string();
+            item.updated_at = Some(applied_at.to_string());
         }
     }
     Ok(())

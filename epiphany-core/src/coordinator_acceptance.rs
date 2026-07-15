@@ -1175,6 +1175,7 @@ mod tests {
                 frontier_modeling_request_id: String::new(),
                 proposal_modeling_request_id: String::new(),
                 claim_repair_request_id: String::new(),
+                frontier_plan_decision_id: String::new(),
             },
         )?;
         let mut fresh = existing.clone();

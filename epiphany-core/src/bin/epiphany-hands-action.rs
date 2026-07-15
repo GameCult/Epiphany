@@ -801,6 +801,9 @@ mod tests {
             substrate_gate_grant_receipt_id: "substrate-grant-test".to_string(),
             requested_at: "2026-06-02T00:00:01Z".to_string(),
             contract: "Test Hands intent.".to_string(),
+            frontier_route_id: String::new(),
+            plan_candidate_sha256: String::new(),
+            plan_action: String::new(),
         };
         put_hands_action_intent(store, &intent)?;
         let review = hands_action_review_for_intent(

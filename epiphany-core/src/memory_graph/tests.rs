@@ -715,6 +715,60 @@ fn retiring_frontier_target_requires_resolving_frontier_in_same_patch() -> Resul
 }
 
 #[test]
+fn verdict_incorporation_closes_adopted_frontier_without_rewriting_execution_plan() -> Result<()> {
+    let mut snapshot = fixture_snapshot();
+    let claim = snapshot.nodes[0].id.clone();
+    let mut item = frontier_item("adopted-work", &claim);
+    item.recommended_next_organ = "Hands".into();
+    item.adopted_plan = Some(epiphany_state_model::RepoFrontierAdoptedPlan {
+        planning_request_id: "planning-1".into(),
+        result_id: "imagination-result-1".into(),
+        job_id: "imagination-job-1".into(),
+        candidate_id: "candidate-1".into(),
+        candidate_sha256: "candidate-hash-1".into(),
+        safe_paths: item.source_scope.clone(),
+        action: "Implement exact bounded change".into(),
+        command: "cargo test --lib".into(),
+        checks: vec!["focused tests pass".into()],
+        stop_conditions: vec!["scope changes".into()],
+        rollback_steps: vec!["revert commit".into()],
+        commit_message: "Implement exact bounded change".into(),
+    });
+    snapshot.frontier = vec![item.clone()];
+    make_canonical(&mut snapshot, 1);
+    let mut resolved = item.clone();
+    resolved.status = RepoFrontierStatus::Resolved;
+    resolved.evidence_refs = vec!["verification-request-1".into(), "soul-verdict-1".into()];
+    resolved.updated_at = Some("2026-07-15T12:00:00Z".into());
+    let patch = RepoModelPatch {
+        patch_id: "incorporate-adopted-verdict".into(),
+        base_revision: snapshot.model_revision,
+        base_hash: memory_graph_model_hash(&snapshot)?,
+        applied_at: "2026-07-15T12:00:00Z".into(),
+        purpose: RepoModelPatchPurpose::IncorporateFrontierVerdict {
+            route_id: "route-1".into(),
+            soul_verdict_receipt_id: "soul-verdict-1".into(),
+        },
+        operations: vec![RepoModelPatchOperation::ReviseFrontier {
+            item: resolved.clone(),
+        }],
+    };
+    let next = derive_repo_model_patch(&snapshot, &patch)?;
+    assert_eq!(next.frontier[0].status, RepoFrontierStatus::Resolved);
+    assert_eq!(next.frontier[0].adopted_plan, item.adopted_plan);
+
+    let mut substituted = resolved;
+    substituted.adopted_plan.as_mut().unwrap().command = "cargo test unrelated".into();
+    let hostile = RepoModelPatch {
+        patch_id: "rewrite-adopted-plan".into(),
+        operations: vec![RepoModelPatchOperation::ReviseFrontier { item: substituted }],
+        ..patch
+    };
+    assert!(derive_repo_model_patch(&snapshot, &hostile).is_err());
+    Ok(())
+}
+
+#[test]
 fn memory_context_projects_frontier_prerequisites_first_under_budget() {
     let mut snapshot = fixture_snapshot();
     let claim = snapshot.nodes[0].id.clone();

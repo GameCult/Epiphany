@@ -172,6 +172,18 @@ pub fn append_verification_hands_receipt_context(
         route.question,
         route.gap,
     ));
+    if let Some(plan) = route.adopted_plan.as_ref() {
+        context.push_str(&format!(
+            "adoptedCandidateSha256: {}\nadoptedAction: {}\nadoptedCommand: {}\nadoptedChecks: {}\nadoptedStopConditions: {}\nadoptedRollbackSteps: {}\nadoptedCommitMessage: {}\n",
+            plan.candidate_sha256,
+            plan.action,
+            plan.command,
+            plan.checks.join(" | "),
+            plan.stop_conditions.join(" | "),
+            plan.rollback_steps.join(" | "),
+            plan.commit_message,
+        ));
+    }
     context.push_str(
         "Soul is reviewing typed internal CultMesh telemetry for concrete Hands consequence evidence produced after the latest accepted Verification finding.\n",
     );
@@ -940,6 +952,8 @@ mod tests {
             claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
         };
         crate::put_runtime_role_worker_result(store, &result)?;
         crate::commit_repo_model_admission(
@@ -1136,6 +1150,7 @@ mod tests {
                 proposal_modeling_request_id: None,
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
+                frontier_plan_mind_request_id: None,
                 created_at: "2026-06-02T00:00:00Z".to_string(),
             },
         )?;
@@ -1250,6 +1265,9 @@ mod tests {
             substrate_gate_grant_receipt_id: "substrate-grant-context".to_string(),
             requested_at: "2026-06-12T00:00:01Z".to_string(),
             contract: "Test Hands intent.".to_string(),
+            frontier_route_id: String::new(),
+            plan_candidate_sha256: String::new(),
+            plan_action: String::new(),
         };
         crate::put_substrate_gate_repo_access_grant_receipt(
             &runtime_store,
@@ -1423,6 +1441,8 @@ mod tests {
             claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
         };
         crate::put_runtime_role_worker_result(&runtime_store, &verification_result)?;
         crate::put_soul_verdict_receipt(

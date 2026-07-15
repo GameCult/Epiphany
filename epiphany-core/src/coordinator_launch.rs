@@ -138,6 +138,37 @@ fn commit_coordinator_job_launch_in_cache(
         } else {
             None
         };
+    let frontier_plan_mind_launch =
+        if let Some(request_id) = request.frontier_plan_mind_request_id.as_deref() {
+            let (mind_request, planning, candidate, identity) =
+                validate_frontier_plan_mind_launch(cache, current_state, request, request_id)?;
+            let projection =
+                RepoFrontierPlanMindContextProjection::new(&mind_request, &planning, &candidate);
+            match &mut effective_launch_document {
+                EpiphanyWorkerLaunchDocument::Role(document) => {
+                    if document.proposal_modeling_context.is_some()
+                        || document.claim_repair_context.is_some()
+                        || document.frontier_planning_context.is_some()
+                        || document.frontier_plan_mind_context.is_some()
+                    {
+                        return Err(anyhow!("Mind frontier decision context is exclusive"));
+                    }
+                    document.frontier_plan_mind_context = Some(projection);
+                }
+                EpiphanyWorkerLaunchDocument::Reorient(_) => {
+                    return Err(anyhow!(
+                        "reorient launch cannot carry Mind decision context"
+                    ));
+                }
+            }
+            let hash = format!(
+                "{:x}",
+                Sha256::digest(rmp_serde::to_vec_named(&effective_launch_document)?)
+            );
+            Some((mind_request, identity, hash))
+        } else {
+            None
+        };
     let prepared = prepare_runtime_spine_heartbeat_job(
         &cache,
         RuntimeSpineHeartbeatJobOptions {
@@ -163,6 +194,7 @@ fn commit_coordinator_job_launch_in_cache(
             proposal_modeling_request_id: request.proposal_modeling_request_id.clone(),
             claim_repair_request_id: request.claim_repair_request_id.clone(),
             frontier_planning_request_id: request.frontier_planning_request_id.clone(),
+            frontier_plan_mind_request_id: request.frontier_plan_mind_request_id.clone(),
             created_at: created_at.clone(),
         },
     )?;
@@ -263,6 +295,31 @@ fn commit_coordinator_job_launch_in_cache(
                 .0,
         );
     }
+    if let Some((mind_request, identity, worker_launch_document_sha256)) = frontier_plan_mind_launch
+    {
+        let binding = RepoFrontierPlanMindLaunchBinding {
+            schema_version: REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+            binding_record_id: format!(
+                "repo-frontier-plan-mind-launch-{}",
+                mind_request.request_id
+            ),
+            mind_request_id: mind_request.request_id,
+            job_id: plan.backend_job_id.clone(),
+            binding_id: request.binding_id.clone(),
+            runtime_id: identity.runtime_id,
+            thread_id: mind_request.thread_id,
+            launched_at: created_at.clone(),
+            worker_launch_document_sha256,
+            contract: REPO_FRONTIER_PLAN_MIND_LAUNCH_BINDING_CONTRACT.into(),
+        };
+        if cache
+            .get::<RepoFrontierPlanMindLaunchBinding>(&binding.binding_record_id)?
+            .is_some()
+        {
+            return Err(anyhow!("Mind request is already bound to a launch"));
+        }
+        batch.push(cache.prepare_entry(&binding.binding_record_id, &binding)?.0);
+    }
     if request.binding_id == EPIPHANY_RESEARCH_ROLE_BINDING_ID {
         let grant = substrate_gate_repo_access_grant_for_launch(
             format!("substrate-grant-{}", plan.backend_job_id),
@@ -295,15 +352,20 @@ pub fn plan_coordinator_job_launch(
     launcher_job_id: String,
     backend_job_id: String,
 ) -> Result<EpiphanyCoordinatorJobLaunchPlan> {
-    let (caller_proposal_projection, caller_repair_projection, caller_planning_projection) =
-        match &request.launch_document {
-            EpiphanyWorkerLaunchDocument::Role(document) => (
-                document.proposal_modeling_context.as_ref(),
-                document.claim_repair_context.as_ref(),
-                document.frontier_planning_context.as_ref(),
-            ),
-            EpiphanyWorkerLaunchDocument::Reorient(_) => (None, None, None),
-        };
+    let (
+        caller_proposal_projection,
+        caller_repair_projection,
+        caller_planning_projection,
+        caller_mind_projection,
+    ) = match &request.launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => (
+            document.proposal_modeling_context.as_ref(),
+            document.claim_repair_context.as_ref(),
+            document.frontier_planning_context.as_ref(),
+            document.frontier_plan_mind_context.as_ref(),
+        ),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => (None, None, None, None),
+    };
     if caller_proposal_projection.is_some() {
         return Err(anyhow!(
             "caller-prepopulated proposal Modeling context is forbidden; coordinator commit owns projection"
@@ -319,10 +381,16 @@ pub fn plan_coordinator_job_launch(
             "caller-prepopulated frontier planning context is forbidden; coordinator commit owns projection"
         ));
     }
+    if caller_mind_projection.is_some() {
+        return Err(anyhow!(
+            "caller-prepopulated Mind decision context is forbidden; coordinator commit owns projection"
+        ));
+    }
     if [
         request.proposal_modeling_request_id.is_some(),
         request.claim_repair_request_id.is_some(),
         request.frontier_planning_request_id.is_some(),
+        request.frontier_plan_mind_request_id.is_some(),
     ]
     .into_iter()
     .filter(|present| *present)
@@ -330,7 +398,7 @@ pub fn plan_coordinator_job_launch(
         > 1
     {
         return Err(anyhow!(
-            "proposal Modeling, claim repair, and frontier planning launches are mutually exclusive"
+            "specialized authority launches are mutually exclusive"
         ));
     }
     if let Some(expected) = request.expected_revision
@@ -353,6 +421,10 @@ pub fn plan_coordinator_job_launch(
         let mut cache = runtime_spine_cache(runtime_store)?;
         cache.pull_all_backing_stores()?;
         validate_frontier_planning_launch(&cache, state, request, request_id)?;
+    } else if let Some(request_id) = request.frontier_plan_mind_request_id.as_deref() {
+        let mut cache = runtime_spine_cache(runtime_store)?;
+        cache.pull_all_backing_stores()?;
+        validate_frontier_plan_mind_launch(&cache, state, request, request_id)?;
     } else if request.owner_role == EPIPHANY_MODELING_OWNER_ROLE {
         // Ordinary Modeling launches remain valid, but carry no proposal authority.
     }
@@ -408,6 +480,52 @@ pub fn plan_coordinator_job_launch(
         heartbeat_plan,
         state_update,
     })
+}
+
+fn validate_frontier_plan_mind_launch(
+    cache: &CultCache,
+    state: &EpiphanyThreadState,
+    launch: &EpiphanyJobLaunchRequest,
+    request_id: &str,
+) -> Result<(
+    RepoFrontierPlanMindRequest,
+    RepoFrontierPlanningRequest,
+    RepoFrontierPlanCandidate,
+    EpiphanyRuntimeIdentity,
+)> {
+    if launch.owner_role != EPIPHANY_MIND_OWNER_ROLE
+        || launch.binding_id != EPIPHANY_MIND_ROLE_BINDING_ID
+    {
+        return Err(anyhow!(
+            "frontier plan decision may only be carried by the Mind role launch"
+        ));
+    }
+    let request = cache
+        .get::<RepoFrontierPlanMindRequest>(request_id)?
+        .ok_or_else(|| anyhow!("Mind request does not exist"))?;
+    let (planning, candidate) =
+        crate::runtime_spine::validate_repo_frontier_plan_mind_request(cache, &request)?;
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("Mind launch requires runtime identity"))?;
+    let persisted = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("Mind launch requires thread state"))?;
+    if persisted.state()? != *state
+        || request.runtime_id != identity.runtime_id
+        || request.thread_id != persisted.thread_id
+        || launch.launch_document.thread_id() != request.thread_id
+    {
+        return Err(anyhow!("Mind launch provenance mismatch"));
+    }
+    if cache
+        .get_all::<RepoFrontierPlanMindLaunchBinding>()?
+        .iter()
+        .any(|b| b.mind_request_id == request_id)
+    {
+        return Err(anyhow!("Mind request already bound"));
+    }
+    Ok((request, planning, candidate, identity))
 }
 
 fn validate_frontier_planning_launch(
@@ -891,7 +1009,95 @@ pub(crate) mod tests {
             claim_repair_request_id: None,
             frontier_planning_request_id: Some(planning.request_id.clone()),
             frontier_plan_candidate_msgpack: Some(rmp_serde::to_vec_named(&candidate)?),
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
         })
+    }
+
+    fn launch_frontier_mind_result(
+        store: &Path,
+        imagination_result: &EpiphanyRuntimeRoleWorkerResult,
+        decision: RepoFrontierPlanDecision,
+        suffix: &str,
+    ) -> Result<EpiphanyRuntimeRoleWorkerResult> {
+        let mind_request = crate::commit_repo_frontier_plan_mind_request(
+            store,
+            &imagination_result.result_id,
+            "2026-07-15T09:00:05Z",
+        )?;
+        let mut cache = coordinator_acceptance_cache(store)?;
+        cache.pull_all_backing_stores()?;
+        let state = cache
+            .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+            .state()?;
+        let launch = crate::build_epiphany_frontier_plan_mind_launch_request(
+            &mind_request.thread_id,
+            Some(state.revision),
+            Some(60),
+            &state,
+            mind_request.request_id.clone(),
+        )
+        .map_err(|error| anyhow!(error))?;
+        let job_id = format!("backend-mind-decision-{suffix}");
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            store,
+            format!("launcher-mind-{suffix}"),
+            job_id.clone(),
+        )?;
+        commit_coordinator_job_launch(
+            store,
+            &mind_request.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-15T09:00:06Z".into(),
+        )?;
+        let payload = RepoFrontierPlanMindDecision {
+            mind_request_id: mind_request.request_id.clone(),
+            planning_request_id: mind_request.planning_request_id.clone(),
+            imagination_result_id: mind_request.imagination_result_id.clone(),
+            candidate_id: mind_request.candidate_id.clone(),
+            candidate_sha256: mind_request.candidate_sha256.clone(),
+            decision,
+            rationale: format!("Mind judged the exact typed candidate as {decision:?}."),
+            decided_at: "2026-07-15T09:00:07Z".into(),
+        };
+        let result = EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: format!("frontier-mind-result-{suffix}"),
+            job_id,
+            role_id: "mindAdmissionReview".into(),
+            verdict: format!("{decision:?}").to_lowercase(),
+            summary: "Judged one exact frontier plan candidate.".into(),
+            next_safe_move: "Coordinator may admit this immutable judgment.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids: vec![mind_request.request_id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: std::collections::BTreeMap::new(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: Some(mind_request.request_id),
+            frontier_plan_mind_decision_msgpack: Some(rmp_serde::to_vec_named(&payload)?),
+        };
+        put_runtime_role_worker_result(store, &result)?;
+        Ok(result)
     }
 
     fn research_launch(state: &EpiphanyThreadState) -> EpiphanyJobLaunchRequest {
@@ -1428,7 +1634,7 @@ pub(crate) mod tests {
     #[test]
     fn frontier_planning_result_refuses_hostile_substitution_before_persistence() -> Result<()> {
         let root = tempfile::tempdir()?;
-        for mutation in 0..9 {
+        for mutation in 0..10 {
             let (store, state, launch, planning) =
                 frontier_planning_launch_fixture(root.path(), &format!("result-{mutation}"))?;
             let job_id = format!("backend-result-{mutation}");
@@ -1456,7 +1662,7 @@ pub(crate) mod tests {
                 4 => result.state_patch_msgpack = Some(vec![0]),
                 5 => result.self_patch_msgpack = Some(vec![0]),
                 6 => result.repo_model_patch_msgpack = Some(vec![0]),
-                _ => {
+                7 | 8 => {
                     let mut candidate = result.frontier_plan_candidate()?.unwrap();
                     if mutation == 7 {
                         candidate.frontier_item_hash = "adjacent-frontier".into();
@@ -1466,6 +1672,7 @@ pub(crate) mod tests {
                     result.frontier_plan_candidate_msgpack =
                         Some(rmp_serde::to_vec_named(&candidate)?);
                 }
+                _ => result.item_error = Some("planner failed after emitting cargo".into()),
             }
             let before = std::fs::read(&store)?;
             assert!(
@@ -1474,6 +1681,573 @@ pub(crate) mod tests {
             );
             assert_eq!(std::fs::read(&store)?, before);
             assert!(runtime_role_worker_result(&store, &job_id)?.is_none());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn mind_adopt_installs_plan_in_model_and_hands_route_copies_it() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, planning) =
+            frontier_planning_launch_fixture(root.path(), "mind-adopt")?;
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-mind-adopt".into(),
+            "backend-mind-adopt".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &planning.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-15T09:00:03Z".into(),
+        )?;
+        let result =
+            frontier_planning_result(&planning, "backend-mind-adopt", "2026-07-15T09:00:04Z")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let mind_result =
+            launch_frontier_mind_result(&store, &result, RepoFrontierPlanDecision::Adopt, "adopt")?;
+
+        let before = runtime_current_repo_model(&store)?.expect("pre-Adopt model");
+        let mut illicit_item = before
+            .frontier
+            .iter()
+            .find(|item| item.id == planning.frontier_item_id)
+            .unwrap()
+            .clone();
+        illicit_item.recommended_next_organ = "Hands".into();
+        let illicit = RepoModelPatch {
+            patch_id: "generic-adopt-bypass".into(),
+            base_revision: before.model_revision,
+            base_hash: memory_graph_model_hash(&before)?,
+            applied_at: "2026-07-15T09:00:05Z".into(),
+            purpose: RepoModelPatchPurpose::Evolution,
+            operations: vec![RepoModelPatchOperation::ReviseFrontier { item: illicit_item }],
+        };
+        assert!(derive_repo_model_patch(&before, &illicit).is_err());
+
+        let decision = commit_repo_frontier_plan_decision(&store, &mind_result.result_id)?;
+        let retry = commit_repo_frontier_plan_decision(&store, &mind_result.result_id)?;
+        assert_eq!(retry, decision);
+        assert!(!decision.model_admission_receipt_id.is_empty());
+        let current = runtime_current_repo_model(&store)?.expect("admitted Adopt model");
+        assert_eq!(current.model_revision, before.model_revision + 1);
+        let item = current
+            .frontier
+            .iter()
+            .find(|item| item.id == planning.frontier_item_id)
+            .expect("adopted frontier");
+        assert_eq!(item.recommended_next_organ, "Hands");
+        let adopted = item.adopted_plan.as_ref().expect("model-owned plan");
+        assert_eq!(adopted.planning_request_id, planning.request_id);
+        assert_eq!(adopted.result_id, result.result_id);
+        assert_eq!(adopted.job_id, result.job_id);
+        assert_eq!(adopted.candidate_id, decision.candidate_id);
+        assert_eq!(adopted.candidate_sha256, decision.candidate_sha256);
+        let mut illicit_adopted_item = item.clone();
+        illicit_adopted_item.source_scope = vec!["different/execution-scope".into()];
+        let illicit_adopted_revision = RepoModelPatch {
+            patch_id: "generic-adopted-anatomy-mutation".into(),
+            base_revision: current.model_revision,
+            base_hash: memory_graph_model_hash(&current)?,
+            applied_at: "2026-07-15T09:00:06Z".into(),
+            purpose: RepoModelPatchPurpose::Evolution,
+            operations: vec![RepoModelPatchOperation::ReviseFrontier {
+                item: illicit_adopted_item,
+            }],
+        };
+        assert!(derive_repo_model_patch(&current, &illicit_adopted_revision).is_err());
+        let route = select_and_commit_repo_frontier_route(&store, "2026-07-15T09:00:06Z")?;
+        assert_eq!(route.adopted_plan.as_ref(), Some(adopted));
+        assert_eq!(route.source_scope, adopted.safe_paths);
+        let grant = crate::substrate_gate_coordinator_implementation_grant(
+            "adopt-hands-grant".into(),
+            "adopt-hands-job".into(),
+            adopted.safe_paths.clone(),
+            "2026-07-15T09:00:08Z".into(),
+        );
+        crate::put_substrate_gate_repo_access_grant_receipt(&store, &grant)?;
+        let intent = crate::HandsActionIntent {
+            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.into(),
+            intent_id: "adopt-hands-intent".into(),
+            runtime_job_id: grant.runtime_job_id.clone(),
+            binding_id: grant.binding_id.clone(),
+            role: grant.role.clone(),
+            authority_scope: grant.authority_scope.clone(),
+            requested_action: "continueImplementation".into(),
+            requested_paths: adopted.safe_paths.clone(),
+            substrate_gate_grant_receipt_id: grant.receipt_id.clone(),
+            requested_at: "2026-07-15T09:00:09Z".into(),
+            contract: "Hands intent executes only the admitted plan.".into(),
+            frontier_route_id: route.route_id.clone(),
+            plan_candidate_sha256: adopted.candidate_sha256.clone(),
+            plan_action: adopted.action.clone(),
+        };
+        crate::put_hands_action_intent(&store, &intent)?;
+        let review = crate::hands_action_review_for_intent(
+            "adopt-hands-review".into(),
+            &intent,
+            "approved".into(),
+            vec!["patch".into(), "command".into(), "commit".into()],
+            vec!["Exact admitted plan binding is present.".into()],
+            "2026-07-15T09:00:10Z".into(),
+        );
+        crate::put_hands_action_review(&store, &review)?;
+        let authority = crate::RepoFrontierHandsAuthority {
+            schema_version: crate::REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION.into(),
+            authority_id: "adopt-hands-authority".into(),
+            route_id: route.route_id.clone(),
+            model_revision: route.model_revision,
+            model_hash: route.model_hash.clone(),
+            frontier_item_id: route.frontier_item_id.clone(),
+            frontier_item_hash: route.frontier_item_hash.clone(),
+            hands_intent_id: intent.intent_id.clone(),
+            hands_review_id: review.review_id.clone(),
+            substrate_grant_receipt_id: grant.receipt_id.clone(),
+            requested_paths: adopted.safe_paths.clone(),
+            granted_at: "2026-07-15T09:00:11Z".into(),
+            contract: crate::REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT.into(),
+        };
+        crate::put_repo_frontier_hands_authority(&store, &authority)?;
+        let patch_receipt = crate::hands_patch_receipt_for_review(
+            "adopt-hands-patch".into(),
+            &intent,
+            &review,
+            adopted.safe_paths.clone(),
+            "bounded patch".into(),
+            "2026-07-15T09:00:12Z".into(),
+        );
+        crate::put_hands_patch_receipt(&store, &patch_receipt)?;
+        let wrong_command = crate::hands_command_receipt_for_review(
+            "adopt-hands-command-wrong".into(),
+            &intent,
+            &review,
+            "cargo test unrelated".into(),
+            "0".into(),
+            "stdout".into(),
+            "stderr".into(),
+            "wrong command".into(),
+            "2026-07-15T09:00:13Z".into(),
+        );
+        let commit_receipt = crate::hands_commit_receipt_for_review(
+            "adopt-hands-commit".into(),
+            &intent,
+            &review,
+            "abc123".into(),
+            "main".into(),
+            adopted.safe_paths.clone(),
+            adopted.commit_message.clone(),
+            "2026-07-15T09:00:14Z".into(),
+        );
+        crate::put_hands_commit_receipt(&store, &commit_receipt)?;
+        let hostile_request = crate::RepoFrontierVerificationRequest {
+            schema_version: crate::REPO_FRONTIER_VERIFICATION_REQUEST_SCHEMA_VERSION.into(),
+            request_id: "adopt-verification-hostile".into(),
+            route_id: route.route_id.clone(),
+            model_revision: route.model_revision,
+            model_hash: route.model_hash.clone(),
+            frontier_item_id: route.frontier_item_id.clone(),
+            frontier_item_hash: route.frontier_item_hash.clone(),
+            hands_intent_id: intent.intent_id.clone(),
+            hands_review_id: review.review_id.clone(),
+            hands_patch_receipt_id: patch_receipt.receipt_id.clone(),
+            hands_command_receipt_id: wrong_command.receipt_id.clone(),
+            hands_commit_receipt_id: commit_receipt.receipt_id.clone(),
+            requested_at: "2026-07-15T09:00:15Z".into(),
+            contract: crate::REPO_FRONTIER_VERIFICATION_REQUEST_CONTRACT.into(),
+        };
+        assert!(crate::put_repo_frontier_verification_request(&store, &hostile_request).is_err());
+
+        // Prove the whole admitted-plan nerve, not merely its neighboring joints. The
+        // rejected command above remains immutable evidence, while the exact planned
+        // command becomes the only chain Soul is allowed to verify.
+        let exact_command = crate::hands_command_receipt_for_review(
+            "adopt-hands-command-exact".into(),
+            &intent,
+            &review,
+            adopted.command.clone(),
+            "0".into(),
+            "stdout-exact".into(),
+            "stderr-exact".into(),
+            "exact admitted command passed".into(),
+            "2026-07-15T09:00:13Z".into(),
+        );
+        crate::put_hands_command_receipt(&store, &exact_command)?;
+        let chain =
+            crate::runtime_latest_hands_receipt_chain_after(&store, "2026-07-15T09:00:11Z")?
+                .expect("exact admitted Hands chain");
+        assert_eq!(chain.patch_receipt_id, patch_receipt.receipt_id);
+        assert_eq!(chain.command_receipt_id, exact_command.receipt_id);
+        assert_eq!(chain.commit_receipt_id, commit_receipt.receipt_id);
+        let verification_request = crate::commit_repo_frontier_verification_request_for_chain(
+            &store,
+            &chain,
+            "2026-07-15T09:00:17Z",
+        )?;
+        assert_eq!(verification_request.route_id, route.route_id);
+
+        let verification_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "adopt-verification-result".into(),
+            job_id: "adopt-verification-job".into(),
+            role_id: "verification".into(),
+            verdict: "pass".into(),
+            summary: "Exact adopted plan passed Soul verification.".into(),
+            next_safe_move: "Modeling incorporates the verdict.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: adopted.safe_paths.clone(),
+            frontier_node_ids: vec![route.frontier_item_id.clone()],
+            evidence_ids: vec![verification_request.request_id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: Some(verification_request.request_id.clone()),
+            frontier_route_id: Some(route.route_id.clone()),
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+        };
+        crate::put_runtime_role_worker_result(&store, &verification_result)?;
+        let soul_verdict = crate::SoulVerdictReceipt {
+            schema_version: crate::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.into(),
+            receipt_id: "adopt-soul-verdict".into(),
+            source_result_id: verification_result.result_id.clone(),
+            source_job_id: verification_result.job_id.clone(),
+            verdict: "pass".into(),
+            summary: verification_result.summary.clone(),
+            evidence_ids: verification_result.evidence_ids.clone(),
+            risks: Vec::new(),
+            emitted_at: "2026-07-15T09:00:18Z".into(),
+            contract: "Soul judges the exact routed consequence chain.".into(),
+            verification_request_id: verification_request.request_id.clone(),
+            frontier_route_id: route.route_id.clone(),
+        };
+        crate::put_soul_verdict_receipt(&store, &soul_verdict)?;
+        let acceptance = epiphany_state_model::EpiphanyAcceptanceReceipt {
+            id: "adopt-verification-acceptance".into(),
+            result_id: verification_result.result_id.clone(),
+            job_id: verification_result.job_id.clone(),
+            binding_id: "verification-worker".into(),
+            surface: "roleAccept".into(),
+            role_id: "verification".into(),
+            status: "accepted".into(),
+            accepted_at: "2026-07-15T09:00:18Z".into(),
+            ..Default::default()
+        };
+        let accepted_state = epiphany_state_model::EpiphanyThreadState {
+            revision: 1,
+            acceptance_receipts: vec![acceptance.clone()],
+            ..Default::default()
+        };
+        let mut state_cache = crate::runtime_spine_cache(&store)?;
+        state_cache.put(
+            crate::THREAD_STATE_KEY,
+            &crate::EpiphanyThreadStateEntry::from_state("mind-adopt-thread", &accepted_state)?,
+        )?;
+        let modeling_request = crate::commit_repo_frontier_modeling_request(&store, &acceptance)?;
+
+        let pre_incorporation =
+            crate::runtime_current_repo_model(&store)?.expect("model before verdict incorporation");
+        let mut resolved_item = pre_incorporation
+            .frontier
+            .iter()
+            .find(|candidate| candidate.id == route.frontier_item_id)
+            .expect("routed adopted item before incorporation")
+            .clone();
+        let adopted_before = rmp_serde::to_vec_named(
+            resolved_item
+                .adopted_plan
+                .as_ref()
+                .expect("adopted plan before closure"),
+        )?;
+        resolved_item.status = crate::RepoFrontierStatus::Resolved;
+        resolved_item.updated_at = Some("2026-07-15T09:00:19Z".into());
+        resolved_item
+            .evidence_refs
+            .push(verification_request.request_id.clone());
+        resolved_item
+            .evidence_refs
+            .push(soul_verdict.receipt_id.clone());
+        resolved_item.evidence_refs.sort();
+        resolved_item.evidence_refs.dedup();
+        let incorporation_patch = crate::RepoModelPatch {
+            patch_id: "adopt-verdict-incorporation-patch".into(),
+            base_revision: pre_incorporation.model_revision,
+            base_hash: crate::memory_graph_model_hash(&pre_incorporation)?,
+            applied_at: "2026-07-15T09:00:19Z".into(),
+            purpose: crate::RepoModelPatchPurpose::IncorporateFrontierVerdict {
+                route_id: route.route_id.clone(),
+                soul_verdict_receipt_id: soul_verdict.receipt_id.clone(),
+            },
+            operations: vec![crate::RepoModelPatchOperation::ReviseFrontier {
+                item: resolved_item,
+            }],
+        };
+        let incorporation_bytes = rmp_serde::to_vec_named(&incorporation_patch)?;
+        let modeling_result = crate::EpiphanyRuntimeRoleWorkerResult {
+            schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: "adopt-incorporation-result".into(),
+            job_id: "adopt-incorporation-job".into(),
+            role_id: "modeling".into(),
+            verdict: "checkpoint-ready".into(),
+            summary: "Close the verified adopted frontier.".into(),
+            next_safe_move: "Mind admits the exact Modeling transition.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: vec![route.frontier_item_id.clone()],
+            evidence_ids: vec![soul_verdict.receipt_id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: Default::default(),
+            repo_model_patch_msgpack: Some(incorporation_bytes.clone()),
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: Some(modeling_request.request_id.clone()),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+        };
+        crate::put_runtime_role_worker_result(&store, &modeling_result)?;
+        let incorporation_review = crate::RepoModelAdmissionReview {
+            schema_version: crate::REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
+            review_id: "adopt-incorporation-review".into(),
+            result_id: modeling_result.result_id.clone(),
+            job_id: modeling_result.job_id.clone(),
+            patch_id: incorporation_patch.patch_id.clone(),
+            patch_sha256: format!("{:x}", Sha256::digest(&incorporation_bytes)),
+            base_revision: incorporation_patch.base_revision,
+            base_hash: incorporation_patch.base_hash.clone(),
+            decision: crate::MindGatewayDecision::Accept,
+            evidence_ids: modeling_result.evidence_ids.clone(),
+            reviewed_at: "2026-07-15T09:00:20Z".into(),
+            contract: crate::REPO_MODEL_ADMISSION_CONTRACT.into(),
+        };
+        let incorporation = crate::commit_repo_model_admission(
+            &store,
+            &modeling_result.result_id,
+            &incorporation_review,
+        )?;
+        assert_eq!(incorporation.frontier_route_id, route.route_id);
+        assert_eq!(
+            incorporation.frontier_modeling_request_id,
+            modeling_request.request_id
+        );
+        let closed = crate::runtime_current_repo_model(&store)?.expect("closed model");
+        let closed_item = closed
+            .frontier
+            .iter()
+            .find(|candidate| candidate.id == route.frontier_item_id)
+            .expect("closed adopted frontier");
+        assert_eq!(closed_item.status, crate::RepoFrontierStatus::Resolved);
+        assert_eq!(
+            rmp_serde::to_vec_named(
+                closed_item
+                    .adopted_plan
+                    .as_ref()
+                    .expect("plan survives closure")
+            )?,
+            adopted_before,
+            "verdict incorporation must preserve the adopted plan byte-for-byte"
+        );
+        let cache = coordinator_acceptance_cache(&store)?;
+        let admission = cache
+            .get::<RepoModelAdmissionReceipt>(&decision.model_admission_receipt_id)?
+            .expect("Adopt admission receipt");
+        assert_eq!(admission.frontier_plan_decision_id, decision.decision_id);
+        assert_eq!(admission.admitted_hash, memory_graph_model_hash(&current)?);
+        assert_eq!(
+            commit_repo_frontier_plan_decision(&store, &mind_result.result_id)?,
+            decision
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn mind_refuse_and_hold_are_terminal_inert_receipts() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        for (suffix, terminal) in [
+            ("refuse", RepoFrontierPlanDecision::Refuse),
+            ("hold", RepoFrontierPlanDecision::Hold),
+        ] {
+            let (store, state, launch, planning) =
+                frontier_planning_launch_fixture(root.path(), suffix)?;
+            let job_id = format!("backend-{suffix}");
+            let plan = plan_coordinator_job_launch(
+                &state,
+                &launch,
+                &store,
+                format!("launcher-{suffix}"),
+                job_id.clone(),
+            )?;
+            commit_coordinator_job_launch(
+                &store,
+                &planning.thread_id,
+                &state,
+                &launch,
+                &plan,
+                "2026-07-15T09:00:03Z".into(),
+            )?;
+            let result = frontier_planning_result(&planning, &job_id, "2026-07-15T09:00:04Z")?;
+            put_runtime_role_worker_result(&store, &result)?;
+            let mind_result = launch_frontier_mind_result(&store, &result, terminal, suffix)?;
+            let before = std::fs::read(&store)?;
+            let before_model = runtime_current_repo_model(&store)?.unwrap();
+            let receipt = commit_repo_frontier_plan_decision(&store, &mind_result.result_id)?;
+            assert!(receipt.model_admission_receipt_id.is_empty());
+            assert_eq!(runtime_current_repo_model(&store)?.unwrap(), before_model);
+            assert!(select_and_commit_repo_frontier_route(&store, "2026-07-15T09:00:06Z").is_err());
+            assert!(std::fs::read(&store)?.len() > before.len());
+            assert!(
+                select_and_commit_repo_frontier_planning_request(&store, "2026-07-15T09:00:07Z")
+                    .is_err()
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn concurrent_mind_admission_retries_converge_on_one_terminal_receipt() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, planning) =
+            frontier_planning_launch_fixture(root.path(), "mind-race")?;
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-mind-race".into(),
+            "backend-mind-race".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &planning.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-15T09:00:03Z".into(),
+        )?;
+        let result =
+            frontier_planning_result(&planning, "backend-mind-race", "2026-07-15T09:00:04Z")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let mind_result =
+            launch_frontier_mind_result(&store, &result, RepoFrontierPlanDecision::Adopt, "race")?;
+        let left_store = store.clone();
+        let right_store = store.clone();
+        let left_id = mind_result.result_id.clone();
+        let right_id = mind_result.result_id.clone();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let left_barrier = barrier.clone();
+        let right_barrier = barrier.clone();
+        let left = std::thread::spawn(move || {
+            crate::runtime_spine::commit_repo_frontier_plan_decision_with_pre_cas(
+                left_store,
+                &left_id,
+                &move || {
+                    left_barrier.wait();
+                },
+            )
+        });
+        let right = std::thread::spawn(move || {
+            crate::runtime_spine::commit_repo_frontier_plan_decision_with_pre_cas(
+                right_store,
+                &right_id,
+                &move || {
+                    right_barrier.wait();
+                },
+            )
+        });
+        let outcomes = [left.join().unwrap(), right.join().unwrap()];
+        assert_eq!(outcomes.iter().filter(|outcome| outcome.is_ok()).count(), 2);
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let decisions = cache
+            .get_all::<RepoFrontierPlanDecisionReceipt>()?
+            .into_iter()
+            .filter(|receipt| receipt.planning_request_id == planning.request_id)
+            .collect::<Vec<_>>();
+        assert_eq!(decisions.len(), 1);
+        let current = runtime_current_repo_model(&store)?.unwrap();
+        if decisions[0].decision == RepoFrontierPlanDecision::Adopt {
+            assert_eq!(current.model_revision, planning.model_revision + 1);
+            assert!(!decisions[0].model_admission_receipt_id.is_empty());
+        } else {
+            assert_eq!(current.model_revision, planning.model_revision);
+            assert!(decisions[0].model_admission_receipt_id.is_empty());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn immutable_mind_result_rejects_causal_substitution_and_foreign_cargo() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        for mutation in 0..7 {
+            let suffix = format!("mind-hostile-{mutation}");
+            let (store, state, launch, planning) =
+                frontier_planning_launch_fixture(root.path(), &suffix)?;
+            let imagination_job = format!("backend-imagination-{suffix}");
+            let plan = plan_coordinator_job_launch(
+                &state,
+                &launch,
+                &store,
+                format!("launcher-imagination-{suffix}"),
+                imagination_job.clone(),
+            )?;
+            commit_coordinator_job_launch(
+                &store,
+                &planning.thread_id,
+                &state,
+                &launch,
+                &plan,
+                "2026-07-15T09:00:03Z".into(),
+            )?;
+            let imagination =
+                frontier_planning_result(&planning, &imagination_job, "2026-07-15T09:00:04Z")?;
+            put_runtime_role_worker_result(&store, &imagination)?;
+            let mut hostile = launch_frontier_mind_result(
+                &store,
+                &imagination,
+                RepoFrontierPlanDecision::Adopt,
+                &suffix,
+            )?;
+            match mutation {
+                0 => hostile.frontier_plan_mind_request_id = Some("swapped-request".into()),
+                1 => hostile.job_id = "swapped-job".into(),
+                2 => hostile.role_id = "imagination".into(),
+                3 => hostile.state_patch_msgpack = Some(vec![0]),
+                4 => hostile.repo_model_patch_msgpack = Some(vec![0]),
+                5 => {
+                    let mut payload = hostile.frontier_plan_mind_decision()?.unwrap();
+                    payload.candidate_sha256 = "swapped-candidate-hash".into();
+                    hostile.frontier_plan_mind_decision_msgpack =
+                        Some(rmp_serde::to_vec_named(&payload)?);
+                }
+                _ => hostile.item_error = Some("Mind failed after emitting judgment".into()),
+            }
+            let before = std::fs::read(&store)?;
+            assert!(put_runtime_role_worker_result(&store, &hostile).is_err());
+            assert_eq!(std::fs::read(&store)?, before);
         }
         Ok(())
     }

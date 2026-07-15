@@ -778,6 +778,12 @@ pub struct RepoFrontierItem {
     #[ts(type = "Array<string>")]
     pub source_scope: Vec<String>,
     pub recommended_next_organ: String,
+    /// The exact plan admitted by Mind for this frontier item. Imagination may
+    /// propose this payload, but only the dedicated model transition may make
+    /// it part of Modeling-owned truth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "RepoFrontierAdoptedPlan | null")]
+    pub adopted_plan: Option<RepoFrontierAdoptedPlan>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub dependency_item_ids: Vec<String>,
@@ -798,6 +804,30 @@ pub struct RepoFrontierItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub superseded_by: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct RepoFrontierAdoptedPlan {
+    pub planning_request_id: String,
+    pub result_id: String,
+    pub job_id: String,
+    pub candidate_id: String,
+    pub candidate_sha256: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub safe_paths: Vec<String>,
+    pub action: String,
+    pub command: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub checks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub stop_conditions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub rollback_steps: Vec<String>,
+    pub commit_message: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
@@ -836,6 +866,11 @@ pub enum RepoModelPatchPurpose {
         soul_verdict_receipt_id: String,
     },
     RepairClaim,
+    AdoptFrontierPlan {
+        planning_request_id: String,
+        result_id: String,
+        candidate_id: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
@@ -872,6 +907,11 @@ pub enum RepoModelPatchOperation {
         retired_at: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         superseded_by: Option<String>,
+    },
+    AdoptFrontierPlan {
+        frontier_item_id: String,
+        expected_frontier_item_hash: String,
+        adopted_plan: RepoFrontierAdoptedPlan,
     },
 }
 

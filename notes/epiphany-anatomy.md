@@ -45,6 +45,11 @@ embodiment titles, role-memory diaries, or Persona state.
 
 - Body is sensed and changed; it does not decide.
 - Mind admits durable state; it is not a chatty lane.
+- Mind may invoke a bounded, stateless admission-review procedure when a typed
+  proposal requires model judgment. That procedure serves Mind; it is not an
+  embodied sub-agent, has no heartbeat or lane memory, cannot `roleAccept` or
+  `selfPatch`, and its immutable judgment has no consequence until Mind replays
+  the causal chain and admits it.
 - Continuity preserves/rebuilds context across rupture; it is protocol
   machinery, not an embodied identity.
 - Substrate Gate grants substrate access; it does not inspect evidence, mutate

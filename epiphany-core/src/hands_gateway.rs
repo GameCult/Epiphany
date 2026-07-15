@@ -10,7 +10,7 @@ pub const HANDS_COMMIT_RECEIPT_TYPE: &str = "epiphany.hands.commit_receipt";
 pub const HANDS_PR_RECEIPT_TYPE: &str = "epiphany.hands.pr_receipt";
 pub const HANDS_ROLLBACK_RECEIPT_TYPE: &str = "epiphany.hands.rollback_receipt";
 pub const HANDS_ACTION_REFUSAL_RECEIPT_TYPE: &str = "epiphany.hands.action_refusal_receipt";
-pub const HANDS_ACTION_INTENT_SCHEMA_VERSION: &str = "epiphany.hands.action_intent.v0";
+pub const HANDS_ACTION_INTENT_SCHEMA_VERSION: &str = "epiphany.hands.action_intent.v1";
 pub const HANDS_ACTION_REVIEW_SCHEMA_VERSION: &str = "epiphany.hands.action_review.v0";
 pub const HANDS_COMMAND_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.command_receipt.v0";
 pub const HANDS_PATCH_RECEIPT_SCHEMA_VERSION: &str = "epiphany.hands.patch_receipt.v0";
@@ -45,6 +45,12 @@ pub struct HandsActionIntent {
     pub requested_at: String,
     #[cultcache(key = 10)]
     pub contract: String,
+    #[cultcache(key = 11, default)]
+    pub frontier_route_id: String,
+    #[cultcache(key = 12, default)]
+    pub plan_candidate_sha256: String,
+    #[cultcache(key = 13, default)]
+    pub plan_action: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -475,6 +481,9 @@ mod tests {
             substrate_gate_grant_receipt_id: "substrate-grant-1".to_string(),
             requested_at: "2026-06-02T00:00:00Z".to_string(),
             contract: "Hands action intent is bounded by Substrate Gate.".to_string(),
+            frontier_route_id: String::new(),
+            plan_candidate_sha256: String::new(),
+            plan_action: String::new(),
         };
         let review = hands_action_review_for_intent(
             "hands-review-1".to_string(),

@@ -982,3 +982,54 @@ missing/adjacent/escaped candidate, wrong role, generic patch smuggling, exact
 retry, and immutable collision checks pass. Next implement Mind-only terminal
 decision plus the dedicated Adopt RepoModel transition from Imagination to
 Hands, then delete the old internal candidate/adoption fixture writers.
+
+## Prompted frontier admission review and canonical adoption (2026-07-15)
+
+The repo-frontier planning nerve is complete and the preceding “Next implement
+Mind” sentence is superseded. Self binds one exact admitted model/frontier
+request; coordinator atomically binds the Imagination launch; Imagination
+persists one immutable result with its sole embedded candidate; the runtime
+derives a CAS-bound Mind review request; coordinator atomically launches a
+bounded non-embodied admission-review procedure; that procedure returns one
+immutable typed Adopt/Refuse/Hold judgment; and Mind's admission transaction
+replays the entire chain before consequence.
+
+Refuse and Hold are inert terminal receipts. Adopt atomically installs the exact
+candidate and provenance on the canonical frontier, emits specialized review
+and admission receipts, and alone changes Imagination to Hands. Self derives the
+route from that model. Hands intent binds route, candidate hash, plan action,
+and safe paths; Soul admission requires the exact plan command and receives the
+checks, stop conditions, rollback steps, and commit message. Modeling may close
+the frontier after Soul verdict only while preserving adopted execution anatomy.
+There is no standalone candidate/adoption truth and no caller-authored decision.
+
+Mind remains persistent state and admission authority, not an embodied chatty
+lane. The prompted model call is explicitly a bounded admission-review
+procedure serving Mind, with no heartbeat, lane memory, `roleAccept`,
+`selfPatch`, or foreign organ patch mouths.
+
+Hostile coverage includes swapped causal ids/hashes/jobs, failed worker output,
+foreign cargo, duplicate/racing launch and terminal claims, generic adoption
+bypass, post-adoption execution-anatomy mutation, and same-path command
+substitution. The composed happy path proves Adopt through exact Hands command,
+Verification/Soul, accepted Modeling incorporation, Resolved closure, and
+byte-identical plan survival. Final proof: core 330 passed with one intentional
+cross-process helper ignored; OpenAI runtime library 10 passed, both runtime
+binary suites passed 6 each, and all core binaries check. Soul's final landing
+audit passed. Exact concurrent admission retries are forced through a two-party
+pre-CAS barrier in test builds; the loser reloads and authenticates the winner's
+entire immutable decision/admission chain. The synchronization hook is compiled
+only for tests, so production exposes no executable seam at the commit boundary.
+The next organ is the production semantic index over typed graph claims so
+Modeling owns a live persistent searchable Body map instead of making Hands
+rediscover the repository.
+
+The selected semantic substrate is Qdrant: available locally in Docker and
+intended on the new Yggdrasil host (64 GB RAM, GTX 1080 for embedding/model
+workers). It is a rebuildable projection, never canonical Mind or Modeling
+truth. CultCache/CultMesh remains authoritative. Use separate typed Mind and
+Modeling namespaces/collections or equivalently hard query partitions so
+private doctrine/memory cannot leak into Hands Body retrieval and repository
+claims cannot silently become doctrine. Every point must retain source document
+id, schema version, canonical hash, provenance, authority/visibility scope, and
+embedding-model version.

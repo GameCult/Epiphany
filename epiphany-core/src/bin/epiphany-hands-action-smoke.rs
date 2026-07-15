@@ -47,6 +47,9 @@ fn main() -> Result<()> {
         requested_at: "2026-06-02T00:00:10Z".to_string(),
         contract: "Smoke intent proves Hands action starts as typed runtime-spine state."
             .to_string(),
+        frontier_route_id: String::new(),
+        plan_candidate_sha256: String::new(),
+        plan_action: String::new(),
     };
     put_hands_action_intent(&store, &intent)?;
 

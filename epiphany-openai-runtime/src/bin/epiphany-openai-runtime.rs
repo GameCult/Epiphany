@@ -974,6 +974,7 @@ mod tests {
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
+                        frontier_plan_mind_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -998,6 +999,7 @@ mod tests {
                 proposal_modeling_request_id: None,
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
+                frontier_plan_mind_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -1060,6 +1062,7 @@ mod tests {
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
+                        frontier_plan_mind_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -1084,6 +1087,7 @@ mod tests {
                 proposal_modeling_request_id: None,
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
+                frontier_plan_mind_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -1134,6 +1138,7 @@ mod tests {
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
+                        frontier_plan_mind_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -1158,6 +1163,7 @@ mod tests {
                 proposal_modeling_request_id: None,
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
+                frontier_plan_mind_request_id: None,
                 created_at: now(),
             },
         )?;

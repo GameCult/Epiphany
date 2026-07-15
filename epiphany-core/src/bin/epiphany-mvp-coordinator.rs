@@ -853,6 +853,9 @@ fn record_hands_implementation_gate(
         requested_at: requested_at.clone(),
         contract: "Coordinator continuation becomes a typed Hands action intent before any file edit, command, or commit may count as implementation evidence."
             .to_string(),
+        frontier_route_id: String::new(),
+        plan_candidate_sha256: String::new(),
+        plan_action: String::new(),
     };
     put_hands_action_intent(runtime_store, &intent)?;
 
