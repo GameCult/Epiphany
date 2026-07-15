@@ -5,7 +5,10 @@ use crate::agent_launch::{
     EPIPHANY_MIND_OWNER_ROLE, EPIPHANY_MIND_ROLE_BINDING_ID, EPIPHANY_MODELING_OWNER_ROLE,
     EPIPHANY_MODELING_ROLE_BINDING_ID,
 };
-use crate::agent_memory::AGENT_MEMORY_TYPE;
+use crate::agent_memory::{
+    AGENT_MEMORY_SWARM_IDENTITY_KEY, AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION,
+    AGENT_MEMORY_SWARM_IDENTITY_TYPE, AGENT_MEMORY_TYPE, load_agent_memory_swarm_identity,
+};
 use crate::continuity_gateway::ContinuityRecoveryReceipt;
 use crate::continuity_gateway::*;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
@@ -180,6 +183,9 @@ pub const SURFACE_VOID_MEMORY_TYPE: &str = "epiphany.surface.void_memory";
 pub const SURFACE_REPO_INITIALIZATION_TYPE: &str = "epiphany.surface.repo_initialization";
 pub const SURFACE_REPO_BIRTH_RUNNER_TYPE: &str = "epiphany.surface.repo_birth_runner";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
+pub const RUNTIME_SWARM_BINDING_TYPE: &str = "epiphany.runtime.swarm_binding";
+pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
+pub const RUNTIME_SWARM_BINDING_SCHEMA_VERSION: &str = "epiphany.runtime.swarm_binding.v0";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
@@ -261,6 +267,30 @@ pub struct EpiphanyRuntimeIdentity {
     pub supported_document_types: Vec<String>,
     #[cultcache(key = 7, default)]
     pub metadata: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.swarm_binding",
+    schema = "EpiphanyRuntimeSwarmBinding"
+)]
+pub struct EpiphanyRuntimeSwarmBinding {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub binding_id: String,
+    #[cultcache(key = 2)]
+    pub runtime_id: String,
+    #[cultcache(key = 3)]
+    pub swarm_id: String,
+    #[cultcache(key = 4)]
+    pub source_identity_type: String,
+    #[cultcache(key = 5)]
+    pub source_identity_key: String,
+    #[cultcache(key = 6)]
+    pub source_identity_sha256: String,
+    #[cultcache(key = 7)]
+    pub bound_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -811,6 +841,8 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<crate::EpiphanyThreadStateEntry>()?;
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
+    cache.register_entry_type::<EpiphanyRuntimeSwarmBinding>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectionObligation>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
@@ -895,6 +927,148 @@ pub fn initialize_runtime_spine(
     };
     cache.put(RUNTIME_IDENTITY_KEY, &identity)?;
     Ok(identity)
+}
+
+pub fn bind_runtime_to_agent_memory_swarm(
+    runtime_store: impl AsRef<Path>,
+    agent_store: impl AsRef<Path>,
+    bound_at: &str,
+) -> Result<EpiphanyRuntimeSwarmBinding> {
+    chrono::DateTime::parse_from_rfc3339(bound_at)
+        .map_err(|_| anyhow!("runtime swarm binding timestamp must be RFC3339"))?;
+    let source = load_agent_memory_swarm_identity(agent_store)?
+        .ok_or_else(|| anyhow!("agent memory store has no canonical swarm identity"))?;
+    if source.schema_version != AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported canonical agent-memory swarm identity"));
+    }
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("runtime swarm binding requires runtime identity"))?;
+    let binding = EpiphanyRuntimeSwarmBinding {
+        schema_version: RUNTIME_SWARM_BINDING_SCHEMA_VERSION.to_string(),
+        binding_id: RUNTIME_SWARM_BINDING_KEY.to_string(),
+        runtime_id: identity.runtime_id.clone(),
+        swarm_id: source.swarm_id.clone(),
+        source_identity_type: AGENT_MEMORY_SWARM_IDENTITY_TYPE.to_string(),
+        source_identity_key: AGENT_MEMORY_SWARM_IDENTITY_KEY.to_string(),
+        source_identity_sha256: format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(&source)?)),
+        bound_at: bound_at.to_string(),
+    };
+    if let Some(existing) = cache.get::<EpiphanyRuntimeSwarmBinding>(RUNTIME_SWARM_BINDING_KEY)? {
+        return if existing.schema_version == binding.schema_version
+            && existing.binding_id == binding.binding_id
+            && existing.runtime_id == binding.runtime_id
+            && existing.swarm_id == binding.swarm_id
+            && existing.source_identity_type == binding.source_identity_type
+            && existing.source_identity_key == binding.source_identity_key
+            && existing.source_identity_sha256 == binding.source_identity_sha256
+        {
+            Ok(existing)
+        } else {
+            Err(anyhow!("runtime swarm binding identity collision"))
+        };
+    }
+    let backing = SingleFileMessagePackBackingStore::new(runtime_store);
+    let identity_envelope = backing
+        .pull_all()?
+        .into_iter()
+        .find(|entry| entry.r#type == RUNTIME_IDENTITY_TYPE && entry.key == RUNTIME_IDENTITY_KEY)
+        .ok_or_else(|| anyhow!("runtime swarm binding lost runtime identity envelope"))?;
+    let (binding_envelope, _) = cache.prepare_entry(RUNTIME_SWARM_BINDING_KEY, &binding)?;
+    if backing.compare_and_swap_batch(
+        &[identity_envelope.clone()],
+        vec![identity_envelope, binding_envelope],
+    )? {
+        return Ok(binding);
+    }
+    let mut reloaded = runtime_spine_cache(runtime_store)?;
+    reloaded.pull_all_backing_stores()?;
+    match reloaded.get::<EpiphanyRuntimeSwarmBinding>(RUNTIME_SWARM_BINDING_KEY)? {
+        Some(existing) if existing == binding => Ok(existing),
+        _ => Err(anyhow!("runtime swarm binding lost immutable CAS")),
+    }
+}
+
+pub fn runtime_swarm_binding(
+    runtime_store: impl AsRef<Path>,
+) -> Result<Option<EpiphanyRuntimeSwarmBinding>> {
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    cache.get(RUNTIME_SWARM_BINDING_KEY)
+}
+
+fn require_runtime_swarm_binding(cache: &CultCache) -> Result<EpiphanyRuntimeSwarmBinding> {
+    let identity = require_identity(cache)?;
+    let binding = cache
+        .get::<EpiphanyRuntimeSwarmBinding>(RUNTIME_SWARM_BINDING_KEY)?
+        .ok_or_else(|| anyhow!("RepoModel admission requires immutable runtime swarm binding"))?;
+    if binding.schema_version != RUNTIME_SWARM_BINDING_SCHEMA_VERSION
+        || binding.binding_id != RUNTIME_SWARM_BINDING_KEY
+        || binding.runtime_id != identity.runtime_id
+        || binding.swarm_id.trim().is_empty()
+        || binding.source_identity_type != AGENT_MEMORY_SWARM_IDENTITY_TYPE
+        || binding.source_identity_key != AGENT_MEMORY_SWARM_IDENTITY_KEY
+        || binding.source_identity_sha256.trim().is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&binding.bound_at).is_err()
+    {
+        return Err(anyhow!("runtime swarm binding is invalid"));
+    }
+    Ok(binding)
+}
+
+fn modeling_projection_obligation(
+    cache: &CultCache,
+    snapshot: &crate::EpiphanyMemoryGraphSnapshot,
+    source_commit_id: &str,
+    created_at: &str,
+) -> Result<crate::MemorySemanticProjectionObligation> {
+    let binding = require_runtime_swarm_binding(cache)?;
+    crate::derive_memory_semantic_projection_obligation(
+        snapshot,
+        &binding.swarm_id,
+        crate::SemanticPartition::Modeling,
+        &format!("epiphany.runtime/{}/repo-model", binding.runtime_id),
+        source_commit_id,
+        created_at,
+    )
+}
+
+fn require_modeling_projection_obligation_for_commit(
+    cache: &CultCache,
+    source_commit_id: &str,
+    source_generation: u64,
+    source_model_hash: &str,
+    created_at: &str,
+) -> Result<crate::MemorySemanticProjectionObligation> {
+    let binding = require_runtime_swarm_binding(cache)?;
+    let canonical_source_id = format!("epiphany.runtime/{}/repo-model", binding.runtime_id);
+    let matches = cache
+        .get_all::<crate::MemorySemanticProjectionObligation>()?
+        .into_iter()
+        .filter(|obligation| obligation.source_commit_id == source_commit_id)
+        .collect::<Vec<_>>();
+    if matches.len() != 1 {
+        return Err(anyhow!(
+            "RepoModel commit requires exactly one semantic projection obligation"
+        ));
+    }
+    let obligation = matches.into_iter().next().expect("one obligation");
+    crate::validate_memory_semantic_projection_obligation(&obligation)?;
+    if obligation.swarm_id != binding.swarm_id
+        || obligation.partition != "modeling"
+        || obligation.canonical_source_id != canonical_source_id
+        || obligation.source_generation != source_generation
+        || obligation.source_model_hash != source_model_hash
+        || obligation.created_at != created_at
+    {
+        return Err(anyhow!(
+            "RepoModel semantic projection obligation collision"
+        ));
+    }
+    Ok(obligation)
 }
 
 pub fn create_runtime_session(
@@ -1827,7 +2001,15 @@ pub fn ensure_runtime_repo_model(
         let receipt = cache
             .get::<RepoModelMigrationReceipt>("repo-model-migration")?
             .ok_or_else(|| anyhow!("runtime repo model exists without its migration receipt"))?;
-        return Ok((entry.snapshot()?, receipt));
+        let snapshot = entry.snapshot()?;
+        require_modeling_projection_obligation_for_commit(
+            &cache,
+            &receipt.receipt_id,
+            receipt.imported_revision,
+            &receipt.imported_hash,
+            &receipt.imported_at,
+        )?;
+        return Ok((snapshot, receipt));
     }
 
     let (snapshot, source_store) =
@@ -1850,8 +2032,18 @@ pub fn ensure_runtime_repo_model(
     };
     let (model_envelope, _) = cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &entry)?;
     let (receipt_envelope, _) = cache.prepare_entry(&receipt.receipt_id, &receipt)?;
+    let obligation = modeling_projection_obligation(
+        &cache,
+        &snapshot,
+        &receipt.receipt_id,
+        &receipt.imported_at,
+    )?;
+    let (obligation_envelope, _) = cache.prepare_entry(&obligation.obligation_id, &obligation)?;
     let backing = SingleFileMessagePackBackingStore::new(runtime_store);
-    if backing.compare_and_swap_batch(&[], vec![model_envelope, receipt_envelope])? {
+    if backing.compare_and_swap_batch(
+        &[],
+        vec![model_envelope, receipt_envelope, obligation_envelope],
+    )? {
         return Ok((snapshot, receipt));
     }
     let mut reloaded = runtime_spine_cache(runtime_store)?;
@@ -1871,12 +2063,97 @@ pub fn ensure_runtime_repo_model(
             {
                 return Err(anyhow!("runtime repo model migration companion collision"));
             }
+            require_modeling_projection_obligation_for_commit(
+                &reloaded,
+                &existing_receipt.receipt_id,
+                existing_receipt.imported_revision,
+                &existing_receipt.imported_hash,
+                &existing_receipt.imported_at,
+            )?;
             Ok((snapshot, existing_receipt))
         }
         _ => Err(anyhow!(
             "runtime repo model migration lost to a companion identity collision"
         )),
     }
+}
+
+pub fn migrate_legacy_repo_model_projection_obligation(
+    runtime_store: impl AsRef<Path>,
+) -> Result<Option<crate::MemorySemanticProjectionObligation>> {
+    let runtime_store = runtime_store.as_ref();
+    let mut cache = runtime_spine_cache(runtime_store)?;
+    cache.pull_all_backing_stores()?;
+    let Some(entry) = cache.get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)? else {
+        return Ok(None);
+    };
+    crate::validate_memory_graph_entry(&entry)?;
+    let snapshot = entry.snapshot()?;
+    let receipt = cache
+        .get::<RepoModelMigrationReceipt>("repo-model-migration")?
+        .ok_or_else(|| anyhow!("legacy RepoModel has no migration receipt"))?;
+    if receipt.imported_revision != snapshot.model_revision
+        || receipt.imported_hash != crate::memory_graph_model_hash(&snapshot)?
+    {
+        return Err(anyhow!(
+            "legacy projection-obligation migration only accepts an unchanged bootstrap RepoModel"
+        ));
+    }
+    let expected = modeling_projection_obligation(
+        &cache,
+        &snapshot,
+        &receipt.receipt_id,
+        &receipt.imported_at,
+    )?;
+    let matches = cache
+        .get_all::<crate::MemorySemanticProjectionObligation>()?
+        .into_iter()
+        .filter(|candidate| candidate.source_commit_id == receipt.receipt_id)
+        .collect::<Vec<_>>();
+    if matches.len() == 1 && matches[0] == expected {
+        return Ok(Some(expected));
+    }
+    if !matches.is_empty() {
+        return Err(anyhow!(
+            "legacy RepoModel projection obligation identity collision"
+        ));
+    }
+    let backing = SingleFileMessagePackBackingStore::new(runtime_store);
+    let opening = backing.pull_all()?;
+    let preserve_types = [
+        (crate::MEMORY_GRAPH_TYPE, crate::MEMORY_GRAPH_KEY),
+        (
+            REPO_MODEL_MIGRATION_RECEIPT_TYPE,
+            receipt.receipt_id.as_str(),
+        ),
+        (RUNTIME_SWARM_BINDING_TYPE, RUNTIME_SWARM_BINDING_KEY),
+    ];
+    let mut preserved = Vec::new();
+    for (document_type, key) in preserve_types {
+        preserved.push(
+            opening
+                .iter()
+                .find(|envelope| envelope.r#type == document_type && envelope.key == key)
+                .cloned()
+                .ok_or_else(|| anyhow!("legacy RepoModel migration companion disappeared"))?,
+        );
+    }
+    let obligation_envelope = cache.prepare_entry(&expected.obligation_id, &expected)?.0;
+    let mut replacement = preserved.clone();
+    replacement.push(obligation_envelope);
+    if backing.compare_and_swap_batch(&preserved, replacement)? {
+        return Ok(Some(expected));
+    }
+    let mut reloaded = runtime_spine_cache(runtime_store)?;
+    reloaded.pull_all_backing_stores()?;
+    require_modeling_projection_obligation_for_commit(
+        &reloaded,
+        &receipt.receipt_id,
+        receipt.imported_revision,
+        &receipt.imported_hash,
+        &receipt.imported_at,
+    )
+    .map(Some)
 }
 
 pub fn commit_repo_model_admission(
@@ -2640,6 +2917,13 @@ pub fn commit_repo_model_admission(
             {
                 return Err(anyhow!("repo model admission receipt identity collision"));
             }
+            require_modeling_projection_obligation_for_commit(
+                &cache,
+                &existing_receipt.receipt_id,
+                existing_receipt.admitted_revision,
+                &existing_receipt.admitted_hash,
+                &existing_receipt.admitted_at,
+            )?;
             return Ok(existing_receipt);
         }
         (None, None) => {}
@@ -2761,9 +3045,17 @@ pub fn commit_repo_model_admission(
     let (next_model_envelope, _) = cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &next_entry)?;
     let (review_envelope, _) = cache.prepare_entry(&review.review_id, review)?;
     let (receipt_envelope, _) = cache.prepare_entry(&receipt_id, &receipt)?;
+    let obligation =
+        modeling_projection_obligation(&cache, &next, &receipt.receipt_id, &receipt.admitted_at)?;
+    let (obligation_envelope, _) = cache.prepare_entry(&obligation.obligation_id, &obligation)?;
     if !backing.compare_and_swap_batch(
         &[current_envelope],
-        vec![next_model_envelope, review_envelope, receipt_envelope],
+        vec![
+            next_model_envelope,
+            review_envelope,
+            receipt_envelope,
+            obligation_envelope,
+        ],
     )? {
         return Err(anyhow!(
             "repo model admission stale model or companion collision"
@@ -4079,6 +4371,13 @@ fn commit_repo_frontier_plan_decision_inner(
             {
                 return Err(anyhow!("Adopt retry model admission chain mismatch"));
             }
+            require_modeling_projection_obligation_for_commit(
+                &cache,
+                &admission.receipt_id,
+                admission.admitted_revision,
+                &admission.admitted_hash,
+                &admission.admitted_at,
+            )?;
         }
         return Ok(existing.clone());
     }
@@ -4205,9 +4504,20 @@ fn commit_repo_frontier_plan_decision_inner(
             claim_repair_request_id: String::new(),
             frontier_plan_decision_id: decision_id.clone(),
         };
+        let obligation = modeling_projection_obligation(
+            &cache,
+            &next,
+            &admission.receipt_id,
+            &admission.admitted_at,
+        )?;
         receipt.model_admission_receipt_id = admission_id;
         companions.push(cache.prepare_entry(&review.review_id, &review)?.0);
         companions.push(cache.prepare_entry(&admission.receipt_id, &admission)?.0);
+        companions.push(
+            cache
+                .prepare_entry(&obligation.obligation_id, &obligation)?
+                .0,
+        );
         cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &next_entry)?.0
     } else {
         current_envelope.clone()
@@ -7509,6 +7819,56 @@ pub(crate) mod tests {
         }
     }
 
+    pub(crate) fn bind_test_runtime_swarm(store: &Path, swarm_id: &str) -> Result<()> {
+        let agent_store = store.with_extension("test-agent-memory.cc");
+        crate::ensure_agent_memory_swarm_identity(&agent_store, swarm_id)?;
+        bind_runtime_to_agent_memory_swarm(store, &agent_store, "2026-07-13T00:00:01Z")?;
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_repo_model_migration_adds_only_exact_projection_pressure() -> Result<()> {
+        let root = tempdir()?;
+        let store = root.path().join("legacy-repo-model.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "legacy-runtime".into(),
+                display_name: "Legacy runtime".into(),
+                created_at: "2026-07-15T00:00:00Z".into(),
+            },
+        )?;
+        bind_test_runtime_swarm(&store, "legacy-swarm")?;
+        let snapshot = repo_model_bootstrap();
+        let entry = crate::EpiphanyMemoryGraphEntry::from_snapshot(&snapshot)?;
+        let model_hash = crate::memory_graph_model_hash(&snapshot)?;
+        let receipt = RepoModelMigrationReceipt {
+            schema_version: REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "repo-model-migration".into(),
+            source_store: "legacy-test".into(),
+            source_graph_id: snapshot.graph_id.clone(),
+            imported_revision: snapshot.model_revision,
+            imported_hash: model_hash,
+            imported_at: "2026-07-15T00:00:01Z".into(),
+            contract: REPO_MODEL_MIGRATION_CONTRACT.to_string(),
+        };
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(crate::MEMORY_GRAPH_KEY, &entry)?;
+        cache.put(&receipt.receipt_id, &receipt)?;
+
+        let obligation = migrate_legacy_repo_model_projection_obligation(&store)?
+            .expect("legacy projection obligation");
+        assert_eq!(obligation.source_commit_id, receipt.receipt_id);
+        assert_eq!(obligation.source_generation, snapshot.model_revision);
+        assert_eq!(obligation.partition, "modeling");
+        assert_eq!(
+            migrate_legacy_repo_model_projection_obligation(&store)?,
+            Some(obligation.clone())
+        );
+        assert_eq!(runtime_current_repo_model(&store)?, Some(snapshot));
+        Ok(())
+    }
+
     fn repo_model_result_and_review(
         store: &Path,
         result_id: &str,
@@ -7663,6 +8023,7 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T03:00:00Z".into(),
             },
         )?;
+        bind_test_runtime_swarm(&store, &format!("proposal-swarm-{suffix}"))?;
         let bootstrap = repo_model_bootstrap();
         let legacy = root.join(format!("proposal-{suffix}.legacy"));
         let (current, _) =
@@ -8011,6 +8372,7 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T02:00:00Z".into(),
             },
         )?;
+        bind_test_runtime_swarm(&store, "proposal-intake-swarm")?;
         let mut cache = runtime_spine_cache(&store)?;
         cache.put(
             crate::THREAD_STATE_KEY,
@@ -8126,6 +8488,7 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T01:00:00Z".into(),
             },
         )?;
+        bind_test_runtime_swarm(&store, "proposal-intake-swarm")?;
         let mut cache = runtime_spine_cache(&store)?;
         cache.put(
             crate::THREAD_STATE_KEY,
@@ -8667,6 +9030,9 @@ pub(crate) mod tests {
         review: &HandsActionReview,
         suffix: &str,
     ) -> Result<(RepoFrontierRoute, RepoFrontierHandsAuthority)> {
+        if runtime_swarm_binding(store)?.is_none() {
+            bind_test_runtime_swarm(store, &format!("route-swarm-{suffix}"))?;
+        }
         let bootstrap = repo_model_bootstrap();
         let legacy = store.with_extension(format!("{suffix}.legacy.msgpack"));
         let (current, _) =
@@ -8995,6 +9361,7 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T00:00:00Z".to_string(),
             },
         )?;
+        bind_test_runtime_swarm(&store, "repo-model-test-swarm")?;
         let bootstrap = repo_model_bootstrap();
         let (current, migration) = ensure_runtime_repo_model(
             &store,
@@ -9003,6 +9370,14 @@ pub(crate) mod tests {
             "2026-07-13T03:00:00Z",
         )?;
         assert_eq!(migration.imported_revision, 0);
+        let mut projection_cache = runtime_spine_cache(&store)?;
+        projection_cache.pull_all_backing_stores()?;
+        assert_eq!(
+            projection_cache
+                .get_all::<crate::MemorySemanticProjectionObligation>()?
+                .len(),
+            1
+        );
         let (result, review) = repo_model_result_and_review(
             &store,
             "model-result-1",
@@ -9013,6 +9388,14 @@ pub(crate) mod tests {
         put_runtime_role_worker_result(&store, &result)?;
         let receipt = commit_repo_model_admission(&store, &result.result_id, &review)?;
         assert_eq!(receipt.admitted_revision, 1);
+        let mut projection_cache = runtime_spine_cache(&store)?;
+        projection_cache.pull_all_backing_stores()?;
+        assert_eq!(
+            projection_cache
+                .get_all::<crate::MemorySemanticProjectionObligation>()?
+                .len(),
+            2
+        );
         assert_eq!(
             commit_repo_model_admission(&store, &result.result_id, &review)?,
             receipt
@@ -9080,6 +9463,46 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn repo_model_bootstrap_requires_exact_immutable_runtime_swarm_binding() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime-binding.cc");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "runtime-binding-test".into(),
+                display_name: "Runtime binding test".into(),
+                created_at: "2026-07-13T00:00:00Z".into(),
+            },
+        )?;
+        let before = fs::read(&store)?;
+        assert!(
+            ensure_runtime_repo_model(
+                &store,
+                temp.path().join("absent.cc"),
+                &repo_model_bootstrap(),
+                "2026-07-13T00:00:02Z"
+            )
+            .is_err()
+        );
+        assert_eq!(fs::read(&store)?, before);
+        let agent_store = temp.path().join("agents.cc");
+        crate::ensure_agent_memory_swarm_identity(&agent_store, "swarm-binding-test")?;
+        let binding =
+            bind_runtime_to_agent_memory_swarm(&store, &agent_store, "2026-07-13T00:00:01Z")?;
+        assert_eq!(
+            bind_runtime_to_agent_memory_swarm(&store, &agent_store, "2026-07-13T00:00:01Z")?,
+            binding
+        );
+        let other_agents = temp.path().join("other-agents.cc");
+        crate::ensure_agent_memory_swarm_identity(&other_agents, "other-swarm")?;
+        assert!(
+            bind_runtime_to_agent_memory_swarm(&store, &other_agents, "2026-07-13T00:00:01Z")
+                .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
     fn evolution_cannot_bypass_routes_or_own_frontier_verdict_lifecycle() -> Result<()> {
         let routed_temp = tempdir()?;
         let routed = frontier_verdict_fixture(routed_temp.path(), "evolution-route", "pass")?;
@@ -9108,6 +9531,7 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T08:00:00Z".to_string(),
             },
         )?;
+        bind_test_runtime_swarm(&store, "evolution-lifecycle-swarm")?;
         let (base, _) = ensure_runtime_repo_model(
             &store,
             temp.path().join("legacy.cc"),
@@ -9401,6 +9825,9 @@ pub(crate) mod tests {
             suffix: &str,
             items: Vec<crate::RepoFrontierItem>,
         ) -> Result<()> {
+            if runtime_swarm_binding(store)?.is_none() {
+                bind_test_runtime_swarm(store, &format!("eligibility-swarm-{suffix}"))?;
+            }
             let bootstrap = repo_model_bootstrap();
             let legacy = store.with_extension(format!("{suffix}.legacy.msgpack"));
             let (mut current, _) =
@@ -9440,6 +9867,7 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T05:00:00Z".to_string(),
             },
         )?;
+        bind_test_runtime_swarm(&unadmitted_store, "route-unadmitted-swarm")?;
         ensure_runtime_repo_model(
             &unadmitted_store,
             unadmitted.path().join("legacy.msgpack"),

@@ -4,7 +4,8 @@ use epiphany_core::{
     EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot, MemorySemanticIndexConfig,
     SemanticPartition, agent_memory_role_ids, index_memory_semantic_partition,
     load_agent_memory_entry_for_role, load_memory_graph_snapshot, memory_graph_from_agent_memories,
-    persist_memory_semantic_index_receipt, runtime_current_repo_model, semantic_memory_context,
+    persist_memory_semantic_index_receipt, runtime_current_repo_model, runtime_swarm_binding,
+    semantic_memory_context,
 };
 use std::env;
 use std::path::PathBuf;
@@ -13,7 +14,7 @@ fn main() -> Result<()> {
     let mut args = env::args().skip(1);
     let command = args.next().ok_or_else(|| usage_error("missing command"))?;
     let options = Options::parse(args)?;
-    let snapshot = options.load_snapshot()?;
+    let (snapshot, swarm_id) = options.load_source()?;
     let config = MemorySemanticIndexConfig::from_env();
     match command.as_str() {
         "index" => {
@@ -23,7 +24,7 @@ fn main() -> Result<()> {
                 .ok_or_else(|| usage_error("index requires --receipt-store <path>"))?;
             let receipt = index_memory_semantic_partition(
                 &snapshot,
-                &options.swarm_id,
+                &swarm_id,
                 options.partition,
                 &Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
                 &config,
@@ -55,7 +56,7 @@ fn main() -> Result<()> {
                 .ok_or_else(|| usage_error("context requires --text <query>"))?;
             let packet = semantic_memory_context(
                 &snapshot,
-                &options.swarm_id,
+                &swarm_id,
                 options.partition,
                 &EpiphanyMemoryContextQuery {
                     id: options
@@ -81,7 +82,7 @@ struct Options {
     runtime_store: Option<PathBuf>,
     agent_store: Option<PathBuf>,
     receipt_store: Option<PathBuf>,
-    swarm_id: String,
+    swarm_id: Option<String>,
     partition: SemanticPartition,
     text: Option<String>,
     query_id: Option<String>,
@@ -96,7 +97,7 @@ impl Options {
             runtime_store: None,
             agent_store: None,
             receipt_store: None,
-            swarm_id: String::new(),
+            swarm_id: None,
             partition: SemanticPartition::Modeling,
             text: None,
             query_id: None,
@@ -114,7 +115,7 @@ impl Options {
                 "--runtime-store" => options.runtime_store = Some(PathBuf::from(value()?)),
                 "--agent-store" => options.agent_store = Some(PathBuf::from(value()?)),
                 "--receipt-store" => options.receipt_store = Some(PathBuf::from(value()?)),
-                "--swarm-id" => options.swarm_id = value()?,
+                "--swarm-id" => options.swarm_id = Some(value()?),
                 "--partition" => options.partition = parse_partition(&value()?)?,
                 "--text" => options.text = Some(value()?),
                 "--query-id" => options.query_id = Some(value()?),
@@ -123,8 +124,12 @@ impl Options {
                 _ => return Err(usage_error(&format!("unexpected argument {flag:?}"))),
             }
         }
-        if options.swarm_id.trim().is_empty() {
-            return Err(usage_error("--swarm-id is required"));
+        if options
+            .swarm_id
+            .as_ref()
+            .is_some_and(|id| id.trim().is_empty())
+        {
+            return Err(usage_error("--swarm-id must not be empty"));
         }
         let sources = [
             options.graph_store.is_some(),
@@ -149,13 +154,26 @@ impl Options {
                 "Modeling projection requires --runtime-store or --graph-store",
             ));
         }
+        if options.graph_store.is_some() && options.swarm_id.is_none() {
+            return Err(usage_error("--graph-store requires --swarm-id"));
+        }
         Ok(options)
     }
 
-    fn load_snapshot(&self) -> Result<EpiphanyMemoryGraphSnapshot> {
+    fn load_source(&self) -> Result<(EpiphanyMemoryGraphSnapshot, String)> {
         if let Some(path) = &self.runtime_store {
-            return runtime_current_repo_model(path)?
-                .ok_or_else(|| anyhow!("runtime store has no admitted RepoModel"));
+            let binding = runtime_swarm_binding(path)?
+                .ok_or_else(|| anyhow!("runtime store has no immutable swarm binding"))?;
+            if self
+                .swarm_id
+                .as_ref()
+                .is_some_and(|claimed| claimed != &binding.swarm_id)
+            {
+                return Err(anyhow!("--swarm-id does not match runtime swarm binding"));
+            }
+            let snapshot = runtime_current_repo_model(path)?
+                .ok_or_else(|| anyhow!("runtime store has no admitted RepoModel"))?;
+            return Ok((snapshot, binding.swarm_id));
         }
         if let Some(path) = &self.agent_store {
             let mut entries = Vec::new();
@@ -169,21 +187,27 @@ impl Options {
             }
             let identity = epiphany_core::load_agent_memory_swarm_identity(path)?
                 .ok_or_else(|| anyhow!("agent store has no immutable swarm identity; run epiphany-agent-memory-store set-swarm-identity"))?;
-            if self.swarm_id != identity.swarm_id {
+            if self
+                .swarm_id
+                .as_ref()
+                .is_some_and(|claimed| claimed != &identity.swarm_id)
+            {
                 return Err(anyhow!(
                     "--swarm-id {:?} does not match the canonical agent-store swarm identity {:?}",
                     self.swarm_id,
                     identity.swarm_id
                 ));
             }
-            return Ok(memory_graph_from_agent_memories(
-                format!("{}-mind", identity.swarm_id),
-                &entries,
+            let swarm_id = identity.swarm_id;
+            return Ok((
+                memory_graph_from_agent_memories(format!("{swarm_id}-mind"), &entries),
+                swarm_id,
             ));
         }
         let path = self.graph_store.as_ref().expect("validated graph store");
-        load_memory_graph_snapshot(path)?
-            .ok_or_else(|| anyhow!("memory graph store {} is missing", path.display()))
+        let snapshot = load_memory_graph_snapshot(path)?
+            .ok_or_else(|| anyhow!("memory graph store {} is missing", path.display()))?;
+        Ok((snapshot, self.swarm_id.clone().expect("validated swarm id")))
     }
 }
 
@@ -202,7 +226,7 @@ fn parse_profile(value: &str) -> Result<epiphany_core::EpiphanyMemoryProfile> {
 
 fn usage_error(message: &str) -> anyhow::Error {
     anyhow!(
-        "{message}\nusage: epiphany-memory-semantic <index|context> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) --swarm-id <id> --partition <mind|modeling> [--receipt-store <path>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
+        "{message}\nusage: epiphany-memory-semantic <index|context> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--receipt-store <path>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
     )
 }
 

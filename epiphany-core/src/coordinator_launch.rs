@@ -792,6 +792,10 @@ pub(crate) mod tests {
                 created_at: "2026-07-13T05:00:00Z".into(),
             },
         )?;
+        crate::runtime_spine::tests::bind_test_runtime_swarm(
+            &store,
+            &format!("proposal-launch-swarm-{suffix}"),
+        )?;
         let state = EpiphanyThreadState::default();
         let mut cache = coordinator_acceptance_cache(&store)?;
         cache.put(

@@ -279,6 +279,54 @@ pub fn validate_memory_semantic_projection_obligation(
     Ok(())
 }
 
+pub fn derive_memory_semantic_projection_obligation(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    swarm_id: &str,
+    partition: SemanticPartition,
+    canonical_source_id: &str,
+    source_commit_id: &str,
+    created_at: &str,
+) -> Result<MemorySemanticProjectionObligation> {
+    for (label, value) in [
+        ("swarm_id", swarm_id),
+        ("canonical_source_id", canonical_source_id),
+        ("source_commit_id", source_commit_id),
+        ("created_at", created_at),
+    ] {
+        if value.trim().is_empty() {
+            return Err(anyhow!("semantic projection obligation missing {label}"));
+        }
+    }
+    chrono::DateTime::parse_from_rfc3339(created_at)
+        .map_err(|_| anyhow!("semantic projection obligation timestamp must be RFC3339"))?;
+    let documents = derive_semantic_projection(swarm_id, snapshot)?
+        .into_iter()
+        .filter(|document| document.partition == partition)
+        .collect::<Vec<_>>();
+    let canonical_content_set_hash = canonical_content_set_hash(&documents);
+    let partition = partition_name(partition).to_string();
+    let identity = format!("{swarm_id}|{partition}|{canonical_source_id}|{source_commit_id}");
+    let obligation = MemorySemanticProjectionObligation {
+        schema_version: MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION.to_string(),
+        obligation_id: format!(
+            "memory-semantic-projection-{partition}-{:x}",
+            Sha256::digest(identity.as_bytes())
+        ),
+        swarm_id: swarm_id.to_string(),
+        partition,
+        canonical_source_id: canonical_source_id.to_string(),
+        source_commit_id: source_commit_id.to_string(),
+        graph_id: snapshot.graph_id.clone(),
+        source_generation: snapshot.model_revision,
+        source_model_hash: crate::memory_graph_model_hash(snapshot)?,
+        canonical_content_set_hash,
+        projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
+        created_at: created_at.to_string(),
+    };
+    validate_memory_semantic_projection_obligation(&obligation)?;
+    Ok(obligation)
+}
+
 pub fn validate_memory_semantic_projection_attempt(
     attempt: &MemorySemanticProjectionAttempt,
 ) -> Result<()> {
@@ -759,6 +807,40 @@ mod tests {
         };
         snapshot.model_hash = memory_graph_model_hash(&snapshot).unwrap();
         snapshot
+    }
+
+    #[test]
+    fn projection_obligation_identity_is_commit_owned_and_deterministic() -> Result<()> {
+        let snapshot = snapshot();
+        let first = derive_memory_semantic_projection_obligation(
+            &snapshot,
+            "swarm-a",
+            SemanticPartition::Modeling,
+            "epiphany.runtime/runtime-a/repo-model",
+            "repo-model-admission-1",
+            "2026-07-15T00:00:00Z",
+        )?;
+        assert_eq!(
+            derive_memory_semantic_projection_obligation(
+                &snapshot,
+                "swarm-a",
+                SemanticPartition::Modeling,
+                "epiphany.runtime/runtime-a/repo-model",
+                "repo-model-admission-1",
+                "2026-07-15T00:00:00Z",
+            )?,
+            first
+        );
+        let second = derive_memory_semantic_projection_obligation(
+            &snapshot,
+            "swarm-a",
+            SemanticPartition::Modeling,
+            "epiphany.runtime/runtime-a/repo-model",
+            "repo-model-admission-2",
+            "2026-07-15T00:00:01Z",
+        )?;
+        assert_ne!(first.obligation_id, second.obligation_id);
+        Ok(())
     }
 
     #[test]

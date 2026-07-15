@@ -1089,3 +1089,23 @@ admission does not yet atomically emit obligations, indexing does not yet claim
 and discharge them, queries do not yet require the newest exact success, and
 CultMesh/Idunn wiring deliberately remains absent. The next cut is canonical
 admission ownership, not a polling loop.
+
+## Atomic semantic admission (2026-07-15)
+
+The causal cut is now implemented. Runtime-spine is immutably bound to the
+canonical agent-Mind swarm identity. All three RepoModel writers atomically
+companion canonical admission with one exact Modeling projection obligation;
+the live legacy runtime was explicitly migrated without rewriting its model or
+migration receipt. Mind self-patch and lifecycle admission now use a fixed-role
+generation CAS that writes canonical rows, generation witness, persisted Mind
+admission receipt, and Mind obligation together. Every extension re-hashes the
+canonical rows and authenticates the prior witness. Bootstrap/import/repair/raw
+replacement/trait seeding cannot write after a generation exists.
+
+Core proof after fixture repair: 342 tests passed, 0 failed, 1 intentional
+ignore; focused legacy migration and hostile concurrent Mind CAS tests pass;
+all binaries compile. The current `state/agents.msgpack` predates the generation
+witness and still needs one explicit legacy Mind-generation migration before
+query gating can regard its Qdrant projection as ready. Next implement
+restart-safe projector claim/attempt/terminal receipt execution and exact query
+eligibility, then CultMesh/Idunn physiology.

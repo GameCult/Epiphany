@@ -248,3 +248,34 @@ the command from a timer would make elapsed time a substitute for causality.
   then add the Idunn-hosted consumer and CultMesh health projection. Do not add
   polling flags, file-mtime inference, or a reconciliation cache around the
   current unwitnessed writes.
+
+## Atomic Admission Landed (2026-07-15)
+
+- Runtime-spine now carries one immutable binding to the canonical Mind-store
+  swarm identity. Runtime id, graph id, paths, metadata, and CLI labels cannot
+  substitute for it.
+- RepoModel bootstrap, generic Modeling admission, and frontier-plan Adopt each
+  commit their canonical model witness and one deterministically derived
+  Modeling projection obligation in the same CAS. Exact retries require the
+  obligation; missing or colliding companions fail closed.
+- A one-time legacy runtime migration preserves the unchanged bootstrap model,
+  migration receipt, and swarm binding envelopes while adding only the missing
+  obligation. The live runtime store passed this migration under
+  `gamecult.epiphany.main`.
+- Reviewed Mind self-patches and lifecycle operations now commit the complete
+  canonical role generation, immutable/latest generation witness, persisted
+  Mind admission receipt, and exact Mind projection obligation in one CAS.
+  The canonical source hash is recomputed in fixed role order on every
+  admission and must authenticate the previous witness.
+- JSON import, legacy repair, raw migration replacement, and canonical trait
+  seeding are explicitly bootstrap-only and structurally refuse after the
+  first admitted generation. SoA remains derived and cannot advance Mind.
+- Empty canonical partitions still produce obligations. Empty is a demand to
+  remove stale scoped points, not permission to preserve a previous
+  projection.
+
+Remaining: migrate the current legacy Mind rows into generation zero pressure;
+add projector claims/attempt terminal CAS and bind index receipts to exact
+obligations; make queries require the newest exact success before Qdrant
+ranking; then publish derived health through provider-owned CultMesh state and
+attach Idunn process survival.

@@ -11,6 +11,7 @@ use cultcache_rs::SoaDocument;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
@@ -21,6 +22,67 @@ pub const AGENT_MEMORY_SWARM_IDENTITY_TYPE: &str = "epiphany.agent_memory_swarm_
 pub const AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION: &str =
     "epiphany.agent_memory_swarm_identity.v0";
 pub const AGENT_MEMORY_SWARM_IDENTITY_KEY: &str = "swarm-identity";
+pub const AGENT_MEMORY_GENERATION_WITNESS_TYPE: &str = "epiphany.agent_memory_generation_witness";
+pub const AGENT_MEMORY_GENERATION_WITNESS_SCHEMA_VERSION: &str =
+    "epiphany.agent_memory_generation_witness.v0";
+pub const AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY: &str = "mind-generation/latest";
+pub const AGENT_MEMORY_MIND_ADMISSION_TYPE: &str = "epiphany.agent_memory_mind_admission";
+pub const AGENT_MEMORY_MIND_ADMISSION_SCHEMA_VERSION: &str =
+    "epiphany.agent_memory_mind_admission.v0";
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.agent_memory_generation_witness",
+    schema = "AgentMemoryGenerationWitness"
+)]
+pub struct AgentMemoryGenerationWitness {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub witness_id: String,
+    #[cultcache(key = 2)]
+    pub swarm_id: String,
+    #[cultcache(key = 3)]
+    pub generation: u64,
+    #[cultcache(key = 4)]
+    pub previous_generation: u64,
+    #[cultcache(key = 5)]
+    pub previous_source_hash: String,
+    #[cultcache(key = 6)]
+    pub source_hash: String,
+    #[cultcache(key = 7)]
+    pub authority_receipt_id: String,
+    #[cultcache(key = 8)]
+    pub mutation_kind: String,
+    #[cultcache(key = 9)]
+    pub changed_role_ids: Vec<String>,
+    #[cultcache(key = 10)]
+    pub committed_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.agent_memory_mind_admission",
+    schema = "AgentMemoryMindAdmissionReceipt"
+)]
+pub struct AgentMemoryMindAdmissionReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub swarm_id: String,
+    #[cultcache(key = 3)]
+    pub role_id: String,
+    #[cultcache(key = 4)]
+    pub mutation_kind: String,
+    #[cultcache(key = 5)]
+    pub reason: String,
+    #[cultcache(key = 6)]
+    pub status: String,
+    #[cultcache(key = 7)]
+    pub resulting_source_hash: String,
+}
 pub const AGENT_STATE_SOA_TYPE: &str = "epiphany.agent_state_soa";
 pub const AGENT_STATE_SOA_SCHEMA_VERSION: &str = "epiphany.agent_state_soa.v0";
 pub const AGENT_STATE_SOA_KEY: &str = "swarm";
@@ -623,6 +685,7 @@ pub fn migrate_agent_memory_json_dir_to_cultcache(
     let agent_dir = agent_dir.as_ref();
     let store_path = store_path.as_ref();
     let mut cache = agent_memory_cache(store_path)?;
+    require_agent_memory_migration_open(&mut cache, "JSON agent-memory import")?;
     let mut migrated = Vec::new();
     for (role_id, expected_agent_id, filename) in ROLE_TARGETS {
         let path = agent_dir.join(filename);
@@ -664,7 +727,7 @@ pub fn validate_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Vec<S
 pub fn repair_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Value> {
     let store_path = store_path.as_ref();
     let mut cache = agent_memory_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
+    require_agent_memory_migration_open(&mut cache, "agent-memory repair")?;
     let mut repaired = Vec::new();
 
     if let Some(mut modeling) = cache.get::<EpiphanyAgentMemoryEntry>("modeling")?
@@ -793,6 +856,245 @@ pub fn repair_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Value> 
     }))
 }
 
+pub fn load_agent_memory_generation_witness(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<AgentMemoryGenerationWitness>> {
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(None);
+    }
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get(AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY)
+}
+
+fn canonical_agent_memory_source_hash(
+    cache: &mut CultCache,
+    identity: &AgentMemorySwarmIdentity,
+    replacements: &BTreeMap<String, EpiphanyAgentMemoryEntry>,
+) -> Result<String> {
+    let mut hasher = Sha256::new();
+    hasher.update(AGENT_MEMORY_SWARM_IDENTITY_SCHEMA_VERSION.as_bytes());
+    hasher.update([0]);
+    hasher.update(identity.swarm_id.as_bytes());
+    for (role_id, _, _) in ROLE_TARGETS {
+        let entry = replacements
+            .get(*role_id)
+            .cloned()
+            .or_else(|| {
+                cache
+                    .get::<EpiphanyAgentMemoryEntry>(role_id)
+                    .ok()
+                    .flatten()
+            })
+            .ok_or_else(|| anyhow!("canonical Mind generation is missing role {role_id:?}"))?;
+        let envelope = cache.prepare_entry(*role_id, &entry)?.0;
+        hasher.update((*role_id).as_bytes());
+        hasher.update((envelope.payload.len() as u64).to_le_bytes());
+        hasher.update(&envelope.payload);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn commit_agent_memory_generation(
+    store_path: &Path,
+    expected_generation: u64,
+    expected_source_hash: &str,
+    role_id: &str,
+    next_entry: EpiphanyAgentMemoryEntry,
+    mutation_kind: &str,
+    reason: &str,
+) -> Result<AgentMemoryGenerationWitness> {
+    let expected_agent_id = agent_id_for_role(role_id).map_err(|message| anyhow!(message))?;
+    let validation = validate_agent_entry(&next_entry, expected_agent_id);
+    if !validation.is_empty() {
+        return Err(anyhow!("Mind commit candidate is invalid: {validation:?}"));
+    }
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let identity = cache
+        .get::<AgentMemorySwarmIdentity>(AGENT_MEMORY_SWARM_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("Mind commit requires immutable agent memory swarm identity"))?;
+    let current =
+        cache.get::<AgentMemoryGenerationWitness>(AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY)?;
+    let current_generation = current.as_ref().map_or(0, |witness| witness.generation);
+    let empty = BTreeMap::new();
+    let current_source_hash = canonical_agent_memory_source_hash(&mut cache, &identity, &empty)?;
+    if let Some(witness) = &current
+        && (witness.schema_version != AGENT_MEMORY_GENERATION_WITNESS_SCHEMA_VERSION
+            || witness.swarm_id != identity.swarm_id
+            || witness.source_hash != current_source_hash
+            || witness.generation == 0)
+    {
+        return Err(anyhow!(
+            "stored Mind generation witness does not authenticate current canonical memory"
+        ));
+    }
+    if current_generation != expected_generation || current_source_hash != expected_source_hash {
+        return Err(anyhow!(
+            "agent memory generation changed before Mind commit"
+        ));
+    }
+    let mut replacements = BTreeMap::new();
+    replacements.insert(role_id.to_string(), next_entry);
+    let source_hash = canonical_agent_memory_source_hash(&mut cache, &identity, &replacements)?;
+    if source_hash == current_source_hash {
+        return Err(anyhow!(
+            "Mind commit would mint a generation without changing canonical memory"
+        ));
+    }
+    let generation = current_generation + 1;
+    let fingerprint = format!(
+        "{}|{}|{}|{}|{}",
+        identity.swarm_id, generation, mutation_kind, role_id, source_hash
+    );
+    let witness_id = format!(
+        "mind-generation-{}",
+        uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, fingerprint.as_bytes())
+    );
+    let receipt_id = format!(
+        "mind-admission-{}",
+        uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_OID,
+            format!("{fingerprint}|{reason}").as_bytes()
+        )
+    );
+    let receipt = AgentMemoryMindAdmissionReceipt {
+        schema_version: AGENT_MEMORY_MIND_ADMISSION_SCHEMA_VERSION.to_string(),
+        receipt_id: receipt_id.clone(),
+        swarm_id: identity.swarm_id.clone(),
+        role_id: role_id.to_string(),
+        mutation_kind: mutation_kind.to_string(),
+        reason: reason.to_string(),
+        status: "admitted".to_string(),
+        resulting_source_hash: source_hash.clone(),
+    };
+    let committed_at = now_rfc3339();
+    let witness = AgentMemoryGenerationWitness {
+        schema_version: AGENT_MEMORY_GENERATION_WITNESS_SCHEMA_VERSION.to_string(),
+        witness_id: witness_id.clone(),
+        swarm_id: identity.swarm_id.clone(),
+        generation,
+        previous_generation: current_generation,
+        previous_source_hash: current_source_hash,
+        source_hash: source_hash.clone(),
+        authority_receipt_id: receipt_id.clone(),
+        mutation_kind: mutation_kind.to_string(),
+        changed_role_ids: vec![role_id.to_string()],
+        committed_at: committed_at.clone(),
+    };
+    let mut projected_entries = Vec::with_capacity(ROLE_TARGETS.len());
+    for (canonical_role, _, _) in ROLE_TARGETS {
+        projected_entries.push(
+            replacements
+                .get(*canonical_role)
+                .cloned()
+                .or_else(|| {
+                    cache
+                        .get::<EpiphanyAgentMemoryEntry>(canonical_role)
+                        .ok()
+                        .flatten()
+                })
+                .ok_or_else(|| anyhow!("canonical Mind generation lost role {canonical_role:?}"))?,
+        );
+    }
+    let mut projection_snapshot = crate::memory_graph_from_agent_memories(
+        format!("{}-mind", identity.swarm_id),
+        &projected_entries,
+    );
+    projection_snapshot.model_revision = generation;
+    let obligation = crate::derive_memory_semantic_projection_obligation(
+        &projection_snapshot,
+        &identity.swarm_id,
+        crate::SemanticPartition::Mind,
+        &format!("epiphany.agent-memory/{}/mind", identity.swarm_id),
+        &witness_id,
+        &committed_at,
+    )?;
+
+    let opening = cache.snapshot_envelopes();
+    let mut expected = Vec::new();
+    let mut batch = Vec::new();
+    for (canonical_role, _, _) in ROLE_TARGETS {
+        if let Some(existing) = opening.iter().find(|envelope| {
+            envelope.r#type == AGENT_MEMORY_TYPE && envelope.key == *canonical_role
+        }) {
+            expected.push(existing.clone());
+        }
+        let entry = replacements
+            .get(*canonical_role)
+            .cloned()
+            .or_else(|| {
+                cache
+                    .get::<EpiphanyAgentMemoryEntry>(canonical_role)
+                    .ok()
+                    .flatten()
+            })
+            .ok_or_else(|| anyhow!("canonical Mind generation lost role {canonical_role:?}"))?;
+        batch.push(cache.prepare_entry(*canonical_role, &entry)?.0);
+    }
+    if let Some(existing) = opening.iter().find(|envelope| {
+        envelope.r#type == AGENT_MEMORY_GENERATION_WITNESS_TYPE
+            && envelope.key == AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY
+    }) {
+        expected.push(existing.clone());
+    }
+    batch.push(
+        cache
+            .prepare_entry(AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY, &witness)?
+            .0,
+    );
+    batch.push(cache.prepare_entry(&witness_id, &witness)?.0);
+    batch.push(cache.prepare_entry(&receipt_id, &receipt)?.0);
+    batch.push(
+        cache
+            .prepare_entry(&obligation.obligation_id, &obligation)?
+            .0,
+    );
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    if !backing.compare_and_swap_batch(&expected, batch)? {
+        return Err(anyhow!(
+            "agent memory Mind commit lost exact atomic compare-and-swap"
+        ));
+    }
+    Ok(witness)
+}
+
+fn agent_memory_source_head(cache: &mut CultCache) -> Result<(u64, String)> {
+    let identity = cache
+        .get::<AgentMemorySwarmIdentity>(AGENT_MEMORY_SWARM_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("Mind commit requires immutable agent memory swarm identity"))?;
+    let canonical_hash = canonical_agent_memory_source_hash(cache, &identity, &BTreeMap::new())?;
+    if let Some(witness) =
+        cache.get::<AgentMemoryGenerationWitness>(AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY)?
+    {
+        if witness.schema_version != AGENT_MEMORY_GENERATION_WITNESS_SCHEMA_VERSION
+            || witness.swarm_id != identity.swarm_id
+            || witness.source_hash != canonical_hash
+            || witness.generation == 0
+        {
+            return Err(anyhow!(
+                "stored Mind generation witness does not authenticate current canonical memory"
+            ));
+        }
+        return Ok((witness.generation, canonical_hash));
+    }
+    Ok((0, canonical_hash))
+}
+
+fn require_agent_memory_migration_open(cache: &mut CultCache, operation: &str) -> Result<()> {
+    cache.pull_all_backing_stores()?;
+    if cache
+        .get::<AgentMemoryGenerationWitness>(AGENT_MEMORY_GENERATION_WITNESS_LATEST_KEY)?
+        .is_some()
+    {
+        return Err(anyhow!(
+            "{operation} is bootstrap/migration-only and cannot mutate canonical Mind after generation admission"
+        ));
+    }
+    Ok(())
+}
+
 fn replace_deprecated_faculty_name(value: &mut String) -> usize {
     let count = value.matches("Proprioception").count();
     if count > 0 {
@@ -823,7 +1125,7 @@ pub fn load_agent_memory_entry_for_role(
     Ok(entry)
 }
 
-pub fn write_agent_memory_entry_for_role(
+pub fn write_agent_memory_entry_for_role_migration(
     store_path: impl AsRef<Path>,
     entry: &EpiphanyAgentMemoryEntry,
 ) -> Result<()> {
@@ -839,6 +1141,7 @@ pub fn write_agent_memory_entry_for_role(
         ));
     }
     let mut cache = agent_memory_cache(store_path)?;
+    require_agent_memory_migration_open(&mut cache, "raw agent-memory replacement")?;
     cache.put(entry.role_id.as_str(), entry)?;
     Ok(())
 }
@@ -1008,6 +1311,11 @@ pub fn apply_agent_self_patch_document(
     let mut entry = cache
         .get::<EpiphanyAgentMemoryEntry>(role_id)?
         .ok_or_else(|| anyhow!("CultCache has no role memory entry for {role_id:?}"))?;
+    let (expected_generation, expected_source_hash) = agent_memory_source_head(&mut cache)?;
+    let reason = patch
+        .reason
+        .clone()
+        .unwrap_or_else(|| "admitted bounded self patch".to_string());
 
     if let Some(incoming) = patch.semantic_memories {
         upsert_memories(&mut entry.agent.memories.semantic, incoming);
@@ -1034,7 +1342,15 @@ pub fn apply_agent_self_patch_document(
         entry.agent.identity.private_notes =
             entry.agent.identity.private_notes[keep_from..].to_vec();
     }
-    cache.put(role_id.to_string(), &entry)?;
+    commit_agent_memory_generation(
+        store_path,
+        expected_generation,
+        &expected_source_hash,
+        role_id,
+        entry,
+        "self_patch",
+        &reason,
+    )?;
     review.applied = Some(true);
     Ok(review)
 }
@@ -1077,12 +1393,22 @@ pub fn apply_agent_memory_lifecycle_operation(
     let mut entry = cache
         .get::<EpiphanyAgentMemoryEntry>(role_id)?
         .ok_or_else(|| anyhow!("CultCache has no role memory entry for {role_id:?}"))?;
+    let (expected_generation, expected_source_hash) = agent_memory_source_head(&mut cache)?;
+
+    let reason = operation.reason.clone();
 
     for action in operation.actions {
         apply_memory_lifecycle_action(&mut entry, action)?;
     }
-    cache.put(role_id.to_string(), &entry)?;
-    refresh_agent_state_soa(store_path)?;
+    commit_agent_memory_generation(
+        store_path,
+        expected_generation,
+        &expected_source_hash,
+        role_id,
+        entry,
+        "lifecycle",
+        &reason,
+    )?;
     review.applied = Some(true);
     Ok(review)
 }
@@ -1451,7 +1777,7 @@ pub fn apply_agent_canonical_trait_seeds(
 ) -> Result<Value> {
     let store_path = store_path.as_ref();
     let mut cache = agent_memory_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
+    require_agent_memory_migration_open(&mut cache, "canonical trait seeding")?;
     let mut applied = Vec::new();
     for seed in seeds {
         if seed.trait_name.trim().is_empty() {
@@ -1975,6 +2301,9 @@ pub fn project_agent_memory_to_json_dir(
 fn agent_memory_cache(store_path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<AgentMemorySwarmIdentity>()?;
+    cache.register_entry_type::<AgentMemoryGenerationWitness>()?;
+    cache.register_entry_type::<AgentMemoryMindAdmissionReceipt>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectionObligation>()?;
     cache.register_entry_type::<EpiphanyAgentMemoryEntry>()?;
     cache.register_entry_type::<EpiphanyAgentStateSoaEntry>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
@@ -2617,6 +2946,101 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn concurrent_mind_commits_have_one_generation_and_no_partial_companions() -> Result<()> {
+        let temp = tempdir()?;
+        let agent_dir = temp.path().join("agents-concurrent");
+        fs::create_dir_all(&agent_dir)?;
+        for (role_id, agent_id, filename) in ROLE_TARGETS {
+            fs::write(
+                agent_dir.join(filename),
+                sample_agent_json(agent_id, &format!("Agent {role_id}")),
+            )?;
+        }
+        let store = temp.path().join("concurrent.msgpack");
+        migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
+        ensure_agent_memory_swarm_identity(&store, "concurrent-swarm")?;
+        let mut cache = agent_memory_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let (generation, source_hash) = agent_memory_source_head(&mut cache)?;
+        let base = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let mut joins = Vec::new();
+        for suffix in ["alpha", "beta"] {
+            let mut next = base.clone();
+            next.agent.identity.public_description = format!(
+                "Modeling generation {suffix} preserves a distinct concurrent candidate truth."
+            );
+            let barrier = barrier.clone();
+            let store = store.clone();
+            let source_hash = source_hash.clone();
+            joins.push(std::thread::spawn(move || {
+                barrier.wait();
+                commit_agent_memory_generation(
+                    &store,
+                    generation,
+                    &source_hash,
+                    "modeling",
+                    next,
+                    "self_patch",
+                    &format!("Concurrent {suffix} admission candidate"),
+                )
+            }));
+        }
+        barrier.wait();
+        let results = joins
+            .into_iter()
+            .map(|join| join.join().expect("Mind commit worker panicked"))
+            .collect::<Vec<_>>();
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(results.iter().filter(|result| result.is_err()).count(), 1);
+        let witness = load_agent_memory_generation_witness(&store)?.expect("generation witness");
+        assert_eq!(witness.generation, 1);
+        let mut cache = agent_memory_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let receipt =
+            cache.get::<AgentMemoryMindAdmissionReceipt>(&witness.authority_receipt_id)?;
+        assert!(receipt.is_some());
+        let obligations = cache
+            .get_all::<crate::MemorySemanticProjectionObligation>()?
+            .into_iter()
+            .filter(|obligation| obligation.source_commit_id == witness.witness_id)
+            .collect::<Vec<_>>();
+        assert_eq!(obligations.len(), 1);
+        let obligation = &obligations[0];
+        assert_eq!(obligation.source_generation, witness.generation);
+        assert_eq!(obligation.partition, "mind");
+        assert_eq!(obligation.swarm_id, witness.swarm_id);
+        let admitted = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
+        assert!(write_agent_memory_entry_for_role_migration(&store, &admitted).is_err());
+        assert!(repair_agent_memory_store(&store).is_err());
+        assert!(
+            apply_agent_canonical_trait_seeds(
+                &[AgentCanonicalTraitSeed {
+                    role_id: "coordinator".to_string(),
+                    group_name: "underlying_organization".to_string(),
+                    trait_name: "forbidden_after_admission".to_string(),
+                    mean: 0.5,
+                    plasticity: 0.5,
+                    current_activation: 0.5,
+                    source: Some("hostile bypass test".to_string()),
+                }],
+                &store,
+            )
+            .is_err()
+        );
+
+        let mut corrupted = admitted;
+        corrupted
+            .agent
+            .identity
+            .public_description
+            .push_str(" corrupt");
+        cache.put("modeling", &corrupted)?;
+        assert!(agent_memory_source_head(&mut cache).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn role_memory_migrates_reviews_and_applies_native_patch() -> Result<()> {
         let temp = tempdir()?;
         let agent_dir = temp.path().join("agents");
@@ -2636,6 +3060,7 @@ mod tests {
         }
         let store = temp.path().join("agents.msgpack");
         migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
+        ensure_agent_memory_swarm_identity(&store, "test-swarm")?;
         assert!(validate_agent_memory_store(&store)?.is_empty());
 
         let patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
@@ -2681,6 +3106,7 @@ mod tests {
         }
         let store = temp.path().join("agents.msgpack");
         migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
+        ensure_agent_memory_swarm_identity(&store, "test-swarm")?;
 
         let patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
             "agentId": "epiphany.modeling",
@@ -2797,6 +3223,7 @@ mod tests {
         }
         let store = temp.path().join("agents.msgpack");
         migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
+        ensure_agent_memory_swarm_identity(&store, "test-swarm")?;
 
         let applied = apply_agent_canonical_trait_seeds(
             &[AgentCanonicalTraitSeed {
@@ -2862,6 +3289,7 @@ mod tests {
         }
         let store = temp.path().join("agents.msgpack");
         migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
+        ensure_agent_memory_swarm_identity(&store, "test-swarm")?;
 
         let refreshed = refresh_agent_state_soa(&store)?;
         assert_eq!(refreshed["rowCount"], 7);

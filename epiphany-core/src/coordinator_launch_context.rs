@@ -815,6 +815,12 @@ mod tests {
         intent: &HandsActionIntent,
         review: &crate::HandsActionReview,
     ) -> anyhow::Result<()> {
+        if crate::runtime_swarm_binding(store)?.is_none() {
+            crate::runtime_spine::tests::bind_test_runtime_swarm(
+                store,
+                "context-hands-test-swarm",
+            )?;
+        }
         let bootstrap = EpiphanyMemoryGraphSnapshot {
             schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
             graph_id: "context-runtime-model".to_string(),
@@ -1022,6 +1028,18 @@ mod tests {
         ));
         fs::create_dir(&temp)?;
         let runtime_store = temp.join("runtime-spine.msgpack");
+        initialize_runtime_spine(
+            &runtime_store,
+            RuntimeSpineInitOptions {
+                runtime_id: "canonical-model-launch-test".to_string(),
+                display_name: "Canonical Model Launch Test".to_string(),
+                created_at: "2026-06-12T00:00:00Z".to_string(),
+            },
+        )?;
+        crate::runtime_spine::tests::bind_test_runtime_swarm(
+            &runtime_store,
+            "canonical-model-launch-swarm",
+        )?;
         let graph_store = memory_graph_store_path(&runtime_store);
         let mut snapshot = EpiphanyMemoryGraphSnapshot {
             schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
@@ -1096,6 +1114,21 @@ mod tests {
             std::env::temp_dir().join(format!("epiphany-bridge-launch-context-{}", Uuid::new_v4()));
         fs::create_dir(&temp)?;
         let runtime_store = temp.join("runtime-spine.msgpack");
+        crate::initialize_runtime_spine(
+            &runtime_store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "launch-context-runtime".to_string(),
+                display_name: "Launch context test".to_string(),
+                created_at: "2026-07-12T00:00:00Z".to_string(),
+            },
+        )?;
+        let agent_store = temp.join("agents.msgpack");
+        crate::ensure_agent_memory_swarm_identity(&agent_store, "launch-context-swarm")?;
+        crate::bind_runtime_to_agent_memory_swarm(
+            &runtime_store,
+            &agent_store,
+            "2026-07-12T00:00:01Z",
+        )?;
         let state = EpiphanyThreadState {
             revision: 7,
             objective: Some("Test launch context.".to_string()),

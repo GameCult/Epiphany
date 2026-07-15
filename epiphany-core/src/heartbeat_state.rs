@@ -3867,8 +3867,8 @@ mod tests {
         let agent_store = temp.path().join("agents.msgpack");
         let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
-        crate::ensure_agent_memory_swarm_identity(&agent_store, "swarm-persona-memory-test")?;
-        crate::write_agent_memory_entry_for_role(&agent_store, &persona_memory_entry())?;
+        crate::ensure_agent_memory_swarm_identity(&agent_store, "heartbeat-test-swarm")?;
+        crate::write_agent_memory_entry_for_role_migration(&agent_store, &persona_memory_entry())?;
         queue_heartbeat_pending_mention_store(
             &store_path,
             HeartbeatQueueMentionOptions {
