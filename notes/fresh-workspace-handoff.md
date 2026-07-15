@@ -1689,6 +1689,22 @@ receipts trigger recomputation; they never replace either observation. Build
 order is now typed Body-bound retrieval coverage, the Mind-owned race-safe join,
 then deletion of local interpretations.
 
+## False workspace retrieval authority cut (2026-07-15)
+
+`retrieval.rs` was production-unwired: no runtime caller, JSON manifest
+persistence, path/size/mtime/chunk identity, divergent exact/semantic walkers,
+path-derived Qdrant collections, and counterfeit `Ready` from missing manifests
+and query-time BM25. The module and public re-exports are deleted. Legacy thread
+`EpiphanyRetrievalState` is presentation-only: clean `Ready` projects Missing
+and its indexing job is unavailable/unowned; explicit dirty/stale input may warn
+but cannot prove coverage. The live RepoModel semantic projector remains intact.
+
+Next build: consume an authenticated historical Body manifest, classify every
+entry under one versioned policy, verify eligible bytes against Body hashes,
+project into a Body-root/policy/epoch isolated collection, observe the exact
+expected point set, and publish an immutable CultCache coverage receipt. Do not
+resurrect the JSON manifest as a compatibility source.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.

@@ -5,7 +5,6 @@
 //! rebuildable projection rather than canonical authority.
 
 use anyhow::{Context, Result};
-use reqwest::StatusCode;
 use reqwest::blocking::{Client, ClientBuilder, Response};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::de::DeserializeOwned;
@@ -13,11 +12,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::time::Duration;
 
-pub(crate) const DEFAULT_QDRANT_URL: &str = "http://127.0.0.1:6333";
-pub(crate) const DEFAULT_QDRANT_TIMEOUT_MS: u64 = 30_000;
-pub(crate) const DEFAULT_OLLAMA_BASE_URL: &str = "http://127.0.0.1:11434";
-pub(crate) const DEFAULT_OLLAMA_MODEL: &str = "qwen3-embedding:0.6b";
-pub(crate) const DEFAULT_OLLAMA_TIMEOUT_MS: u64 = 30_000;
 const POINT_BATCH_SIZE: usize = 128;
 const EMBED_BATCH_SIZE: usize = 32;
 
@@ -124,22 +118,6 @@ impl QdrantBackend {
             .context("managed Qdrant collection has no compatibility metadata")
     }
 
-    pub(crate) fn delete_collection(&self, name: &str) -> Result<()> {
-        let response = self
-            .client
-            .delete(format!("{}/collections/{name}", self.base_url))
-            .query(&[("timeout", self.timeout_seconds)])
-            .send()
-            .with_context(|| format!("failed to delete Qdrant collection {name}"))?;
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(());
-        }
-        parse_response::<bool>(response).with_context(|| {
-            format!("failed to decode Qdrant delete-collection response for {name}")
-        })?;
-        Ok(())
-    }
-
     pub(crate) fn create_collection(
         &self,
         name: &str,
@@ -209,15 +187,6 @@ impl QdrantBackend {
             })?;
         }
         Ok(())
-    }
-
-    pub(crate) fn query_points<P: DeserializeOwned>(
-        &self,
-        name: &str,
-        vector: &[f32],
-        limit: usize,
-    ) -> Result<Vec<SemanticCandidate<P>>> {
-        self.query_points_for_scope(name, vector, limit, &[])
     }
 
     pub(crate) fn query_points_for_scope<P: DeserializeOwned>(

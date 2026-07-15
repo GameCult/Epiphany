@@ -210,7 +210,7 @@ fn index_job(
         id: "retrieval-index".to_string(),
         kind: EpiphanyJobKind::Indexing,
         scope: retrieval.workspace_root.display().to_string(),
-        owner_role: "epiphany-core".to_string(),
+        owner_role: "unowned-legacy-projection".to_string(),
         authority_scope: None,
         runtime_job_id: None,
         status: job_status_from_retrieval_status(retrieval.status),
@@ -218,8 +218,12 @@ fn index_job(
         items_total: None,
         progress_note: Some(progress_note),
         last_checkpoint_at_unix_seconds: retrieval.last_indexed_at_unix_seconds,
-        blocking_reason: (retrieval.status == EpiphanyRetrievalStatus::Unavailable).then(|| {
-            "Indexing requires a readable workspace and configured retrieval backend.".to_string()
+        blocking_reason: matches!(
+            retrieval.status,
+            EpiphanyRetrievalStatus::Ready | EpiphanyRetrievalStatus::Unavailable
+        )
+        .then(|| {
+            "No Body-bound workspace coverage owner is installed; legacy retrieval state cannot authorize readiness.".to_string()
         }),
         active_thread_ids: Vec::new(),
         linked_subgoal_ids,
@@ -229,7 +233,7 @@ fn index_job(
 
 fn job_status_from_retrieval_status(status: EpiphanyRetrievalStatus) -> EpiphanyJobStatus {
     match status {
-        EpiphanyRetrievalStatus::Ready => EpiphanyJobStatus::Idle,
+        EpiphanyRetrievalStatus::Ready => EpiphanyJobStatus::Unavailable,
         EpiphanyRetrievalStatus::Stale => EpiphanyJobStatus::Needed,
         EpiphanyRetrievalStatus::Indexing => EpiphanyJobStatus::Running,
         EpiphanyRetrievalStatus::Unavailable => EpiphanyJobStatus::Unavailable,

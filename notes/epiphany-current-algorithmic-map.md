@@ -835,5 +835,23 @@ replace either Body observation. The lossy JSON workspace manifest remains cache
 coverage authority. Semantic-projector Ready remains exact query eligibility for
 the admitted RepoModel projection; it does not prove repository Body coverage.
 
+## Counterfeit workspace retrieval organ removed (2026-07-15)
+
+The old `retrieval.rs` module was not wired to any runtime, CLI, scheduler, or
+app-server caller. It stored JSON under `CODEX_HOME`, identified files by
+path/size/mtime/chunk count, used different filesystem walkers for exact and
+semantic search, named Qdrant collections from workspace path plus model, and
+could emit `Ready` from a missing manifest or query-time BM25. It had no Body,
+runtime, swarm, workspace, policy, content-root, or observed point-set binding.
+The module and re-exports are deleted. Legacy `EpiphanyRetrievalState` remains
+presentation-only: clean `Ready` projects Missing, and its index job is
+unavailable and unowned; dirty/stale data may warn but cannot authorize coverage.
+
+The replacement starts from an authenticated historical Body manifest,
+classifies every entry under one versioned inclusion policy, verifies eligible
+live bytes against Body hashes, builds a Body-root/policy/index-epoch isolated
+Qdrant projection, observes its deterministic point set, and only then publishes
+an immutable CultCache coverage receipt. Qdrant remains disposable.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

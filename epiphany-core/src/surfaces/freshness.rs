@@ -139,7 +139,7 @@ fn retrieval_freshness(retrieval: Option<&EpiphanyRetrievalState>) -> EpiphanyRe
     let dirty_path_count = retrieval.dirty_paths.len();
     let note = match retrieval.status {
         EpiphanyRetrievalStatus::Ready if dirty_path_count == 0 => {
-            "Retrieval catalog is ready.".to_string()
+            "Legacy retrieval reports Ready, but has no Body-bound coverage receipt.".to_string()
         }
         EpiphanyRetrievalStatus::Ready => {
             format!("Retrieval catalog is stale because {dirty_path_count} dirty path(s) remain.")
@@ -154,7 +154,7 @@ fn retrieval_freshness(retrieval: Option<&EpiphanyRetrievalState>) -> EpiphanyRe
     EpiphanyRetrievalFreshness {
         status: match retrieval.status {
             EpiphanyRetrievalStatus::Ready if dirty_path_count == 0 => {
-                EpiphanyRetrievalFreshnessStatus::Ready
+                EpiphanyRetrievalFreshnessStatus::Missing
             }
             EpiphanyRetrievalStatus::Ready => EpiphanyRetrievalFreshnessStatus::Stale,
             EpiphanyRetrievalStatus::Stale => EpiphanyRetrievalFreshnessStatus::Stale,
@@ -557,6 +557,32 @@ mod tests {
             view.retrieval.status,
             EpiphanyRetrievalFreshnessStatus::Stale
         );
+    }
+
+    #[test]
+    fn legacy_ready_retrieval_cannot_mint_body_coverage() {
+        let state = EpiphanyThreadState {
+            retrieval: Some(EpiphanyRetrievalState {
+                workspace_root: PathBuf::from("E:/repo"),
+                status: EpiphanyRetrievalStatus::Ready,
+                semantic_available: true,
+                dirty_paths: Vec::new(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let view = derive_freshness(EpiphanyFreshnessInput {
+            state: Some(&state),
+            retrieval_override: None,
+            watcher: None,
+        });
+
+        assert_eq!(
+            view.retrieval.status,
+            EpiphanyRetrievalFreshnessStatus::Missing
+        );
+        assert!(view.retrieval.note.contains("Body-bound coverage receipt"));
     }
 
     #[test]
