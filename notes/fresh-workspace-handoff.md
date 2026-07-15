@@ -1630,6 +1630,29 @@ retrieval coverage bound to the same source generation; Mind derives the joined
 readiness projection. No current artifact proves that Body head. Do not build a
 bridge from snapshot metadata, watcher silence, or timestamps.
 
+## Repository Body substrate landed (2026-07-15)
+
+Native `repository_body_observer.rs` and `epiphany-repository-body` expose an
+explicit runtime-bound bind step, observe, pure status, and smoke for
+`git_worktree` state. Bind pins caller workspace ID to the existing validated
+runtime/swarm/source identity plus canonical Git root and policy. Two equal
+isolated Git-index scans feed immutable CultCache observations/current-head CAS.
+Unchanged raw manifest does not advance generation; missing status creates no
+store. Continuity remains unproven with no Ready field. Sparse checkout is
+rejected, submodules are gitlink-only, and downstream joins remain absent.
+The CultCache store is required to live outside the observed worktree.
+Canonical path checks run before any bind/store write, global excludes are
+disabled, and corrupt/non-commit HEAD fails closed. This slice persists accepted
+stable observations only; failed attempts advance no head.
+All Git calls share one sanitizer that removes ambient Git repository/object/
+ref/index/namespace and injected-config authority before applying explicit
+observation policy.
+The isolated index enumerates ignore-aware UTF-8 paths/modes/gitlinks, but its
+clean-filtered tree OID is auxiliary. Raw file bytes (or non-followed symlink
+target bytes) feed an ordered manifest whose domain-separated SHA-256 root is
+the authoritative Body identity. Manifest, observation, and manifest-root head
+commit atomically. Gitlinks are nonrecursive; unrepresentable paths fail closed.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.

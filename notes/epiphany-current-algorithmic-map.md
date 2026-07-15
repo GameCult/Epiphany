@@ -767,5 +767,30 @@ revision. Generic thread patches, watcher silence, snapshot source metadata,
 and unrelated thread revisions are forbidden readiness writers. Until every
 authority is present and current, Unknown is the truthful result.
 
+## Repository Body observation substrate (2026-07-15)
+
+`repository_body_observer.rs` owns bounded `git_worktree` observation. A
+separate bind command consumes the existing validated runtime swarm binding and
+pins a caller-supplied workspace ID, exact runtime/swarm/source-identity hash,
+canonical Git root, object format, scope, and ignore policy; observe cannot mint
+identity. Two disposable-index `read-tree`/`git add --all -- .`/
+`write-tree` scans must agree. CultCache MessagePack persists immutable
+generations and an exact-CAS current head; unchanged raw manifest preserves the
+generation. `continuity_status` is always `unproven`; there is no Ready field.
+Sparse checkout fails closed, submodules are gitlink-only, and RepoModel/
+retrieval/scheduler/Mind integration is absent. The CultCache store must remain
+outside the observed worktree so observer writes cannot become observed input.
+Machine-global excludes are disabled during observation. Only accepted stable
+observations persist; failed/unstable attempts return errors and advance no
+head. HEAD absence counts as unborn only when a symbolic ref is proven absent.
+Every Git subprocess strips ambient repository, worktree, object, ref,
+namespace, index, shallow/graft, and injected-config environment authority.
+The index owns ignore-aware UTF-8 path, Git mode, and gitlink enumeration; its
+clean-filtered tree OID is auxiliary. Raw regular-file bytes and lengths, or
+non-followed symlink-target bytes, feed ordered typed entries. A domain-separated
+SHA-256 root over workspace, scope policy, and those entries is authoritative
+Body identity. Manifest, observation, and manifest-root head land in one CAS.
+Gitlinks remain nonrecursive. Unsafe or unrepresentable paths fail closed.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

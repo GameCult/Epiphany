@@ -1,5 +1,6 @@
 experiment:
   name: EpiphanyAgent
+  repository_body_observer: "Native Rust explicitly binds caller workspace ID to an existing validated runtime/swarm/source identity plus canonical Git root/object format/scope/policy. Two equal sanitized temporary-index scans enumerate ignore-aware UTF-8 paths, Git modes, and nonrecursive gitlinks with global excludes disabled; raw regular bytes/lengths and non-followed symlink-target bytes are SHA-256 hashed. The domain-separated ordered raw manifest root, not the clean-filtered auxiliary tree OID, is authoritative Body identity. Every Git subprocess strips ambient repository/worktree/object/ref/index/namespace/replacement/graft/shallow and config-injection authority. Observe cannot mint identity. CultCache MessagePack atomically commits immutable manifest+observation and a manifest-root head by exact CAS. Canonical store-path checks precede writes; corrupt HEAD, sparse checkout, unsafe/unrepresentable paths, racing reads, and repo/runtime substitution fail closed. Only accepted stable observations persist; errors advance no head. Unchanged raw manifest preserves generation; status is read-pure. Continuity remains unproven; no Ready field or downstream integration exists."
   status: active
   phase: phase_6_reflection_boundary
   premise: >

@@ -1822,3 +1822,25 @@ RepoModel revision/hash plus matching Mind admission, joined to a separate
 continuity-bearing Body observation and retrieval coverage for the same source
 generation. Modeling cannot certify its own freshness; Mind derives readiness
 from the joined authorities.
+
+### Repository Body observation boundary
+
+The bounded repository Body observer supplies only raw `git_worktree` tree state
+from two equal temporary-index scans. A separate bind step consumes the real
+runtime swarm binding and pins workspace, source hash, canonical root, object
+format, scope, and policy; observe has no identity-authoring arguments. It explicitly
+says continuity unproven and has no Ready field, preventing another freshness
+oracle before continuity and same-generation retrieval coverage exist. Sparse
+worktrees fail closed; submodules contribute gitlinks only; integration is
+deliberately absent.
+Global excludes are neutralized. Corrupt HEAD and path/runtime/repository
+substitution fail closed. Only accepted stable observations persist; errors
+advance no head.
+One shared Git-command sanitizer removes ambient repository, worktree, object,
+ref, index, namespace, replacement/graft/shallow, and config-injection variables
+from every probe and scan.
+The clean-filtered Git tree OID is explicitly auxiliary. Authoritative Body
+identity is a domain-separated raw-content manifest root over workspace/scope/
+policy plus ordered UTF-8 paths, modes/kinds, byte lengths, raw SHA-256 hashes,
+non-followed symlink-target hashes, and nonrecursive gitlink OIDs. Manifest and
+manifest-root head share the observation CAS.
