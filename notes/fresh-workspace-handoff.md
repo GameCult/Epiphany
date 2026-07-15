@@ -1189,8 +1189,19 @@ successful restart commands leave the provider envelope unchanged and produce
 distinct awaiting receipts, then a real provider heartbeat resolves the
 lifecycle observation and clears restart pressure.
 
-Next: publish renderer-neutral semantic projection health derived from
-canonical Mind/Modeling evidence through CultMesh; then give Idunn typed
-executor grants, single-use fenced recovery authority, open-obligation
-discovery, and one packaged projector owner. CultMesh, Idunn, Eve, and Gjallar
-remain unable to mint semantic readiness.
+Renderer-neutral semantic projection health now leaves the provider through
+CultMesh as non-authoritative local-area sight. Publication reauthenticates the
+sealed Mind or Modeling input, persisted obligation, canonical authority
+envelopes, and—when ready—the complete succeeded claim/attempt/receipt chain.
+The mirror carries only pending/failed/ready, canonical fingerprints,
+bounded counts, provider/incarnation identity, and timestamps; it carries no
+error text, path, command, payload prose, or readiness capability. Immutable
+events plus a per-swarm/partition chronological CAS prevent a delayed writer
+from rewinding latest sight. `epiphany-memory-semantic health` repairs the
+mirror independently, and `epiphany-verse-query semantic-health` reads a named,
+compact report without touching canonical state. A stale sealed input is
+refused rather than published as if it described the current canonical head.
+
+Next: give Idunn typed executor grants, single-use fenced recovery authority,
+open-obligation discovery, and one packaged projector owner. CultMesh, Idunn,
+Eve, and Gjallar remain unable to mint semantic readiness.

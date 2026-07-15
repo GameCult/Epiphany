@@ -58,6 +58,22 @@ pub struct MemorySemanticProjectionInput {
     pub(crate) authority: MemorySemanticProjectionAuthoritySnapshot,
 }
 
+#[derive(Clone, Debug)]
+pub struct MemorySemanticProjectionObservation {
+    pub(crate) swarm_id: String,
+    pub(crate) partition: String,
+    pub(crate) obligation_id: String,
+    pub(crate) source_generation: u64,
+    pub(crate) canonical_model_hash: String,
+    pub(crate) canonical_content_set_hash: String,
+    pub(crate) status: String,
+    pub(crate) receipt_id: Option<String>,
+    pub(crate) indexed_document_count: Option<u32>,
+    pub(crate) vector_dimensions: Option<u32>,
+    pub(crate) observed_source_at: String,
+    pub(crate) query_eligible_display_only: bool,
+}
+
 impl MemorySemanticProjectionInput {
     pub fn snapshot(&self) -> &super::EpiphanyMemoryGraphSnapshot {
         &self.snapshot
@@ -70,6 +86,114 @@ impl MemorySemanticProjectionInput {
     pub fn source_head(&self) -> &MemorySemanticProjectionSourceHead {
         &self.authority.head
     }
+}
+
+pub fn observe_memory_semantic_projection(
+    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
+) -> Result<MemorySemanticProjectionObservation> {
+    if input.authority.envelopes.is_empty() {
+        return Err(anyhow!(
+            "semantic projection observation requires canonical authority"
+        ));
+    }
+    validate_memory_semantic_projection_obligation(&input.obligation)?;
+    let envelopes = SingleFileMessagePackBackingStore::new(store_path.as_ref()).pull_all()?;
+    let persisted_obligation = decode_one::<MemorySemanticProjectionObligation>(
+        &envelopes,
+        &input.obligation.obligation_id,
+    )?
+    .ok_or_else(|| anyhow!("semantic projection observation obligation disappeared"))?;
+    if persisted_obligation != input.obligation {
+        return Err(anyhow!(
+            "semantic projection observation obligation identity collision"
+        ));
+    }
+    for expected in &input.authority.envelopes {
+        let current = envelopes
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            .ok_or_else(|| anyhow!("semantic projection observation authority disappeared"))?;
+        if current != expected {
+            return Err(anyhow!(
+                "semantic projection observation authority advanced"
+            ));
+        }
+    }
+    let attempts = decode_all::<MemorySemanticProjectionAttempt>(&envelopes)?;
+    let receipts = decode_all::<MemorySemanticIndexReceipt>(&envelopes)?;
+    let health = super::derive_memory_semantic_projection_health(
+        &input.obligation,
+        &input.authority.head,
+        &attempts,
+        &receipts,
+    )?;
+    let receipt = health
+        .receipt_id
+        .as_ref()
+        .and_then(|id| receipts.iter().find(|receipt| &receipt.receipt_id == id));
+    if health.status == super::MemorySemanticProjectionHealthStatus::Ready {
+        let authenticated = load_memory_semantic_projection_success(
+            store_path.as_ref(),
+            &input.obligation,
+            &input.authority.head,
+        )?
+        .ok_or_else(|| {
+            anyhow!("semantic projection ready observation lacks authenticated success")
+        })?;
+        if receipt.is_none_or(|receipt| receipt != &authenticated) {
+            return Err(anyhow!(
+                "semantic projection ready observation receipt is not authentic"
+            ));
+        }
+    }
+    let observed_source_at = attempts
+        .iter()
+        .filter(|attempt| attempt.obligation_id == input.obligation.obligation_id)
+        .flat_map(|attempt| {
+            [
+                attempt.started_at.as_str(),
+                attempt.completed_at.as_deref().unwrap_or(""),
+            ]
+        })
+        .chain(
+            receipt
+                .into_iter()
+                .map(|receipt| receipt.indexed_at.as_str()),
+        )
+        .filter(|value| !value.is_empty())
+        .max_by_key(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .unwrap_or(input.obligation.created_at.as_str())
+        .to_string();
+    let status = match health.status {
+        super::MemorySemanticProjectionHealthStatus::Pending => "pending",
+        super::MemorySemanticProjectionHealthStatus::Failed => "failed",
+        super::MemorySemanticProjectionHealthStatus::Stale => {
+            return Err(anyhow!(
+                "semantic projection observation input is not the current canonical head"
+            ));
+        }
+        super::MemorySemanticProjectionHealthStatus::Ready => "ready",
+    };
+    let display_receipt = if health.status == super::MemorySemanticProjectionHealthStatus::Ready {
+        receipt
+    } else {
+        None
+    };
+    Ok(MemorySemanticProjectionObservation {
+        swarm_id: input.obligation.swarm_id.clone(),
+        partition: input.obligation.partition.clone(),
+        obligation_id: input.obligation.obligation_id.clone(),
+        source_generation: input.obligation.source_generation,
+        canonical_model_hash: input.obligation.source_model_hash.clone(),
+        canonical_content_set_hash: input.obligation.canonical_content_set_hash.clone(),
+        status: status.to_string(),
+        receipt_id: display_receipt.map(|row| row.receipt_id.clone()),
+        indexed_document_count: display_receipt.map(|row| row.indexed_document_count),
+        vector_dimensions: display_receipt.map(|row| row.vector_dimensions),
+        observed_source_at,
+        query_eligible_display_only: health.query_eligible,
+    })
 }
 
 pub(crate) fn projection_scope_id(swarm_id: &str, partition: &str) -> Result<String> {
@@ -225,7 +349,7 @@ pub fn execute_memory_semantic_projection(
     }
 }
 
-fn reopen_succeeded_projection_claim(
+pub(crate) fn reopen_succeeded_projection_claim(
     store_path: &Path,
     current: &MemorySemanticProjectionClaim,
     obligation: &MemorySemanticProjectionObligation,
@@ -577,7 +701,7 @@ pub(crate) fn validate_memory_semantic_projection_claim(
     }
 }
 
-fn semantic_projector_cache(store_path: &Path) -> Result<CultCache> {
+pub(crate) fn semantic_projector_cache(store_path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<MemorySemanticProjectionObligation>()?;
     cache.register_entry_type::<MemorySemanticProjectionClaim>()?;

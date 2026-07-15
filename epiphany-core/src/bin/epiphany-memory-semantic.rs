@@ -3,8 +3,9 @@ use epiphany_core::{
     EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot, MemorySemanticIndexConfig,
     MemorySemanticProjectionInput, SemanticPartition, agent_memory_semantic_projection_input,
     execute_memory_semantic_projection, load_memory_graph_snapshot,
-    load_memory_semantic_projection_readiness, runtime_modeling_semantic_projection_input,
-    semantic_memory_context,
+    load_memory_semantic_projection_readiness,
+    publish_epiphany_cultmesh_semantic_projection_health,
+    runtime_modeling_semantic_projection_input, semantic_memory_context,
 };
 use std::env;
 use std::path::PathBuf;
@@ -24,6 +25,21 @@ fn main() -> Result<()> {
             let receipt =
                 execute_memory_semantic_projection(source_store, &input, executor_id, &config)?;
             print_receipt(&receipt, source_store)?;
+        }
+        "health" => {
+            let (input, source_store) = options.load_projection_input()?;
+            let verse_store = options
+                .local_verse_store
+                .as_ref()
+                .ok_or_else(|| usage_error("health requires --local-verse-store <path>"))?;
+            let health = publish_epiphany_cultmesh_semantic_projection_health(
+                verse_store,
+                options.runtime_id.clone(),
+                source_store,
+                &input,
+                options.provider_incarnation()?,
+            )?;
+            print_semantic_health(&health)?;
         }
         "context" => {
             let (snapshot, swarm_id) = options.load_source()?;
@@ -67,6 +83,9 @@ struct Options {
     runtime_store: Option<PathBuf>,
     agent_store: Option<PathBuf>,
     executor_id: Option<String>,
+    local_verse_store: Option<PathBuf>,
+    runtime_id: String,
+    provider_incarnation: Option<String>,
     swarm_id: Option<String>,
     partition: SemanticPartition,
     text: Option<String>,
@@ -82,6 +101,9 @@ impl Options {
             runtime_store: None,
             agent_store: None,
             executor_id: None,
+            local_verse_store: None,
+            runtime_id: "epiphany-memory-semantic".to_string(),
+            provider_incarnation: None,
             swarm_id: None,
             partition: SemanticPartition::Modeling,
             text: None,
@@ -100,6 +122,9 @@ impl Options {
                 "--runtime-store" => options.runtime_store = Some(PathBuf::from(value()?)),
                 "--agent-store" => options.agent_store = Some(PathBuf::from(value()?)),
                 "--executor-id" => options.executor_id = Some(value()?),
+                "--local-verse-store" => options.local_verse_store = Some(PathBuf::from(value()?)),
+                "--runtime-id" => options.runtime_id = value()?,
+                "--provider-incarnation" => options.provider_incarnation = Some(value()?),
                 "--swarm-id" => options.swarm_id = Some(value()?),
                 "--partition" => options.partition = parse_partition(&value()?)?,
                 "--text" => options.text = Some(value()?),
@@ -184,6 +209,15 @@ impl Options {
     fn source_store(&self) -> Option<&PathBuf> {
         self.runtime_store.as_ref().or(self.agent_store.as_ref())
     }
+
+    fn provider_incarnation(&self) -> Result<&str> {
+        self.provider_incarnation
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| {
+                usage_error("CultMesh health publication requires --provider-incarnation <id>")
+            })
+    }
 }
 
 fn parse_partition(value: &str) -> Result<SemanticPartition> {
@@ -201,7 +235,7 @@ fn parse_profile(value: &str) -> Result<epiphany_core::EpiphanyMemoryProfile> {
 
 fn usage_error(message: &str) -> anyhow::Error {
     anyhow!(
-        "{message}\nusage: epiphany-memory-semantic <index|context> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--executor-id <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
+        "{message}\nusage: epiphany-memory-semantic <index|context|health> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--executor-id <id>] [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
     )
 }
 
@@ -232,5 +266,35 @@ fn print_receipt(
         "deletedDocumentCount": receipt.deleted_document_count,
         "canonicalContentSetHash": receipt.canonical_content_set_hash,
         "indexedAt": receipt.indexed_at,
+    }))
+}
+
+fn print_semantic_health(
+    health: &epiphany_core::EpiphanyCultMeshSemanticProjectionHealthEntry,
+) -> Result<()> {
+    print_json(&serde_json::json!({
+        "schemaVersion": health.schema_version,
+        "verseId": health.verse_id,
+        "verseTier": health.verse_tier,
+        "swarmId": health.swarm_id,
+        "partition": health.partition,
+        "obligationId": health.obligation_id,
+        "sourceGeneration": health.source_generation,
+        "canonicalModelHash": health.canonical_model_hash,
+        "canonicalContentSetHash": health.canonical_content_set_hash,
+        "status": health.status,
+        "receiptId": health.receipt_id,
+        "indexedDocumentCount": health.indexed_document_count,
+        "vectorDimensions": health.vector_dimensions,
+        "observedAt": health.observed_at,
+        "observedSourceAt": health.observed_source_at,
+        "providerId": health.provider_id,
+        "providerIncarnation": health.provider_incarnation,
+        "authoritative": health.authoritative,
+        "nonAuthoritative": !health.authoritative,
+        "authority": "sight-only",
+        "queryAdmission": false,
+        "queryEligibleDisplayOnly": health.query_eligible_display_only,
+        "privateStateExposed": health.private_state_exposed,
     }))
 }

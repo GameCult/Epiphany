@@ -503,6 +503,40 @@ cannot rewind the latest lifecycle observation.
 
 ### Shared Paths And Verification Layer
 
+CultMesh health sight is landed.
+
+- Owner: canonical Mind or Modeling CultCache state owns projection truth and
+  query admission. The semantic-health publisher owns only creation of the
+  non-authoritative CultMesh observation.
+- Inputs: the canonical store, a sealed projection input whose obligation and
+  authority envelopes exactly match that store, and bounded opaque provider
+  runtime/incarnation identities. Ready observation additionally reloads and
+  authenticates the complete succeeded scope-claim, attempt, and receipt chain.
+- Outputs: immutable local-area observation events plus one chronological
+  per-swarm/partition latest mirror carrying `pending|failed|ready`, canonical
+  fingerprints, bounded ready-only counts, provider identity, and timestamps.
+- Derived state: mirror status, `queryEligibleDisplayOnly`, aggregate
+  `observed-ready|observed-attention|unknown`, and TUI rows are sight only.
+- Forbidden writers: CultMesh rows, Verse/Eve/Gjallar consumers, Idunn, and
+  operator repair commands cannot create obligations, claims, attempts,
+  receipts, readiness, or semantic-query admission.
+- Shared paths: `epiphany-memory-semantic health` is the sole explicit
+  publication pulse, and `epiphany-verse-query semantic-health` only lowers the
+  latest mirrors. Index execution emits its canonical receipt without calling
+  the sight publisher, so a mirror failure cannot redefine execution success.
+- Cut line: there is no mirror-to-canonical import, mirror-to-Qdrant query, or
+  mirror-to-readiness edge. A stale sealed input is refused instead of being
+  published as current sight.
+- Verification layer: tests exercise pending, authenticated ready, later failed
+  repair, stale-input refusal, bounded provider identities, mirror poisoning,
+  chronological latest behavior, private-text exclusion, and absence of
+  backend contact or query admission from forged sight.
+
+The published document is explicitly non-authoritative,
+provider/incarnation-stamped, private-state sealed, and contains no graph path,
+error, command, or payload prose. Event and latest writes advance atomically
+through a chronological compare-and-swap.
+
 - Initial execution, retry, crash replay, scheduled rediscovery, and operator
   request share the same projector execution primitive. A stuck running claim
   branches only through typed Idunn recovery, then re-enters that path.

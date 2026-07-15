@@ -11,6 +11,7 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use chrono::FixedOffset;
 use chrono::Utc;
+use cultcache_rs::CacheBackingStore;
 use cultcache_rs::CultSoaColumnValues;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
@@ -269,6 +270,58 @@ pub const EPIPHANY_CULTMESH_GLOBAL_VERSE_ID: &str = "epiphany-global";
 pub const EPIPHANY_CULTMESH_INTERNAL_TIER: &str = "internal";
 pub const EPIPHANY_CULTMESH_LOCAL_AREA_TIER: &str = "local-area";
 pub const EPIPHANY_CULTMESH_GLOBAL_TIER: &str = "global";
+pub const EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_TYPE: &str =
+    "epiphany.cultmesh.semantic_projection_health";
+pub const EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.semantic_projection_health.v0";
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.semantic_projection_health",
+    schema = "EpiphanyCultMeshSemanticProjectionHealthEntry"
+)]
+pub struct EpiphanyCultMeshSemanticProjectionHealthEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub verse_id: String,
+    #[cultcache(key = 2)]
+    pub verse_tier: String,
+    #[cultcache(key = 3)]
+    pub swarm_id: String,
+    #[cultcache(key = 4)]
+    pub partition: String,
+    #[cultcache(key = 5)]
+    pub obligation_id: String,
+    #[cultcache(key = 6)]
+    pub source_generation: u64,
+    #[cultcache(key = 7)]
+    pub canonical_model_hash: String,
+    #[cultcache(key = 8)]
+    pub canonical_content_set_hash: String,
+    #[cultcache(key = 9)]
+    pub status: String,
+    #[cultcache(key = 10)]
+    pub receipt_id: Option<String>,
+    #[cultcache(key = 11)]
+    pub indexed_document_count: Option<u32>,
+    #[cultcache(key = 12)]
+    pub vector_dimensions: Option<u32>,
+    #[cultcache(key = 13)]
+    pub observed_at: String,
+    #[cultcache(key = 14)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 15)]
+    pub provider_id: String,
+    #[cultcache(key = 16)]
+    pub provider_incarnation: String,
+    #[cultcache(key = 17)]
+    pub observed_source_at: String,
+    #[cultcache(key = 18)]
+    pub authoritative: bool,
+    #[cultcache(key = 19)]
+    pub query_eligible_display_only: bool,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -2560,6 +2613,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshBifrostMetricsReceiptEntry => EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostCollaborationFeedbackEntry => EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION,
     EpiphanyCultMeshImaginationConsensusReceiptEntry => EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshSemanticProjectionHealthEntry => EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION,
 });
 
 pub fn open_epiphany_cultmesh_node(
@@ -2574,6 +2628,189 @@ pub fn open_epiphany_cultmesh_node(
             ..CultMeshNodeOptions::default()
         },
     )
+}
+
+fn semantic_projection_health_scope_key(swarm_id: &str, partition: &str) -> String {
+    use sha2::{Digest, Sha256};
+    format!(
+        "gamecult-local/semantic-projection-health/{:x}",
+        Sha256::digest(format!("{swarm_id}|{partition}").as_bytes())
+    )
+}
+
+/// Publishes operator sight derived from authenticated canonical projection state.
+///
+/// This mirror is deliberately powerless: it neither creates work nor participates
+/// in semantic-query admission. Callers must retain the canonical source store and
+/// sealed input for either operation.
+pub fn publish_epiphany_cultmesh_semantic_projection_health(
+    verse_store: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    canonical_store: impl AsRef<Path>,
+    input: &crate::MemorySemanticProjectionInput,
+    provider_incarnation: &str,
+) -> Result<EpiphanyCultMeshSemanticProjectionHealthEntry> {
+    let runtime_id = runtime_id.into();
+    if !bounded_opaque_health_id(&runtime_id) || !bounded_opaque_health_id(provider_incarnation) {
+        return Err(anyhow!(
+            "semantic projection health provider identity is required"
+        ));
+    }
+    let observation = crate::observe_memory_semantic_projection(canonical_store, input)?;
+    let entry = EpiphanyCultMeshSemanticProjectionHealthEntry {
+        schema_version: EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION.to_string(),
+        verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
+        verse_tier: EPIPHANY_CULTMESH_LOCAL_AREA_TIER.to_string(),
+        swarm_id: observation.swarm_id,
+        partition: observation.partition,
+        obligation_id: observation.obligation_id,
+        source_generation: observation.source_generation,
+        canonical_model_hash: observation.canonical_model_hash,
+        canonical_content_set_hash: observation.canonical_content_set_hash,
+        status: observation.status,
+        receipt_id: observation.receipt_id,
+        indexed_document_count: observation.indexed_document_count,
+        vector_dimensions: observation.vector_dimensions,
+        observed_at: Utc::now().to_rfc3339(),
+        private_state_exposed: false,
+        provider_id: runtime_id.clone(),
+        provider_incarnation: provider_incarnation.to_string(),
+        observed_source_at: observation.observed_source_at,
+        authoritative: false,
+        query_eligible_display_only: observation.query_eligible_display_only,
+    };
+    validate_semantic_projection_health(&entry)?;
+
+    let scope_key = semantic_projection_health_scope_key(&entry.swarm_id, &entry.partition);
+    let latest_key = format!("{scope_key}/latest");
+    use sha2::{Digest, Sha256};
+    let event_key = format!(
+        "{scope_key}/event-{:x}",
+        Sha256::digest(
+            format!(
+                "{}|{}|{}|{}",
+                entry.obligation_id,
+                entry.status,
+                entry.receipt_id.as_deref().unwrap_or("none"),
+                entry.observed_at
+            )
+            .as_bytes()
+        )
+    );
+    let node = open_epiphany_cultmesh_node(&verse_store, runtime_id)?;
+    let backing = SingleFileMessagePackBackingStore::new(verse_store.as_ref());
+    for _ in 0..8 {
+        let opening = backing.pull_all()?;
+        let latest_envelope = opening.iter().find(|row| {
+            row.r#type == EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_TYPE && row.key == latest_key
+        });
+        let latest = latest_envelope
+            .map(|row| {
+                rmp_serde::from_slice::<EpiphanyCultMeshSemanticProjectionHealthEntry>(&row.payload)
+            })
+            .transpose()?;
+        if let Some(latest) = &latest {
+            validate_semantic_projection_health(latest)?;
+            let latest_time = DateTime::parse_from_rfc3339(&latest.observed_source_at)?;
+            let entry_time = DateTime::parse_from_rfc3339(&entry.observed_source_at)?;
+            if latest.source_generation == entry.source_generation
+                && latest.obligation_id != entry.obligation_id
+            {
+                return Err(anyhow!(
+                    "semantic projection health generation has conflicting canonical obligations"
+                ));
+            }
+            if latest.source_generation > entry.source_generation
+                || (latest.source_generation == entry.source_generation && latest_time > entry_time)
+            {
+                return Ok(latest.clone());
+            }
+        }
+        let event = node.cache().prepare_entry(&event_key, &entry)?.0;
+        let latest_replacement = node.cache().prepare_entry(&latest_key, &entry)?.0;
+        let expected = latest_envelope.cloned().into_iter().collect::<Vec<_>>();
+        if backing.compare_and_swap_batch(&expected, vec![event, latest_replacement])? {
+            return Ok(entry);
+        }
+    }
+    Err(anyhow!(
+        "semantic projection health latest advanced during publication"
+    ))
+}
+
+pub fn load_epiphany_cultmesh_semantic_projection_health(
+    verse_store: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshSemanticProjectionHealthEntry>> {
+    let node = open_epiphany_cultmesh_node(verse_store, runtime_id)?;
+    let mut rows = node
+        .get_all_with_keys::<EpiphanyCultMeshSemanticProjectionHealthEntry>()?
+        .into_iter()
+        .filter(|(key, _)| key.ends_with("/latest"))
+        .map(|(key, row)| {
+            let expected_key = format!(
+                "{}/latest",
+                semantic_projection_health_scope_key(&row.swarm_id, &row.partition)
+            );
+            if key != expected_key {
+                return Err(anyhow!(
+                    "semantic projection health latest key does not match its declared scope"
+                ));
+            }
+            Ok(row)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    for row in &rows {
+        validate_semantic_projection_health(row)?;
+    }
+    rows.sort_by(|left, right| {
+        left.swarm_id
+            .cmp(&right.swarm_id)
+            .then(left.partition.cmp(&right.partition))
+    });
+    Ok(rows)
+}
+
+fn validate_semantic_projection_health(
+    row: &EpiphanyCultMeshSemanticProjectionHealthEntry,
+) -> Result<()> {
+    if row.schema_version != EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION
+        || row.verse_id != EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
+        || row.verse_tier != EPIPHANY_CULTMESH_LOCAL_AREA_TIER
+        || row.swarm_id.trim().is_empty()
+        || !matches!(row.partition.as_str(), "mind" | "modeling")
+        || row.obligation_id.trim().is_empty()
+        || row.canonical_model_hash.trim().is_empty()
+        || row.canonical_content_set_hash.trim().is_empty()
+        || !matches!(row.status.as_str(), "pending" | "failed" | "ready")
+        || DateTime::parse_from_rfc3339(&row.observed_at).is_err()
+        || DateTime::parse_from_rfc3339(&row.observed_source_at).is_err()
+        || row.private_state_exposed
+        || !bounded_opaque_health_id(&row.provider_id)
+        || !bounded_opaque_health_id(&row.provider_incarnation)
+        || row.authoritative
+    {
+        return Err(anyhow!("semantic projection health mirror is invalid"));
+    }
+    let has_receipt = row.receipt_id.is_some()
+        && row.indexed_document_count.is_some()
+        && row.vector_dimensions.is_some();
+    if row.query_eligible_display_only != (row.status == "ready")
+        || has_receipt != (row.status == "ready")
+    {
+        return Err(anyhow!(
+            "semantic projection health evidence shape is invalid"
+        ));
+    }
+    Ok(())
+}
+
+fn bounded_opaque_health_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b':'))
 }
 
 pub fn write_epiphany_cultmesh_status(
@@ -7226,7 +7463,401 @@ pub fn write_epiphany_cultmesh_bifrost_contracts(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cultcache_rs::CacheBackingStore;
     use pretty_assertions::assert_eq;
+
+    fn semantic_health_input(
+        store: &Path,
+        swarm_id: &str,
+        partition: &str,
+        generation: u64,
+    ) -> Result<crate::MemorySemanticProjectionInput> {
+        let graph_id = format!("{partition}-graph");
+        let obligation = crate::MemorySemanticProjectionObligation {
+            schema_version: crate::MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION.to_string(),
+            obligation_id: format!("obligation-{partition}-{generation}"),
+            swarm_id: swarm_id.to_string(),
+            partition: partition.to_string(),
+            canonical_source_id: format!("canonical/{partition}"),
+            source_commit_id: format!("commit-{generation}"),
+            graph_id: graph_id.clone(),
+            source_generation: generation,
+            source_model_hash: format!("model-{generation}"),
+            canonical_content_set_hash: format!("content-{generation}"),
+            projection_schema_version: crate::SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
+            created_at: "2026-07-15T12:00:00Z".to_string(),
+        };
+        let head = crate::MemorySemanticProjectionSourceHead {
+            swarm_id: swarm_id.to_string(),
+            partition: partition.to_string(),
+            canonical_source_id: format!("canonical/{partition}"),
+            source_commit_id: format!("commit-{generation}"),
+            graph_id: graph_id.clone(),
+            source_generation: generation,
+            source_model_hash: format!("model-{generation}"),
+            canonical_content_set_hash: format!("content-{generation}"),
+        };
+        let mut cache = crate::memory_graph::semantic_projector::semantic_projector_cache(store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let envelopes = SingleFileMessagePackBackingStore::new(store).pull_all()?;
+        let authority = envelopes
+            .into_iter()
+            .find(|row| {
+                row.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
+                    && row.key == obligation.obligation_id
+            })
+            .expect("persisted obligation envelope");
+        Ok(crate::MemorySemanticProjectionInput {
+            snapshot: crate::EpiphanyMemoryGraphSnapshot {
+                schema_version: Some("v0".to_string()),
+                graph_id,
+                model_revision: generation,
+                ..Default::default()
+            },
+            obligation,
+            authority:
+                crate::memory_graph::semantic_projector::MemorySemanticProjectionAuthoritySnapshot {
+                    head,
+                    envelopes: vec![authority],
+                },
+        })
+    }
+
+    #[test]
+    fn semantic_health_publication_is_monotonic_partitioned_sight_only() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let canonical = temp.path().join("canonical.msgpack");
+        let verse = temp.path().join("verse.ccmp");
+        let modeling_1 = semantic_health_input(&canonical, "swarm-a", "modeling", 1)?;
+        let modeling_2 = semantic_health_input(&canonical, "swarm-a", "modeling", 2)?;
+        let mind_1 = semantic_health_input(&canonical, "swarm-a", "mind", 1)?;
+        let before = SingleFileMessagePackBackingStore::new(&canonical).pull_all()?;
+
+        publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "runtime",
+            &canonical,
+            &modeling_1,
+            "incarnation-a",
+        )?;
+        publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "runtime",
+            &canonical,
+            &modeling_2,
+            "incarnation-a",
+        )?;
+        let delayed = publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "runtime",
+            &canonical,
+            &modeling_1,
+            "incarnation-a",
+        )?;
+        publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "runtime",
+            &canonical,
+            &mind_1,
+            "incarnation-a",
+        )?;
+
+        assert_eq!(delayed.source_generation, 2);
+        let rows = load_epiphany_cultmesh_semantic_projection_health(&verse, "runtime")?;
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].partition, "mind");
+        assert_eq!(rows[1].partition, "modeling");
+        assert_eq!(rows[1].source_generation, 2);
+        assert!(rows.iter().all(|row| !row.private_state_exposed));
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&canonical).pull_all()?,
+            before,
+            "publishing sight must not create canonical projection work"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_health_rejects_older_conflicting_obligation_for_same_generation() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let canonical = temp.path().join("canonical.msgpack");
+        let verse = temp.path().join("verse.ccmp");
+        let mut latest = semantic_health_input(&canonical, "swarm-a", "modeling", 2)?;
+        latest.obligation.created_at = "2026-07-15T12:02:00Z".to_string();
+        let mut cache =
+            crate::memory_graph::semantic_projector::semantic_projector_cache(&canonical)?;
+        cache.put(&latest.obligation.obligation_id, &latest.obligation)?;
+        latest.authority.envelopes = SingleFileMessagePackBackingStore::new(&canonical)
+            .pull_all()?
+            .into_iter()
+            .filter(|row| {
+                row.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
+                    && row.key == latest.obligation.obligation_id
+            })
+            .collect();
+        publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "runtime",
+            &canonical,
+            &latest,
+            "incarnation-a",
+        )?;
+
+        let mut older_conflict = latest.clone();
+        older_conflict.obligation.obligation_id = "conflicting-obligation-modeling-2".to_string();
+        older_conflict.obligation.created_at = "2026-07-15T12:01:00Z".to_string();
+        cache.put(
+            &older_conflict.obligation.obligation_id,
+            &older_conflict.obligation,
+        )?;
+        older_conflict.authority.envelopes = SingleFileMessagePackBackingStore::new(&canonical)
+            .pull_all()?
+            .into_iter()
+            .filter(|row| {
+                row.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
+                    && row.key == older_conflict.obligation.obligation_id
+            })
+            .collect();
+
+        let error = publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "runtime",
+            &canonical,
+            &older_conflict,
+            "incarnation-a",
+        )
+        .expect_err("chronology must not hide a same-generation obligation conflict");
+        assert!(
+            error
+                .to_string()
+                .contains("conflicting canonical obligations")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_health_loader_rejects_latest_outside_declared_scope() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let canonical = temp.path().join("canonical.msgpack");
+        let verse = temp.path().join("verse.ccmp");
+        let input = semantic_health_input(&canonical, "swarm-a", "mind", 1)?;
+        let row = publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "runtime",
+            &canonical,
+            &input,
+            "incarnation-a",
+        )?;
+        let hostile_key = format!(
+            "{}/latest",
+            semantic_projection_health_scope_key("other-swarm", "mind")
+        );
+        let mut node = open_epiphany_cultmesh_node(&verse, "hostile")?;
+        node.put(hostile_key, &row)?;
+        node.flush()?;
+
+        let error = load_epiphany_cultmesh_semantic_projection_health(&verse, "runtime")
+            .expect_err("a latest row must authenticate its key scope");
+        assert!(
+            error
+                .to_string()
+                .contains("does not match its declared scope")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn forged_ready_health_cannot_mint_canonical_readiness() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let canonical = temp.path().join("canonical.msgpack");
+        let verse = temp.path().join("verse.ccmp");
+        let input = semantic_health_input(&canonical, "swarm-a", "mind", 1)?;
+        let mut empty_authority = input.clone();
+        empty_authority.authority.envelopes.clear();
+        assert!(
+            publish_epiphany_cultmesh_semantic_projection_health(
+                &verse,
+                "runtime",
+                &canonical,
+                &empty_authority,
+                "incarnation-a"
+            )
+            .is_err()
+        );
+        let other_store = temp.path().join("other.msgpack");
+        assert!(
+            publish_epiphany_cultmesh_semantic_projection_health(
+                &verse,
+                "runtime",
+                &other_store,
+                &input,
+                "incarnation-a"
+            )
+            .is_err()
+        );
+        let mut forged = publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "runtime",
+            &canonical,
+            &input,
+            "incarnation-a",
+        )?;
+        forged.status = "ready".to_string();
+        forged.receipt_id = Some("forged-receipt".to_string());
+        forged.indexed_document_count = Some(999);
+        forged.vector_dimensions = Some(999);
+        let mut node = open_epiphany_cultmesh_node(&verse, "hostile")?;
+        node.put("gamecult-local/hostile/forged-ready", &forged)?;
+        node.flush()?;
+
+        assert!(
+            crate::load_memory_semantic_projection_readiness(&canonical, &input)?.is_none(),
+            "CultMesh mirrors are not an import edge into canonical readiness"
+        );
+        let mut config = crate::MemorySemanticIndexConfig::from_env();
+        config.qdrant_url = "http://127.0.0.1:1".to_string();
+        let packet = crate::semantic_memory_context(
+            input.snapshot(),
+            "swarm-a",
+            crate::SemanticPartition::Mind,
+            &crate::EpiphanyMemoryContextQuery {
+                id: "hostile-query".to_string(),
+                text: Some("test".to_string()),
+                ..Default::default()
+            },
+            None,
+            &config,
+        );
+        assert!(
+            packet
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("canonical BM25"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_health_preserves_projection_states_and_later_repair_failure() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let canonical = temp.path().join("canonical.msgpack");
+        let verse = temp.path().join("verse.ccmp");
+        let input = semantic_health_input(&canonical, "swarm-four", "modeling", 7)?;
+        let pending = publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "provider",
+            &canonical,
+            &input,
+            "incarnation-a",
+        )?;
+        assert_eq!(pending.status, "pending");
+
+        let claim = crate::memory_graph::semantic_projector::claim_memory_semantic_projection(
+            &canonical,
+            input.obligation(),
+            "executor-a",
+            "2026-07-15T12:01:00Z",
+        )?;
+        let raw_receipt = crate::MemorySemanticIndexReceipt {
+            schema_version: crate::MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "receipt-four-state".to_string(),
+            swarm_id: input.obligation().swarm_id.clone(),
+            partition: input.obligation().partition.clone(),
+            collection_name: "projection".to_string(),
+            graph_id: input.obligation().graph_id.clone(),
+            model_revision: input.obligation().source_generation,
+            model_hash: input.obligation().source_model_hash.clone(),
+            embedding_provider_id: "embedder".to_string(),
+            embedding_model: "model".to_string(),
+            vector_dimensions: 3,
+            indexed_document_count: 2,
+            deleted_document_count: 0,
+            canonical_content_set_hash: input.obligation().canonical_content_set_hash.clone(),
+            indexed_at: "2026-07-15T12:02:00Z".to_string(),
+            status: "ready".to_string(),
+            obligation_id: claim.obligation_id.clone(),
+            canonical_source_id: String::new(),
+            source_commit_id: String::new(),
+            source_generation: input.obligation().source_generation,
+            projection_schema_version: crate::SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
+            claim_id: claim.claim_id.clone(),
+            claim_epoch: claim.epoch,
+        };
+        crate::memory_graph::semantic_projector::succeed_memory_semantic_projection_claim(
+            &canonical,
+            &claim.claim_id,
+            &input.authority,
+            raw_receipt,
+            "2026-07-15T12:02:01Z",
+        )?;
+        let ready = publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "provider",
+            &canonical,
+            &input,
+            "incarnation-a",
+        )?;
+        assert_eq!(ready.status, "ready");
+        assert!(ready.query_eligible_display_only);
+
+        let terminal_claim = crate::MemorySemanticProjectionClaim {
+            status: "succeeded".to_string(),
+            completed_at: Some("2026-07-15T12:02:01Z".to_string()),
+            ..claim.clone()
+        };
+        let repair = crate::memory_graph::semantic_projector::reopen_succeeded_projection_claim(
+            &canonical,
+            &terminal_claim,
+            input.obligation(),
+            "executor-b",
+            "2026-07-15T12:03:00Z",
+        )?;
+        crate::memory_graph::semantic_projector::fail_memory_semantic_projection_claim(
+            &canonical,
+            &repair.claim_id,
+            "2026-07-15T12:04:00Z",
+            "private backend failure /secret/path",
+        )?;
+        let failed = publish_epiphany_cultmesh_semantic_projection_health(
+            &verse,
+            "provider",
+            &canonical,
+            &input,
+            "incarnation-a",
+        )?;
+        assert_eq!(failed.status, "failed");
+        assert!(!failed.query_eligible_display_only);
+        assert!(failed.receipt_id.is_none());
+        let encoded = format!("{failed:?}");
+        assert!(!encoded.contains("private backend failure"));
+        assert!(!encoded.contains("/secret/path"));
+
+        let mut stale_input = input.clone();
+        stale_input.authority.head.source_generation += 1;
+        assert!(crate::observe_memory_semantic_projection(&canonical, &stale_input).is_err());
+        assert!(
+            publish_epiphany_cultmesh_semantic_projection_health(
+                &verse,
+                "provider",
+                &canonical,
+                &stale_input,
+                "incarnation-a"
+            )
+            .is_err()
+        );
+        assert!(
+            publish_epiphany_cultmesh_semantic_projection_health(
+                &verse,
+                "provider",
+                &canonical,
+                &input,
+                "C:\\secret\\token"
+            )
+            .is_err()
+        );
+
+        Ok(())
+    }
 
     fn publish_all_test_provider_state(store: &Path) -> Result<()> {
         for cluster in epiphany_cultmesh_cluster_topology() {

@@ -31,6 +31,7 @@ use epiphany_core::EpiphanyCultMeshRepoWorkMapEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkOverviewEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkPublicProofEntry;
 use epiphany_core::EpiphanyCultMeshRepoWorkReadinessEntry;
+use epiphany_core::EpiphanyCultMeshSemanticProjectionHealthEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
@@ -64,6 +65,7 @@ use epiphany_core::load_epiphany_cultmesh_repo_work_map_entries;
 use epiphany_core::load_epiphany_cultmesh_repo_work_overviews;
 use epiphany_core::load_epiphany_cultmesh_repo_work_public_proofs;
 use epiphany_core::load_epiphany_cultmesh_repo_work_readiness_reports;
+use epiphany_core::load_epiphany_cultmesh_semantic_projection_health;
 use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
@@ -291,6 +293,38 @@ fn run_cli() -> Result<()> {
         "query" => {
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             println!("{}", serde_json::to_string_pretty(&context)?);
+        }
+        "semantic-health" | "semantic-projection-health" => {
+            if !args.store.exists() {
+                anyhow::bail!("local Verse semantic health is absent");
+            }
+            let rows = load_epiphany_cultmesh_semantic_projection_health(
+                &args.store,
+                args.runtime_id.clone(),
+            )?;
+            let tui_rows = rows
+                .iter()
+                .map(semantic_projection_health_tui_row)
+                .collect::<Vec<_>>();
+            let report_rows = rows
+                .iter()
+                .map(semantic_projection_health_report_row)
+                .collect::<Vec<_>>();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.cultmesh.semantic_projection_health_report.v0",
+                    "status": if rows.is_empty() { "unknown" } else if rows.iter().all(|row| row.status == "ready") { "observed-ready" } else { "observed-attention" },
+                    "rowCount": rows.len(),
+                    "readyCount": rows.iter().filter(|row| row.status == "ready").count(),
+                    "privateStateExposed": false,
+                    "authoritative": false,
+                    "authority": "sight-only",
+                    "queryAdmission": false,
+                    "rows": report_rows,
+                    "tuiRows": tui_rows,
+                }))?
+            );
         }
         "receipt-directory" | "receipts" | "evidence-directory" => {
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
@@ -2840,7 +2874,7 @@ fn run_cli() -> Result<()> {
             );
         }
         other => anyhow::bail!(
-            "unknown command {other:?}; use seed, query, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, swarm-overview, swarm-triage, managed-services, cluster-topology, eve-surfaces, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-artifact-acceptance, bifrost-metrics, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
+            "unknown command {other:?}; use seed, query, semantic-health, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, swarm-overview, swarm-triage, managed-services, cluster-topology, eve-surfaces, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-artifact-acceptance, bifrost-metrics, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
         ),
     }
     Ok(())
@@ -2850,6 +2884,51 @@ struct DaemonLivenessReport {
     rows: Vec<DaemonLivenessRow>,
     tui_rows: Vec<String>,
     non_ready_count: usize,
+}
+
+fn semantic_projection_health_tui_row(
+    row: &EpiphanyCultMeshSemanticProjectionHealthEntry,
+) -> String {
+    format!(
+        "SEMANTIC-HEALTH swarm={} partition={} generation={} status=observed-{} documents={} dimensions={} provider={} incarnation={} authority=sight-only query-admission=false private=false",
+        row.swarm_id,
+        row.partition,
+        row.source_generation,
+        row.status,
+        row.indexed_document_count
+            .map_or_else(|| "-".to_string(), |value| value.to_string()),
+        row.vector_dimensions
+            .map_or_else(|| "-".to_string(), |value| value.to_string()),
+        row.provider_id,
+        row.provider_incarnation,
+    )
+}
+
+fn semantic_projection_health_report_row(
+    row: &EpiphanyCultMeshSemanticProjectionHealthEntry,
+) -> serde_json::Value {
+    json!({
+        "swarmId": row.swarm_id,
+        "partition": row.partition,
+        "obligationId": row.obligation_id,
+        "sourceGeneration": row.source_generation,
+        "canonicalModelHash": row.canonical_model_hash,
+        "canonicalContentSetHash": row.canonical_content_set_hash,
+        "status": row.status,
+        "receiptId": row.receipt_id,
+        "indexedDocumentCount": row.indexed_document_count,
+        "vectorDimensions": row.vector_dimensions,
+        "observedAt": row.observed_at,
+        "observedSourceAt": row.observed_source_at,
+        "providerId": row.provider_id,
+        "providerIncarnation": row.provider_incarnation,
+        "authoritative": row.authoritative,
+        "nonAuthoritative": !row.authoritative,
+        "authority": "sight-only",
+        "queryAdmission": false,
+        "queryEligibleDisplayOnly": row.query_eligible_display_only,
+        "privateStateExposed": row.private_state_exposed,
+    })
 }
 
 fn agent_state_soa_tui_rows(summary: &EpiphanyCultMeshAgentStateSoaSummaryEntry) -> Vec<String> {
