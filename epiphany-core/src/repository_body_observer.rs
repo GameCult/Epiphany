@@ -322,6 +322,28 @@ pub fn validate_repository_body_observation_basis(
     Ok(())
 }
 
+pub fn authenticated_repository_body_manifest(
+    runtime_store: &Path,
+    basis: &RepositoryBodyObservationBasis,
+) -> Result<RepositoryBodyManifest> {
+    validate_repository_body_observation_basis(runtime_store, basis)?;
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
+    let binding_env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
+    let binding: RepositoryBodyBinding = decode(binding_env)?;
+    let historical_head = RepositoryBodyHead {
+        schema_version: BODY_SCHEMA_VERSION.into(),
+        workspace_id: basis.workspace_id.clone(),
+        generation: basis.generation,
+        observation_id: basis.observation_id.clone(),
+        manifest_root_sha256: basis.manifest_root_sha256.clone(),
+    };
+    let (_, manifest) = validate_body_chain(&entries, &binding, &historical_head)?;
+    Ok(manifest)
+}
+
 pub fn observe_repository_body(
     repo: &Path,
     store: &Path,
@@ -1193,6 +1215,39 @@ mod tests {
             _ => bail!("expected delete"),
         };
         assert_ne!(b.tree_oid, c.tree_oid);
+        Ok(())
+    }
+    #[test]
+    fn coverage_obligation_refuses_manifest_entries_substituted_under_declared_root() -> Result<()>
+    {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (store, runtime) = bound(
+            d.path(),
+            state.path(),
+            "coverage-workspace",
+            "runtime",
+            "swarm",
+        )?;
+        write(&d.path().join("source.rs"), "fn original() {}")?;
+        run(d.path(), &["add", "."])?;
+        let basis = observe_runtime_repository_body_basis(&runtime)?;
+        let opening = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let original = find(&opening, BODY_MANIFEST_TYPE, &basis.manifest_root_sha256)
+            .ok_or_else(|| anyhow!("test Body manifest missing"))?;
+        let mut substituted: RepositoryBodyManifest = decode(original)?;
+        substituted.entries[0].raw_sha256 = "attacker-chosen-content-hash".into();
+        let replacement = envelope(
+            BODY_MANIFEST_TYPE,
+            &basis.manifest_root_sha256,
+            &substituted,
+        )?;
+        assert!(
+            SingleFileMessagePackBackingStore::new(&store)
+                .compare_and_swap_batch(&[original.clone()], vec![replacement])?
+        );
+        let policy = crate::WorkspaceCoveragePolicy::bounded_regular_files_v0(1024)?;
+        assert!(crate::derive_workspace_coverage_obligation(&runtime, &basis, &policy).is_err());
         Ok(())
     }
     #[test]

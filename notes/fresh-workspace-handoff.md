@@ -1705,6 +1705,23 @@ project into a Body-root/policy/epoch isolated collection, observe the exact
 expected point set, and publish an immutable CultCache coverage receipt. Do not
 resurrect the JSON manifest as a compatibility source.
 
+## Body-bound coverage contracts landed (2026-07-15)
+
+The native coverage substrate now admits only an authenticated historical Body
+manifest, exhaustively classifies its entries under a versioned policy, and
+seals Body/policy/classification identity into an immutable obligation. A typed
+projection plan binds the exact expected point set and derives an epoch-isolated
+Qdrant collection from Body plus projection/embedding authority; the caller has
+no collection-name lever. Receipt/head validators require an exact scroll-
+observed point set and exact obligation/plan join.
+
+This is contract substrate, not operational coverage. There is deliberately no
+persistence writer, projector, Qdrant call, query eligibility path, or readiness
+join. Next action: build the single CAS-owned projector/store path that verifies
+eligible live bytes against the selected Body manifest, executes the sealed
+plan, scroll-observes the physical point set, and only then publishes the
+receipt and head.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.

@@ -853,5 +853,23 @@ live bytes against Body hashes, builds a Body-root/policy/index-epoch isolated
 Qdrant projection, observes its deterministic point set, and only then publishes
 an immutable CultCache coverage receipt. Qdrant remains disposable.
 
+## Body-bound workspace coverage substrate (2026-07-15)
+
+`workspace_retrieval_coverage.rs` now defines the truthful contract boundary
+without pretending the projector exists. Obligation derivation reloads the exact
+historical Body manifest through the authenticated runtime Body-store route;
+callers cannot hand it a manifest-shaped claim. One versioned policy classifies
+every ordered Body entry and seals the complete classification set into the
+obligation. A separate projection plan seals chunker, projection, embedding, and
+expected point-set identity, while deriving its physical Qdrant collection from
+the Body-bound authority instead of accepting a caller-selected namespace.
+
+Receipts validate only when an exact Qdrant scroll observation matches that
+sealed plan, and heads join one workspace, obligation, plan, and receipt. This
+module has no store writer, Qdrant actuator, query gate, or readiness writer.
+The next organ must own CAS persistence and execution: verify eligible bytes
+against the historical Body hashes, project, scroll-observe, then atomically
+publish the receipt/head. Until then coverage remains absent.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

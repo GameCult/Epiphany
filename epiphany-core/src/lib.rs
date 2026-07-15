@@ -35,6 +35,7 @@ mod substrate_gate;
 mod surfaces;
 mod thread_state_store;
 mod weksa_interlingua;
+mod workspace_retrieval_coverage;
 
 pub use agent_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
 pub use agent_launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
@@ -1132,3 +1133,4 @@ pub use weksa_interlingua::build_weksa_interlingua_packet;
 pub use weksa_interlingua::build_weksa_lowering_prompt;
 pub use weksa_interlingua::build_weksa_target_lowering_request;
 pub use weksa_interlingua::record_weksa_target_lowering_receipt;
+pub use workspace_retrieval_coverage::*;
