@@ -1,5 +1,8 @@
 use crate::EpiphanyWorkerLaunchDocument;
-use crate::agent_launch::{EPIPHANY_MODELING_OWNER_ROLE, EPIPHANY_MODELING_ROLE_BINDING_ID};
+use crate::agent_launch::{
+    EPIPHANY_IMAGINATION_OWNER_ROLE, EPIPHANY_IMAGINATION_ROLE_BINDING_ID,
+    EPIPHANY_MODELING_OWNER_ROLE, EPIPHANY_MODELING_ROLE_BINDING_ID,
+};
 use crate::agent_memory::AGENT_MEMORY_TYPE;
 use crate::continuity_gateway::ContinuityRecoveryReceipt;
 use crate::continuity_gateway::*;
@@ -59,7 +62,7 @@ use crate::repo_model_gateway::{
     REPO_MODEL_MIGRATION_CONTRACT, REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION,
     REPO_MODEL_MIGRATION_RECEIPT_TYPE, RepoFrontierHandsAuthority, RepoFrontierModelingRequest,
     RepoFrontierNextOrgan, RepoFrontierPlanAdoption, RepoFrontierPlanCandidate,
-    RepoFrontierPlanDecision, RepoFrontierPlanningRequest,
+    RepoFrontierPlanDecision, RepoFrontierPlanningLaunchBinding, RepoFrontierPlanningRequest,
     RepoFrontierProposalModelingLaunchBinding, RepoFrontierProposalModelingRequest,
     RepoFrontierRoute, RepoFrontierVerdictDisposition, RepoFrontierWorkProposal,
     RepoModelAdmissionReceipt, RepoModelAdmissionReview, RepoModelClaimChallenge,
@@ -328,6 +331,8 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub proposal_modeling_request_id: Option<String>,
     #[cultcache(key = 12, default)]
     pub claim_repair_request_id: Option<String>,
+    #[cultcache(key = 13, default)]
+    pub frontier_planning_request_id: Option<String>,
 }
 
 impl EpiphanyRuntimeWorkerLaunchRequest {
@@ -683,6 +688,7 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub organ_launch_contract: EpiphanyLaunchOrganContract,
     pub proposal_modeling_request_id: Option<String>,
     pub claim_repair_request_id: Option<String>,
+    pub frontier_planning_request_id: Option<String>,
     pub created_at: String,
 }
 
@@ -732,6 +738,7 @@ pub struct EpiphanyJobLaunchRequest {
     pub max_runtime_seconds: Option<u64>,
     pub proposal_modeling_request_id: Option<String>,
     pub claim_repair_request_id: Option<String>,
+    pub frontier_planning_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -786,6 +793,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierProposalModelingRequest>()?;
     cache.register_entry_type::<RepoFrontierProposalModelingLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierPlanningRequest>()?;
+    cache.register_entry_type::<RepoFrontierPlanningLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierPlanCandidate>()?;
     cache.register_entry_type::<RepoFrontierPlanAdoption>()?;
     cache.register_entry_type::<RepoFrontierVerificationRequest>()?;
@@ -1054,6 +1062,12 @@ pub fn open_runtime_spine_heartbeat_job(
         options.claim_repair_request_id.as_deref(),
         &options.launch_document,
     )?;
+    validate_frontier_planning_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.frontier_planning_request_id.as_deref(),
+        &options.launch_document,
+    )?;
     validate_non_empty(&options.binding_id, "binding id")?;
     validate_non_empty(&options.authority_scope, "authority scope")?;
     validate_non_empty(&options.instruction, "instruction")?;
@@ -1139,6 +1153,7 @@ pub fn open_runtime_spine_heartbeat_job(
         organ_launch_contract,
         proposal_modeling_request_id: options.proposal_modeling_request_id,
         claim_repair_request_id: options.claim_repair_request_id,
+        frontier_planning_request_id: options.frontier_planning_request_id,
     };
     cache.put(&job_id, &request)?;
     Ok(job)
@@ -1164,6 +1179,12 @@ pub fn prepare_runtime_spine_heartbeat_job(
         &options.role,
         &options.binding_id,
         options.claim_repair_request_id.as_deref(),
+        &options.launch_document,
+    )?;
+    validate_frontier_planning_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.frontier_planning_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_non_empty(&options.binding_id, "binding id")?;
@@ -1277,6 +1298,7 @@ pub fn prepare_runtime_spine_heartbeat_job(
         organ_launch_contract: options.organ_launch_contract,
         proposal_modeling_request_id: options.proposal_modeling_request_id,
         claim_repair_request_id: options.claim_repair_request_id,
+        frontier_planning_request_id: options.frontier_planning_request_id,
     };
     let envelopes = vec![
         cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
@@ -1350,6 +1372,39 @@ fn validate_claim_repair_launch_carrier(
     })?;
     if projection.request_id != request_id {
         return Err(anyhow!("claim repair context/request mismatch"));
+    }
+    Ok(())
+}
+
+fn validate_frontier_planning_launch_carrier(
+    role: &str,
+    binding_id: &str,
+    planning_request_id: Option<&str>,
+    launch_document: &EpiphanyWorkerLaunchDocument,
+) -> Result<()> {
+    let projection = match launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document.frontier_planning_context.as_ref(),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let Some(request_id) = planning_request_id else {
+        if projection.is_some() {
+            return Err(anyhow!(
+                "frontier planning context requires its typed request id"
+            ));
+        }
+        return Ok(());
+    };
+    validate_non_empty(request_id, "frontier planning request id")?;
+    if role != EPIPHANY_IMAGINATION_OWNER_ROLE || binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+    {
+        return Err(anyhow!(
+            "frontier planning request may only be transported by the Imagination role launch"
+        ));
+    }
+    let projection = projection
+        .ok_or_else(|| anyhow!("frontier planning request requires its typed context"))?;
+    if projection.request_id != request_id {
+        return Err(anyhow!("frontier planning context/request mismatch"));
     }
     Ok(())
 }
@@ -2748,7 +2803,11 @@ pub fn select_and_commit_repo_frontier_planning_request(
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
-    require_identity(&cache)?;
+    let identity = require_identity(&cache)?;
+    let thread = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("planning request requires authoritative thread state"))?;
+    thread.state()?;
     let backing = SingleFileMessagePackBackingStore::new(runtime_store);
     let model_envelope = backing
         .pull_all()?
@@ -2792,7 +2851,13 @@ pub fn select_and_commit_repo_frontier_planning_request(
     }
     let request_id = format!(
         "repo-frontier-planning-{:x}",
-        Sha256::digest(format!("{model_hash}:{}:{item_hash}", item.id).as_bytes())
+        Sha256::digest(
+            format!(
+                "{}:{}:{model_hash}:{}:{item_hash}",
+                identity.runtime_id, thread.thread_id, item.id
+            )
+            .as_bytes(),
+        )
     );
     let request = RepoFrontierPlanningRequest {
         schema_version: REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION.into(),
@@ -2806,6 +2871,8 @@ pub fn select_and_commit_repo_frontier_planning_request(
         source_scope: item.source_scope.clone(),
         requested_at: at.into(),
         contract: REPO_FRONTIER_PLANNING_CONTRACT.into(),
+        runtime_id: identity.runtime_id,
+        thread_id: thread.thread_id,
     };
     if let Some(existing) = cache.get::<RepoFrontierPlanningRequest>(&request_id)? {
         let mut retry = request.clone();
@@ -2832,6 +2899,72 @@ pub fn select_and_commit_repo_frontier_planning_request(
         return Err(anyhow!("planning request lost current-model CAS"));
     }
     Ok(request)
+}
+
+pub(crate) fn validate_current_repo_frontier_planning_request(
+    cache: &CultCache,
+    request: &RepoFrontierPlanningRequest,
+) -> Result<()> {
+    chrono::DateTime::parse_from_rfc3339(&request.requested_at)
+        .map_err(|_| anyhow!("planning request timestamp must be RFC3339"))?;
+    let identity = require_identity(cache)?;
+    let thread = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("planning request requires authoritative thread state"))?;
+    thread.state()?;
+    let entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("planning request requires canonical model"))?;
+    crate::validate_memory_graph_entry(&entry)?;
+    let model = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&model)?;
+    let receipts = cache
+        .get_all::<RepoModelAdmissionReceipt>()?
+        .into_iter()
+        .filter(|receipt| {
+            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
+                && receipt.admitted_revision == model.model_revision
+                && receipt.admitted_hash == model_hash
+        })
+        .collect::<Vec<_>>();
+    if receipts.len() != 1 {
+        return Err(anyhow!(
+            "planning request requires exactly one current admission receipt"
+        ));
+    }
+    let challenges = current_repo_model_claim_challenges(cache, &model, &model_hash)?;
+    let item = actionable_imagination_frontier_item(&model, &challenges)
+        .ok_or_else(|| anyhow!("planning request frontier is no longer actionable"))?;
+    let item_hash = format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?));
+    let expected_request_id = format!(
+        "repo-frontier-planning-{:x}",
+        Sha256::digest(
+            format!(
+                "{}:{}:{model_hash}:{}:{item_hash}",
+                identity.runtime_id, thread.thread_id, item.id
+            )
+            .as_bytes(),
+        )
+    );
+    if request.schema_version != REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION
+        || request.contract != REPO_FRONTIER_PLANNING_CONTRACT
+        || request.request_id != expected_request_id
+        || request.model_revision != model.model_revision
+        || request.model_hash != model_hash
+        || request.admission_receipt_id != receipts[0].receipt_id
+        || request.frontier_item_id != item.id
+        || request.frontier_item_hash != item_hash
+        || request.selected_organ != "Imagination"
+        || request.source_scope != item.source_scope
+        || request.runtime_id != identity.runtime_id
+        || request.thread_id != thread.thread_id
+    {
+        return Err(anyhow!(
+            "planning request does not exactly bind current model, frontier, runtime, and thread"
+        ));
+    }
+    Ok(())
 }
 
 fn actionable_imagination_frontier_item<'a>(
@@ -9853,6 +9986,7 @@ pub(crate) mod tests {
                         dynamic_prompt_context: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
+                        frontier_planning_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["node-model".to_string()],
@@ -9876,6 +10010,7 @@ pub(crate) mod tests {
                 ),
                 proposal_modeling_request_id: None,
                 claim_repair_request_id: None,
+                frontier_planning_request_id: None,
                 created_at: "2026-05-06T00:02:00Z".to_string(),
             },
         )?;
@@ -9946,6 +10081,7 @@ pub(crate) mod tests {
                         dynamic_prompt_context: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
+                        frontier_planning_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["runtime-spine".to_string()],
@@ -10032,6 +10168,7 @@ pub(crate) mod tests {
                         dynamic_prompt_context: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
+                        frontier_planning_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),

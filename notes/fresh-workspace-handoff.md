@@ -948,3 +948,20 @@ embedded receipt binds back to the artifact target and audit; forged
 cardinality: Epiphany inherits a CultMesh command id, so the coordinator must
 ensure one typed command id per crossing rather than letting multiple posts share
 one canonical `crossing_<command>` receipt.
+
+## Repo frontier planning launch artery (2026-07-15)
+
+Self's planning request is now v1 and binds the exact current RepoModel,
+admission receipt, actionable Imagination frontier, runtime identity, and
+authoritative thread. Coordinator launch commit replays that entire chain from
+one transaction snapshot, forbids caller-authored planning projection and
+mixed Modeling/repair/planning authority, injects the typed Imagination context,
+and atomically persists a request-keyed
+`RepoFrontierPlanningLaunchBinding`. Its SHA-256 covers the exact launch bytes
+stored for the worker. Hostile tests cover swapped model/admission/frontier/
+scope/organ/runtime/thread fields, wrong role/binding, prepopulated projection,
+dual authority, single-use replay, and two concurrent launches; only one wins
+and the loser leaves no job, worker launch, or opened event. Full core proof:
+322 passed, 1 ignored. Next build the exclusive immutable Imagination result
+echo carrying the typed candidate, then Mind-only Adopt/Refuse/Hold admission
+and the narrow Adopt model transition that makes Hands routing true.

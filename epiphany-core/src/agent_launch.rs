@@ -603,6 +603,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         dynamic_prompt_context,
         proposal_modeling_context: None,
         claim_repair_context: None,
+        frontier_planning_context: None,
         active_subgoal_id: state.active_subgoal_id.clone(),
         active_subgoals: state
             .subgoals
@@ -645,6 +646,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         max_runtime_seconds,
         proposal_modeling_request_id: None,
         claim_repair_request_id: None,
+        frontier_planning_request_id: None,
     })
 }
 
@@ -749,6 +751,7 @@ pub fn build_epiphany_job_launch_request(
         max_runtime_seconds,
         proposal_modeling_request_id: None,
         claim_repair_request_id: None,
+        frontier_planning_request_id: None,
     }
 }
 

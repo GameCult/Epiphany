@@ -34,6 +34,10 @@ pub const REPO_MODEL_CLAIM_REPAIR_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_model_claim_repair_context.v0";
 pub const REPO_MODEL_CLAIM_REPAIR_CONTEXT_CONTRACT: &str =
     "epiphany.repo_model_claim_repair_context.v0";
+pub const REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION: &str =
+    "epiphany.worker.repo_frontier_planning_context.v0";
+pub const REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT: &str =
+    "epiphany.repo_frontier_planning_context.v0";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "documentKind")]
@@ -88,6 +92,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub proposal_modeling_context: Option<RepoFrontierProposalModelingContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claim_repair_context: Option<RepoModelClaimRepairContextProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frontier_planning_context: Option<RepoFrontierPlanningContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_subgoal_id: Option<String>,
     #[serde(default)]
@@ -256,6 +262,45 @@ impl RepoModelClaimRepairContextProjection {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoFrontierPlanningContextProjection {
+    pub schema_version: String,
+    pub contract: String,
+    pub request_id: String,
+    pub model_revision: u64,
+    pub model_hash: String,
+    pub admission_receipt_id: String,
+    pub frontier_item_id: String,
+    pub frontier_item_hash: String,
+    pub selected_organ: String,
+    #[serde(default)]
+    pub source_scope: Vec<String>,
+    pub requested_at: String,
+    pub runtime_id: String,
+    pub thread_id: String,
+}
+
+impl RepoFrontierPlanningContextProjection {
+    pub(crate) fn from_request(request: &crate::RepoFrontierPlanningRequest) -> Self {
+        Self {
+            schema_version: REPO_FRONTIER_PLANNING_CONTEXT_SCHEMA_VERSION.into(),
+            contract: REPO_FRONTIER_PLANNING_CONTEXT_CONTRACT.into(),
+            request_id: request.request_id.clone(),
+            model_revision: request.model_revision,
+            model_hash: request.model_hash.clone(),
+            admission_receipt_id: request.admission_receipt_id.clone(),
+            frontier_item_id: request.frontier_item_id.clone(),
+            frontier_item_hash: request.frontier_item_hash.clone(),
+            selected_organ: request.selected_organ.clone(),
+            source_scope: request.source_scope.clone(),
+            requested_at: request.requested_at.clone(),
+            runtime_id: request.runtime_id.clone(),
+            thread_id: request.thread_id.clone(),
+        }
+    }
+}
+
 pub fn build_reorient_job_launch_request(
     input: EpiphanyReorientLaunchRequestInput<'_>,
 ) -> EpiphanyJobLaunchRequest {
@@ -298,6 +343,7 @@ pub fn build_reorient_job_launch_request(
         max_runtime_seconds: input.max_runtime_seconds,
         proposal_modeling_request_id: None,
         claim_repair_request_id: None,
+        frontier_planning_request_id: None,
     }
 }
 

@@ -111,6 +111,33 @@ fn commit_coordinator_job_launch_in_cache(
     } else {
         None
     };
+    let frontier_planning_launch =
+        if let Some(request_id) = request.frontier_planning_request_id.as_deref() {
+            let (planning, identity) =
+                validate_frontier_planning_launch(cache, current_state, request, request_id)?;
+            let projection = RepoFrontierPlanningContextProjection::from_request(&planning);
+            match &mut effective_launch_document {
+                EpiphanyWorkerLaunchDocument::Role(document) => {
+                    if document.proposal_modeling_context.is_some()
+                        || document.claim_repair_context.is_some()
+                    {
+                        return Err(anyhow!(
+                            "frontier planning context is exclusive of Modeling authority contexts"
+                        ));
+                    }
+                    document.frontier_planning_context = Some(projection);
+                }
+                EpiphanyWorkerLaunchDocument::Reorient(_) => {
+                    return Err(anyhow!(
+                        "reorient launch cannot carry frontier planning context"
+                    ));
+                }
+            }
+            let bytes = rmp_serde::to_vec_named(&effective_launch_document)?;
+            Some((planning, identity, format!("{:x}", Sha256::digest(bytes))))
+        } else {
+            None
+        };
     let prepared = prepare_runtime_spine_heartbeat_job(
         &cache,
         RuntimeSpineHeartbeatJobOptions {
@@ -135,6 +162,7 @@ fn commit_coordinator_job_launch_in_cache(
             organ_launch_contract: request.organ_launch_contract.clone(),
             proposal_modeling_request_id: request.proposal_modeling_request_id.clone(),
             claim_repair_request_id: request.claim_repair_request_id.clone(),
+            frontier_planning_request_id: request.frontier_planning_request_id.clone(),
             created_at: created_at.clone(),
         },
     )?;
@@ -208,6 +236,33 @@ fn commit_coordinator_job_launch_in_cache(
                 .0,
         );
     }
+    if let Some((planning, identity, worker_launch_document_sha256)) = frontier_planning_launch {
+        let launch_binding = RepoFrontierPlanningLaunchBinding {
+            schema_version: REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+            binding_record_id: format!("repo-frontier-planning-launch-{}", planning.request_id),
+            planning_request_id: planning.request_id,
+            job_id: plan.backend_job_id.clone(),
+            binding_id: request.binding_id.clone(),
+            runtime_id: identity.runtime_id,
+            thread_id: planning.thread_id,
+            launched_at: created_at.clone(),
+            worker_launch_document_sha256,
+            contract: REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT.into(),
+        };
+        if cache
+            .get::<RepoFrontierPlanningLaunchBinding>(&launch_binding.binding_record_id)?
+            .is_some()
+        {
+            return Err(anyhow!(
+                "frontier planning request is already bound to a launch"
+            ));
+        }
+        batch.push(
+            cache
+                .prepare_entry(&launch_binding.binding_record_id, &launch_binding)?
+                .0,
+        );
+    }
     if request.binding_id == EPIPHANY_RESEARCH_ROLE_BINDING_ID {
         let grant = substrate_gate_repo_access_grant_for_launch(
             format!("substrate-grant-{}", plan.backend_job_id),
@@ -240,13 +295,15 @@ pub fn plan_coordinator_job_launch(
     launcher_job_id: String,
     backend_job_id: String,
 ) -> Result<EpiphanyCoordinatorJobLaunchPlan> {
-    let (caller_proposal_projection, caller_repair_projection) = match &request.launch_document {
-        EpiphanyWorkerLaunchDocument::Role(document) => (
-            document.proposal_modeling_context.as_ref(),
-            document.claim_repair_context.as_ref(),
-        ),
-        EpiphanyWorkerLaunchDocument::Reorient(_) => (None, None),
-    };
+    let (caller_proposal_projection, caller_repair_projection, caller_planning_projection) =
+        match &request.launch_document {
+            EpiphanyWorkerLaunchDocument::Role(document) => (
+                document.proposal_modeling_context.as_ref(),
+                document.claim_repair_context.as_ref(),
+                document.frontier_planning_context.as_ref(),
+            ),
+            EpiphanyWorkerLaunchDocument::Reorient(_) => (None, None, None),
+        };
     if caller_proposal_projection.is_some() {
         return Err(anyhow!(
             "caller-prepopulated proposal Modeling context is forbidden; coordinator commit owns projection"
@@ -257,9 +314,23 @@ pub fn plan_coordinator_job_launch(
             "caller-prepopulated claim repair context is forbidden; coordinator commit owns projection"
         ));
     }
-    if request.proposal_modeling_request_id.is_some() && request.claim_repair_request_id.is_some() {
+    if caller_planning_projection.is_some() {
         return Err(anyhow!(
-            "proposal Modeling and claim repair launches are mutually exclusive"
+            "caller-prepopulated frontier planning context is forbidden; coordinator commit owns projection"
+        ));
+    }
+    if [
+        request.proposal_modeling_request_id.is_some(),
+        request.claim_repair_request_id.is_some(),
+        request.frontier_planning_request_id.is_some(),
+    ]
+    .into_iter()
+    .filter(|present| *present)
+    .count()
+        > 1
+    {
+        return Err(anyhow!(
+            "proposal Modeling, claim repair, and frontier planning launches are mutually exclusive"
         ));
     }
     if let Some(expected) = request.expected_revision
@@ -278,6 +349,10 @@ pub fn plan_coordinator_job_launch(
         let mut cache = runtime_spine_cache(runtime_store)?;
         cache.pull_all_backing_stores()?;
         validate_claim_repair_launch(&cache, state, request, request_id)?;
+    } else if let Some(request_id) = request.frontier_planning_request_id.as_deref() {
+        let mut cache = runtime_spine_cache(runtime_store)?;
+        cache.pull_all_backing_stores()?;
+        validate_frontier_planning_launch(&cache, state, request, request_id)?;
     } else if request.owner_role == EPIPHANY_MODELING_OWNER_ROLE {
         // Ordinary Modeling launches remain valid, but carry no proposal authority.
     }
@@ -333,6 +408,60 @@ pub fn plan_coordinator_job_launch(
         heartbeat_plan,
         state_update,
     })
+}
+
+fn validate_frontier_planning_launch(
+    cache: &CultCache,
+    state: &EpiphanyThreadState,
+    launch: &EpiphanyJobLaunchRequest,
+    request_id: &str,
+) -> Result<(RepoFrontierPlanningRequest, EpiphanyRuntimeIdentity)> {
+    if match &launch.launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            document.frontier_planning_context.is_some()
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => false,
+    } {
+        return Err(anyhow!("caller cannot author frontier planning context"));
+    }
+    if launch.owner_role != EPIPHANY_IMAGINATION_OWNER_ROLE
+        || launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+    {
+        return Err(anyhow!(
+            "frontier planning may only be carried by the Imagination role launch"
+        ));
+    }
+    let planning = cache
+        .get::<RepoFrontierPlanningRequest>(request_id)?
+        .ok_or_else(|| anyhow!("frontier planning request {request_id:?} does not exist"))?;
+    crate::runtime_spine::validate_current_repo_frontier_planning_request(cache, &planning)?;
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("frontier planning launch requires runtime identity"))?;
+    let persisted_state = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("frontier planning launch requires authoritative thread state"))?;
+    let persisted_state_value = persisted_state.state()?;
+    if planning.request_id != request_id
+        || planning.runtime_id != identity.runtime_id
+        || planning.thread_id != persisted_state.thread_id
+        || persisted_state_value != *state
+        || launch.launch_document.thread_id() != planning.thread_id
+    {
+        return Err(anyhow!(
+            "frontier planning launch provenance binding mismatch"
+        ));
+    }
+    if cache
+        .get_all::<RepoFrontierPlanningLaunchBinding>()?
+        .iter()
+        .any(|binding| binding.planning_request_id == request_id)
+    {
+        return Err(anyhow!(
+            "frontier planning request is already bound to a launch"
+        ));
+    }
+    Ok((planning, identity))
 }
 
 fn validate_claim_repair_launch(
@@ -664,6 +793,49 @@ pub(crate) mod tests {
         .map_err(|error| anyhow!(error))?;
         launch.claim_repair_request_id = Some(repair.request_id.clone());
         Ok((store, state, launch, repair))
+    }
+
+    fn frontier_planning_launch_fixture(
+        root: &Path,
+        suffix: &str,
+    ) -> Result<(
+        std::path::PathBuf,
+        EpiphanyThreadState,
+        EpiphanyJobLaunchRequest,
+        RepoFrontierPlanningRequest,
+    )> {
+        let (store, _) =
+            crate::runtime_spine::tests::claim_challenge_fixture(root, suffix, "Imagination")?;
+        let planning = crate::select_and_commit_repo_frontier_planning_request(
+            &store,
+            "2026-07-15T09:00:02Z",
+        )?;
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let mut state = cache
+            .get_required::<EpiphanyThreadStateEntry>(THREAD_STATE_KEY)?
+            .state()?;
+        for link in &mut state.runtime_links {
+            if link.binding_id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+                && link.runtime_result_id.is_none()
+            {
+                link.runtime_result_id = Some(format!("prior-imagination-result-{suffix}"));
+            }
+        }
+        cache.put(
+            THREAD_STATE_KEY,
+            &EpiphanyThreadStateEntry::from_state(&planning.thread_id, &state)?,
+        )?;
+        let mut launch = build_epiphany_role_launch_request(
+            &planning.thread_id,
+            EpiphanyRoleResultRoleId::Imagination,
+            Some(state.revision),
+            Some(60),
+            &state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        launch.frontier_planning_request_id = Some(planning.request_id.clone());
+        Ok((store, state, launch, planning))
     }
 
     fn research_launch(state: &EpiphanyThreadState) -> EpiphanyJobLaunchRequest {
@@ -1013,6 +1185,228 @@ pub(crate) mod tests {
             .is_err()
         );
         assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn frontier_planning_launch_is_coordinator_owned_exact_and_single_use() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, planning) =
+            frontier_planning_launch_fixture(root.path(), "exact")?;
+        for mutation in 0..5 {
+            let mut forged = launch.clone();
+            match mutation {
+                0 => forged.owner_role = "Modeling".into(),
+                1 => forged.binding_id = "wrong-binding".into(),
+                2 => {
+                    if let EpiphanyWorkerLaunchDocument::Role(document) =
+                        &mut forged.launch_document
+                    {
+                        document.frontier_planning_context = Some(
+                            RepoFrontierPlanningContextProjection::from_request(&planning),
+                        );
+                    }
+                }
+                3 => forged.claim_repair_request_id = Some("dual-repair".into()),
+                _ => forged.proposal_modeling_request_id = Some("dual-proposal".into()),
+            }
+            let before = std::fs::read(&store)?;
+            assert!(
+                plan_coordinator_job_launch(
+                    &state,
+                    &forged,
+                    &store,
+                    format!("launcher-forged-{mutation}"),
+                    format!("backend-forged-{mutation}"),
+                )
+                .is_err()
+            );
+            assert_eq!(std::fs::read(&store)?, before);
+        }
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-planning".into(),
+            "backend-planning".into(),
+        )?;
+        let committed = commit_coordinator_job_launch(
+            &store,
+            &planning.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-15T09:00:03Z".into(),
+        )?;
+        let persisted = runtime_worker_launch_request(&store, "backend-planning")?
+            .expect("planning worker launch");
+        let projection = match persisted.launch_document()? {
+            EpiphanyWorkerLaunchDocument::Role(document) => document
+                .frontier_planning_context
+                .expect("coordinator-owned planning context"),
+            EpiphanyWorkerLaunchDocument::Reorient(_) => panic!("planning cannot reorient"),
+        };
+        assert_eq!(projection.request_id, planning.request_id);
+        assert_eq!(projection.runtime_id, planning.runtime_id);
+        assert_eq!(projection.thread_id, planning.thread_id);
+        let cache = coordinator_acceptance_cache(&store)?;
+        let binding_key = format!("repo-frontier-planning-launch-{}", planning.request_id);
+        let binding = cache
+            .get::<RepoFrontierPlanningLaunchBinding>(&binding_key)?
+            .expect("request-keyed planning launch binding");
+        assert_eq!(binding.job_id, "backend-planning");
+        assert_eq!(binding.runtime_id, planning.runtime_id);
+        assert_eq!(binding.thread_id, planning.thread_id);
+        assert_eq!(
+            binding.worker_launch_document_sha256,
+            format!("{:x}", Sha256::digest(&persisted.launch_document_msgpack))
+        );
+        let mut second = build_epiphany_role_launch_request(
+            &planning.thread_id,
+            EpiphanyRoleResultRoleId::Imagination,
+            Some(committed.epiphany_state.revision),
+            Some(60),
+            &committed.epiphany_state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        second.frontier_planning_request_id = Some(planning.request_id);
+        let before = std::fs::read(&store)?;
+        assert!(
+            plan_coordinator_job_launch(
+                &committed.epiphany_state,
+                &second,
+                &store,
+                "launcher-second".into(),
+                "backend-second".into(),
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn frontier_planning_launch_refuses_swapped_request_bytes_without_writes() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        for mutation in 0..8 {
+            let (store, state, launch, planning) =
+                frontier_planning_launch_fixture(root.path(), &format!("causal-{mutation}"))?;
+            let mut corrupt = planning.clone();
+            match mutation {
+                0 => corrupt.model_hash = "swapped-model".into(),
+                1 => corrupt.admission_receipt_id = "swapped-admission".into(),
+                2 => corrupt.frontier_item_id = "swapped-frontier".into(),
+                3 => corrupt.frontier_item_hash = "swapped-frontier-hash".into(),
+                4 => corrupt.selected_organ = "Hands".into(),
+                5 => corrupt.source_scope.push("outside/scope".into()),
+                6 => corrupt.runtime_id = "swapped-runtime".into(),
+                _ => corrupt.thread_id = "swapped-thread".into(),
+            }
+            let mut cache = coordinator_acceptance_cache(&store)?;
+            cache.put(&corrupt.request_id, &corrupt)?;
+            let before = std::fs::read(&store)?;
+            assert!(
+                plan_coordinator_job_launch(
+                    &state,
+                    &launch,
+                    &store,
+                    format!("launcher-causal-{mutation}"),
+                    format!("backend-causal-{mutation}"),
+                )
+                .is_err(),
+                "planning causal mutation {mutation} must be refused"
+            );
+            assert_eq!(std::fs::read(&store)?, before);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn concurrent_frontier_planning_launches_leave_only_winner_artifacts() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, planning) =
+            frontier_planning_launch_fixture(root.path(), "race")?;
+        let left_plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-left".into(),
+            "backend-left".into(),
+        )?;
+        let right_plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-right".into(),
+            "backend-right".into(),
+        )?;
+        let spawn = |store: std::path::PathBuf,
+                     state: EpiphanyThreadState,
+                     launch: EpiphanyJobLaunchRequest,
+                     plan: EpiphanyCoordinatorJobLaunchPlan,
+                     thread: String,
+                     at: &'static str| {
+            std::thread::spawn(move || {
+                commit_coordinator_job_launch(&store, &thread, &state, &launch, &plan, at.into())
+            })
+        };
+        let left = spawn(
+            store.clone(),
+            state.clone(),
+            launch.clone(),
+            left_plan,
+            planning.thread_id.clone(),
+            "2026-07-15T09:00:03Z",
+        );
+        let right = spawn(
+            store.clone(),
+            state,
+            launch,
+            right_plan,
+            planning.thread_id,
+            "2026-07-15T09:00:04Z",
+        );
+        let outcomes = [left.join().unwrap(), right.join().unwrap()];
+        assert_eq!(outcomes.iter().filter(|outcome| outcome.is_ok()).count(), 1);
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let bindings = cache
+            .get_all::<RepoFrontierPlanningLaunchBinding>()?
+            .into_iter()
+            .filter(|binding| binding.planning_request_id == planning.request_id)
+            .collect::<Vec<_>>();
+        assert_eq!(bindings.len(), 1);
+        let winner = bindings[0].job_id.as_str();
+        let loser = if winner == "backend-left" {
+            "backend-right"
+        } else {
+            assert_eq!(winner, "backend-right");
+            "backend-left"
+        };
+        for job_id in [winner] {
+            assert!(cache.get::<EpiphanyRuntimeJob>(job_id)?.is_some());
+            assert!(
+                cache
+                    .get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+                    .is_some()
+            );
+            assert!(
+                cache
+                    .get::<EpiphanyRuntimeEvent>(&format!("event-job-opened-{job_id}"))?
+                    .is_some()
+            );
+        }
+        assert!(cache.get::<EpiphanyRuntimeJob>(loser)?.is_none());
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeWorkerLaunchRequest>(loser)?
+                .is_none()
+        );
+        assert!(
+            cache
+                .get::<EpiphanyRuntimeEvent>(&format!("event-job-opened-{loser}"))?
+                .is_none()
+        );
         Ok(())
     }
 

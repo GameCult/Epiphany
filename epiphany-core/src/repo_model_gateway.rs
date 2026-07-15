@@ -30,12 +30,12 @@ pub const REPO_FRONTIER_MODELING_REQUEST_CONTRACT: &str =
 pub const REPO_FRONTIER_WORK_PROPOSAL_SCHEMA_VERSION: &str =
     "epiphany.repo_frontier_work_proposal.v0";
 pub const REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION: &str =
-    "epiphany.self.repo_frontier_planning_request.v0";
+    "epiphany.self.repo_frontier_planning_request.v1";
 pub const REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION: &str =
     "epiphany.imagination.repo_frontier_plan_candidate.v0";
 pub const REPO_FRONTIER_PLAN_ADOPTION_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_frontier_plan_adoption.v0";
-pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v0";
+pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v1";
 pub const REPO_FRONTIER_WORK_PROPOSAL_CONTRACT: &str =
     "epiphany.repo_frontier_work_proposal.inert.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_SCHEMA_VERSION: &str =
@@ -57,6 +57,10 @@ pub const REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_SCHEMA_VERSION: &str =
     "epiphany.coordinator.repo_model_claim_repair_launch_binding.v0";
 pub const REPO_MODEL_CLAIM_REPAIR_LAUNCH_BINDING_CONTRACT: &str =
     "epiphany.repo_model_claim_repair_launch_binding.v0";
+pub const REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION: &str =
+    "epiphany.coordinator.repo_frontier_planning_launch_binding.v0";
+pub const REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT: &str =
+    "epiphany.repo_frontier_planning_launch_binding.v0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -354,6 +358,38 @@ pub struct RepoFrontierPlanningRequest {
     #[cultcache(key = 9)]
     pub requested_at: String,
     #[cultcache(key = 10)]
+    pub contract: String,
+    #[cultcache(key = 11)]
+    pub runtime_id: String,
+    #[cultcache(key = 12)]
+    pub thread_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.coordinator.repo_frontier_planning_launch_binding",
+    schema = "RepoFrontierPlanningLaunchBinding"
+)]
+pub struct RepoFrontierPlanningLaunchBinding {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub binding_record_id: String,
+    #[cultcache(key = 2)]
+    pub planning_request_id: String,
+    #[cultcache(key = 3)]
+    pub job_id: String,
+    #[cultcache(key = 4)]
+    pub binding_id: String,
+    #[cultcache(key = 5)]
+    pub runtime_id: String,
+    #[cultcache(key = 6)]
+    pub thread_id: String,
+    #[cultcache(key = 7)]
+    pub launched_at: String,
+    #[cultcache(key = 8)]
+    pub worker_launch_document_sha256: String,
+    #[cultcache(key = 9)]
     pub contract: String,
 }
 

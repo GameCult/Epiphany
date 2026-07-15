@@ -1,18 +1,24 @@
 # Repo Frontier Planning Authority Map
 
-## Current wound
+## Current state
 
-The planning family has typed documents but not a live organ chain. Self can
-persist an exact `RepoFrontierPlanningRequest`. Nothing launches Imagination
-from it. `RepoFrontierPlanCandidate` and `RepoFrontierPlanAdoption` were exposed
-through public persistence functions, allowing callers to author documents in
-Imagination and Mind namespaces without either organ participating. Adopt then
-blocked duplicate planning requests but changed no model bytes and affected no
-Hands route. The type names were substituting for cognition.
+The planning family now has a real Self-to-Imagination launch artery. Self's
+`RepoFrontierPlanningRequest` binds the uniquely admitted current model, exact
+actionable frontier, runtime, and authoritative thread. Coordinator commit
+replays those bytes, injects the exact typed Imagination projection, and
+atomically persists a request-keyed launch binding whose hash covers the stored
+worker launch document. Caller-authored projections, mixed authority carriers,
+stale requests, causal substitutions, and duplicate/racing launches are
+refused without loser artifacts.
 
-The public candidate/adoption writers are removed. The existing internal
-functions remain temporarily as test scaffolding while the real nerve replaces
-them; they are not production authority.
+The downstream nerve is still incomplete. Imagination has no exclusive
+immutable result carrying the candidate; Mind has no correlated admission; the
+old internal candidate/adoption fixture writers still exist; and Adopt still
+changes no RepoModel bytes or Hands truth.
+
+The public candidate/adoption writers remain removed. The existing internal
+functions are test scaffolding only and die when result correlation and Mind
+admission replace them.
 
 ## Target authority
 
