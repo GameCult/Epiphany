@@ -722,15 +722,16 @@ cut or confirmed finding.
 
 ```text
 canonical retrieval state -----------------------> retrieval judgment --+
-graph checkpoint + churn assertion + frontier ---> graph judgment -------+--> reorientation decision --> CRRC/coordinator/launch
+legacy graph checkpoint + churn + frontier -----> legacy graph judgment -+--> reorientation decision --> CRRC/coordinator/launch
 positive watcher changes ------------------------> watcher judgment -----+
 durable investigation checkpoint ---------------------------------------+
 ```
 
 `derive_freshness` owns the first three judgments. Retrieval Ready becomes
-Clean only with an empty dirty-path set; otherwise it derives Stale. Graph
-Clean/Ready requires a checkpoint, a recognized-current assertion, and zero
-dirty/question/gap pressure. Missing evidence stays Missing/Unknown. Watcher silence stays
+Clean only with an empty dirty-path set; otherwise it derives Stale. The legacy
+thread graph can prove Stale from explicit frontier pressure, but cannot prove
+Clean/Ready because it has no legal Modeling writer and cannot see canonical
+RepoModel admission. Missing authority stays Missing/Unknown. Watcher silence stays
 Unavailable/Unknown because no continuity receipt exists; Changed is positive
 evidence. `surfaces/jobs.rs` consumes the same graph judgment for remap work.
 
@@ -741,12 +742,13 @@ watcher Dirty/Stale/Changed forces Regather. Path matches, status labels,
 worker-launch documents, coordinator rows, and CRRC recommendations are derived
 consumers and forbidden decision writers.
 
-The remaining deletion line is architectural rather than behavioral:
-`churn.graph_freshness` is a free string, and the typed graph checkpoint's
-revision is not correlated with graph mutation. Replace both authorities with
-one typed, revision-bearing Modeling freshness receipt. Until then the strict
-conjunction prevents false readiness but must not be mistaken for final typed
-ownership.
+Canonical RepoModel is the Modeling-owned body. Its exact revision/hash and
+Mind-issued `RepoModelAdmissionReceipt` are the only coherent identity boundary
+for a future Ready projection; the snapshot's typed source/lifecycle freshness
+is its pressure basis. `churn.graph_freshness`, the legacy graph checkpoint,
+generic thread patches, and unrelated thread revisions are forbidden readiness
+writers. Until canonical authority is supplied to a consumer, Unknown is the
+truthful result.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

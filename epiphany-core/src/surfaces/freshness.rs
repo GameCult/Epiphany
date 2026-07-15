@@ -202,32 +202,23 @@ pub(super) fn graph_freshness(state: Option<&EpiphanyThreadState>) -> EpiphanyGr
         .churn
         .as_ref()
         .and_then(|churn| churn.graph_freshness.clone());
-    let freshness_hint_current = graph_freshness.as_deref().is_some_and(|freshness| {
-        matches!(
-            freshness.trim().to_ascii_lowercase().as_str(),
-            "fresh" | "ready" | "current" | "ok"
-        )
-    });
     let has_pressure = dirty_path_count > 0 || open_question_count > 0 || open_gap_count > 0;
     let checkpoint_id = state
         .graph_checkpoint
         .as_ref()
         .map(|checkpoint| checkpoint.checkpoint_id.clone());
-    let status = if has_pressure || (graph_freshness.is_some() && !freshness_hint_current) {
+    let status = if has_pressure {
         EpiphanyGraphFreshnessStatus::Stale
-    } else if checkpoint_id.is_none() || graph_freshness.is_none() {
-        EpiphanyGraphFreshnessStatus::Missing
     } else {
-        EpiphanyGraphFreshnessStatus::Ready
+        EpiphanyGraphFreshnessStatus::Missing
     };
     let note = if status == EpiphanyGraphFreshnessStatus::Stale {
         format!(
             "Graph freshness is stale; frontier has {dirty_path_count} dirty path(s), {open_question_count} open question id(s), and {open_gap_count} open gap id(s)."
         )
-    } else if status == EpiphanyGraphFreshnessStatus::Missing {
-        "Graph freshness requires both an explicit current hint and a graph checkpoint.".to_string()
     } else {
-        "Graph freshness is ready.".to_string()
+        "Canonical RepoModel admission freshness is not available to this legacy thread projection; legacy checkpoint and churn hints cannot prove readiness."
+            .to_string()
     };
 
     EpiphanyGraphFreshness {
@@ -443,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn graph_ready_requires_checkpoint_explicit_current_hint_and_no_pressure() {
+    fn legacy_checkpoint_and_current_hint_cannot_authorize_graph_ready() {
         let state = EpiphanyThreadState {
             graph_checkpoint: Some(EpiphanyGraphCheckpoint {
                 checkpoint_id: "graph-1".to_string(),
@@ -461,11 +452,12 @@ mod tests {
             watcher: None,
         });
 
-        assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Ready);
+        assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Missing);
+        assert!(view.graph.note.contains("Canonical RepoModel admission"));
     }
 
     #[test]
-    fn graph_missing_checkpoint_or_hint_is_missing() {
+    fn legacy_checkpoint_or_hint_alone_is_missing() {
         let checkpoint_only = EpiphanyThreadState {
             graph_checkpoint: Some(EpiphanyGraphCheckpoint {
                 checkpoint_id: "graph-1".to_string(),
@@ -489,6 +481,29 @@ mod tests {
             });
             assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Missing);
         }
+    }
+
+    #[test]
+    fn legacy_noncurrent_hint_does_not_invent_staleness_without_pressure() {
+        let state = EpiphanyThreadState {
+            graph_checkpoint: Some(EpiphanyGraphCheckpoint {
+                checkpoint_id: "graph-1".to_string(),
+                ..Default::default()
+            }),
+            churn: Some(EpiphanyChurnState {
+                graph_freshness: Some("proposal-semantically-anchored".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let view = derive_freshness(EpiphanyFreshnessInput {
+            state: Some(&state),
+            retrieval_override: None,
+            watcher: None,
+        });
+
+        assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Missing);
     }
 
     #[test]

@@ -454,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn remap_job_consumes_graph_freshness_authority() {
+    fn remap_job_refuses_legacy_graph_readiness_authority() {
         let incomplete = EpiphanyThreadState::default();
         let jobs = derive_jobs(EpiphanyJobsInput {
             state: Some(&incomplete),
@@ -468,7 +468,7 @@ mod tests {
             EpiphanyJobStatus::Needed
         );
 
-        let ready = EpiphanyThreadState {
+        let forged_legacy_ready = EpiphanyThreadState {
             graph_checkpoint: Some(EpiphanyGraphCheckpoint {
                 checkpoint_id: "graph-1".to_string(),
                 ..Default::default()
@@ -480,7 +480,7 @@ mod tests {
             ..Default::default()
         };
         let jobs = derive_jobs(EpiphanyJobsInput {
-            state: Some(&ready),
+            state: Some(&forged_legacy_ready),
             retrieval_override: None,
         });
         assert_eq!(
@@ -488,7 +488,7 @@ mod tests {
                 .find(|job| job.id == "graph-remap")
                 .unwrap()
                 .status,
-            EpiphanyJobStatus::Idle
+            EpiphanyJobStatus::Needed
         );
     }
 
