@@ -22,7 +22,6 @@ use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_service_execution_audit_report;
-use epiphany_core::idunn_acquire_memory_semantic_projection_for_local_supervisor;
 use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
@@ -41,6 +40,7 @@ use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_scheduler_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
+use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
 use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
@@ -51,6 +51,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::process::Stdio;
 use uuid::Uuid;
+
+const SEMANTIC_PROJECTOR_SERVICE_ID: &str = "epiphany-memory-semantic-projector-service";
+const SEMANTIC_PROJECTOR_EXECUTOR_ID: &str = "epiphany-memory-semantic-projector";
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -65,6 +68,7 @@ fn main() -> Result<()> {
         "service-plan" => service_plan(args),
         "service-launch" | "launch-service" | "start-service" => service_launch(args),
         "managed-service-policy" | "service-desired-state" => managed_service_policy(args),
+        "semantic-projector-service-policy" => semantic_projector_service_policy(args),
         "managed-service-read" | "service-desired-state-read" => managed_service_read(args),
         "managed-service-reconcile" | "service-desired-state-reconcile" => {
             managed_service_reconcile(args)
@@ -135,10 +139,9 @@ fn main() -> Result<()> {
         "windows-service-start" | "service-start" => windows_service_control(args, "start"),
         "windows-service-stop" | "service-stop" => windows_service_control(args, "stop"),
         "policy" | "write-policy" => write_policy(args),
-        "semantic-acquire" => semantic_acquire(args),
         "semantic-recover" => semantic_recover(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use reconcile, tick, serve, service-plan, service-launch, service-runbook, repo-work-service-audit, cluster-service-runbook, cluster-service-install-plan, cluster-service-audit, cluster-service-start, cluster-service-stop, cluster-service-execution-readiness, cluster-service-execution-runbook, cluster-service-execution-audit, windows-service-install, windows-service-execution-readiness, windows-service-execution-runbook, windows-service-execution-audit, service-execution-audit-smoke, windows-service-reconcile, windows-service-status, windows-service-start, windows-service-stop, policy, semantic-acquire, or semantic-recover"
+            "unknown command {other:?}; use reconcile, tick, serve, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, repo-work-service-audit, cluster-service-runbook, cluster-service-install-plan, cluster-service-audit, cluster-service-start, cluster-service-stop, cluster-service-execution-readiness, cluster-service-execution-runbook, cluster-service-execution-audit, windows-service-install, windows-service-execution-readiness, windows-service-execution-runbook, windows-service-execution-audit, service-execution-audit-smoke, windows-service-reconcile, windows-service-status, windows-service-start, windows-service-stop, policy, or semantic-recover"
         ),
     }
 }
@@ -157,33 +160,6 @@ fn required<'a>(value: &'a Option<String>, flag: &str) -> Result<&'a str> {
     value.as_deref().with_context(|| format!("missing {flag}"))
 }
 
-fn semantic_acquire(args: Args) -> Result<()> {
-    let (input, store) = semantic_projection_input(&args)?;
-    let purpose = required(&args.semantic_purpose, "--purpose")?;
-    if !matches!(purpose, "execute" | "repair") {
-        anyhow::bail!("--purpose must be execute or repair");
-    }
-    let acquisition = idunn_acquire_memory_semantic_projection_for_local_supervisor(
-        store,
-        &input,
-        required(&args.executor_id, "--executor-id")?,
-        purpose,
-        &Utc::now().to_rfc3339(),
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "grantId": acquisition.grant.grant_id,
-            "claimId": acquisition.claim.claim_id,
-            "epoch": acquisition.claim.epoch,
-            "executorId": acquisition.claim.executor_id,
-            "purpose": purpose,
-            "privateStateExposed": false
-        }))?
-    );
-    Ok(())
-}
-
 fn semantic_recover(args: Args) -> Result<()> {
     let (input, store) = semantic_projection_input(&args)?;
     let (authorization, claim) = idunn_recover_memory_semantic_projection_from_cultmesh(
@@ -192,7 +168,7 @@ fn semantic_recover(args: Args) -> Result<()> {
         store,
         &input,
         required(&args.expected_claim_id, "--expected-claim-id")?,
-        required(&args.executor_id, "--executor-id")?,
+        SEMANTIC_PROJECTOR_EXECUTOR_ID,
         required(&args.receipt_id, "--receipt-id")?,
         required(&args.provider_heartbeat_id, "--provider-heartbeat-id")?,
         &Utc::now().to_rfc3339(),
@@ -201,10 +177,8 @@ fn semantic_recover(args: Args) -> Result<()> {
         "{}",
         serde_json::to_string_pretty(&json!({
             "authorizationId": authorization.authorization_id,
-            "claimId": claim.claim_id,
             "epoch": claim.epoch,
             "executorId": claim.executor_id,
-            "executorIncarnation": claim.executor_incarnation,
             "privateStateExposed": false
         }))?
     );
@@ -478,6 +452,15 @@ fn service_launch(args: Args) -> Result<()> {
 }
 
 fn managed_service_policy(args: Args) -> Result<()> {
+    if args.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
+        anyhow::bail!(
+            "reserved semantic projector service policy must use semantic-projector-service-policy"
+        );
+    }
+    write_managed_service_policy(args)
+}
+
+fn write_managed_service_policy(args: Args) -> Result<()> {
     require_supervisor_bootstrap(&args)?;
 
     let command = service_command_path(&args)?;
@@ -526,11 +509,19 @@ fn managed_service_policy(args: Args) -> Result<()> {
                 .to_string(),
         ],
     };
-    let written = write_epiphany_cultmesh_managed_service_policy(
-        &args.store,
-        args.runtime_id.clone(),
-        policy,
-    )?;
+    let written = if policy.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
+        write_epiphany_cultmesh_semantic_projector_service_policy(
+            &args.store,
+            args.runtime_id.clone(),
+            policy,
+        )?
+    } else {
+        write_epiphany_cultmesh_managed_service_policy(
+            &args.store,
+            args.runtime_id.clone(),
+            policy,
+        )?
+    };
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
@@ -550,6 +541,82 @@ fn managed_service_policy(args: Args) -> Result<()> {
         }))?
     );
     Ok(())
+}
+
+fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
+    if args.service_command.is_some() {
+        anyhow::bail!(
+            "semantic-projector-service-policy derives its packaged executable; --service-command is forbidden"
+        );
+    }
+    let agent_store = args
+        .agent_store
+        .as_ref()
+        .context("semantic-projector-service-policy requires --agent-store")?;
+    let runtime_store = args
+        .runtime_store
+        .as_ref()
+        .context("semantic-projector-service-policy requires --runtime-store")?;
+    if agent_store == runtime_store {
+        anyhow::bail!("semantic projector Mind and Modeling stores must be distinct");
+    }
+    args.service_id = SEMANTIC_PROJECTOR_SERVICE_ID.to_string();
+    args.policy_id = Some(format!(
+        "managed-service-policy-{SEMANTIC_PROJECTOR_SERVICE_ID}"
+    ));
+    args.restart_mode = "always".to_string();
+    args.service_command = Some(semantic_projector_command_path()?);
+    args.service_args = semantic_projector_service_args(
+        agent_store,
+        runtime_store,
+        &args.store,
+        &args.runtime_id,
+        args.loop_interval_seconds,
+    );
+    if args.max_iterations != 0 {
+        anyhow::bail!("semantic projector managed service must not have a finite iteration limit");
+    }
+    write_managed_service_policy(args)
+}
+
+fn semantic_projector_command_path() -> Result<PathBuf> {
+    let binary = if cfg!(windows) {
+        "epiphany-memory-semantic-projector.exe"
+    } else {
+        "epiphany-memory-semantic-projector"
+    };
+    let path = env::current_exe()
+        .map(|path| path.with_file_name(binary))
+        .context("failed to derive packaged semantic projector executable")?;
+    if !path.is_file() {
+        anyhow::bail!(
+            "packaged semantic projector executable is missing at {}; build both supervisor and projector together",
+            path.display()
+        );
+    }
+    Ok(path)
+}
+
+fn semantic_projector_service_args(
+    agent_store: &Path,
+    runtime_store: &Path,
+    local_verse_store: &Path,
+    runtime_id: &str,
+    interval_seconds: i64,
+) -> Vec<String> {
+    vec![
+        "serve".to_string(),
+        "--agent-store".to_string(),
+        agent_store.display().to_string(),
+        "--runtime-store".to_string(),
+        runtime_store.display().to_string(),
+        "--local-verse-store".to_string(),
+        local_verse_store.display().to_string(),
+        "--runtime-id".to_string(),
+        runtime_id.to_string(),
+        "--interval-seconds".to_string(),
+        interval_seconds.to_string(),
+    ]
 }
 
 fn managed_service_read(args: Args) -> Result<()> {
@@ -3583,8 +3650,10 @@ mod provider_status_ownership_tests {
 
 #[cfg(test)]
 mod semantic_projector_authority_tests {
+    use super::*;
+
     #[test]
-    fn supervisor_owns_idunn_incarnations_and_exact_evidence_selection() {
+    fn supervisor_keeps_acquisition_inside_projector_and_selects_exact_recovery_evidence() {
         let source = include_str!("epiphany-daemon-supervisor.rs");
         let issuer_flag = ["--issuer", "-incarnation"].concat();
         let executor_flag = ["--executor", "-incarnation"].concat();
@@ -3596,8 +3665,12 @@ mod semantic_projector_authority_tests {
         assert!(!source.contains(&evidence_hash_flag));
         assert!(source.contains("--receipt-id"));
         assert!(source.contains("--provider-heartbeat-id"));
-        assert!(source.contains("idunn_acquire_memory_semantic_projection_for_local_supervisor"));
+        let acquire_command = ["semantic", "-acquire"].concat();
+        assert!(!source.contains(&acquire_command));
         assert!(source.contains("idunn_recover_memory_semantic_projection_from_cultmesh"));
+        assert!(source.contains("SEMANTIC_PROJECTOR_EXECUTOR_ID"));
+        let executor_id_flag = ["--executor", "-id"].concat();
+        assert!(!source.contains(&executor_id_flag));
     }
 
     #[test]
@@ -3610,6 +3683,61 @@ mod semantic_projector_authority_tests {
         assert!(body.contains("idunn_recover_memory_semantic_projection_from_cultmesh"));
         assert!(!body.contains("execute_memory_semantic_projection"));
         assert!(!body.contains("MemorySemanticIndexConfig"));
+    }
+
+    #[test]
+    fn managed_projector_policy_launches_one_process_with_both_owned_partitions() {
+        let args = semantic_projector_service_args(
+            Path::new("mind.ccmp"),
+            Path::new("modeling.ccmp"),
+            Path::new("local-verse.ccmp"),
+            "local-runtime",
+            60,
+        );
+        assert_eq!(
+            args,
+            vec![
+                "serve",
+                "--agent-store",
+                "mind.ccmp",
+                "--runtime-store",
+                "modeling.ccmp",
+                "--local-verse-store",
+                "local-verse.ccmp",
+                "--runtime-id",
+                "local-runtime",
+                "--interval-seconds",
+                "60",
+            ]
+        );
+        assert_eq!(args.iter().filter(|arg| arg.as_str() == "serve").count(), 1);
+    }
+
+    #[test]
+    fn reserved_projector_policy_has_no_generic_or_command_override_path() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let generic_start = source
+            .find("fn managed_service_policy(args: Args)")
+            .unwrap();
+        let generic_tail = &source[generic_start..];
+        let generic_end = generic_tail.find("\nfn ").unwrap();
+        assert!(generic_tail[..generic_end].contains("SEMANTIC_PROJECTOR_SERVICE_ID"));
+
+        let specialized_start = source
+            .find("fn semantic_projector_service_policy(mut args: Args)")
+            .unwrap();
+        let specialized_tail = &source[specialized_start..];
+        let specialized_end = specialized_tail.find("\nfn ").unwrap();
+        let specialized = &specialized_tail[..specialized_end];
+        assert!(specialized.contains("args.service_command.is_some()"));
+        assert!(specialized.contains("semantic_projector_command_path()"));
+        assert!(specialized.contains("write_managed_service_policy(args)"));
+
+        let legacy_cli = include_str!("epiphany-memory-semantic.rs");
+        let index_arm = ["\"index\"", " =>"].concat();
+        let claim_flag = ["--claim", "-id"].concat();
+        assert!(!legacy_cli.contains(&index_arm));
+        assert!(!legacy_cli.contains(&claim_flag));
     }
 }
 
@@ -3654,8 +3782,6 @@ struct Args {
     stderr_artifact: Option<PathBuf>,
     agent_store: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
-    executor_id: Option<String>,
-    semantic_purpose: Option<String>,
     expected_claim_id: Option<String>,
     provider_heartbeat_id: Option<String>,
 }
@@ -3703,8 +3829,6 @@ impl Args {
         let mut stderr_artifact = None;
         let mut agent_store = None;
         let mut runtime_store = None;
-        let mut executor_id = None;
-        let mut semantic_purpose = None;
         let mut expected_claim_id = None;
         let mut provider_heartbeat_id = None;
 
@@ -3859,12 +3983,6 @@ impl Args {
                         values.next().context("missing --runtime-store value")?,
                     ))
                 }
-                "--executor-id" => {
-                    executor_id = Some(values.next().context("missing --executor-id value")?)
-                }
-                "--purpose" => {
-                    semantic_purpose = Some(values.next().context("missing --purpose value")?)
-                }
                 "--expected-claim-id" => {
                     expected_claim_id =
                         Some(values.next().context("missing --expected-claim-id value")?)
@@ -3906,6 +4024,7 @@ impl Args {
                     | "start-service"
                     | "managed-service-policy"
                     | "service-desired-state"
+                    | "semantic-projector-service-policy"
                     | "managed-service-read"
                     | "service-desired-state-read"
                     | "managed-service-reconcile"
@@ -3957,7 +4076,6 @@ impl Args {
                     | "service-start"
                     | "windows-service-stop"
                     | "service-stop"
-                    | "semantic-acquire"
                     | "semantic-recover"
             ) =>
             {
@@ -4015,8 +4133,6 @@ impl Args {
             stderr_artifact,
             agent_store,
             runtime_store,
-            executor_id,
-            semantic_purpose,
             expected_claim_id,
             provider_heartbeat_id,
         })

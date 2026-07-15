@@ -2,8 +2,7 @@ use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
     EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot, MemorySemanticIndexConfig,
     MemorySemanticProjectionInput, SemanticPartition, agent_memory_semantic_projection_input,
-    execute_memory_semantic_projection, load_memory_graph_snapshot,
-    load_memory_semantic_projection_readiness,
+    load_memory_graph_snapshot, load_memory_semantic_projection_readiness,
     publish_epiphany_cultmesh_semantic_projection_health,
     runtime_modeling_semantic_projection_input, semantic_memory_context,
 };
@@ -16,16 +15,6 @@ fn main() -> Result<()> {
     let options = Options::parse(args)?;
     let config = MemorySemanticIndexConfig::from_env();
     match command.as_str() {
-        "index" => {
-            let (input, source_store) = options.load_projection_input()?;
-            let claim_id = options
-                .claim_id
-                .as_deref()
-                .ok_or_else(|| usage_error("index requires --claim-id <id>"))?;
-            let receipt =
-                execute_memory_semantic_projection(source_store, &input, claim_id, &config)?;
-            print_receipt(&receipt, source_store)?;
-        }
         "health" => {
             let (input, source_store) = options.load_projection_input()?;
             let verse_store = options
@@ -82,7 +71,6 @@ struct Options {
     graph_store: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     agent_store: Option<PathBuf>,
-    claim_id: Option<String>,
     local_verse_store: Option<PathBuf>,
     runtime_id: String,
     provider_incarnation: Option<String>,
@@ -100,7 +88,6 @@ impl Options {
             graph_store: None,
             runtime_store: None,
             agent_store: None,
-            claim_id: None,
             local_verse_store: None,
             runtime_id: "epiphany-memory-semantic".to_string(),
             provider_incarnation: None,
@@ -121,7 +108,6 @@ impl Options {
                 "--graph-store" => options.graph_store = Some(PathBuf::from(value()?)),
                 "--runtime-store" => options.runtime_store = Some(PathBuf::from(value()?)),
                 "--agent-store" => options.agent_store = Some(PathBuf::from(value()?)),
-                "--claim-id" => options.claim_id = Some(value()?),
                 "--local-verse-store" => options.local_verse_store = Some(PathBuf::from(value()?)),
                 "--runtime-id" => options.runtime_id = value()?,
                 "--provider-incarnation" => options.provider_incarnation = Some(value()?),
@@ -235,38 +221,13 @@ fn parse_profile(value: &str) -> Result<epiphany_core::EpiphanyMemoryProfile> {
 
 fn usage_error(message: &str) -> anyhow::Error {
     anyhow!(
-        "{message}\nusage: epiphany-memory-semantic <index|context|health> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--claim-id <id>] [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
+        "{message}\nusage: epiphany-memory-semantic <context|health> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
     )
 }
 
 fn print_json(value: &impl serde::Serialize) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
-}
-
-fn print_receipt(
-    receipt: &epiphany_core::MemorySemanticIndexReceipt,
-    source_store: &PathBuf,
-) -> Result<()> {
-    print_json(&serde_json::json!({
-        "status": receipt.status,
-        "receiptId": receipt.receipt_id,
-        "sourceStore": source_store,
-        "obligationId": receipt.obligation_id,
-        "swarmId": receipt.swarm_id,
-        "partition": receipt.partition,
-        "collectionName": receipt.collection_name,
-        "graphId": receipt.graph_id,
-        "modelRevision": receipt.model_revision,
-        "modelHash": receipt.model_hash,
-        "embeddingProviderId": receipt.embedding_provider_id,
-        "embeddingModel": receipt.embedding_model,
-        "vectorDimensions": receipt.vector_dimensions,
-        "indexedDocumentCount": receipt.indexed_document_count,
-        "deletedDocumentCount": receipt.deleted_document_count,
-        "canonicalContentSetHash": receipt.canonical_content_set_hash,
-        "indexedAt": receipt.indexed_at,
-    }))
 }
 
 fn print_semantic_health(

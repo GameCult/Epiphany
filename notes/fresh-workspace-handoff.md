@@ -1235,17 +1235,64 @@ Eve, and swarm overview remain derived sight and forbidden writers. Initial
 execution, retry, repair, and recovered execution share the same claim-
 authenticating projector primitive.
 
-Remaining limits: open-obligation discovery is not yet attached to the Idunn
-daemon, no single projector owner is packaged, canonical-store/Qdrant placement
-between local and Yggdrasil remains undecided, and local Qdrant remains
-overexposed. The low-level mint and recovery primitives are crate-private.
-Their public local-supervisor ports generate incarnations internally, but are
-still a trusted in-process boundary rather than authenticated OS IPC. Keep them
-inside one configured Idunn body until durable service identity owns them. Do
-not expose those ports to untrusted Verse peers. Do not deploy two projectors.
+## Workstation semantic projector service body (2026-07-15)
 
-Next: add a bounded Idunn pulse that discovers authenticated open Mind and
-Modeling obligations without creating demand, runs the same acquire/execute
-primitive, republishes sight independently, and reports provider readiness only
-after its own heartbeat. Then select and package exactly one deployment
-topology.
+The open-obligation pulse and single process owner are now implemented as one
+workstation-local `epiphany-memory-semantic-projector` body managed by Idunn.
+Its constructor requires two distinct canonical files--one Mind store and one
+Modeling runtime store--and refuses unless their sealed inputs name the exact
+partitions and the same immutable swarm. It takes a host OS singleton for that
+canonical pair before minting its process-stable provider/executor incarnation.
+Mind and Modeling remain separate authorities, claims, collections, and
+receipts; they merely share one survival body.
+
+Every pulse reloads both canonical inputs. It stores no open-obligation queue
+and allows at most one global action, rotating fairly between actionable
+partitions. Ready, foreign-running, succeeded, and stale inputs never execute.
+Pending and failed inputs acquire exact Idunn authority before using the one
+crate-private executor. A running claim owned by the current provider
+incarnation resumes directly without minting a second grant; a foreign running
+claim remains pressure until exact recovery. Overlapping pulses return busy,
+and the serve cooldown begins only after the bounded pulse completes. A fault
+loading one source does not turn the other source into false readiness or hide
+its valid action.
+
+The old production mouths are gone: `epiphany-memory-semantic` no longer has an
+`index` arm or claim flag, there is no public raw execute function, and the
+supervisor no longer exposes general semantic acquisition. Recovery remains a
+narrow supervisor action. It authenticates the abandoned claim, exact Idunn
+lifecycle intent/receipt, and causally linked replacement-provider heartbeat,
+then rotates claim authority only. The running service recognizes that exact
+recovered claim as its own and resumes it on a later ordinary pulse.
+
+Idunn owns a specialized reserved service-policy writer for fixed service id
+`epiphany-memory-semantic-projector-service`. It derives the packaged sibling
+binary, fixed executor identity, both canonical stores, infinite serve shape,
+and restart-always policy. The generic managed-service writer refuses that
+reserved id; callers cannot substitute a command, service id, restart mode, or
+finite child lifetime. Existing Idunn managed-service reconciliation owns
+process survival and lifecycle receipts. The OS singleton prevents a service
+and an interactive process from simultaneously owning the same canonical pair.
+
+Provider heartbeat and per-partition semantic health remain derived sight.
+Heartbeat `ready` means the body owns its singleton, validated the source pair,
+and completed a healthy pulse/publication pass; it is not semantic query
+readiness. Only the canonical success chain admits query. Pulse JSON, health,
+heartbeat, Qdrant, Ollama, Eve, and swarm overview cannot create obligations,
+grants, recovery, terminal evidence, or readiness.
+
+Deployment is deliberately not live. The chosen topology is the workstation
+beside its canonical stores, with Yggdrasil permitted to supply embedding over
+WireGuard. Current local inspection found Docker container `voidbot-qdrant`
+stopped with exit code 143. Its name records foreign ownership, so Epiphany did
+not restart, adopt, reconfigure, or claim it. No semantic projector service
+policy has been published and no restart proof has been claimed. Moving only
+the projector to Yggdrasil or starting a second partition/projector body remains
+forbidden.
+
+Next: establish explicit Qdrant ownership and a live workstation-reachable
+endpoint, confirm collection compatibility and the Yggdrasil Ollama route,
+then publish the reserved projector policy. Run one bounded live pulse, prove
+both derived health rows and provider heartbeat, kill the body once, and prove
+Idunn restart plus causally linked heartbeat/recovery/resumption. This is a
+preflight and survival proof, not permission to call deployment complete.

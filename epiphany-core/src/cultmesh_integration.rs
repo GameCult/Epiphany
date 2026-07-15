@@ -162,6 +162,7 @@ pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE: &str =
     "epiphany.cultmesh.managed_service_policy";
 pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.managed_service_policy.v0";
+const EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID: &str = "epiphany-memory-semantic-projector-service";
 pub const EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.idunn.deployment_receipt.v0";
 pub const EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_LATEST_KEY: &str =
@@ -4123,7 +4124,35 @@ pub fn write_epiphany_cultmesh_managed_service_policy(
     runtime_id: impl Into<String>,
     policy: EpiphanyCultMeshManagedServicePolicyEntry,
 ) -> Result<EpiphanyCultMeshManagedServicePolicyEntry> {
+    if policy.service_id == EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID {
+        return Err(anyhow!(
+            "reserved semantic projector policy requires its specialized writer"
+        ));
+    }
     validate_managed_service_policy(&policy)?;
+    write_validated_managed_service_policy(store_path, runtime_id, policy)
+}
+
+pub fn write_epiphany_cultmesh_semantic_projector_service_policy(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    policy: EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<EpiphanyCultMeshManagedServicePolicyEntry> {
+    validate_managed_service_policy(&policy)?;
+    if policy.service_id != EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID {
+        return Err(anyhow!(
+            "semantic projector policy writer requires its reserved service id"
+        ));
+    }
+    validate_semantic_projector_managed_service_policy(&policy)?;
+    write_validated_managed_service_policy(store_path, runtime_id, policy)
+}
+
+fn write_validated_managed_service_policy(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    policy: EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<EpiphanyCultMeshManagedServicePolicyEntry> {
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let key = epiphany_cultmesh_managed_service_policy_key(&policy.service_id);
     let written = node.put(key.as_str(), &policy)?;
@@ -4523,6 +4552,50 @@ fn validate_managed_service_policy(
     if policy.cooldown_seconds < 0 || policy.backoff_multiplier == 0 {
         return Err(anyhow!(
             "managed service policy requires non-negative cooldown and positive backoff"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_semantic_projector_managed_service_policy(
+    policy: &EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<()> {
+    let expected_binary = if cfg!(windows) {
+        "epiphany-memory-semantic-projector.exe"
+    } else {
+        "epiphany-memory-semantic-projector"
+    };
+    if Path::new(&policy.command)
+        .file_name()
+        .and_then(|name| name.to_str())
+        != Some(expected_binary)
+    {
+        return Err(anyhow!(
+            "reserved semantic projector policy requires the packaged projector executable"
+        ));
+    }
+    if policy.policy_id != "managed-service-policy-epiphany-memory-semantic-projector-service"
+        || policy.owner_daemon_id != "epiphany-daemon-supervisor"
+        || policy.restart_mode != "always"
+        || policy.args.len() != 11
+        || policy.args[0] != "serve"
+        || policy.args[1] != "--agent-store"
+        || policy.args[2].trim().is_empty()
+        || policy.args[3] != "--runtime-store"
+        || policy.args[4].trim().is_empty()
+        || policy.args[5] != "--local-verse-store"
+        || policy.args[6].trim().is_empty()
+        || policy.args[7] != "--runtime-id"
+        || policy.args[8].trim().is_empty()
+        || policy.args[9] != "--interval-seconds"
+        || policy.args[10]
+            .parse::<u64>()
+            .ok()
+            .filter(|value| *value > 0)
+            .is_none()
+    {
+        return Err(anyhow!(
+            "reserved semantic projector policy must bind one packaged process to both canonical stores"
         ));
     }
     Ok(())
@@ -7138,24 +7211,6 @@ pub fn load_latest_epiphany_cultmesh_daemon_heartbeat(
         .get(&epiphany_cultmesh_daemon_heartbeat_latest_key(daemon_id))
 }
 
-pub fn idunn_acquire_memory_semantic_projection_for_local_supervisor(
-    canonical_store: impl AsRef<Path>,
-    input: &crate::MemorySemanticProjectionInput,
-    executor_id: &str,
-    purpose: &str,
-    acquired_at: &str,
-) -> Result<crate::MemorySemanticProjectorAcquisition> {
-    crate::memory_graph::semantic_projector::idunn_acquire_memory_semantic_projection(
-        canonical_store,
-        input,
-        executor_id,
-        &format!("executor-{}", Uuid::new_v4()),
-        purpose,
-        &format!("idunn-{}", Uuid::new_v4()),
-        acquired_at,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn idunn_recover_memory_semantic_projection_from_cultmesh(
     verse_store: impl AsRef<Path>,
@@ -7808,6 +7863,64 @@ mod tests {
     use cultcache_rs::CacheBackingStore;
     use pretty_assertions::assert_eq;
 
+    #[test]
+    fn reserved_semantic_projector_policy_requires_specialized_exact_writer() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.ccmp");
+        let binary = if cfg!(windows) {
+            "C:\\epiphany-memory-semantic-projector.exe"
+        } else {
+            "/tmp/epiphany-memory-semantic-projector"
+        };
+        let exact = EpiphanyCultMeshManagedServicePolicyEntry {
+            schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
+            policy_id: "managed-service-policy-epiphany-memory-semantic-projector-service".into(),
+            service_id: EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID.into(),
+            owner_daemon_id: "epiphany-daemon-supervisor".into(),
+            command: binary.into(),
+            args: vec![
+                "serve",
+                "--agent-store",
+                "mind.ccmp",
+                "--runtime-store",
+                "modeling.ccmp",
+                "--local-verse-store",
+                "verse.ccmp",
+                "--runtime-id",
+                "local",
+                "--interval-seconds",
+                "60",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+            cwd: None,
+            enabled: true,
+            restart_mode: "always".into(),
+            cooldown_seconds: 0,
+            backoff_multiplier: 1,
+            stdout_artifact: "projector.stdout.log".into(),
+            stderr_artifact: "projector.stderr.log".into(),
+            updated_at_utc: "2026-07-15T12:00:00Z".into(),
+            private_state_exposed: false,
+            notes: vec![],
+        };
+        assert!(
+            write_epiphany_cultmesh_managed_service_policy(&store, "local", exact.clone()).is_err()
+        );
+        let mut forged = exact.clone();
+        forged.command = "arbitrary.exe".into();
+        assert!(
+            write_epiphany_cultmesh_semantic_projector_service_policy(&store, "local", forged)
+                .is_err()
+        );
+        assert!(
+            write_epiphany_cultmesh_semantic_projector_service_policy(&store, "local", exact)
+                .is_ok()
+        );
+        Ok(())
+    }
+
     fn semantic_health_input(
         store: &Path,
         swarm_id: &str,
@@ -8094,14 +8207,17 @@ mod tests {
         )?;
         assert_eq!(pending.status, "pending");
 
-        let claim = idunn_acquire_memory_semantic_projection_for_local_supervisor(
-            &canonical,
-            &input,
-            "executor-a",
-            "execute",
-            "2026-07-15T12:01:00Z",
-        )?
-        .claim;
+        let claim =
+            crate::memory_graph::semantic_projector::idunn_acquire_memory_semantic_projection(
+                &canonical,
+                &input,
+                "executor-a",
+                "executor-a-incarnation",
+                "execute",
+                "idunn-test-incarnation",
+                "2026-07-15T12:01:00Z",
+            )?
+            .claim;
         let raw_receipt = crate::MemorySemanticIndexReceipt {
             schema_version: crate::MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
             receipt_id: "receipt-four-state".to_string(),
@@ -8144,14 +8260,17 @@ mod tests {
         assert_eq!(ready.status, "ready");
         assert!(ready.query_eligible_display_only);
 
-        let repair = idunn_acquire_memory_semantic_projection_for_local_supervisor(
-            &canonical,
-            &input,
-            "executor-b",
-            "repair",
-            "2026-07-15T12:03:00Z",
-        )?
-        .claim;
+        let repair =
+            crate::memory_graph::semantic_projector::idunn_acquire_memory_semantic_projection(
+                &canonical,
+                &input,
+                "executor-b",
+                "executor-b-incarnation",
+                "repair",
+                "idunn-test-incarnation",
+                "2026-07-15T12:03:00Z",
+            )?
+            .claim;
         crate::memory_graph::semantic_projector::fail_memory_semantic_projection_claim(
             &canonical,
             &repair.claim_id,
@@ -11080,14 +11199,17 @@ mod tests {
         let canonical = temp.path().join("canonical.msgpack");
         let verse = temp.path().join("verse.ccmp");
         let input = semantic_health_input(&canonical, "swarm-recovery", "mind", 1)?;
-        let claim = idunn_acquire_memory_semantic_projection_for_local_supervisor(
-            &canonical,
-            &input,
-            "executor-old",
-            "execute",
-            "2026-07-15T12:00:00Z",
-        )?
-        .claim;
+        let claim =
+            crate::memory_graph::semantic_projector::idunn_acquire_memory_semantic_projection(
+                &canonical,
+                &input,
+                "executor-old",
+                "provider-old",
+                "execute",
+                "idunn-test-incarnation",
+                "2026-07-15T12:00:00Z",
+            )?
+            .claim;
         let status = EpiphanyCultMeshDaemonStatusEntry {
             schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
             daemon_id: "epiphany-memory-semantic-projector".to_string(),

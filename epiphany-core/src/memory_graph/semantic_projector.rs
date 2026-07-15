@@ -801,6 +801,98 @@ pub fn load_memory_semantic_projection_readiness(
     )
 }
 
+pub(crate) fn classify_memory_semantic_projection_for_pulse(
+    store_path: &Path,
+    input: &MemorySemanticProjectionInput,
+) -> Result<super::MemorySemanticProjectorPulseClassification> {
+    validate_memory_semantic_projection_obligation(&input.obligation)?;
+    let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    let persisted = decode_one::<MemorySemanticProjectionObligation>(
+        &envelopes,
+        &input.obligation.obligation_id,
+    )?;
+    if persisted.as_ref() != Some(&input.obligation) {
+        return Ok(super::MemorySemanticProjectorPulseClassification::Stale);
+    }
+    for expected in &input.authority.envelopes {
+        if envelopes
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            != Some(expected)
+        {
+            return Ok(super::MemorySemanticProjectorPulseClassification::Stale);
+        }
+    }
+    let scope_id = projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?;
+    if let Some(claim) = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)? {
+        validate_memory_semantic_projection_claim(&claim)?;
+        if claim.scope_id != scope_id {
+            return Err(anyhow!("semantic projector pulse claim key disagrees"));
+        }
+        if claim.obligation_id == input.obligation.obligation_id {
+            match claim.status.as_str() {
+                "running" => return Ok(super::MemorySemanticProjectorPulseClassification::Running),
+                "succeeded" => {
+                    return Ok(super::MemorySemanticProjectorPulseClassification::Succeeded);
+                }
+                _ => {}
+            }
+        }
+    }
+    let health = super::derive_memory_semantic_projection_health(
+        &input.obligation,
+        &input.authority.head,
+        &decode_all::<MemorySemanticProjectionAttempt>(&envelopes)?,
+        &decode_all::<MemorySemanticIndexReceipt>(&envelopes)?,
+    )?;
+    Ok(match health.status {
+        super::MemorySemanticProjectionHealthStatus::Pending => {
+            super::MemorySemanticProjectorPulseClassification::Pending
+        }
+        super::MemorySemanticProjectionHealthStatus::Failed => {
+            super::MemorySemanticProjectorPulseClassification::Failed
+        }
+        super::MemorySemanticProjectionHealthStatus::Ready => {
+            super::MemorySemanticProjectorPulseClassification::Ready
+        }
+        super::MemorySemanticProjectionHealthStatus::Stale => {
+            super::MemorySemanticProjectorPulseClassification::Stale
+        }
+    })
+}
+
+pub(crate) fn owned_running_memory_semantic_projection_claim(
+    store_path: &Path,
+    input: &MemorySemanticProjectionInput,
+    executor_id: &str,
+    executor_incarnation: &str,
+) -> Result<Option<String>> {
+    let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    let scope_id = projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?;
+    let Some(claim) = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)? else {
+        return Ok(None);
+    };
+    validate_memory_semantic_projection_claim(&claim)?;
+    if claim.status != "running"
+        || claim.obligation_id != input.obligation.obligation_id
+        || claim.executor_id != executor_id
+        || claim.executor_incarnation != executor_incarnation
+    {
+        return Ok(None);
+    }
+    authenticate_claim_authority_from_envelopes(&envelopes, &claim)?;
+    for expected in &input.authority.envelopes {
+        if envelopes
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            != Some(expected)
+        {
+            return Err(anyhow!("owned running claim canonical authority advanced"));
+        }
+    }
+    Ok(Some(claim.claim_id))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn idunn_acquire_memory_semantic_projection(
     store_path: impl AsRef<Path>,
@@ -973,7 +1065,7 @@ pub(crate) fn idunn_acquire_memory_semantic_projection(
     Ok(MemorySemanticProjectorAcquisition { grant, claim })
 }
 
-pub fn execute_memory_semantic_projection(
+pub(crate) fn execute_memory_semantic_projection(
     store_path: impl AsRef<Path>,
     input: &MemorySemanticProjectionInput,
     claim_id: &str,
