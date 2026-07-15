@@ -1065,7 +1065,6 @@ pub struct EpiphanyCultMeshClusterTopologyEntry {
     #[cultcache(key = 10)]
     pub public_persona_discussion_allowed: bool,
     #[cultcache(key = 11)]
-    pub odin_advertised: bool,
     #[cultcache(key = 12)]
     pub notes: Vec<String>,
 }
@@ -2688,6 +2687,29 @@ pub fn retire_epiphany_cultmesh_operator_status_documents(
         .pull_all()?
         .into_iter()
         .filter(|entry| entry.r#type == RETIRED_TYPE)
+        .collect::<Vec<_>>();
+    for entry in &retired {
+        backing.delete(entry)?;
+    }
+    Ok(retired.into_iter().map(|entry| entry.key).collect())
+}
+
+/// Removes centrally forged provider documents from the pre-provider-contract
+/// era. Their v0 payloads carry no provider provenance, so retaining them as
+/// live discovery state would let a dead coordinator impersonate providers.
+pub fn retire_epiphany_cultmesh_legacy_provider_documents(
+    store_path: impl AsRef<Path>,
+) -> Result<Vec<String>> {
+    const RETIRED_TYPES: [&str; 3] = [
+        EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE,
+        EPIPHANY_CULTMESH_EVE_SURFACE_STATE_TYPE,
+        EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_TYPE,
+    ];
+    let mut backing = SingleFileMessagePackBackingStore::new(store_path.as_ref());
+    let retired = backing
+        .pull_all()?
+        .into_iter()
+        .filter(|entry| RETIRED_TYPES.contains(&entry.r#type.as_str()))
         .collect::<Vec<_>>();
     for entry in &retired {
         backing.delete(entry)?;
@@ -6388,6 +6410,7 @@ pub fn seed_epiphany_local_verse_context(
     generated_at_utc: impl Into<String>,
 ) -> Result<()> {
     let store_path = store_path.as_ref();
+    retire_epiphany_cultmesh_legacy_provider_documents(store_path)?;
     let runtime_id = runtime_id.into();
     let generated_at_utc = generated_at_utc.into();
     let status = EpiphanyCultMeshStatusEntry {
@@ -6461,22 +6484,10 @@ pub fn query_epiphany_local_verse_context(
         }
     }
 
-    let mut odin_advertisements = Vec::new();
-    for advertisement in epiphany_cultmesh_odin_advertisement_templates() {
-        if let Some(loaded) =
-            node.get::<EpiphanyCultMeshOdinAdvertisementEntry>(&advertisement.advertisement_id)?
-        {
-            odin_advertisements.push(loaded);
-        }
-    }
-    let mut eve_surface_states = Vec::new();
-    for surface in epiphany_cultmesh_eve_surface_templates() {
-        if let Some(loaded) =
-            node.get::<EpiphanyCultMeshEveSurfaceStateEntry>(&surface.surface_id)?
-        {
-            eve_surface_states.push(loaded);
-        }
-    }
+    // v0 provider documents have no provider provenance. They are sealed
+    // legacy decoder vocabulary and never enter live context.
+    let odin_advertisements = Vec::new();
+    let eve_surface_states = Vec::new();
     let mut daemon_statuses = Vec::new();
     for cluster in epiphany_cultmesh_cluster_topology() {
         if let Some(loaded) = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)? {
@@ -6491,14 +6502,7 @@ pub fn query_epiphany_local_verse_context(
         }
     }
 
-    let mut daemon_tool_capabilities = Vec::new();
-    for capability in epiphany_cultmesh_daemon_tool_capability_templates() {
-        if let Some(loaded) =
-            node.get::<EpiphanyCultMeshDaemonToolCapabilityEntry>(&capability.capability_id)?
-        {
-            daemon_tool_capabilities.push(loaded);
-        }
-    }
+    let daemon_tool_capabilities = Vec::new();
 
     let mut contract_summaries = Vec::new();
     collect_contract_summaries(
@@ -6669,25 +6673,10 @@ pub fn load_epiphany_cultmesh_eve_surface_directory(
         EpiphanyCultMeshEveSurfaceStateEntry,
     )>,
 > {
-    let store_path = store_path.as_ref();
-    let runtime_id = runtime_id.into();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
-    let mut rows = Vec::new();
-    for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
-        let Some(advertisement) = epiphany_cultmesh_odin_advertisement_templates()
-            .into_iter()
-            .find(|advertisement| advertisement.cluster_id == cluster.cluster_id)
-        else {
-            continue;
-        };
-        let advertisement =
-            node.get::<EpiphanyCultMeshOdinAdvertisementEntry>(&advertisement.advertisement_id)?;
-        let surface = node.get::<EpiphanyCultMeshEveSurfaceStateEntry>(&cluster.eve_surface_id)?;
-        if let (Some(advertisement), Some(surface)) = (advertisement, surface) {
-            rows.push((cluster, advertisement, surface));
-        }
-    }
-    Ok(rows)
+    let _ = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    // No provenance-bearing provider advertisement contract exists yet.
+    // Topology supplies addresses, never availability.
+    Ok(Vec::new())
 }
 
 fn unknown_daemon_status(
@@ -6725,27 +6714,9 @@ pub fn load_epiphany_cultmesh_daemon_tool_directory(
         EpiphanyCultMeshDaemonToolCapabilityEntry,
     )>,
 > {
-    let store_path = store_path.as_ref();
-    let runtime_id = runtime_id.into();
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let mut rows = Vec::new();
-    let capabilities = node
-        .get_all_with_keys::<EpiphanyCultMeshDaemonToolCapabilityEntry>()?
-        .into_iter()
-        .map(|(_, capability)| capability)
-        .collect::<Vec<_>>();
-    for capability in capabilities {
-        let Some(cluster) =
-            node.get::<EpiphanyCultMeshClusterTopologyEntry>(&capability.host_cluster_id)?
-        else {
-            continue;
-        };
-        let status = node
-            .get::<EpiphanyCultMeshDaemonStatusEntry>(&capability.host_daemon_id)?
-            .unwrap_or_else(|| unknown_daemon_status(&cluster));
-        rows.push((cluster, status, capability));
-    }
-    Ok(rows)
+    let _ = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    // v0 capabilities have no authenticated provider owner and are ignored.
+    Ok(Vec::new())
 }
 
 pub trait EpiphanyCultMeshContractSummarySource: DatabaseEntry {
@@ -7130,7 +7101,6 @@ pub fn epiphany_cultmesh_cluster_topology() -> Vec<EpiphanyCultMeshClusterTopolo
                 daemon_surface_id: format!("epiphany-daemon-{cluster_slug}/local"),
                 eve_surface_id: format!("eve://epiphany/{cluster_slug}"),
                 public_persona_discussion_allowed,
-                odin_advertised: true,
                 notes: vec![
                     format!(
                         "CultMesh advertises this cluster topology as {EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_TYPE}."
@@ -7175,10 +7145,10 @@ pub fn load_epiphany_cultmesh_cluster_topology(
     Ok(topology)
 }
 
+#[cfg(test)]
 fn epiphany_cultmesh_odin_advertisement_templates() -> Vec<EpiphanyCultMeshOdinAdvertisementEntry> {
     epiphany_cultmesh_cluster_topology()
         .into_iter()
-        .filter(|cluster| cluster.odin_advertised)
         .map(|cluster| EpiphanyCultMeshOdinAdvertisementEntry {
             schema_version: EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION.to_string(),
             advertisement_id: format!("odin.advertisement.{}", cluster.cluster_id),
@@ -7210,6 +7180,7 @@ fn epiphany_cultmesh_odin_advertisement_templates() -> Vec<EpiphanyCultMeshOdinA
         .collect()
 }
 
+#[cfg(test)]
 fn epiphany_cultmesh_eve_surface_templates() -> Vec<EpiphanyCultMeshEveSurfaceStateEntry> {
     epiphany_cultmesh_cluster_topology()
         .into_iter()
@@ -7268,6 +7239,7 @@ fn epiphany_cultmesh_eve_surface_templates() -> Vec<EpiphanyCultMeshEveSurfaceSt
         .collect()
 }
 
+#[cfg(test)]
 fn validate_eve_surface_state(surface: &EpiphanyCultMeshEveSurfaceStateEntry) -> Result<()> {
     if surface.private_state_exposed {
         return Err(anyhow!("Eve surface states must not expose private state"));
@@ -7622,6 +7594,7 @@ fn validate_daemon_status(status: &EpiphanyCultMeshDaemonStatusEntry) -> Result<
     Ok(())
 }
 
+#[cfg(test)]
 fn epiphany_cultmesh_daemon_tool_capability_templates()
 -> Vec<EpiphanyCultMeshDaemonToolCapabilityEntry> {
     let mut capabilities = Vec::new();
@@ -7701,6 +7674,7 @@ fn epiphany_cultmesh_daemon_tool_capability_templates()
     capabilities
 }
 
+#[cfg(test)]
 fn epiphany_cultmesh_daemon_tool_capability(
     cluster: &EpiphanyCultMeshClusterTopologyEntry,
     tool_slug: &str,
@@ -7734,7 +7708,10 @@ fn epiphany_cultmesh_daemon_tool_capability(
     }
 }
 
-pub fn publish_epiphany_cultmesh_provider_state(
+/// Test-only decoder fixture for proving retirement and legacy consumer
+/// behavior. This is deliberately absent from production builds.
+#[cfg(test)]
+pub(crate) fn write_legacy_provider_fixture(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
     daemon_id: &str,
@@ -7742,23 +7719,21 @@ pub fn publish_epiphany_cultmesh_provider_state(
     let cluster = epiphany_cultmesh_cluster_topology()
         .into_iter()
         .find(|cluster| cluster.daemon_id == daemon_id)
-        .with_context(|| format!("no declared provider topology for daemon {daemon_id:?}"))?;
+        .context("legacy fixture daemon has no topology")?;
     let advertisement = epiphany_cultmesh_odin_advertisement_templates()
         .into_iter()
-        .find(|advertisement| advertisement.cluster_id == cluster.cluster_id)
-        .with_context(|| format!("daemon {daemon_id:?} has no Odin advertisement contract"))?;
+        .find(|row| row.cluster_id == cluster.cluster_id)
+        .context("legacy fixture has no advertisement")?;
     let surface = epiphany_cultmesh_eve_surface_templates()
         .into_iter()
-        .find(|surface| surface.cluster_id == cluster.cluster_id)
-        .with_context(|| format!("daemon {daemon_id:?} has no Eve surface contract"))?;
-    validate_eve_surface_state(&surface)?;
-
+        .find(|row| row.cluster_id == cluster.cluster_id)
+        .context("legacy fixture has no surface")?;
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.put(advertisement.advertisement_id.clone(), &advertisement)?;
     node.put(surface.surface_id.clone(), &surface)?;
     for capability in epiphany_cultmesh_daemon_tool_capability_templates()
         .into_iter()
-        .filter(|capability| capability.host_daemon_id == daemon_id)
+        .filter(|row| row.host_daemon_id == daemon_id)
     {
         node.put(capability.capability_id.clone(), &capability)?;
     }
@@ -8631,7 +8606,7 @@ mod tests {
 
     fn publish_all_test_provider_state(store: &Path) -> Result<()> {
         for cluster in epiphany_cultmesh_cluster_topology() {
-            publish_epiphany_cultmesh_provider_state(store, "epiphany-test", &cluster.daemon_id)?;
+            write_legacy_provider_fixture(store, "epiphany-test", &cluster.daemon_id)?;
         }
         Ok(())
     }
@@ -9804,7 +9779,6 @@ mod tests {
         assert_eq!(persona.daemon_id, "epiphany-daemon-persona");
         assert_eq!(persona.eve_surface_id, "eve://epiphany/persona");
         assert!(persona.public_persona_discussion_allowed);
-        assert!(persona.odin_advertised);
         assert!(!hands.public_persona_discussion_allowed);
         assert!(
             hands
@@ -9849,43 +9823,17 @@ mod tests {
     }
 
     #[test]
-    fn eve_surface_states_back_every_odin_advertised_surface() -> Result<()> {
+    fn legacy_provider_rows_are_not_live_discovery_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-eve-surface-states.ccmp");
         write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
         publish_all_test_provider_state(&store)?;
-        let advertisements = epiphany_cultmesh_odin_advertisement_templates();
-        let surfaces = epiphany_cultmesh_eve_surface_templates();
-
-        assert_eq!(surfaces.len(), advertisements.len());
-        for advertisement in advertisements {
-            let surface = surfaces
-                .iter()
-                .find(|surface| surface.surface_id == advertisement.eve_surface_id)
-                .expect("advertised Eve surface has surface state");
-            assert_eq!(surface.cluster_id, advertisement.cluster_id);
-            assert!(surface.surface_id.starts_with("eve://"));
-            assert!(!surface.private_state_exposed);
-            assert!(!surface.tui_rows.is_empty());
-            assert!(
-                surface
-                    .supported_actions
-                    .iter()
-                    .any(|action| { action == "submitEveConnectionIntent" })
-            );
-        }
-
         let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(
-            context.eve_surface_states.len(),
-            context.odin_advertisements.len()
-        );
-        assert!(context.eve_surface_states.iter().any(|surface| {
-            surface.surface_id == "eve://epiphany/persona"
-                && surface
-                    .exposed_document_types
-                    .contains(&EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string())
-        }));
+        assert!(context.odin_advertisements.is_empty());
+        assert!(context.eve_surface_states.is_empty());
+        assert!(context.daemon_tool_capabilities.is_empty());
+        assert!(load_epiphany_cultmesh_eve_surface_directory(&store, "epiphany-test")?.is_empty());
+        assert!(load_epiphany_cultmesh_daemon_tool_directory(&store, "epiphany-test")?.is_empty());
         Ok(())
     }
 
@@ -10348,11 +10296,7 @@ mod tests {
     fn eve_connection_intent_and_receipt_route_feedback_without_private_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-eve-connection.ccmp");
-        publish_epiphany_cultmesh_provider_state(
-            &store,
-            "epiphany-test",
-            "epiphany-daemon-persona",
-        )?;
+        write_legacy_provider_fixture(&store, "epiphany-test", "epiphany-daemon-persona")?;
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let persona = node.get_required::<EpiphanyCultMeshOdinAdvertisementEntry>(
@@ -10518,7 +10462,7 @@ mod tests {
     fn daemon_tool_invocation_intent_and_receipt_round_trip_for_any_agent() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-tool-invocation.ccmp");
-        publish_epiphany_cultmesh_provider_state(&store, "epiphany-test", "epiphany-daemon-hands")?;
+        write_legacy_provider_fixture(&store, "epiphany-test", "epiphany-daemon-hands")?;
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let hands_action = node.get_required::<EpiphanyCultMeshDaemonToolCapabilityEntry>(
@@ -11186,46 +11130,52 @@ mod tests {
     }
 
     #[test]
-    fn provider_publication_is_bounded_to_the_owning_daemon() -> Result<()> {
+    fn explicit_bootstrap_retires_legacy_provider_forgery() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-provider-boundary.ccmp");
         seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-07-12T00:00:00Z")?;
+        let sentinel_before =
+            open_epiphany_cultmesh_node(&store, "epiphany-test")?
+                .get_required::<EpiphanyCultMeshStatusEntry>(EPIPHANY_CULTMESH_STATUS_KEY)?;
 
-        publish_epiphany_cultmesh_provider_state(&store, "epiphany-test", "epiphany-daemon-hands")?;
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(context.odin_advertisements.len(), 1);
-        assert_eq!(context.eve_surface_states.len(), 1);
-        assert_eq!(context.daemon_tool_capabilities.len(), 3);
+        write_legacy_provider_fixture(&store, "epiphany-test", "epiphany-daemon-hands")?;
         assert!(
-            context
+            query_epiphany_local_verse_context(&store, "epiphany-test")?
                 .odin_advertisements
-                .iter()
-                .all(|entry| entry.cluster_id == "epiphany.cluster.hands")
+                .is_empty()
         );
-        assert!(
-            context
-                .eve_surface_states
-                .iter()
-                .all(|entry| entry.cluster_id == "epiphany.cluster.hands")
+        let mut retired = retire_epiphany_cultmesh_legacy_provider_documents(&store)?;
+        retired.sort();
+        assert_eq!(
+            retired,
+            vec![
+                "epiphany.cluster.hands.tool.eve-connect".to_string(),
+                "epiphany.cluster.hands.tool.repo-action".to_string(),
+                "epiphany.cluster.hands.tool.status".to_string(),
+                "eve://epiphany/hands".to_string(),
+                "odin.advertisement.epiphany.cluster.hands".to_string(),
+            ]
         );
-        assert!(
-            context
-                .daemon_tool_capabilities
-                .iter()
-                .all(|entry| entry.host_daemon_id == "epiphany-daemon-hands")
+        assert_eq!(
+            open_epiphany_cultmesh_node(&store, "epiphany-test")?
+                .get_required::<EpiphanyCultMeshStatusEntry>(EPIPHANY_CULTMESH_STATUS_KEY)?,
+            sentinel_before
         );
+        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-07-12T00:01:00Z")?;
+        assert!(retire_epiphany_cultmesh_legacy_provider_documents(&store)?.is_empty());
 
-        let error = publish_epiphany_cultmesh_provider_state(
-            &store,
-            "epiphany-test",
-            "epiphany-daemon-counterfeit",
-        )
-        .expect_err("unknown daemons must not publish provider state");
-        assert!(error.to_string().contains("no declared provider topology"));
+        let error =
+            write_legacy_provider_fixture(&store, "epiphany-test", "epiphany-daemon-counterfeit")
+                .expect_err("unknown daemons must not create even a legacy fixture");
+        assert!(
+            error
+                .to_string()
+                .contains("legacy fixture daemon has no topology")
+        );
         let unchanged = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(unchanged.odin_advertisements.len(), 1);
-        assert_eq!(unchanged.eve_surface_states.len(), 1);
-        assert_eq!(unchanged.daemon_tool_capabilities.len(), 3);
+        assert!(unchanged.odin_advertisements.is_empty());
+        assert!(unchanged.eve_surface_states.is_empty());
+        assert!(unchanged.daemon_tool_capabilities.is_empty());
         Ok(())
     }
 

@@ -83,7 +83,6 @@ use epiphany_core::load_latest_epiphany_cultmesh_repo_work_readiness;
 use epiphany_core::native_process_executable_path;
 use epiphany_core::observe_native_process;
 use epiphany_core::open_epiphany_cultmesh_node;
-use epiphany_core::publish_epiphany_cultmesh_provider_state;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_agent_state_soa_summary;
@@ -111,12 +110,6 @@ const DIRECT_MANAGED_SERVICE_SIGHT_COMMAND: &str = "epiphany-verse-query managed
 const WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode swarm-online-runbook";
 const WRAPPER_POKE_NON_READY_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-poke-down";
-const DIRECT_INVOKE_TOOL_COMMAND: &str =
-    "epiphany-verse-query invoke-tool --capability-id <capability>";
-const WRAPPER_INVOKE_TOOL_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode tool-invoke -ToolCapabilityId <capability> -ToolRequestingAgentId <agent> -ToolRequestingClusterId <cluster>";
-const WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode tool-invoke -ToolCapabilityId epiphany.cluster.self.tool.swarm-online-runbook -ToolRequestingAgentId <agent> -ToolRequestingClusterId <cluster>";
-const WRAPPER_CONNECT_EVE_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode eve-connect -EveTargetClusterId <cluster>";
 const WRAPPER_COLLABORATION_FEEDBACK_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode collaboration-feedback";
 const WRAPPER_BIFROST_PUBLICATION_COMMAND: &str =
@@ -437,8 +430,9 @@ fn run_cli() -> Result<()> {
                     "toolCount": report.rows.len(),
                     "hostReadyCount": report.host_ready_count,
                     "hostAttentionCount": report.host_attention_count,
-                    "invocationCommand": DIRECT_INVOKE_TOOL_COMMAND,
-                    "wrapperInvocationCommand": WRAPPER_INVOKE_TOOL_COMMAND,
+                    "invocationCommand": null,
+                    "wrapperInvocationCommand": null,
+                    "availabilityReason": "no provenance-bearing provider capability contract",
                     "wrapperMode": "tools/epiphany_local_run.ps1 -Mode tool-directory",
                     "privateStateExposed": false,
                     "invariants": {
@@ -811,7 +805,8 @@ fn run_cli() -> Result<()> {
                     "repoWorkQueueCount": report.repo_work_queue_count,
                     "repoWorkQueueRows": report.repo_work_queue_rows,
                     "repoWorkQueueTuiRows": report.repo_work_queue_tui_rows,
-                    "connectionCommand": "epiphany-verse-query connect-eve --target-cluster-id <cluster>",
+                    "connectionCommand": null,
+                    "availabilityReason": "no provenance-bearing provider advertisement contract",
                     "privateStateExposed": false,
                     "rows": report.rows,
                     "tuiRows": report.tui_rows,
@@ -837,13 +832,8 @@ fn run_cli() -> Result<()> {
                 "wrapperReceipts": WRAPPER_RECEIPT_DIRECTORY_COMMAND,
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
                 "wrapperPokeNonReady": WRAPPER_POKE_NON_READY_COMMAND,
-                "connectEve": "epiphany-verse-query connect-eve --target-cluster-id <cluster>",
-                "wrapperConnectEve": WRAPPER_CONNECT_EVE_COMMAND,
                 "bifrostLedger": "epiphany-verse-query bifrost-ledger",
                 "wrapperBifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
-                "invokeTool": DIRECT_INVOKE_TOOL_COMMAND,
-                "wrapperInvokeTool": WRAPPER_INVOKE_TOOL_COMMAND,
-                "wrapperInvokeSwarmOnlineRunbookTool": WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND
             });
             println!(
                 "{}",
@@ -1202,7 +1192,6 @@ fn run_cli() -> Result<()> {
                     "adoptionGate": null,
                     "responseOwner": "Imagination",
                     "commands": {
-                        "connectEve": WRAPPER_CONNECT_EVE_COMMAND,
                         "bifrostPublication": DIRECT_BIFROST_PUBLICATION_COMMAND,
                         "wrapperBifrostPublication": WRAPPER_BIFROST_PUBLICATION_COMMAND,
                         "wrapperBifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
@@ -1236,7 +1225,7 @@ fn run_cli() -> Result<()> {
                         advertisement.advertisement_id == advertisement_id
                     })
                     .with_context(|| {
-                        format!("local Verse has no Odin advertisement {advertisement_id:?}")
+                        format!("connect-eve unavailable: no provenance-bearing Odin advertisement {advertisement_id:?}")
                     })?
             } else {
                 let target_cluster_id = args
@@ -1250,7 +1239,7 @@ fn run_cli() -> Result<()> {
                         })
                         .with_context(|| {
                             format!(
-                                "local Verse has no Odin advertisement for cluster {target_cluster_id:?}"
+                                "connect-eve unavailable: no provenance-bearing Odin advertisement for cluster {target_cluster_id:?}"
                             )
                         })?
             };
@@ -1327,15 +1316,6 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 "2026-06-02T00:00:00Z",
             )?;
-            for cluster in
-                load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?
-            {
-                publish_epiphany_cultmesh_provider_state(
-                    &args.store,
-                    args.runtime_id.clone(),
-                    &cluster.daemon_id,
-                )?;
-            }
             seed_quarantined_smoke_daemon_statuses(&args)?;
             let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
             let ready_liveness =
@@ -1369,19 +1349,8 @@ fn run_cli() -> Result<()> {
             let (_latest_repo_work_overview, repo_work_overviews) =
                 load_repo_work_overview_queue(&args)?;
             let eve_report = eve_surface_report(&eve_directory, &repo_work_overviews);
-            if eve_report.rows.len() != 7 || eve_report.public_discussion_count != 1 {
-                anyhow::bail!(
-                    "local Verse query smoke expected seven Eve surfaces and one public discussion surface"
-                );
-            }
-            if !eve_report.tui_rows.iter().any(|row| {
-                row.contains("PUBLIC")
-                    && row.contains("Persona")
-                    && row.contains("eve://epiphany/persona")
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact PUBLIC Persona Eve surface row"
-                );
+            if !eve_report.rows.is_empty() || eve_report.public_discussion_count != 0 {
+                anyhow::bail!("local Verse query smoke accepted ownerless Eve provider state");
             }
             if context.verse_policies.len() != 3 {
                 anyhow::bail!("local Verse query smoke expected three Verse policies");
@@ -1425,136 +1394,16 @@ fn run_cli() -> Result<()> {
             }) {
                 anyhow::bail!("local Verse query smoke lost Persona Eve topology");
             }
-            if context.odin_advertisements.len() != 7 {
-                anyhow::bail!("local Verse query smoke expected seven Odin advertisements");
-            }
-            if !context.odin_advertisements.iter().any(|advertisement| {
-                advertisement.cluster_id == "epiphany.cluster.persona"
-                    && advertisement.eve_surface_id == "eve://epiphany/persona"
-                    && !advertisement.private_state_exposed
-            }) {
-                anyhow::bail!("local Verse query smoke lost safe Persona Odin advertisement");
-            }
-            let persona_advertisement = context
-                .odin_advertisements
-                .iter()
-                .find(|advertisement| advertisement.cluster_id == "epiphany.cluster.persona")
-                .context("missing Persona Odin advertisement")?;
-            let intent = epiphany_cultmesh_eve_connection_intent_from_advertisement(
-                "eve-intent-smoke",
-                "epiphany.cluster.self",
-                persona_advertisement,
-                "Smoke-test compact Eve collaboration discovery.",
-                "requestDiscussion",
-            );
-            write_epiphany_cultmesh_eve_connection_intent(
-                &args.store,
-                args.runtime_id.clone(),
-                intent.clone(),
-            )?;
-            let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            if context.latest_eve_connection_intent.is_none()
-                || context.latest_eve_connection_receipt.is_some()
+            if !context.odin_advertisements.is_empty()
+                || !context.daemon_tool_capabilities.is_empty()
             {
-                anyhow::bail!(
-                    "local Verse query smoke lost Eve intent or manufactured a provider receipt"
-                );
-            }
-            if context.daemon_tool_capabilities.len() < 19 {
-                anyhow::bail!("local Verse query smoke expected daemon tool capabilities");
-            }
-            if !context.daemon_tool_capabilities.iter().all(|capability| {
-                capability.available_to_all_agents
-                    && capability.requires_receipt
-                    && !capability.private_state_exposed
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke found a daemon tool that is not globally available, receipt-gated, and private-state sealed"
-                );
+                anyhow::bail!("local Verse query smoke accepted ownerless provider claims");
             }
             let tool_directory =
                 load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
             let tool_report = daemon_tool_directory_report(&tool_directory);
-            if tool_report.rows.len() < 19 || tool_report.host_attention_count != 0 {
-                anyhow::bail!(
-                    "local Verse query smoke expected globally visible tools hosted by ready daemons"
-                );
-            }
-            if !tool_report.tui_rows.iter().any(|row| {
-                row.contains("READY")
-                    && row.contains("Hands")
-                    && row.contains("repo-action")
-                    && row.contains("epiphany.cluster.hands.tool.repo-action")
-                    && row.contains("authority=hands")
-                    && row.contains("input=epiphany.hands.action_intent")
-                    && row.contains("receiptType=epiphany.hands.action_review")
-                    && row.contains("allAgents=true")
-                    && row.contains("receipt=true")
-                    && row.contains("private=false")
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact Hands repo-action tool contract row"
-                );
-            }
-            if !tool_report.tui_rows.iter().any(|row| {
-                row.contains("READY")
-                    && row.contains("Self")
-                    && row.contains("service-health")
-                    && row.contains("epiphany.cluster.self.tool.service-health")
-                    && row.contains("authority=daemon.service_lifecycle")
-                    && row.contains("input=epiphany.cultmesh.daemon_service_lifecycle_query")
-                    && row
-                        .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
-                    && row.contains("allAgents=true")
-                    && row.contains("receipt=true")
-                    && row.contains("private=false")
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact Self service-health tool contract row"
-                );
-            }
-            if !tool_report.tui_rows.iter().any(|row| {
-                row.contains("READY")
-                    && row.contains("Self")
-                    && row.contains("service-policy-directory")
-                    && row.contains("epiphany.cluster.self.tool.service-policy-directory")
-                    && row.contains("authority=daemon.service_lifecycle")
-                    && row.contains("input=epiphany.cultmesh.daemon_restart_policy_directory_query")
-                    && row
-                        .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
-                    && row.contains("allAgents=true")
-                    && row.contains("receipt=true")
-                    && row.contains("private=false")
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact Self service-policy-directory tool contract row"
-                );
-            }
-            if !tool_report.tui_rows.iter().any(|row| {
-                row.contains("READY")
-                    && row.contains("Self")
-                    && row.contains("swarm-online-runbook")
-                    && row.contains("epiphany.cluster.self.tool.swarm-online-runbook")
-                    && row.contains("authority=daemon.service_lifecycle")
-                    && row.contains("input=epiphany.cultmesh.daemon_service_online_runbook_request")
-                    && row
-                        .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
-                    && row.contains("allAgents=true")
-                    && row.contains("receipt=true")
-                    && row.contains("private=false")
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact Self swarm-online-runbook tool contract row"
-                );
-            }
-            if DIRECT_INVOKE_TOOL_COMMAND
-                != "epiphany-verse-query invoke-tool --capability-id <capability>"
-                || !WRAPPER_INVOKE_TOOL_COMMAND.contains("-Mode tool-invoke")
-                || !WRAPPER_INVOKE_TOOL_COMMAND.contains("-ToolCapabilityId <capability>")
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact tool-directory invocation command hints"
-                );
+            if !tool_report.rows.is_empty() || tool_report.host_attention_count != 0 {
+                anyhow::bail!("local Verse query smoke accepted ownerless tool capabilities");
             }
             let overview_liveness =
                 load_epiphany_cultmesh_daemon_liveness(&args.store, args.runtime_id.clone())?;
@@ -1573,28 +1422,12 @@ fn run_cli() -> Result<()> {
                 || topology_report.rows.len() != 7
                 || topology_report.private_verse_count != 7
                 || topology_report.daemon_count != 7
-                || overview_surface_report.rows.len() != 7
-                || overview_surface_report.public_discussion_count != 1
-                || overview_tool_report.rows.len() < 18
+                || !overview_surface_report.rows.is_empty()
+                || overview_surface_report.public_discussion_count != 0
+                || !overview_tool_report.rows.is_empty()
                 || overview_tool_report.host_attention_count != 0
             {
                 anyhow::bail!("local Verse query smoke lost compact swarm overview invariants");
-            }
-            if !overview_surface_report.tui_rows.iter().any(|row| {
-                row.contains("PUBLIC")
-                    && row.contains("Persona")
-                    && row.contains("cluster=epiphany.cluster.persona")
-                    && row.contains("surface=eve://epiphany/persona")
-                    && row.contains("daemon=epiphany-daemon-persona")
-                    && row.contains("privateVerse=epiphany.cluster.persona.private")
-                    && row.contains("publicDiscussion=true")
-                    && row.contains("actions=inspectCompactSurface,submitEveConnectionIntent,watchTypedReceipts")
-                    && row.contains("gamecult.bifrost.collaboration_feedback")
-                    && row.contains("private=false")
-            }) {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact Persona Eve surface routing row"
-                );
             }
             let ready_overview = load_swarm_overview_report(&args)?;
             if ready_overview.liveness_status != "ready"
@@ -1638,17 +1471,9 @@ fn run_cli() -> Result<()> {
             }) {
                 anyhow::bail!("local Verse query smoke lost swarm overview topology row");
             }
-            if !WRAPPER_INVOKE_TOOL_COMMAND.contains("-Mode tool-invoke")
-                || !WRAPPER_INVOKE_TOOL_COMMAND.contains("-ToolCapabilityId <capability>")
-                || DIRECT_INVOKE_TOOL_COMMAND
-                    != "epiphany-verse-query invoke-tool --capability-id <capability>"
-                || !WRAPPER_CONNECT_EVE_COMMAND.contains("-Mode eve-connect")
-                || !WRAPPER_BIFROST_LEDGER_COMMAND.contains("-Mode bifrost-ledger")
+            if !WRAPPER_BIFROST_LEDGER_COMMAND.contains("-Mode bifrost-ledger")
                 || !WRAPPER_RECEIPT_DIRECTORY_COMMAND.contains("-Mode receipt-directory")
                 || !WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND.contains("-Mode swarm-online-runbook")
-                || !WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND.contains("-Mode tool-invoke")
-                || !WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND
-                    .contains("-ToolCapabilityId epiphany.cluster.self.tool.swarm-online-runbook")
                 || !WRAPPER_SERVICE_TICK_COMMAND.contains("-Mode service-tick")
                 || !WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND
                     .contains("-Mode service-policy-directory")
@@ -1735,387 +1560,6 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke let a disabled daemon restart policy masquerade as recovery readiness"
                 );
             }
-            let hands_repo_action = context
-                .daemon_tool_capabilities
-                .iter()
-                .find(|capability| {
-                    capability.capability_id == "epiphany.cluster.hands.tool.repo-action"
-                })
-                .context("missing Hands repo-action daemon tool capability")?;
-            let tool_intent = epiphany_cultmesh_daemon_tool_invocation_intent_from_capability(
-                "daemon-tool-intent-smoke",
-                "epiphany.Persona",
-                "epiphany.cluster.persona",
-                hands_repo_action,
-                "cultmesh://epiphany-local/hands-action-intent/smoke",
-                "Persona requests Hands repo-action review through the globally advertised daemon tool directory.",
-            );
-            write_epiphany_cultmesh_daemon_tool_invocation_intent(
-                &args.store,
-                args.runtime_id.clone(),
-                tool_intent.clone(),
-            )?;
-            let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-            if context.latest_daemon_tool_invocation_intent.is_none()
-                || context.latest_daemon_tool_invocation_receipt.is_some()
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost daemon tool intent or manufactured a host receipt"
-                );
-            }
-            let persona_cluster = cluster_topology_for_id(&context, "epiphany.cluster.persona")?;
-            let hands_cluster = cluster_topology_for_id(&context, "epiphany.cluster.hands")?;
-            let tool_invocation_tui_row =
-                daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
-                    requester: &persona_cluster.display_name,
-                    requesting_agent_id: "epiphany.Persona",
-                    requesting_private_verse: &persona_cluster.private_verse_id,
-                    requesting_surface: &persona_cluster.eve_surface_id,
-                    host: &hands_cluster.display_name,
-                    host_daemon_id: &hands_repo_action.host_daemon_id,
-                    host_private_verse: &hands_cluster.private_verse_id,
-                    host_surface: &hands_cluster.eve_surface_id,
-                    capability_id: &hands_repo_action.capability_id,
-                    tool_name: &hands_repo_action.tool_name,
-                    operation: &hands_repo_action.operation,
-                    intent_id: "daemon-tool-intent-smoke",
-                    receipt_id: "daemon-tool-receipt-smoke",
-                    receipt_status: "accepted-for-hands-review",
-                    receipt_contract_type: &hands_repo_action.receipt_contract_type,
-                    result_ref: "cultmesh://epiphany-local/hands-action-review/smoke",
-                    authority_gate: &hands_repo_action.authority_gate,
-                    all_agents: hands_repo_action.available_to_all_agents,
-                    requires_receipt: hands_repo_action.requires_receipt,
-                    private_state_exposed: false,
-                });
-            if !tool_invocation_tui_row.contains("INVOKE")
-                || !tool_invocation_tui_row.contains("Persona")
-                || !tool_invocation_tui_row.contains("host=Hands")
-                || !tool_invocation_tui_row.contains("hostDaemon=epiphany-daemon-hands")
-                || !tool_invocation_tui_row
-                    .contains("requestPrivateVerse=epiphany.cluster.persona.private")
-                || !tool_invocation_tui_row
-                    .contains("hostPrivateVerse=epiphany.cluster.hands.private")
-                || !tool_invocation_tui_row
-                    .contains("capability=epiphany.cluster.hands.tool.repo-action")
-                || !tool_invocation_tui_row.contains("receipt=daemon-tool-receipt-smoke")
-                || !tool_invocation_tui_row.contains("allAgents=true")
-                || !tool_invocation_tui_row.contains("receiptRequired=true")
-                || !tool_invocation_tui_row.contains("private=false")
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost compact daemon tool invocation routing row"
-                );
-            }
-            let (hands_authority_readback, hands_authority_private_state_exposed) =
-                authority_tool_readback_from_capability(hands_cluster, hands_repo_action);
-            if hands_authority_readback["authorityGate"].as_str() != Some("hands")
-                || hands_authority_readback["hostClusterId"].as_str()
-                    != Some("epiphany.cluster.hands")
-                || hands_authority_readback["toolName"].as_str() != Some("repo-action")
-                || hands_authority_readback["inputContractType"].as_str()
-                    != Some("epiphany.hands.action_intent")
-                || hands_authority_readback["receiptContractType"].as_str()
-                    != Some("epiphany.hands.action_review")
-                || hands_authority_readback["intentRoute"].as_str()
-                    != Some(
-                        "cultmesh://epiphany-local/authority/hands/epiphany.cluster.hands.tool.repo-action/intent",
-                    )
-                || hands_authority_readback["receiptRoute"].as_str()
-                    != Some(
-                        "cultmesh://epiphany-local/authority/hands/epiphany.cluster.hands.tool.repo-action/receipt",
-                    )
-                || hands_authority_readback["privateStateExposed"].as_bool() != Some(false)
-                || hands_authority_private_state_exposed
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost Hands authority-tool readback contract"
-                );
-            }
-            let soul_verify = context
-                .daemon_tool_capabilities
-                .iter()
-                .find(|capability| capability.capability_id == "epiphany.cluster.soul.tool.verify")
-                .context("missing Soul verify daemon tool capability")?;
-            let soul_cluster = cluster_topology_for_id(&context, "epiphany.cluster.soul")?;
-            let (soul_authority_readback, soul_authority_private_state_exposed) =
-                authority_tool_readback_from_capability(soul_cluster, soul_verify);
-            if soul_authority_readback["authorityGate"].as_str() != Some("soul")
-                || soul_authority_readback["hostClusterId"].as_str()
-                    != Some("epiphany.cluster.soul")
-                || soul_authority_readback["toolName"].as_str() != Some("verify")
-                || soul_authority_readback["inputContractType"].as_str()
-                    != Some("epiphany.soul.verification_request")
-                || soul_authority_readback["receiptContractType"].as_str()
-                    != Some("epiphany.soul.verdict_receipt")
-                || soul_authority_readback["privateStateExposed"].as_bool() != Some(false)
-                || soul_authority_private_state_exposed
-            {
-                anyhow::bail!("local Verse query smoke lost Soul authority-tool readback contract");
-            }
-            let service_health = context
-                .daemon_tool_capabilities
-                .iter()
-                .find(|capability| {
-                    capability.capability_id == "epiphany.cluster.self.tool.service-health"
-                })
-                .context("missing Self service-health daemon tool capability")?;
-            let service_health_receipt_status = default_daemon_tool_receipt_status(service_health);
-            let service_health_result_ref = default_daemon_tool_result_ref(
-                service_health,
-                "daemon-tool-receipt-service-health-smoke",
-            );
-            let service_health_row =
-                daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
-                    requester: "Persona",
-                    requesting_agent_id: "epiphany.Persona",
-                    requesting_private_verse: "epiphany.cluster.persona.private",
-                    requesting_surface: "eve://epiphany/persona",
-                    host: "Self",
-                    host_daemon_id: &service_health.host_daemon_id,
-                    host_private_verse: "epiphany.cluster.self.private",
-                    host_surface: "eve://epiphany/self",
-                    capability_id: &service_health.capability_id,
-                    tool_name: &service_health.tool_name,
-                    operation: &service_health.operation,
-                    intent_id: "daemon-tool-intent-service-health-smoke",
-                    receipt_id: "daemon-tool-receipt-service-health-smoke",
-                    receipt_status: &service_health_receipt_status,
-                    receipt_contract_type: &service_health.receipt_contract_type,
-                    result_ref: &service_health_result_ref,
-                    authority_gate: &service_health.authority_gate,
-                    all_agents: service_health.available_to_all_agents,
-                    requires_receipt: service_health.requires_receipt,
-                    private_state_exposed: false,
-                });
-            if !service_health_row.contains("tool=service-health")
-                || !service_health_row.contains("host=Self")
-                || !service_health_row.contains("operation=readServiceLifecycleStatus")
-                || !service_health_row
-                    .contains("receiptStatus=accepted-for-service-lifecycle-readback")
-                || !service_health_row
-                    .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
-                || !service_health_row.contains(
-                    "resultRef=cultmesh://epiphany-local/daemon-service-lifecycle/receipt-directory",
-                )
-                || !service_health_row.contains("authority=daemon.service_lifecycle")
-                || !service_health_row.contains("allAgents=true")
-                || !service_health_row.contains("receiptRequired=true")
-                || !service_health_row.contains("private=false")
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost service-health daemon tool readback route"
-                );
-            }
-            let service_policy_directory = context
-                .daemon_tool_capabilities
-                .iter()
-                .find(|capability| {
-                    capability.capability_id
-                        == "epiphany.cluster.self.tool.service-policy-directory"
-                })
-                .context("missing Self service-policy-directory daemon tool capability")?;
-            let service_policy_directory_receipt_status =
-                default_daemon_tool_receipt_status(service_policy_directory);
-            let service_policy_directory_result_ref = default_daemon_tool_result_ref(
-                service_policy_directory,
-                "daemon-tool-receipt-service-policy-directory-smoke",
-            );
-            let service_policy_directory_row =
-                daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
-                    requester: "Persona",
-                    requesting_agent_id: "epiphany.Persona",
-                    requesting_private_verse: "epiphany.cluster.persona.private",
-                    requesting_surface: "eve://epiphany/persona",
-                    host: "Self",
-                    host_daemon_id: &service_policy_directory.host_daemon_id,
-                    host_private_verse: "epiphany.cluster.self.private",
-                    host_surface: "eve://epiphany/self",
-                    capability_id: &service_policy_directory.capability_id,
-                    tool_name: &service_policy_directory.tool_name,
-                    operation: &service_policy_directory.operation,
-                    intent_id: "daemon-tool-intent-service-policy-directory-smoke",
-                    receipt_id: "daemon-tool-receipt-service-policy-directory-smoke",
-                    receipt_status: &service_policy_directory_receipt_status,
-                    receipt_contract_type: &service_policy_directory.receipt_contract_type,
-                    result_ref: &service_policy_directory_result_ref,
-                    authority_gate: &service_policy_directory.authority_gate,
-                    all_agents: service_policy_directory.available_to_all_agents,
-                    requires_receipt: service_policy_directory.requires_receipt,
-                    private_state_exposed: false,
-                });
-            if !service_policy_directory_row.contains("tool=service-policy-directory")
-                || !service_policy_directory_row.contains("host=Self")
-                || !service_policy_directory_row.contains("operation=readServicePolicyDirectory")
-                || !service_policy_directory_row
-                    .contains("receiptStatus=accepted-for-service-policy-directory-readback")
-                || !service_policy_directory_row
-                    .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
-                || !service_policy_directory_row.contains(
-                    "resultRef=cultmesh://epiphany-local/daemon-service-lifecycle/service-policy-directory",
-                )
-                || !service_policy_directory_row.contains("authority=daemon.service_lifecycle")
-                || !service_policy_directory_row.contains("allAgents=true")
-                || !service_policy_directory_row.contains("receiptRequired=true")
-                || !service_policy_directory_row.contains("private=false")
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost service-policy-directory daemon tool readback route"
-                );
-            }
-            let swarm_online_runbook = context
-                .daemon_tool_capabilities
-                .iter()
-                .find(|capability| {
-                    capability.capability_id == "epiphany.cluster.self.tool.swarm-online-runbook"
-                })
-                .context("missing Self swarm-online-runbook daemon tool capability")?;
-            let swarm_online_runbook_receipt_status =
-                default_daemon_tool_receipt_status(swarm_online_runbook);
-            let swarm_online_runbook_result_ref = default_daemon_tool_result_ref(
-                swarm_online_runbook,
-                "daemon-tool-receipt-swarm-online-runbook-smoke",
-            );
-            let swarm_online_runbook_row =
-                daemon_tool_invocation_tui_row(DaemonToolInvocationTuiFields {
-                    requester: "Persona",
-                    requesting_agent_id: "epiphany.Persona",
-                    requesting_private_verse: "epiphany.cluster.persona.private",
-                    requesting_surface: "eve://epiphany/persona",
-                    host: "Self",
-                    host_daemon_id: &swarm_online_runbook.host_daemon_id,
-                    host_private_verse: "epiphany.cluster.self.private",
-                    host_surface: "eve://epiphany/self",
-                    capability_id: &swarm_online_runbook.capability_id,
-                    tool_name: &swarm_online_runbook.tool_name,
-                    operation: &swarm_online_runbook.operation,
-                    intent_id: "daemon-tool-intent-swarm-online-runbook-smoke",
-                    receipt_id: "daemon-tool-receipt-swarm-online-runbook-smoke",
-                    receipt_status: &swarm_online_runbook_receipt_status,
-                    receipt_contract_type: &swarm_online_runbook.receipt_contract_type,
-                    result_ref: &swarm_online_runbook_result_ref,
-                    authority_gate: &swarm_online_runbook.authority_gate,
-                    all_agents: swarm_online_runbook.available_to_all_agents,
-                    requires_receipt: swarm_online_runbook.requires_receipt,
-                    private_state_exposed: false,
-                });
-            if !swarm_online_runbook_row.contains("tool=swarm-online-runbook")
-                || !swarm_online_runbook_row.contains("host=Self")
-                || !swarm_online_runbook_row.contains("operation=prepareSwarmOnlineRunbook")
-                || !swarm_online_runbook_row
-                    .contains("receiptStatus=accepted-for-swarm-online-runbook-readback")
-                || !swarm_online_runbook_row
-                    .contains("receiptType=epiphany.cultmesh.daemon_service_lifecycle_receipt")
-                || !swarm_online_runbook_row.contains(
-                    "resultRef=cultmesh://epiphany-local/daemon-service-lifecycle/swarm-online-runbook",
-                )
-                || !swarm_online_runbook_row.contains("authority=daemon.service_lifecycle")
-                || !swarm_online_runbook_row.contains("allAgents=true")
-                || !swarm_online_runbook_row.contains("receiptRequired=true")
-                || !swarm_online_runbook_row.contains("private=false")
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost swarm-online-runbook daemon tool readback route"
-                );
-            }
-            let self_status = context
-                .daemon_tool_capabilities
-                .iter()
-                .find(|capability| capability.capability_id == "epiphany.cluster.self.tool.status")
-                .context("missing Self status daemon tool capability")?;
-            let self_cluster = cluster_topology_for_id(&context, "epiphany.cluster.self")?;
-            let self_daemon_status = context
-                .daemon_statuses
-                .iter()
-                .find(|status| status.daemon_id == self_status.host_daemon_id)
-                .context("missing Self daemon status for status tool readback")?;
-            let (daemon_status_readback, daemon_status_private_state_exposed) =
-                daemon_status_readback_from_host(
-                    self_cluster,
-                    self_daemon_status,
-                    &context.daemon_tool_capabilities,
-                );
-            let hosted_tool_ids = daemon_status_readback["hostedToolCapabilityIds"]
-                .as_array()
-                .context("status readback lost hosted tool capability ids")?;
-            if daemon_status_readback["status"].as_str() != Some("ready")
-                || daemon_status_readback["clusterId"].as_str() != Some("epiphany.cluster.self")
-                || daemon_status_readback["displayName"].as_str() != Some("Self")
-                || daemon_status_readback["daemonId"].as_str() != Some("epiphany-daemon-self")
-                || daemon_status_readback["privateVerseId"].as_str()
-                    != Some("epiphany.cluster.self.private")
-                || daemon_status_readback["eveSurfaceId"].as_str() != Some("eve://epiphany/self")
-                || daemon_status_readback["availableToAllAgents"].as_bool() != Some(true)
-                || daemon_status_readback["hostedToolCount"].as_u64() != Some(5)
-                || !hosted_tool_ids
-                    .iter()
-                    .any(|id| id.as_str() == Some("epiphany.cluster.self.tool.service-health"))
-                || !hosted_tool_ids.iter().any(|id| {
-                    id.as_str() == Some("epiphany.cluster.self.tool.service-policy-directory")
-                })
-                || !hosted_tool_ids.iter().any(|id| {
-                    id.as_str() == Some("epiphany.cluster.self.tool.swarm-online-runbook")
-                })
-                || daemon_status_private_state_exposed
-                || daemon_status_readback["privateStateExposed"].as_bool() != Some(false)
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost daemon status readback for globally invokable status tools"
-                );
-            }
-            let persona_eve_connect = context
-                .daemon_tool_capabilities
-                .iter()
-                .find(|capability| {
-                    capability.capability_id == "epiphany.cluster.persona.tool.eve-connect"
-                })
-                .context("missing Persona eve-connect daemon tool capability")?;
-            let persona_surface_directory =
-                load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-            let (persona_cluster, persona_advertisement, persona_surface) =
-                persona_surface_directory
-                    .iter()
-                    .find(|(cluster, _advertisement, _surface)| {
-                        cluster.cluster_id == persona_eve_connect.host_cluster_id
-                    })
-                    .context("missing Persona Eve surface for eve-connect readback")?;
-            let (eve_connection_readback, eve_connection_private_state_exposed) =
-                eve_connection_readback_from_host(
-                    persona_cluster,
-                    persona_advertisement,
-                    persona_surface,
-                    persona_eve_connect,
-                    &[],
-                );
-            let supported_actions = eve_connection_readback["supportedActions"]
-                .as_array()
-                .context("eve-connect readback lost supported actions")?;
-            if eve_connection_readback["targetClusterId"].as_str()
-                != Some("epiphany.cluster.persona")
-                || eve_connection_readback["targetDisplayName"].as_str() != Some("Persona")
-                || eve_connection_readback["targetEveSurfaceId"].as_str()
-                    != Some("eve://epiphany/persona")
-                || eve_connection_readback["targetPrivateVerseId"].as_str()
-                    != Some("epiphany.cluster.persona.private")
-                || eve_connection_readback["connectionCommand"].as_str()
-                    != Some(
-                        "epiphany-verse-query connect-eve --target-cluster-id epiphany.cluster.persona",
-                    )
-                || eve_connection_readback["wrapperConnectionCommand"].as_str()
-                    != Some(
-                        "tools/epiphany_local_run.ps1 -Mode eve-connect -EveTargetClusterId epiphany.cluster.persona",
-                    )
-                || eve_connection_readback["publicPersonaDiscussionAllowed"].as_bool() != Some(true)
-                || !supported_actions
-                    .iter()
-                    .any(|action| action.as_str() == Some("submitEveConnectionIntent"))
-                || eve_connection_private_state_exposed
-                || eve_connection_readback["privateStateExposed"].as_bool() != Some(false)
-            {
-                anyhow::bail!(
-                    "local Verse query smoke lost Eve surface readback for globally invokable eve-connect tools"
-                );
-            }
             let no_op_pokes = write_poke_intents_for_non_ready_daemons(&args, &context)?;
             if !no_op_pokes.is_empty() {
                 anyhow::bail!("local Verse query smoke poked ready daemons during no-op sweep");
@@ -2179,26 +1623,10 @@ fn run_cli() -> Result<()> {
             let degraded_tool_directory =
                 load_epiphany_cultmesh_daemon_tool_directory(&args.store, args.runtime_id.clone())?;
             let degraded_tool_report = daemon_tool_directory_report(&degraded_tool_directory);
-            let degraded_hands_status = context
-                .daemon_statuses
-                .iter()
-                .find(|status| status.daemon_id == "epiphany-daemon-hands")
-                .context("missing degraded Hands daemon status")?;
-            let degraded_tool_refusal =
-                assert_daemon_ready_for_tool_invocation(degraded_hands_status, hands_repo_action)
-                    .expect_err("degraded Hands tool invocation should fail closed")
-                    .to_string();
-            if !degraded_tool_refusal.contains("owner=Idunn")
-                || !degraded_tool_refusal.contains("hostedBody=Epiphany")
-                || !degraded_tool_refusal.contains("sight=epiphany-verse-query swarm-status")
-                || !degraded_tool_refusal.contains(WRAPPER_POKE_NON_READY_COMMAND)
-                || !degraded_tool_refusal.contains(
-                    "singlePoke=epiphany-verse-query poke-daemon --daemon-id epiphany-daemon-hands",
-                )
+            if !degraded_tool_report.rows.is_empty()
+                || degraded_tool_report.host_attention_count != 0
             {
-                anyhow::bail!(
-                    "local Verse query smoke degraded tool refusal lost Idunn poke/readback routing"
-                );
+                anyhow::bail!("degraded liveness manufactured provider tool attention");
             }
             let degraded_overview_status = if degraded_report.non_ready_count == 0
                 && degraded_tool_report.host_attention_count == 0
@@ -2208,11 +1636,7 @@ fn run_cli() -> Result<()> {
                 "attention"
             };
             if degraded_overview_status != "attention"
-                || degraded_tool_report.host_attention_count == 0
-                || !degraded_tool_report
-                    .tui_rows
-                    .iter()
-                    .any(|row| row.contains("POKE") && row.contains("Hands"))
+                || degraded_tool_report.host_attention_count != 0
             {
                 anyhow::bail!(
                     "local Verse query smoke degraded overview did not recommend daemon attention"
@@ -2233,8 +1657,7 @@ fn run_cli() -> Result<()> {
             degraded_attention_tool_host_daemon_ids.sort();
             degraded_attention_tool_host_daemon_ids.dedup();
             if degraded_attention_daemon_ids != vec!["epiphany-daemon-hands".to_string()]
-                || degraded_attention_tool_host_daemon_ids
-                    != vec!["epiphany-daemon-hands".to_string()]
+                || !degraded_attention_tool_host_daemon_ids.is_empty()
             {
                 anyhow::bail!(
                     "local Verse query smoke degraded overview lost structured attention daemon ids"
@@ -2314,26 +1737,8 @@ fn run_cli() -> Result<()> {
                         && !row.requires_elevated_authority
                         && !row.private_state_exposed
                 })
-                || !triage_overview.swarm_action_rows.iter().any(|row| {
-                    row.priority == 20
-                        && row.family == "daemon-tool-host"
-                        && row.wrapper_mode == "tool-directory"
-                        && row.effect_class == "read-only"
-                        && row.lifecycle_owner == "none"
-                        && row.hosted_body == "none"
-                        && !row.mutates_state
-                        && !row.requires_elevated_authority
-                        && !row.private_state_exposed
-                })
-                || triage_overview.tool_host_attention_rows.is_empty()
-                || !triage_overview
-                    .tool_host_attention_rows
-                    .iter()
-                    .all(|row| row.host_daemon_id == "epiphany-daemon-hands")
-                || !triage_overview
-                    .tool_host_attention_tui_rows
-                    .iter()
-                    .any(|row| row.contains("POKE") && row.contains("repo-action"))
+                || !triage_overview.tool_host_attention_rows.is_empty()
+                || !triage_overview.tool_host_attention_tui_rows.is_empty()
                 || triage_pokes.len() != 1
                 || triage_pokes[0]["targetDaemonId"] != "epiphany-daemon-hands"
                 || triage_pokes[0]["privateVerseId"] != "epiphany.cluster.hands.private"
@@ -2626,7 +2031,13 @@ fn run_cli() -> Result<()> {
                     row.family == "daemon-tool"
                         && !row.present
                         && row.latest_id == "missing"
-                        && row.follow_up_command == WRAPPER_INVOKE_TOOL_COMMAND
+                        && row.follow_up_command == "none"
+                })
+                || !receipt_directory.rows.iter().any(|row| {
+                    row.family == "eve-connection"
+                        && !row.present
+                        && row.latest_id == "missing"
+                        && row.follow_up_command == "none"
                 })
                 || !receipt_directory.rows.iter().any(|row| {
                     row.family == "bifrost-publication"
@@ -2693,11 +2104,9 @@ fn run_cli() -> Result<()> {
             );
             if readiness_follow_up_row.follow_up_command
                 != WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND
-                || service_lifecycle_wrapper_mode_for_row(&readiness_follow_up_row)
-                    != "cluster-service-execution-readiness"
             {
                 anyhow::bail!(
-                    "local Verse query smoke did not route cluster readiness lifecycle receipts to the readiness wrapper"
+                    "local Verse query smoke did not demote cluster readiness receipts to overview"
                 );
             }
             let missing_runbook_row = ReceiptDirectoryRow {
@@ -2874,7 +2283,7 @@ fn run_cli() -> Result<()> {
             );
         }
         other => anyhow::bail!(
-            "unknown command {other:?}; use seed, query, semantic-health, tools, tool-directory, invoke-tool, restart-policy-directory, swarm-brake, swarm-status, swarm-overview, swarm-triage, managed-services, cluster-topology, eve-surfaces, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-artifact-acceptance, bifrost-metrics, bifrost-ledger, collaboration-feedback, connect-eve, or smoke"
+            "unknown command {other:?}; use seed, query, semantic-health, tools, tool-directory, restart-policy-directory, swarm-brake, swarm-status, swarm-overview, swarm-triage, managed-services, cluster-topology, eve-surfaces, agent-state, agent-state-report, poke-daemon, poke-down-daemons, bifrost-publication, bifrost-public-proof, bifrost-artifact-acceptance, bifrost-metrics, bifrost-ledger, collaboration-feedback, or smoke; provider invoke/connect commands remain unavailable until a provenance-bearing provider contract exists"
         ),
     }
     Ok(())
@@ -3015,7 +2424,6 @@ struct ClusterTopologyRow {
     daemon_id: String,
     daemon_surface_id: String,
     eve_surface_id: String,
-    odin_advertised: bool,
     public_persona_discussion_allowed: bool,
     private_state_exposed: bool,
 }
@@ -3064,7 +2472,6 @@ fn cluster_topology_report(
             daemon_id: cluster.daemon_id.clone(),
             daemon_surface_id: cluster.daemon_surface_id.clone(),
             eve_surface_id: cluster.eve_surface_id.clone(),
-            odin_advertised: cluster.odin_advertised,
             public_persona_discussion_allowed: cluster.public_persona_discussion_allowed,
             private_state_exposed: false,
         });
@@ -4219,9 +3626,6 @@ impl SwarmTriageOutput {
                 "wrapperRestartPolicies": WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND,
                 "bifrostLedger": "epiphany-verse-query bifrost-ledger",
                 "wrapperBifrostLedger": WRAPPER_BIFROST_LEDGER_COMMAND,
-                "invokeTool": DIRECT_INVOKE_TOOL_COMMAND,
-                "wrapperInvokeTool": WRAPPER_INVOKE_TOOL_COMMAND,
-                "wrapperInvokeSwarmOnlineRunbookTool": WRAPPER_INVOKE_SWARM_ONLINE_RUNBOOK_TOOL_COMMAND
             }),
             topology_tui_rows: report.topology_report.tui_rows,
             daemon_tui_rows: report.daemon_report.tui_rows,
@@ -5889,7 +5293,6 @@ fn daemon_restart_policy_directory_report(
                     daemon_surface_id: status.daemon_surface_id.clone(),
                     eve_surface_id: status.eve_surface_id.clone(),
                     public_persona_discussion_allowed: false,
-                    odin_advertised: false,
                     notes: Vec::new(),
                 });
             let policy = context
@@ -6759,7 +6162,7 @@ fn receipt_directory_report(
                 .unwrap_or_else(|| "none".to_string()),
             service_id: "none".to_string(),
             service_route: "none".to_string(),
-            follow_up_command: WRAPPER_INVOKE_TOOL_COMMAND.to_string(),
+            follow_up_command: "none".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
             artifact_sha256: "none".to_string(),
@@ -6799,7 +6202,7 @@ fn receipt_directory_report(
                 .unwrap_or_else(|| "none".to_string()),
             service_id: "none".to_string(),
             service_route: "none".to_string(),
-            follow_up_command: WRAPPER_CONNECT_EVE_COMMAND.to_string(),
+            follow_up_command: "none".to_string(),
             artifact_ref: "none".to_string(),
             artifact_status: "none".to_string(),
             artifact_sha256: "none".to_string(),
@@ -7490,8 +6893,10 @@ fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCh
 
 fn service_execution_check_follow_up_command(action: &str) -> &'static str {
     match action {
+        "cluster-windows-service-execution-readiness" => {
+            WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND
+        }
         "cluster-windows-service-execution-runbook"
-        | "cluster-windows-service-execution-readiness"
         | "cluster-windows-service-install"
         | "cluster-windows-service-start"
         | "cluster-windows-service-execution-audit"
@@ -8546,7 +7951,11 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
     let (host_cluster_from_directory, daemon_status, capability) = tool_directory
         .iter()
         .find(|(_cluster, _status, capability)| capability.capability_id == capability_id)
-        .with_context(|| format!("local Verse has no daemon tool capability {capability_id:?}"))?;
+        .with_context(|| {
+            format!(
+                "invoke-tool unavailable: no provenance-bearing daemon tool capability {capability_id:?}"
+            )
+        })?;
     let swarm_brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
     assert_swarm_brake_allows_surface_entry(
         swarm_brake.as_ref(),
@@ -8644,238 +8053,6 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
     Ok(())
 }
 
-fn default_daemon_tool_receipt_status(
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-) -> String {
-    if is_service_health_capability(capability) {
-        "accepted-for-service-lifecycle-readback".to_string()
-    } else if is_swarm_online_runbook_capability(capability) {
-        "accepted-for-swarm-online-runbook-readback".to_string()
-    } else if is_service_policy_directory_capability(capability) {
-        "accepted-for-service-policy-directory-readback".to_string()
-    } else if is_daemon_status_capability(capability) {
-        "accepted-for-daemon-status-readback".to_string()
-    } else if is_eve_connect_capability(capability) {
-        "accepted-for-eve-surface-readback".to_string()
-    } else if is_authority_tool_capability(capability) {
-        "accepted-for-authority-contract-readback".to_string()
-    } else {
-        "accepted-for-daemon-routing".to_string()
-    }
-}
-
-fn daemon_status_readback_from_host(
-    host_cluster: &EpiphanyCultMeshClusterTopologyEntry,
-    daemon_status: &EpiphanyCultMeshDaemonStatusEntry,
-    capabilities: &[EpiphanyCultMeshDaemonToolCapabilityEntry],
-) -> (serde_json::Value, bool) {
-    let hosted_tool_capability_ids = capabilities
-        .iter()
-        .filter(|capability| capability.host_cluster_id == host_cluster.cluster_id)
-        .map(|capability| capability.capability_id.clone())
-        .collect::<Vec<_>>();
-    let private_state_exposed = daemon_status.private_state_exposed
-        || capabilities
-            .iter()
-            .filter(|capability| capability.host_cluster_id == host_cluster.cluster_id)
-            .any(|capability| capability.private_state_exposed);
-    (
-        json!({
-            "status": daemon_status.status,
-            "clusterId": host_cluster.cluster_id,
-            "roleId": host_cluster.role_id,
-            "displayName": host_cluster.display_name,
-            "bodyDomain": host_cluster.body_domain,
-            "bodyKind": host_cluster.body_kind,
-            "privateVerseId": host_cluster.private_verse_id,
-            "daemonId": daemon_status.daemon_id,
-            "daemonSurfaceId": daemon_status.daemon_surface_id,
-            "eveSurfaceId": host_cluster.eve_surface_id,
-            "odinAdvertised": host_cluster.odin_advertised,
-            "publicPersonaDiscussionAllowed": host_cluster.public_persona_discussion_allowed,
-            "availableToAllAgents": true,
-            "hostedToolCount": hosted_tool_capability_ids.len(),
-            "hostedToolCapabilityIds": hosted_tool_capability_ids,
-            "privateStateExposed": private_state_exposed,
-        }),
-        private_state_exposed,
-    )
-}
-
-fn eve_connection_readback_from_host(
-    target_cluster: &EpiphanyCultMeshClusterTopologyEntry,
-    target_advertisement: &EpiphanyCultMeshOdinAdvertisementEntry,
-    target_surface: &EpiphanyCultMeshEveSurfaceStateEntry,
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-    repo_work_overviews: &[EpiphanyCultMeshRepoWorkOverviewEntry],
-) -> (serde_json::Value, bool) {
-    let private_state_exposed = target_advertisement.private_state_exposed
-        || target_surface.private_state_exposed
-        || capability.private_state_exposed;
-    let (repo_work_queue_rows, _) = repo_work_overview_rows(repo_work_overviews);
-    let repo_work_queue_tui_rows = if target_cluster.public_persona_discussion_allowed {
-        repo_work_peer_tui_rows(&repo_work_queue_rows)
-    } else {
-        Vec::new()
-    };
-    let repo_work_queue_rows = if target_cluster.public_persona_discussion_allowed {
-        repo_work_queue_rows
-    } else {
-        Vec::new()
-    };
-    (
-        json!({
-            "targetAdvertisementId": target_advertisement.advertisement_id,
-            "targetClusterId": target_cluster.cluster_id,
-            "targetDisplayName": target_cluster.display_name,
-            "targetBodyDomain": target_cluster.body_domain,
-            "targetPrivateVerseId": target_cluster.private_verse_id,
-            "targetDaemonId": target_cluster.daemon_id,
-            "targetEveSurfaceId": target_surface.surface_id,
-            "targetTuiTitle": target_surface.tui_title,
-            "publicPersonaDiscussionAllowed": target_cluster.public_persona_discussion_allowed,
-            "supportedActions": target_surface.supported_actions,
-            "exposedDocumentTypes": target_surface.exposed_document_types,
-            "repoWorkQueueCount": repo_work_queue_tui_rows.len(),
-            "repoWorkQueueRows": repo_work_queue_rows,
-            "repoWorkQueueTuiRows": repo_work_queue_tui_rows,
-            "connectionCommand": format!(
-                "epiphany-verse-query connect-eve --target-cluster-id {}",
-                target_cluster.cluster_id
-            ),
-            "wrapperConnectionCommand": format!(
-                "tools/epiphany_local_run.ps1 -Mode eve-connect -EveTargetClusterId {}",
-                target_cluster.cluster_id
-            ),
-            "feedbackRoute": format!(
-                "cultmesh://epiphany-local/eve/{}/feedback",
-                target_cluster.cluster_id
-            ),
-            "privateStateExposed": private_state_exposed,
-        }),
-        private_state_exposed,
-    )
-}
-
-fn authority_tool_readback_from_capability(
-    host_cluster: &EpiphanyCultMeshClusterTopologyEntry,
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-) -> (serde_json::Value, bool) {
-    let intent_route = format!(
-        "cultmesh://epiphany-local/authority/{}/{}/intent",
-        capability.authority_gate, capability.capability_id
-    );
-    let receipt_route = format!(
-        "cultmesh://epiphany-local/authority/{}/{}/receipt",
-        capability.authority_gate, capability.capability_id
-    );
-    let review_command = match capability.authority_gate.as_str() {
-        "hands" => "epiphany-hands-action record-pass --gate-from <coordinator-summary.json>",
-        "soul" => {
-            "tools/epiphany_local_run.ps1 -Mode mvp # route verification through Soul lane receipts"
-        }
-        _ => "none",
-    };
-    (
-        json!({
-            "authorityGate": capability.authority_gate,
-            "capabilityId": capability.capability_id,
-            "toolName": capability.tool_name,
-            "operation": capability.operation,
-            "hostClusterId": host_cluster.cluster_id,
-            "hostDisplayName": host_cluster.display_name,
-            "hostDaemonId": capability.host_daemon_id,
-            "hostBodyDomain": host_cluster.body_domain,
-            "hostPrivateVerseId": host_cluster.private_verse_id,
-            "hostEveSurfaceId": host_cluster.eve_surface_id,
-            "inputContractType": capability.input_contract_type,
-            "receiptContractType": capability.receipt_contract_type,
-            "intentRoute": intent_route,
-            "receiptRoute": receipt_route,
-            "reviewCommand": review_command,
-            "availableToAllAgents": capability.available_to_all_agents,
-            "requiresReceipt": capability.requires_receipt,
-            "privateStateExposed": capability.private_state_exposed,
-        }),
-        capability.private_state_exposed,
-    )
-}
-
-fn default_daemon_tool_result_ref(
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-    receipt_id: &str,
-) -> String {
-    if is_service_health_capability(capability) {
-        "cultmesh://epiphany-local/daemon-service-lifecycle/receipt-directory".to_string()
-    } else if is_swarm_online_runbook_capability(capability) {
-        "cultmesh://epiphany-local/daemon-service-lifecycle/swarm-online-runbook".to_string()
-    } else if is_service_policy_directory_capability(capability) {
-        "cultmesh://epiphany-local/daemon-service-lifecycle/service-policy-directory".to_string()
-    } else if is_daemon_status_capability(capability) {
-        format!(
-            "cultmesh://epiphany-local/daemon-status/{}",
-            capability.host_daemon_id
-        )
-    } else if is_eve_connect_capability(capability) {
-        format!(
-            "cultmesh://epiphany-local/eve-surface/{}",
-            capability.host_cluster_id
-        )
-    } else if is_authority_tool_capability(capability) {
-        format!(
-            "cultmesh://epiphany-local/authority/{}/{}/receipt",
-            capability.authority_gate, capability.capability_id
-        )
-    } else {
-        format!("cultmesh://epiphany-local/tool-receipt/{receipt_id}")
-    }
-}
-
-fn is_service_health_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEntry) -> bool {
-    capability.capability_id == "epiphany.cluster.self.tool.service-health"
-        && capability.tool_name == "service-health"
-        && capability.operation == "readServiceLifecycleStatus"
-        && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
-}
-
-fn is_swarm_online_runbook_capability(
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-) -> bool {
-    capability.capability_id == "epiphany.cluster.self.tool.swarm-online-runbook"
-        && capability.tool_name == "swarm-online-runbook"
-        && capability.operation == "prepareSwarmOnlineRunbook"
-        && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
-}
-
-fn is_service_policy_directory_capability(
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-) -> bool {
-    capability.capability_id == "epiphany.cluster.self.tool.service-policy-directory"
-        && capability.tool_name == "service-policy-directory"
-        && capability.operation == "readServicePolicyDirectory"
-        && capability.receipt_contract_type == "epiphany.cultmesh.daemon_service_lifecycle_receipt"
-}
-
-fn is_daemon_status_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEntry) -> bool {
-    capability.tool_name == "status"
-        && capability.operation == "readStatus"
-        && capability.input_contract_type == "epiphany.cultmesh.odin_advertisement"
-        && capability.receipt_contract_type == "epiphany.cultmesh.tool_status_receipt"
-}
-
-fn is_eve_connect_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEntry) -> bool {
-    capability.tool_name == "eve-connect"
-        && capability.operation == "submitEveConnectionIntent"
-        && capability.input_contract_type == "epiphany.cultmesh.eve_connection_intent"
-        && capability.receipt_contract_type == "epiphany.cultmesh.eve_connection_receipt"
-}
-
-fn is_authority_tool_capability(capability: &EpiphanyCultMeshDaemonToolCapabilityEntry) -> bool {
-    matches!(capability.authority_gate.as_str(), "hands" | "soul")
-        && !capability.input_contract_type.is_empty()
-        && !capability.receipt_contract_type.is_empty()
-}
-
 fn poke_result_tui_row(row: &serde_json::Value) -> String {
     let target_display_name = row["targetDisplayName"].as_str().unwrap_or("unknown");
     let target_daemon_id = row["targetDaemonId"].as_str().unwrap_or("unknown");
@@ -8890,55 +8067,6 @@ fn poke_result_tui_row(row: &serde_json::Value) -> String {
     let private_state_exposed = row["privateStateExposed"].as_bool().unwrap_or(false);
     format!(
         "POKE | {target_display_name} | {target_daemon_id} | observed={observed_status} | body={body_domain} | privateVerse={private_verse_id} | surface={eve_surface_id} | intent={intent_id} | receipt={receipt_id} | receiptStatus={receipt_status} | result={resulting_status} | private={private_state_exposed}"
-    )
-}
-
-struct DaemonToolInvocationTuiFields<'a> {
-    requester: &'a str,
-    requesting_agent_id: &'a str,
-    requesting_private_verse: &'a str,
-    requesting_surface: &'a str,
-    host: &'a str,
-    host_daemon_id: &'a str,
-    host_private_verse: &'a str,
-    host_surface: &'a str,
-    capability_id: &'a str,
-    tool_name: &'a str,
-    operation: &'a str,
-    intent_id: &'a str,
-    receipt_id: &'a str,
-    receipt_status: &'a str,
-    receipt_contract_type: &'a str,
-    result_ref: &'a str,
-    authority_gate: &'a str,
-    all_agents: bool,
-    requires_receipt: bool,
-    private_state_exposed: bool,
-}
-
-fn daemon_tool_invocation_tui_row(fields: DaemonToolInvocationTuiFields<'_>) -> String {
-    let requester = fields.requester;
-    let requesting_agent_id = fields.requesting_agent_id;
-    let requesting_private_verse = fields.requesting_private_verse;
-    let requesting_surface = fields.requesting_surface;
-    let host = fields.host;
-    let host_daemon_id = fields.host_daemon_id;
-    let host_private_verse = fields.host_private_verse;
-    let host_surface = fields.host_surface;
-    let capability_id = fields.capability_id;
-    let tool_name = fields.tool_name;
-    let operation = fields.operation;
-    let intent_id = fields.intent_id;
-    let receipt_id = fields.receipt_id;
-    let receipt_status = fields.receipt_status;
-    let receipt_contract_type = fields.receipt_contract_type;
-    let result_ref = fields.result_ref;
-    let authority_gate = fields.authority_gate;
-    let all_agents = fields.all_agents;
-    let requires_receipt = fields.requires_receipt;
-    let private_state_exposed = fields.private_state_exposed;
-    format!(
-        "INVOKE | {requester} | agent={requesting_agent_id} | requestPrivateVerse={requesting_private_verse} | requestSurface={requesting_surface} | host={host} | hostDaemon={host_daemon_id} | hostPrivateVerse={host_private_verse} | hostSurface={host_surface} | tool={tool_name} | operation={operation} | capability={capability_id} | intent={intent_id} | receipt={receipt_id} | receiptStatus={receipt_status} | receiptType={receipt_contract_type} | resultRef={result_ref} | authority={authority_gate} | allAgents={all_agents} | receiptRequired={requires_receipt} | private={private_state_exposed}"
     )
 }
 
@@ -9016,43 +8144,6 @@ fn cluster_topology_entry_for_id<'a>(
         .iter()
         .find(|cluster| cluster.cluster_id == cluster_id)
         .with_context(|| format!("local Verse has no cluster topology row for {cluster_id:?}"))
-}
-
-fn assert_daemon_ready_for_tool_invocation(
-    status: &EpiphanyCultMeshDaemonStatusEntry,
-    capability: &EpiphanyCultMeshDaemonToolCapabilityEntry,
-) -> Result<()> {
-    if status.status != "ready" {
-        anyhow::bail!(
-            "host daemon {} is not ready for tool invocation {}; daemonStatus={}; operatorAction={}; owner={}; hostedBody={}; sight=epiphany-verse-query swarm-status; poke={}; singlePoke=epiphany-verse-query poke-daemon --daemon-id {}",
-            status.daemon_id,
-            capability.capability_id,
-            status.status,
-            status.operator_action,
-            SERVICE_LIFECYCLE_OWNER,
-            SERVICE_LIFECYCLE_HOSTED_BODY,
-            WRAPPER_POKE_NON_READY_COMMAND,
-            status.daemon_id
-        );
-    }
-    if !status
-        .supported_actions
-        .iter()
-        .any(|action| action == "submitTypedToolIntent")
-    {
-        anyhow::bail!(
-            "host daemon {} does not advertise submitTypedToolIntent for capability {}; daemonStatus={}; operatorAction={}; owner={}; hostedBody={}; sight=epiphany-verse-query swarm-status; poke={}; singlePoke=epiphany-verse-query poke-daemon --daemon-id {}",
-            status.daemon_id,
-            capability.capability_id,
-            status.status,
-            status.operator_action,
-            SERVICE_LIFECYCLE_OWNER,
-            SERVICE_LIFECYCLE_HOSTED_BODY,
-            WRAPPER_POKE_NON_READY_COMMAND,
-            status.daemon_id
-        );
-    }
-    Ok(())
 }
 
 struct Args {

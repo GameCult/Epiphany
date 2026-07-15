@@ -117,13 +117,13 @@ exported three bulk writers able to stamp every Odin advertisement, Eve
 surface, and daemon-hosted tool in one call. Those all-provider writers are
 deleted.
 
-`publish_epiphany_cultmesh_provider_state` accepts one persisted daemon ID,
-validates that it names a declared cluster, and writes exactly that cluster's
-advertisement, Eve surface, and hosted capabilities. `epiphany-cluster-daemon`
-calls this primitive on the shared heartbeat/serve path before writing its own
-liveness. An unknown daemon is refused before any provider document is written.
-The quarantined aggregate smoke iterates the same one-daemon primitive rather
-than using a privileged fixture shortcut.
+That daemon-bounded transfer was still false authority: the primitive accepted
+only a daemon ID and centrally manufactured composition content and tool claims.
+It had no provider-authored payload or provenance. The primitive and its
+heartbeat call are now deleted. `epiphany-cluster-daemon` writes liveness only.
+Legacy v0 provider templates remain test-only vocabulary; live consumers ignore
+their provenance-free rows, and explicit bootstrap retires stale rows of the
+three exact Odin/Eve/tool families.
 
 ## Heartbeat/bootstrap split
 
@@ -133,8 +133,8 @@ repaint Self-owned policy, topology, contracts, brake initialization, and
 operator status merely by emitting liveness.
 
 Heartbeat and serve no longer bootstrap or query the full Verse context. They
-require persisted topology, load only narrow liveness rows, publish only the
-owning daemon's provider state, and write only its heartbeat. An unbootstrapped
+require persisted topology, load only narrow liveness rows, and write only the
+owning daemon's heartbeat. An unbootstrapped
 daemon fails before creating the CultCache store and tells the operator to run
 explicit bootstrap. The wrapper already performs that bootstrap at the
 operator boundary.
@@ -1710,9 +1710,11 @@ runtime constants are now cut. Surface schemas may remain discoverable
 vocabulary and local projection validators, but cannot claim executable wire
 support.
 
-The next adjacent surface frontier is the generic central Eve template builder,
-which synthesizes cluster surface rows and actions while claiming the cluster
-daemon owns their contents. A surface earns readmission only through an owning
-provider publishing a typed CultMesh document that survives Snapshot, schema
+The adjacent generic central Eve substitution is now cut. The publisher and
+heartbeat call that lowered daemon IDs into seven plausible surfaces and hosted
+tools are deleted. Live consumers ignore provenance-free v0 Odin/Eve/tool rows;
+explicit bootstrap retires them. Topology `eve_surface_id` remains address
+metadata only. A surface earns readmission only through an owning provider's
+provenance-bearing typed CultMesh contract that survives Snapshot, schema
 validation, and Eve lowering; advertised actions additionally require a real
 typed dispatcher and receipt path.

@@ -3,9 +3,9 @@
 ## Observation and bootstrap authority correction (2026-07-12)
 
 - Owner: diagnostics only project persisted CultMesh state; they never initialize it.
-- Bootstrap owns static policy, topology, schema, advertisement, surface, and capability declarations. It does not own daemon liveness.
+- Bootstrap owns static policy, topology, schema, brake, and organ-contract declarations. It does not own daemon liveness or provider availability.
 - Daemons own heartbeat/status documents. Missing status is represented as `unknown`, never promoted to `ready` by a reader or seeder.
-- Provider directories contain only persisted provider advertisements, Eve surfaces, and tool capabilities. Missing provider state produces no synthetic row.
+- The provenance-free v0 Odin advertisement, Eve surface, and daemon-tool families are quarantined legacy vocabulary. Live provider directories return no rows from them; missing provider state produces no synthetic row.
 - Forbidden writers removed in this pass: read-command calls to `seed_epiphany_local_verse_context`, loader fallback constructors, and bootstrap's default-ready daemon-status loop.
 - Next authority cut: requester commands may author intents, but Bifrost, GitHub, tool providers, Eve providers, and daemon lifecycle owners must author their own response receipts.
 
@@ -47,6 +47,16 @@
 - Shared paths: manual reconcile and scheduled reconciliation use the same attempt primitive. Both retain restart pressure until a provider-authored heartbeat causally newer than the completed attempt proves recovery.
 - Cut line: the supervisor's provider-status writer and synthetic heartbeat advancement are removed. Generated attempts use unique identities; exact retry is idempotent, identity collision is refused, and delayed replay cannot rewind `latest`.
 - Verification: the survival rehearsal preserves the provider envelope across two successful restart commands, observes two distinct awaiting receipts, then publishes a real provider heartbeat and proves receipt resolution plus failure-count reset.
+
+## Provider discovery and heartbeat authority (updated 2026-07-15)
+
+- Owner: `epiphany-cluster-daemon` owns only its liveness heartbeat/status envelope. No central process currently owns provider advertisement, Eve composition, or hosted-tool availability.
+- Inputs: heartbeat accepts persisted topology identity and daemon-local liveness evidence. Topology `eve_surface_id` is routing/address metadata only; it is not proof that a surface exists.
+- Outputs: heartbeat writes liveness only. Live Odin, Eve, and tool directories remain empty until a future provider-authored contract is admitted.
+- Derived state: topology, labels, expected routes, and test-only templates may describe stable addresses and legacy shape. They cannot become provider presence, composition content, supported actions, or executable capability.
+- Forbidden writers: generic bootstrap, heartbeat, query CLI, and central template builders cannot publish the provenance-free v0 Odin advertisement, Eve surface, or daemon-tool families. Live consumers ignore those families, and explicit bootstrap retires any stale rows of exactly those types.
+- Cut line: `publish_epiphany_cultmesh_provider_state` and the heartbeat call to it are deleted. The seven centrally synthesized surfaces and their tool claims are no longer live state.
+- Re-admission invariant: provider discovery returns only after an owning provider emits a provenance-bearing typed contract whose origin can be verified; actions additionally require a real dispatcher and receipt path.
 
 ## Persona feedback and Imagination consensus boundary (2026-07-12)
 
@@ -109,13 +119,12 @@
   publication command. Provider bodies must publish their own discovery state;
   central declared topology cannot be lowered into `active`/`daemon-live`
   compatibility presence.
-- `epiphany-cluster-daemon` owns provider presence beside heartbeat liveness.
-  Each heartbeat/serve lane publishes only its daemon's Odin advertisement,
-  Eve surface, and hosted tools through a daemon-ID-bounded primitive. There is
-  no all-provider writer; an unknown daemon publishes nothing.
+- `epiphany-cluster-daemon` owns heartbeat liveness only. Heartbeat/serve does
+  not publish Odin advertisements, Eve surfaces, or hosted tools. The former
+  daemon-ID-bounded central publisher is deleted.
 - Cluster daemons never bootstrap the local Verse and never load its full
   context. They require persisted topology, read narrow liveness, then write
-  only their bounded provider state and heartbeat. Explicit operator bootstrap
+  only their bounded heartbeat. Explicit operator bootstrap
   owns policy/topology/contract initialization.
 - `epiphany-daemon-supervisor` also requires explicit persisted bootstrap for
   every production lifecycle, policy, scheduler, runbook, audit, status, and
@@ -138,9 +147,9 @@
   single-daemon heartbeat/observation writers remain. Aggregate synthetic
   readiness exists solely inside the fixed Verse smoke body.
 - Topology-derived Odin advertisement, Eve surface, and tool-capability builders
-  are private contract templates, not public state APIs. External consumers see
-  persisted loaders; only the daemon-ID-bounded publisher may lower templates
-  into provider-owned documents.
+  survive only as test fixtures for legacy v0 document shapes. Live consumers
+  ignore provenance-free v0 rows, and explicit bootstrap retires them. Topology
+  `eve_surface_id` remains address metadata, not availability evidence.
 - Generic bootstrap owns declarations and initial control state, not operator
   observation. The template-based operator-status writer and its writerless
   schema/context/prompt/reader family are deleted. Operator snapshots remain

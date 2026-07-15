@@ -346,9 +346,9 @@ The confirmed conceptual substitutions have been cut:
   Eve surfaces, or hosted tools; provider absence survives bootstrap.
 - the central `provider-advertisements` / `publish-odin` compatibility mouth is
   deleted; only provider-owned bodies may publish presence to Odin.
-- bulk provider-state writers are deleted. Each `epiphany-cluster-daemon`
-  heartbeat publishes only its own advertisement, Eve surface, and hosted
-  tools; unknown daemon identities are refused before writes.
+- bulk and daemon-bounded central provider-state writers are deleted. Each
+  `epiphany-cluster-daemon` heartbeat publishes liveness only; it cannot turn
+  topology into an advertisement, Eve composition, or hosted-tool claim.
 - cluster daemons do not bootstrap or query the full Verse. Missing persisted
   topology is a pre-write refusal; explicit operator bootstrap owns shared
   policy, topology, contracts, and brake initialization.
@@ -367,9 +367,10 @@ The confirmed conceptual substitutions have been cut:
 - bulk seven-daemon readiness construction/writing is test-only. Production
   loaders enumerate topology; the aggregate smoke owns a fixed-store local
   fixture helper, while real liveness remains single-daemon authored.
-- topology-derived provider builders are private, explicitly named templates.
-  Consumers can load persisted provider documents but cannot request seven
-  plausible advertisements/surfaces/tools from topology.
+- topology-derived provider builders survive only as test fixtures for legacy
+  v0 shapes. Live consumers ignore provenance-free v0 Odin/Eve/tool rows;
+  explicit bootstrap deletes stale rows of exactly those families. Topology
+  `eve_surface_id` is address metadata only, not surface availability.
 - bootstrap no longer writes default operator status. The dedicated writer was
   a dead `ready` template, so the writer and its now-ownerless schema/context/
   prompt/reader family are deleted. Source-derived operator snapshots remain.
@@ -1468,10 +1469,15 @@ Re-admission is deliberately expensive: an owning organ must prove
 dispatcher and receipt path. Schema registration alone proves vocabulary, not
 runtime support.
 
-The adjacent Modeling frontier is the generic central Eve template builder.
-It currently synthesizes cluster rows and supported actions while its own prose
-claims the cluster daemon owns surface contents. That is the next conceptual
-substitution to map and cut or rebuild around provider publication. It does not
-replace the current deployment next action: first complete the real Windows
-reboot/logon proof for Task Scheduler, the Yggdrasil tunnel, Idunn, and the
-launch-correlated semantic projector heartbeat.
+The adjacent central Eve substitution is cut. The generic provider publisher
+and its heartbeat call are deleted; a cluster heartbeat now owns liveness only.
+Live Odin, Eve, and daemon-tool directories expose no provenance-free v0 rows,
+and explicit bootstrap retires stale rows of those exact families. The stable
+topology `eve_surface_id` remains routing/address metadata and proves neither
+presence nor composition. Provider availability can return only through an
+owning provider's provenance-bearing typed contract; advertised actions also
+need a real dispatcher and receipt path.
+
+This does not replace the current deployment next action: complete the real
+Windows reboot/logon proof for Task Scheduler, the Yggdrasil tunnel, Idunn, and
+the launch-correlated semantic projector heartbeat.

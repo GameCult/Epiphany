@@ -6,7 +6,6 @@ use epiphany_core::EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION;
 use epiphany_core::EpiphanyCultMeshDaemonHeartbeatEventEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
-use epiphany_core::publish_epiphany_cultmesh_provider_state;
 use epiphany_core::write_epiphany_cultmesh_daemon_heartbeat_event;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use serde_json::json;
@@ -56,11 +55,6 @@ fn write_heartbeat(
                 args.daemon_id
             )
         })?;
-    publish_epiphany_cultmesh_provider_state(
-        &args.store,
-        args.runtime_id.clone(),
-        &args.daemon_id,
-    )?;
     let heartbeat_at = Utc::now().to_rfc3339();
     let heartbeat = new_heartbeat_event(
         args,
@@ -237,6 +231,8 @@ impl Args {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_core::query_epiphany_local_verse_context;
+    use epiphany_core::seed_epiphany_local_verse_context;
 
     #[test]
     fn process_heartbeat_events_keep_one_incarnation_and_increment_sequence() {
@@ -269,5 +265,30 @@ mod tests {
         assert_eq!(second.sequence, 2);
         assert_ne!(first.heartbeat_id, second.heartbeat_id);
         assert_eq!(first.startup_lifecycle_receipt_id, "receipt-test");
+    }
+
+    #[test]
+    fn heartbeat_writes_liveness_without_minting_provider_truth() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("heartbeat-only.ccmp");
+        seed_epiphany_local_verse_context(&store, "runtime-test", "2026-07-15T12:00:00Z")?;
+        let args = Args {
+            command: "heartbeat".to_string(),
+            store: store.clone(),
+            runtime_id: "runtime-test".to_string(),
+            daemon_id: "epiphany-daemon-hands".to_string(),
+            interval_seconds: 1,
+            max_iterations: 1,
+            provider_incarnation: "incarnation-test".to_string(),
+            startup_lifecycle_receipt_id: "receipt-test".to_string(),
+        };
+
+        write_heartbeat(&args, 0)?;
+        let context = query_epiphany_local_verse_context(&store, "runtime-test")?;
+        assert_eq!(context.daemon_statuses.len(), 1);
+        assert!(context.odin_advertisements.is_empty());
+        assert!(context.eve_surface_states.is_empty());
+        assert!(context.daemon_tool_capabilities.is_empty());
+        Ok(())
     }
 }
