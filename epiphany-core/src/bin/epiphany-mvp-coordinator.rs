@@ -1901,6 +1901,7 @@ mod tests {
                 created_at: "2026-06-02T00:00:00Z".to_string(),
             },
         )?;
+        seed_hands_frontier(&store)?;
         let status = json!({
             "scene": {
                 "scene": {
@@ -1943,6 +1944,76 @@ mod tests {
                 HANDS_COMMIT_RECEIPT_TYPE.to_string(),
             ]
         );
+        Ok(())
+    }
+
+    fn seed_hands_frontier(store: &Path) -> Result<()> {
+        let item = epiphany_core::RepoFrontierItem {
+            id: "coordinator-hands-frontier-test".to_string(),
+            migration_body: "Exercise the coordinator-owned Hands gate.".to_string(),
+            question: "Does Self route the admitted implementation frontier?".to_string(),
+            gap: "Hands cannot act without a routed Modeling frontier.".to_string(),
+            target_claim_ids: vec!["coordinator-hands-claim-test".to_string()],
+            source_scope: vec!["epiphany-core/src".to_string()],
+            recommended_next_organ: "Hands".to_string(),
+            evidence_refs: vec!["fixture:mvp-coordinator".to_string()],
+            status: epiphany_core::RepoFrontierStatus::Active,
+            ..Default::default()
+        };
+        let mut model = epiphany_core::EpiphanyMemoryGraphSnapshot {
+            schema_version: Some(epiphany_core::MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
+            graph_id: "mvp-coordinator-test-model".to_string(),
+            model_revision: 1,
+            domains: vec![epiphany_core::EpiphanyMemoryDomain {
+                id: "repo".to_string(),
+                profile: epiphany_core::EpiphanyMemoryProfile::RepoArchitecture,
+                title: "Repository".to_string(),
+                lifecycle: epiphany_core::EpiphanyMemoryLifecycle::Accepted,
+                ..Default::default()
+            }],
+            nodes: vec![epiphany_core::EpiphanyMemoryNode {
+                id: "coordinator-hands-claim-test".to_string(),
+                domain_id: "repo".to_string(),
+                profile: epiphany_core::EpiphanyMemoryProfile::RepoArchitecture,
+                kind: epiphany_core::EpiphanyMemoryNodeKind::RuntimeContract,
+                title: "Coordinator Hands gate".to_string(),
+                claim: "Implementation begins from an admitted routed frontier.".to_string(),
+                question: "Is the route current?".to_string(),
+                action_implication: "Route the exact admitted source scope.".to_string(),
+                source_hashes: vec!["anchor:missing".to_string()],
+                lifecycle: epiphany_core::EpiphanyMemoryLifecycle::Accepted,
+                ..Default::default()
+            }],
+            frontier: vec![item],
+            ..Default::default()
+        };
+        model.model_hash = epiphany_core::memory_graph_model_hash(&model)?;
+        let entry = epiphany_core::EpiphanyMemoryGraphEntry::from_snapshot(&model)?;
+        let admission = epiphany_core::RepoModelAdmissionReceipt {
+            schema_version: epiphany_core::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "coordinator-hands-admission-test".to_string(),
+            review_id: "coordinator-hands-model-review-test".to_string(),
+            result_id: "coordinator-hands-model-result-test".to_string(),
+            patch_id: "coordinator-hands-model-patch-test".to_string(),
+            patch_sha256: "fixture".to_string(),
+            previous_revision: 0,
+            previous_hash: String::new(),
+            admitted_revision: model.model_revision,
+            admitted_hash: model.model_hash.clone(),
+            admitted_at: "2026-06-02T00:00:00Z".to_string(),
+            contract: epiphany_core::REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+            purpose: epiphany_core::RepoModelPatchPurpose::Evolution,
+            frontier_route_id: String::new(),
+            verification_request_id: String::new(),
+            soul_verdict_receipt_id: String::new(),
+            frontier_modeling_request_id: String::new(),
+            proposal_modeling_request_id: String::new(),
+            claim_repair_request_id: String::new(),
+            frontier_plan_decision_id: String::new(),
+        };
+        let mut cache = epiphany_core::runtime_spine_cache(store)?;
+        cache.put(epiphany_core::MEMORY_GRAPH_KEY, &entry)?;
+        cache.put(&admission.receipt_id, &admission)?;
         Ok(())
     }
 }

@@ -1376,3 +1376,42 @@ not implement the Windows service-control handshake. Build a real service host
 or explicit Task Scheduler owner with restart policy, give the Qdrant tunnel
 the same durable treatment, and prove startup/reboot recovery. Live abandoned
 claim recovery remains unproven; use a safe fixture rather than forging work.
+
+## Windows survival authority rebuild (2026-07-15)
+
+The workstation survival cut rejected the generic Windows SCM path. The
+Epiphany binaries are ordinary console programs and never implemented the
+Windows service-control dispatcher, so `sc.exe create`, elevated service
+runbooks/audits, cluster-service install/control, and `swarm-online-runbook`
+were presentation of authority the body did not possess. Those routes and
+their old receipts are historical evidence only; they must not steer current
+deployment, readiness, or follow-up work.
+
+Host survival is now deliberately narrower and honest. Current-user tasks
+`Epiphany-Idunn-Managed-Service-Reconciler` and
+`GameCult-Yggdrasil-Tunnel` run as Meta with `InteractiveToken`/Limited
+privilege, `AtLogOn` plus a one-minute recurring recovery trigger,
+restart-on-failure at one-minute intervals for 999 attempts, `IgnoreNew`, zero
+execution limit, and exact direct foreground actions. Task Scheduler owns
+process presence after login. It does not own projector children or semantic
+state. Idunn still owns the managed-service reconciliation loop and projector
+launch/restart correlation. `gamecult-ops` owns the Yggdrasil tunnel profile
+and foreground SSH process; Epiphany merely consumes the pinned local Qdrant
+ports. No wrapper, detached grandchild, or service-manager receipt is a second
+survival owner.
+
+Live recurrence proof killed reconciler PID 24152 and observed exactly one
+replacement PID 25428. Killing projector PID 29868 then caused Idunn to launch
+PID 19888 with launch receipt `4d406060-6582-473a-9322-9f4ccc8b322f`;
+ready heartbeat `79fe3143-28a8-40fe-9547-0287159082e6` names provider
+incarnation `projector-59217a66-e3e2-44c3-b000-36af3d43b043` and the exact
+startup correlation. Tunnel recurrence killed SSH PID 22652 and observed PID
+30444 start at 11:37:44 with Qdrant REST healthy.
+
+The limitation is part of the contract: this is after-login recovery, not
+pre-login, boot-time, machine-wide, or Windows-service operation. The next
+Soul proof is a real reboot/logon cycle showing both scheduled tasks running,
+the tunnel ports restored, one Idunn-managed projector child, and a fresh
+launch-correlated ready heartbeat. After that, use an isolated exact
+abandoned-claim fixture to prove recovery/resumption without forging canonical
+Mind or Modeling work. Do not spend another pass polishing the dead SCM rite.

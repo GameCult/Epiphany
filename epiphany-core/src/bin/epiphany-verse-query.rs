@@ -131,33 +131,29 @@ const DIRECT_IDUNN_DEPLOYMENT_AFTERCARE_AUDIT_COMMAND: &str = "epiphany-work dep
 const WRAPPER_SERVICE_TICK_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode service-tick";
 const WRAPPER_SERVICE_POLICY_DIRECTORY_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode service-policy-directory";
-const WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode service-execution-audit";
-const WRAPPER_SERVICE_EXECUTION_RUNBOOK_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode service-execution-runbook";
-const WRAPPER_SERVICE_EXECUTION_READINESS_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode service-execution-readiness";
+const WRAPPER_MANAGED_SERVICE_TASK_PLAN_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode managed-service-task-plan";
 const WRAPPER_SERVICE_INSTALL_EXECUTE_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode service-install-execute";
-const WRAPPER_SERVICE_STATUS_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode service-status";
-const WRAPPER_SERVICE_RECONCILE_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode service-reconcile";
+    "tools/epiphany_local_run.ps1 -Mode managed-service-task-install";
+const WRAPPER_SERVICE_STATUS_COMMAND: &str =
+    "tools/epiphany_local_run.ps1 -Mode managed-service-task-status";
 const WRAPPER_SERVICE_START_EXECUTE_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode service-start-execute";
+    "tools/epiphany_local_run.ps1 -Mode managed-service-task-start";
 const WRAPPER_SERVICE_STOP_EXECUTE_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode service-stop-execute";
-const WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit";
-const WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-runbook";
-const WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-readiness";
-const WRAPPER_CLUSTER_SERVICE_INSTALL_EXECUTE_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode cluster-service-install-execute";
-const WRAPPER_CLUSTER_SERVICE_START_EXECUTE_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode cluster-service-start-execute";
-const WRAPPER_CLUSTER_SERVICE_STOP_EXECUTE_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode cluster-service-stop-execute";
+    "tools/epiphany_local_run.ps1 -Mode managed-service-task-stop";
+// Historical lifecycle receipts still use these typed families. Their follow-up
+// routes are deliberately demoted: cluster SCM has no replacement owner, while
+// single-service SCM receipts lead to the Idunn scheduled-task plan.
+const WRAPPER_SERVICE_EXECUTION_AUDIT_COMMAND: &str = WRAPPER_MANAGED_SERVICE_TASK_PLAN_COMMAND;
+const WRAPPER_SERVICE_EXECUTION_RUNBOOK_COMMAND: &str = WRAPPER_MANAGED_SERVICE_TASK_PLAN_COMMAND;
+const WRAPPER_SERVICE_EXECUTION_READINESS_COMMAND: &str = WRAPPER_MANAGED_SERVICE_TASK_PLAN_COMMAND;
+const WRAPPER_SERVICE_RECONCILE_COMMAND: &str = WRAPPER_SERVICE_STATUS_COMMAND;
+const WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND: &str = WRAPPER_OVERVIEW_COMMAND;
+const WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND: &str = WRAPPER_OVERVIEW_COMMAND;
+const WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND: &str = WRAPPER_OVERVIEW_COMMAND;
+const WRAPPER_CLUSTER_SERVICE_INSTALL_EXECUTE_COMMAND: &str = WRAPPER_OVERVIEW_COMMAND;
+const WRAPPER_CLUSTER_SERVICE_START_EXECUTE_COMMAND: &str = WRAPPER_OVERVIEW_COMMAND;
+const WRAPPER_CLUSTER_SERVICE_STOP_EXECUTE_COMMAND: &str = WRAPPER_OVERVIEW_COMMAND;
 const DIRECT_BIFROST_PUBLICATION_COMMAND: &str =
     "epiphany-verse-query bifrost-publication --target-repository <repo> --changed-path <path>";
 const SERVICE_LIFECYCLE_OWNER: &str = "Idunn";
@@ -7494,24 +7490,19 @@ fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCh
 
 fn service_execution_check_follow_up_command(action: &str) -> &'static str {
     match action {
-        "cluster-windows-service-execution-runbook" => {
-            WRAPPER_CLUSTER_SERVICE_EXECUTION_RUNBOOK_COMMAND
+        "cluster-windows-service-execution-runbook"
+        | "cluster-windows-service-execution-readiness"
+        | "cluster-windows-service-install"
+        | "cluster-windows-service-start"
+        | "cluster-windows-service-execution-audit"
+        | "cluster-windows-service-stop" => "none",
+        "windows-service-execution-runbook" | "windows-service-execution-readiness" => {
+            WRAPPER_MANAGED_SERVICE_TASK_PLAN_COMMAND
         }
-        "cluster-windows-service-execution-readiness" => {
-            WRAPPER_CLUSTER_SERVICE_EXECUTION_READINESS_COMMAND
-        }
-        "cluster-windows-service-install" => WRAPPER_CLUSTER_SERVICE_INSTALL_EXECUTE_COMMAND,
-        "cluster-windows-service-start" => WRAPPER_CLUSTER_SERVICE_START_EXECUTE_COMMAND,
-        "cluster-windows-service-execution-audit" => {
-            WRAPPER_CLUSTER_SERVICE_EXECUTION_AUDIT_COMMAND
-        }
-        "cluster-windows-service-stop" => WRAPPER_CLUSTER_SERVICE_STOP_EXECUTE_COMMAND,
-        "windows-service-execution-runbook" => WRAPPER_SERVICE_EXECUTION_RUNBOOK_COMMAND,
-        "windows-service-execution-readiness" => WRAPPER_SERVICE_EXECUTION_READINESS_COMMAND,
         "windows-service-install" => WRAPPER_SERVICE_INSTALL_EXECUTE_COMMAND,
         "windows-service-start" => WRAPPER_SERVICE_START_EXECUTE_COMMAND,
         "windows-service-status" => WRAPPER_SERVICE_STATUS_COMMAND,
-        "windows-service-reconcile" => WRAPPER_SERVICE_RECONCILE_COMMAND,
+        "windows-service-reconcile" => WRAPPER_SERVICE_STATUS_COMMAND,
         "windows-service-stop" => WRAPPER_SERVICE_STOP_EXECUTE_COMMAND,
         _ => "none",
     }

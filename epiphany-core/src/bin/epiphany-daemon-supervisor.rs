@@ -15,13 +15,10 @@ use epiphany_core::EpiphanyCultMeshManagedServicePolicyEntry;
 use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
-use epiphany_core::EpiphanyServiceExecutionAuditReport;
 use epiphany_core::MemorySemanticProjectionInput;
 use epiphany_core::agent_memory_semantic_projection_input;
-use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
-use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
@@ -41,7 +38,6 @@ use epiphany_core::retire_memory_semantic_projection_claims_v0;
 use epiphany_core::retire_orphaned_memory_semantic_projection_attempts_v0;
 use epiphany_core::retire_unowned_memory_semantic_index_receipts;
 use epiphany_core::runtime_modeling_semantic_projection_input;
-use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
@@ -68,11 +64,28 @@ use std::os::windows::process::CommandExt;
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
+    let fatal_log = args.fatal_log.clone();
+    let result = dispatch(args);
+    if let Err(error) = &result
+        && let Some(path) = fatal_log
+    {
+        let _ = append_fatal_log(&path, error);
+    }
+    result
+}
+
+fn dispatch(args: Args) -> Result<()> {
     match args.command.as_str() {
         "reconcile" | "poke" | "restart" => reconcile(args),
         "tick" | "schedule" | "reconcile-all" => tick(args),
         "serve" | "loop" | "daemon" => serve(args),
         "managed-service-serve" | "service-desired-state-serve" => managed_service_serve(args),
+        "managed-service-task-plan" => managed_service_task_install(args, false),
+        "managed-service-task-install" => managed_service_task_install(args, true),
+        "managed-service-task-status" => managed_service_task_status(args),
+        "managed-service-task-start" => managed_service_task_control(args, "start"),
+        "managed-service-task-stop" => managed_service_task_control(args, "stop"),
+        "managed-service-task-uninstall" => managed_service_task_control(args, "uninstall"),
         "migrate-retired-operator-status" => migrate_retired_operator_status(args),
         "migrate-semantic-attempts-v0" => migrate_semantic_attempts_v0(args),
         "semantic-projector-service-status" => semantic_projector_service_status(args),
@@ -89,72 +102,385 @@ fn main() -> Result<()> {
         | "repo-work-service-readiness"
         | "repo-work-queue-runner-audit" => repo_work_service_audit(args),
         "cluster-service-runbook" | "cluster-daemon-runbook" => cluster_daemon_runbook(args),
-        "cluster-service-install-plan" | "cluster-daemon-install-plan" => {
-            let mut args = args;
-            args.execute_install = false;
-            cluster_windows_service_install(args)
-        }
-        "cluster-service-install-execute" => {
-            let mut args = args;
-            args.execute_install = true;
-            cluster_windows_service_install(args)
-        }
-        "cluster-windows-service-audit" | "cluster-service-audit" | "cluster-service-readiness" => {
-            cluster_windows_service_audit(args)
-        }
-        "cluster-windows-service-start" | "cluster-service-start" => {
-            cluster_windows_service_control(args, "start")
-        }
-        "cluster-windows-service-stop" | "cluster-service-stop" => {
-            cluster_windows_service_control(args, "stop")
-        }
-        "cluster-windows-service-execution-readiness" | "cluster-service-execution-readiness" => {
-            cluster_windows_service_execution_readiness(args)
-        }
-        "cluster-windows-service-execution-runbook" | "cluster-service-execution-runbook" => {
-            cluster_windows_service_execution_runbook(args)
-        }
-        "cluster-windows-service-execution-audit" | "cluster-service-execution-audit" => {
-            cluster_windows_service_execution_audit(args)
-        }
+        "cluster-service-install-plan"
+        | "cluster-daemon-install-plan"
+        | "cluster-service-install-execute" => refuse_false_windows_scm_authority(),
+        "cluster-windows-service-audit"
+        | "cluster-service-audit"
+        | "cluster-service-readiness"
+        | "cluster-windows-service-start"
+        | "cluster-service-start"
+        | "cluster-windows-service-stop"
+        | "cluster-service-stop" => refuse_false_windows_scm_authority(),
+        "cluster-windows-service-execution-readiness"
+        | "cluster-service-execution-readiness"
+        | "cluster-windows-service-execution-runbook"
+        | "cluster-service-execution-runbook"
+        | "cluster-windows-service-execution-audit"
+        | "cluster-service-execution-audit" => refuse_false_windows_scm_authority(),
         "cluster-windows-service-execution-audit-smoke"
-        | "cluster-service-execution-audit-smoke" => {
-            cluster_windows_service_execution_audit_smoke(args)
-        }
-        "service-install-plan" => {
-            let mut args = args;
-            args.execute_install = false;
-            windows_service_install(args)
-        }
-        "service-install-execute" => {
-            let mut args = args;
-            args.execute_install = true;
-            windows_service_install(args)
-        }
+        | "cluster-service-execution-audit-smoke" => refuse_false_windows_scm_authority(),
+        "service-install-plan" | "service-install-execute" => refuse_false_windows_scm_authority(),
         "windows-service-execution-readiness"
         | "service-execution-readiness"
-        | "service-elevation-status" => windows_service_execution_readiness(args),
+        | "service-elevation-status" => refuse_false_windows_scm_authority(),
         "windows-service-execution-runbook" | "service-execution-runbook" => {
-            windows_service_execution_runbook(args)
+            refuse_false_windows_scm_authority()
         }
         "windows-service-reconcile" | "service-reconcile" | "service-policy-reconcile" => {
-            windows_service_reconcile(args)
+            refuse_false_windows_scm_authority()
         }
         "windows-service-execution-audit" | "service-execution-audit" => {
-            windows_service_execution_audit(args)
+            refuse_false_windows_scm_authority()
         }
         "service-execution-audit-smoke" | "windows-service-execution-audit-smoke" => {
-            windows_service_execution_audit_smoke(args)
+            refuse_false_windows_scm_authority()
         }
-        "windows-service-status" | "service-status" => windows_service_status(args),
-        "windows-service-start" | "service-start" => windows_service_control(args, "start"),
-        "windows-service-stop" | "service-stop" => windows_service_control(args, "stop"),
+        "windows-service-status"
+        | "service-status"
+        | "windows-service-start"
+        | "service-start"
+        | "windows-service-stop"
+        | "service-stop" => refuse_false_windows_scm_authority(),
         "policy" | "write-policy" => write_policy(args),
         "semantic-recover" => semantic_recover(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use reconcile, tick, serve, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, repo-work-service-audit, cluster-service-runbook, cluster-service-install-plan, cluster-service-audit, cluster-service-start, cluster-service-stop, cluster-service-execution-readiness, cluster-service-execution-runbook, cluster-service-execution-audit, windows-service-install, windows-service-execution-readiness, windows-service-execution-runbook, windows-service-execution-audit, service-execution-audit-smoke, windows-service-reconcile, windows-service-status, windows-service-start, windows-service-stop, policy, or semantic-recover"
+            "unknown command {other:?}; use reconcile, tick, serve, managed-service-serve, managed-service-task-plan/install/status/start/stop/uninstall, service-plan, service-launch, service-runbook, managed-service-policy, semantic-projector-service-policy, repo-work-service-audit, cluster-service-runbook, policy, or semantic-recover"
         ),
     }
+}
+
+fn append_fatal_log(path: &Path, error: &anyhow::Error) -> Result<()> {
+    use std::io::Write;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    writeln!(file, "{} {}", Utc::now().to_rfc3339(), error)?;
+    Ok(())
+}
+
+fn refuse_false_windows_scm_authority() -> Result<()> {
+    anyhow::bail!(
+        "Windows SCM deployment is unsupported: this executable is a foreground console process, not a Windows service host; use managed-service-task-plan/install/status/start/stop/uninstall"
+    )
+}
+
+fn managed_service_task_name(args: &Args) -> String {
+    args.service_name
+        .clone()
+        .unwrap_or_else(|| "Epiphany-Idunn-Managed-Service-Reconciler".to_string())
+}
+
+fn managed_service_task_action(args: &Args) -> Result<(PathBuf, PathBuf, Vec<String>)> {
+    let command = fs::canonicalize(service_command_path(args)?)
+        .context("managed-service task command must be an existing absolute executable")?;
+    let cwd = fs::canonicalize(
+        args.cwd
+            .clone()
+            .unwrap_or(env::current_dir().context("failed to resolve task working directory")?),
+    )
+    .context("managed-service task working directory must exist")?;
+    if !command.is_absolute() || !cwd.is_absolute() {
+        anyhow::bail!("managed-service task command and working directory must be absolute");
+    }
+    let mut action_args = vec![
+        "managed-service-serve".to_string(),
+        "--store".to_string(),
+        absolutize_from(&cwd, &args.store).display().to_string(),
+        "--runtime-id".to_string(),
+        args.runtime_id.clone(),
+        "--loop-interval-seconds".to_string(),
+        args.loop_interval_seconds.to_string(),
+        "--fatal-log".to_string(),
+        absolutize_from(
+            &cwd,
+            args.fatal_log.as_deref().unwrap_or_else(|| {
+                Path::new(".epiphany-run/services/managed-service-scheduler.fatal.log")
+            }),
+        )
+        .display()
+        .to_string(),
+    ];
+    if args.max_iterations != 0 {
+        action_args.extend([
+            "--max-iterations".to_string(),
+            args.max_iterations.to_string(),
+        ]);
+    }
+    Ok((command, cwd, action_args))
+}
+
+fn absolutize_from(cwd: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    }
+}
+
+fn managed_service_task_install(args: Args, execute: bool) -> Result<()> {
+    require_supervisor_bootstrap(&args)?;
+    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let started_at = Utc::now();
+    let task_name = managed_service_task_name(&args);
+    let (command, cwd, action_args) = managed_service_task_action(&args)?;
+    let argument_line = windows_command_line(&action_args);
+    let delay = format!("PT{}S", args.task_logon_delay_seconds);
+    let register_script = format!(
+        "$ErrorActionPreference='Stop'; $user=[System.Security.Principal.WindowsIdentity]::GetCurrent().Name; \
+$action=New-ScheduledTaskAction -Execute {} -Argument {} -WorkingDirectory {}; \
+$trigger=New-ScheduledTaskTrigger -AtLogOn -User $user; $trigger.Delay={}; \
+$recoveryTrigger=New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval ([TimeSpan]::FromSeconds({})); \
+$principal=New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited; \
+$settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount {} -RestartInterval ([TimeSpan]::FromSeconds({})) -ExecutionTimeLimit ([TimeSpan]::Zero) -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries; \
+Register-ScheduledTask -TaskName {} -Action $action -Trigger @($trigger,$recoveryTrigger) -Principal $principal -Settings $settings -Description 'Idunn foreground managed-service reconciler; typed local Verse policy remains authority.' -Force | Out-Null",
+        quote_powershell(&command.display().to_string()),
+        quote_powershell(&argument_line),
+        quote_powershell(&cwd.display().to_string()),
+        quote_powershell(&delay),
+        args.task_restart_interval_seconds,
+        args.task_restart_count,
+        args.task_restart_interval_seconds,
+        quote_powershell(&task_name),
+    );
+    let readback_script = managed_service_task_readback_script(
+        &task_name,
+        &command,
+        &argument_line,
+        &cwd,
+        &delay,
+        args.task_restart_count,
+        args.task_restart_interval_seconds,
+    );
+    let script = format!("{register_script}; {readback_script}");
+    let (status, exit_code, stdout, stderr) = if execute {
+        let output = run_powershell(&script)?;
+        let drifted = output.status.success() && task_readback_has_drift(&output.stdout)?;
+        let status = if !output.status.success() {
+            "install-failed"
+        } else if drifted {
+            "install-drift"
+        } else {
+            "installed"
+        };
+        (
+            status,
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout).trim().to_string(),
+            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        )
+    } else {
+        ("planned", None, String::new(), String::new())
+    };
+    let receipt = service_lifecycle_receipt(
+        &args,
+        "managed-service-task-install",
+        status,
+        command.display().to_string(),
+        action_args.clone(),
+        None,
+        exit_code,
+        started_at,
+        Some(Utc::now()),
+        Some(format!("task-scheduler://windows/{task_name}")),
+    );
+    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+        &args.store,
+        args.runtime_id.clone(),
+        receipt,
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion":"epiphany.windows.managed_service_task.v0", "status":status,
+            "taskName":task_name, "receiptId":written.receipt_id, "executeRequested":execute,
+            "principal":{"user":"current-user","logonType":"InteractiveToken","runLevel":"Limited"},
+            "trigger":{"kind":"AtLogOn","delaySeconds":args.task_logon_delay_seconds},
+            "settings":{"multipleInstances":"IgnoreNew","restartCount":args.task_restart_count,
+              "restartIntervalSeconds":args.task_restart_interval_seconds,"executionTimeLimitSeconds":0,
+              "startWhenAvailable":true,"allowStartIfOnBatteries":true,"stopIfGoingOnBatteries":false},
+            "action":{"command":command,"args":action_args,"workingDirectory":cwd},
+            "exitCode":exit_code,"stdout":stdout,"stderr":stderr,"privateStateExposed":false
+        }))?
+    );
+    if execute && status != "installed" {
+        anyhow::bail!(
+            "scheduled task installation did not verify: stdout={stdout}; stderr={stderr}"
+        );
+    }
+    Ok(())
+}
+
+fn managed_service_task_status(args: Args) -> Result<()> {
+    managed_service_task_operation(args, "status")
+}
+
+fn managed_service_task_control(args: Args, operation: &str) -> Result<()> {
+    managed_service_task_operation(args, operation)
+}
+
+fn managed_service_task_operation(args: Args, operation: &str) -> Result<()> {
+    require_supervisor_bootstrap(&args)?;
+    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
+    assert_swarm_brake_allows_service_lifecycle(&context)?;
+    let started_at = Utc::now();
+    let task_name = managed_service_task_name(&args);
+    let quoted = quote_powershell(&task_name);
+    let script = match operation {
+        "status" => {
+            let (command, cwd, action_args) = managed_service_task_action(&args)?;
+            managed_service_task_readback_script(
+                &task_name,
+                &command,
+                &windows_command_line(&action_args),
+                &cwd,
+                &format!("PT{}S", args.task_logon_delay_seconds),
+                args.task_restart_count,
+                args.task_restart_interval_seconds,
+            )
+        }
+        "start" => format!("$ErrorActionPreference='Stop'; Start-ScheduledTask -TaskName {quoted}"),
+        "stop" => format!("$ErrorActionPreference='Stop'; Stop-ScheduledTask -TaskName {quoted}"),
+        "uninstall" => format!(
+            "$ErrorActionPreference='Stop'; Unregister-ScheduledTask -TaskName {quoted} -Confirm:$false"
+        ),
+        _ => anyhow::bail!("unsupported managed-service task operation {operation}"),
+    };
+    let output = run_powershell(&script)?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let status = if operation == "status" && output.status.code() == Some(3) {
+        "missing".to_string()
+    } else if operation == "status"
+        && output.status.success()
+        && task_readback_has_drift(&output.stdout)?
+    {
+        "drift".to_string()
+    } else if output.status.success() {
+        if operation == "status" {
+            "in-sync".to_string()
+        } else {
+            format!("{operation}-requested")
+        }
+    } else {
+        format!("{operation}-failed")
+    };
+    let receipt = service_lifecycle_receipt(
+        &args,
+        &format!("managed-service-task-{operation}"),
+        &status,
+        "powershell.exe".to_string(),
+        vec!["-NoProfile".to_string(), "-Command".to_string(), script],
+        None,
+        output.status.code(),
+        started_at,
+        Some(Utc::now()),
+        Some(format!("task-scheduler://windows/{task_name}/{operation}")),
+    );
+    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+        &args.store,
+        args.runtime_id.clone(),
+        receipt,
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(
+            &json!({"schemaVersion":"epiphany.windows.managed_service_task.v0",
+        "status":status,"taskName":task_name,"operation":operation,"receiptId":written.receipt_id,
+        "exitCode":output.status.code(),"stdout":stdout,"stderr":stderr,"privateStateExposed":false})
+        )?
+    );
+    if !output.status.success() && !(operation == "status" && output.status.code() == Some(3)) {
+        anyhow::bail!("scheduled task {operation} failed: {stderr}");
+    }
+    Ok(())
+}
+
+fn managed_service_task_readback_script(
+    task_name: &str,
+    command: &Path,
+    arguments: &str,
+    cwd: &Path,
+    delay: &str,
+    restart_count: u32,
+    restart_interval_seconds: u64,
+) -> String {
+    format!(
+        "$ErrorActionPreference='Stop'; $expectedSid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; function Resolve-TaskSid($id){{try{{(New-Object System.Security.Principal.NTAccount($id)).Translate([System.Security.Principal.SecurityIdentifier]).Value}}catch{{''}}}}; $t=Get-ScheduledTask -TaskName {} -ErrorAction SilentlyContinue; if($null -eq $t){{'missing';exit 3}}; $i=Get-ScheduledTaskInfo -TaskName {}; $d=@(); \
+if($t.Actions[0].Execute -ne {}){{$d+='action.execute'}}; if($t.Actions[0].Arguments -ne {}){{$d+='action.arguments'}}; if($t.Actions[0].WorkingDirectory -ne {}){{$d+='action.workingDirectory'}}; \
+if((Resolve-TaskSid $t.Principal.UserId) -ne $expectedSid){{$d+='principal.userId'}}; if([string]$t.Principal.LogonType -notin @('Interactive','InteractiveToken')){{$d+='principal.logonType'}}; if([string]$t.Principal.RunLevel -ne 'Limited'){{$d+='principal.runLevel'}}; \
+if($t.Triggers.Count -ne 2){{$d+='trigger.count'}}; if($t.Triggers[0].CimClass.CimClassName -ne 'MSFT_TaskLogonTrigger'){{$d+='trigger.kind'}}; if((Resolve-TaskSid $t.Triggers[0].UserId) -ne $expectedSid){{$d+='trigger.userId'}}; if([Xml.XmlConvert]::ToTimeSpan([string]$t.Triggers[0].Delay).TotalSeconds -ne [Xml.XmlConvert]::ToTimeSpan({}).TotalSeconds){{$d+='trigger.delay'}}; if($t.Triggers[1].CimClass.CimClassName -ne 'MSFT_TaskTimeTrigger'){{$d+='recoveryTrigger.kind'}}; if([Xml.XmlConvert]::ToTimeSpan([string]$t.Triggers[1].Repetition.Interval).TotalSeconds -ne {}){{$d+='recoveryTrigger.interval'}}; \
+if([string]$t.Settings.MultipleInstances -ne 'IgnoreNew'){{$d+='settings.multipleInstances'}}; if($t.Settings.RestartCount -ne {}){{$d+='settings.restartCount'}}; if([Xml.XmlConvert]::ToTimeSpan([string]$t.Settings.RestartInterval).TotalSeconds -ne {}){{$d+='settings.restartInterval'}}; \
+if([Xml.XmlConvert]::ToTimeSpan([string]$t.Settings.ExecutionTimeLimit).TotalSeconds -ne 0){{$d+='settings.executionTimeLimit'}}; if($t.Settings.DisallowStartIfOnBatteries){{$d+='settings.allowStartIfOnBatteries'}}; if($t.Settings.StopIfGoingOnBatteries){{$d+='settings.stopIfGoingOnBatteries'}}; \
+[pscustomobject]@{{TaskName=$t.TaskName;State=[string]$t.State;LastRunTime=$i.LastRunTime;LastTaskResult=$i.LastTaskResult;NextRunTime=$i.NextRunTime;Execute=$t.Actions[0].Execute;Arguments=$t.Actions[0].Arguments;WorkingDirectory=$t.Actions[0].WorkingDirectory;UserId=$t.Principal.UserId;LogonType=[string]$t.Principal.LogonType;RunLevel=[string]$t.Principal.RunLevel;DriftReasons=$d}}|ConvertTo-Json -Compress",
+        quote_powershell(task_name),
+        quote_powershell(task_name),
+        quote_powershell(&command.display().to_string()),
+        quote_powershell(arguments),
+        quote_powershell(&cwd.display().to_string()),
+        quote_powershell(delay),
+        restart_interval_seconds,
+        restart_count,
+        restart_interval_seconds,
+    )
+}
+
+fn task_readback_has_drift(stdout: &[u8]) -> Result<bool> {
+    let value: Value =
+        serde_json::from_slice(stdout).context("failed to parse scheduled-task readback")?;
+    Ok(value
+        .get("DriftReasons")
+        .and_then(Value::as_array)
+        .is_none_or(|reasons| !reasons.is_empty()))
+}
+
+fn run_powershell(script: &str) -> Result<std::process::Output> {
+    Command::new("powershell.exe")
+        .arg("-NoProfile")
+        .arg("-NonInteractive")
+        .arg("-Command")
+        .arg(script)
+        .output()
+        .context("failed to invoke Windows Task Scheduler through PowerShell")
+}
+
+fn windows_command_line(args: &[String]) -> String {
+    args.iter()
+        .map(|arg| windows_quote_argv(arg))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn windows_quote_argv(arg: &str) -> String {
+    if arg.is_empty() {
+        return "\"\"".to_string();
+    }
+    if !arg.chars().any(|ch| ch.is_whitespace() || ch == '"') {
+        return arg.to_string();
+    }
+    let mut quoted = String::from("\"");
+    let mut backslashes = 0_usize;
+    for ch in arg.chars() {
+        if ch == '\\' {
+            backslashes += 1;
+        } else if ch == '"' {
+            quoted.push_str(&"\\".repeat(backslashes * 2 + 1));
+            quoted.push('"');
+            backslashes = 0;
+        } else {
+            quoted.push_str(&"\\".repeat(backslashes));
+            backslashes = 0;
+            quoted.push(ch);
+        }
+    }
+    quoted.push_str(&"\\".repeat(backslashes * 2));
+    quoted.push('"');
+    quoted
 }
 
 fn migrate_retired_operator_status(args: Args) -> Result<()> {
@@ -302,31 +628,6 @@ fn require_supervisor_bootstrap(args: &Args) -> Result<()> {
         );
     }
     Ok(())
-}
-
-fn seed_supervisor_smoke_fixture(args: &Args) -> Result<()> {
-    if args
-        .store
-        .components()
-        .any(|component| matches!(component, std::path::Component::ParentDir))
-    {
-        anyhow::bail!("daemon-supervisor smoke store may not contain parent traversal");
-    }
-    let workspace = env::current_dir()?.canonicalize()?;
-    let smoke_root = workspace.join(".epiphany-smoke");
-    let store = if args.store.is_absolute() {
-        args.store.clone()
-    } else {
-        workspace.join(&args.store)
-    };
-    if !store.starts_with(&smoke_root) {
-        anyhow::bail!("daemon-supervisor smoke fixtures may write only beneath .epiphany-smoke");
-    }
-    seed_epiphany_local_verse_context(
-        &args.store,
-        args.runtime_id.clone(),
-        Utc::now().to_rfc3339(),
-    )
 }
 
 fn reconcile(args: Args) -> Result<()> {
@@ -1262,1080 +1563,6 @@ fn cluster_daemon_runbook(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn cluster_windows_service_install(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let command_path = cluster_daemon_command_path(&args)?;
-    let daemon_rows = cluster_daemon_runbook_rows(&args, &context)?;
-    let install_script_path = windows_service_install_script_path(&args);
-    if let Some(parent) = install_script_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-    let service_specs = daemon_rows
-        .iter()
-        .map(|row| cluster_windows_service_spec(&args, row))
-        .collect::<Vec<_>>();
-    fs::write(
-        &install_script_path,
-        cluster_windows_service_install_script_content(
-            &args,
-            &command_path,
-            &daemon_rows,
-            &service_specs,
-        ),
-    )
-    .with_context(|| format!("failed to write {}", install_script_path.display()))?;
-    let artifact_ref = install_script_path.display().to_string();
-    let mut status = "planned".to_string();
-    let mut exit_code = None;
-    let mut executed = false;
-    let mut stdout = String::new();
-    let mut stderr = String::new();
-    let mut completed_at = Some(Utc::now());
-    if args.execute_install {
-        if windows_has_elevated_service_authority()? {
-            executed = true;
-            let output = Command::new("powershell.exe")
-                .arg("-NoProfile")
-                .arg("-ExecutionPolicy")
-                .arg("Bypass")
-                .arg("-File")
-                .arg(&install_script_path)
-                .output()
-                .with_context(|| {
-                    format!(
-                        "failed to execute cluster Windows service install script {}",
-                        install_script_path.display()
-                    )
-                })?;
-            exit_code = output.status.code();
-            stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            completed_at = Some(Utc::now());
-            status = if output.status.success() {
-                "install-command-succeeded".to_string()
-            } else {
-                "failed".to_string()
-            };
-        } else {
-            status = "execution-refused-not-elevated".to_string();
-        }
-    }
-    let service_args = daemon_rows
-        .iter()
-        .flat_map(|row| {
-            let mut values = vec![format!("daemon={}", row.daemon_id)];
-            values.extend(row.args.clone());
-            values
-        })
-        .collect::<Vec<_>>();
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "cluster-windows-service-install",
-        &status,
-        "powershell.exe".to_string(),
-        vec![
-            "-NoProfile".to_string(),
-            "-ExecutionPolicy".to_string(),
-            "Bypass".to_string(),
-            "-File".to_string(),
-            artifact_ref.clone(),
-            format!("cluster-daemon-count={}", daemon_rows.len()),
-            format!("command={}", command_path.display()),
-            format!("args={}", service_args.join(" ")),
-        ],
-        None,
-        exit_code,
-        started_at,
-        completed_at,
-        Some(artifact_ref.clone()),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "daemonSelector": written.daemon_selector,
-            "daemonCount": daemon_rows.len(),
-            "installScriptPath": artifact_ref,
-            "command": written.command,
-            "exitCode": written.exit_code,
-            "stdout": stdout,
-            "stderr": stderr,
-            "executeRequested": args.execute_install,
-            "executed": executed,
-            "services": daemon_rows.iter().zip(service_specs.iter()).map(|(row, spec)| json!({
-                "serviceName": spec.service_name,
-                "displayName": spec.display_name,
-                "daemonId": row.daemon_id,
-                "clusterId": row.cluster_id,
-                "observedStatus": row.observed_status,
-                "startType": args.service_start_type,
-                "privateStateExposed": false,
-            })).collect::<Vec<_>>(),
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn cluster_windows_service_audit(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let daemon_rows = cluster_daemon_runbook_rows(&args, &context)?;
-    let service_specs = daemon_rows
-        .iter()
-        .map(|row| cluster_windows_service_spec(&args, row))
-        .collect::<Vec<_>>();
-    let mut rows = Vec::new();
-    let mut missing_count = 0_usize;
-    let mut running_count = 0_usize;
-    let mut present_count = 0_usize;
-    let mut query_failed_count = 0_usize;
-    for (daemon, spec) in daemon_rows.iter().zip(service_specs.iter()) {
-        let script = format!(
-            "$s = Get-Service -Name {} -ErrorAction SilentlyContinue; if ($null -eq $s) {{ 'missing'; exit 3 }} else {{ \"status=$($s.Status); canStop=$($s.CanStop); serviceType=$($s.ServiceType)\" }}",
-            quote_powershell(&spec.service_name)
-        );
-        let output = Command::new("powershell.exe")
-            .arg("-NoProfile")
-            .arg("-Command")
-            .arg(&script)
-            .output()
-            .with_context(|| format!("failed to query Windows service {}", spec.service_name))?;
-        let exit_code = output.status.code();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let service_status =
-            windows_service_query_status(exit_code, &stdout, output.status.success());
-        match service_status.as_str() {
-            "missing" => missing_count = missing_count.saturating_add(1),
-            "running" => running_count = running_count.saturating_add(1),
-            "present" | "stopped" => present_count = present_count.saturating_add(1),
-            _ => query_failed_count = query_failed_count.saturating_add(1),
-        }
-        rows.push(json!({
-            "serviceName": spec.service_name,
-            "displayName": spec.display_name,
-            "daemonId": daemon.daemon_id,
-            "clusterId": daemon.cluster_id,
-            "status": service_status,
-            "exitCode": exit_code,
-            "stdout": stdout,
-            "stderr": stderr,
-            "privateStateExposed": false,
-        }));
-    }
-    let status = if query_failed_count > 0 {
-        "query-failed"
-    } else if missing_count > 0 {
-        "incomplete"
-    } else {
-        "complete"
-    };
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "cluster-windows-service-audit",
-        status,
-        "powershell.exe".to_string(),
-        vec![
-            "-NoProfile".to_string(),
-            "-Command".to_string(),
-            format!("cluster-service-count={}", service_specs.len()),
-            format!("missing={missing_count}"),
-            format!("running={running_count}"),
-            format!("present={present_count}"),
-            format!("queryFailed={query_failed_count}"),
-        ],
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(format!(
-            "service-manager://windows/{}/cluster-audit",
-            sanitize_id(&args.service_id)
-        )),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "daemonSelector": written.daemon_selector,
-            "daemonCount": daemon_rows.len(),
-            "serviceCount": service_specs.len(),
-            "missingCount": missing_count,
-            "runningCount": running_count,
-            "presentCount": present_count,
-            "queryFailedCount": query_failed_count,
-            "services": rows,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn cluster_windows_service_control(args: Args, control: &str) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let daemon_rows = cluster_daemon_runbook_rows(&args, &context)?;
-    let service_specs = daemon_rows
-        .iter()
-        .map(|row| cluster_windows_service_spec(&args, row))
-        .collect::<Vec<_>>();
-    let mut rows = Vec::new();
-    let mut requested_count = 0_usize;
-    let mut planned_count = 0_usize;
-    let mut refused_count = 0_usize;
-    let mut failed_count = 0_usize;
-    let mut executed_count = 0_usize;
-    let elevated = if args.execute_control {
-        Some(windows_has_elevated_service_authority()?)
-    } else {
-        None
-    };
-    for (daemon, spec) in daemon_rows.iter().zip(service_specs.iter()) {
-        let (service_status, exit_code, stdout, stderr, executed) = if !args.execute_control {
-            planned_count = planned_count.saturating_add(1);
-            (
-                format!("{control}-planned"),
-                None,
-                String::new(),
-                String::new(),
-                false,
-            )
-        } else if elevated == Some(false) {
-            refused_count = refused_count.saturating_add(1);
-            (
-                "execution-refused-not-elevated".to_string(),
-                None,
-                String::new(),
-                String::new(),
-                false,
-            )
-        } else {
-            let output = Command::new("sc.exe")
-                .arg(control)
-                .arg(&spec.service_name)
-                .output()
-                .with_context(|| format!("failed to run sc.exe {control} {}", spec.service_name))?;
-            let service_status = if output.status.success() {
-                requested_count = requested_count.saturating_add(1);
-                format!("{control}-requested")
-            } else {
-                failed_count = failed_count.saturating_add(1);
-                format!("{control}-failed")
-            };
-            executed_count = executed_count.saturating_add(1);
-            (
-                service_status,
-                output.status.code(),
-                String::from_utf8_lossy(&output.stdout).trim().to_string(),
-                String::from_utf8_lossy(&output.stderr).trim().to_string(),
-                true,
-            )
-        };
-        rows.push(json!({
-            "serviceName": spec.service_name,
-            "displayName": spec.display_name,
-            "daemonId": daemon.daemon_id,
-            "clusterId": daemon.cluster_id,
-            "status": service_status,
-            "exitCode": exit_code,
-            "stdout": stdout,
-            "stderr": stderr,
-            "executed": executed,
-            "privateStateExposed": false,
-        }));
-    }
-    let status = if failed_count > 0 {
-        format!("{control}-failed")
-    } else if refused_count > 0 {
-        "execution-refused-not-elevated".to_string()
-    } else if planned_count > 0 {
-        format!("{control}-planned")
-    } else {
-        format!("{control}-requested")
-    };
-    let receipt = service_lifecycle_receipt(
-        &args,
-        &format!("cluster-windows-service-{control}"),
-        &status,
-        "sc.exe".to_string(),
-        vec![
-            control.to_string(),
-            format!("cluster-service-count={}", service_specs.len()),
-            format!("requested={requested_count}"),
-            format!("planned={planned_count}"),
-            format!("refused={refused_count}"),
-            format!("failed={failed_count}"),
-        ],
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(format!(
-            "service-manager://windows/{}/cluster-{control}",
-            sanitize_id(&args.service_id)
-        )),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "daemonSelector": written.daemon_selector,
-            "daemonCount": daemon_rows.len(),
-            "serviceCount": service_specs.len(),
-            "requestedCount": requested_count,
-            "plannedCount": planned_count,
-            "refusedCount": refused_count,
-            "failedCount": failed_count,
-            "executeRequested": args.execute_control,
-            "executed": executed_count > 0,
-            "executedCount": executed_count,
-            "elevated": elevated,
-            "services": rows,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn windows_service_install(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let command_path = service_command_path(&args)?;
-    let service_args = service_serve_args(&args);
-    let service_name = windows_service_name(&args);
-    let install_script_path = windows_service_install_script_path(&args);
-    if let Some(parent) = install_script_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-    let content =
-        windows_service_install_script_content(&args, &service_name, &command_path, &service_args);
-    fs::write(&install_script_path, content)
-        .with_context(|| format!("failed to write {}", install_script_path.display()))?;
-    let artifact_ref = install_script_path.display().to_string();
-    let mut status = "planned".to_string();
-    let mut exit_code = None;
-    let mut executed = false;
-    let mut completed_at = Some(Utc::now());
-    if args.execute_install {
-        if windows_has_elevated_service_authority()? {
-            executed = true;
-            let output = Command::new("powershell.exe")
-                .arg("-NoProfile")
-                .arg("-ExecutionPolicy")
-                .arg("Bypass")
-                .arg("-File")
-                .arg(&install_script_path)
-                .output()
-                .with_context(|| {
-                    format!(
-                        "failed to execute Windows service install script {}",
-                        install_script_path.display()
-                    )
-                })?;
-            exit_code = output.status.code();
-            completed_at = Some(Utc::now());
-            status = if output.status.success() {
-                "install-command-succeeded".to_string()
-            } else {
-                "failed".to_string()
-            };
-        } else {
-            status = "execution-refused-not-elevated".to_string();
-        }
-    }
-    let receipt = service_lifecycle_receipt(
-        &args,
-        if args.execute_install {
-            "windows-service-install"
-        } else {
-            "windows-service-install-plan"
-        },
-        &status,
-        "powershell.exe".to_string(),
-        vec![
-            "-NoProfile".to_string(),
-            "-ExecutionPolicy".to_string(),
-            "Bypass".to_string(),
-            "-File".to_string(),
-            install_script_path.display().to_string(),
-        ],
-        None,
-        exit_code,
-        started_at,
-        completed_at,
-        Some(artifact_ref.clone()),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "serviceName": service_name,
-            "receiptId": written.receipt_id,
-            "installScriptPath": artifact_ref,
-            "exitCode": written.exit_code,
-            "executed": executed,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn windows_service_status(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let service_name = windows_service_name(&args);
-    let script = format!(
-        "$s = Get-Service -Name {} -ErrorAction SilentlyContinue; if ($null -eq $s) {{ 'missing'; exit 3 }} else {{ \"status=$($s.Status); canStop=$($s.CanStop); serviceType=$($s.ServiceType)\" }}",
-        quote_powershell(&service_name)
-    );
-    let output = Command::new("powershell.exe")
-        .arg("-NoProfile")
-        .arg("-Command")
-        .arg(&script)
-        .output()
-        .with_context(|| format!("failed to query Windows service {service_name}"))?;
-    let exit_code = output.status.code();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let status = windows_service_query_status(exit_code, &stdout, output.status.success());
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "windows-service-status",
-        &status,
-        "powershell.exe".to_string(),
-        vec!["-NoProfile".to_string(), "-Command".to_string(), script],
-        None,
-        exit_code,
-        started_at,
-        Some(Utc::now()),
-        Some(format!("service-manager://windows/{service_name}/status")),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "serviceName": service_name,
-            "receiptId": written.receipt_id,
-            "exitCode": written.exit_code,
-            "stdout": stdout,
-            "stderr": stderr,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn windows_service_execution_readiness(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let service_name = windows_service_name(&args);
-    let elevated = windows_has_elevated_service_authority()?;
-    let status = if elevated {
-        "elevated-ready"
-    } else {
-        "not-elevated"
-    };
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "windows-service-execution-readiness",
-        status,
-        "powershell.exe".to_string(),
-        vec![
-            "-NoProfile".to_string(),
-            "-Command".to_string(),
-            "IsInRole(Administrator)".to_string(),
-        ],
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(format!(
-            "service-manager://windows/{service_name}/execution-readiness"
-        )),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "serviceName": service_name,
-            "receiptId": written.receipt_id,
-            "elevated": elevated,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn cluster_windows_service_execution_readiness(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let daemon_rows = cluster_daemon_runbook_rows(&args, &context)?;
-    let service_specs = daemon_rows
-        .iter()
-        .map(|row| cluster_windows_service_spec(&args, row))
-        .collect::<Vec<_>>();
-    let elevated = windows_has_elevated_service_authority()?;
-    let status = if elevated {
-        "elevated-ready"
-    } else {
-        "not-elevated"
-    };
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "cluster-windows-service-execution-readiness",
-        status,
-        "powershell.exe".to_string(),
-        vec![
-            "-NoProfile".to_string(),
-            "-Command".to_string(),
-            "IsInRole(Administrator)".to_string(),
-            format!("cluster-service-count={}", service_specs.len()),
-        ],
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(format!(
-            "service-manager://windows/{}/cluster-execution-readiness",
-            sanitize_id(&args.service_id)
-        )),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "daemonCount": daemon_rows.len(),
-            "serviceCount": service_specs.len(),
-            "elevated": elevated,
-            "services": daemon_rows.iter().zip(service_specs.iter()).map(|(row, spec)| json!({
-                "serviceName": spec.service_name,
-                "displayName": spec.display_name,
-                "daemonId": row.daemon_id,
-                "clusterId": row.cluster_id,
-                "privateStateExposed": false,
-            })).collect::<Vec<_>>(),
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn windows_service_execution_audit(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .collect::<Vec<_>>();
-    let report = epiphany_service_execution_audit_report(&receipts);
-    let runbook_witness =
-        service_execution_runbook_witness(&report, "windows-service-execution-runbook");
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "windows-service-execution-audit",
-        &report.status,
-        "epiphany-daemon-supervisor".to_string(),
-        vec!["windows-service-execution-audit".to_string()],
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(format!(
-            "service-manager://windows/{}/execution-audit",
-            windows_service_name(&args)
-        )),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": report.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "serviceName": windows_service_name(&args),
-            "receiptId": written.receipt_id,
-            "receiptCount": report.receipt_count,
-            "missingCount": report.missing_count,
-            "failedCount": report.failed_count,
-            "runbookPath": runbook_witness.runbook_path,
-            "runbookSha256": runbook_witness.runbook_sha256,
-            "elevatedCommand": runbook_witness.elevated_command,
-            "requiresElevatedAuthority": runbook_witness.requires_elevated_authority,
-            "aftercareMode": "service-execution-audit",
-            "aftercareCommand": "tools/epiphany_local_run.ps1 -Mode service-execution-audit",
-            "checks": report.checks,
-            "privateStateExposed": written.private_state_exposed || report.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn windows_service_execution_audit_smoke(args: Args) -> Result<()> {
-    seed_supervisor_smoke_fixture(&args)?;
-
-    let started_at = Utc::now();
-    for (action, status) in [
-        ("windows-service-execution-runbook", "written"),
-        ("windows-service-execution-readiness", "elevated-ready"),
-        ("windows-service-install", "install-command-succeeded"),
-        ("windows-service-start", "start-requested"),
-        ("windows-service-status", "stopped"),
-        ("windows-service-reconcile", "in-sync"),
-        ("windows-service-stop", "stop-requested"),
-    ] {
-        let receipt = service_lifecycle_receipt(
-            &args,
-            action,
-            status,
-            "smoke".to_string(),
-            vec![action.to_string()],
-            None,
-            Some(0),
-            started_at,
-            Some(Utc::now()),
-            Some(format!("smoke://service-execution-audit/{action}")),
-        );
-        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-            &args.store,
-            args.runtime_id.clone(),
-            receipt,
-        )?;
-    }
-    let receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .collect::<Vec<_>>();
-    let complete_report = epiphany_service_execution_audit_report(&receipts);
-    if complete_report.status != "complete"
-        || complete_report.missing_count != 0
-        || complete_report.failed_count != 0
-        || complete_report.private_state_exposed
-    {
-        anyhow::bail!("service execution audit smoke failed to accept complete sealed receipts");
-    }
-    let drifted = service_lifecycle_receipt(
-        &args,
-        "windows-service-reconcile",
-        "drift",
-        "smoke".to_string(),
-        vec!["windows-service-reconcile".to_string()],
-        None,
-        Some(0),
-        started_at,
-        Some(Utc::now()),
-        Some("smoke://service-execution-audit/drift".to_string()),
-    );
-    write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        drifted,
-    )?;
-    let receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .collect::<Vec<_>>();
-    let incomplete_report = epiphany_service_execution_audit_report(&receipts);
-    if incomplete_report.status != "incomplete" || incomplete_report.failed_count == 0 {
-        anyhow::bail!("service execution audit smoke failed to reject drifted reconcile receipt");
-    }
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": "ok",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": args.service_id,
-            "completeStatus": complete_report.status,
-            "incompleteStatus": incomplete_report.status,
-            "incompleteFailedCount": incomplete_report.failed_count,
-            "privateStateExposed": false,
-        }))?
-    );
-    Ok(())
-}
-
-fn cluster_windows_service_execution_runbook(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let runbook_path = args
-        .runbook_path
-        .clone()
-        .context("cluster-service-execution-runbook requires --runbook-path")?;
-    if !runbook_path.exists() {
-        anyhow::bail!(
-            "cluster service execution runbook artifact does not exist: {}",
-            runbook_path.display()
-        );
-    }
-    let command = args
-        .service_command
-        .as_ref()
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|| "tools/epiphany_local_run.ps1".to_string());
-    let try_modes = [
-        "cluster-service-execution-readiness",
-        "cluster-service-install-execute",
-        "cluster-service-start-execute",
-        "cluster-service-audit",
-        "cluster-service-stop-execute",
-        "cluster-service-audit",
-    ];
-    let final_audit_mode = "cluster-service-execution-audit";
-    let step_failure_policy = "continue-after-step-failure";
-    let continue_after_step_failure = true;
-    let nonzero_exit_fails_step = true;
-    let exits_nonzero_after_final_audit = true;
-    let final_audit_runs_in_finally = true;
-    let mut service_args = vec![
-        format!("runbookPath={}", runbook_path.display()),
-        format!("tryModes={}", try_modes.join(",")),
-        format!("finally={final_audit_mode}"),
-        format!("stepFailurePolicy={step_failure_policy}"),
-        format!("continueAfterStepFailure={continue_after_step_failure}"),
-        format!("nonzeroExitFailsStep={nonzero_exit_fails_step}"),
-        format!("exitsNonzeroAfterFinalAudit={exits_nonzero_after_final_audit}"),
-    ];
-    if let Some(reason) = &args.reason {
-        service_args.push(format!("reason={reason}"));
-    }
-    let artifact_ref = args
-        .artifact_ref
-        .clone()
-        .unwrap_or_else(|| runbook_path.display().to_string());
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "cluster-windows-service-execution-runbook",
-        "written",
-        command,
-        service_args,
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(artifact_ref.clone()),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": "written",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "runbookPath": runbook_path,
-            "runbookTryModes": try_modes,
-            "finalAuditMode": final_audit_mode,
-            "finalAuditRunsInFinally": final_audit_runs_in_finally,
-            "stepFailurePolicy": step_failure_policy,
-            "continueAfterStepFailure": continue_after_step_failure,
-            "nonzeroExitFailsStep": nonzero_exit_fails_step,
-            "exitsNonzeroAfterFinalAudit": exits_nonzero_after_final_audit,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn cluster_windows_service_execution_audit(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .collect::<Vec<_>>();
-    let report = epiphany_cluster_service_execution_audit_report(&receipts);
-    let runbook_witness =
-        service_execution_runbook_witness(&report, "cluster-windows-service-execution-runbook");
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "cluster-windows-service-execution-audit",
-        &report.status,
-        "epiphany-daemon-supervisor".to_string(),
-        vec!["cluster-windows-service-execution-audit".to_string()],
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(format!(
-            "service-manager://windows/{}/cluster-execution-audit",
-            sanitize_id(&args.service_id)
-        )),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": report.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "receiptId": written.receipt_id,
-            "receiptCount": report.receipt_count,
-            "missingCount": report.missing_count,
-            "failedCount": report.failed_count,
-            "runbookPath": runbook_witness.runbook_path,
-            "runbookSha256": runbook_witness.runbook_sha256,
-            "elevatedCommand": runbook_witness.elevated_command,
-            "requiresElevatedAuthority": runbook_witness.requires_elevated_authority,
-            "aftercareMode": "cluster-service-execution-audit",
-            "aftercareCommand": "tools/epiphany_local_run.ps1 -Mode cluster-service-execution-audit",
-            "checks": report.checks,
-            "privateStateExposed": written.private_state_exposed || report.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn cluster_windows_service_execution_audit_smoke(args: Args) -> Result<()> {
-    seed_supervisor_smoke_fixture(&args)?;
-
-    let started_at = Utc::now();
-    for (action, status) in [
-        ("cluster-windows-service-execution-runbook", "written"),
-        (
-            "cluster-windows-service-execution-readiness",
-            "elevated-ready",
-        ),
-        (
-            "cluster-windows-service-install",
-            "install-command-succeeded",
-        ),
-        ("cluster-windows-service-start", "start-requested"),
-        ("cluster-windows-service-audit", "complete"),
-        ("cluster-windows-service-stop", "stop-requested"),
-    ] {
-        let receipt = service_lifecycle_receipt(
-            &args,
-            action,
-            status,
-            "smoke".to_string(),
-            vec![action.to_string()],
-            None,
-            Some(0),
-            started_at,
-            Some(Utc::now()),
-            Some(format!("smoke://cluster-service-execution-audit/{action}")),
-        );
-        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-            &args.store,
-            args.runtime_id.clone(),
-            receipt,
-        )?;
-    }
-    let receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .collect::<Vec<_>>();
-    let complete_report = epiphany_cluster_service_execution_audit_report(&receipts);
-    if complete_report.status != "complete"
-        || complete_report.missing_count != 0
-        || complete_report.failed_count != 0
-        || complete_report.private_state_exposed
-    {
-        anyhow::bail!(
-            "cluster service execution audit smoke failed to accept complete sealed receipts"
-        );
-    }
-    let incomplete = service_lifecycle_receipt(
-        &args,
-        "cluster-windows-service-audit",
-        "incomplete",
-        "smoke".to_string(),
-        vec!["cluster-windows-service-audit".to_string()],
-        None,
-        Some(0),
-        started_at,
-        Some(Utc::now()),
-        Some("smoke://cluster-service-execution-audit/incomplete".to_string()),
-    );
-    write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        incomplete,
-    )?;
-    let receipts = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
-        &args.store,
-        args.runtime_id.clone(),
-    )?
-    .into_iter()
-    .filter(|receipt| receipt.service_id == args.service_id)
-    .collect::<Vec<_>>();
-    let incomplete_report = epiphany_cluster_service_execution_audit_report(&receipts);
-    if incomplete_report.status != "incomplete" || incomplete_report.failed_count == 0 {
-        anyhow::bail!(
-            "cluster service execution audit smoke failed to reject incomplete audit receipt"
-        );
-    }
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": "ok",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": args.service_id,
-            "completeStatus": complete_report.status,
-            "incompleteStatus": incomplete_report.status,
-            "incompleteFailedCount": incomplete_report.failed_count,
-            "privateStateExposed": false,
-        }))?
-    );
-    Ok(())
-}
-
-struct ServiceExecutionRunbookWitness {
-    runbook_path: String,
-    runbook_sha256: String,
-    elevated_command: String,
-    requires_elevated_authority: bool,
-}
-
-fn service_execution_runbook_witness(
-    report: &EpiphanyServiceExecutionAuditReport,
-    runbook_action: &str,
-) -> ServiceExecutionRunbookWitness {
-    let runbook_path = report
-        .checks
-        .iter()
-        .find(|check| check.action == runbook_action)
-        .and_then(|check| check.operator_artifact_ref.clone())
-        .unwrap_or_else(|| "none".to_string());
-    let runbook_sha256 = local_file_sha256(&runbook_path).unwrap_or_else(|| "none".to_string());
-    let elevated_command = if runbook_sha256 == "none" {
-        "none".to_string()
-    } else {
-        elevated_powershell_runbook_command(&runbook_path)
-    };
-    ServiceExecutionRunbookWitness {
-        runbook_path,
-        runbook_sha256,
-        elevated_command,
-        requires_elevated_authority: true,
-    }
-}
-
 fn local_file_sha256(path: &str) -> Option<String> {
     if path.trim().is_empty() || path == "none" {
         return None;
@@ -2348,294 +1575,6 @@ fn local_file_sha256(path: &str) -> Option<String> {
     let digest = Sha256::digest(&bytes);
     Some(format!("{digest:x}"))
 }
-
-fn elevated_powershell_runbook_command(path: &str) -> String {
-    let escaped = path.replace('\'', "''");
-    format!(
-        "Start-Process PowerShell -Verb RunAs -Wait -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File','{escaped}')"
-    )
-}
-
-fn windows_service_execution_runbook(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let runbook_path = args
-        .runbook_path
-        .clone()
-        .context("service-execution-runbook requires --runbook-path")?;
-    if !runbook_path.exists() {
-        anyhow::bail!(
-            "service execution runbook artifact does not exist: {}",
-            runbook_path.display()
-        );
-    }
-    let command = args
-        .service_command
-        .as_ref()
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|| "tools/epiphany_local_run.ps1".to_string());
-    let modes = [
-        "service-execution-readiness",
-        "service-install-execute",
-        "service-start-execute",
-        "service-status",
-        "service-reconcile",
-        "service-stop-execute",
-        "service-status",
-        "service-execution-audit",
-    ];
-    let final_audit_mode = "service-execution-audit";
-    let step_failure_policy = "continue-after-step-failure";
-    let continue_after_step_failure = true;
-    let nonzero_exit_fails_step = true;
-    let exits_nonzero_after_final_audit = true;
-    let final_audit_runs_in_finally = true;
-    let mut service_args = vec![
-        format!("runbookPath={}", runbook_path.display()),
-        format!("modes={}", modes.join(",")),
-        format!("finally={final_audit_mode}"),
-        format!("stepFailurePolicy={step_failure_policy}"),
-        format!("continueAfterStepFailure={continue_after_step_failure}"),
-        format!("nonzeroExitFailsStep={nonzero_exit_fails_step}"),
-        format!("exitsNonzeroAfterFinalAudit={exits_nonzero_after_final_audit}"),
-    ];
-    if let Some(reason) = &args.reason {
-        service_args.push(format!("reason={reason}"));
-    }
-    let artifact_ref = args
-        .artifact_ref
-        .clone()
-        .unwrap_or_else(|| runbook_path.display().to_string());
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "windows-service-execution-runbook",
-        "written",
-        command,
-        service_args,
-        None,
-        None,
-        started_at,
-        Some(Utc::now()),
-        Some(artifact_ref.clone()),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": "written",
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "serviceName": windows_service_name(&args),
-            "receiptId": written.receipt_id,
-            "runbookPath": runbook_path,
-            "runbookModes": modes,
-            "finalAuditMode": final_audit_mode,
-            "finalAuditRunsInFinally": final_audit_runs_in_finally,
-            "stepFailurePolicy": step_failure_policy,
-            "continueAfterStepFailure": continue_after_step_failure,
-            "nonzeroExitFailsStep": nonzero_exit_fails_step,
-            "exitsNonzeroAfterFinalAudit": exits_nonzero_after_final_audit,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn windows_service_reconcile(args: Args) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let command_path = service_command_path(&args)?;
-    let desired_args = service_serve_args(&args);
-    let desired_binary = windows_service_binary_path(&command_path, &desired_args);
-    let service_name = windows_service_name(&args);
-    let script = format!(
-        "$s = Get-CimInstance -ClassName Win32_Service -Filter {}; if ($null -eq $s) {{ 'missing'; exit 3 }} else {{ [pscustomobject]@{{Name=$s.Name; DisplayName=$s.DisplayName; State=$s.State; StartMode=$s.StartMode; PathName=$s.PathName; StartName=$s.StartName}} | ConvertTo-Json -Compress }}",
-        quote_powershell(&format!("Name='{}'", service_name.replace('\'', "''")))
-    );
-    let output = Command::new("powershell.exe")
-        .arg("-NoProfile")
-        .arg("-Command")
-        .arg(&script)
-        .output()
-        .with_context(|| format!("failed to reconcile Windows service {service_name}"))?;
-    let exit_code = output.status.code();
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let mut drift_reasons = Vec::new();
-    let status = if exit_code == Some(3) || stdout.trim().eq_ignore_ascii_case("missing") {
-        "missing".to_string()
-    } else if !output.status.success() {
-        "query-failed".to_string()
-    } else {
-        let service = serde_json::from_str::<Value>(&stdout)
-            .with_context(|| format!("failed to parse Windows service query for {service_name}"))?;
-        let actual_start = service
-            .get("StartMode")
-            .and_then(Value::as_str)
-            .map(windows_service_start_mode_to_arg)
-            .unwrap_or_else(|| "unknown".to_string());
-        if actual_start != args.service_start_type {
-            drift_reasons.push(format!(
-                "start-type expected {} but found {}",
-                args.service_start_type, actual_start
-            ));
-        }
-        let actual_binary = service
-            .get("PathName")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if !windows_service_binary_matches(&actual_binary, &desired_binary) {
-            drift_reasons
-                .push("binary-path differs from desired supervisor serve command".to_string());
-        }
-        if drift_reasons.is_empty() {
-            "in-sync".to_string()
-        } else {
-            "drift".to_string()
-        }
-    };
-    let receipt = service_lifecycle_receipt(
-        &args,
-        "windows-service-reconcile",
-        &status,
-        "powershell.exe".to_string(),
-        vec!["-NoProfile".to_string(), "-Command".to_string(), script],
-        None,
-        exit_code,
-        started_at,
-        Some(Utc::now()),
-        Some(format!(
-            "service-manager://windows/{service_name}/reconcile"
-        )),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "serviceName": service_name,
-            "receiptId": written.receipt_id,
-            "exitCode": written.exit_code,
-            "desiredStartType": args.service_start_type,
-            "desiredBinaryPath": desired_binary,
-            "driftReasons": drift_reasons,
-            "stdout": stdout,
-            "stderr": stderr,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
-fn windows_service_control(args: Args, control: &str) -> Result<()> {
-    require_supervisor_bootstrap(&args)?;
-
-    let context = query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
-    assert_swarm_brake_allows_service_lifecycle(&context)?;
-    let started_at = Utc::now();
-    let service_name = windows_service_name(&args);
-    let (status, exit_code, stdout, stderr, completed_at, artifact_ref, executed) = if args
-        .execute_control
-    {
-        if windows_has_elevated_service_authority()? {
-            let output = Command::new("sc.exe")
-                .arg(control)
-                .arg(&service_name)
-                .output()
-                .with_context(|| format!("failed to run sc.exe {control} {service_name}"))?;
-            let status = if output.status.success() {
-                format!("{control}-requested")
-            } else {
-                format!("{control}-failed")
-            };
-            (
-                status,
-                output.status.code(),
-                String::from_utf8_lossy(&output.stdout).trim().to_string(),
-                String::from_utf8_lossy(&output.stderr).trim().to_string(),
-                Some(Utc::now()),
-                format!("service-manager://windows/{service_name}/{control}"),
-                true,
-            )
-        } else {
-            (
-                "execution-refused-not-elevated".to_string(),
-                None,
-                String::new(),
-                String::new(),
-                Some(Utc::now()),
-                format!("service-manager://windows/{service_name}/{control}-refused-not-elevated"),
-                false,
-            )
-        }
-    } else {
-        (
-            format!("{control}-planned"),
-            None,
-            String::new(),
-            String::new(),
-            Some(Utc::now()),
-            format!("service-manager://windows/{service_name}/{control}-plan"),
-            false,
-        )
-    };
-    let receipt = service_lifecycle_receipt(
-        &args,
-        &format!("windows-service-{control}"),
-        &status,
-        "sc.exe".to_string(),
-        vec![control.to_string(), service_name.clone()],
-        None,
-        exit_code,
-        started_at,
-        completed_at,
-        Some(artifact_ref),
-    );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
-        &args.store,
-        args.runtime_id.clone(),
-        receipt,
-    )?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
-            "status": written.status,
-            "store": args.store,
-            "runtimeId": args.runtime_id,
-            "serviceId": written.service_id,
-            "serviceName": service_name,
-            "receiptId": written.receipt_id,
-            "exitCode": written.exit_code,
-            "stdout": stdout,
-            "stderr": stderr,
-            "executeRequested": args.execute_control,
-            "executed": executed,
-            "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
-}
-
 fn run_tick(args: &Args, iteration: u64, next_wake_utc: Option<String>) -> Result<Value> {
     let tick_started = Utc::now();
 
@@ -3288,38 +2227,6 @@ fn cluster_daemon_runbook_rows(
     Ok(rows)
 }
 
-fn windows_service_install_script_path(args: &Args) -> PathBuf {
-    if let Some(path) = args.service_install_script_path.as_ref() {
-        return path.clone();
-    }
-    PathBuf::from(".epiphany-run")
-        .join("daemon-services")
-        .join(format!("{}-install.ps1", sanitize_id(&args.service_id)))
-}
-
-fn windows_service_name(args: &Args) -> String {
-    args.service_name
-        .clone()
-        .unwrap_or_else(|| sanitize_id(&args.service_id))
-}
-
-fn windows_service_query_status(exit_code: Option<i32>, stdout: &str, success: bool) -> String {
-    if success {
-        let lower = stdout.to_ascii_lowercase();
-        if lower.contains("status=running") {
-            return "running".to_string();
-        }
-        if lower.contains("status=stopped") {
-            return "stopped".to_string();
-        }
-        return "present".to_string();
-    }
-    if exit_code == Some(3) || stdout.trim().eq_ignore_ascii_case("missing") {
-        return "missing".to_string();
-    }
-    "query-failed".to_string()
-}
-
 fn service_runbook_content(
     args: &Args,
     command_path: &std::path::Path,
@@ -3397,152 +2304,6 @@ fn cluster_daemon_runbook_content(
     lines.join("\n")
 }
 
-fn cluster_windows_service_install_script_content(
-    args: &Args,
-    command_path: &std::path::Path,
-    daemon_rows: &[ClusterDaemonRunbookRow],
-    service_specs: &[ClusterWindowsServiceSpec],
-) -> String {
-    let start_type = windows_service_start_mode_to_arg(&args.service_start_type);
-    let mut lines = vec![
-        "# Epiphany cluster daemon Windows service install plan".to_string(),
-        "# Generated by epiphany-daemon-supervisor cluster-service-install-plan.".to_string(),
-        "# Requires an elevated PowerShell session when executed.".to_string(),
-        "$ErrorActionPreference = 'Stop'".to_string(),
-        format!("$startType = {}", quote_powershell(&start_type)),
-    ];
-    for (row, spec) in daemon_rows.iter().zip(service_specs.iter()) {
-        let binary = windows_service_binary_path(command_path, &row.args);
-        lines.push(String::new());
-        lines.push(format!("# {} / {}", row.display_name, row.daemon_id));
-        lines.push(format!(
-            "$serviceName = {}",
-            quote_powershell(&spec.service_name)
-        ));
-        lines.push(format!(
-            "$displayName = {}",
-            quote_powershell(&spec.display_name)
-        ));
-        lines.push(format!(
-            "$description = {}",
-            quote_powershell(&spec.description)
-        ));
-        lines.push(format!("$binaryPath = {}", quote_powershell(&binary)));
-        lines.push(
-            "if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {".to_string(),
-        );
-        lines.push("    throw \"Service '$serviceName' already exists. Remove it deliberately before reinstalling.\"".to_string());
-        lines.push("}".to_string());
-        lines.push("sc.exe create $serviceName binPath= $binaryPath start= $startType DisplayName= $displayName".to_string());
-        lines.push("sc.exe description $serviceName $description".to_string());
-    }
-    lines.push(String::new());
-    lines.push(format!(
-        "\"planned cluster-daemon-service-count={} service={}\"",
-        service_specs.len(),
-        args.service_id
-    ));
-    lines.push(String::new());
-    lines.join("\n")
-}
-
-fn windows_service_install_script_content(
-    args: &Args,
-    service_name: &str,
-    command_path: &std::path::Path,
-    service_args: &[String],
-) -> String {
-    let binary = windows_service_binary_path(command_path, service_args);
-    let display_name = args
-        .service_display_name
-        .clone()
-        .unwrap_or_else(|| service_name.to_string());
-    let description = args.service_description.clone().unwrap_or_else(|| {
-        "Epiphany daemon supervisor serve loop. Scheduler decisions remain typed local Verse receipts."
-            .to_string()
-    });
-    let start_type = args.service_start_type.clone();
-    format!(
-        concat!(
-            "# Epiphany daemon supervisor Windows service install plan\n",
-            "# Generated by epiphany-daemon-supervisor windows-service-install.\n",
-            "# Requires an elevated PowerShell session when executed.\n",
-            "$ErrorActionPreference = 'Stop'\n",
-            "$serviceName = {service_name}\n",
-            "$displayName = {display_name}\n",
-            "$description = {description}\n",
-            "$binaryPath = {binary}\n",
-            "$startType = {start_type}\n",
-            "if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {{\n",
-            "    throw \"Service '$serviceName' already exists. Remove it deliberately before reinstalling.\"\n",
-            "}}\n",
-            "sc.exe create $serviceName binPath= $binaryPath start= $startType DisplayName= $displayName\n",
-            "sc.exe description $serviceName $description\n",
-            "\"install-command-succeeded service=$serviceName start=$startType\"\n"
-        ),
-        service_name = quote_powershell(service_name),
-        display_name = quote_powershell(&display_name),
-        description = quote_powershell(&description),
-        binary = quote_powershell(&binary),
-        start_type = quote_powershell(&start_type),
-    )
-}
-
-fn windows_service_binary_path(command_path: &std::path::Path, service_args: &[String]) -> String {
-    format!(
-        "{} {}",
-        quote_windows_bin_path_arg(&command_path.display().to_string()),
-        service_args
-            .iter()
-            .map(|arg| quote_windows_bin_path_arg(arg))
-            .collect::<Vec<_>>()
-            .join(" ")
-    )
-}
-
-fn windows_service_start_mode_to_arg(start_mode: &str) -> String {
-    match start_mode.to_ascii_lowercase().as_str() {
-        "auto" | "automatic" => "auto".to_string(),
-        "manual" | "demand" => "demand".to_string(),
-        "disabled" => "disabled".to_string(),
-        other => other.to_string(),
-    }
-}
-
-fn windows_service_binary_matches(actual: &str, desired: &str) -> bool {
-    let normalize = |value: &str| {
-        value
-            .trim()
-            .trim_matches('"')
-            .replace("\\\\", "\\")
-            .to_ascii_lowercase()
-    };
-    normalize(actual) == normalize(desired)
-}
-
-fn windows_has_elevated_service_authority() -> Result<bool> {
-    let output = Command::new("powershell.exe")
-        .arg("-NoProfile")
-        .arg("-Command")
-        .arg("([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)")
-        .output()
-        .context("failed to check Windows service elevation")?;
-    if !output.status.success() {
-        return Ok(false);
-    }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .eq_ignore_ascii_case("true"))
-}
-
-fn quote_windows_bin_path_arg(value: &str) -> String {
-    if value.chars().any(|ch| ch.is_whitespace() || ch == '"') {
-        format!("\"{}\"", value.replace('"', "\\\""))
-    } else {
-        value.to_string()
-    }
-}
-
 fn quote_powershell(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
@@ -3553,43 +2314,6 @@ struct ClusterDaemonRunbookRow {
     display_name: String,
     observed_status: String,
     args: Vec<String>,
-}
-
-struct ClusterWindowsServiceSpec {
-    service_name: String,
-    display_name: String,
-    description: String,
-}
-
-fn cluster_windows_service_spec(
-    args: &Args,
-    row: &ClusterDaemonRunbookRow,
-) -> ClusterWindowsServiceSpec {
-    let service_prefix = args
-        .service_name
-        .clone()
-        .unwrap_or_else(|| args.service_id.clone());
-    let service_name = format!(
-        "{}-{}",
-        sanitize_id(&service_prefix),
-        sanitize_id(&row.daemon_id)
-    );
-    let display_prefix = args
-        .service_display_name
-        .clone()
-        .unwrap_or_else(|| "Epiphany Cluster Daemon".to_string());
-    let display_name = format!("{display_prefix} - {}", row.display_name);
-    let description = args.service_description.clone().unwrap_or_else(|| {
-        format!(
-            "Epiphany cluster daemon body for {}; heartbeats remain typed local Verse status receipts.",
-            row.display_name
-        )
-    });
-    ClusterWindowsServiceSpec {
-        service_name,
-        display_name,
-        description,
-    }
 }
 
 fn service_lifecycle_receipt(
@@ -3610,11 +2334,11 @@ fn service_lifecycle_receipt(
             sanitize_id(&args.service_id),
             sanitize_id(action)
         );
-        if action == "launch" {
-            format!("{base}-{}", started_at.timestamp_millis())
-        } else {
-            base
-        }
+        format!(
+            "{base}-{}-{}",
+            started_at.timestamp_millis(),
+            Uuid::new_v4()
+        )
     });
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
         schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
@@ -3946,6 +2670,97 @@ mod semantic_projector_authority_tests {
         assert!(!legacy_cli.contains(&index_arm));
         assert!(!legacy_cli.contains(&claim_flag));
     }
+
+    #[test]
+    fn windows_scm_commands_are_hard_refused_at_dispatch() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        for command in [
+            "service-install-execute",
+            "service-reconcile",
+            "service-start",
+            "service-stop",
+            "service-execution-audit",
+            "cluster-service-install-execute",
+            "cluster-service-start",
+            "cluster-service-stop",
+            "cluster-service-execution-audit",
+        ] {
+            let dispatch = source
+                .find(&format!("\"{command}\""))
+                .unwrap_or_else(|| panic!("missing legacy command {command}"));
+            let arm_tail = &source[dispatch
+                ..source[dispatch..]
+                    .find('\n')
+                    .map(|n| dispatch + n + 240)
+                    .unwrap_or(source.len())
+                    .min(source.len())];
+            assert!(
+                arm_tail.contains("refuse_false_windows_scm_authority"),
+                "{command} must terminate at the refusal gate"
+            );
+        }
+        assert!(source.contains(
+            "this executable is a foreground console process, not a Windows service host"
+        ));
+    }
+
+    #[test]
+    fn managed_service_task_definition_owns_foreground_idunn_lifecycle() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source.find("fn managed_service_task_action").unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn managed_service_task_status").unwrap();
+        let body = &tail[..end];
+        for required in [
+            "managed-service-serve",
+            "New-ScheduledTaskTrigger -AtLogOn",
+            "LogonType Interactive",
+            "RunLevel Limited",
+            "MultipleInstances IgnoreNew",
+            "RestartCount",
+            "RestartInterval",
+            "ExecutionTimeLimit ([TimeSpan]::Zero)",
+            "StartWhenAvailable",
+            "AllowStartIfOnBatteries",
+            "DontStopIfGoingOnBatteries",
+            "-WorkingDirectory",
+        ] {
+            assert!(
+                body.contains(required),
+                "task definition missing {required}"
+            );
+        }
+        assert!(!body.contains("sc.exe"));
+        assert!(source.contains("let mut task_restart_count = 999_u32"));
+        assert!(source.contains("task_readback_has_drift"));
+        assert!(source.contains("\"install-drift\""));
+        assert!(source.contains("\"in-sync\".to_string()"));
+        assert!(source.contains("managed-service-scheduler.fatal.log"));
+        assert!(source.contains("Resolve-TaskSid"));
+        assert!(source.contains("WindowsIdentity]::GetCurrent().User.Value"));
+    }
+
+    #[test]
+    fn windows_argv_quoting_preserves_paths_and_escapes_parser_boundaries() {
+        assert_eq!(
+            windows_quote_argv(r"C:\Epiphany\bin.exe"),
+            r"C:\Epiphany\bin.exe"
+        );
+        assert_eq!(
+            windows_quote_argv(r"C:\Program Files\Epiphany"),
+            r#""C:\Program Files\Epiphany""#
+        );
+        assert_eq!(windows_quote_argv(""), "\"\"");
+        assert_eq!(windows_quote_argv(r#"a"b"#), r#""a\"b""#);
+        assert_eq!(
+            windows_quote_argv("ends with slash\\"),
+            r#""ends with slash\\""#
+        );
+        assert_eq!(
+            windows_command_line(&[r"C:\Mind\state.cc".to_string(), "two words".to_string()]),
+            r#"C:\Mind\state.cc "two words""#
+        );
+    }
 }
 
 #[derive(Clone)]
@@ -3968,16 +2783,10 @@ struct Args {
     scheduler_id: String,
     service_id: String,
     service_name: Option<String>,
-    service_display_name: Option<String>,
-    service_description: Option<String>,
-    service_start_type: String,
     restart_mode: String,
     service_command: Option<PathBuf>,
     service_args: Vec<String>,
     runbook_path: Option<PathBuf>,
-    service_install_script_path: Option<PathBuf>,
-    execute_install: bool,
-    execute_control: bool,
     loop_interval_seconds: i64,
     max_iterations: u64,
     wait_child: bool,
@@ -3994,6 +2803,10 @@ struct Args {
     qdrant_url: Option<String>,
     ollama_base_url: Option<String>,
     ollama_model: String,
+    fatal_log: Option<PathBuf>,
+    task_logon_delay_seconds: u64,
+    task_restart_interval_seconds: u64,
+    task_restart_count: u32,
 }
 
 impl Args {
@@ -4018,16 +2831,10 @@ impl Args {
         let mut scheduler_id = "epiphany-daemon-supervisor".to_string();
         let mut service_id = "epiphany-daemon-supervisor-service".to_string();
         let mut service_name = None;
-        let mut service_display_name = None;
-        let mut service_description = None;
-        let mut service_start_type = "demand".to_string();
         let mut restart_mode = "on-failure".to_string();
         let mut service_command = None;
         let mut service_args = Vec::new();
         let mut runbook_path = None;
-        let mut service_install_script_path = None;
-        let mut execute_install = false;
-        let mut execute_control = false;
         let mut loop_interval_seconds = 60_i64;
         let mut max_iterations = 0_u64;
         let mut wait_child = false;
@@ -4044,6 +2851,10 @@ impl Args {
         let mut qdrant_url = None;
         let mut ollama_base_url = None;
         let mut ollama_model = "qwen3-embedding:0.6b".to_string();
+        let mut task_logon_delay_seconds = 30_u64;
+        let mut task_restart_interval_seconds = 60_u64;
+        let mut task_restart_count = 999_u32;
+        let mut fatal_log = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -4109,25 +2920,6 @@ impl Args {
                 "--service-name" => {
                     service_name = Some(values.next().context("missing --service-name value")?)
                 }
-                "--service-display-name" => {
-                    service_display_name = Some(
-                        values
-                            .next()
-                            .context("missing --service-display-name value")?,
-                    )
-                }
-                "--service-description" => {
-                    service_description = Some(
-                        values
-                            .next()
-                            .context("missing --service-description value")?,
-                    )
-                }
-                "--service-start-type" => {
-                    service_start_type = values
-                        .next()
-                        .context("missing --service-start-type value")?;
-                }
                 "--restart-mode" => {
                     restart_mode = values.next().context("missing --restart-mode value")?;
                 }
@@ -4144,15 +2936,6 @@ impl Args {
                         values.next().context("missing --runbook-path value")?,
                     ));
                 }
-                "--service-install-script-path" => {
-                    service_install_script_path = Some(PathBuf::from(
-                        values
-                            .next()
-                            .context("missing --service-install-script-path value")?,
-                    ));
-                }
-                "--execute-install" => execute_install = true,
-                "--execute-control" | "--execute-service-control" => execute_control = true,
                 "--loop-interval-seconds" | "--serve-interval-seconds" => {
                     loop_interval_seconds = values
                         .next()
@@ -4217,6 +3000,29 @@ impl Args {
                 "--ollama-model" => {
                     ollama_model = values.next().context("missing --ollama-model value")?
                 }
+                "--task-logon-delay-seconds" => {
+                    task_logon_delay_seconds = values
+                        .next()
+                        .context("missing --task-logon-delay-seconds value")?
+                        .parse()?;
+                }
+                "--task-restart-interval-seconds" => {
+                    task_restart_interval_seconds = values
+                        .next()
+                        .context("missing --task-restart-interval-seconds value")?
+                        .parse()?;
+                }
+                "--task-restart-count" => {
+                    task_restart_count = values
+                        .next()
+                        .context("missing --task-restart-count value")?
+                        .parse()?;
+                }
+                "--fatal-log" => {
+                    fatal_log = Some(PathBuf::from(
+                        values.next().context("missing --fatal-log value")?,
+                    ));
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -4240,6 +3046,12 @@ impl Args {
                     | "daemon"
                     | "managed-service-serve"
                     | "service-desired-state-serve"
+                    | "managed-service-task-plan"
+                    | "managed-service-task-install"
+                    | "managed-service-task-status"
+                    | "managed-service-task-start"
+                    | "managed-service-task-stop"
+                    | "managed-service-task-uninstall"
                     | "migrate-retired-operator-status"
                     | "migrate-semantic-attempts-v0"
                     | "semantic-projector-service-status"
@@ -4312,9 +3124,6 @@ impl Args {
         if loop_interval_seconds < 0 {
             anyhow::bail!("--loop-interval-seconds must be non-negative");
         }
-        if !matches!(service_start_type.as_str(), "auto" | "demand" | "disabled") {
-            anyhow::bail!("--service-start-type must be auto, demand, or disabled");
-        }
         if !matches!(restart_mode.as_str(), "always" | "on-failure" | "never") {
             anyhow::bail!("--restart-mode must be always, on-failure, or never");
         }
@@ -4338,16 +3147,10 @@ impl Args {
             scheduler_id,
             service_id,
             service_name,
-            service_display_name,
-            service_description,
-            service_start_type,
             restart_mode,
             service_command,
             service_args,
             runbook_path,
-            service_install_script_path,
-            execute_install,
-            execute_control,
             loop_interval_seconds,
             max_iterations,
             wait_child,
@@ -4364,6 +3167,10 @@ impl Args {
             qdrant_url,
             ollama_base_url,
             ollama_model,
+            fatal_log,
+            task_logon_delay_seconds,
+            task_restart_interval_seconds,
+            task_restart_count,
         })
     }
 }
