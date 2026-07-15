@@ -38,12 +38,12 @@ fn main() -> Result<()> {
                 &PathBuf::from(runtime_store),
             )? {
                 ObserveOutcome::Created(value) => println!(
-                    "created generation={} tree={} continuity={}",
-                    value.generation, value.tree_oid, value.continuity_status
+                    "created generation={} tree={}",
+                    value.generation, value.tree_oid
                 ),
                 ObserveOutcome::Unchanged(value) => println!(
-                    "unchanged generation={} tree={} continuity={}",
-                    value.generation, value.tree_oid, value.continuity_status
+                    "unchanged generation={} tree={}",
+                    value.generation, value.tree_oid
                 ),
             }
         }
@@ -52,15 +52,14 @@ fn main() -> Result<()> {
             match load_repository_body_status(&store)? {
                 None => println!("missing"),
                 Some((binding, value)) => println!(
-                    "observed workspace={} swarm={} runtime={} scope={} generation={} tree={} head={} continuity={}",
+                    "observed workspace={} swarm={} runtime={} scope={} generation={} tree={} head={}",
                     binding.workspace_id,
                     binding.swarm_id,
                     binding.runtime_id,
                     binding.scope,
                     value.generation,
                     value.tree_oid,
-                    value.head_oid.as_deref().unwrap_or("unborn"),
-                    value.continuity_status
+                    value.head_oid.as_deref().unwrap_or("unborn")
                 ),
             }
         }
@@ -118,8 +117,8 @@ fn smoke() -> Result<()> {
         ObserveOutcome::Created(value) | ObserveOutcome::Unchanged(value) => value.generation,
     };
     println!(
-        "repository-body-smoke=ok generation={} tree={} continuity={}",
-        generation, observed.1.tree_oid, observed.1.continuity_status
+        "repository-body-smoke=ok generation={} tree={}",
+        generation, observed.1.tree_oid
     );
     Ok(())
 }

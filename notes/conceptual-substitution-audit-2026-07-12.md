@@ -1817,20 +1817,20 @@ same graph judgment instead of re-parsing the churn string.
 The ungrounded legacy freshness fields were deleted. Churn retains only its
 understanding, diff, warning, and unexplained-write evidence; graph checkpoints
 retain identity and frontier content. Neither structure can publish a revision
-or freshness verdict. A future Ready projection requires the exact canonical
-RepoModel revision/hash plus matching Mind admission, joined to a separate
-continuity-bearing Body observation and retrieval coverage for the same source
-generation. Modeling cannot certify its own freshness; Mind derives readiness
-from the joined authorities.
+or freshness verdict. A future observed-ready-at projection requires the exact
+canonical RepoModel revision/hash plus matching Mind admission, joined to fresh
+Body observations bracketing exact retrieval coverage for the same manifest
+root. Modeling cannot certify its own freshness; Mind derives readiness from
+the race-bounded current-state join.
 
 ### Repository Body observation boundary
 
 The bounded repository Body observer supplies only raw `git_worktree` tree state
 from two equal temporary-index scans. A separate bind step consumes the real
 runtime swarm binding and pins workspace, source hash, canonical root, object
-format, scope, and policy; observe has no identity-authoring arguments. It explicitly
-says continuity unproven and has no Ready field, preventing another freshness
-oracle before continuity and same-generation retrieval coverage exist. Sparse
+format, scope, and policy; observe has no identity-authoring arguments. It makes
+no historical continuity claim and has no Ready field, preventing another
+freshness oracle before Body-grounded model and retrieval coverage exist. Sparse
 worktrees fail closed; submodules contribute gitlinks only; integration is
 deliberately absent.
 Global excludes are neutralized. Corrupt HEAD and path/runtime/repository

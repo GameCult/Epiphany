@@ -1625,10 +1625,10 @@ The ungrounded `churn.graph_freshness` and
 identity and frontier content; churn retains understanding, diff, warning, and
 unexplained-write evidence. Canonical RepoModel revision/hash plus its exact
 Mind-issued `RepoModelAdmissionReceipt` proves only admitted map identity.
-Future Ready also requires a separate continuity-bearing Body observation and
-retrieval coverage bound to the same source generation; Mind derives the joined
-readiness projection. No current artifact proves that Body head. Do not build a
-bridge from snapshot metadata, watcher silence, or timestamps.
+Future observed-ready-at also requires fresh Body observations bracketing exact
+Body-grounded model admission and retrieval coverage for one manifest root;
+Mind derives the joined projection. Do not build a bridge from snapshot
+metadata, watcher silence, timestamps, or historical event continuity.
 
 ## Repository Body substrate landed (2026-07-15)
 
@@ -1638,7 +1638,7 @@ explicit runtime-bound bind step, observe, pure status, and smoke for
 runtime/swarm/source identity plus canonical Git root and policy. Two equal
 isolated Git-index scans feed immutable CultCache observations/current-head CAS.
 Unchanged raw manifest does not advance generation; missing status creates no
-store. Continuity remains unproven with no Ready field. Sparse checkout is
+store. The observer makes no historical continuity claim and has no Ready field. Sparse checkout is
 rejected, submodules are gitlink-only, and downstream joins remain absent.
 The CultCache store is required to live outside the observed worktree.
 Canonical path checks run before any bind/store write, global excludes are
@@ -1657,17 +1657,19 @@ commit atomically. Gitlinks are nonrecursive; unrepresentable paths fail closed.
 
 Modeling audited the next ownership seam after the Body observer landed. Mind is
 the only coherent owner for a derived repository-readiness projection, but the
-inputs required to emit Ready do not exist yet: a continuity receipt covering
-the exact current Body head, RepoModel admission grounded to that manifest, and
-exact workspace-retrieval coverage for that same manifest. The existing
+inputs required to emit observed-ready-at do not exist yet: RepoModel admission
+grounded to the exact current Body manifest and exact workspace-retrieval
+coverage for that same manifest. The existing
 semantic projector proves exact query eligibility for an admitted RepoModel
 projection; the legacy workspace retrieval JSON manifest proves only path/size/
 mtime/chunk cache agreement. Do not join its `Ready` label, empty dirty paths,
 watcher silence, Git OIDs, timestamps, counts, or Qdrant presence into repository
-readiness. A join evaluator built before those primitives may only return
-Missing/Unknown/Stale with reasons. Build order is continuity receipt, exact
-Body-grounded RepoModel admission, typed Body-bound retrieval coverage, the
-Mind-owned join, then deletion of local consumer interpretations.
+readiness. Historical continuity was audited and rejected as another conceptual
+substitution. The correct join observes Body root R1, validates every artifact,
+observes R2, and emits only a time-bounded result when R1=R2. Watchers and Hands
+receipts trigger recomputation; they never replace either observation. Build
+order is exact Body-grounded RepoModel admission, typed Body-bound retrieval
+coverage, the Mind-owned race-safe join, then deletion of local interpretations.
 
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real

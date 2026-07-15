@@ -19,7 +19,7 @@ pub const BODY_HEAD_TYPE: &str = "epiphany.repository_body.head";
 pub const BODY_MANIFEST_TYPE: &str = "epiphany.repository_body.manifest";
 pub const BODY_BINDING_KEY: &str = "binding";
 pub const BODY_HEAD_KEY: &str = "current";
-pub const BODY_SCHEMA_VERSION: &str = "epiphany.repository_body.v1";
+pub const BODY_SCHEMA_VERSION: &str = "epiphany.repository_body.v2";
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -100,12 +100,10 @@ pub struct RepositoryBodyObservation {
     #[cultcache(key = 20)]
     pub two_scan_outcome: String,
     #[cultcache(key = 21)]
-    pub continuity_status: String,
-    #[cultcache(key = 22)]
     pub global_excludes_policy: String,
-    #[cultcache(key = 23)]
+    #[cultcache(key = 22)]
     pub manifest_root_sha256: String,
-    #[cultcache(key = 24)]
+    #[cultcache(key = 23)]
     pub manifest_entry_count: u64,
 }
 
@@ -375,7 +373,6 @@ fn scan_repository(
         first_tree_oid: first.tree_oid,
         second_tree_oid: second.tree_oid,
         two_scan_outcome: "stable_equal".into(),
-        continuity_status: "unproven".into(),
         global_excludes_policy: "disabled_for_observation".into(),
         manifest_root_sha256: manifest.manifest_root_sha256.clone(),
         manifest_entry_count: manifest.entries.len() as u64,
@@ -780,7 +777,6 @@ fn validate_body_chain(
         || observation.two_scan_outcome != "stable_equal"
         || observation.first_tree_oid != observation.second_tree_oid
         || observation.tree_oid != observation.first_tree_oid
-        || observation.continuity_status != "unproven"
         || observation.manifest_root_sha256 != head.manifest_root_sha256
     {
         bail!("repository Body observation identity chain is invalid");
@@ -1091,7 +1087,6 @@ mod tests {
             _ => unreachable!(),
         };
         assert!(value.head_oid.is_none());
-        assert_eq!(value.continuity_status, "unproven");
         assert_eq!(value.two_scan_outcome, "stable_equal");
         Ok(())
     }

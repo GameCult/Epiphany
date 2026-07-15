@@ -776,7 +776,7 @@ canonical Git root, object format, scope, and ignore policy; observe cannot mint
 identity. Two disposable-index `read-tree`/`git add --all -- .`/
 `write-tree` scans must agree. CultCache MessagePack persists immutable
 generations and an exact-CAS current head; unchanged raw manifest preserves the
-generation. `continuity_status` is always `unproven`; there is no Ready field.
+generation. The observer makes no historical continuity claim and has no Ready field.
 Sparse checkout fails closed, submodules are gitlink-only, and RepoModel/
 retrieval/scheduler/Mind integration is absent. The CultCache store must remain
 outside the observed worktree so observer writes cannot become observed input.
@@ -797,21 +797,23 @@ Gitlinks remain nonrecursive. Unsafe or unrepresentable paths fail closed.
 A truthful whole-repository readiness join does not yet exist. Mind must own a
 derived `RepositoryReadinessProjection`; Body observation, Modeling, retrieval,
 semantic projection, schedulers, watchers, jobs, and UI are forbidden writers.
-Its required inputs are the current validated Body chain, a continuity receipt
-covering that exact Body head, the canonical RepoModel plus its exact Mind
-admission receipt, a RepoModel grounding receipt bound to that Body manifest,
+Its required inputs are a fresh validated Body observation, the canonical
+RepoModel plus its exact Mind admission receipt, a RepoModel grounding receipt
+bound to that Body manifest,
 the authenticated Modeling semantic projection receipt for that admitted model,
 and exact workspace-retrieval coverage bound to the same Body manifest and a
 named inclusion policy. Derivation must retry if any participating head advances.
 
-The joined projection may report Missing, Pending/Unknown, Stale, or Ready with
-exact evidence identities and mismatch reasons. It may report Ready only when
-every binding agrees and coverage is complete. Two equal Body scans prove one
-stable observation interval, not gap-free continuity. The current observer's
-`continuity_status=unproven` therefore makes Ready structurally unavailable.
+The join is a race-bounded operation: observe Body root R1, validate every exact
+artifact against R1, then observe again and require R2=R1 before emitting an
+`observed-ready-at` receipt whose truth interval ends at the second scan. Later
+reads must revalidate rather than present it as timeless Ready. A→B→A is harmless
+when all artifacts are content-addressed to A. Gap-free watcher or journal
+continuity is not required and cannot prove truth after its own final event.
 Legacy retrieval `Ready`, empty dirty paths, timestamps, watcher silence, Git
 tree or HEAD OIDs, Qdrant existence, counts, and unrelated generations are not
-substitutes. The lossy JSON workspace manifest remains cache metadata, not
+substitutes. Watchers and Hands receipts may trigger recomputation but cannot
+replace either Body observation. The lossy JSON workspace manifest remains cache metadata, not
 coverage authority. Semantic-projector Ready remains exact query eligibility for
 the admitted RepoModel projection; it does not prove repository Body coverage.
 
