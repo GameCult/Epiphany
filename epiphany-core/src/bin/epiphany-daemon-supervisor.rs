@@ -16,10 +16,14 @@ use epiphany_core::EpiphanyCultMeshSwarmBrakeEntry;
 use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
 use epiphany_core::EpiphanyServiceExecutionAuditReport;
+use epiphany_core::MemorySemanticProjectionInput;
+use epiphany_core::agent_memory_semantic_projection_input;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_service_execution_audit_report;
+use epiphany_core::idunn_acquire_memory_semantic_projection_for_local_supervisor;
+use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
@@ -29,6 +33,7 @@ use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::observe_native_process as observe_process;
 use epiphany_core::query_epiphany_local_verse_context;
+use epiphany_core::runtime_modeling_semantic_projection_input;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
@@ -130,10 +135,80 @@ fn main() -> Result<()> {
         "windows-service-start" | "service-start" => windows_service_control(args, "start"),
         "windows-service-stop" | "service-stop" => windows_service_control(args, "stop"),
         "policy" | "write-policy" => write_policy(args),
+        "semantic-acquire" => semantic_acquire(args),
+        "semantic-recover" => semantic_recover(args),
         other => anyhow::bail!(
-            "unknown command {other:?}; use reconcile, tick, serve, service-plan, service-launch, service-runbook, repo-work-service-audit, cluster-service-runbook, cluster-service-install-plan, cluster-service-audit, cluster-service-start, cluster-service-stop, cluster-service-execution-readiness, cluster-service-execution-runbook, cluster-service-execution-audit, windows-service-install, windows-service-execution-readiness, windows-service-execution-runbook, windows-service-execution-audit, service-execution-audit-smoke, windows-service-reconcile, windows-service-status, windows-service-start, windows-service-stop, or policy"
+            "unknown command {other:?}; use reconcile, tick, serve, service-plan, service-launch, service-runbook, repo-work-service-audit, cluster-service-runbook, cluster-service-install-plan, cluster-service-audit, cluster-service-start, cluster-service-stop, cluster-service-execution-readiness, cluster-service-execution-runbook, cluster-service-execution-audit, windows-service-install, windows-service-execution-readiness, windows-service-execution-runbook, windows-service-execution-audit, service-execution-audit-smoke, windows-service-reconcile, windows-service-status, windows-service-start, windows-service-stop, policy, semantic-acquire, or semantic-recover"
         ),
     }
+}
+
+fn semantic_projection_input(args: &Args) -> Result<(MemorySemanticProjectionInput, &Path)> {
+    match (&args.agent_store, &args.runtime_store) {
+        (Some(path), None) => Ok((agent_memory_semantic_projection_input(path)?, path)),
+        (None, Some(path)) => Ok((runtime_modeling_semantic_projection_input(path)?, path)),
+        _ => anyhow::bail!(
+            "semantic projector commands require exactly one of --agent-store or --runtime-store"
+        ),
+    }
+}
+
+fn required<'a>(value: &'a Option<String>, flag: &str) -> Result<&'a str> {
+    value.as_deref().with_context(|| format!("missing {flag}"))
+}
+
+fn semantic_acquire(args: Args) -> Result<()> {
+    let (input, store) = semantic_projection_input(&args)?;
+    let purpose = required(&args.semantic_purpose, "--purpose")?;
+    if !matches!(purpose, "execute" | "repair") {
+        anyhow::bail!("--purpose must be execute or repair");
+    }
+    let acquisition = idunn_acquire_memory_semantic_projection_for_local_supervisor(
+        store,
+        &input,
+        required(&args.executor_id, "--executor-id")?,
+        purpose,
+        &Utc::now().to_rfc3339(),
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "grantId": acquisition.grant.grant_id,
+            "claimId": acquisition.claim.claim_id,
+            "epoch": acquisition.claim.epoch,
+            "executorId": acquisition.claim.executor_id,
+            "purpose": purpose,
+            "privateStateExposed": false
+        }))?
+    );
+    Ok(())
+}
+
+fn semantic_recover(args: Args) -> Result<()> {
+    let (input, store) = semantic_projection_input(&args)?;
+    let (authorization, claim) = idunn_recover_memory_semantic_projection_from_cultmesh(
+        &args.store,
+        args.runtime_id.clone(),
+        store,
+        &input,
+        required(&args.expected_claim_id, "--expected-claim-id")?,
+        required(&args.executor_id, "--executor-id")?,
+        required(&args.receipt_id, "--receipt-id")?,
+        required(&args.provider_heartbeat_id, "--provider-heartbeat-id")?,
+        &Utc::now().to_rfc3339(),
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "authorizationId": authorization.authorization_id,
+            "claimId": claim.claim_id,
+            "epoch": claim.epoch,
+            "executorId": claim.executor_id,
+            "executorIncarnation": claim.executor_incarnation,
+            "privateStateExposed": false
+        }))?
+    );
+    Ok(())
 }
 
 fn require_supervisor_bootstrap(args: &Args) -> Result<()> {
@@ -2667,7 +2742,7 @@ fn reconcile_daemon_status(
     )?;
 
     let attempted_at = Utc::now();
-    let restart_output = run_restart_command(policy)?;
+    let restart_output = run_restart_command(policy, &receipt_id)?;
     let completed_at = Utc::now();
     let resulting_status = restart_lifecycle_observation(&restart_output).to_string();
     let receipt_status = if restart_output.success {
@@ -3344,9 +3419,16 @@ fn service_lifecycle_receipt(
     }
 }
 
-fn run_restart_command(policy: &EpiphanyCultMeshDaemonRestartPolicyEntry) -> Result<RestartOutput> {
+fn run_restart_command(
+    policy: &EpiphanyCultMeshDaemonRestartPolicyEntry,
+    lifecycle_receipt_id: &str,
+) -> Result<RestartOutput> {
     let mut command = Command::new(&policy.restart_command);
     command.args(&policy.restart_args);
+    command.env(
+        "EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID",
+        lifecycle_receipt_id,
+    );
     if let Some(cwd) = &policy.cwd {
         command.current_dir(cwd);
     }
@@ -3499,6 +3581,38 @@ mod provider_status_ownership_tests {
     }
 }
 
+#[cfg(test)]
+mod semantic_projector_authority_tests {
+    #[test]
+    fn supervisor_owns_idunn_incarnations_and_exact_evidence_selection() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let issuer_flag = ["--issuer", "-incarnation"].concat();
+        let executor_flag = ["--executor", "-incarnation"].concat();
+        assert!(!source.contains(&issuer_flag));
+        assert!(!source.contains(&executor_flag));
+        let evidence_id_flag = ["--lifecycle", "-evidence-id"].concat();
+        let evidence_hash_flag = ["--lifecycle", "-evidence-hash"].concat();
+        assert!(!source.contains(&evidence_id_flag));
+        assert!(!source.contains(&evidence_hash_flag));
+        assert!(source.contains("--receipt-id"));
+        assert!(source.contains("--provider-heartbeat-id"));
+        assert!(source.contains("idunn_acquire_memory_semantic_projection_for_local_supervisor"));
+        assert!(source.contains("idunn_recover_memory_semantic_projection_from_cultmesh"));
+    }
+
+    #[test]
+    fn recovery_command_only_rotates_claim_authority() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source.find("fn semantic_recover(args: Args)").unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn ").unwrap_or(tail.len());
+        let body = &tail[..end];
+        assert!(body.contains("idunn_recover_memory_semantic_projection_from_cultmesh"));
+        assert!(!body.contains("execute_memory_semantic_projection"));
+        assert!(!body.contains("MemorySemanticIndexConfig"));
+    }
+}
+
 #[derive(Clone)]
 struct Args {
     command: String,
@@ -3538,6 +3652,12 @@ struct Args {
     artifact_ref: Option<String>,
     stdout_artifact: Option<PathBuf>,
     stderr_artifact: Option<PathBuf>,
+    agent_store: Option<PathBuf>,
+    runtime_store: Option<PathBuf>,
+    executor_id: Option<String>,
+    semantic_purpose: Option<String>,
+    expected_claim_id: Option<String>,
+    provider_heartbeat_id: Option<String>,
 }
 
 impl Args {
@@ -3581,6 +3701,12 @@ impl Args {
         let mut artifact_ref = None;
         let mut stdout_artifact = None;
         let mut stderr_artifact = None;
+        let mut agent_store = None;
+        let mut runtime_store = None;
+        let mut executor_id = None;
+        let mut semantic_purpose = None;
+        let mut expected_claim_id = None;
+        let mut provider_heartbeat_id = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -3723,6 +3849,33 @@ impl Args {
                         values.next().context("missing --stderr-artifact value")?,
                     ));
                 }
+                "--agent-store" => {
+                    agent_store = Some(PathBuf::from(
+                        values.next().context("missing --agent-store value")?,
+                    ))
+                }
+                "--runtime-store" => {
+                    runtime_store = Some(PathBuf::from(
+                        values.next().context("missing --runtime-store value")?,
+                    ))
+                }
+                "--executor-id" => {
+                    executor_id = Some(values.next().context("missing --executor-id value")?)
+                }
+                "--purpose" => {
+                    semantic_purpose = Some(values.next().context("missing --purpose value")?)
+                }
+                "--expected-claim-id" => {
+                    expected_claim_id =
+                        Some(values.next().context("missing --expected-claim-id value")?)
+                }
+                "--provider-heartbeat-id" => {
+                    provider_heartbeat_id = Some(
+                        values
+                            .next()
+                            .context("missing --provider-heartbeat-id value")?,
+                    )
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -3804,6 +3957,8 @@ impl Args {
                     | "service-start"
                     | "windows-service-stop"
                     | "service-stop"
+                    | "semantic-acquire"
+                    | "semantic-recover"
             ) =>
             {
                 "*".to_string()
@@ -3858,6 +4013,12 @@ impl Args {
             artifact_ref,
             stdout_artifact,
             stderr_artifact,
+            agent_store,
+            runtime_store,
+            executor_id,
+            semantic_purpose,
+            expected_claim_id,
+            provider_heartbeat_id,
         })
     }
 }

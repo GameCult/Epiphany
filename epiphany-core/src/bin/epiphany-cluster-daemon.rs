@@ -1,17 +1,20 @@
 use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshDaemonHeartbeatEventEntry;
 use epiphany_core::EpiphanyCultMeshDaemonStatusEntry;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
-use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
 use epiphany_core::publish_epiphany_cultmesh_provider_state;
+use epiphany_core::write_epiphany_cultmesh_daemon_heartbeat_event;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use serde_json::json;
 use std::env;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
+use uuid::Uuid;
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
@@ -39,7 +42,10 @@ fn serve(args: Args) -> Result<()> {
     print_output(&args, "serveComplete", written)
 }
 
-fn write_heartbeat(args: &Args, iteration: u64) -> Result<EpiphanyCultMeshDaemonStatusEntry> {
+fn write_heartbeat(
+    args: &Args,
+    iteration: u64,
+) -> Result<EpiphanyCultMeshDaemonHeartbeatEventEntry> {
     let topology = load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
     let cluster = topology
         .into_iter()
@@ -55,52 +61,76 @@ fn write_heartbeat(args: &Args, iteration: u64) -> Result<EpiphanyCultMeshDaemon
         args.runtime_id.clone(),
         &args.daemon_id,
     )?;
-    let current = load_epiphany_cultmesh_daemon_liveness(&args.store, args.runtime_id.clone())?
-        .into_iter()
-        .map(|(_, status)| status)
-        .find(|status| status.daemon_id == args.daemon_id)
-        .unwrap_or_else(|| EpiphanyCultMeshDaemonStatusEntry {
+    let heartbeat_at = Utc::now().to_rfc3339();
+    let heartbeat = new_heartbeat_event(
+        args,
+        &cluster.daemon_id,
+        &cluster.cluster_id,
+        iteration,
+        heartbeat_at,
+    );
+    let written = write_epiphany_cultmesh_daemon_heartbeat_event(
+        &args.store,
+        args.runtime_id.clone(),
+        heartbeat,
+    )?;
+
+    // Compatibility sight for readers not yet migrated to heartbeat events. It is
+    // derived after the provider-owned event and cannot mint heartbeat authority.
+    write_epiphany_cultmesh_daemon_status(
+        &args.store,
+        args.runtime_id.clone(),
+        EpiphanyCultMeshDaemonStatusEntry {
             schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
             daemon_id: cluster.daemon_id,
             cluster_id: cluster.cluster_id,
             body_domain: cluster.body_domain,
             daemon_surface_id: cluster.daemon_surface_id,
             eve_surface_id: cluster.eve_surface_id,
-            status: "unknown".to_string(),
-            last_heartbeat_utc: "unknown".to_string(),
+            status: written.status.clone(),
+            last_heartbeat_utc: written.heartbeat_at.clone(),
             supported_actions: vec![
                 "inspectStatus".to_string(),
                 "pokeDaemon".to_string(),
                 "watchHeartbeat".to_string(),
             ],
-            operator_action: "pokeDaemon".to_string(),
+            operator_action: "none".to_string(),
             private_state_exposed: false,
             notes: vec![
-                "Initial status constructed by the owning cluster daemon from persisted topology."
+                "Display-only compatibility projection derived from the provider heartbeat event."
                     .to_string(),
+                format!("Source heartbeat id: {}", written.heartbeat_id),
             ],
-        });
-    let mut next = current.clone();
-    next.status = "ready".to_string();
-    next.last_heartbeat_utc = Utc::now().to_rfc3339();
-    next.operator_action = if next.status == "ready" {
-        "none".to_string()
-    } else {
-        "pokeDaemon".to_string()
-    };
-    next.private_state_exposed = false;
-    next.notes = vec![
-        "Heartbeat published by epiphany-cluster-daemon; local Verse status is liveness projection, not private daemon memory.".to_string(),
-        format!("Daemon body domain: {}", current.body_domain),
-        format!("Heartbeat iteration: {iteration}"),
-    ];
-    write_epiphany_cultmesh_daemon_status(&args.store, args.runtime_id.clone(), next)
+        },
+    )?;
+    Ok(written)
+}
+
+fn new_heartbeat_event(
+    args: &Args,
+    daemon_id: &str,
+    cluster_id: &str,
+    iteration: u64,
+    heartbeat_at: String,
+) -> EpiphanyCultMeshDaemonHeartbeatEventEntry {
+    EpiphanyCultMeshDaemonHeartbeatEventEntry {
+        schema_version: EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION.to_string(),
+        heartbeat_id: Uuid::new_v4().to_string(),
+        daemon_id: daemon_id.to_string(),
+        cluster_id: cluster_id.to_string(),
+        provider_incarnation: args.provider_incarnation.clone(),
+        sequence: iteration.saturating_add(1),
+        status: "ready".to_string(),
+        heartbeat_at,
+        private_state_exposed: false,
+        startup_lifecycle_receipt_id: args.startup_lifecycle_receipt_id.clone(),
+    }
 }
 
 fn print_output(
     args: &Args,
     status: &str,
-    written: Vec<EpiphanyCultMeshDaemonStatusEntry>,
+    written: Vec<EpiphanyCultMeshDaemonHeartbeatEventEntry>,
 ) -> Result<()> {
     let latest = written
         .last()
@@ -115,7 +145,10 @@ fn print_output(
             "daemonId": latest.daemon_id,
             "clusterId": latest.cluster_id,
             "daemonStatus": latest.status,
-            "lastHeartbeatUtc": latest.last_heartbeat_utc,
+            "heartbeatId": latest.heartbeat_id,
+            "providerIncarnation": latest.provider_incarnation,
+            "sequence": latest.sequence,
+            "lastHeartbeatUtc": latest.heartbeat_at,
             "heartbeatCount": written.len(),
             "intervalSeconds": args.interval_seconds,
             "maxIterations": args.max_iterations,
@@ -132,6 +165,8 @@ struct Args {
     daemon_id: String,
     interval_seconds: u64,
     max_iterations: u64,
+    provider_incarnation: String,
+    startup_lifecycle_receipt_id: String,
 }
 
 impl Args {
@@ -143,6 +178,9 @@ impl Args {
         let mut daemon_id = None;
         let mut interval_seconds = 60_u64;
         let mut max_iterations = 1_u64;
+        let mut provider_incarnation = None;
+        let mut startup_lifecycle_receipt_id =
+            env::var("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID").unwrap_or_default();
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -165,6 +203,18 @@ impl Args {
                         .context("missing --max-iterations value")?
                         .parse()?;
                 }
+                "--provider-incarnation" => {
+                    provider_incarnation = Some(
+                        values
+                            .next()
+                            .context("missing --provider-incarnation value")?,
+                    )
+                }
+                "--startup-lifecycle-receipt-id" => {
+                    startup_lifecycle_receipt_id = values
+                        .next()
+                        .context("missing --startup-lifecycle-receipt-id value")?
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -177,6 +227,47 @@ impl Args {
             daemon_id,
             interval_seconds,
             max_iterations,
+            provider_incarnation: provider_incarnation
+                .unwrap_or_else(|| Uuid::new_v4().to_string()),
+            startup_lifecycle_receipt_id,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn process_heartbeat_events_keep_one_incarnation_and_increment_sequence() {
+        let args = Args {
+            command: "serve".to_string(),
+            store: PathBuf::from("unused.ccmp"),
+            runtime_id: "runtime-test".to_string(),
+            daemon_id: "daemon-test".to_string(),
+            interval_seconds: 1,
+            max_iterations: 2,
+            provider_incarnation: "incarnation-test".to_string(),
+            startup_lifecycle_receipt_id: "receipt-test".to_string(),
+        };
+        let first = new_heartbeat_event(
+            &args,
+            "daemon-test",
+            "cluster-test",
+            0,
+            "2026-07-15T12:00:00Z".to_string(),
+        );
+        let second = new_heartbeat_event(
+            &args,
+            "daemon-test",
+            "cluster-test",
+            1,
+            "2026-07-15T12:00:01Z".to_string(),
+        );
+        assert_eq!(first.provider_incarnation, second.provider_incarnation);
+        assert_eq!(first.sequence, 1);
+        assert_eq!(second.sequence, 2);
+        assert_ne!(first.heartbeat_id, second.heartbeat_id);
+        assert_eq!(first.startup_lifecycle_receipt_id, "receipt-test");
     }
 }

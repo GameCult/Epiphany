@@ -18,12 +18,12 @@ fn main() -> Result<()> {
     match command.as_str() {
         "index" => {
             let (input, source_store) = options.load_projection_input()?;
-            let executor_id = options
-                .executor_id
+            let claim_id = options
+                .claim_id
                 .as_deref()
-                .ok_or_else(|| usage_error("index requires --executor-id <id>"))?;
+                .ok_or_else(|| usage_error("index requires --claim-id <id>"))?;
             let receipt =
-                execute_memory_semantic_projection(source_store, &input, executor_id, &config)?;
+                execute_memory_semantic_projection(source_store, &input, claim_id, &config)?;
             print_receipt(&receipt, source_store)?;
         }
         "health" => {
@@ -82,7 +82,7 @@ struct Options {
     graph_store: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     agent_store: Option<PathBuf>,
-    executor_id: Option<String>,
+    claim_id: Option<String>,
     local_verse_store: Option<PathBuf>,
     runtime_id: String,
     provider_incarnation: Option<String>,
@@ -100,7 +100,7 @@ impl Options {
             graph_store: None,
             runtime_store: None,
             agent_store: None,
-            executor_id: None,
+            claim_id: None,
             local_verse_store: None,
             runtime_id: "epiphany-memory-semantic".to_string(),
             provider_incarnation: None,
@@ -121,7 +121,7 @@ impl Options {
                 "--graph-store" => options.graph_store = Some(PathBuf::from(value()?)),
                 "--runtime-store" => options.runtime_store = Some(PathBuf::from(value()?)),
                 "--agent-store" => options.agent_store = Some(PathBuf::from(value()?)),
-                "--executor-id" => options.executor_id = Some(value()?),
+                "--claim-id" => options.claim_id = Some(value()?),
                 "--local-verse-store" => options.local_verse_store = Some(PathBuf::from(value()?)),
                 "--runtime-id" => options.runtime_id = value()?,
                 "--provider-incarnation" => options.provider_incarnation = Some(value()?),
@@ -235,7 +235,7 @@ fn parse_profile(value: &str) -> Result<epiphany_core::EpiphanyMemoryProfile> {
 
 fn usage_error(message: &str) -> anyhow::Error {
     anyhow!(
-        "{message}\nusage: epiphany-memory-semantic <index|context|health> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--executor-id <id>] [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
+        "{message}\nusage: epiphany-memory-semantic <index|context|health> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--claim-id <id>] [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
     )
 }
 

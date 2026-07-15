@@ -15,7 +15,406 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 
 pub const MEMORY_SEMANTIC_PROJECTION_CLAIM_SCHEMA_VERSION: &str =
-    "gamecult.epiphany.memory_semantic_projection_claim.v0";
+    "gamecult.epiphany.memory_semantic_projection_claim.v1";
+pub const MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION: &str =
+    "gamecult.epiphany.memory_semantic_projector_executor_grant.v1";
+pub const MEMORY_SEMANTIC_PROJECTOR_RECOVERY_AUTHORIZATION_SCHEMA_VERSION: &str =
+    "gamecult.epiphany.memory_semantic_projector_recovery_authorization.v1";
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.epiphany.memory_semantic_projector_executor_grant",
+    schema = "MemorySemanticProjectorExecutorGrant"
+)]
+pub struct MemorySemanticProjectorExecutorGrant {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub grant_id: String,
+    #[cultcache(key = 2)]
+    pub scope_id: String,
+    #[cultcache(key = 3)]
+    pub swarm_id: String,
+    #[cultcache(key = 4)]
+    pub partition: String,
+    #[cultcache(key = 5)]
+    pub obligation_id: String,
+    #[cultcache(key = 6)]
+    pub executor_id: String,
+    #[cultcache(key = 7)]
+    pub executor_incarnation: String,
+    #[cultcache(key = 8)]
+    pub purpose: String,
+    #[cultcache(key = 9)]
+    pub issuer_id: String,
+    #[cultcache(key = 10)]
+    pub issuer_incarnation: String,
+    #[cultcache(key = 11)]
+    pub status: String,
+    #[cultcache(key = 12)]
+    pub issued_at: String,
+    #[cultcache(key = 13)]
+    pub consumed_at: Option<String>,
+    #[cultcache(key = 14)]
+    pub resulting_claim_id: Option<String>,
+    #[cultcache(key = 15)]
+    pub resulting_claim_epoch: Option<u64>,
+    #[cultcache(key = 16)]
+    pub predecessor_claim_id: Option<String>,
+    #[cultcache(key = 17)]
+    pub predecessor_claim_epoch: Option<u64>,
+    #[cultcache(key = 18)]
+    pub predecessor_claim_status: String,
+}
+
+#[cfg(test)]
+mod authority_tests {
+    use super::*;
+    use crate::{
+        MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION, SEMANTIC_PROJECTION_SCHEMA_VERSION,
+    };
+    use tempfile::tempdir;
+
+    fn obligation() -> MemorySemanticProjectionObligation {
+        MemorySemanticProjectionObligation {
+            schema_version: MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION.to_string(),
+            obligation_id: "obligation-modeling-7".into(),
+            swarm_id: "swarm-a".into(),
+            partition: "modeling".into(),
+            canonical_source_id: "runtime/repo-model".into(),
+            source_commit_id: "admission-7".into(),
+            graph_id: "repo-model".into(),
+            source_generation: 7,
+            source_model_hash: "model-hash-7".into(),
+            canonical_content_set_hash: "content-set-7".into(),
+            projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.into(),
+            created_at: "2026-07-15T04:00:00Z".into(),
+        }
+    }
+
+    fn input(
+        store: &Path,
+        obligation: &MemorySemanticProjectionObligation,
+    ) -> Result<MemorySemanticProjectionInput> {
+        let envelopes = SingleFileMessagePackBackingStore::new(store).pull_all()?;
+        let authority = exact_envelope(
+            &envelopes,
+            MemorySemanticProjectionObligation::TYPE,
+            &obligation.obligation_id,
+        )?;
+        Ok(MemorySemanticProjectionInput {
+            snapshot: super::super::EpiphanyMemoryGraphSnapshot {
+                schema_version: Some("v0".to_string()),
+                graph_id: obligation.graph_id.clone(),
+                model_revision: obligation.source_generation,
+                ..Default::default()
+            },
+            obligation: obligation.clone(),
+            authority: MemorySemanticProjectionAuthoritySnapshot {
+                head: MemorySemanticProjectionSourceHead {
+                    swarm_id: obligation.swarm_id.clone(),
+                    partition: obligation.partition.clone(),
+                    canonical_source_id: obligation.canonical_source_id.clone(),
+                    source_commit_id: obligation.source_commit_id.clone(),
+                    graph_id: obligation.graph_id.clone(),
+                    source_generation: obligation.source_generation,
+                    source_model_hash: obligation.source_model_hash.clone(),
+                    canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+                },
+                envelopes: vec![authority],
+            },
+        })
+    }
+
+    #[test]
+    fn concurrent_idunn_acquisition_has_one_winner_and_no_issued_litter() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("acquisition.msgpack");
+        let obligation = obligation();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let projection_input = input(&store, &obligation)?;
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let mut workers = Vec::new();
+        for executor in ["executor-a", "executor-b"] {
+            let store = store.clone();
+            let projection_input = projection_input.clone();
+            let barrier = barrier.clone();
+            workers.push(std::thread::spawn(move || {
+                barrier.wait();
+                idunn_acquire_memory_semantic_projection(
+                    store,
+                    &projection_input,
+                    executor,
+                    &format!("{executor}-incarnation"),
+                    "execute",
+                    "idunn-incarnation-a",
+                    "2026-07-15T04:01:00Z",
+                )
+            }));
+        }
+        barrier.wait();
+        let results = workers
+            .into_iter()
+            .map(|worker| worker.join().expect("worker"))
+            .collect::<Vec<_>>();
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        let envelopes = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        let grants = decode_all::<MemorySemanticProjectorExecutorGrant>(&envelopes)?;
+        assert_eq!(grants.len(), 1);
+        assert!(grants.iter().all(|grant| grant.status == "consumed"));
+        let claim = decode_all::<MemorySemanticProjectionClaim>(&envelopes)?
+            .pop()
+            .expect("claim");
+        authenticate_claim_authority_from_envelopes(&envelopes, &claim)?;
+        Ok(())
+    }
+
+    #[test]
+    fn acquisition_is_epoch_bound_and_timestamp_ordered() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("ordering.msgpack");
+        let obligation = obligation();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let projection_input = input(&store, &obligation)?;
+        assert!(
+            idunn_acquire_memory_semantic_projection(
+                &store,
+                &projection_input,
+                "executor-a",
+                "executor-a-incarnation",
+                "execute",
+                "idunn-incarnation-a",
+                "2026-07-15T03:59:59Z"
+            )
+            .is_err()
+        );
+        let acquisition = idunn_acquire_memory_semantic_projection(
+            &store,
+            &projection_input,
+            "executor-a",
+            "executor-a-incarnation",
+            "execute",
+            "idunn-incarnation-a",
+            "2026-07-15T04:01:00Z",
+        )?;
+        assert_eq!(acquisition.grant.predecessor_claim_status, "absent");
+        assert_eq!(acquisition.grant.resulting_claim_epoch, Some(1));
+        assert_eq!(acquisition.claim.authority_id, acquisition.grant.grant_id);
+        fail_memory_semantic_projection_claim(
+            &store,
+            &acquisition.claim.claim_id,
+            "2026-07-15T04:02:00Z",
+            "test failure",
+        )?;
+        let successor = idunn_acquire_memory_semantic_projection(
+            &store,
+            &projection_input,
+            "executor-b",
+            "executor-b-incarnation",
+            "execute",
+            "idunn-incarnation-a",
+            "2026-07-15T04:03:00Z",
+        )?;
+        assert_eq!(
+            successor.grant.predecessor_claim_id.as_deref(),
+            Some(acquisition.claim.claim_id.as_str())
+        );
+        assert_eq!(successor.grant.predecessor_claim_epoch, Some(1));
+        assert_eq!(successor.grant.predecessor_claim_status, "failed");
+        assert_eq!(successor.claim.epoch, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn acquisition_refuses_advanced_non_obligation_authority() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("stale-acquisition.msgpack");
+        let obligation = obligation();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let marker_key = "canonical-head-marker";
+        cache.put(marker_key, &obligation)?;
+        let mut projection_input = input(&store, &obligation)?;
+        let opening = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        projection_input.authority.envelopes.push(exact_envelope(
+            &opening,
+            MemorySemanticProjectionObligation::TYPE,
+            marker_key,
+        )?);
+        let mut advanced = obligation.clone();
+        advanced.source_generation += 1;
+        advanced.source_model_hash = "advanced-model-hash".to_string();
+        advanced.canonical_content_set_hash = "advanced-content-hash".to_string();
+        cache.put(marker_key, &advanced)?;
+        assert!(
+            idunn_acquire_memory_semantic_projection(
+                &store,
+                &projection_input,
+                "executor-stale",
+                "executor-stale-incarnation",
+                "execute",
+                "idunn-incarnation-a",
+                "2026-07-15T04:01:00Z",
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn sealed_recovery_binds_lifecycle_receipt_and_provider_heartbeat() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("recovery.msgpack");
+        let obligation = obligation();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let projection_input = input(&store, &obligation)?;
+        let acquisition = idunn_acquire_memory_semantic_projection(
+            &store,
+            &projection_input,
+            "executor-a",
+            "provider-old",
+            "execute",
+            "idunn-incarnation-a",
+            "2026-07-15T04:01:00Z",
+        )?;
+        let evidence = idunn_semantic_recovery_evidence_from_cultmesh(
+            &store,
+            &projection_input,
+            &acquisition.claim.claim_id,
+            "idunn-incarnation-a",
+            "poke-intent-1",
+            "sha256-intent",
+            "poke-receipt-1",
+            "sha256-receipt",
+            "2026-07-15T04:02:00Z",
+            "heartbeat-1",
+            "sha256-heartbeat",
+            "provider-new",
+            "2026-07-15T04:03:00Z",
+            "poke-receipt-1",
+        )?;
+        let (authorization, recovered) = idunn_recover_memory_semantic_projection(
+            &store,
+            &projection_input,
+            &acquisition.claim.claim_id,
+            "executor-b",
+            "provider-new",
+            &evidence,
+            "2026-07-15T04:04:00Z",
+        )?;
+        assert_eq!(authorization.status, "consumed");
+        assert_eq!(authorization.lifecycle_intent_id, "poke-intent-1");
+        assert_eq!(authorization.lifecycle_receipt_id, "poke-receipt-1");
+        assert_eq!(authorization.provider_heartbeat_id, "heartbeat-1");
+        assert_eq!(
+            authorization.provider_incarnation,
+            recovered.executor_incarnation
+        );
+        assert_eq!(recovered.authority_id, authorization.authorization_id);
+        assert!(
+            fail_memory_semantic_projection_claim(
+                &store,
+                &acquisition.claim.claim_id,
+                "2026-07-15T04:05:00Z",
+                "late old executor"
+            )
+            .is_err()
+        );
+        assert!(
+            idunn_semantic_recovery_evidence_from_cultmesh(
+                &store,
+                &projection_input,
+                &recovered.claim_id,
+                "idunn-incarnation-a",
+                "poke-intent-2",
+                "sha256-intent-2",
+                "poke-receipt-2",
+                "sha256-receipt-2",
+                "2026-07-15T04:03:00Z",
+                "heartbeat-2",
+                "sha256-heartbeat-2",
+                "provider-new",
+                "2026-07-15T04:03:00Z",
+                "poke-receipt-2",
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.epiphany.memory_semantic_projector_recovery_authorization",
+    schema = "MemorySemanticProjectorRecoveryAuthorization"
+)]
+pub struct MemorySemanticProjectorRecoveryAuthorization {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub authorization_id: String,
+    #[cultcache(key = 2)]
+    pub scope_id: String,
+    #[cultcache(key = 3)]
+    pub swarm_id: String,
+    #[cultcache(key = 4)]
+    pub partition: String,
+    #[cultcache(key = 5)]
+    pub obligation_id: String,
+    #[cultcache(key = 6)]
+    pub claim_id: String,
+    #[cultcache(key = 7)]
+    pub claim_epoch: u64,
+    #[cultcache(key = 8)]
+    pub attempt_id: String,
+    #[cultcache(key = 9)]
+    pub abandoned_executor_id: String,
+    #[cultcache(key = 10)]
+    pub replacement_executor_id: String,
+    #[cultcache(key = 11)]
+    pub replacement_executor_incarnation: String,
+    #[cultcache(key = 12)]
+    pub issuer_id: String,
+    #[cultcache(key = 13)]
+    pub issuer_incarnation: String,
+    #[cultcache(key = 14)]
+    pub lifecycle_intent_id: String,
+    #[cultcache(key = 15)]
+    pub lifecycle_intent_digest: String,
+    #[cultcache(key = 16)]
+    pub status: String,
+    #[cultcache(key = 17)]
+    pub issued_at: String,
+    #[cultcache(key = 18)]
+    pub consumed_at: Option<String>,
+    #[cultcache(key = 19)]
+    pub resulting_claim_id: Option<String>,
+    #[cultcache(key = 20)]
+    pub resulting_claim_epoch: Option<u64>,
+    #[cultcache(key = 21)]
+    pub abandoned_executor_incarnation: String,
+    #[cultcache(key = 22)]
+    pub lifecycle_receipt_id: String,
+    #[cultcache(key = 23)]
+    pub lifecycle_receipt_digest: String,
+    #[cultcache(key = 24)]
+    pub lifecycle_receipt_completed_at: String,
+    #[cultcache(key = 25)]
+    pub provider_heartbeat_id: String,
+    #[cultcache(key = 26)]
+    pub provider_heartbeat_digest: String,
+    #[cultcache(key = 27)]
+    pub provider_incarnation: String,
+    #[cultcache(key = 28)]
+    pub provider_heartbeat_at: String,
+    #[cultcache(key = 29)]
+    pub canonical_store_id: String,
+    #[cultcache(key = 30)]
+    pub lifecycle_correlation_id: String,
+}
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
@@ -43,6 +442,117 @@ pub struct MemorySemanticProjectionClaim {
     pub claimed_at: String,
     #[cultcache(key = 9)]
     pub completed_at: Option<String>,
+    #[cultcache(key = 10)]
+    pub executor_incarnation: String,
+    #[cultcache(key = 11)]
+    pub authority_kind: String,
+    #[cultcache(key = 12)]
+    pub authority_id: String,
+}
+
+#[allow(dead_code)] // Sealed until Idunn can supply authenticated lifecycle evidence.
+#[derive(Clone, Debug)]
+pub struct IdunnSemanticRecoveryEvidence {
+    issuer_incarnation: String,
+    lifecycle_intent_id: String,
+    lifecycle_intent_digest: String,
+    lifecycle_receipt_id: String,
+    lifecycle_receipt_digest: String,
+    lifecycle_receipt_completed_at: String,
+    provider_heartbeat_id: String,
+    provider_heartbeat_digest: String,
+    provider_incarnation: String,
+    provider_heartbeat_at: String,
+    canonical_store_id: String,
+    scope_id: String,
+    swarm_id: String,
+    partition: String,
+    obligation_id: String,
+    claim_id: String,
+    claim_epoch: u64,
+    abandoned_executor_incarnation: String,
+    lifecycle_correlation_id: String,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn idunn_semantic_recovery_evidence_from_cultmesh(
+    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
+    expected_claim_id: &str,
+    issuer_incarnation: &str,
+    lifecycle_intent_id: &str,
+    lifecycle_intent_digest: &str,
+    lifecycle_receipt_id: &str,
+    lifecycle_receipt_digest: &str,
+    lifecycle_receipt_completed_at: &str,
+    provider_heartbeat_id: &str,
+    provider_heartbeat_digest: &str,
+    provider_incarnation: &str,
+    provider_heartbeat_at: &str,
+    lifecycle_correlation_id: &str,
+) -> Result<IdunnSemanticRecoveryEvidence> {
+    validate_memory_semantic_projection_obligation(&input.obligation)?;
+    let store_path = store_path.as_ref();
+    let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    let persisted_obligation = decode_one::<MemorySemanticProjectionObligation>(
+        &envelopes,
+        &input.obligation.obligation_id,
+    )?
+    .ok_or_else(|| anyhow!("recovery evidence canonical obligation disappeared"))?;
+    if persisted_obligation != input.obligation {
+        return Err(anyhow!("recovery evidence canonical obligation advanced"));
+    }
+    for expected in &input.authority.envelopes {
+        let persisted = envelopes
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            .ok_or_else(|| anyhow!("recovery evidence input authority disappeared"))?;
+        if persisted != expected {
+            return Err(anyhow!("recovery evidence input authority advanced"));
+        }
+    }
+    let scope_id = projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?;
+    let claim = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)?
+        .ok_or_else(|| anyhow!("recovery evidence requires current scope claim"))?;
+    validate_memory_semantic_projection_claim(&claim)?;
+    if claim.claim_id != expected_claim_id
+        || claim.obligation_id != input.obligation.obligation_id
+        || claim.status != "running"
+    {
+        return Err(anyhow!(
+            "recovery evidence claim does not match canonical input"
+        ));
+    }
+    authenticate_claim_authority_from_envelopes(&envelopes, &claim)?;
+    let evidence = IdunnSemanticRecoveryEvidence {
+        issuer_incarnation: issuer_incarnation.to_string(),
+        lifecycle_intent_id: lifecycle_intent_id.to_string(),
+        lifecycle_intent_digest: lifecycle_intent_digest.to_string(),
+        lifecycle_receipt_id: lifecycle_receipt_id.to_string(),
+        lifecycle_receipt_digest: lifecycle_receipt_digest.to_string(),
+        lifecycle_receipt_completed_at: lifecycle_receipt_completed_at.to_string(),
+        provider_heartbeat_id: provider_heartbeat_id.to_string(),
+        provider_heartbeat_digest: provider_heartbeat_digest.to_string(),
+        provider_incarnation: provider_incarnation.to_string(),
+        provider_heartbeat_at: provider_heartbeat_at.to_string(),
+        canonical_store_id: memory_semantic_projector_store_id(store_path)?,
+        scope_id,
+        swarm_id: input.obligation.swarm_id.clone(),
+        partition: input.obligation.partition.clone(),
+        obligation_id: input.obligation.obligation_id.clone(),
+        claim_id: claim.claim_id,
+        claim_epoch: claim.epoch,
+        abandoned_executor_incarnation: claim.executor_incarnation,
+        lifecycle_correlation_id: lifecycle_correlation_id.to_string(),
+    };
+    validate_idunn_semantic_recovery_evidence(&evidence)?;
+    Ok(evidence)
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MemorySemanticProjectorAcquisition {
+    pub grant: MemorySemanticProjectorExecutorGrant,
+    pub claim: MemorySemanticProjectionClaim,
 }
 
 #[derive(Clone, Debug)]
@@ -206,6 +716,22 @@ pub(crate) fn projection_scope_id(swarm_id: &str, partition: &str) -> Result<Str
     ))
 }
 
+pub(crate) fn memory_semantic_projector_store_id(store_path: &Path) -> Result<String> {
+    let canonical = store_path.canonicalize().map_err(|error| {
+        anyhow!("semantic projector canonical store identity is unavailable: {error}")
+    })?;
+    let rendered = canonical.to_string_lossy();
+    let identity = if cfg!(windows) {
+        rendered.to_lowercase()
+    } else {
+        rendered.into_owned()
+    };
+    Ok(format!(
+        "memory-semantic-store-{:x}",
+        Sha256::digest(identity.as_bytes())
+    ))
+}
+
 pub fn load_memory_semantic_projection_success(
     store_path: impl AsRef<Path>,
     obligation: &MemorySemanticProjectionObligation,
@@ -231,6 +757,12 @@ pub fn load_memory_semantic_projection_success(
     let claim = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)?
         .ok_or_else(|| anyhow!("ready semantic projection lost its scope claim"))?;
     validate_memory_semantic_projection_claim(&claim)?;
+    if claim.scope_id != scope_id {
+        return Err(anyhow!(
+            "semantic projection claim key disagrees with payload"
+        ));
+    }
+    authenticate_claim_authority(store_path.as_ref(), &claim)?;
     if claim.status != "succeeded"
         || claim.obligation_id != obligation.obligation_id
         || receipt.claim_id != claim.claim_id
@@ -243,7 +775,7 @@ pub fn load_memory_semantic_projection_success(
     let attempt = decode_one::<MemorySemanticProjectionAttempt>(&envelopes, &claim.attempt_id)?
         .ok_or_else(|| anyhow!("ready semantic projection lost its claim attempt"))?;
     validate_memory_semantic_projection_attempt(&attempt)?;
-    if attempt.status != "succeeded" || attempt.obligation_id != claim.obligation_id {
+    if attempt.status != "succeeded" || !attempt_authenticates_claim(&attempt, &claim) {
         return Err(anyhow!(
             "ready semantic projection claim is not authenticated by its succeeded attempt"
         ));
@@ -269,10 +801,182 @@ pub fn load_memory_semantic_projection_readiness(
     )
 }
 
-pub fn execute_memory_semantic_projection(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn idunn_acquire_memory_semantic_projection(
     store_path: impl AsRef<Path>,
     input: &MemorySemanticProjectionInput,
     executor_id: &str,
+    executor_incarnation: &str,
+    purpose: &str,
+    idunn_incarnation: &str,
+    acquired_at: &str,
+) -> Result<MemorySemanticProjectorAcquisition> {
+    let obligation = &input.obligation;
+    validate_memory_semantic_projection_obligation(obligation)?;
+    validate_identity_and_time(executor_id, acquired_at)?;
+    validate_opaque_identity(executor_incarnation, "executor incarnation")?;
+    validate_opaque_identity(idunn_incarnation, "issuer incarnation")?;
+    if !matches!(purpose, "execute" | "repair") {
+        return Err(anyhow!("semantic projector grant purpose is invalid"));
+    }
+    let store_path = store_path.as_ref();
+    observe_memory_semantic_projection(store_path, input)?;
+    let cache = semantic_projector_cache(store_path)?;
+    let opening = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    let persisted =
+        decode_one::<MemorySemanticProjectionObligation>(&opening, &obligation.obligation_id)?
+            .ok_or_else(|| anyhow!("semantic projector grant requires persisted obligation"))?;
+    if persisted != *obligation {
+        return Err(anyhow!("semantic projector grant obligation advanced"));
+    }
+    ensure_not_before(
+        acquired_at,
+        &obligation.created_at,
+        "acquisition before obligation",
+    )?;
+    let scope_id = projection_scope_id(&obligation.swarm_id, &obligation.partition)?;
+    let current = decode_one::<MemorySemanticProjectionClaim>(&opening, &scope_id)?;
+    if let Some(claim) = &current {
+        validate_memory_semantic_projection_claim(claim)?;
+        if claim.scope_id != scope_id {
+            return Err(anyhow!(
+                "semantic projector scope key disagrees with claim payload"
+            ));
+        }
+        let attempt = decode_one::<MemorySemanticProjectionAttempt>(&opening, &claim.attempt_id)?
+            .ok_or_else(|| anyhow!("semantic projector scope attempt disappeared"))?;
+        validate_memory_semantic_projection_attempt(&attempt)?;
+        if attempt.obligation_id != claim.obligation_id || attempt.status != claim.status {
+            return Err(anyhow!(
+                "semantic projector scope claim and attempt disagree"
+            ));
+        }
+        if claim.status == "running" {
+            return Err(anyhow!("semantic projector scope is already running"));
+        }
+        ensure_not_before(
+            acquired_at,
+            claim.completed_at.as_deref().unwrap_or(&claim.claimed_at),
+            "acquisition before predecessor",
+        )?;
+    }
+    match purpose {
+        "execute"
+            if current.as_ref().is_some_and(|claim| {
+                claim.status == "succeeded" && claim.obligation_id == obligation.obligation_id
+            }) =>
+        {
+            return Err(anyhow!("execute grant cannot authorize succeeded repair"));
+        }
+        "repair"
+            if !current.as_ref().is_some_and(|claim| {
+                claim.status == "succeeded" && claim.obligation_id == obligation.obligation_id
+            }) =>
+        {
+            return Err(anyhow!("repair grant requires exact succeeded claim"));
+        }
+        _ => {}
+    }
+    let epoch = current.as_ref().map_or(1, |claim| claim.epoch + 1);
+    let grant_id = format!("memory-semantic-executor-grant-{}", uuid::Uuid::new_v4());
+    let claim = running_claim(
+        &scope_id,
+        obligation,
+        executor_id,
+        executor_incarnation,
+        "executor_grant",
+        &grant_id,
+        epoch,
+        acquired_at,
+    );
+    let attempt = running_attempt(&claim);
+    let grant = MemorySemanticProjectorExecutorGrant {
+        schema_version: MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION.to_string(),
+        grant_id: grant_id.clone(),
+        scope_id: scope_id.clone(),
+        swarm_id: obligation.swarm_id.clone(),
+        partition: obligation.partition.clone(),
+        obligation_id: obligation.obligation_id.clone(),
+        executor_id: executor_id.to_string(),
+        executor_incarnation: executor_incarnation.to_string(),
+        purpose: purpose.to_string(),
+        issuer_id: "idunn".to_string(),
+        issuer_incarnation: idunn_incarnation.to_string(),
+        status: "consumed".to_string(),
+        issued_at: acquired_at.to_string(),
+        consumed_at: Some(acquired_at.to_string()),
+        resulting_claim_id: Some(claim.claim_id.clone()),
+        resulting_claim_epoch: Some(claim.epoch),
+        predecessor_claim_id: current.as_ref().map(|row| row.claim_id.clone()),
+        predecessor_claim_epoch: current.as_ref().map(|row| row.epoch),
+        predecessor_claim_status: current
+            .as_ref()
+            .map_or("absent", |row| row.status.as_str())
+            .to_string(),
+    };
+    validate_memory_semantic_projector_executor_grant(&grant)?;
+    if opening.iter().any(|envelope| {
+        envelope.r#type == MemorySemanticProjectorExecutorGrant::TYPE
+            && envelope.key == grant.grant_id
+    }) {
+        return Err(anyhow!(
+            "semantic projector executor grant identity collision"
+        ));
+    }
+    let obligation_envelope = exact_envelope(
+        &opening,
+        MemorySemanticProjectionObligation::TYPE,
+        &obligation.obligation_id,
+    )?;
+    let mut expected = vec![obligation_envelope.clone()];
+    let mut replacements = vec![obligation_envelope];
+    for authority in &input.authority.envelopes {
+        if authority.r#type == MemorySemanticProjectionObligation::TYPE
+            && authority.key == obligation.obligation_id
+        {
+            continue;
+        }
+        let persisted = opening
+            .iter()
+            .find(|row| row.r#type == authority.r#type && row.key == authority.key)
+            .ok_or_else(|| anyhow!("semantic projector acquisition authority disappeared"))?;
+        if persisted != authority {
+            return Err(anyhow!("semantic projector acquisition authority advanced"));
+        }
+        expected.push(persisted.clone());
+        replacements.push(persisted.clone());
+    }
+    if current.is_some() {
+        let claim = exact_envelope(
+            &opening,
+            MemorySemanticProjectionClaim::TYPE,
+            &grant.scope_id,
+        )?;
+        expected.push(claim.clone());
+        let current = current.as_ref().expect("checked current claim");
+        let attempt = exact_envelope(
+            &opening,
+            MemorySemanticProjectionAttempt::TYPE,
+            &current.attempt_id,
+        )?;
+        expected.push(attempt.clone());
+        replacements.push(attempt);
+    }
+    replacements.push(cache.prepare_entry(&scope_id, &claim)?.0);
+    replacements.push(cache.prepare_entry(&attempt.attempt_id, &attempt)?.0);
+    replacements.push(cache.prepare_entry(&grant.grant_id, &grant)?.0);
+    if !SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&expected, replacements)?
+    {
+        return Err(anyhow!("semantic projector acquisition lost exact CAS"));
+    }
+    Ok(MemorySemanticProjectorAcquisition { grant, claim })
+}
+
+pub fn execute_memory_semantic_projection(
+    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
+    claim_id: &str,
     config: &super::MemorySemanticIndexConfig,
 ) -> Result<MemorySemanticIndexReceipt> {
     let partition = match input.obligation.partition.as_str() {
@@ -286,26 +990,13 @@ pub fn execute_memory_semantic_projection(
     };
     let store_path = store_path.as_ref();
     let started_at = now_rfc3339();
-    let claim =
-        claim_memory_semantic_projection(store_path, &input.obligation, executor_id, &started_at)?;
-    let claim = if claim.status == "succeeded" {
-        if let Some(receipt) = load_memory_semantic_projection_success(
-            store_path,
-            &input.obligation,
-            &input.authority.head,
-        )? {
-            return Ok(receipt);
-        }
-        reopen_succeeded_projection_claim(
-            store_path,
-            &claim,
-            &input.obligation,
-            executor_id,
-            &now_rfc3339(),
-        )?
-    } else {
-        claim
-    };
+    let (_, _, claim, _) = load_running_claim(store_path, claim_id)?;
+    if claim.obligation_id != input.obligation.obligation_id {
+        return Err(anyhow!(
+            "semantic projection claim does not bind input obligation"
+        ));
+    }
+    authenticate_claim_authority(store_path, &claim)?;
     let raw_receipt = match super::semantic_index::index_memory_semantic_partition(
         &input.snapshot,
         &input.obligation.swarm_id,
@@ -349,134 +1040,49 @@ pub fn execute_memory_semantic_projection(
     }
 }
 
-pub(crate) fn reopen_succeeded_projection_claim(
-    store_path: &Path,
-    current: &MemorySemanticProjectionClaim,
-    obligation: &MemorySemanticProjectionObligation,
-    executor_id: &str,
-    reopened_at: &str,
-) -> Result<MemorySemanticProjectionClaim> {
-    validate_memory_semantic_projection_claim(current)?;
-    validate_identity_and_time(executor_id, reopened_at)?;
-    if current.status != "succeeded" || current.obligation_id != obligation.obligation_id {
-        return Err(anyhow!(
-            "semantic projection repair requires exact succeeded claim"
-        ));
-    }
-    let cache = semantic_projector_cache(store_path)?;
-    let opening = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
-    let stored_claim = decode_one::<MemorySemanticProjectionClaim>(&opening, &current.scope_id)?
-        .ok_or_else(|| anyhow!("semantic projection repair claim disappeared"))?;
-    if stored_claim != *current {
-        return Err(anyhow!("semantic projection repair claim advanced"));
-    }
-    let old_attempt = decode_one::<MemorySemanticProjectionAttempt>(&opening, &current.attempt_id)?
-        .ok_or_else(|| anyhow!("semantic projection repair lost succeeded attempt"))?;
-    if old_attempt.status != "succeeded" {
-        return Err(anyhow!(
-            "semantic projection repair attempt is not succeeded"
-        ));
-    }
-    let next = running_claim(
-        &current.scope_id,
-        obligation,
-        executor_id,
-        current.epoch + 1,
-        reopened_at,
-    );
-    let next_attempt = running_attempt(&next);
-    terminal_or_recovery_cas(
-        store_path,
-        &opening,
-        current,
-        &old_attempt,
-        vec![
-            cache.prepare_entry(&current.scope_id, &next)?.0,
-            cache
-                .prepare_entry(&old_attempt.attempt_id, &old_attempt)?
-                .0,
-            cache
-                .prepare_entry(&next_attempt.attempt_id, &next_attempt)?
-                .0,
-        ],
-    )?;
-    Ok(next)
-}
-
-pub(crate) fn claim_memory_semantic_projection(
+#[allow(clippy::too_many_arguments)]
+#[allow(dead_code, clippy::too_many_arguments)] // Withheld behind sealed recovery evidence.
+pub(crate) fn idunn_recover_memory_semantic_projection(
     store_path: impl AsRef<Path>,
-    obligation: &MemorySemanticProjectionObligation,
-    executor_id: &str,
-    claimed_at: &str,
-) -> Result<MemorySemanticProjectionClaim> {
-    validate_memory_semantic_projection_obligation(obligation)?;
-    validate_identity_and_time(executor_id, claimed_at)?;
-    let store_path = store_path.as_ref();
-    let cache = semantic_projector_cache(store_path)?;
-    let opening = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
-    let stored =
-        decode_one::<MemorySemanticProjectionObligation>(&opening, &obligation.obligation_id)?
-            .ok_or_else(|| anyhow!("semantic projection claim requires persisted obligation"))?;
-    if stored != *obligation {
-        return Err(anyhow!("semantic projection obligation identity collision"));
-    }
-    let scope_id = projection_scope_id(&obligation.swarm_id, &obligation.partition)?;
-    let current = decode_one::<MemorySemanticProjectionClaim>(&opening, &scope_id)?;
-    if let Some(current) = &current {
-        validate_memory_semantic_projection_claim(current)?;
-        if current.status == "running" {
-            return Err(anyhow!(
-                "semantic projection scope is already claimed by executor {:?}; executor identity does not confer shared mutation authority",
-                current.executor_id
-            ));
-        }
-        if current.status == "succeeded" && current.obligation_id == obligation.obligation_id {
-            return Ok(current.clone());
-        }
-    }
-    let epoch = current.as_ref().map_or(1, |claim| claim.epoch + 1);
-    let claim = running_claim(&scope_id, obligation, executor_id, epoch, claimed_at);
-    let attempt = running_attempt(&claim);
-    let obligation_envelope = exact_envelope(
-        &opening,
-        "gamecult.epiphany.memory_semantic_projection_obligation",
-        &obligation.obligation_id,
-    )?;
-    let mut expected = vec![obligation_envelope.clone()];
-    let mut replacements = vec![obligation_envelope];
-    if current.is_some() {
-        let current_envelope = exact_envelope(
-            &opening,
-            "gamecult.epiphany.memory_semantic_projection_claim",
-            &scope_id,
-        )?;
-        expected.push(current_envelope);
-    }
-    replacements.push(cache.prepare_entry(&scope_id, &claim)?.0);
-    replacements.push(cache.prepare_entry(&attempt.attempt_id, &attempt)?.0);
-    if !SingleFileMessagePackBackingStore::new(store_path)
-        .compare_and_swap_batch(&expected, replacements)?
-    {
-        return Err(anyhow!("semantic projection claim lost exact CAS"));
-    }
-    Ok(claim)
-}
-
-#[allow(dead_code)] // Deliberately withheld from callers until Idunn supplies typed recovery authority.
-pub(crate) fn recover_memory_semantic_projection_claim(
-    store_path: impl AsRef<Path>,
+    input: &MemorySemanticProjectionInput,
     expected_claim_id: &str,
-    executor_id: &str,
+    replacement_executor_id: &str,
+    replacement_executor_incarnation: &str,
+    evidence: &IdunnSemanticRecoveryEvidence,
     recovered_at: &str,
-    reason: &str,
-) -> Result<MemorySemanticProjectionClaim> {
-    validate_identity_and_time(executor_id, recovered_at)?;
-    if expected_claim_id.trim().is_empty() || reason.trim().is_empty() {
+) -> Result<(
+    MemorySemanticProjectorRecoveryAuthorization,
+    MemorySemanticProjectionClaim,
+)> {
+    validate_identity_and_time(replacement_executor_id, recovered_at)?;
+    validate_opaque_identity(
+        replacement_executor_incarnation,
+        "replacement executor incarnation",
+    )?;
+    validate_opaque_identity(&evidence.issuer_incarnation, "issuer incarnation")?;
+    validate_idunn_semantic_recovery_evidence(evidence)?;
+    if replacement_executor_incarnation != evidence.provider_incarnation {
         return Err(anyhow!(
-            "semantic projection recovery requires claim and reason"
+            "recovery executor incarnation is not the observed provider incarnation"
         ));
     }
+    ensure_strictly_before(
+        &evidence.lifecycle_receipt_completed_at,
+        &evidence.provider_heartbeat_at,
+        "provider heartbeat must follow lifecycle receipt",
+    )?;
+    ensure_not_before(
+        recovered_at,
+        &evidence.provider_heartbeat_at,
+        "recovery precedes provider heartbeat",
+    )?;
     let store_path = store_path.as_ref();
+    validate_memory_semantic_projection_obligation(&input.obligation)?;
+    if evidence.canonical_store_id != memory_semantic_projector_store_id(store_path)? {
+        return Err(anyhow!(
+            "recovery evidence belongs to another canonical store"
+        ));
+    }
     let cache = semantic_projector_cache(store_path)?;
     let opening = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
     let current = decode_all::<MemorySemanticProjectionClaim>(&opening)?
@@ -486,24 +1092,73 @@ pub(crate) fn recover_memory_semantic_projection_claim(
     validate_memory_semantic_projection_claim(&current)?;
     if current.status != "running" {
         return Err(anyhow!(
-            "only a running semantic projection claim can recover"
+            "semantic projection recovery requires exact running claim"
         ));
     }
+    authenticate_claim_authority_from_envelopes(&opening, &current)?;
     let obligation =
         decode_one::<MemorySemanticProjectionObligation>(&opening, &current.obligation_id)?
             .ok_or_else(|| anyhow!("semantic projection recovery lost obligation"))?;
+    if obligation != input.obligation
+        || current.obligation_id != input.obligation.obligation_id
+        || current.scope_id
+            != projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?
+        || evidence.scope_id != current.scope_id
+        || evidence.swarm_id != obligation.swarm_id
+        || evidence.partition != obligation.partition
+        || evidence.obligation_id != obligation.obligation_id
+        || evidence.claim_id != current.claim_id
+        || evidence.claim_epoch != current.epoch
+        || evidence.abandoned_executor_incarnation != current.executor_incarnation
+    {
+        return Err(anyhow!(
+            "recovery evidence does not bind exact canonical claim input"
+        ));
+    }
+    for expected in &input.authority.envelopes {
+        let persisted = opening
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            .ok_or_else(|| anyhow!("recovery canonical input authority disappeared"))?;
+        if persisted != expected {
+            return Err(anyhow!("recovery canonical input authority advanced"));
+        }
+    }
     let old_attempt = decode_one::<MemorySemanticProjectionAttempt>(&opening, &current.attempt_id)?
         .ok_or_else(|| anyhow!("semantic projection recovery lost running attempt"))?;
     validate_memory_semantic_projection_attempt(&old_attempt)?;
-    if old_attempt.status != "running" {
+    if old_attempt.status != "running" || !attempt_authenticates_claim(&old_attempt, &current) {
         return Err(anyhow!(
-            "semantic projection recovery attempt is not running"
+            "semantic projection recovery running attempt disagrees"
         ));
+    }
+    ensure_not_before(recovered_at, &current.claimed_at, "recovery before claim")?;
+    let authorization_id = format!(
+        "memory-semantic-recovery-authorization-{:x}",
+        Sha256::digest(
+            format!(
+                "{}|{}|{}|{}",
+                evidence.canonical_store_id,
+                evidence.lifecycle_intent_digest,
+                evidence.lifecycle_receipt_digest,
+                evidence.provider_heartbeat_digest
+            )
+            .as_bytes()
+        )
+    );
+    if opening.iter().any(|row| {
+        row.r#type == MemorySemanticProjectorRecoveryAuthorization::TYPE
+            && row.key == authorization_id
+    }) {
+        return Err(anyhow!("semantic recovery evidence was already consumed"));
     }
     let next = running_claim(
         &current.scope_id,
         &obligation,
-        executor_id,
+        replacement_executor_id,
+        replacement_executor_incarnation,
+        "recovery_authorization",
+        &authorization_id,
         current.epoch + 1,
         recovered_at,
     );
@@ -511,25 +1166,79 @@ pub(crate) fn recover_memory_semantic_projection_claim(
     let failed_attempt = MemorySemanticProjectionAttempt {
         completed_at: Some(recovered_at.to_string()),
         status: "failed".to_string(),
-        error: Some(format!("superseded by fenced recovery: {reason}")),
+        error: Some("superseded by authenticated fenced recovery".to_string()),
         ..old_attempt.clone()
     };
+    let authorization = MemorySemanticProjectorRecoveryAuthorization {
+        schema_version: MEMORY_SEMANTIC_PROJECTOR_RECOVERY_AUTHORIZATION_SCHEMA_VERSION.to_string(),
+        authorization_id: authorization_id.clone(),
+        scope_id: current.scope_id.clone(),
+        swarm_id: obligation.swarm_id.clone(),
+        partition: obligation.partition.clone(),
+        obligation_id: obligation.obligation_id.clone(),
+        claim_id: current.claim_id.clone(),
+        claim_epoch: current.epoch,
+        attempt_id: current.attempt_id.clone(),
+        abandoned_executor_id: current.executor_id.clone(),
+        abandoned_executor_incarnation: current.executor_incarnation.clone(),
+        replacement_executor_id: replacement_executor_id.to_string(),
+        replacement_executor_incarnation: replacement_executor_incarnation.to_string(),
+        issuer_id: "idunn".to_string(),
+        issuer_incarnation: evidence.issuer_incarnation.clone(),
+        lifecycle_intent_id: evidence.lifecycle_intent_id.clone(),
+        lifecycle_intent_digest: evidence.lifecycle_intent_digest.clone(),
+        lifecycle_receipt_id: evidence.lifecycle_receipt_id.clone(),
+        lifecycle_receipt_digest: evidence.lifecycle_receipt_digest.clone(),
+        lifecycle_receipt_completed_at: evidence.lifecycle_receipt_completed_at.clone(),
+        provider_heartbeat_id: evidence.provider_heartbeat_id.clone(),
+        provider_heartbeat_digest: evidence.provider_heartbeat_digest.clone(),
+        provider_incarnation: evidence.provider_incarnation.clone(),
+        provider_heartbeat_at: evidence.provider_heartbeat_at.clone(),
+        canonical_store_id: evidence.canonical_store_id.clone(),
+        lifecycle_correlation_id: evidence.lifecycle_correlation_id.clone(),
+        status: "consumed".to_string(),
+        issued_at: recovered_at.to_string(),
+        consumed_at: Some(recovered_at.to_string()),
+        resulting_claim_id: Some(next.claim_id.clone()),
+        resulting_claim_epoch: Some(next.epoch),
+    };
+    validate_memory_semantic_projector_recovery_authorization(&authorization)?;
+    let mut replacements = vec![
+        cache.prepare_entry(&current.scope_id, &next)?.0,
+        cache
+            .prepare_entry(&failed_attempt.attempt_id, &failed_attempt)?
+            .0,
+        cache
+            .prepare_entry(&next_attempt.attempt_id, &next_attempt)?
+            .0,
+        cache
+            .prepare_entry(&authorization.authorization_id, &authorization)?
+            .0,
+    ];
+    let authority_expected = input
+        .authority
+        .envelopes
+        .iter()
+        .filter(|row| {
+            !matches!(
+                row.r#type.as_str(),
+                "gamecult.epiphany.memory_semantic_projection_obligation"
+                    | "gamecult.epiphany.memory_semantic_projection_claim"
+                    | "gamecult.epiphany.memory_semantic_projection_attempt"
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    replacements.extend(authority_expected.iter().cloned());
     terminal_or_recovery_cas(
         store_path,
         &opening,
         &current,
         &old_attempt,
-        vec![
-            cache.prepare_entry(&current.scope_id, &next)?.0,
-            cache
-                .prepare_entry(&failed_attempt.attempt_id, &failed_attempt)?
-                .0,
-            cache
-                .prepare_entry(&next_attempt.attempt_id, &next_attempt)?
-                .0,
-        ],
+        replacements,
+        &authority_expected,
     )?;
-    Ok(next)
+    Ok((authorization, next))
 }
 
 pub(crate) fn fail_memory_semantic_projection_claim(
@@ -545,6 +1254,7 @@ pub(crate) fn fail_memory_semantic_projection_claim(
         .map_err(|_| anyhow!("semantic projection completion time must be RFC3339"))?;
     let store_path = store_path.as_ref();
     let (cache, opening, claim, attempt) = load_running_claim(store_path, claim_id)?;
+    ensure_not_before(completed_at, &claim.claimed_at, "failure before claim")?;
     let terminal_claim = MemorySemanticProjectionClaim {
         status: "failed".to_string(),
         completed_at: Some(completed_at.to_string()),
@@ -567,6 +1277,7 @@ pub(crate) fn fail_memory_semantic_projection_claim(
                 .prepare_entry(&attempt.attempt_id, &terminal_attempt)?
                 .0,
         ],
+        &[],
     )?;
     Ok(terminal_claim)
 }
@@ -587,9 +1298,20 @@ pub(crate) fn succeed_memory_semantic_projection_claim(
     }
     let store_path = store_path.as_ref();
     let (cache, opening, claim, attempt) = load_running_claim(store_path, claim_id)?;
+    ensure_not_before(completed_at, &claim.claimed_at, "success before claim")?;
     let obligation =
         decode_one::<MemorySemanticProjectionObligation>(&opening, &claim.obligation_id)?
             .ok_or_else(|| anyhow!("semantic projection success lost obligation"))?;
+    ensure_not_before(
+        &receipt.indexed_at,
+        &claim.claimed_at,
+        "index receipt before claim",
+    )?;
+    ensure_not_before(
+        completed_at,
+        &receipt.indexed_at,
+        "success before index receipt",
+    )?;
     if receipt.obligation_id != claim.obligation_id
         || receipt.claim_id != claim.claim_id
         || receipt.claim_epoch != claim.epoch
@@ -680,6 +1402,12 @@ pub(crate) fn validate_memory_semantic_projection_claim(
         || claim.obligation_id.trim().is_empty()
         || claim.attempt_id.trim().is_empty()
         || claim.executor_id.trim().is_empty()
+        || !is_opaque_identity(&claim.executor_incarnation)
+        || !matches!(
+            claim.authority_kind.as_str(),
+            "executor_grant" | "recovery_authorization"
+        )
+        || !is_opaque_identity(&claim.authority_id)
         || claim.epoch == 0
         || chrono::DateTime::parse_from_rfc3339(&claim.claimed_at).is_err()
     {
@@ -701,12 +1429,132 @@ pub(crate) fn validate_memory_semantic_projection_claim(
     }
 }
 
+pub fn validate_memory_semantic_projector_executor_grant(
+    grant: &MemorySemanticProjectorExecutorGrant,
+) -> Result<()> {
+    let consumed = grant.status == "consumed"
+        && grant.consumed_at.as_deref().is_some_and(valid_rfc3339)
+        && grant
+            .resulting_claim_id
+            .as_deref()
+            .is_some_and(is_opaque_identity)
+        && grant.resulting_claim_epoch.is_some_and(|epoch| epoch > 0);
+    if grant.schema_version != MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION
+        || !grant
+            .grant_id
+            .starts_with("memory-semantic-executor-grant-")
+        || !is_opaque_identity(&grant.grant_id)
+        || !is_opaque_identity(&grant.scope_id)
+        || !is_opaque_identity(&grant.swarm_id)
+        || !matches!(grant.partition.as_str(), "mind" | "modeling")
+        || !is_opaque_identity(&grant.obligation_id)
+        || !is_opaque_identity(&grant.executor_id)
+        || !is_opaque_identity(&grant.executor_incarnation)
+        || !matches!(grant.purpose.as_str(), "execute" | "repair")
+        || grant.issuer_id != "idunn"
+        || !is_opaque_identity(&grant.issuer_incarnation)
+        || !valid_rfc3339(&grant.issued_at)
+        || grant.consumed_at.as_deref() != Some(grant.issued_at.as_str())
+        || !consumed
+        || !matches!(
+            grant.predecessor_claim_status.as_str(),
+            "absent" | "failed" | "succeeded"
+        )
+        || (grant.predecessor_claim_status == "absent"
+            && (grant.predecessor_claim_id.is_some() || grant.predecessor_claim_epoch.is_some()))
+        || (grant.predecessor_claim_status != "absent"
+            && !(grant
+                .predecessor_claim_id
+                .as_deref()
+                .is_some_and(is_opaque_identity)
+                && grant.predecessor_claim_epoch.is_some_and(|epoch| epoch > 0)))
+        || (grant.predecessor_claim_status == "absent" && grant.resulting_claim_epoch != Some(1))
+        || grant
+            .predecessor_claim_epoch
+            .is_some_and(|epoch| grant.resulting_claim_epoch != Some(epoch + 1))
+        || (grant.purpose == "repair" && grant.predecessor_claim_status != "succeeded")
+        || (grant.purpose == "execute" && grant.predecessor_claim_status == "succeeded")
+    {
+        return Err(anyhow!("semantic projector executor grant is invalid"));
+    }
+    Ok(())
+}
+
+pub fn validate_memory_semantic_projector_recovery_authorization(
+    authorization: &MemorySemanticProjectorRecoveryAuthorization,
+) -> Result<()> {
+    let consumed = authorization.status == "consumed"
+        && authorization
+            .consumed_at
+            .as_deref()
+            .is_some_and(valid_rfc3339)
+        && authorization
+            .resulting_claim_id
+            .as_deref()
+            .is_some_and(is_opaque_identity)
+        && authorization
+            .resulting_claim_epoch
+            .is_some_and(|epoch| epoch > authorization.claim_epoch);
+    if authorization.schema_version
+        != MEMORY_SEMANTIC_PROJECTOR_RECOVERY_AUTHORIZATION_SCHEMA_VERSION
+        || !authorization
+            .authorization_id
+            .starts_with("memory-semantic-recovery-authorization-")
+        || !is_opaque_identity(&authorization.authorization_id)
+        || !is_opaque_identity(&authorization.scope_id)
+        || !is_opaque_identity(&authorization.swarm_id)
+        || !matches!(authorization.partition.as_str(), "mind" | "modeling")
+        || !is_opaque_identity(&authorization.obligation_id)
+        || !is_opaque_identity(&authorization.claim_id)
+        || authorization.claim_epoch == 0
+        || !is_opaque_identity(&authorization.attempt_id)
+        || !is_opaque_identity(&authorization.abandoned_executor_id)
+        || !is_opaque_identity(&authorization.abandoned_executor_incarnation)
+        || !is_opaque_identity(&authorization.replacement_executor_id)
+        || !is_opaque_identity(&authorization.replacement_executor_incarnation)
+        || authorization.issuer_id != "idunn"
+        || !is_opaque_identity(&authorization.issuer_incarnation)
+        || !is_opaque_identity(&authorization.lifecycle_intent_id)
+        || !is_opaque_identity(&authorization.lifecycle_intent_digest)
+        || !is_opaque_identity(&authorization.lifecycle_receipt_id)
+        || !is_opaque_identity(&authorization.lifecycle_receipt_digest)
+        || !valid_rfc3339(&authorization.lifecycle_receipt_completed_at)
+        || !is_opaque_identity(&authorization.provider_heartbeat_id)
+        || !is_opaque_identity(&authorization.provider_heartbeat_digest)
+        || !is_opaque_identity(&authorization.provider_incarnation)
+        || !valid_rfc3339(&authorization.provider_heartbeat_at)
+        || !is_opaque_identity(&authorization.canonical_store_id)
+        || !is_opaque_identity(&authorization.lifecycle_correlation_id)
+        || authorization.lifecycle_correlation_id != authorization.lifecycle_receipt_id
+        || authorization.replacement_executor_incarnation != authorization.provider_incarnation
+        || authorization.provider_incarnation == authorization.abandoned_executor_incarnation
+        || !strictly_before(
+            &authorization.lifecycle_receipt_completed_at,
+            &authorization.provider_heartbeat_at,
+        )
+        || !not_before(
+            authorization.consumed_at.as_deref().unwrap_or(""),
+            &authorization.provider_heartbeat_at,
+        )
+        || !valid_rfc3339(&authorization.issued_at)
+        || authorization.consumed_at.as_deref() != Some(authorization.issued_at.as_str())
+        || !consumed
+    {
+        return Err(anyhow!(
+            "semantic projector recovery authorization is invalid"
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn semantic_projector_cache(store_path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<MemorySemanticProjectionObligation>()?;
     cache.register_entry_type::<MemorySemanticProjectionClaim>()?;
     cache.register_entry_type::<MemorySemanticProjectionAttempt>()?;
     cache.register_entry_type::<MemorySemanticIndexReceipt>()?;
+    cache.register_entry_type::<MemorySemanticProjectorExecutorGrant>()?;
+    cache.register_entry_type::<MemorySemanticProjectorRecoveryAuthorization>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
     Ok(cache)
 }
@@ -715,12 +1563,21 @@ fn running_claim(
     scope_id: &str,
     obligation: &MemorySemanticProjectionObligation,
     executor_id: &str,
+    executor_incarnation: &str,
+    authority_kind: &str,
+    authority_id: &str,
     epoch: u64,
     claimed_at: &str,
 ) -> MemorySemanticProjectionClaim {
     let fingerprint = format!(
-        "{}|{}|{}|{}",
-        scope_id, obligation.obligation_id, executor_id, epoch
+        "{}|{}|{}|{}|{}|{}|{}",
+        scope_id,
+        obligation.obligation_id,
+        executor_id,
+        executor_incarnation,
+        authority_kind,
+        authority_id,
+        epoch
     );
     let claim_id = format!(
         "memory-semantic-claim-{:x}",
@@ -733,6 +1590,9 @@ fn running_claim(
         obligation_id: obligation.obligation_id.clone(),
         attempt_id: format!("memory-semantic-attempt-{claim_id}"),
         executor_id: executor_id.to_string(),
+        executor_incarnation: executor_incarnation.to_string(),
+        authority_kind: authority_kind.to_string(),
+        authority_id: authority_id.to_string(),
         epoch,
         status: "running".to_string(),
         claimed_at: claimed_at.to_string(),
@@ -749,6 +1609,11 @@ fn running_attempt(claim: &MemorySemanticProjectionClaim) -> MemorySemanticProje
         completed_at: None,
         status: "running".to_string(),
         error: None,
+        claim_id: claim.claim_id.clone(),
+        claim_epoch: claim.epoch,
+        executor_id: claim.executor_id.clone(),
+        executor_incarnation: claim.executor_incarnation.clone(),
+        authority_id: claim.authority_id.clone(),
     }
 }
 
@@ -774,10 +1639,118 @@ fn load_running_claim(
     let attempt = decode_one::<MemorySemanticProjectionAttempt>(&opening, &claim.attempt_id)?
         .ok_or_else(|| anyhow!("semantic projection running attempt is missing"))?;
     validate_memory_semantic_projection_attempt(&attempt)?;
-    if attempt.status != "running" || attempt.obligation_id != claim.obligation_id {
+    if attempt.status != "running" || !attempt_authenticates_claim(&attempt, &claim) {
         return Err(anyhow!("semantic projection attempt does not own claim"));
     }
     Ok((cache, opening, claim, attempt))
+}
+
+fn authenticate_claim_authority(
+    store_path: &Path,
+    claim: &MemorySemanticProjectionClaim,
+) -> Result<()> {
+    let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    authenticate_claim_authority_from_envelopes(&envelopes, claim)?;
+    if claim.authority_kind == "recovery_authorization" {
+        let auth = decode_one::<MemorySemanticProjectorRecoveryAuthorization>(
+            &envelopes,
+            &claim.authority_id,
+        )?
+        .ok_or_else(|| anyhow!("semantic recovery authority disappeared"))?;
+        if auth.canonical_store_id != memory_semantic_projector_store_id(store_path)? {
+            return Err(anyhow!(
+                "semantic recovery authority belongs to another store"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn authenticate_claim_authority_from_envelopes(
+    envelopes: &[CultCacheEnvelope],
+    claim: &MemorySemanticProjectionClaim,
+) -> Result<()> {
+    match claim.authority_kind.as_str() {
+        "executor_grant" => {
+            let grant =
+                decode_one::<MemorySemanticProjectorExecutorGrant>(envelopes, &claim.authority_id)?
+                    .ok_or_else(|| {
+                        anyhow!("semantic projection claim lost consumed executor authority")
+                    })?;
+            validate_memory_semantic_projector_executor_grant(&grant)?;
+            if grant.grant_id != claim.authority_id
+                || grant.scope_id != claim.scope_id
+                || grant.obligation_id != claim.obligation_id
+                || grant.executor_id != claim.executor_id
+                || grant.executor_incarnation != claim.executor_incarnation
+                || grant.resulting_claim_id.as_deref() != Some(claim.claim_id.as_str())
+                || grant.resulting_claim_epoch != Some(claim.epoch)
+            {
+                return Err(anyhow!(
+                    "semantic projection claim executor authority disagrees"
+                ));
+            }
+        }
+        "recovery_authorization" => {
+            let auth = decode_one::<MemorySemanticProjectorRecoveryAuthorization>(
+                envelopes,
+                &claim.authority_id,
+            )?
+            .ok_or_else(|| anyhow!("semantic projection claim lost consumed recovery authority"))?;
+            validate_memory_semantic_projector_recovery_authorization(&auth)?;
+            let abandoned_attempt =
+                decode_one::<MemorySemanticProjectionAttempt>(envelopes, &auth.attempt_id)?
+                    .ok_or_else(|| anyhow!("semantic recovery authority lost abandoned attempt"))?;
+            validate_memory_semantic_projection_attempt(&abandoned_attempt)?;
+            if auth.authorization_id != claim.authority_id
+                || auth.scope_id != claim.scope_id
+                || auth.obligation_id != claim.obligation_id
+                || auth.replacement_executor_id != claim.executor_id
+                || auth.replacement_executor_incarnation != claim.executor_incarnation
+                || auth.resulting_claim_id.as_deref() != Some(claim.claim_id.as_str())
+                || auth.resulting_claim_epoch != Some(claim.epoch)
+                || abandoned_attempt.attempt_id != auth.attempt_id
+                || abandoned_attempt.obligation_id != auth.obligation_id
+                || abandoned_attempt.claim_id != auth.claim_id
+                || abandoned_attempt.claim_epoch != auth.claim_epoch
+                || abandoned_attempt.executor_id != auth.abandoned_executor_id
+                || abandoned_attempt.executor_incarnation != auth.abandoned_executor_incarnation
+                || abandoned_attempt.status != "failed"
+                || abandoned_attempt.completed_at.as_deref() != auth.consumed_at.as_deref()
+            {
+                return Err(anyhow!(
+                    "semantic projection claim recovery authority disagrees"
+                ));
+            }
+        }
+        _ => {
+            return Err(anyhow!(
+                "semantic projection claim authority kind is invalid"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn attempt_authenticates_claim(
+    attempt: &MemorySemanticProjectionAttempt,
+    claim: &MemorySemanticProjectionClaim,
+) -> bool {
+    attempt.attempt_id == claim.attempt_id
+        && attempt.obligation_id == claim.obligation_id
+        && attempt.claim_id == claim.claim_id
+        && attempt.claim_epoch == claim.epoch
+        && attempt.executor_id == claim.executor_id
+        && attempt.executor_incarnation == claim.executor_incarnation
+        && attempt.authority_id == claim.authority_id
+        && attempt.started_at == claim.claimed_at
+        && match (&attempt.completed_at, &claim.completed_at) {
+            (None, None) => true,
+            (Some(attempt_completed), Some(claim_completed)) => {
+                attempt_completed == claim_completed
+            }
+            _ => false,
+        }
 }
 
 fn terminal_or_recovery_cas(
@@ -786,6 +1759,7 @@ fn terminal_or_recovery_cas(
     claim: &MemorySemanticProjectionClaim,
     attempt: &MemorySemanticProjectionAttempt,
     mut replacements: Vec<CultCacheEnvelope>,
+    extra_expected: &[CultCacheEnvelope],
 ) -> Result<()> {
     let obligation = exact_envelope(
         opening,
@@ -803,10 +1777,11 @@ fn terminal_or_recovery_cas(
         &attempt.attempt_id,
     )?;
     replacements.push(obligation.clone());
-    if !SingleFileMessagePackBackingStore::new(store_path).compare_and_swap_batch(
-        &[obligation, claim_envelope, attempt_envelope],
-        replacements,
-    )? {
+    let mut expected = vec![obligation, claim_envelope, attempt_envelope];
+    expected.extend_from_slice(extra_expected);
+    if !SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&expected, replacements)?
+    {
         return Err(anyhow!(
             "semantic projection terminal transition lost exact CAS"
         ));
@@ -863,377 +1838,116 @@ fn validate_identity_and_time(identity: &str, time: &str) -> Result<()> {
     Ok(())
 }
 
-fn now_rfc3339() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+fn validate_opaque_identity(value: &str, label: &str) -> Result<()> {
+    if !is_opaque_identity(value) {
+        return Err(anyhow!("semantic projection {label} is invalid"));
+    }
+    Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION,
-        MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION, SEMANTIC_PROJECTION_SCHEMA_VERSION,
-    };
-    use tempfile::tempdir;
+fn is_opaque_identity(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+}
 
-    fn obligation() -> MemorySemanticProjectionObligation {
-        MemorySemanticProjectionObligation {
-            schema_version: MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION.to_string(),
-            obligation_id: "obligation-modeling-7".to_string(),
-            swarm_id: "swarm-a".to_string(),
-            partition: "modeling".to_string(),
-            canonical_source_id: "runtime/repo-model".to_string(),
-            source_commit_id: "admission-7".to_string(),
-            graph_id: "repo-model".to_string(),
-            source_generation: 7,
-            source_model_hash: "model-hash-7".to_string(),
-            canonical_content_set_hash: "content-set-7".to_string(),
-            projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
-            created_at: "2026-07-15T04:00:00Z".to_string(),
-        }
+fn valid_rfc3339(value: &str) -> bool {
+    chrono::DateTime::parse_from_rfc3339(value).is_ok()
+}
+
+fn validate_idunn_semantic_recovery_evidence(
+    evidence: &IdunnSemanticRecoveryEvidence,
+) -> Result<()> {
+    for (value, label) in [
+        (&evidence.issuer_incarnation, "issuer incarnation"),
+        (&evidence.lifecycle_intent_id, "lifecycle intent identity"),
+        (&evidence.lifecycle_intent_digest, "lifecycle intent digest"),
+        (&evidence.lifecycle_receipt_id, "lifecycle receipt identity"),
+        (
+            &evidence.lifecycle_receipt_digest,
+            "lifecycle receipt digest",
+        ),
+        (
+            &evidence.provider_heartbeat_id,
+            "provider heartbeat identity",
+        ),
+        (
+            &evidence.provider_heartbeat_digest,
+            "provider heartbeat digest",
+        ),
+        (&evidence.provider_incarnation, "provider incarnation"),
+        (&evidence.canonical_store_id, "canonical store identity"),
+        (&evidence.scope_id, "scope identity"),
+        (&evidence.swarm_id, "swarm identity"),
+        (&evidence.obligation_id, "obligation identity"),
+        (&evidence.claim_id, "claim identity"),
+        (
+            &evidence.abandoned_executor_incarnation,
+            "abandoned executor incarnation",
+        ),
+        (
+            &evidence.lifecycle_correlation_id,
+            "lifecycle correlation identity",
+        ),
+    ] {
+        validate_opaque_identity(value, label)?;
     }
-
-    fn source_head() -> MemorySemanticProjectionSourceHead {
-        let obligation = obligation();
-        MemorySemanticProjectionSourceHead {
-            swarm_id: obligation.swarm_id,
-            partition: obligation.partition,
-            canonical_source_id: obligation.canonical_source_id,
-            source_commit_id: obligation.source_commit_id,
-            graph_id: obligation.graph_id,
-            source_generation: obligation.source_generation,
-            source_model_hash: obligation.source_model_hash,
-            canonical_content_set_hash: obligation.canonical_content_set_hash,
-        }
+    if !valid_rfc3339(&evidence.lifecycle_receipt_completed_at)
+        || !valid_rfc3339(&evidence.provider_heartbeat_at)
+        || !matches!(evidence.partition.as_str(), "mind" | "modeling")
+        || evidence.claim_epoch == 0
+        || evidence.provider_incarnation == evidence.abandoned_executor_incarnation
+        || evidence.lifecycle_correlation_id != evidence.lifecycle_receipt_id
+        || !strictly_before(
+            &evidence.lifecycle_receipt_completed_at,
+            &evidence.provider_heartbeat_at,
+        )
+    {
+        return Err(anyhow!("semantic recovery evidence chronology is invalid"));
     }
+    Ok(())
+}
 
-    fn receipt() -> MemorySemanticIndexReceipt {
-        let obligation = obligation();
-        MemorySemanticIndexReceipt {
-            schema_version: MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
-            receipt_id: "receipt-modeling-7".to_string(),
-            swarm_id: obligation.swarm_id,
-            partition: obligation.partition,
-            collection_name: "modeling".to_string(),
-            graph_id: obligation.graph_id,
-            model_revision: obligation.source_generation,
-            model_hash: obligation.source_model_hash,
-            embedding_provider_id: "embedder".to_string(),
-            embedding_model: "model".to_string(),
-            vector_dimensions: 3,
-            indexed_document_count: 1,
-            deleted_document_count: 0,
-            canonical_content_set_hash: obligation.canonical_content_set_hash,
-            indexed_at: "2026-07-15T04:03:00Z".to_string(),
-            status: "ready".to_string(),
-            obligation_id: String::new(),
-            canonical_source_id: String::new(),
-            source_commit_id: String::new(),
-            source_generation: obligation.source_generation,
-            projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
-            claim_id: String::new(),
-            claim_epoch: 0,
-        }
+fn strictly_before(earlier: &str, later: &str) -> bool {
+    match (
+        chrono::DateTime::parse_from_rfc3339(earlier),
+        chrono::DateTime::parse_from_rfc3339(later),
+    ) {
+        (Ok(earlier), Ok(later)) => earlier < later,
+        _ => false,
     }
+}
 
-    fn receipt_for_claim(claim: &MemorySemanticProjectionClaim) -> MemorySemanticIndexReceipt {
-        MemorySemanticIndexReceipt {
-            obligation_id: claim.obligation_id.clone(),
-            claim_id: claim.claim_id.clone(),
-            claim_epoch: claim.epoch,
-            ..receipt()
-        }
+fn not_before(later: &str, earlier: &str) -> bool {
+    match (
+        chrono::DateTime::parse_from_rfc3339(later),
+        chrono::DateTime::parse_from_rfc3339(earlier),
+    ) {
+        (Ok(later), Ok(earlier)) => later >= earlier,
+        _ => false,
     }
+}
 
-    #[test]
-    fn scope_claim_recovery_fences_old_executor_and_terminalizes_exact_success() -> Result<()> {
-        let temp = tempdir()?;
-        let store = temp.path().join("projector.msgpack");
-        let obligation = obligation();
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.put(&obligation.obligation_id, &obligation)?;
-
-        let first = claim_memory_semantic_projection(
-            &store,
-            &obligation,
-            "executor-a",
-            "2026-07-15T04:01:00Z",
-        )?;
-        assert!(
-            claim_memory_semantic_projection(
-                &store,
-                &obligation,
-                "executor-a",
-                "2026-07-15T04:01:00Z"
-            )
-            .is_err(),
-            "executor labels are not reusable mutation capabilities"
-        );
-        assert!(
-            claim_memory_semantic_projection(
-                &store,
-                &obligation,
-                "executor-b",
-                "2026-07-15T04:01:01Z"
-            )
-            .is_err()
-        );
-        let recovered = recover_memory_semantic_projection_claim(
-            &store,
-            &first.claim_id,
-            "executor-b",
-            "2026-07-15T04:02:00Z",
-            "daemon restarted under operator recovery",
-        )?;
-        assert_eq!(recovered.epoch, first.epoch + 1);
-        assert!(
-            fail_memory_semantic_projection_claim(
-                &store,
-                &first.claim_id,
-                "2026-07-15T04:02:30Z",
-                "late old executor"
-            )
-            .is_err()
-        );
-
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.pull_all_backing_stores()?;
-        let authority_envelope = cache
-            .snapshot_envelopes()
-            .into_iter()
-            .find(|envelope| {
-                envelope.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
-                    && envelope.key == obligation.obligation_id
-            })
-            .expect("obligation envelope");
-        let bound = succeed_memory_semantic_projection_claim(
-            &store,
-            &recovered.claim_id,
-            &MemorySemanticProjectionAuthoritySnapshot {
-                head: source_head(),
-                envelopes: vec![authority_envelope],
-            },
-            receipt_for_claim(&recovered),
-            "2026-07-15T04:03:00Z",
-        )?;
-        assert_eq!(bound.obligation_id, obligation.obligation_id);
-
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.pull_all_backing_stores()?;
-        let terminal = cache
-            .get::<MemorySemanticProjectionClaim>(&recovered.scope_id)?
-            .expect("terminal claim");
-        assert_eq!(terminal.status, "succeeded");
-        let old_attempt = cache
-            .get::<MemorySemanticProjectionAttempt>(&first.attempt_id)?
-            .expect("fenced old attempt");
-        assert_eq!(old_attempt.status, "failed");
-        let new_attempt = cache
-            .get::<MemorySemanticProjectionAttempt>(&recovered.attempt_id)?
-            .expect("successful recovered attempt");
-        assert_eq!(new_attempt.status, "succeeded");
-
-        let repair_attempt = MemorySemanticProjectionAttempt {
-            schema_version: MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION.to_string(),
-            attempt_id: "repair-after-success".to_string(),
-            obligation_id: obligation.obligation_id.clone(),
-            started_at: "2026-07-15T04:04:00Z".to_string(),
-            completed_at: Some("2026-07-15T04:04:01Z".to_string()),
-            status: "failed".to_string(),
-            error: Some("observed cache corruption".to_string()),
-        };
-        cache.put(&repair_attempt.attempt_id, &repair_attempt)?;
-        assert!(
-            load_memory_semantic_projection_success(&store, &obligation, &source_head())?.is_none()
-        );
-        Ok(())
+fn ensure_strictly_before(earlier: &str, later: &str, message: &str) -> Result<()> {
+    if !strictly_before(earlier, later) {
+        return Err(anyhow!(message.to_string()));
     }
+    Ok(())
+}
 
-    #[test]
-    fn terminal_success_refuses_a_preexisting_receipt_identity_collision() -> Result<()> {
-        let temp = tempdir()?;
-        let store = temp.path().join("receipt-collision.msgpack");
-        let obligation = obligation();
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.put(&obligation.obligation_id, &obligation)?;
-        let claim = claim_memory_semantic_projection(
-            &store,
-            &obligation,
-            "executor-a",
-            "2026-07-15T04:01:00Z",
-        )?;
-        let mut collision = receipt_for_claim(&claim);
-        collision.status = "failed".to_string();
-        cache.put(&collision.receipt_id, &collision)?;
-        let authority_envelope = SingleFileMessagePackBackingStore::new(&store)
-            .pull_all()?
-            .into_iter()
-            .find(|envelope| {
-                envelope.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
-                    && envelope.key == obligation.obligation_id
-            })
-            .expect("obligation envelope");
-        assert!(
-            succeed_memory_semantic_projection_claim(
-                &store,
-                &claim.claim_id,
-                &MemorySemanticProjectionAuthoritySnapshot {
-                    head: source_head(),
-                    envelopes: vec![authority_envelope],
-                },
-                receipt_for_claim(&claim),
-                "2026-07-15T04:03:00Z",
-            )
-            .is_err()
-        );
-        Ok(())
+fn ensure_not_before(later: &str, earlier: &str, message: &str) -> Result<()> {
+    let later = chrono::DateTime::parse_from_rfc3339(later)
+        .map_err(|_| anyhow!("semantic projection later time must be RFC3339"))?;
+    let earlier = chrono::DateTime::parse_from_rfc3339(earlier)
+        .map_err(|_| anyhow!("semantic projection earlier time must be RFC3339"))?;
+    if later < earlier {
+        return Err(anyhow!(message.to_string()));
     }
+    Ok(())
+}
 
-    #[test]
-    fn succeeded_claim_with_missing_receipt_reopens_under_a_new_fence() -> Result<()> {
-        let temp = tempdir()?;
-        let store = temp.path().join("missing-receipt.msgpack");
-        let obligation = obligation();
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.put(&obligation.obligation_id, &obligation)?;
-        let claim = claim_memory_semantic_projection(
-            &store,
-            &obligation,
-            "executor-a",
-            "2026-07-15T04:01:00Z",
-        )?;
-        let authority_envelope = SingleFileMessagePackBackingStore::new(&store)
-            .pull_all()?
-            .into_iter()
-            .find(|envelope| {
-                envelope.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
-                    && envelope.key == obligation.obligation_id
-            })
-            .expect("obligation envelope");
-        let bound = succeed_memory_semantic_projection_claim(
-            &store,
-            &claim.claim_id,
-            &MemorySemanticProjectionAuthoritySnapshot {
-                head: source_head(),
-                envelopes: vec![authority_envelope],
-            },
-            receipt_for_claim(&claim),
-            "2026-07-15T04:03:00Z",
-        )?;
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.pull_all_backing_stores()?;
-        cache.delete::<MemorySemanticIndexReceipt>(&bound.receipt_id)?;
-        let terminal = cache
-            .get::<MemorySemanticProjectionClaim>(&claim.scope_id)?
-            .expect("succeeded claim");
-        let reopened = reopen_succeeded_projection_claim(
-            &store,
-            &terminal,
-            &obligation,
-            "executor-b",
-            "2026-07-15T04:04:00Z",
-        )?;
-        assert_eq!(reopened.status, "running");
-        assert_eq!(reopened.epoch, terminal.epoch + 1);
-        assert_ne!(reopened.claim_id, terminal.claim_id);
-        Ok(())
-    }
-
-    #[test]
-    fn readiness_refuses_receipt_namespace_substitution_and_invented_epoch() -> Result<()> {
-        let temp = tempdir()?;
-        let store = temp.path().join("receipt-namespace-substitution.msgpack");
-        let obligation = obligation();
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.put(&obligation.obligation_id, &obligation)?;
-        let claim = claim_memory_semantic_projection(
-            &store,
-            &obligation,
-            "executor-a",
-            "2026-07-15T04:01:00Z",
-        )?;
-        let authority_envelope = SingleFileMessagePackBackingStore::new(&store)
-            .pull_all()?
-            .into_iter()
-            .find(|envelope| {
-                envelope.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
-                    && envelope.key == obligation.obligation_id
-            })
-            .expect("obligation envelope");
-        let bound = succeed_memory_semantic_projection_claim(
-            &store,
-            &claim.claim_id,
-            &MemorySemanticProjectionAuthoritySnapshot {
-                head: source_head(),
-                envelopes: vec![authority_envelope],
-            },
-            receipt_for_claim(&claim),
-            "2026-07-15T04:03:00Z",
-        )?;
-
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.pull_all_backing_stores()?;
-        cache.delete::<MemorySemanticIndexReceipt>(&bound.receipt_id)?;
-        let mut substituted = bound.clone();
-        substituted.claim_id = "invented-claim".to_string();
-        cache.put(&substituted.receipt_id, &substituted)?;
-        assert!(
-            load_memory_semantic_projection_success(&store, &obligation, &source_head()).is_err()
-        );
-
-        cache.delete::<MemorySemanticIndexReceipt>(&substituted.receipt_id)?;
-        let mut invented_epoch = bound;
-        invented_epoch.claim_epoch = claim.epoch + 99;
-        cache.put(&invented_epoch.receipt_id, &invented_epoch)?;
-        assert!(
-            load_memory_semantic_projection_success(&store, &obligation, &source_head()).is_err()
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn readiness_refuses_succeeded_claim_with_substituted_attempt_obligation() -> Result<()> {
-        let temp = tempdir()?;
-        let store = temp.path().join("attempt-substitution.msgpack");
-        let obligation = obligation();
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.put(&obligation.obligation_id, &obligation)?;
-        let claim = claim_memory_semantic_projection(
-            &store,
-            &obligation,
-            "executor-a",
-            "2026-07-15T04:01:00Z",
-        )?;
-        let authority_envelope = SingleFileMessagePackBackingStore::new(&store)
-            .pull_all()?
-            .into_iter()
-            .find(|envelope| {
-                envelope.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
-                    && envelope.key == obligation.obligation_id
-            })
-            .expect("obligation envelope");
-        succeed_memory_semantic_projection_claim(
-            &store,
-            &claim.claim_id,
-            &MemorySemanticProjectionAuthoritySnapshot {
-                head: source_head(),
-                envelopes: vec![authority_envelope],
-            },
-            receipt_for_claim(&claim),
-            "2026-07-15T04:03:00Z",
-        )?;
-
-        let mut cache = semantic_projector_cache(&store)?;
-        cache.pull_all_backing_stores()?;
-        let mut attempt = cache
-            .get::<MemorySemanticProjectionAttempt>(&claim.attempt_id)?
-            .expect("terminal attempt");
-        cache.delete::<MemorySemanticProjectionAttempt>(&attempt.attempt_id)?;
-        attempt.obligation_id = "invented-obligation".to_string();
-        cache.put(&attempt.attempt_id, &attempt)?;
-        assert!(
-            load_memory_semantic_projection_success(&store, &obligation, &source_head()).is_err()
-        );
-        Ok(())
-    }
+fn now_rfc3339() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }

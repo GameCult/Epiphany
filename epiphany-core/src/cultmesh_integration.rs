@@ -22,7 +22,10 @@ use cultmesh_rs::CultMeshNodeOptions;
 use cultmesh_rs::cultmesh_documents;
 use serde::Serialize;
 use serde_json::Value;
+use sha2::Digest;
+use sha2::Sha256;
 use std::path::Path;
+use uuid::Uuid;
 
 pub const EPIPHANY_CULTMESH_STATUS_TYPE: &str = "epiphany.cultmesh.status";
 pub const EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION: &str = "epiphany.cultmesh.status.v0";
@@ -124,6 +127,10 @@ pub const EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION: &str =
 pub const EPIPHANY_CULTMESH_DAEMON_STATUS_TYPE: &str = "epiphany.cultmesh.daemon_status";
 pub const EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.daemon_status.v0";
+pub const EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_TYPE: &str =
+    "epiphany.cultmesh.daemon_heartbeat_event";
+pub const EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.daemon_heartbeat_event.v1";
 pub const EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_TYPE: &str = "epiphany.cultmesh.daemon_poke_intent";
 pub const EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.daemon_poke_intent.v1";
@@ -1216,6 +1223,34 @@ pub struct EpiphanyCultMeshDaemonStatusEntry {
     pub private_state_exposed: bool,
     #[cultcache(key = 11)]
     pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.daemon_heartbeat_event",
+    schema = "EpiphanyCultMeshDaemonHeartbeatEventEntry"
+)]
+pub struct EpiphanyCultMeshDaemonHeartbeatEventEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub heartbeat_id: String,
+    #[cultcache(key = 2)]
+    pub daemon_id: String,
+    #[cultcache(key = 3)]
+    pub cluster_id: String,
+    #[cultcache(key = 4)]
+    pub provider_incarnation: String,
+    #[cultcache(key = 5)]
+    pub sequence: u64,
+    #[cultcache(key = 6)]
+    pub status: String,
+    #[cultcache(key = 7)]
+    pub heartbeat_at: String,
+    #[cultcache(key = 8)]
+    pub private_state_exposed: bool,
+    #[cultcache(key = 9, default)]
+    pub startup_lifecycle_receipt_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -2584,6 +2619,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshEveConnectionReceiptEntry => EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshEveSurfaceStateEntry => EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonStatusEntry => EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION,
+    EpiphanyCultMeshDaemonHeartbeatEventEntry => EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonPokeIntentEntry => EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonPokeReceiptEntry => EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonRestartPolicyEntry => EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION,
@@ -3950,12 +3986,36 @@ pub fn load_latest_epiphany_cultmesh_daemon_poke_intent(
     node.get(EPIPHANY_CULTMESH_DAEMON_POKE_INTENT_LATEST_KEY)
 }
 
+pub fn load_epiphany_cultmesh_daemon_poke_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    intent_id: &str,
+) -> Result<Option<EpiphanyCultMeshDaemonPokeIntentEntry>> {
+    if intent_id.trim().is_empty() {
+        return Err(anyhow!("daemon poke intent identity is required"));
+    }
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(&epiphany_cultmesh_daemon_poke_intent_key(intent_id))
+}
+
 pub fn load_latest_epiphany_cultmesh_daemon_poke_receipt(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshDaemonPokeReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.get(EPIPHANY_CULTMESH_DAEMON_POKE_RECEIPT_LATEST_KEY)
+}
+
+pub fn load_epiphany_cultmesh_daemon_poke_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt_id: &str,
+) -> Result<Option<EpiphanyCultMeshDaemonPokeReceiptEntry>> {
+    if receipt_id.trim().is_empty() {
+        return Err(anyhow!("daemon poke receipt identity is required"));
+    }
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(&epiphany_cultmesh_daemon_poke_receipt_key(receipt_id))
 }
 
 pub fn write_epiphany_cultmesh_daemon_restart_policy(
@@ -7000,6 +7060,288 @@ pub fn write_epiphany_cultmesh_daemon_status(
     Ok(written)
 }
 
+fn epiphany_cultmesh_daemon_heartbeat_event_key(heartbeat_id: &str) -> String {
+    format!("epiphany-local/daemon-heartbeat/event/{heartbeat_id}")
+}
+
+fn epiphany_cultmesh_daemon_heartbeat_latest_key(daemon_id: &str) -> String {
+    format!("epiphany-local/daemon-heartbeat/{daemon_id}/latest")
+}
+
+pub fn write_epiphany_cultmesh_daemon_heartbeat_event(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    event: EpiphanyCultMeshDaemonHeartbeatEventEntry,
+) -> Result<EpiphanyCultMeshDaemonHeartbeatEventEntry> {
+    validate_daemon_heartbeat_event(&event)?;
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let event_key = epiphany_cultmesh_daemon_heartbeat_event_key(&event.heartbeat_id);
+    let latest_key = epiphany_cultmesh_daemon_heartbeat_latest_key(&event.daemon_id);
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+
+    for _ in 0..8 {
+        let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
+        if let Some(existing) = node.get::<EpiphanyCultMeshDaemonHeartbeatEventEntry>(&event_key)? {
+            return if existing == event {
+                Ok(existing)
+            } else {
+                Err(anyhow!(
+                    "immutable daemon heartbeat identity collision for {:?}",
+                    event.heartbeat_id
+                ))
+            };
+        }
+        let latest = node.get::<EpiphanyCultMeshDaemonHeartbeatEventEntry>(&latest_key)?;
+        let advances_latest = match latest.as_ref() {
+            Some(current) => daemon_heartbeat_advances(current, &event)?,
+            None => true,
+        };
+        let event_envelope = node.cache().prepare_entry(&event_key, &event)?.0;
+        let mut replacements = vec![event_envelope];
+        let mut expected = Vec::new();
+        if advances_latest {
+            if let Some(envelope) = node
+                .cache()
+                .get_envelope::<EpiphanyCultMeshDaemonHeartbeatEventEntry>(&latest_key)?
+            {
+                expected.push(envelope);
+            }
+            replacements.push(node.cache().prepare_entry(&latest_key, &event)?.0);
+        }
+        if backing.compare_and_swap_batch(&expected, replacements)? {
+            return Ok(event);
+        }
+    }
+    Err(anyhow!(
+        "daemon heartbeat latest advanced during publication"
+    ))
+}
+
+pub fn load_epiphany_cultmesh_daemon_heartbeat_event(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    heartbeat_id: &str,
+) -> Result<Option<EpiphanyCultMeshDaemonHeartbeatEventEntry>> {
+    validate_heartbeat_identifier("heartbeat", heartbeat_id)?;
+    open_epiphany_cultmesh_node(store_path, runtime_id)?
+        .get(&epiphany_cultmesh_daemon_heartbeat_event_key(heartbeat_id))
+}
+
+pub fn load_latest_epiphany_cultmesh_daemon_heartbeat(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    daemon_id: &str,
+) -> Result<Option<EpiphanyCultMeshDaemonHeartbeatEventEntry>> {
+    validate_heartbeat_identifier("daemon", daemon_id)?;
+    open_epiphany_cultmesh_node(store_path, runtime_id)?
+        .get(&epiphany_cultmesh_daemon_heartbeat_latest_key(daemon_id))
+}
+
+pub fn idunn_acquire_memory_semantic_projection_for_local_supervisor(
+    canonical_store: impl AsRef<Path>,
+    input: &crate::MemorySemanticProjectionInput,
+    executor_id: &str,
+    purpose: &str,
+    acquired_at: &str,
+) -> Result<crate::MemorySemanticProjectorAcquisition> {
+    crate::memory_graph::semantic_projector::idunn_acquire_memory_semantic_projection(
+        canonical_store,
+        input,
+        executor_id,
+        &format!("executor-{}", Uuid::new_v4()),
+        purpose,
+        &format!("idunn-{}", Uuid::new_v4()),
+        acquired_at,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn idunn_recover_memory_semantic_projection_from_cultmesh(
+    verse_store: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    canonical_store: impl AsRef<Path>,
+    input: &crate::MemorySemanticProjectionInput,
+    expected_claim_id: &str,
+    replacement_executor_id: &str,
+    lifecycle_receipt_id: &str,
+    provider_heartbeat_id: &str,
+    recovered_at: &str,
+) -> Result<(
+    crate::MemorySemanticProjectorRecoveryAuthorization,
+    crate::MemorySemanticProjectionClaim,
+)> {
+    let verse_store = verse_store.as_ref();
+    let runtime_id = runtime_id.into();
+    let canonical_store = canonical_store.as_ref();
+    crate::observe_memory_semantic_projection(canonical_store, input)?;
+
+    let node = open_epiphany_cultmesh_node(verse_store, runtime_id)?;
+    let receipt_key = epiphany_cultmesh_daemon_poke_receipt_key(lifecycle_receipt_id);
+    let receipt = node
+        .get::<EpiphanyCultMeshDaemonPokeReceiptEntry>(&receipt_key)?
+        .ok_or_else(|| anyhow!("Idunn recovery lifecycle receipt is absent"))?;
+    validate_daemon_poke_receipt(&receipt)?;
+    if receipt.receipt_id != lifecycle_receipt_id
+        || receipt.target_daemon_id != "epiphany-memory-semantic-projector"
+        || receipt.status != "restart-succeeded"
+        || receipt.resulting_status != "awaiting-provider-heartbeat"
+    {
+        return Err(anyhow!(
+            "Idunn recovery requires the exact successful awaiting-heartbeat receipt"
+        ));
+    }
+
+    let intent_key = epiphany_cultmesh_daemon_poke_intent_key(&receipt.intent_id);
+    let intent = node
+        .get::<EpiphanyCultMeshDaemonPokeIntentEntry>(&intent_key)?
+        .ok_or_else(|| anyhow!("Idunn recovery lifecycle intent is absent"))?;
+    validate_daemon_poke_intent(&intent)?;
+    if intent.intent_id != receipt.intent_id
+        || intent.target_daemon_id != receipt.target_daemon_id
+        || intent.target_cluster_id != receipt.target_cluster_id
+    {
+        return Err(anyhow!("Idunn recovery lifecycle chain disagrees"));
+    }
+
+    let heartbeat_key = epiphany_cultmesh_daemon_heartbeat_event_key(provider_heartbeat_id);
+    let heartbeat = node
+        .get::<EpiphanyCultMeshDaemonHeartbeatEventEntry>(&heartbeat_key)?
+        .ok_or_else(|| anyhow!("Idunn recovery provider heartbeat is absent"))?;
+    validate_daemon_heartbeat_event(&heartbeat)?;
+    if heartbeat.heartbeat_id != provider_heartbeat_id
+        || heartbeat.daemon_id != receipt.target_daemon_id
+        || heartbeat.cluster_id != receipt.target_cluster_id
+        || heartbeat.status != "ready"
+        || heartbeat.startup_lifecycle_receipt_id != receipt.receipt_id
+    {
+        return Err(anyhow!("Idunn recovery provider heartbeat disagrees"));
+    }
+    let receipt_completed = DateTime::parse_from_rfc3339(&receipt.completed_at_utc)?;
+    let heartbeat_at = DateTime::parse_from_rfc3339(&heartbeat.heartbeat_at)?;
+    if heartbeat_at <= receipt_completed {
+        return Err(anyhow!(
+            "Idunn recovery heartbeat must follow lifecycle completion"
+        ));
+    }
+
+    let intent_digest =
+        cultmesh_envelope_digest::<EpiphanyCultMeshDaemonPokeIntentEntry>(&node, &intent_key)?;
+    let receipt_digest =
+        cultmesh_envelope_digest::<EpiphanyCultMeshDaemonPokeReceiptEntry>(&node, &receipt_key)?;
+    let heartbeat_digest = cultmesh_envelope_digest::<EpiphanyCultMeshDaemonHeartbeatEventEntry>(
+        &node,
+        &heartbeat_key,
+    )?;
+    let evidence =
+        crate::memory_graph::semantic_projector::idunn_semantic_recovery_evidence_from_cultmesh(
+            canonical_store,
+            input,
+            expected_claim_id,
+            &format!("idunn-{}", Uuid::new_v4()),
+            &intent.intent_id,
+            &intent_digest,
+            &receipt.receipt_id,
+            &receipt_digest,
+            &receipt.completed_at_utc,
+            &heartbeat.heartbeat_id,
+            &heartbeat_digest,
+            &heartbeat.provider_incarnation,
+            &heartbeat.heartbeat_at,
+            &heartbeat.startup_lifecycle_receipt_id,
+        )?;
+    crate::memory_graph::semantic_projector::idunn_recover_memory_semantic_projection(
+        canonical_store,
+        input,
+        expected_claim_id,
+        replacement_executor_id,
+        &heartbeat.provider_incarnation,
+        &evidence,
+        recovered_at,
+    )
+}
+
+fn cultmesh_envelope_digest<T: DatabaseEntry>(node: &CultMeshNode, key: &str) -> Result<String> {
+    let envelope = node
+        .cache()
+        .get_envelope::<T>(key)?
+        .ok_or_else(|| anyhow!("authenticated CultMesh evidence envelope disappeared"))?;
+    let mut digest = Sha256::new();
+    digest.update(envelope.r#type.as_bytes());
+    digest.update([0]);
+    digest.update(envelope.key.as_bytes());
+    digest.update([0]);
+    digest.update(&envelope.payload);
+    Ok(format!("sha256-{:x}", digest.finalize()))
+}
+
+fn daemon_heartbeat_advances(
+    current: &EpiphanyCultMeshDaemonHeartbeatEventEntry,
+    candidate: &EpiphanyCultMeshDaemonHeartbeatEventEntry,
+) -> Result<bool> {
+    validate_daemon_heartbeat_event(current)?;
+    let current_time = DateTime::parse_from_rfc3339(&current.heartbeat_at)?;
+    let candidate_time = DateTime::parse_from_rfc3339(&candidate.heartbeat_at)?;
+    if current.provider_incarnation == candidate.provider_incarnation {
+        if candidate.sequence > current.sequence && candidate_time < current_time {
+            return Err(anyhow!(
+                "daemon heartbeat time regressed within provider incarnation"
+            ));
+        }
+        if candidate.sequence <= current.sequence {
+            return Ok(false);
+        }
+    }
+    Ok(
+        (candidate_time, candidate.sequence, &candidate.heartbeat_id)
+            > (current_time, current.sequence, &current.heartbeat_id),
+    )
+}
+
+fn validate_daemon_heartbeat_event(
+    event: &EpiphanyCultMeshDaemonHeartbeatEventEntry,
+) -> Result<()> {
+    if event.schema_version != EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION {
+        return Err(anyhow!("unsupported daemon heartbeat schema"));
+    }
+    validate_heartbeat_identifier("heartbeat", &event.heartbeat_id)?;
+    validate_heartbeat_identifier("daemon", &event.daemon_id)?;
+    validate_heartbeat_identifier("cluster", &event.cluster_id)?;
+    validate_heartbeat_identifier("provider incarnation", &event.provider_incarnation)?;
+    if !event.startup_lifecycle_receipt_id.is_empty() {
+        validate_heartbeat_identifier(
+            "startup lifecycle receipt",
+            &event.startup_lifecycle_receipt_id,
+        )?;
+    }
+    if event.sequence == 0 {
+        return Err(anyhow!("daemon heartbeat sequence must be positive"));
+    }
+    if !matches!(event.status.as_str(), "ready" | "degraded" | "stopping") {
+        return Err(anyhow!("invalid daemon heartbeat status"));
+    }
+    DateTime::parse_from_rfc3339(&event.heartbeat_at)
+        .context("daemon heartbeat requires RFC3339 heartbeat_at")?;
+    if event.private_state_exposed {
+        return Err(anyhow!("daemon heartbeat must not expose private state"));
+    }
+    Ok(())
+}
+
+fn validate_heartbeat_identifier(label: &str, value: &str) -> Result<()> {
+    if value.is_empty()
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return Err(anyhow!(
+            "daemon heartbeat requires a bounded opaque {label} id"
+        ));
+    }
+    Ok(())
+}
+
 fn validate_daemon_status(status: &EpiphanyCultMeshDaemonStatusEntry) -> Result<()> {
     if status.private_state_exposed {
         return Err(anyhow!("daemon statuses must not expose private state"));
@@ -7752,12 +8094,14 @@ mod tests {
         )?;
         assert_eq!(pending.status, "pending");
 
-        let claim = crate::memory_graph::semantic_projector::claim_memory_semantic_projection(
+        let claim = idunn_acquire_memory_semantic_projection_for_local_supervisor(
             &canonical,
-            input.obligation(),
+            &input,
             "executor-a",
+            "execute",
             "2026-07-15T12:01:00Z",
-        )?;
+        )?
+        .claim;
         let raw_receipt = crate::MemorySemanticIndexReceipt {
             schema_version: crate::MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
             receipt_id: "receipt-four-state".to_string(),
@@ -7800,18 +8144,14 @@ mod tests {
         assert_eq!(ready.status, "ready");
         assert!(ready.query_eligible_display_only);
 
-        let terminal_claim = crate::MemorySemanticProjectionClaim {
-            status: "succeeded".to_string(),
-            completed_at: Some("2026-07-15T12:02:01Z".to_string()),
-            ..claim.clone()
-        };
-        let repair = crate::memory_graph::semantic_projector::reopen_succeeded_projection_claim(
+        let repair = idunn_acquire_memory_semantic_projection_for_local_supervisor(
             &canonical,
-            &terminal_claim,
-            input.obligation(),
+            &input,
             "executor-b",
+            "repair",
             "2026-07-15T12:03:00Z",
-        )?;
+        )?
+        .claim;
         crate::memory_graph::semantic_projector::fail_memory_semantic_projection_claim(
             &canonical,
             &repair.claim_id,
@@ -10655,6 +10995,201 @@ mod tests {
                 .iter()
                 .any(|receipt| receipt
                     == EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_TYPE)
+        );
+        Ok(())
+    }
+
+    fn heartbeat_event(
+        heartbeat_id: &str,
+        incarnation: &str,
+        sequence: u64,
+        heartbeat_at: &str,
+    ) -> EpiphanyCultMeshDaemonHeartbeatEventEntry {
+        EpiphanyCultMeshDaemonHeartbeatEventEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION.to_string(),
+            heartbeat_id: heartbeat_id.to_string(),
+            daemon_id: "daemon-test".to_string(),
+            cluster_id: "cluster-test".to_string(),
+            provider_incarnation: incarnation.to_string(),
+            sequence,
+            status: "ready".to_string(),
+            heartbeat_at: heartbeat_at.to_string(),
+            private_state_exposed: false,
+            startup_lifecycle_receipt_id: String::new(),
+        }
+    }
+
+    #[test]
+    fn daemon_heartbeat_events_are_immutable_and_advance_latest_monotonically() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("daemon-heartbeats.ccmp");
+        let first = heartbeat_event("heartbeat-1", "incarnation-a", 1, "2026-07-15T12:00:00Z");
+        write_epiphany_cultmesh_daemon_heartbeat_event(&store, "runtime-test", first.clone())?;
+        assert_eq!(
+            load_epiphany_cultmesh_daemon_heartbeat_event(&store, "runtime-test", "heartbeat-1")?,
+            Some(first.clone())
+        );
+
+        let delayed = heartbeat_event(
+            "heartbeat-delayed",
+            "incarnation-a",
+            1,
+            "2026-07-15T11:59:59Z",
+        );
+        write_epiphany_cultmesh_daemon_heartbeat_event(&store, "runtime-test", delayed)?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_heartbeat(&store, "runtime-test", "daemon-test")?,
+            Some(first.clone())
+        );
+
+        let restarted = heartbeat_event("heartbeat-2", "incarnation-b", 1, "2026-07-15T12:00:01Z");
+        write_epiphany_cultmesh_daemon_heartbeat_event(&store, "runtime-test", restarted.clone())?;
+        assert_eq!(
+            load_latest_epiphany_cultmesh_daemon_heartbeat(&store, "runtime-test", "daemon-test")?,
+            Some(restarted)
+        );
+
+        let mut collision = first.clone();
+        collision.status = "degraded".to_string();
+        assert!(
+            write_epiphany_cultmesh_daemon_heartbeat_event(&store, "runtime-test", collision)
+                .expect_err("heartbeat identity is immutable")
+                .to_string()
+                .contains("identity collision")
+        );
+        let mut private = heartbeat_event(
+            "heartbeat-private",
+            "incarnation-b",
+            2,
+            "2026-07-15T12:00:02Z",
+        );
+        private.private_state_exposed = true;
+        assert!(
+            write_epiphany_cultmesh_daemon_heartbeat_event(&store, "runtime-test", private)
+                .expect_err("private heartbeat must be refused")
+                .to_string()
+                .contains("must not expose private state")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn semantic_recovery_requires_exact_correlated_restart_heartbeat_and_is_single_use()
+    -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let canonical = temp.path().join("canonical.msgpack");
+        let verse = temp.path().join("verse.ccmp");
+        let input = semantic_health_input(&canonical, "swarm-recovery", "mind", 1)?;
+        let claim = idunn_acquire_memory_semantic_projection_for_local_supervisor(
+            &canonical,
+            &input,
+            "executor-old",
+            "execute",
+            "2026-07-15T12:00:00Z",
+        )?
+        .claim;
+        let status = EpiphanyCultMeshDaemonStatusEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
+            daemon_id: "epiphany-memory-semantic-projector".to_string(),
+            cluster_id: "local".to_string(),
+            body_domain: "semantic-projection".to_string(),
+            daemon_surface_id: "daemon.semantic-projector".to_string(),
+            eve_surface_id: "eve.semantic-projector".to_string(),
+            status: "stale".to_string(),
+            last_heartbeat_utc: "2026-07-15T12:00:01Z".to_string(),
+            supported_actions: vec!["pokeDaemon".to_string()],
+            operator_action: "restart".to_string(),
+            private_state_exposed: false,
+            notes: Vec::new(),
+        };
+        let mut intent = epiphany_cultmesh_daemon_poke_intent_from_status(
+            "semantic-restart-intent-1",
+            "idunn",
+            &status,
+            "fence exact abandoned semantic projector claim",
+        );
+        intent.requested_at_utc = "2026-07-15T12:01:00Z".to_string();
+        write_epiphany_cultmesh_daemon_poke_intent(&verse, "runtime-test", intent.clone())?;
+        let mut receipt = epiphany_cultmesh_daemon_poke_receipt_for_intent(
+            "semantic-restart-receipt-1",
+            &intent,
+            "restart-succeeded",
+            "awaiting-provider-heartbeat",
+            "process://semantic-projector/exit/0",
+        );
+        receipt.attempted_at_utc = "2026-07-15T12:01:00Z".to_string();
+        receipt.completed_at_utc = "2026-07-15T12:02:00Z".to_string();
+        write_epiphany_cultmesh_daemon_poke_receipt(&verse, "runtime-test", receipt.clone())?;
+
+        let unrelated = EpiphanyCultMeshDaemonHeartbeatEventEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION.to_string(),
+            heartbeat_id: "semantic-heartbeat-unrelated".to_string(),
+            daemon_id: status.daemon_id.clone(),
+            cluster_id: status.cluster_id.clone(),
+            provider_incarnation: "provider-new".to_string(),
+            sequence: 1,
+            status: "ready".to_string(),
+            heartbeat_at: "2026-07-15T12:03:00Z".to_string(),
+            private_state_exposed: false,
+            startup_lifecycle_receipt_id: String::new(),
+        };
+        write_epiphany_cultmesh_daemon_heartbeat_event(&verse, "runtime-test", unrelated)?;
+        assert!(
+            idunn_recover_memory_semantic_projection_from_cultmesh(
+                &verse,
+                "runtime-test",
+                &canonical,
+                &input,
+                &claim.claim_id,
+                "executor-new",
+                &receipt.receipt_id,
+                "semantic-heartbeat-unrelated",
+                "2026-07-15T12:04:00Z",
+            )
+            .is_err()
+        );
+
+        let correlated = EpiphanyCultMeshDaemonHeartbeatEventEntry {
+            heartbeat_id: "semantic-heartbeat-correlated".to_string(),
+            sequence: 2,
+            startup_lifecycle_receipt_id: receipt.receipt_id.clone(),
+            ..heartbeat_event(
+                "semantic-heartbeat-template",
+                "provider-new",
+                2,
+                "2026-07-15T12:03:00Z",
+            )
+        };
+        let mut correlated = correlated;
+        correlated.daemon_id = status.daemon_id;
+        correlated.cluster_id = status.cluster_id;
+        write_epiphany_cultmesh_daemon_heartbeat_event(&verse, "runtime-test", correlated.clone())?;
+        let (_, recovered) = idunn_recover_memory_semantic_projection_from_cultmesh(
+            &verse,
+            "runtime-test",
+            &canonical,
+            &input,
+            &claim.claim_id,
+            "executor-new",
+            &receipt.receipt_id,
+            &correlated.heartbeat_id,
+            "2026-07-15T12:04:00Z",
+        )?;
+        assert_eq!(recovered.epoch, claim.epoch + 1);
+        assert_eq!(recovered.executor_incarnation, "provider-new");
+        assert!(
+            idunn_recover_memory_semantic_projection_from_cultmesh(
+                &verse,
+                "runtime-test",
+                &canonical,
+                &input,
+                &recovered.claim_id,
+                "executor-third",
+                &receipt.receipt_id,
+                &correlated.heartbeat_id,
+                "2026-07-15T12:05:00Z",
+            )
+            .is_err()
         );
         Ok(())
     }

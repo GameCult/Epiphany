@@ -1202,6 +1202,50 @@ mirror independently, and `epiphany-verse-query semantic-health` reads a named,
 compact report without touching canonical state. A stale sealed input is
 refused rather than published as if it described the current canonical head.
 
-Next: give Idunn typed executor grants, single-use fenced recovery authority,
-open-obligation discovery, and one packaged projector owner. CultMesh, Idunn,
-Eve, and Gjallar remain unable to mint semantic readiness.
+## Idunn semantic executor authority cut (2026-07-15)
+
+Executor labels no longer open semantic mutation authority. Idunn acquisition
+now atomically writes a consumed typed executor grant, a scope claim, and its
+running attempt against the exact persisted obligation and predecessor claim.
+The grant binds executor incarnation, purpose, Idunn incarnation, predecessor
+status/id/epoch, and resulting claim id/epoch. `execute` cannot repair a
+succeeded claim; `repair` requires that exact succeeded predecessor. The
+projector CLI now requires the acquired claim id and authenticates its consumed
+grant before Qdrant work or terminalization. Acquisition reauthenticates the
+whole sealed canonical input and carries its authority envelopes through the
+same CAS, so an old persisted obligation cannot mint against an advanced head.
+
+Fenced recovery now consumes typed evidence rather than free-form reason text.
+The CultMesh bridge authenticates the exact immutable Idunn poke intent and
+successful `awaiting-provider-heartbeat` receipt, plus a provider-authored ready
+heartbeat event that causally follows receipt completion and names the
+replacement provider incarnation. The heartbeat must also name that exact
+restart receipt as its startup cause. Their envelope digests enter a consumed
+recovery authorization. One CAS fails the abandoned attempt, advances the
+epoch, creates the replacement claim/attempt, and records that authorization.
+Recovery rotates authority only; it cannot execute projection or mint success.
+Provider heartbeat events are immutable and their latest pointer advances
+monotonically per daemon/incarnation.
+
+Authority map: canonical Mind/Modeling admission owns obligations; Idunn owns
+executor assignment and explicit recovery decision; the projector owns claim-
+bound mutation and terminal evidence; the query gate alone authenticates
+readiness. Health, liveness, timers, command exits, Qdrant state, CultMesh,
+Eve, and swarm overview remain derived sight and forbidden writers. Initial
+execution, retry, repair, and recovered execution share the same claim-
+authenticating projector primitive.
+
+Remaining limits: open-obligation discovery is not yet attached to the Idunn
+daemon, no single projector owner is packaged, canonical-store/Qdrant placement
+between local and Yggdrasil remains undecided, and local Qdrant remains
+overexposed. The low-level mint and recovery primitives are crate-private.
+Their public local-supervisor ports generate incarnations internally, but are
+still a trusted in-process boundary rather than authenticated OS IPC. Keep them
+inside one configured Idunn body until durable service identity owns them. Do
+not expose those ports to untrusted Verse peers. Do not deploy two projectors.
+
+Next: add a bounded Idunn pulse that discovers authenticated open Mind and
+Modeling obligations without creating demand, runs the same acquire/execute
+primitive, republishes sight independently, and reports provider readiness only
+after its own heartbeat. Then select and package exactly one deployment
+topology.

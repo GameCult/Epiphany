@@ -21,7 +21,7 @@ pub const MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION: &str =
 pub const MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_projection_obligation.v0";
 pub const MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION: &str =
-    "gamecult.epiphany.memory_semantic_projection_attempt.v0";
+    "gamecult.epiphany.memory_semantic_projection_attempt.v1";
 const MODELING_COLLECTION_DEFAULT: &str = "epiphany_modeling_v1";
 const MIND_COLLECTION_DEFAULT: &str = "epiphany_mind_v1";
 const QUERY_LIMIT_MAX: usize = 64;
@@ -159,6 +159,16 @@ pub struct MemorySemanticProjectionAttempt {
     pub status: String,
     #[cultcache(key = 6)]
     pub error: Option<String>,
+    #[cultcache(key = 7)]
+    pub claim_id: String,
+    #[cultcache(key = 8)]
+    pub claim_epoch: u64,
+    #[cultcache(key = 9)]
+    pub executor_id: String,
+    #[cultcache(key = 10)]
+    pub executor_incarnation: String,
+    #[cultcache(key = 11)]
+    pub authority_id: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -356,6 +366,11 @@ pub fn validate_memory_semantic_projection_attempt(
     }
     if attempt.attempt_id.trim().is_empty()
         || attempt.obligation_id.trim().is_empty()
+        || attempt.claim_id.trim().is_empty()
+        || attempt.claim_epoch == 0
+        || attempt.executor_id.trim().is_empty()
+        || attempt.executor_incarnation.trim().is_empty()
+        || attempt.authority_id.trim().is_empty()
         || attempt.started_at.trim().is_empty()
         || chrono::DateTime::parse_from_rfc3339(&attempt.started_at).is_err()
         || attempt
@@ -365,6 +380,14 @@ pub fn validate_memory_semantic_projection_attempt(
     {
         return Err(anyhow!(
             "semantic projection attempt is missing identity or time"
+        ));
+    }
+    if attempt.completed_at.as_deref().is_some_and(|completed_at| {
+        chrono::DateTime::parse_from_rfc3339(completed_at).ok()
+            < chrono::DateTime::parse_from_rfc3339(&attempt.started_at).ok()
+    }) {
+        return Err(anyhow!(
+            "semantic projection attempt completes before it starts"
         ));
     }
     match attempt.status.as_str() {
@@ -1347,6 +1370,11 @@ mod tests {
             completed_at: Some("2026-07-15T10:00:31Z".to_string()),
             status: "failed".to_string(),
             error: Some("qdrant unavailable".to_string()),
+            claim_id: "claim-7".to_string(),
+            claim_epoch: 1,
+            executor_id: "executor-a".to_string(),
+            executor_incarnation: "executor-a-incarnation".to_string(),
+            authority_id: "authority-a".to_string(),
         }
     }
 

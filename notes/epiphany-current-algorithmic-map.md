@@ -590,5 +590,59 @@ retaining pulse `completed`, iteration `1`, and lifecycle receipt
 No command args or routine payloads are projected. Next merge these rows into
 the main provider-owned Eve composition rather than keeping a specialist query only.
 
+## Semantic Projector Executor Authority
+
+Canonical Mind and Modeling admission own projection demand. Their transaction
+writes the exact semantic-projection obligation beside the canonical source
+head; neither Idunn nor the projector may invent that demand. Idunn owns the
+decision to assign an executor or fence an abandoned executor. The projector
+owns only the claim-bound Qdrant mutation, post-write observation, attempt
+terminalization, and exact success receipt.
+
+The execution chain is now:
+
+`canonical obligation -> Idunn acquisition CAS -> consumed executor grant + running claim/attempt -> epoch-isolated Qdrant synchronization -> canonical authority reauthentication -> terminal claim/attempt + exact receipt CAS`.
+
+Acquisition binds scope, obligation, executor identity and incarnation,
+purpose, Idunn incarnation, predecessor claim, and resulting claim epoch in one
+consumed typed grant. `execute` cannot reopen an exact succeeded claim;
+`repair` requires that exact predecessor. The execution CLI accepts a claim id,
+not an executor label, and authenticates the consumed authority behind the
+claim before touching Qdrant. Acquisition reauthenticates the complete sealed
+canonical input and carries its authority envelopes through the same CAS, so a
+persisted historical obligation cannot reopen an advanced source head.
+
+Running-claim recovery reloads the exact Idunn poke intent/receipt and a
+provider-authored immutable heartbeat event from CultMesh. It requires an
+`awaiting-provider-heartbeat` lifecycle result followed by a newer ready
+heartbeat for the replacement provider incarnation, hashes those source
+envelopes, requires the heartbeat to name the exact restart receipt as its
+startup cause, and consumes a typed recovery authorization in the same CAS that
+fails the abandoned attempt and advances the claim epoch. The old executor can
+thereafter write only its physically isolated abandoned Qdrant namespace and
+cannot terminalize the active CultCache claim.
+
+Projection health, elapsed time, process status, command exit, Qdrant counts,
+CultMesh mirrors, Eve, and swarm overview remain derived sight. They cannot
+create an obligation, grant, claim, attempt, success receipt, recovery, or
+query admission. Initial execution, retry, repair, and recovered execution all
+use the same claim-authenticating execution primitive; only acquisition and
+recovery differ in how Idunn establishes the claim authority.
+
+Verification covers concurrent acquisition with one winner and no issued
+litter, predecessor/epoch ordering, purpose separation, claim-authority
+authentication, evidence field substitution, lifecycle/heartbeat causal
+ordering, recovery single use, and the inability of the recovery command to
+execute projection work itself.
+
+Remaining limits are physical deployment, not permission for another adapter.
+There is no open-obligation daemon pulse or packaged single projector owner
+yet. The low-level mint and recovery primitives are crate-private. Their public
+local-supervisor ports generate incarnations internally, but remain trusted
+in-process ports rather than an OS-authenticated Idunn service boundary.
+Deployment must keep those ports inside one configured Idunn body until a
+durable authenticated service identity owns them. Canonical store and Qdrant
+placement must be chosen as one topology; dual projectors are forbidden.
+
 This map must change when ownership changes. Historical scars belong in git,
-evidence, or an explicitly archived note—not in the machine's proprioception.
+evidence, or an explicitly archived note—not in the machine's Modeling state.
