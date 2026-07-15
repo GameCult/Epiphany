@@ -756,13 +756,16 @@ watcher Dirty/Stale/Changed forces Regather. Path matches, status labels,
 worker-launch documents, coordinator rows, and CRRC recommendations are derived
 consumers and forbidden decision writers.
 
-Canonical RepoModel is the Modeling-owned body. Its exact revision/hash and
-Mind-issued `RepoModelAdmissionReceipt` are the only coherent identity boundary
-for a future Ready projection; the snapshot's typed source/lifecycle freshness
-is its pressure basis. `churn.graph_freshness`, the legacy graph checkpoint,
-generic thread patches, and unrelated thread revisions are forbidden readiness
-writers. Until canonical authority is supplied to a consumer, Unknown is the
-truthful result.
+Canonical RepoModel is the admitted map, not the repository Body. Its exact
+revision/hash and Mind-issued `RepoModelAdmissionReceipt` prove map identity
+only. Future Ready additionally requires a nervous-system-owned, continuity-
+bearing Body observation and retrieval coverage bound to the same source
+generation; Mind derives readiness from that exact join. Legacy graph
+checkpoints retain only checkpoint identity and frontier content; churn retains
+understanding and diff pressure. Neither can publish graph freshness or a graph
+revision. Generic thread patches, watcher silence, snapshot source metadata,
+and unrelated thread revisions are forbidden readiness writers. Until every
+authority is present and current, Unknown is the truthful result.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

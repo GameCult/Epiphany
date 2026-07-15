@@ -250,7 +250,6 @@ pub struct EpiphanyGraphFrontier {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyGraphCheckpoint {
     pub checkpoint_id: String,
-    pub graph_revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub summary: Option<String>,
@@ -431,9 +430,6 @@ pub struct EpiphanyEvidenceRecord {
 pub struct EpiphanyChurnState {
     pub understanding_status: String,
     pub diff_pressure: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub graph_freshness: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub warning: Option<String>,

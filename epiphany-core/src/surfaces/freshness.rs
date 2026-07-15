@@ -38,7 +38,6 @@ pub struct EpiphanyRetrievalFreshness {
 #[serde(rename_all = "camelCase")]
 pub enum EpiphanyGraphFreshnessStatus {
     Missing,
-    Ready,
     Stale,
 }
 
@@ -46,8 +45,6 @@ pub enum EpiphanyGraphFreshnessStatus {
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyGraphFreshness {
     pub status: EpiphanyGraphFreshnessStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub graph_freshness: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checkpoint_id: Option<String>,
     pub dirty_path_count: u32,
@@ -177,7 +174,6 @@ pub(super) fn graph_freshness(state: Option<&EpiphanyThreadState>) -> EpiphanyGr
     let Some(state) = state else {
         return EpiphanyGraphFreshness {
             status: EpiphanyGraphFreshnessStatus::Missing,
-            graph_freshness: None,
             checkpoint_id: None,
             dirty_path_count: 0,
             dirty_paths: Vec::new(),
@@ -198,10 +194,6 @@ pub(super) fn graph_freshness(state: Option<&EpiphanyThreadState>) -> EpiphanyGr
     let open_gap_count = frontier
         .map(|frontier| frontier.open_gap_ids.len() as u32)
         .unwrap_or_default();
-    let graph_freshness = state
-        .churn
-        .as_ref()
-        .and_then(|churn| churn.graph_freshness.clone());
     let has_pressure = dirty_path_count > 0 || open_question_count > 0 || open_gap_count > 0;
     let checkpoint_id = state
         .graph_checkpoint
@@ -223,7 +215,6 @@ pub(super) fn graph_freshness(state: Option<&EpiphanyThreadState>) -> EpiphanyGr
 
     EpiphanyGraphFreshness {
         status,
-        graph_freshness,
         checkpoint_id,
         dirty_path_count,
         dirty_paths,
@@ -397,7 +388,6 @@ fn epiphany_path_key(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_state_model::EpiphanyChurnState;
     use epiphany_state_model::EpiphanyCodeRef;
     use epiphany_state_model::EpiphanyGraphCheckpoint;
     use epiphany_state_model::EpiphanyGraphFrontier;
@@ -434,14 +424,10 @@ mod tests {
     }
 
     #[test]
-    fn legacy_checkpoint_and_current_hint_cannot_authorize_graph_ready() {
+    fn legacy_checkpoint_cannot_authorize_graph_ready() {
         let state = EpiphanyThreadState {
             graph_checkpoint: Some(EpiphanyGraphCheckpoint {
                 checkpoint_id: "graph-1".to_string(),
-                ..Default::default()
-            }),
-            churn: Some(EpiphanyChurnState {
-                graph_freshness: Some(" CURRENT ".to_string()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -457,7 +443,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_checkpoint_or_hint_alone_is_missing() {
+    fn legacy_checkpoint_alone_is_missing() {
         let checkpoint_only = EpiphanyThreadState {
             graph_checkpoint: Some(EpiphanyGraphCheckpoint {
                 checkpoint_id: "graph-1".to_string(),
@@ -465,40 +451,8 @@ mod tests {
             }),
             ..Default::default()
         };
-        let hint_only = EpiphanyThreadState {
-            churn: Some(EpiphanyChurnState {
-                graph_freshness: Some("fresh".to_string()),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        for state in [&checkpoint_only, &hint_only] {
-            let view = derive_freshness(EpiphanyFreshnessInput {
-                state: Some(state),
-                retrieval_override: None,
-                watcher: None,
-            });
-            assert_eq!(view.graph.status, EpiphanyGraphFreshnessStatus::Missing);
-        }
-    }
-
-    #[test]
-    fn legacy_noncurrent_hint_does_not_invent_staleness_without_pressure() {
-        let state = EpiphanyThreadState {
-            graph_checkpoint: Some(EpiphanyGraphCheckpoint {
-                checkpoint_id: "graph-1".to_string(),
-                ..Default::default()
-            }),
-            churn: Some(EpiphanyChurnState {
-                graph_freshness: Some("proposal-semantically-anchored".to_string()),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
         let view = derive_freshness(EpiphanyFreshnessInput {
-            state: Some(&state),
+            state: Some(&checkpoint_only),
             retrieval_override: None,
             watcher: None,
         });
@@ -507,14 +461,10 @@ mod tests {
     }
 
     #[test]
-    fn graph_pressure_overrides_current_hint_and_checkpoint() {
+    fn graph_pressure_makes_legacy_checkpoint_stale() {
         let state = EpiphanyThreadState {
             graph_checkpoint: Some(EpiphanyGraphCheckpoint {
                 checkpoint_id: "graph-1".to_string(),
-                ..Default::default()
-            }),
-            churn: Some(EpiphanyChurnState {
-                graph_freshness: Some("fresh".to_string()),
                 ..Default::default()
             }),
             graph_frontier: Some(EpiphanyGraphFrontier {

@@ -569,17 +569,6 @@ fn is_accepting_status(status: &str) -> bool {
 
 fn is_risky_delta(churn: &EpiphanyChurnState) -> bool {
     pressure_rank(&churn.diff_pressure) >= 2
-        || churn
-            .graph_freshness
-            .as_deref()
-            .map(|freshness| {
-                let freshness = freshness.trim().to_ascii_lowercase();
-                freshness.contains("broadened")
-                    || freshness.contains("expanded")
-                    || freshness.contains("semantic")
-                    || freshness.contains("updated")
-            })
-            .unwrap_or(false)
 }
 
 fn pressure_rank(value: &str) -> u8 {
@@ -865,7 +854,6 @@ mod tests {
             churn: Some(EpiphanyChurnState {
                 understanding_status: "grounded".to_string(),
                 diff_pressure: "low".to_string(),
-                graph_freshness: Some("fresh".to_string()),
                 ..Default::default()
             }),
             ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
@@ -897,7 +885,6 @@ mod tests {
             churn: Some(EpiphanyChurnState {
                 understanding_status: "proposal_updates_map".to_string(),
                 diff_pressure: "high".to_string(),
-                graph_freshness: Some("proposal-updated".to_string()),
                 ..Default::default()
             }),
             ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
@@ -913,24 +900,17 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_promotion_rejects_expanded_churn_even_with_low_pressure() {
+    fn evaluate_promotion_uses_diff_pressure_as_churn_risk_authority() {
         let decision = evaluate_promotion(EpiphanyPromotionInput {
             churn: Some(EpiphanyChurnState {
                 understanding_status: "proposal_expands_map".to_string(),
                 diff_pressure: "low".to_string(),
-                graph_freshness: Some("proposal-expanded".to_string()),
                 ..Default::default()
             }),
             ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
         });
 
-        assert!(!decision.accepted);
-        assert!(
-            decision
-                .reasons
-                .iter()
-                .any(|reason| reason.contains("patch.churn.warning"))
-        );
+        assert!(decision.accepted, "{:?}", decision.reasons);
     }
 
     #[test]
@@ -939,7 +919,6 @@ mod tests {
         input.churn = Some(EpiphanyChurnState {
             understanding_status: "proposal_refines_map".to_string(),
             diff_pressure: "medium".to_string(),
-            graph_freshness: Some("proposal-broadened".to_string()),
             warning: Some("Same-path broadening needs explicit verifier review.".to_string()),
             ..Default::default()
         });
@@ -962,7 +941,6 @@ mod tests {
         input.churn = Some(EpiphanyChurnState {
             understanding_status: "proposal_refines_map".to_string(),
             diff_pressure: "medium".to_string(),
-            graph_freshness: Some("proposal-expanded".to_string()),
             warning: Some("Expansion requires a real verifier kind.".to_string()),
             ..Default::default()
         });
@@ -985,7 +963,6 @@ mod tests {
             churn: Some(EpiphanyChurnState {
                 understanding_status: "proposal_refines_map".to_string(),
                 diff_pressure: "medium".to_string(),
-                graph_freshness: Some("proposal-semantically-anchored".to_string()),
                 warning: Some(
                     "Semantic anchoring was verified against source context.".to_string(),
                 ),

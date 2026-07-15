@@ -1,4 +1,4 @@
-use super::freshness::{EpiphanyGraphFreshnessStatus, graph_freshness};
+use super::freshness::graph_freshness;
 use epiphany_state_model::EpiphanyJobBinding;
 use epiphany_state_model::EpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -247,8 +247,9 @@ fn remap_job(state: Option<&EpiphanyThreadState>) -> EpiphanyJobView {
     };
 
     let freshness = graph_freshness(Some(state));
-    let needs_work = freshness.status != EpiphanyGraphFreshnessStatus::Ready;
-
+    // The legacy thread projection has no Body-generation witness and therefore
+    // cannot authorize a completed remap. Canonical readiness belongs to the
+    // future joined RepoModel/Body/retrieval authority.
     EpiphanyJobView {
         id: "graph-remap".to_string(),
         kind: EpiphanyJobKind::Remap,
@@ -256,11 +257,7 @@ fn remap_job(state: Option<&EpiphanyThreadState>) -> EpiphanyJobView {
         owner_role: "epiphany-core".to_string(),
         authority_scope: None,
         runtime_job_id: None,
-        status: if needs_work {
-            EpiphanyJobStatus::Needed
-        } else {
-            EpiphanyJobStatus::Idle
-        },
+        status: EpiphanyJobStatus::Needed,
         items_processed: None,
         items_total: None,
         progress_note: Some(freshness.note),
@@ -474,7 +471,6 @@ mod tests {
                 ..Default::default()
             }),
             churn: Some(EpiphanyChurnState {
-                graph_freshness: Some("ok".to_string()),
                 ..Default::default()
             }),
             ..Default::default()

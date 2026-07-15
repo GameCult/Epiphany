@@ -135,7 +135,6 @@ pub struct EpiphanySceneRecord {
 pub struct EpiphanySceneChurn {
     pub understanding_status: String,
     pub diff_pressure: String,
-    pub graph_freshness: Option<String>,
     pub warning: Option<String>,
     pub unexplained_writes: Option<u32>,
 }
@@ -279,7 +278,6 @@ pub fn derive_scene(input: EpiphanySceneInput<'_>) -> EpiphanyScene {
         churn: state.churn.as_ref().map(|churn| EpiphanySceneChurn {
             understanding_status: churn.understanding_status.clone(),
             diff_pressure: churn.diff_pressure.clone(),
-            graph_freshness: churn.graph_freshness.clone(),
             warning: churn.warning.clone(),
             unexplained_writes: churn.unexplained_writes,
         }),

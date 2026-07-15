@@ -335,10 +335,7 @@ fn append_frontier_lines(lines: &mut Vec<String>, frontier: &EpiphanyGraphFronti
 }
 
 fn append_checkpoint_lines(lines: &mut Vec<String>, checkpoint: &EpiphanyGraphCheckpoint) {
-    lines.push(format!(
-        "- Checkpoint: `{}` (graph revision {})",
-        checkpoint.checkpoint_id, checkpoint.graph_revision
-    ));
+    lines.push(format!("- Checkpoint: `{}`", checkpoint.checkpoint_id));
     if let Some(summary) = checkpoint.summary.as_deref() {
         lines.push(format!("- Checkpoint summary: {}", compact_text(summary)));
     }
@@ -596,12 +593,6 @@ fn render_churn(churn: Option<&EpiphanyChurnState>) -> Option<String> {
         ),
         format!("- Diff pressure: {}", compact_text(&churn.diff_pressure)),
     ];
-    if let Some(graph_freshness) = churn.graph_freshness.as_deref() {
-        lines.push(format!(
-            "- Graph freshness: {}",
-            compact_text(graph_freshness)
-        ));
-    }
     if let Some(warning) = churn.warning.as_deref() {
         lines.push(format!("- Warning: {}", compact_text(warning)));
     }
@@ -884,7 +875,6 @@ mod tests {
             }),
             graph_checkpoint: Some(EpiphanyGraphCheckpoint {
                 checkpoint_id: "cp-7".to_string(),
-                graph_revision: 7,
                 frontier_node_ids: vec!["arch-session".to_string()],
                 ..Default::default()
             }),
@@ -912,7 +902,6 @@ mod tests {
             churn: Some(EpiphanyChurnState {
                 understanding_status: "stable".to_string(),
                 diff_pressure: "low".to_string(),
-                graph_freshness: Some("fresh".to_string()),
                 warning: None,
                 unexplained_writes: Some(0),
             }),

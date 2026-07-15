@@ -934,7 +934,6 @@ fn reorient_retrieval_status(
 fn reorient_graph_status(status: EpiphanyGraphFreshnessStatus) -> EpiphanyReorientFreshnessStatus {
     match status {
         EpiphanyGraphFreshnessStatus::Missing => EpiphanyReorientFreshnessStatus::Unknown,
-        EpiphanyGraphFreshnessStatus::Ready => EpiphanyReorientFreshnessStatus::Clean,
         EpiphanyGraphFreshnessStatus::Stale => EpiphanyReorientFreshnessStatus::Stale,
     }
 }

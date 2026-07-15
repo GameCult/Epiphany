@@ -1595,8 +1595,8 @@ Retrieval `Ready` is Clean only when `dirty_paths` is empty; a Ready label with
 one or more dirty paths derives Stale and therefore cannot authorize Resume.
 The legacy thread graph projection cannot produce `Ready`. Explicit frontier
 dirty paths, open questions, or open gaps prove Stale; otherwise it is
-Missing/Unknown because checkpoint and `churn.graph_freshness` values have no
-legal Modeling writer and cannot see canonical RepoModel admission. A watcher
+Missing/Unknown because legacy checkpoint identity cannot see canonical
+RepoModel admission. A watcher
 with no buffered changes is also unknown/unavailable:
 there is no watcher generation, cursor, start boundary, or continuity receipt
 from which silence could prove cleanliness. Observed changes remain valid
@@ -1620,11 +1620,15 @@ Watcher silence, MVP mappings, jobs, worker launch, coordinator, and CRRC are
 forbidden readiness/action writers. All launch and operator paths share the
 same derivation and decision primitives.
 
-`churn.graph_freshness` and `graph_checkpoint.graph_revision` remain legacy
-data but own no readiness decision. Canonical RepoModel revision/hash plus its
-exact Mind-issued `RepoModelAdmissionReceipt` is the future Ready identity
-boundary; its typed source/lifecycle freshness supplies pressure. Do not build
-a bridge unless the canonical model and receipt are actual projection inputs.
+The ungrounded `churn.graph_freshness` and
+`graph_checkpoint.graph_revision` fields were deleted. Checkpoints retain
+identity and frontier content; churn retains understanding, diff, warning, and
+unexplained-write evidence. Canonical RepoModel revision/hash plus its exact
+Mind-issued `RepoModelAdmissionReceipt` proves only admitted map identity.
+Future Ready also requires a separate continuity-bearing Body observation and
+retrieval coverage bound to the same source generation; Mind derives the joined
+readiness projection. No current artifact proves that Body head. Do not build a
+bridge from snapshot metadata, watcher silence, or timestamps.
 
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real

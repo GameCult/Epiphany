@@ -215,12 +215,10 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
         code_refs,
     };
     let understanding_status = proposal_understanding_status(&delta);
-    let graph_freshness = proposal_graph_freshness(&delta);
     let diff_pressure = proposal_diff_pressure(&delta, input.state.churn.as_ref());
     let churn = EpiphanyChurnState {
         understanding_status,
         diff_pressure,
-        graph_freshness: Some(graph_freshness),
         warning: Some(format!(
             "Map/churn proposal derived from {selection_summary}; {}; promote only after verifier acceptance.",
             proposal_delta_summary(&delta)
@@ -988,23 +986,6 @@ fn proposal_understanding_status(delta: &MapDeltaJudgment) -> String {
     .to_string()
 }
 
-fn proposal_graph_freshness(delta: &MapDeltaJudgment) -> String {
-    if delta.has_mixed_delta() {
-        "proposal-updated"
-    } else if delta.created_nodes > 0 {
-        "proposal-expanded"
-    } else if delta.semantic_reuses > 0 {
-        "proposal-semantically-anchored"
-    } else if delta.same_path_reuses > 0 {
-        "proposal-broadened"
-    } else if delta.reused_nodes() > 0 {
-        "proposal-refined"
-    } else {
-        "proposal"
-    }
-    .to_string()
-}
-
 fn proposal_diff_pressure(
     delta: &MapDeltaJudgment,
     existing_churn: Option<&EpiphanyChurnState>,
@@ -1224,10 +1205,6 @@ mod tests {
             vec!["prompt-renderer".to_string()]
         );
         assert_eq!(proposal.churn.understanding_status, "proposal_refines_map");
-        assert_eq!(
-            proposal.churn.graph_freshness.as_deref(),
-            Some("proposal-refined")
-        );
     }
 
     #[test]
@@ -1310,10 +1287,6 @@ mod tests {
         .expect("proposal");
 
         assert_eq!(proposal.churn.diff_pressure, "low");
-        assert_eq!(
-            proposal.churn.graph_freshness.as_deref(),
-            Some("proposal-refined")
-        );
         assert!(
             proposal
                 .churn
@@ -1353,10 +1326,6 @@ mod tests {
         .expect("proposal");
 
         assert_eq!(proposal.churn.diff_pressure, "medium");
-        assert_eq!(
-            proposal.churn.graph_freshness.as_deref(),
-            Some("proposal-broadened")
-        );
         assert!(
             proposal
                 .churn

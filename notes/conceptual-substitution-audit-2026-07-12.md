@@ -1814,10 +1814,11 @@ watcher Dirty/Stale/Changed force Regather. Jobs, MVP mappings, worker launch,
 coordinator, and CRRC are derived consumers; graph-remap jobs now consume the
 same graph judgment instead of re-parsing the churn string.
 
-One scar remains open rather than laundered into completion:
-`churn.graph_freshness` is still free-form text and
-`graph_checkpoint.graph_revision` is not correlated with graph mutation. The
-final cut is one typed, revision-bearing Modeling freshness receipt that binds
-generation, checkpoint, verdict, and pressure basis. The immediate repair
-prevents absence from masquerading as readiness; it does not make split
-authority sacred.
+The ungrounded legacy freshness fields were deleted. Churn retains only its
+understanding, diff, warning, and unexplained-write evidence; graph checkpoints
+retain identity and frontier content. Neither structure can publish a revision
+or freshness verdict. A future Ready projection requires the exact canonical
+RepoModel revision/hash plus matching Mind admission, joined to a separate
+continuity-bearing Body observation and retrieval coverage for the same source
+generation. Modeling cannot certify its own freshness; Mind derives readiness
+from the joined authorities.
