@@ -26,6 +26,8 @@ pub enum WorkspaceCoverageDisposition {
     ExcludeGitlink,
     ExcludeSymlink,
     ExcludeUnsupportedKind,
+    ExcludeEmptyRegularFile,
+    ExcludeNonUtf8RegularFile,
     ExcludeOversize,
 }
 
@@ -62,7 +64,7 @@ pub struct WorkspaceCoverageClassification {
     type = "gamecult.epiphany.workspace_coverage_obligation",
     schema = "WorkspaceCoverageObligation"
 )]
-pub struct WorkspaceCoverageObligation {
+pub(crate) struct WorkspaceCoverageObligation {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
@@ -93,12 +95,59 @@ pub struct WorkspaceCoverageObligation {
     pub included_entry_count: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceCoverageChunkDescriptor {
+    pub body_path: String,
+    pub source_raw_sha256: String,
+    pub source_raw_byte_length: u64,
+    pub chunk_index: u32,
+    pub byte_start: u64,
+    pub byte_end: u64,
+    pub chunk_sha256: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceCoveragePlannedPoint {
+    pub point_id: String,
+    pub body_path: String,
+    pub source_raw_sha256: String,
+    pub source_raw_byte_length: u64,
+    pub chunk_index: u32,
+    pub byte_start: u64,
+    pub byte_end: u64,
+    pub chunk_sha256: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceCoveragePointPayload {
+    pub obligation_id: String,
+    pub projection_schema_version: String,
+    pub chunker_id: String,
+    pub body_path: String,
+    pub source_raw_sha256: String,
+    pub source_raw_byte_length: u64,
+    pub chunk_index: u32,
+    pub byte_start: u64,
+    pub byte_end: u64,
+    pub chunk_sha256: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceCoveragePointBinding {
+    pub point_id: String,
+    pub payload_sha256: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "gamecult.epiphany.workspace_coverage_projection_plan",
     schema = "WorkspaceCoverageProjectionPlan"
 )]
-pub struct WorkspaceCoverageProjectionPlan {
+pub(crate) struct WorkspaceCoverageProjectionPlan {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
@@ -110,19 +159,21 @@ pub struct WorkspaceCoverageProjectionPlan {
     #[cultcache(key = 4)]
     pub chunker_id: String,
     #[cultcache(key = 5)]
-    pub collection_name: String,
-    #[cultcache(key = 6)]
     pub embedding_provider_id: String,
-    #[cultcache(key = 7)]
+    #[cultcache(key = 6)]
     pub embedding_model: String,
-    #[cultcache(key = 8)]
+    #[cultcache(key = 7)]
     pub vector_dimensions: u32,
+    #[cultcache(key = 8)]
+    pub planned_points: Vec<WorkspaceCoveragePlannedPoint>,
     #[cultcache(key = 9)]
-    pub expected_point_ids: Vec<String>,
-    #[cultcache(key = 10)]
     pub expected_point_count: u64,
-    #[cultcache(key = 11)]
+    #[cultcache(key = 10)]
     pub expected_point_set_sha256: String,
+    #[cultcache(key = 11)]
+    pub point_bindings: Vec<WorkspaceCoveragePointBinding>,
+    #[cultcache(key = 12)]
+    pub point_binding_set_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -130,7 +181,7 @@ pub struct WorkspaceCoverageProjectionPlan {
     type = "gamecult.epiphany.workspace_coverage_receipt",
     schema = "WorkspaceCoverageReceipt"
 )]
-pub struct WorkspaceCoverageReceipt {
+pub(crate) struct WorkspaceCoverageReceipt {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
@@ -155,6 +206,12 @@ pub struct WorkspaceCoverageReceipt {
     pub observed_at: String,
     #[cultcache(key = 11)]
     pub observation_method: String,
+    #[cultcache(key = 12)]
+    pub observed_point_binding_set_sha256: String,
+    #[cultcache(key = 13)]
+    pub claim_id: String,
+    #[cultcache(key = 14)]
+    pub claim_epoch: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -162,7 +219,7 @@ pub struct WorkspaceCoverageReceipt {
     type = "gamecult.epiphany.workspace_coverage_head",
     schema = "WorkspaceCoverageHead"
 )]
-pub struct WorkspaceCoverageHead {
+pub(crate) struct WorkspaceCoverageHead {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
@@ -173,9 +230,19 @@ pub struct WorkspaceCoverageHead {
     pub plan_id: String,
     #[cultcache(key = 4)]
     pub receipt_id: String,
+    #[cultcache(key = 5)]
+    pub body_observation_id: String,
+    #[cultcache(key = 6)]
+    pub body_generation: u64,
+    #[cultcache(key = 7)]
+    pub manifest_root_sha256: String,
+    #[cultcache(key = 8)]
+    pub claim_id: String,
+    #[cultcache(key = 9)]
+    pub claim_epoch: u64,
 }
 
-pub fn derive_workspace_coverage_obligation(
+pub(crate) fn derive_workspace_coverage_obligation(
     runtime_store: &Path,
     basis: &RepositoryBodyObservationBasis,
     policy: &WorkspaceCoveragePolicy,
@@ -248,15 +315,53 @@ fn derive_workspace_coverage_obligation_from_authenticated_manifest(
     })
 }
 
+pub(crate) fn refine_workspace_coverage_obligation_utf8(
+    obligation: &WorkspaceCoverageObligation,
+    non_utf8_paths: &[String],
+) -> Result<WorkspaceCoverageObligation> {
+    if !non_utf8_paths.windows(2).all(|pair| pair[0] < pair[1]) {
+        bail!("non-UTF-8 Body paths must be unique and canonically ordered");
+    }
+    let mut refined = obligation.clone();
+    for path in non_utf8_paths {
+        let classification = refined
+            .classifications
+            .iter_mut()
+            .find(|entry| &entry.path == path)
+            .ok_or_else(|| anyhow!("non-UTF-8 path is absent from Body obligation"))?;
+        if classification.disposition != WorkspaceCoverageDisposition::IncludeRegularFile {
+            bail!("non-UTF-8 refinement may only demote an included regular file");
+        }
+        classification.disposition = WorkspaceCoverageDisposition::ExcludeNonUtf8RegularFile;
+    }
+    refined.included_entry_count = refined
+        .classifications
+        .iter()
+        .filter(|entry| entry.disposition == WorkspaceCoverageDisposition::IncludeRegularFile)
+        .count() as u64;
+    refined.classification_set_sha256 = digest(&refined.classifications)?;
+    refined.obligation_id = format!(
+        "workspace-coverage:{}",
+        digest(&(
+            &refined.body_binding_sha256,
+            &refined.body_observation_id,
+            &refined.manifest_root_sha256,
+            &refined.policy_sha256,
+            &refined.classification_set_sha256,
+        ))?
+    );
+    Ok(refined)
+}
+
 #[allow(clippy::too_many_arguments)]
-pub fn derive_workspace_coverage_projection_plan(
+pub(crate) fn derive_workspace_coverage_projection_plan(
     obligation: &WorkspaceCoverageObligation,
     projection_schema_version: &str,
     chunker_id: &str,
     embedding_provider_id: &str,
     embedding_model: &str,
     vector_dimensions: u32,
-    expected_point_ids: Vec<String>,
+    chunk_descriptors: Vec<WorkspaceCoverageChunkDescriptor>,
 ) -> Result<WorkspaceCoverageProjectionPlan> {
     if obligation.schema_version != WORKSPACE_COVERAGE_OBLIGATION_SCHEMA_VERSION
         || projection_schema_version.trim().is_empty()
@@ -264,50 +369,120 @@ pub fn derive_workspace_coverage_projection_plan(
         || embedding_provider_id.trim().is_empty()
         || embedding_model.trim().is_empty()
         || vector_dimensions == 0
-        || !strictly_ordered_nonempty(&expected_point_ids)
-        || (obligation.included_entry_count == 0) != expected_point_ids.is_empty()
+        || (obligation.included_entry_count == 0) != chunk_descriptors.is_empty()
     {
         bail!("workspace coverage projection plan is incomplete or noncanonical");
     }
-    let expected_point_count = expected_point_ids.len() as u64;
-    let expected_point_set_sha256 = digest(&expected_point_ids)?;
-    let collection_namespace_hash = digest(&(
-        &obligation.obligation_id,
-        projection_schema_version,
-        chunker_id,
-        embedding_provider_id,
-        embedding_model,
-        vector_dimensions,
-    ))?;
-    let collection_name = format!("epiphany_workspace_{}", &collection_namespace_hash[..40]);
+    let included = obligation
+        .classifications
+        .iter()
+        .filter(|entry| entry.disposition == WorkspaceCoverageDisposition::IncludeRegularFile)
+        .map(|entry| (entry.path.as_str(), entry))
+        .collect::<std::collections::HashMap<_, _>>();
+    let mut planned_points = Vec::with_capacity(chunk_descriptors.len());
+    let mut prior_descriptor: Option<(String, u32)> = None;
+    for descriptor in chunk_descriptors {
+        let Some(source) = included.get(descriptor.body_path.as_str()) else {
+            bail!("workspace coverage chunk does not name an included Body entry");
+        };
+        let valid_range = descriptor.byte_start < descriptor.byte_end
+            && descriptor.byte_end <= descriptor.source_raw_byte_length;
+        if descriptor.source_raw_sha256 != source.raw_sha256
+            || descriptor.source_raw_byte_length != source.raw_byte_length
+            || !sha256_hex(&descriptor.source_raw_sha256)
+            || !sha256_hex(&descriptor.chunk_sha256)
+            || !valid_range
+            || (prior_descriptor.is_none() && descriptor.chunk_index != 0)
+            || prior_descriptor.as_ref().is_some_and(|prior| {
+                if prior.0 == descriptor.body_path {
+                    prior.1.checked_add(1) != Some(descriptor.chunk_index)
+                } else {
+                    descriptor.body_path <= prior.0 || descriptor.chunk_index != 0
+                }
+            })
+        {
+            bail!("workspace coverage chunk descriptor disagrees with Body or canonical order");
+        }
+        prior_descriptor = Some((descriptor.body_path.clone(), descriptor.chunk_index));
+        let point_id = uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_URL,
+            rmp_serde::to_vec_named(&(
+                &obligation.obligation_id,
+                projection_schema_version,
+                chunker_id,
+                &descriptor,
+            ))?
+            .as_slice(),
+        )
+        .to_string();
+        planned_points.push(WorkspaceCoveragePlannedPoint {
+            point_id,
+            body_path: descriptor.body_path,
+            source_raw_sha256: descriptor.source_raw_sha256,
+            source_raw_byte_length: descriptor.source_raw_byte_length,
+            chunk_index: descriptor.chunk_index,
+            byte_start: descriptor.byte_start,
+            byte_end: descriptor.byte_end,
+            chunk_sha256: descriptor.chunk_sha256,
+        });
+    }
+    if included.values().any(|entry| {
+        !planned_points
+            .iter()
+            .any(|point| point.body_path == entry.path)
+    }) {
+        bail!("workspace coverage plan omits an included Body entry");
+    }
+    let mut point_ids = planned_points
+        .iter()
+        .map(|point| point.point_id.clone())
+        .collect::<Vec<_>>();
+    point_ids.sort();
+    let mut point_bindings = planned_points
+        .iter()
+        .map(|point| {
+            let payload = point_payload(obligation, projection_schema_version, chunker_id, point);
+            Ok(WorkspaceCoveragePointBinding {
+                point_id: point.point_id.clone(),
+                payload_sha256: digest(&payload)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    point_bindings.sort_by(|left, right| left.point_id.cmp(&right.point_id));
+    let expected_point_count = point_ids.len() as u64;
+    let expected_point_set_sha256 = digest(&point_ids)?;
+    let point_binding_set_sha256 = digest(&point_bindings)?;
     let identity = (
         &obligation.obligation_id,
         projection_schema_version,
         chunker_id,
-        &collection_name,
         embedding_provider_id,
         embedding_model,
         vector_dimensions,
-        &expected_point_ids,
+        &planned_points,
         &expected_point_set_sha256,
+        &point_bindings,
+        &point_binding_set_sha256,
     );
+    let plan_id = format!("workspace-coverage-plan:{}", digest(&identity)?);
     Ok(WorkspaceCoverageProjectionPlan {
         schema_version: WORKSPACE_COVERAGE_PROJECTION_PLAN_SCHEMA_VERSION.into(),
-        plan_id: format!("workspace-coverage-plan:{}", digest(&identity)?),
+        plan_id,
         obligation_id: obligation.obligation_id.clone(),
         projection_schema_version: projection_schema_version.into(),
         chunker_id: chunker_id.into(),
-        collection_name,
         embedding_provider_id: embedding_provider_id.into(),
         embedding_model: embedding_model.into(),
         vector_dimensions,
-        expected_point_ids,
+        planned_points,
         expected_point_count,
         expected_point_set_sha256,
+        point_bindings,
+        point_binding_set_sha256,
     })
 }
 
-pub fn validate_workspace_coverage_projection_plan(
+pub(crate) fn validate_workspace_coverage_projection_plan(
     obligation: &WorkspaceCoverageObligation,
     plan: &WorkspaceCoverageProjectionPlan,
 ) -> Result<()> {
@@ -318,7 +493,18 @@ pub fn validate_workspace_coverage_projection_plan(
         &plan.embedding_provider_id,
         &plan.embedding_model,
         plan.vector_dimensions,
-        plan.expected_point_ids.clone(),
+        plan.planned_points
+            .iter()
+            .map(|point| WorkspaceCoverageChunkDescriptor {
+                body_path: point.body_path.clone(),
+                source_raw_sha256: point.source_raw_sha256.clone(),
+                source_raw_byte_length: point.source_raw_byte_length,
+                chunk_index: point.chunk_index,
+                byte_start: point.byte_start,
+                byte_end: point.byte_end,
+                chunk_sha256: point.chunk_sha256.clone(),
+            })
+            .collect(),
     )?;
     if *plan != expected {
         bail!("workspace coverage projection plan identity or derived fields were altered");
@@ -326,34 +512,40 @@ pub fn validate_workspace_coverage_projection_plan(
     Ok(())
 }
 
-pub fn validate_workspace_coverage_receipt(
+pub(crate) fn validate_workspace_coverage_receipt(
     obligation: &WorkspaceCoverageObligation,
     plan: &WorkspaceCoverageProjectionPlan,
     receipt: &WorkspaceCoverageReceipt,
 ) -> Result<()> {
     validate_workspace_coverage_projection_plan(obligation, plan)?;
+    let expected_collection = workspace_coverage_execution_collection(
+        &plan.plan_id,
+        &receipt.claim_id,
+        receipt.claim_epoch,
+    )?;
     if receipt.schema_version != WORKSPACE_COVERAGE_RECEIPT_SCHEMA_VERSION
         || receipt.obligation_id != obligation.obligation_id
         || receipt.plan_id != plan.plan_id
         || receipt.receipt_id.trim().is_empty()
-        || receipt.collection_name != plan.collection_name
+        || receipt.collection_name != expected_collection
         || receipt.embedding_provider_id != plan.embedding_provider_id
         || receipt.embedding_model != plan.embedding_model
         || receipt.vector_dimensions != plan.vector_dimensions
         || receipt.observed_at.trim().is_empty()
-        || receipt.observation_method != "qdrant_scroll_exact_point_ids"
+        || receipt.observation_method != "qdrant_scroll_exact_point_bindings"
     {
         bail!("workspace coverage receipt lacks exact observed-index authority");
     }
     if receipt.observed_point_count != plan.expected_point_count
         || receipt.observed_point_set_sha256 != plan.expected_point_set_sha256
+        || receipt.observed_point_binding_set_sha256 != plan.point_binding_set_sha256
     {
         bail!("workspace coverage receipt does not prove the exact expected point set");
     }
     Ok(())
 }
 
-pub fn validate_workspace_coverage_head(
+pub(crate) fn validate_workspace_coverage_head(
     obligation: &WorkspaceCoverageObligation,
     plan: &WorkspaceCoverageProjectionPlan,
     receipt: &WorkspaceCoverageReceipt,
@@ -367,15 +559,54 @@ pub fn validate_workspace_coverage_head(
         || head.receipt_id != receipt.receipt_id
         || receipt.obligation_id != obligation.obligation_id
         || receipt.plan_id != plan.plan_id
+        || head.body_observation_id != obligation.body_observation_id
+        || head.body_generation != obligation.body_generation
+        || head.manifest_root_sha256 != obligation.manifest_root_sha256
+        || head.claim_id != receipt.claim_id
+        || head.claim_epoch != receipt.claim_epoch
     {
         bail!("workspace coverage head does not join one obligation to its exact receipt");
     }
     Ok(())
 }
 
-fn strictly_ordered_nonempty(values: &[String]) -> bool {
-    values.iter().all(|value| !value.trim().is_empty())
-        && values.windows(2).all(|pair| pair[0] < pair[1])
+pub fn workspace_coverage_execution_collection(
+    plan_id: &str,
+    claim_id: &str,
+    claim_epoch: u64,
+) -> Result<String> {
+    if plan_id.trim().is_empty() || uuid::Uuid::parse_str(claim_id).is_err() || claim_epoch == 0 {
+        bail!("workspace coverage execution collection requires plan and fenced UUID claim");
+    }
+    let namespace = digest(&(plan_id, claim_id, claim_epoch))?;
+    Ok(format!("epiphany_workspace_{}", &namespace[..40]))
+}
+
+fn point_payload(
+    obligation: &WorkspaceCoverageObligation,
+    projection_schema_version: &str,
+    chunker_id: &str,
+    point: &WorkspaceCoveragePlannedPoint,
+) -> WorkspaceCoveragePointPayload {
+    WorkspaceCoveragePointPayload {
+        obligation_id: obligation.obligation_id.clone(),
+        projection_schema_version: projection_schema_version.into(),
+        chunker_id: chunker_id.into(),
+        body_path: point.body_path.clone(),
+        source_raw_sha256: point.source_raw_sha256.clone(),
+        source_raw_byte_length: point.source_raw_byte_length,
+        chunk_index: point.chunk_index,
+        byte_start: point.byte_start,
+        byte_end: point.byte_end,
+        chunk_sha256: point.chunk_sha256.clone(),
+    }
+}
+
+fn sha256_hex(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn classify(
@@ -385,6 +616,9 @@ fn classify(
     let disposition = match entry.kind.as_str() {
         "gitlink_nonrecursive" => WorkspaceCoverageDisposition::ExcludeGitlink,
         "symlink_target" => WorkspaceCoverageDisposition::ExcludeSymlink,
+        "regular" if entry.raw_byte_length == 0 => {
+            WorkspaceCoverageDisposition::ExcludeEmptyRegularFile
+        }
         "regular" if entry.raw_byte_length > policy.maximum_file_bytes => {
             WorkspaceCoverageDisposition::ExcludeOversize
         }
@@ -445,6 +679,7 @@ mod tests {
             workspace_id: "workspace-1".into(),
             scope: "git_worktree".into(),
             entries: vec![
+                entry("a-empty", "regular", 0),
                 entry("a.rs", "regular", 12),
                 entry("b.bin", "regular", 101),
                 entry("c-link", "symlink_target", 3),
@@ -459,7 +694,11 @@ mod tests {
         assert_eq!(obligation.classifications.len(), manifest.entries.len());
         assert_eq!(obligation.included_entry_count, 1);
         assert_eq!(
-            obligation.classifications[1].disposition,
+            obligation.classifications[0].disposition,
+            WorkspaceCoverageDisposition::ExcludeEmptyRegularFile
+        );
+        assert_eq!(
+            obligation.classifications[2].disposition,
             WorkspaceCoverageDisposition::ExcludeOversize
         );
         Ok(())
@@ -496,11 +735,10 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn receipt_cannot_convert_counts_or_unobserved_points_into_coverage() -> Result<()> {
-        let obligation = WorkspaceCoverageObligation {
+    fn coverage_obligation(id: &str) -> WorkspaceCoverageObligation {
+        WorkspaceCoverageObligation {
             schema_version: WORKSPACE_COVERAGE_OBLIGATION_SCHEMA_VERSION.into(),
-            obligation_id: "obligation-1".into(),
+            obligation_id: id.into(),
             workspace_id: "workspace-1".into(),
             swarm_id: "swarm-1".into(),
             runtime_id: "runtime-1".into(),
@@ -511,10 +749,54 @@ mod tests {
             policy_id: "bounded_regular_files_v0".into(),
             policy_sha256: "policy".into(),
             classification_set_sha256: "classes".into(),
-            classifications: vec![],
-            included_entry_count: 2,
-        };
-        let points = vec!["point-a".to_string(), "point-b".to_string()];
+            classifications: vec![WorkspaceCoverageClassification {
+                path: "src/lib.rs".into(),
+                raw_sha256: "11".repeat(32),
+                raw_byte_length: 10,
+                disposition: WorkspaceCoverageDisposition::IncludeRegularFile,
+            }],
+            included_entry_count: 1,
+        }
+    }
+
+    fn chunks() -> Vec<WorkspaceCoverageChunkDescriptor> {
+        vec![
+            WorkspaceCoverageChunkDescriptor {
+                body_path: "src/lib.rs".into(),
+                source_raw_sha256: "11".repeat(32),
+                source_raw_byte_length: 10,
+                chunk_index: 0,
+                byte_start: 0,
+                byte_end: 5,
+                chunk_sha256: "22".repeat(32),
+            },
+            WorkspaceCoverageChunkDescriptor {
+                body_path: "src/lib.rs".into(),
+                source_raw_sha256: "11".repeat(32),
+                source_raw_byte_length: 10,
+                chunk_index: 1,
+                byte_start: 3,
+                byte_end: 10,
+                chunk_sha256: "33".repeat(32),
+            },
+        ]
+    }
+
+    fn plan(obligation: &WorkspaceCoverageObligation) -> Result<WorkspaceCoverageProjectionPlan> {
+        derive_workspace_coverage_projection_plan(
+            obligation,
+            "projection-v0",
+            "chunker-v0",
+            "provider",
+            "model",
+            3,
+            chunks(),
+        )
+    }
+
+    #[test]
+    fn receipt_and_head_cannot_substitute_payload_or_claim_authority() -> Result<()> {
+        let obligation = coverage_obligation("obligation-1");
         let plan = derive_workspace_coverage_projection_plan(
             &obligation,
             "projection-v0",
@@ -522,24 +804,31 @@ mod tests {
             "provider",
             "model",
             3,
-            points.clone(),
+            chunks(),
         )?;
+        let claim_id = uuid::Uuid::new_v4().to_string();
+        let claim_epoch = 7;
         let mut receipt = WorkspaceCoverageReceipt {
             schema_version: WORKSPACE_COVERAGE_RECEIPT_SCHEMA_VERSION.into(),
             receipt_id: "receipt-1".into(),
             obligation_id: obligation.obligation_id.clone(),
             plan_id: plan.plan_id.clone(),
-            collection_name: plan.collection_name.clone(),
+            collection_name: workspace_coverage_execution_collection(
+                &plan.plan_id,
+                &claim_id,
+                claim_epoch,
+            )?,
             embedding_provider_id: "provider".into(),
             embedding_model: "model".into(),
             vector_dimensions: 3,
-            observed_point_count: 2,
-            observed_point_set_sha256: digest(&points)?,
+            observed_point_count: plan.expected_point_count,
+            observed_point_set_sha256: plan.expected_point_set_sha256.clone(),
             observed_at: "now".into(),
-            observation_method: "claimed_upsert_count".into(),
+            observation_method: "qdrant_scroll_exact_point_bindings".into(),
+            observed_point_binding_set_sha256: plan.point_binding_set_sha256.clone(),
+            claim_id: claim_id.clone(),
+            claim_epoch,
         };
-        assert!(validate_workspace_coverage_receipt(&obligation, &plan, &receipt).is_err());
-        receipt.observation_method = "qdrant_scroll_exact_point_ids".into();
         assert!(validate_workspace_coverage_receipt(&obligation, &plan, &receipt).is_ok());
         let mut head = WorkspaceCoverageHead {
             schema_version: WORKSPACE_COVERAGE_HEAD_SCHEMA_VERSION.into(),
@@ -547,36 +836,34 @@ mod tests {
             obligation_id: obligation.obligation_id.clone(),
             plan_id: plan.plan_id.clone(),
             receipt_id: receipt.receipt_id.clone(),
+            body_observation_id: obligation.body_observation_id.clone(),
+            body_generation: obligation.body_generation,
+            manifest_root_sha256: obligation.manifest_root_sha256.clone(),
+            claim_id,
+            claim_epoch,
         };
         assert!(validate_workspace_coverage_head(&obligation, &plan, &receipt, &head).is_ok());
-        head.receipt_id = "some-other-receipt".into();
+        receipt.observed_point_binding_set_sha256 = "44".repeat(32);
+        assert!(validate_workspace_coverage_receipt(&obligation, &plan, &receipt).is_err());
+        receipt.observed_point_binding_set_sha256 = plan.point_binding_set_sha256.clone();
+        receipt.claim_epoch += 1;
+        assert!(validate_workspace_coverage_receipt(&obligation, &plan, &receipt).is_err());
+        receipt.claim_epoch = claim_epoch;
+        receipt.claim_id = "not-a-uuid".into();
+        assert!(validate_workspace_coverage_receipt(&obligation, &plan, &receipt).is_err());
+        receipt.claim_id = head.claim_id.clone();
+        head.claim_id = uuid::Uuid::new_v4().to_string();
         assert!(validate_workspace_coverage_head(&obligation, &plan, &receipt, &head).is_err());
-        head.receipt_id = receipt.receipt_id.clone();
         receipt.observation_method = "claimed_upsert_count".into();
         assert!(validate_workspace_coverage_head(&obligation, &plan, &receipt, &head).is_err());
-        receipt.observed_point_count = 1;
-        assert!(validate_workspace_coverage_receipt(&obligation, &plan, &receipt).is_err());
         Ok(())
     }
 
     #[test]
     fn projection_plan_seals_point_set_and_rejects_cross_obligation_use() -> Result<()> {
-        let mut obligation = WorkspaceCoverageObligation {
-            schema_version: WORKSPACE_COVERAGE_OBLIGATION_SCHEMA_VERSION.into(),
-            obligation_id: "obligation-a".into(),
-            workspace_id: "workspace-1".into(),
-            swarm_id: "swarm-1".into(),
-            runtime_id: "runtime-1".into(),
-            body_binding_sha256: "binding".into(),
-            body_observation_id: "workspace-1:1".into(),
-            body_generation: 1,
-            manifest_root_sha256: "manifest".into(),
-            policy_id: "bounded_regular_files_v0".into(),
-            policy_sha256: "policy".into(),
-            classification_set_sha256: "classes".into(),
-            classifications: vec![],
-            included_entry_count: 1,
-        };
+        let mut obligation = coverage_obligation("obligation-a");
+        let mut duplicate = chunks();
+        duplicate[1].chunk_index = 0;
         assert!(
             derive_workspace_coverage_projection_plan(
                 &obligation,
@@ -585,10 +872,12 @@ mod tests {
                 "provider",
                 "model",
                 3,
-                vec!["duplicate".into(), "duplicate".into()]
+                duplicate
             )
             .is_err()
         );
+        let mut invalid = chunks();
+        invalid[0].byte_end = 11;
         assert!(
             derive_workspace_coverage_projection_plan(
                 &obligation,
@@ -597,20 +886,13 @@ mod tests {
                 "provider",
                 "model",
                 3,
-                vec!["z".into(), "a".into()]
+                invalid
             )
             .is_err()
         );
-        let mut plan = derive_workspace_coverage_projection_plan(
-            &obligation,
-            "projection",
-            "chunker",
-            "provider",
-            "model",
-            3,
-            vec!["a".into(), "z".into()],
-        )?;
-        plan.expected_point_ids[1] = "y".into();
+        let mut plan = plan(&obligation)?;
+        assert!(uuid::Uuid::parse_str(&plan.planned_points[0].point_id).is_ok());
+        plan.planned_points[0].chunk_sha256 = "44".repeat(32);
         assert!(validate_workspace_coverage_projection_plan(&obligation, &plan).is_err());
         obligation.obligation_id = "obligation-b".into();
         assert!(validate_workspace_coverage_projection_plan(&obligation, &plan).is_err());
@@ -618,62 +900,17 @@ mod tests {
     }
 
     #[test]
-    fn collection_namespace_is_derived_from_body_and_embedding_authority() -> Result<()> {
-        let obligation = WorkspaceCoverageObligation {
-            schema_version: WORKSPACE_COVERAGE_OBLIGATION_SCHEMA_VERSION.into(),
-            obligation_id: "body-policy-epoch-a".into(),
-            workspace_id: "workspace-1".into(),
-            swarm_id: "swarm-1".into(),
-            runtime_id: "runtime-1".into(),
-            body_binding_sha256: "binding".into(),
-            body_observation_id: "workspace-1:1".into(),
-            body_generation: 1,
-            manifest_root_sha256: "manifest".into(),
-            policy_id: "bounded_regular_files_v0".into(),
-            policy_sha256: "policy".into(),
-            classification_set_sha256: "classes".into(),
-            classifications: vec![],
-            included_entry_count: 1,
-        };
-        let point_ids = vec!["point".into()];
-        let first = derive_workspace_coverage_projection_plan(
-            &obligation,
-            "projection",
-            "chunker",
-            "provider",
-            "model",
-            3,
-            point_ids.clone(),
-        )?;
-        let mut other_obligation = obligation.clone();
-        other_obligation.obligation_id = "body-policy-epoch-b".into();
-        let other_body = derive_workspace_coverage_projection_plan(
-            &other_obligation,
-            "projection",
-            "chunker",
-            "provider",
-            "model",
-            3,
-            point_ids.clone(),
-        )?;
-        let other_embedding = derive_workspace_coverage_projection_plan(
-            &obligation,
-            "projection",
-            "chunker",
-            "provider",
-            "model-v2",
-            4,
-            point_ids,
-        )?;
-        assert_ne!(first.collection_name, other_body.collection_name);
-        assert_ne!(first.plan_id, other_body.plan_id);
-        assert_ne!(first.collection_name, other_embedding.collection_name);
-        assert_ne!(first.plan_id, other_embedding.plan_id);
-        assert!(first.collection_name.starts_with("epiphany_workspace_"));
-        assert_eq!(
-            first.collection_name.len(),
-            "epiphany_workspace_".len() + 40
-        );
+    fn execution_claim_fences_collection_without_changing_plan() -> Result<()> {
+        let obligation = coverage_obligation("body-policy-epoch-a");
+        let first = plan(&obligation)?;
+        let claim_a = uuid::Uuid::new_v4().to_string();
+        let claim_b = uuid::Uuid::new_v4().to_string();
+        let collection_a = workspace_coverage_execution_collection(&first.plan_id, &claim_a, 1)?;
+        let collection_b = workspace_coverage_execution_collection(&first.plan_id, &claim_b, 2)?;
+        assert_ne!(collection_a, collection_b);
+        assert_eq!(first, plan(&obligation)?);
+        assert!(collection_a.starts_with("epiphany_workspace_"));
+        assert_eq!(collection_a.len(), "epiphany_workspace_".len() + 40);
         Ok(())
     }
 }

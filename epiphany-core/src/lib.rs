@@ -35,6 +35,12 @@ mod substrate_gate;
 mod surfaces;
 mod thread_state_store;
 mod weksa_interlingua;
+// Sealed foundation: intentionally unreachable until terminal success and
+// abandoned-claim recovery exist. Keeping the lint local makes that boundary
+// explicit without exporting mutation authority merely to silence dead-code.
+#[allow(dead_code)]
+mod workspace_coverage_projector;
+#[allow(dead_code)]
 mod workspace_retrieval_coverage;
 
 pub use agent_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;

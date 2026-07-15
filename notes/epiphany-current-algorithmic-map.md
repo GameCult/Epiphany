@@ -871,5 +871,39 @@ The next organ must own CAS persistence and execution: verify eligible bytes
 against the historical Body hashes, project, scroll-observe, then atomically
 publish the receipt/head. Until then coverage remains absent.
 
+### Projector authority map
+
+Coverage state belongs in the Repository Body CultCache store. That is the only
+existing lock domain able to CAS the exact Body head and its immutable evidence
+with coverage obligation, plan, claim, attempt, receipt, and head. The runtime
+store remains only the immutable route to that Body store. Qdrant mutation stays
+outside the transaction; a lost terminal CAS leaves disposable orphan vectors,
+not counterfeit readiness.
+
+The sealed execution path is acquire against the exact current Body chain,
+verify every included live file against its historical length and SHA-256,
+derive deterministic chunks and UUIDv5 point descriptors, embed and write into
+a claim/epoch-fenced plan collection, scroll the whole collection with typed
+payloads, then terminal-CAS success against the still-current Body head. Plans
+must seal an ID-to-payload binding root; equal counts or equal IDs do not prove
+the indexed content. Receipt/head constructors and writers remain projector-
+private. Live query eligibility re-observes Qdrant; a stored receipt proves only
+that one exact observation completed.
+
+The crate-private acquisition/failure foundation now exists but is deliberately
+not production-reachable. Acquisition rechecks the exact current Body chain,
+verifies historical bytes, excludes empty/oversize/non-UTF-8 files, derives the
+named UTF-8-safe 96-line/8-line-overlap chunks, and CAS-installs immutable
+obligation/plan plus a running claim/attempt in the Body store. Failure can
+terminalize the exact attempt after Body advance and cannot publish a receipt or
+head. There is no Qdrant actuator, terminal-success path, recovery path, service
+pulse, query gate, or readiness claim yet.
+
+The service shell remains an explicit design fork. Reusing the reserved memory
+semantic-projector process minimizes process machinery but risks mixing
+Mind/Modeling projection authority with repository Body coverage. A dedicated
+workspace-coverage projector preserves ownership more visibly. Do not wire a
+convenient CLI or generic job while this is unresolved.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

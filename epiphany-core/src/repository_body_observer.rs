@@ -175,6 +175,14 @@ pub struct RepositoryBodyManifest {
     pub entries: Vec<RepositoryBodyManifestEntry>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(dead_code)] // Sealed input for the not-yet-wired coverage projector.
+pub(crate) struct VerifiedRepositoryBodyBytes {
+    pub relative_path: String,
+    pub raw_sha256: String,
+    pub bytes: Vec<u8>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(type = "epiphany.repository_body.head", schema = "RepositoryBodyHead")]
 pub struct RepositoryBodyHead {
@@ -342,6 +350,116 @@ pub fn authenticated_repository_body_manifest(
     };
     let (_, manifest) = validate_body_chain(&entries, &binding, &historical_head)?;
     Ok(manifest)
+}
+
+#[allow(dead_code)] // Sealed input for the not-yet-wired coverage projector.
+pub(crate) fn read_verified_repository_body_bytes(
+    runtime_store: &Path,
+    basis: &RepositoryBodyObservationBasis,
+    relative_path: &str,
+) -> Result<VerifiedRepositoryBodyBytes> {
+    let manifest = authenticated_repository_body_manifest(runtime_store, basis)?;
+    validate_portable_relative_path(relative_path)?;
+    let entry = manifest
+        .entries
+        .iter()
+        .find(|entry| entry.path == relative_path)
+        .ok_or_else(|| {
+            anyhow!("path {relative_path:?} is not included in the historical Body manifest")
+        })?;
+    if entry.kind != "regular"
+        || (entry.git_mode != "100644" && entry.git_mode != "100755")
+        || entry.gitlink_oid.is_some()
+        || entry.raw_sha256.len() != 64
+        || !entry
+            .raw_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        bail!("historical Body entry {relative_path:?} is not an authenticated regular file");
+    }
+
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
+    let binding: RepositoryBodyBinding = decode(
+        find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+            .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?,
+    )?;
+    let root = std::fs::canonicalize(&binding.git_top_level)
+        .context("bound repository root is missing")?;
+    if root != PathBuf::from(&binding.git_top_level) {
+        bail!("bound repository root is no longer canonical");
+    }
+    let path = safe_worktree_path(&root, relative_path)?;
+    reject_reparse_or_symlink_components(&root, relative_path)?;
+    let resolved = std::fs::canonicalize(&path)
+        .with_context(|| format!("historical Body path {relative_path:?} is missing"))?;
+    if !resolved.starts_with(&root) || resolved != path {
+        bail!(
+            "historical Body path {relative_path:?} does not resolve canonically beneath its bound root"
+        );
+    }
+
+    let before = std::fs::symlink_metadata(&path)?;
+    if !before.file_type().is_file() || metadata_is_reparse_point(&before) {
+        bail!("historical Body path {relative_path:?} is no longer a regular file");
+    }
+    let bytes = std::fs::read(&path)
+        .with_context(|| format!("cannot read historical Body path {relative_path:?}"))?;
+    let after = std::fs::symlink_metadata(&path)?;
+    require_stable_metadata(relative_path, &before, &after)?;
+    if metadata_is_reparse_point(&after) || !after.file_type().is_file() {
+        bail!("historical Body path {relative_path:?} changed kind during raw read");
+    }
+    let actual_sha256 = format!("{:x}", Sha256::digest(&bytes));
+    if bytes.len() as u64 != entry.raw_byte_length || actual_sha256 != entry.raw_sha256 {
+        bail!(
+            "historical Body path {relative_path:?} bytes disagree with its authenticated manifest entry"
+        );
+    }
+    Ok(VerifiedRepositoryBodyBytes {
+        relative_path: relative_path.into(),
+        raw_sha256: actual_sha256,
+        bytes,
+    })
+}
+
+fn validate_portable_relative_path(path: &str) -> Result<()> {
+    if path.is_empty() || path.starts_with('/') || path.contains('\\') {
+        bail!("unsafe or non-portable Body path {path:?}");
+    }
+    if path
+        .split('/')
+        .any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        bail!("unsafe or non-portable Body path {path:?}");
+    }
+    Ok(())
+}
+
+fn reject_reparse_or_symlink_components(root: &Path, relative: &str) -> Result<()> {
+    let mut cursor = root.to_path_buf();
+    for component in relative.split('/') {
+        cursor.push(component);
+        let metadata = std::fs::symlink_metadata(&cursor)
+            .with_context(|| format!("historical Body path {relative:?} is missing"))?;
+        if metadata.file_type().is_symlink() || metadata_is_reparse_point(&metadata) {
+            bail!("historical Body path {relative:?} traverses a symlink or reparse point");
+        }
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn metadata_is_reparse_point(metadata: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    metadata.file_attributes() & 0x400 != 0
+}
+
+#[cfg(not(windows))]
+fn metadata_is_reparse_point(_: &std::fs::Metadata) -> bool {
+    false
 }
 
 pub fn observe_repository_body(
@@ -713,10 +831,29 @@ fn require_stable_metadata(
     if before.len() != after.len()
         || before.file_type() != after.file_type()
         || before.modified().ok() != after.modified().ok()
+        || !metadata_identity_matches(before, after)
     {
         bail!("indexed path {relative:?} changed during raw read");
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn metadata_identity_matches(before: &std::fs::Metadata, after: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    before.dev() == after.dev() && before.ino() == after.ino()
+}
+
+#[cfg(windows)]
+fn metadata_identity_matches(before: &std::fs::Metadata, after: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    before.creation_time() == after.creation_time()
+        && before.file_attributes() == after.file_attributes()
+}
+
+#[cfg(not(any(unix, windows)))]
+fn metadata_identity_matches(_: &std::fs::Metadata, _: &std::fs::Metadata) -> bool {
+    true
 }
 fn raw_entry(
     path: &str,
@@ -1248,6 +1385,99 @@ mod tests {
         );
         let policy = crate::WorkspaceCoveragePolicy::bounded_regular_files_v0(1024)?;
         assert!(crate::derive_workspace_coverage_obligation(&runtime, &basis, &policy).is_err());
+        Ok(())
+    }
+    #[test]
+    fn verified_body_bytes_match_authenticated_historical_entry() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (_, runtime) = bound(d.path(), state.path(), "verified", "runtime", "swarm")?;
+        std::fs::write(d.path().join("source.bin"), [0_u8, 255, 7, 9])?;
+        run(d.path(), &["add", "."])?;
+        let basis = observe_runtime_repository_body_basis(&runtime)?;
+        let verified = read_verified_repository_body_bytes(&runtime, &basis, "source.bin")?;
+        assert_eq!(verified.relative_path, "source.bin");
+        assert_eq!(verified.bytes, [0_u8, 255, 7, 9]);
+        assert_eq!(
+            verified.raw_sha256,
+            format!("{:x}", Sha256::digest(&verified.bytes))
+        );
+        Ok(())
+    }
+    #[test]
+    fn verified_body_bytes_refuse_changed_or_substituted_current_body() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (_, runtime) = bound(d.path(), state.path(), "verified", "runtime", "swarm")?;
+        write(&d.path().join("tracked"), "AAAA")?;
+        run(d.path(), &["add", "."])?;
+        let historical = observe_runtime_repository_body_basis(&runtime)?;
+
+        write(&d.path().join("tracked"), "BBBB")?;
+        assert!(
+            read_verified_repository_body_bytes(&runtime, &historical, "tracked")
+                .unwrap_err()
+                .to_string()
+                .contains("bytes disagree")
+        );
+        let advanced = observe_runtime_repository_body_basis(&runtime)?;
+        assert!(advanced.generation > historical.generation);
+        assert_eq!(
+            read_verified_repository_body_bytes(&runtime, &advanced, "tracked")?.bytes,
+            b"BBBB"
+        );
+
+        std::fs::remove_file(d.path().join("tracked"))?;
+        std::fs::create_dir(d.path().join("tracked"))?;
+        assert!(
+            read_verified_repository_body_bytes(&runtime, &advanced, "tracked")
+                .unwrap_err()
+                .to_string()
+                .contains("regular file")
+        );
+        Ok(())
+    }
+    #[test]
+    fn verified_body_bytes_refuse_noncanonical_and_nonmanifest_paths() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (_, runtime) = bound(d.path(), state.path(), "verified", "runtime", "swarm")?;
+        write(&d.path().join("tracked"), "body")?;
+        run(d.path(), &["add", "."])?;
+        let basis = observe_runtime_repository_body_basis(&runtime)?;
+        for path in [
+            "",
+            "/tracked",
+            "../tracked",
+            "a/../tracked",
+            "./tracked",
+            "a\\tracked",
+        ] {
+            assert!(read_verified_repository_body_bytes(&runtime, &basis, path).is_err());
+        }
+        assert!(read_verified_repository_body_bytes(&runtime, &basis, "untracked").is_err());
+        Ok(())
+    }
+    #[cfg(unix)]
+    #[test]
+    fn verified_body_bytes_refuse_symlink_substitution_and_parent_escape() -> Result<()> {
+        use std::os::unix::fs::symlink;
+
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        let (_, runtime) = bound(d.path(), state.path(), "verified", "runtime", "swarm")?;
+        std::fs::create_dir(d.path().join("inside"))?;
+        write(&d.path().join("inside/tracked"), "body")?;
+        run(d.path(), &["add", "."])?;
+        let basis = observe_runtime_repository_body_basis(&runtime)?;
+        std::fs::remove_file(d.path().join("inside/tracked"))?;
+        symlink("../.git/HEAD", d.path().join("inside/tracked"))?;
+        assert!(read_verified_repository_body_bytes(&runtime, &basis, "inside/tracked").is_err());
+
+        std::fs::remove_file(d.path().join("inside/tracked"))?;
+        std::fs::remove_dir(d.path().join("inside"))?;
+        symlink(".git", d.path().join("inside"))?;
+        assert!(read_verified_repository_body_bytes(&runtime, &basis, "inside/tracked").is_err());
         Ok(())
     }
     #[test]

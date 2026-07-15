@@ -1722,6 +1722,26 @@ eligible live bytes against the selected Body manifest, executes the sealed
 plan, scroll-observes the physical point set, and only then publishes the
 receipt and head.
 
+Projector ownership is now mapped before implementation. Persist all coverage
+state in the Repository Body store so terminal success can CAS against the exact
+current Body head; never create a runtime-store coverage oracle. Add a sealed
+claim/attempt lifecycle, verified historical-byte reads, deterministic UUIDv5
+point descriptors, and a plan-sealed ID-to-payload binding root. Whole-
+collection typed scroll must reject duplicate, extra, missing, or payload-
+mismatched points before terminal success. Qdrant writes outside the CAS may
+leave orphan namespaces after races or crashes, but those namespaces own no
+readiness.
+
+The sealed acquisition/failure foundation is now implemented but intentionally
+unwired. It authenticates current Body authority, verifies bytes, excludes
+empty/oversize/non-UTF-8 files, derives named UTF-8-safe line chunks, and CAS-
+installs immutable obligation/plan with a running claim/attempt in the Body
+store. Exact failure may terminalize after Body advance; no code can publish a
+coverage receipt/head. Next work must add observed-binding Qdrant execution,
+terminal-success CAS, and abandoned-claim recovery before choosing either a
+dedicated coverage service (preferred for ownership clarity) or a strictly
+separated lane in the reserved memory semantic-projector process. No CLI shim.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.
