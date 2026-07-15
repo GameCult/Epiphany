@@ -543,6 +543,15 @@ daemon heartbeat sight never claims an agent count. Restart-policy rows may say
 body. Prompt context names these as declared routes/targets. The deleted
 `unknown_daemon_status` constructor cannot put seven empty helmets on the roll.
 
+The Epiphany-local `bifrost-ledger` mouth is deleted. It assigned external owners
+and accounting closure from response-shaped documents found in a shared local
+store without authenticated provider ingress. Requester-owned publication and
+public-proof intents plus Persona feedback remain. Provider response absence now
+has no local closure or audit route. Do not restore a ledger projection until an
+ingress receipt binds provider identity/contract, transport session, exact
+payload hash/document id, correlation, target runtime/Verse, admission time, and
+verification result.
+
 ## Authority map
 
 - Request owners write intents and requests.

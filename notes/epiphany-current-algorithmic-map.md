@@ -24,10 +24,14 @@
 - Owner: the calling Hands/requester owns the body-change intent.
 - Inputs: repository, branch, change summary, justification, changed paths, verification/review receipt references, authors, and credit subjects.
 - Output: one persisted `gamecult.bifrost.body_change_publication_intent`; command status is `pending-bifrost`.
-- Derived sight: the Bifrost ledger shows the open request and attributes the intent row to `source_agent_id`.
+- Derived sight: requester-owned receipt-directory and publication surfaces show the pending intent and the absence of a provider response. There is no local Bifrost ledger or closure oracle.
 - Forbidden writers: the requester CLI no longer constructs or writes Bifrost acceptance, ledger attribution, GitHub publication, PR, commit, publication URL, or credit receipts.
 - Response owners: Bifrost may answer with its publication receipt; the GitHub publication adapter may answer only after real substrate evidence exists.
 - Negative proof: after request submission, latest intent is present while latest Bifrost publication and GitHub publication receipts are absent.
+- There is no Epiphany-local `bifrost-ledger` or accounting closure surface.
+  Missing provider response remains missing with no local follow-up command.
+  Provider closure requires a future authenticated provider ingress/admission
+  witness; typed local document presence is insufficient.
 
 ## Daemon tool request path (2026-07-12)
 

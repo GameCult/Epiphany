@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "service-tick", "managed-service-task-plan", "managed-service-task-install", "managed-service-task-status", "managed-service-task-start", "managed-service-task-stop", "managed-service-task-uninstall")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "service-tick", "managed-service-task-plan", "managed-service-task-install", "managed-service-task-status", "managed-service-task-start", "managed-service-task-stop", "managed-service-task-uninstall")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -32,7 +32,6 @@ param(
     [string]$BifrostReviewReceipt = "review-receipt-local-proof",
     [string]$BifrostAuthorAgent = "epiphany.Hands",
     [string]$BifrostCreditSubject = "epiphany.swarm",
-    [string]$BifrostLedgerEntryId = "bifrost-ledger-local-proof",
     [string]$BifrostPublicProofId = "",
     [string]$BifrostPublicProofPublicationReceiptId = "bifrost-public-proof-publication-local-proof",
     [string]$BifrostPublicProofReviewReceipt = "public-proof-review-local-proof",
@@ -582,7 +581,7 @@ Invoke-Checked `
     -StdoutPath (Join-Path $artifactRoot "operator-run-intent.stdout.json") `
     -StderrPath (Join-Path $artifactRoot "operator-run-intent.stderr.log")
 
-$compactOperatorContextModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "service-policy-directory")
+$compactOperatorContextModes = @("agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "service-policy-directory")
 $usesCompactOperatorContext = $compactOperatorContextModes -contains $Mode
 $shouldReadLocalVerse = $Mode -ne "smoke" -and -not $usesCompactOperatorContext
 if ($shouldReadLocalVerse -and $Mode -ne "status" -and $Mode -ne "mvp") {
@@ -1014,21 +1013,6 @@ if ($Mode -eq "repo-livefire-closure") {
         -WorkingDirectory $Root `
         -StdoutPath $resultPath `
         -StderrPath (Join-Path $artifactRoot "repo-livefire-closure.stderr.log")
-}
-
-if ($Mode -eq "bifrost-ledger") {
-    $resultPath = Join-Path $artifactRoot "bifrost-ledger.stdout.json"
-    Invoke-Checked `
-        -Label "read compact Bifrost ledger report" `
-        -FilePath $verseQueryExe `
-        -Arguments @(
-            "bifrost-ledger",
-            "--store", $localVerseReadStore,
-            "--runtime-id", $LocalVerseRuntimeId
-        ) `
-        -WorkingDirectory $Root `
-        -StdoutPath $resultPath `
-        -StderrPath (Join-Path $artifactRoot "bifrost-ledger.stderr.log")
 }
 
 if ($Mode -eq "receipt-directory") {
@@ -1856,26 +1840,6 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 $changedPaths = ($result.changedPaths -join ",")
             }
             Write-Host "Repo live-fire closure: status=$($result.status), item=$($result.item), branch=$($result.branch), commit=$($result.commitSha), family=$($result.safeActionFamily), paths=$changedPaths, gate=$($result.currentGate), blocker=$($result.blocker), publicationGate=$($result.publicationGate), soul=$($result.soulVerdict), mindCommit=$($result.mindStateCommitReceiptId), privateStateExposed=$($result.privateStateExposed)"
-        } elseif ($Mode -eq "bifrost-ledger") {
-            $ledgerRows = "none"
-            if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
-                $ledgerRows = ($result.tuiRows -join "; ")
-            }
-            $accountingRows = "none"
-            if ($null -ne $result.accountingTuiRows -and $result.accountingTuiRows.Count -gt 0) {
-                $accountingRows = ($result.accountingTuiRows -join "; ")
-            }
-            $publicRefs = "none"
-            if ($null -ne $result.rows -and $result.rows.Count -gt 0) {
-                $publicRefs = (($result.rows | ForEach-Object {
-                    $publicRef = $_.publicRef
-                    if ($null -eq $publicRef -or $publicRef -eq "") {
-                        $publicRef = "none"
-                    }
-                    "$($_.documentKind)=${publicRef}"
-                }) -join "; ")
-            }
-            Write-Host "Bifrost ledger: status=$($result.status), rows=$($result.rowCount), publicationChain=$($result.publicationChainCount), publicProofPublications=$($result.publicProofPublicationCount), artifactAcceptance=$($result.artifactAcceptanceReceiptCount), metrics=$($result.metricsReceiptCount), collaborationChain=$($result.collaborationChainCount), accountingRows=$($result.accountingRowCount), closedAccounting=$($result.closedAccountingRowCount), attentionAccounting=$($result.attentionAccountingRowCount), publicRefs=$publicRefs, accounting=$accountingRows, ledgerRows=$ledgerRows, privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "receipt-directory") {
             $artifactHashes = "none"
             $attentionRoutes = "none"

@@ -172,8 +172,6 @@ epiphany-work overview --workspace <repo> --item <id>
 epiphany-work readiness --workspace <repo> --item <id>
 epiphany-work tick --workspace <repo> --item <id>
 epiphany-work serve --workspace <repo> --item <id> --max-iterations <n>
-epiphany-work publish --workspace <repo> --closure-receipt <close-receipt>
-epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
 ```
 
 And produce a proof bundle showing:
@@ -1091,73 +1089,22 @@ The execute receipt produced a real branch-local commit on
 `epiphany/smoke/execute`, Hands patch/command/commit receipts,
 `publicationAuthorized=false`, and `privateStateExposed=false`.
 
-### Landed Work Publication Gate
+### Publication Boundary
 
-The ninth front door exists as native Rust:
+`epiphany-work` has no `publish` command. Repo-local work may produce reviewed
+Hands commit and closure receipts, but it cannot mint Bifrost publication,
+GitHub publication, pull-request, merge, or upstream-sync proof. Publication is
+requested through the requester-owned Bifrost intent surface and remains
+pending until authenticated provider ingress admits a response bound to the
+exact request and substrate evidence. Old publication smoke artifacts are
+historical rejected-path evidence, not a supported front door.
 
-```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- publish --workspace <repo> --item <id> --change-summary <text> --justification <text> --verification-receipt <ref> --review-receipt <ref> --ledger-entry-id <id> --pull-request-url <url> --pull-request-title <text>
-```
+### Upstream Sync Boundary
 
-It reads the named or latest work-adopt receipt, requires the Hands review to
-be approved, finds or accepts a Hands commit receipt for the adopted gate, then
-requires Soul verification refs and Mind or maintainer review refs before
-routing publication through Bifrost. The command writes Bifrost body-change
-publication intent, Bifrost publication receipt, Bifrost GitHub publication
-receipt, and a matching Hands PR receipt into the repo-local stores.
-
-This is publication routing, not merge authority:
-`publicationAuthorized=true`, `upstreamMainSynced=false`, and
-`mergeAuthorized=false`. Upstream main is not considered synced until a later
-merge/sync receipt proves it.
-
-The first smoke proved the publication sequence:
-
-```powershell
-epiphany-repo init --workspace <repo>
-epiphany-swarm online --workspace <repo>
-epiphany-work accept --workspace <repo> --from persona --item first-request
-epiphany-work run --workspace <repo> --item first-request
-epiphany-work adopt --workspace <repo> --item first-request --plan-summary '...' --adoption-evidence-ref 'imagination-consensus:repo-work-consensus-first-request'
-epiphany-work execute --workspace <repo> --item first-request --command '...' --changed-path README.md --commit-message '...'
-epiphany-work publish --workspace <repo> --item first-request --change-summary '...' --justification '...' --verification-receipt 'soul-verdict:...' --review-receipt 'mind-review:...' --ledger-entry-id 'bifrost-ledger:...' --pull-request-url 'https://...' --pull-request-title '...'
-```
-
-The publish receipt produced a Hands PR receipt, Bifrost publication receipt,
-GitHub publication receipt, `privateStateExposed=false`, and an explicit
-`upstreamMainSynced=false` guard.
-
-### Landed Upstream Sync Proof Gate
-
-The tenth front door exists as native Rust:
-
-```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-work -- sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
-```
-
-It reads the named or latest work-publish receipt, requires at least one
-explicit maintainer or Bifrost merge/sync receipt, resolves the published Hands
-commit and the configured upstream ref, and asks git whether the published
-commit is an ancestor of upstream main. It does not perform a merge. It writes
-`.epiphany/work/work-sync-<item>.json` with `upstreamMainSynced=true` only when
-git ancestry proves the published commit is contained by the upstream ref.
-
-The first smoke proved both sides of the gate:
-
-```powershell
-epiphany-work sync --workspace <repo> --item first-request --upstream-ref main --merge-receipt maintainer-merge:sync-smoke-pre
-# status: upstream-main-not-synced
-
-git switch main
-git merge --ff-only epiphany/smoke/sync
-
-epiphany-work sync --workspace <repo> --item first-request --upstream-ref main --merge-receipt maintainer-merge:sync-smoke-post
-# status: upstream-main-synced
-```
-
-The synced receipt produced `publicationAuthorized=true`,
-`upstreamMainSynced=true`, `mergeAuthorized=true`,
-`mergeAuthorityReceipts=[...]`, and `privateStateExposed=false`.
+`epiphany-work` has no `sync` command. It cannot mint merge authority or infer
+upstream publication truth from local git ancestry. Upstream synchronization
+requires authenticated provider/maintainer evidence admitted through a future
+typed ingress; old sync smoke artifacts are historical rejected-path evidence.
 
 ### Landed Work Scheduler Pulse
 
@@ -1324,19 +1271,17 @@ service lifecycle, or private-state authority. The final
 `privateStateExposed=false`. It still does not grant publication, merge,
 service lifecycle, cross-repo mutation, or private-state exposure authority.
 
-`epiphany-work publish --closure-receipt <work-close-...json>` can consume the
-Soul verdict and Mind state-commit ids from that closure receipt when explicit
-verification/review refs are not supplied. `epiphany-work tick` also recognizes
-an existing close receipt and no-ops before Bifrost publication authority, so
-Self cannot smuggle a local commit into public consequence.
+No repo-local command consumes that closure to mint publication receipts.
+`epiphany-work tick` recognizes an existing close receipt and no-ops before
+Bifrost publication authority, so Self cannot smuggle a local commit into
+public consequence.
 
 A fifth smoke proved the closure chain on a disposable fresh repo Body:
 `execute` recorded `branch-local-commit-recorded`, `close` returned
 `closed:passed`, Mind wrote
 `repo-work-close-close-request-mind-commit`,
-`publish --closure-receipt` consumed the Soul verdict and Mind commit ids,
 the next tick returned `noop:none`, and every receipt summary reported
-`privateStateExposed=false`.
+`privateStateExposed=false`; publication remained an external provider concern.
 
 A richer closure-review smoke proved the typed Soul/Modeling bridge:
 `.epiphany-smoke\closure-review-20260620-135009` ran init -> online -> accept
@@ -1549,15 +1494,15 @@ blocker, and next safe action, and writes
 agent-friendly rows plus an operator-safe proof bundle. The proof bundle is
 `epiphany.repo_work_proof_bundle.v0`; it carries bundle id, generated time,
 workspace, item, branch, current gate, blocker, next safe move, changed paths,
-commit SHA, Soul verdict, Mind state-commit id, Bifrost/GitHub publication ids
-when present, upstream-main sync status, compact TUI rows, and
+commit SHA, Soul verdict, Mind state-commit id, admitted external publication
+evidence when present, upstream-main sync status, compact TUI rows, and
 `privateStateExposed=false`. Its `artifactRows` enumerate the expected accept,
-plan, run, adopt, execute, close, publish, and sync receipts with expected path,
+plan, run, adopt, execute, close, externally admitted publication, and sync receipts with expected path,
 present/missing status, document schema, document status, SHA-256 hash when
 present, and private-state seal. Its `publicationRows` lift publication-stage
 proof into compact rows: Bifrost intent/publication/GitHub/ledger/credit/PR
-fields, Hands commit/PR fields, and upstream-main ancestry fields when publish
-or sync receipts exist. When the accept receipt names a local Verse store,
+fields, Hands commit/PR fields, and upstream-main ancestry fields when admitted
+provider or sync receipts exist. When the accept receipt names a local Verse store,
 overview also mirrors the compact overview rows as
 `epiphany.cultmesh.repo_work_overview.v0` under
 `gamecult-local/repo-work-overview/latest`, so Eve/Gjallar/Odin sight can read
@@ -1732,77 +1677,16 @@ repo-local Verse target. This is public-proof indexing only: it grants no
 durable-state commit, publication, PR, merge, upstream sync, deployment, service
 lifecycle, Hands action, cross-body mutation, or private-state authority.
 
-Bifrost public-proof publication transport is now the closure after local
-proof sight. `epiphany-verse-query bifrost-public-proof --public-proof-id <id>
---ledger-entry-id <id> --review-receipt <id> --credit-receipt <id>` selects an
-existing redacted `epiphany.cultmesh.repo_work_public_proof.v0` row, writes
-`gamecult.bifrost.public_proof_publication_receipt.v0`, requires the global
-public Verse target, public room, ledger, review, credit, public proof ref, and
-SHA-256, and refuses private-state exposure. `bifrost-ledger` now reports
-`publicProofPublicationCount` plus compact `public-proof-publication-receipt`
-rows, while `receipt-directory` exposes the same Bifrost-owned row with proof
-artifact ref/SHA. Disposable proof
-`.epiphany-smoke\checklist-note-20260620-031347\21-bifrost-public-proof-publication.json`
-published `repo-work-public-proof-checklist-request` to
-`cultmesh://epiphany-global/repo-work/public-proofs/repo-work-public-proof-checklist-request`;
-`22-bifrost-ledger-after-public-proof-publication.json` reported
-`publicProofPublicationCount=1`, latest receipt
-`bifrost-public-proof-publication-checklist-request`, `status=ok`, and
-`privateStateExposed=false`.
-
-Bifrost ledger readback now also emits derived external-work accounting rows
-without creating a rival ledger. `epiphany-verse-query bifrost-ledger` returns
-`accountingRows` and `accountingTuiRows` for `body-change-publication`,
-`public-proof-publication`, `repo-work-readiness-review`,
-`artifact-acceptance-request`, `metrics-request`, and
-`collaboration-consensus`, carrying closure status, ledger/receipt/public refs,
-review and credit receipt counts, artifact count, and the private-state seal.
-The readiness-review lane closes only when latest
-`epiphany.cultmesh.repo_work_readiness_review.v0` has four Maintainer/Soul/Mind/
-Bifrost review refs, `status=readiness-approved`, zero missing required rows, a
-present review artifact, readiness approval true, and durable-state,
-publication, PR, merge, upstream-sync, deployment, service lifecycle, Hands, and
-private-state authority all false. The accepted-artifact and metrics request
-lanes derive from Mind-admitted `epiphany.cultmesh.repo_work_map_entry.v0`
-branch work for safe families `repo.artifact_acceptance_request` and
-`repo.metrics_request`; they become `open` request-accounting sight with the
-latest Mind commit receipt, Bifrost gate, commit ref, closure review count, and
-changed-path artifact count, but they do not close final artifact acceptance,
-metrics, credit, publication, merge, upstream sync, deployment, service
-lifecycle, Hands, or private-state authority. Wrapper proof
-`local-20260621-091019-297-aaf2ad07` reported `accountingRows=3`,
-`closedAccounting=2`, `attentionAccounting=0`, closed body-change and
-collaboration rows, a visible missing public-proof-publication row, and
-`privateStateExposed=False`.
-Native proof `.epiphany-smoke\repo-work-readiness-20260621-120755` reported
-`bifrostReadinessReviewAccountingRow.status=closed`, `reviewReceiptCount=4`,
-`publicArtifactCount=1`, latest receipt
-`repo-work-readiness-review-repo-work-readiness`, and `privateStateExposed=false`;
-wrapper proof `local-20260621-131113-240-be2b19f2` printed the same closed
-`BIFROST-ACCOUNTING | repo-work-readiness-review` row from the explicit
-repo-local Verse target after the wrapper read path was corrected to use
-`-LocalVerseStore` / `-LocalVerseRuntimeId`.
-Focused request proofs
-`.epiphany-smoke\repo-artifact-acceptance-request-family-20260621-122343` and
-`.epiphany-smoke\repo-metrics-request-family-20260621-122503` reported
-`accountingRowCount=6`, an open `artifact-acceptance-request` or
-`metrics-request` row with `reviewReceiptCount=3`, `publicArtifactCount=1`,
-and `privateStateExposed=false`; wrapper proof
-`local-20260621-132626-365-878a1113` printed the open metrics request row from
-the repo-local Verse target.
-
-Wrapper mode `tools/epiphany_local_run.ps1 -Mode bifrost-public-proof` now
-exposes the same Bifrost mouth for operators and agents. It reads the latest
-repo-local public proof row from `<workspace>\.epiphany\local-verse.ccmp` when
-`-BifrostPublicProofId` is omitted, then writes the Bifrost receipt with
-explicit ledger/review/credit/public-room inputs and prints a compact summary.
-Wrapper proof `local-20260620-132418-144-62ba9369` against
-`.epiphany-smoke\checklist-note-20260620-031347` wrote
-`bifrost-public-proof-publication-wrapper-checklist`; ledger artifact
-`24-bifrost-ledger-after-wrapper-public-proof.json` reported
-`publicProofPublicationCount=1`, latest receipt
-`bifrost-public-proof-publication-wrapper-checklist`, and
-`privateStateExposed=false`.
+`epiphany-verse-query bifrost-public-proof --public-proof-id <id>` selects an
+existing redacted `epiphany.cultmesh.repo_work_public_proof.v0` row and records
+only the requester-owned pending publication intent. It does not accept or
+write Bifrost ledger, review, credit, publication, or receipt claims. Provider
+absence remains missing. Epiphany has no local `bifrost-ledger`, accounting
+closure, or wrapper mode that can convert document presence into provider
+acceptance. A future provider ingress must authenticate provider identity and
+contract, bind transport/session and correlation to the exact payload hash and
+document id, identify the target Verse/runtime, and persist an admission and
+verification witness before any provider response can close the request.
 
 The first Verse projection smoke proved the local CultMesh sight path: overview
 mirrored `repo-work-overview-verse-overview-request` into the repo-local Verse,
@@ -1908,18 +1792,17 @@ a receipt that says what happened without lying about who had authority.
 
 ## Full Migration Plan To Repo Swarm MVP
 
-This plan starts from the current state: seventeen native front doors exist,
-but the work loop is not yet a full physiology. `epiphany-repo init`,
+This plan starts from the current state: native front doors cover the
+branch-local loop, but it is not yet a full physiology. `epiphany-repo init`,
 `epiphany-swarm online`, `epiphany-swarm run`, `epiphany-work accept`,
 `epiphany-work persona-intake`, `epiphany-work derive-plan`,
 `epiphany-work plan`, `epiphany-work run`, `epiphany-work adopt`,
 `epiphany-work execute`, `epiphany-work close`, `epiphany-work overview`,
 `epiphany-work export-proof`, `epiphany-work tick`,
-`epiphany-work queue-run`, `epiphany-work publish`, and
-`epiphany-work sync` prove the typed path from repo birth to branch-local
-scheduler pulse, typed queue selection, Bifrost/GitHub publication receipts,
-redacted public proof export, compact proof-bundle sight, and upstream-main
-sync proof.
+`epiphany-work queue-run` proves the typed path from repo birth to branch-local
+scheduler pulse, typed queue selection, redacted public proof export, and
+compact proof-bundle sight. Publication and upstream sync are not repo-local
+commands or receipt-writing authorities.
 `tick` now also proves brake refusal, active-turn refusal,
 completion-anchored cooldown refusal, and stale active-turn recovery through
 typed scheduler receipts; `serve` now proves bounded cadence around that same
@@ -1982,9 +1865,9 @@ Yes: the machine is headed toward a functional repo swarm, and the current
 front doors are no longer decorative. They already prove repo birth, online
 local Verse projection, Persona/Bifrost intake, Imagination action-item
 receipts, branch-local Hands execution, deterministic Soul/Modeling/Mind
-closure, Gjallar-visible proof rows, Bifrost/GitHub publication receipts,
-redacted public-proof export, and upstream-main ancestry proof after explicit
-merge authority.
+closure, Gjallar-visible proof rows, pending publication intent, redacted
+public-proof export, and upstream-main ancestry proof after explicit merge
+authority and admitted external provider evidence.
 
 No: the machine is not yet Epiphany Online in the full MVP sense. The remaining
 gap is not "more permission prompts." The remaining gap is to make the
@@ -2018,9 +1901,9 @@ temptation wearing clean robes.
 | Self scheduling | `tick` and `serve` prove one-step branch-local advancement, brake refusal, active-turn refusal, cooldown, and stale-turn recovery; `tick` now routes executed branch-local work through the existing Soul/Modeling/Mind `close` gate; `queue-run` selects tick-actionable rows from the typed repo-work queue and delegates to `tick`; `epiphany-swarm run` is the bounded operator mouth over that queue/tick physiology; `repo-work-service-plan`, `repo-work-service-runbook`, `repo-work-service-launch`, and `repo-work-service-audit` write Idunn lifecycle receipts/artifacts for the same queue-run command and prove non-mutating launch/readiness closure. | Keep any future queue-run service install/start mutation behind Idunn and explicit elevated operator authority. |
 | Branch-local Hands work | `adopt` and `execute` create approved Hands gates, run planned commands, stage declared paths, commit on `epiphany/*`, and write receipts. | Keep mutation branch-contained and receipt-backed; broaden only through typed plan families, not ad hoc shell freedom. |
 | Soul/Modeling/Mind closure | `close` verifies the Hands commit, writes `epiphany.repo_work_closure_review.v0`, refuses path-scope mismatches, refuses missing/tampered/non-affirmative Mind adoption proof, runs known safe-family content assertions, optionally gates on model-authored closure verdicts, can require verification output to cite declared changed paths with `--require-source-grounding`, writes Soul/Modeling/Mind receipts, admits a compact typed repo map entry into `.epiphany/state/repo-work-map.msgpack`, and mirrors that admitted fact into local Verse as `epiphany.cultmesh.repo_work_map_entry.v0`. | Keep extending closure toward source-grounded semantic review and richer semantic map lenses, while preserving deterministic local closure for simple mechanical work. |
-| Repo work sight/review | `overview` emits compact proof rows, an `epiphany.repo_work_intake_consensus_readback.v0` from the accept/plan chain, and typed `epiphany.cultmesh.repo_work_overview.v0` event documents plus a latest key; `readiness` now emits `epiphany.repo_work_readiness_report.v0` and mirrors `epiphany.cultmesh.repo_work_readiness.v0` over the MVP proof rows, including Soul's safe-family planning matrix readback, Idunn repo-work service audit validation, Odin/Gjallar tool-directory validation, Bifrost/GitHub publication receipt-chain validation, and upstream-main sync receipt plus git ancestry validation while still granting no readiness approval; `readiness-review` consumes that ready sight receipt and four Maintainer/Soul/Mind/Bifrost review refs to write `epiphany.repo_work_readiness_review_receipt.v0` with readiness approval only, not action authority, mirrors `epiphany.cultmesh.repo_work_readiness_review.v0`, and is indexed by `receipt-directory` as `repo-work-readiness-review` with review artifact status/SHA-256 and private-state seal; `bifrost-ledger` now derives six accounting lanes, including open `artifact-acceptance-request` and `metrics-request` rows from Mind-admitted map entries without closing final Bifrost/maintainer acceptance or metrics authority; the CultMesh TUI rows include compact `CONSENSUS`, `REPO-WORK-READINESS`, readiness-review, and Bifrost accounting readbacks showing Persona/public feedback ids, Imagination consensus route, public/candidate ref counts, safe family, readiness gaps, readiness approval, request accounting, and authority denials without private payloads; `close` mirrors Mind-admitted map facts as `epiphany.cultmesh.repo_work_map_entry.v0`; Gjallar enumerates overview history, readiness rows, readiness-review rows, map rows, semantic rows, closure rows, family lens rows, path lens rows, branch lens rows, stage lens rows, gate lens rows, and public-proof rows without private-state exposure; Persona's Eve surface and Eve connection readbacks expose peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue for branch-local scheduler pulses. | Next useful cuts are final accepted-artifact/metrics ledger receipts, another repo-owned safe family, or explicit elevated Idunn execution only under operator authority. |
-| Publication | `publish` routes Bifrost/GitHub receipts from closure or explicit Soul/Mind refs. | Keep publication Bifrost-owned; do not let scheduler publish. |
-| Upstream main sync | `sync` proves the published commit is contained by upstream main after explicit merge/sync authority. | Treat upstream-main sync as a required final proof for published work. |
+| Repo work sight/review | `overview` emits compact proof rows, an `epiphany.repo_work_intake_consensus_readback.v0`, and typed `epiphany.cultmesh.repo_work_overview.v0` documents; `readiness` emits `epiphany.repo_work_readiness_report.v0` and mirrors typed readiness sight without granting approval; `readiness-review` records requester/reviewer evidence without impersonating provider closure; `receipt-directory` exposes pending intents and missing provider responses; `close` mirrors Mind-admitted map facts; Gjallar enumerates repo-work projections without private-state exposure; Persona's Eve surface exposes peer-readable gate/blocker/next-action rows; `queue-run` consumes the same overview queue. Epiphany has no local Bifrost ledger or accounting closure. | Add authenticated provider ingress before treating Bifrost/GitHub responses as accepted; otherwise extend repo-owned safe families or explicit elevated Idunn execution under operator authority. |
+| Publication | Requester-owned intents remain pending; no local command routes or mints Bifrost/GitHub receipts. | Add authenticated provider ingress without moving publication authority into the scheduler. |
+| Upstream main sync | No local command mints upstream-sync or merge truth. | Admit authenticated provider/maintainer sync evidence and verify substrate ancestry without treating ancestry alone as authority. |
 | Daemon survival | Idunn service lifecycle receipts and runbooks exist outside repo-work tick authority. | Preserve Idunn as lifecycle owner; repo swarm may request or inspect service state, not impersonate daemon keeping. |
 | Global tools | The daemon tool directory exposes globally invokable typed capabilities with host-owned execution receipts. | Ensure any agent can discover and request any authorized daemon-hosted tool through CultMesh without moving execution ownership into the caller. |
 
@@ -2188,7 +2071,8 @@ upstream-complete state only when:
 - The Hands commit being published is known.
 - The configured upstream ref, normally `origin/main`, resolves.
 - Git ancestry proves the Hands commit is contained by upstream main.
-- `epiphany-work sync` writes a receipt with `upstreamMainSynced=true`.
+- Authenticated provider/maintainer ingress admits a sync witness bound to the
+  exact commit and target ref; ancestry then verifies substrate containment.
 
 Until that proof exists, the compact gate should say publication or sync is
 still blocking. Do not let cheerful PR-shaped artifacts impersonate mainline
@@ -2208,7 +2092,7 @@ repo birth
   -> plan-backed branch-local execution and commit
   -> deterministic Soul/Modeling/Mind closure
   -> compact repo work overview/proof bundle
-  -> Bifrost/GitHub publication receipts
+  -> pending publication intent and authenticated provider ingress
   -> upstream-main ancestry proof after explicit merge receipt
 ```
 
@@ -2242,12 +2126,11 @@ The chain is typed and sealed enough to be useful:
   Eyes/Gjallar-owned sight rows plus a proof bundle for current gate, blocker,
   next safe action, branch, changed paths, commit, closure, publication, sync,
   and private-state seal.
-- `epiphany-work publish` requires Hands commit proof plus Soul and Mind/review
-  refs, or consumes those refs from a closure receipt, before routing
-  Bifrost/GitHub publication receipts; it does not claim merge or upstream sync.
-- `epiphany-work sync` requires an explicit maintainer/Bifrost merge receipt
-  and writes `upstreamMainSynced=true` only after git proves the published
-  commit is contained by upstream main.
+- Publication requests remain pending outside `epiphany-work`; only
+  authenticated provider ingress may admit Bifrost/GitHub publication receipts.
+- Upstream sync remains external until authenticated provider/maintainer
+  evidence is admitted and git proves the named commit is contained by the
+  named upstream ref.
 - `epiphany-work tick` is the first Self-owned scheduler pulse: it advances one
   safe branch-local step across plan-backed `run`, `adopt`, `execute`, or
   deterministic Soul/Modeling/Mind `close`, refuses under local Verse brake,
@@ -2578,9 +2461,9 @@ The intended MVP runbook is:
 epiphany-repo init --workspace <repo> --switch-branch
 epiphany-swarm online --workspace <repo>
 epiphany-persona intake --workspace <repo> --persona <id> --message <text>
-epiphany-swarm run --workspace <repo> --until blocked-or-published
-epiphany-work publish --workspace <repo> --item <id> ...
-epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
+epiphany-swarm run --workspace <repo> --until blocked
+# submit a requester-owned Bifrost publication intent; await authenticated provider ingress
+# await authenticated provider/maintainer sync admission and verify ancestry
 ```
 
 Under that short operator surface, the swarm must still emit the same typed
@@ -2626,9 +2509,10 @@ epiphany-repo init --switch-branch
   -> epiphany-work derive-plan --action-family repo-status-section
   -> epiphany-work overview
   -> epiphany-swarm run --max-iterations 4
-  -> epiphany-work publish --closure-receipt
+  -> requester-owned Bifrost publication intent
+  -> authenticated external publication admission
   -> maintainer merge simulated by pushing the Epiphany branch to disposable origin/main
-  -> epiphany-work sync --upstream-ref origin/main
+  -> authenticated provider/maintainer sync admission plus ancestry verification
   -> epiphany-work overview
   -> epiphany-work export-proof
 ```
@@ -2689,12 +2573,13 @@ Required cuts:
 MVP exit proof:
 
 ```powershell
-epiphany-work publish --workspace <repo> --item <id> ...
-epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <bifrost-or-maintainer-ref>
+# authenticated provider publication admission is already present
+# future authenticated sync-ingress command, followed by ancestry verification
 ```
 
-The proof bundle shows publication authorized, upstream main synced, merge
-authority traced to Bifrost or maintainer review, and no private-state exposure.
+The proof bundle shows admitted provider publication evidence, upstream main
+synced, merge authority traced to Bifrost or maintainer review, and no
+private-state exposure.
 
 ### Phase 2: Replace Operator Commands With Imagination Plans
 
@@ -2868,16 +2753,16 @@ epiphany-swarm online --workspace <repo>
 epiphany-persona intake --workspace <repo> --persona <id> --message <text>
 epiphany-work accept --workspace <repo> --item <id>
 epiphany-work adopt --workspace <repo> --item <id> --from-plan <plan-receipt>
-epiphany-swarm run --workspace <repo> --until blocked-or-published
-epiphany-work publish --workspace <repo> --item <id> ...
-epiphany-work sync --workspace <repo> --item <id> --upstream-ref origin/main --merge-receipt <ref>
+epiphany-swarm run --workspace <repo> --until blocked
+# requester publication intent, followed by authenticated provider admission
+# authenticated provider/maintainer sync admission plus ancestry verification
 ```
 
 MVP exit proof:
 
 - The repo has an Epiphany branch with real commits.
 - The branch has Hands, Soul, Modeling, and Mind receipts.
-- The work item has Bifrost publication and upstream sync proof.
+- The work item has authenticated external Bifrost publication admission and upstream sync proof.
 - The repo Persona remains the human-facing surface.
 - The proof bundle says `privateStateExposed=false`.
 - Ambient daemon/tool availability is visible through Gjallar/Odin, while

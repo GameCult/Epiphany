@@ -30,9 +30,8 @@ A substitution is confirmed when all three are true:
 
 ## Plausible risks requiring a later focused audit
 
-- `bifrost-ledger` is presently a local aggregation over locally writable
-  Bifrost-shaped receipts. Its report logic is harmless only after receipt
-  provenance is repaired; until then the name overstates its authority.
+- The former `bifrost-ledger` local aggregation was confirmed corrupt and has
+  been deleted; see the resolution below.
 - Static cluster topology equates seven logical faculties with seven deployed
   daemons and private Verses. This may be an intended deployment model, but
   current source proves the topology declaration, not seven running bodies.
@@ -94,6 +93,23 @@ daemons. The prompt labels topology addresses as declared. A daemon heartbeat
 does not prove an agent exists, so the overview carries no derived agent count.
 Negative proof is now structural: seven declared targets plus no heartbeat
 produce zero observed daemons; one status document produces one observed daemon.
+
+## Local Bifrost ledger deletion
+
+The local `bifrost-ledger` report was not Bifrost sight. It loaded response-shaped
+documents from a shared local store, assigned owners such as Bifrost, GitHub,
+Maintainer, and Imagination from their type names, then marked accounting lanes
+closed when strings and lists were populated. No signature, provider identity,
+transport/session witness, payload-hash admission, or target-runtime binding
+proved that any named body participated.
+
+The command, wrapper mode, report/row/accounting types, five closure algorithms,
+tests, command hints, audit action, and receipt follow-ups are deleted. Pending
+requester intents and Persona feedback remain owned by their requesters. Missing
+provider responses now have no local closure command. A future provider ingress
+must bind provider identity and contract, source transport/session, exact payload
+hash and document id, correlation id, admitted-at time, target runtime/Verse, and
+verification result before any consumer may claim provider-authored closure.
 
 ## Bootstrap/provider split
 
