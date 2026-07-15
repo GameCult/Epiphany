@@ -9,6 +9,7 @@ use super::EpiphanyMemoryProfile;
 use super::EpiphanyMemorySummary;
 use super::RepoFrontierItem;
 use super::RepoFrontierStatus;
+use super::SemanticPartition;
 use super::derive_memory_graph_freshness;
 use super::ids::normalized_key;
 use super::ids::stable_memory_graph_id;
@@ -22,6 +23,32 @@ use std::collections::HashSet;
 pub fn plan_memory_graph_context_cut(
     snapshot: &EpiphanyMemoryGraphSnapshot,
     query: &EpiphanyMemoryContextQuery,
+) -> EpiphanyMemoryContextPacket {
+    plan_memory_graph_context_cut_constrained(snapshot, query, &[], None)
+}
+
+pub fn plan_memory_graph_context_cut_with_ranked_ids(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+    ranked_document_ids: &[String],
+) -> EpiphanyMemoryContextPacket {
+    plan_memory_graph_context_cut_constrained(snapshot, query, ranked_document_ids, None)
+}
+
+pub(crate) fn plan_memory_graph_context_cut_for_partition(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+    ranked_document_ids: &[String],
+    partition: SemanticPartition,
+) -> EpiphanyMemoryContextPacket {
+    plan_memory_graph_context_cut_constrained(snapshot, query, ranked_document_ids, Some(partition))
+}
+
+fn plan_memory_graph_context_cut_constrained(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+    ranked_document_ids: &[String],
+    partition: Option<SemanticPartition>,
 ) -> EpiphanyMemoryContextPacket {
     let budget = query.budget.unwrap_or(12).clamp(1, 64) as usize;
     let dirty_source_hashes = snapshot
@@ -76,14 +103,21 @@ pub fn plan_memory_graph_context_cut(
 
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
-    let mut summaries = Vec::new();
+    let mut summaries: Vec<EpiphanyMemorySummary> = Vec::new();
     let mut warnings = Vec::new();
 
     // Modeling's unresolved frontier is explicit routing authority. Preserve its
     // stored order and exact claim targets before asking semantic retrieval to
     // infer what matters from the launch prose.
-    let (frontier, rejected_frontier_ids) =
-        dependency_ordered_frontier(snapshot, budget, &node_by_id, &stale_nodes);
+    let (frontier, rejected_frontier_ids) = dependency_ordered_frontier(
+        snapshot,
+        query,
+        partition,
+        budget,
+        &node_by_id,
+        &stale_nodes,
+        &domains,
+    );
     for id in rejected_frontier_ids {
         warnings.push(format!(
             "frontier {id} was omitted because its target claims are missing, stale, or retired"
@@ -98,15 +132,82 @@ pub fn plan_memory_graph_context_cut(
         }
     }
 
-    for summary in ranked_summaries(snapshot, query, &domains, &terms, &node_by_id) {
+    // Semantic projection may rank canonical document identities, never
+    // payload-authored claim text. Explicit frontier remains first; ranked
+    // canonical objects then seed the cut before BM25 fills remaining space.
+    for document_id in ranked_document_ids {
+        if let Some(node) = node_by_id.get(document_id.as_str()) {
+            if !stale_nodes.contains(node.id.as_str())
+                && node_matches(node, query.profile, partition, &domains, &[])
+            {
+                push_unique_node(&mut nodes, (*node).clone(), budget);
+            }
+            continue;
+        }
+        if let Some(edge) = edge_by_id.get(document_id.as_str()) {
+            let endpoints_live = [edge.source_id.as_str(), edge.target_id.as_str()]
+                .into_iter()
+                .all(|id| !stale_nodes.contains(id));
+            if !stale_edges.contains(edge.id.as_str())
+                && endpoints_live
+                && edge_matches(edge, query.profile, partition, &domains, &node_by_id)
+            {
+                push_unique_edge(&mut edges, (*edge).clone(), budget);
+                if let Some(node) = node_by_id.get(edge.source_id.as_str()) {
+                    if !stale_nodes.contains(node.id.as_str())
+                        && node_matches(node, query.profile, partition, &domains, &[])
+                    {
+                        push_unique_node(&mut nodes, (*node).clone(), budget);
+                    }
+                }
+                if let Some(node) = node_by_id.get(edge.target_id.as_str()) {
+                    if !stale_nodes.contains(node.id.as_str())
+                        && node_matches(node, query.profile, partition, &domains, &[])
+                    {
+                        push_unique_node(&mut nodes, (*node).clone(), budget);
+                    }
+                }
+            }
+            continue;
+        }
+        if let Some(summary) = snapshot
+            .summaries
+            .iter()
+            .find(|summary| summary.id == *document_id)
+            && summary_matches(
+                summary,
+                query.profile,
+                partition,
+                &domains,
+                &[],
+                &node_by_id,
+            )
+            && summary_is_usable(summary, &stale_summaries)
+            && summaries.len() < budget
+            && !summaries.iter().any(|existing| existing.id == summary.id)
+        {
+            summaries.push(summary.clone());
+        }
+    }
+
+    for summary in ranked_summaries(snapshot, query, partition, &domains, &terms, &node_by_id) {
         if summaries.len() >= budget {
             break;
         }
-        if !summary_matches(summary, query.profile, &domains, &terms, &node_by_id) {
+        if !summary_matches(
+            summary,
+            query.profile,
+            partition,
+            &domains,
+            &terms,
+            &node_by_id,
+        ) {
             continue;
         }
         if summary_is_usable(summary, &stale_summaries) {
-            summaries.push(summary.clone());
+            if !summaries.iter().any(|existing| existing.id == summary.id) {
+                summaries.push(summary.clone());
+            }
             continue;
         }
         warnings.push(format!(
@@ -119,6 +220,9 @@ pub fn plan_memory_graph_context_cut(
             &edge_by_id,
             &stale_nodes,
             &stale_edges,
+            query.profile,
+            partition,
+            &domains,
             budget,
             &mut nodes,
             &mut edges,
@@ -127,27 +231,37 @@ pub fn plan_memory_graph_context_cut(
 
     for node_id in &query.node_ids {
         if let Some(node) = node_by_id.get(node_id.as_str()) {
-            push_unique_node(&mut nodes, (*node).clone(), budget);
+            if !stale_nodes.contains(node.id.as_str())
+                && node_matches(node, query.profile, partition, &domains, &[])
+            {
+                push_unique_node(&mut nodes, (*node).clone(), budget);
+            }
         }
     }
     for edge_id in &query.edge_ids {
         if let Some(edge) = edge_by_id.get(edge_id.as_str()) {
-            push_unique_edge(&mut edges, (*edge).clone(), budget);
-            if let Some(node) = node_by_id.get(edge.source_id.as_str()) {
-                push_unique_node(&mut nodes, (*node).clone(), budget);
-            }
-            if let Some(node) = node_by_id.get(edge.target_id.as_str()) {
-                push_unique_node(&mut nodes, (*node).clone(), budget);
+            if !stale_edges.contains(edge.id.as_str())
+                && edge_matches(edge, query.profile, partition, &domains, &node_by_id)
+            {
+                push_unique_edge(&mut edges, (*edge).clone(), budget);
+                for node_id in [&edge.source_id, &edge.target_id] {
+                    if let Some(node) = node_by_id.get(node_id.as_str())
+                        && !stale_nodes.contains(node.id.as_str())
+                        && node_matches(node, query.profile, partition, &domains, &[])
+                    {
+                        push_unique_node(&mut nodes, (*node).clone(), budget);
+                    }
+                }
             }
         }
     }
 
     if summaries.is_empty() && nodes.is_empty() {
-        for node in ranked_nodes(snapshot, query, &domains, &terms, &stale_nodes) {
+        for node in ranked_nodes(snapshot, query, partition, &domains, &terms, &stale_nodes) {
             if nodes.len() >= budget {
                 break;
             }
-            if node_matches(node, query.profile, &domains, &terms) {
+            if node_matches(node, query.profile, partition, &domains, &terms) {
                 push_unique_node(&mut nodes, node.clone(), budget);
             }
         }
@@ -188,10 +302,16 @@ pub fn plan_memory_graph_context_cut(
 
 fn dependency_ordered_frontier(
     snapshot: &EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+    partition: Option<SemanticPartition>,
     budget: usize,
     node_by_id: &HashMap<&str, &EpiphanyMemoryNode>,
     stale_nodes: &HashSet<&str>,
+    domains: &HashSet<&str>,
 ) -> (Vec<RepoFrontierItem>, Vec<String>) {
+    if partition == Some(SemanticPartition::Mind) {
+        return (Vec::new(), Vec::new());
+    }
     let unresolved = snapshot
         .frontier
         .iter()
@@ -219,6 +339,7 @@ fn dependency_ordered_frontier(
                             super::EpiphanyMemoryLifecycle::Retired
                                 | super::EpiphanyMemoryLifecycle::Stale
                         ) && !stale_nodes.contains(id.as_str())
+                            && node_matches(node, query.profile, partition, domains, &[])
                     })
                 })
         })
@@ -296,6 +417,7 @@ fn append_frontier_prerequisites<'a>(
 fn ranked_nodes<'a>(
     snapshot: &'a EpiphanyMemoryGraphSnapshot,
     query: &EpiphanyMemoryContextQuery,
+    partition: Option<SemanticPartition>,
     domain_ids: &HashSet<&str>,
     terms: &[String],
     stale_nodes: &HashSet<&str>,
@@ -304,7 +426,7 @@ fn ranked_nodes<'a>(
         .nodes
         .iter()
         .filter(|node| {
-            node_matches(node, query.profile, domain_ids, &[])
+            node_matches(node, query.profile, partition, domain_ids, &[])
                 && !stale_nodes.contains(node.id.as_str())
         })
         .collect::<Vec<_>>();
@@ -323,6 +445,7 @@ fn ranked_nodes<'a>(
 fn ranked_summaries<'a>(
     snapshot: &'a EpiphanyMemoryGraphSnapshot,
     query: &EpiphanyMemoryContextQuery,
+    partition: Option<SemanticPartition>,
     domain_ids: &HashSet<&str>,
     terms: &[String],
     node_by_id: &HashMap<&str, &EpiphanyMemoryNode>,
@@ -330,7 +453,16 @@ fn ranked_summaries<'a>(
     let eligible = snapshot
         .summaries
         .iter()
-        .filter(|summary| summary_matches(summary, query.profile, domain_ids, &[], node_by_id))
+        .filter(|summary| {
+            summary_matches(
+                summary,
+                query.profile,
+                partition,
+                domain_ids,
+                &[],
+                node_by_id,
+            )
+        })
         .collect::<Vec<_>>();
     rank_typed_documents(eligible, query.text.as_deref(), terms, |summary| {
         [
@@ -380,11 +512,20 @@ fn query_terms(query: &EpiphanyMemoryContextQuery) -> Vec<String> {
 fn summary_matches(
     summary: &EpiphanyMemorySummary,
     profile: Option<EpiphanyMemoryProfile>,
+    partition: Option<SemanticPartition>,
     domain_ids: &HashSet<&str>,
     terms: &[String],
     node_by_id: &HashMap<&str, &EpiphanyMemoryNode>,
 ) -> bool {
     if !domain_ids.is_empty() && !domain_ids.contains(summary.domain_id.as_str()) {
+        return false;
+    }
+    let covers_partition = summary
+        .covers_node_ids
+        .iter()
+        .filter_map(|id| node_by_id.get(id.as_str()))
+        .any(|node| partition_matches(node.profile, partition));
+    if partition.is_some() && !covers_partition {
         return false;
     }
     if let Some(profile) = profile {
@@ -412,10 +553,14 @@ fn summary_matches(
 fn node_matches(
     node: &EpiphanyMemoryNode,
     profile: Option<EpiphanyMemoryProfile>,
+    partition: Option<SemanticPartition>,
     domain_ids: &HashSet<&str>,
     terms: &[String],
 ) -> bool {
     if profile.is_some_and(|profile| node.profile != profile) {
+        return false;
+    }
+    if !partition_matches(node.profile, partition) {
         return false;
     }
     if !domain_ids.is_empty() && !domain_ids.contains(node.domain_id.as_str()) {
@@ -432,6 +577,35 @@ fn node_matches(
             ],
             terms,
         )
+}
+
+fn edge_matches(
+    edge: &EpiphanyMemoryEdge,
+    profile: Option<EpiphanyMemoryProfile>,
+    partition: Option<SemanticPartition>,
+    domain_ids: &HashSet<&str>,
+    node_by_id: &HashMap<&str, &EpiphanyMemoryNode>,
+) -> bool {
+    if profile.is_some_and(|profile| edge.profile != profile)
+        || !partition_matches(edge.profile, partition)
+    {
+        return false;
+    }
+    [&edge.source_id, &edge.target_id].into_iter().all(|id| {
+        node_by_id.get(id.as_str()).is_some_and(|node| {
+            partition_matches(node.profile, partition)
+                && (domain_ids.is_empty() || domain_ids.contains(node.domain_id.as_str()))
+        })
+    })
+}
+
+fn partition_matches(profile: EpiphanyMemoryProfile, partition: Option<SemanticPartition>) -> bool {
+    partition.is_none_or(|partition| {
+        matches!(
+            profile,
+            EpiphanyMemoryProfile::RepoArchitecture | EpiphanyMemoryProfile::RepoDataflow
+        ) == (partition == SemanticPartition::Modeling)
+    })
 }
 
 fn text_matches_terms<'a>(values: impl IntoIterator<Item = &'a String>, terms: &[String]) -> bool {
@@ -456,24 +630,31 @@ fn include_summary_children(
     edge_by_id: &HashMap<&str, &EpiphanyMemoryEdge>,
     stale_nodes: &HashSet<&str>,
     stale_edges: &HashSet<&str>,
+    profile: Option<EpiphanyMemoryProfile>,
+    partition: Option<SemanticPartition>,
+    domain_ids: &HashSet<&str>,
     budget: usize,
     nodes: &mut Vec<EpiphanyMemoryNode>,
     edges: &mut Vec<EpiphanyMemoryEdge>,
 ) {
     for node_id in &summary.covers_node_ids {
         if let Some(node) = node_by_id.get(node_id.as_str()) {
-            push_unique_node(nodes, (*node).clone(), budget);
-            if stale_nodes.contains(node.id.as_str()) {
+            if stale_nodes.contains(node.id.as_str())
+                || !node_matches(node, profile, partition, domain_ids, &[])
+            {
                 continue;
             }
+            push_unique_node(nodes, (*node).clone(), budget);
         }
     }
     for edge_id in &summary.covers_edge_ids {
         if let Some(edge) = edge_by_id.get(edge_id.as_str()) {
-            push_unique_edge(edges, (*edge).clone(), budget);
-            if stale_edges.contains(edge.id.as_str()) {
+            if stale_edges.contains(edge.id.as_str())
+                || !edge_matches(edge, profile, partition, domain_ids, node_by_id)
+            {
                 continue;
             }
+            push_unique_edge(edges, (*edge).clone(), budget);
         }
     }
 }

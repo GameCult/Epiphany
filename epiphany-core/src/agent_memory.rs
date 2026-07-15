@@ -21,6 +21,18 @@ pub const AGENT_STATE_SOA_TYPE: &str = "epiphany.agent_state_soa";
 pub const AGENT_STATE_SOA_SCHEMA_VERSION: &str = "epiphany.agent_state_soa.v0";
 pub const AGENT_STATE_SOA_KEY: &str = "swarm";
 
+pub fn swarm_identity_from_agent_memories(entries: &[EpiphanyAgentMemoryEntry]) -> String {
+    let mut identities = entries
+        .iter()
+        .map(|entry| format!("{}:{}", entry.role_id, entry.agent.agent_id))
+        .collect::<Vec<_>>();
+    identities.sort();
+    format!(
+        "swarm-{}",
+        uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, identities.join("\n").as_bytes(),)
+    )
+}
+
 const ROLE_TARGETS: &[(&str, &str, &str)] = &[
     (
         "imagination",
@@ -627,6 +639,36 @@ pub fn repair_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Value> 
         }));
     }
 
+    if let Some(mut modeling) = cache.get::<EpiphanyAgentMemoryEntry>("modeling")? {
+        let mut renamed = 0usize;
+        renamed += replace_deprecated_faculty_name(&mut modeling.agent.identity.public_description);
+        for note in &mut modeling.agent.identity.private_notes {
+            renamed += replace_deprecated_faculty_name(note);
+        }
+        for goal in &mut modeling.agent.goals {
+            renamed += replace_deprecated_faculty_name(&mut goal.description);
+            renamed += replace_deprecated_faculty_name(&mut goal.emotional_stake);
+        }
+        for memory in modeling
+            .agent
+            .memories
+            .semantic
+            .iter_mut()
+            .chain(modeling.agent.memories.episodic.iter_mut())
+            .chain(modeling.agent.memories.relationship_summaries.iter_mut())
+        {
+            renamed += replace_deprecated_faculty_name(&mut memory.summary);
+        }
+        if renamed > 0 {
+            cache.put("modeling".to_string(), &modeling)?;
+            repaired.push(serde_json::json!({
+                "roleId": "modeling",
+                "repair": "replaced deprecated Proprioception prose with canonical Modeling doctrine",
+                "replacements": renamed,
+            }));
+        }
+    }
+
     if cache.get::<EpiphanyAgentMemoryEntry>("Persona")?.is_none()
         && let Some(mut face) = cache.get::<EpiphanyAgentMemoryEntry>("face")?
     {
@@ -686,6 +728,14 @@ pub fn repair_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Value> 
         "errors": errors,
         "soa": soa,
     }))
+}
+
+fn replace_deprecated_faculty_name(value: &mut String) -> usize {
+    let count = value.matches("Proprioception").count();
+    if count > 0 {
+        *value = value.replace("Proprioception", "Modeling");
+    }
+    count
 }
 
 pub fn load_agent_memory_entry_for_role(
@@ -2801,7 +2851,21 @@ mod tests {
             } else {
                 agent_id
             };
-            let entry = entry_from_projection(role_id, expected_agent_id, projection)?;
+            let mut entry = entry_from_projection(role_id, expected_agent_id, projection)?;
+            if *role_id == "modeling" {
+                entry.agent.identity.public_description =
+                    "Proprioception models source-grounded anatomy.".to_string();
+                entry.agent.goals[0].emotional_stake =
+                    "If Proprioception lies, Hands cuts blind.".to_string();
+                entry.agent.memories.semantic.push(GhostlightMemory {
+                    memory_id: "legacy-proprioception-prose".to_string(),
+                    summary: "Proprioception leaves a verified trail.".to_string(),
+                    salience: 0.8,
+                    confidence: 0.8,
+                    linked_event_ids: None,
+                    linked_relationship_id: None,
+                });
+            }
             cache.put((*role_id).to_string(), &entry)?;
         }
         let raw = fs::read_to_string(agent_dir.join("face.agent-state.json"))?;
@@ -2831,6 +2895,28 @@ mod tests {
         cache.pull_all_backing_stores()?;
         let modeling = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
         assert_eq!(modeling.agent.agent_id, "epiphany.modeling");
+        assert!(
+            !modeling
+                .agent
+                .identity
+                .public_description
+                .contains("Proprioception")
+        );
+        assert!(
+            modeling
+                .agent
+                .goals
+                .iter()
+                .all(|goal| !goal.emotional_stake.contains("Proprioception"))
+        );
+        assert!(
+            modeling
+                .agent
+                .memories
+                .semantic
+                .iter()
+                .all(|memory| { !memory.summary.contains("Proprioception") })
+        );
         let persona = cache.get_required::<EpiphanyAgentMemoryEntry>("Persona")?;
         assert_eq!(persona.role_id, "Persona");
         assert_eq!(persona.agent.agent_id, "epiphany.Persona");

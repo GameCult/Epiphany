@@ -134,10 +134,10 @@ implementation, not file authority.
 \code{state/ledgers.cc} & CultCache-shaped evidence and branch ledger. Future behavior-changing lessons go here, not in an endless activity feed. \\
 \code{state/agents.cc} & Organ self-memory and Persona projection source. Resident work organs use \code{work_organ}; public/person-shaped agents use \code{persona}. \\
 \code{state/agent-heartbeats.cc} & Heartbeat initiative, cooldown, pending turns, cognition lanes, routine physiology, and scheduler pressure. \\
-\code{state/runtime-spine.cc} & Runtime identity, sessions, jobs, job results, events, worker launch requests, role/reorient findings, receipts, model/tool documents, and schema catalog surfaces. \\
+\code{state/runtime-spine.cc} & Runtime identity, sessions, jobs, job results, events, worker launch requests, role/reorient findings, receipts, model/tool documents, the admitted RepoModel, and schema catalog surfaces. \\
 \code{state/thread-state.cc} & Native thread-state store. \\
 \code{state/local-verse.cc} & Local CultMesh Verse context for compact operator and prompt-context packets. \\
-\code{state/memory-graph.cc} & Local memory graph store. \\
+\code{state/semantic-projection.cc} & Typed Qdrant projection receipts. Cache health lives here, outside the canonical RepoModel. \\
 \code{state/persona-discord.toml} & Persona Discord boundary configuration. \\
 \code{state/void-memory.toml} & Void memory bridge configuration. \\
 \code{state/scratch.md} and \code{state/scratch-compaction-*.md} & Scratch surfaces. Scratch is a workbench, not canonical memory. \\
@@ -145,7 +145,9 @@ implementation, not file authority.
 
 Lock files sit beside several stores. Some local generated state is currently
 untracked, including \code{state/local-verse.cc},
-\code{state/memory-graph.cc}, and \code{.epiphany-character-loop/}.
+\code{state/semantic-projection.cc}, and \code{.epiphany-character-loop/}.
+The former sibling \code{state/memory-graph.cc}/\code{.msgpack} store is a
+retired migration wound; live Modeling truth is the runtime-spine RepoModel.
 
 \section{CultNet Schema Body}
 

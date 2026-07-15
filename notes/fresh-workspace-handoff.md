@@ -1033,3 +1033,39 @@ private doctrine/memory cannot leak into Hands Body retrieval and repository
 claims cannot silently become doctrine. Every point must retain source document
 id, schema version, canonical hash, provenance, authority/visibility scope, and
 embedding-model version.
+
+## Shared Mind/Modeling semantic nerve (2026-07-15)
+
+The Qdrant organ is now live rather than planned. `semantic_backend.rs` is the
+single typed Qdrant/Ollama wire boundary; workspace retrieval consumes it and
+the previous local transport copy is gone. The memory graph derives stable
+Mind/Modeling projection documents, stores locator/hash/provenance payloads in
+physically separate collections, validates collection metadata from Qdrant,
+synchronizes only exact swarm/partition scope, reloads every candidate from
+current canonical state, and falls back to typed BM25 without losing truth.
+Projection receipts are typed CultCache documents outside RepoModel.
+
+`epiphany-memory-semantic` provides canonical index/context commands.
+`epiphany-repo-model-bootstrap` atomically admits the initial RepoModel from
+typed thread-state through runtime-spine ownership and ignores stale sibling
+graph stores. The tracked schema-v0 `state/memory-graph.msgpack` is deleted.
+
+Live local proof against Docker Qdrant v1.17.1 and Ollama
+`qwen3-embedding:0.6b` (1024 dimensions) indexed 43 Mind documents into
+`epiphany_mind_v1` and 3 fresh Modeling documents into
+`epiphany_modeling_v1`. Four stale Modeling points were removed. Semantic
+queries render canonical typed packets, ignore payload prose, exclude stale
+summary descendants, and report whether semantic ranking or BM25 fallback ran.
+
+Persona's private cache substitution is cut: its chunk schema, duplicated
+Qdrant/Ollama clients, reindex-on-recall path, direct payload rendering, and
+`epiphany_persona_memory_v0` collection are deleted. Heartbeat Persona recall
+uses the shared Mind projection restricted to Persona's canonical domain. The
+actual Modeling organ-state was also repaired: four surviving Proprioception
+phrases in identity/goal/memory prose are now Modeling, validation is clean,
+and the Mind collection was rebuilt from that repaired state.
+
+Next: schedule projection refresh as completion-gated physiology, publish typed
+projection health through CultMesh/Eve, and refresh the stale source anchors
+that leave the current Body map honestly thin. Do not let the scheduler,
+Qdrant, Yggdrasil, or presentation become state authority.

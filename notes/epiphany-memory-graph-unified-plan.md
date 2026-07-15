@@ -377,6 +377,14 @@ Embed shared graph nodes, edges, and summaries.
 Qdrant candidate ranking feeds context-cut planning but never emits canonical
 memory payloads.
 
+Landed 2026-07-15: the shared typed projection, strict Qdrant/Ollama backend,
+Mind/Modeling physical partitions, canonical candidate reload, scoped sync,
+typed projection receipts, BM25 fallback, CLI index/context path, and Persona
+recall migration are live. See
+`notes/memory-graph-semantic-projection-authority-map.md`. Remaining work is
+daemon scheduling/CultMesh advertisement and refreshing stale Modeling anchors;
+do not rebuild a Persona-specific semantic cache.
+
 ### Phase 7: Sleep And Repo Refresh
 
 Sleep maintenance and repo scanning become profile-specific producers of typed

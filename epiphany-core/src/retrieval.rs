@@ -1,3 +1,16 @@
+use crate::semantic_backend::CollectionCompatibility;
+use crate::semantic_backend::DEFAULT_OLLAMA_BASE_URL;
+use crate::semantic_backend::DEFAULT_OLLAMA_MODEL;
+use crate::semantic_backend::DEFAULT_OLLAMA_TIMEOUT_MS;
+use crate::semantic_backend::DEFAULT_QDRANT_TIMEOUT_MS;
+use crate::semantic_backend::DEFAULT_QDRANT_URL;
+use crate::semantic_backend::OllamaConfig;
+use crate::semantic_backend::OllamaEmbedder;
+use crate::semantic_backend::QdrantBackend;
+use crate::semantic_backend::QdrantConfig;
+use crate::semantic_backend::SemanticCandidate;
+use crate::semantic_backend::SemanticPoint;
+use crate::semantic_backend::validate_embedding_batch;
 use anyhow::Context;
 use anyhow::Result;
 use bm25::Document;
@@ -7,14 +20,9 @@ use epiphany_state_model::EpiphanyRetrievalShardSummary;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyRetrievalStatus;
 use ignore::WalkBuilder;
-use reqwest::StatusCode;
-use reqwest::blocking::Client;
-use reqwest::blocking::ClientBuilder;
-use reqwest::header::HeaderMap;
-use reqwest::header::HeaderValue;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
+#[cfg(test)]
 use serde_json::json;
 use sha1::Digest;
 use sha1::Sha1;
@@ -25,7 +33,6 @@ use std::fs;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use uuid::Uuid;
@@ -44,13 +51,6 @@ const CHUNK_LINE_OVERLAP: usize = 8;
 const WORKSPACE_SHARD_ID: &str = "workspace";
 const MANIFESTS_DIR: &str = "epiphany/retrieval/manifests";
 const QDRANT_COLLECTION_PREFIX: &str = "epiphany_workspace";
-const QDRANT_POINT_BATCH_SIZE: usize = 128;
-const OLLAMA_EMBED_BATCH_SIZE: usize = 32;
-const DEFAULT_QDRANT_URL: &str = "http://127.0.0.1:6333";
-const DEFAULT_QDRANT_TIMEOUT_MS: u64 = 30_000;
-const DEFAULT_OLLAMA_BASE_URL: &str = "http://127.0.0.1:11434";
-const DEFAULT_OLLAMA_MODEL: &str = "qwen3-embedding:0.6b";
-const DEFAULT_OLLAMA_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_QUERY_INSTRUCTION: &str = "Given a source-tree or codebase question, retrieve relevant files and code snippets that answer it.";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -284,15 +284,24 @@ fn index_workspace_with_config(
     let snapshot = collect_workspace_index_snapshot(workspace_root)?;
     let existing_manifest = load_semantic_manifest(&manifest_path)?;
     let expected_collection = config.collection_name(workspace_root);
-    let qdrant = QdrantClient::new(config.qdrant.clone())?;
+    let qdrant = QdrantBackend::new(config.qdrant.clone())?;
 
     let manifest_compatible = existing_manifest.as_ref().is_some_and(|manifest| {
         manifest.index_revision == config.index_revision()
             && manifest.collection_name == expected_collection
     });
     let collection_exists = qdrant.collection_exists(&expected_collection)?;
+    let collection_compatible = if collection_exists && !force_full_rebuild {
+        let probe = OllamaEmbedder::new(config.ollama.clone())?
+            .embed_query("Epiphany semantic collection compatibility probe")?;
+        qdrant.collection_compatibility(&expected_collection)?
+            == expected_collection_compatibility(config, probe.len())
+    } else {
+        false
+    };
 
-    let full_rebuild = force_full_rebuild || !manifest_compatible || !collection_exists;
+    let full_rebuild =
+        force_full_rebuild || !manifest_compatible || !collection_exists || !collection_compatible;
     if full_rebuild {
         if let Some(manifest) = existing_manifest.as_ref()
             && manifest.collection_name != expected_collection
@@ -379,17 +388,14 @@ fn index_workspace_with_config(
                 .context("embedding backend returned no vectors for rebuild")?;
             qdrant.create_collection(
                 &expected_collection,
-                vector_size,
-                &config.index_revision(),
-                workspace_root,
-                &config.ollama.model,
+                &expected_collection_compatibility(config, vector_size),
             )?;
         }
 
         let points = documents
             .into_iter()
             .zip(embeddings)
-            .map(|(chunk, vector)| QdrantPointInput {
+            .map(|(chunk, vector)| SemanticPoint {
                 id: chunk_point_id(&expected_collection, &chunk),
                 vector,
                 payload: QdrantPointPayload {
@@ -459,7 +465,7 @@ fn search_persistent_semantic_chunks(
         });
     }
 
-    let qdrant = QdrantClient::new(config.qdrant.clone())?;
+    let qdrant = QdrantBackend::new(config.qdrant.clone())?;
     if !qdrant.collection_exists(&manifest.collection_name)? {
         return Ok(PersistentSemanticSearch::Fallback {
             summary: Some(manifest_to_retrieval_state(
@@ -473,6 +479,18 @@ fn search_persistent_semantic_chunks(
 
     let ollama = OllamaEmbedder::new(config.ollama.clone())?;
     let query_vector = ollama.embed_query(query)?;
+    if qdrant.collection_compatibility(&manifest.collection_name)?
+        != expected_collection_compatibility(&config, query_vector.len())
+    {
+        return Ok(PersistentSemanticSearch::Fallback {
+            summary: Some(manifest_to_retrieval_state(
+                workspace_root,
+                &manifest,
+                EpiphanyRetrievalStatus::Stale,
+                Vec::new(),
+            )),
+        });
+    }
     let search_hits = qdrant.query_points(&manifest.collection_name, &query_vector, limit)?;
 
     let results = search_hits
@@ -487,6 +505,21 @@ fn search_persistent_semantic_chunks(
     );
 
     Ok(PersistentSemanticSearch::Ready { summary, results })
+}
+
+fn expected_collection_compatibility(
+    config: &SemanticBackendConfig,
+    vector_size: usize,
+) -> CollectionCompatibility {
+    CollectionCompatibility {
+        managed_by: "epiphany".to_string(),
+        corpus_kind: "workspace".to_string(),
+        schema_version: SEMANTIC_MANIFEST_SCHEMA_VERSION,
+        projection_version: config.index_revision(),
+        embedding_provider_id: "ollama".to_string(),
+        embedding_model: config.ollama.model.clone(),
+        vector_size,
+    }
 }
 
 fn stale_summary_from_manifest(
@@ -734,297 +767,6 @@ impl SemanticBackendConfig {
     }
 }
 
-#[derive(Clone, Debug)]
-struct QdrantConfig {
-    url: String,
-    api_key: Option<String>,
-    timeout_ms: u64,
-}
-
-#[derive(Clone, Debug)]
-struct OllamaConfig {
-    base_url: String,
-    model: String,
-    timeout_ms: u64,
-    query_instruction: String,
-}
-
-struct QdrantClient {
-    base_url: String,
-    timeout_seconds: u64,
-    client: Client,
-}
-
-impl QdrantClient {
-    fn new(config: QdrantConfig) -> Result<Self> {
-        let mut headers = HeaderMap::new();
-        if let Some(api_key) = config.api_key
-            && !api_key.is_empty()
-        {
-            headers.insert(
-                "api-key",
-                HeaderValue::from_str(&api_key).context("invalid Qdrant api key")?,
-            );
-        }
-
-        let client = ClientBuilder::new()
-            .default_headers(headers)
-            .timeout(Duration::from_millis(config.timeout_ms))
-            .build()
-            .context("failed to build Qdrant client")?;
-
-        Ok(Self {
-            base_url: normalize_base_url(&config.url),
-            timeout_seconds: timeout_seconds(config.timeout_ms),
-            client,
-        })
-    }
-
-    fn collection_exists(&self, collection_name: &str) -> Result<bool> {
-        let response = self
-            .client
-            .get(format!(
-                "{}/collections/{collection_name}/exists",
-                self.base_url
-            ))
-            .send()
-            .with_context(|| format!("failed to query Qdrant collection {collection_name}"))?;
-
-        let payload: QdrantEnvelope<QdrantCollectionExistsResult> = parse_qdrant_response(response)
-            .with_context(|| {
-                format!("failed to decode Qdrant collection-exists response for {collection_name}")
-            })?;
-        Ok(payload.result.exists)
-    }
-
-    fn delete_collection(&self, collection_name: &str) -> Result<()> {
-        let response = self
-            .client
-            .delete(format!("{}/collections/{collection_name}", self.base_url))
-            .query(&[("timeout", self.timeout_seconds)])
-            .send()
-            .with_context(|| format!("failed to delete Qdrant collection {collection_name}"))?;
-
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(());
-        }
-        parse_qdrant_response::<bool>(response).with_context(|| {
-            format!("failed to decode Qdrant delete-collection response for {collection_name}")
-        })?;
-        Ok(())
-    }
-
-    fn create_collection(
-        &self,
-        collection_name: &str,
-        vector_size: usize,
-        index_revision: &str,
-        workspace_root: &Path,
-        embedding_model: &str,
-    ) -> Result<()> {
-        let body = json!({
-            "vectors": {
-                "size": vector_size,
-                "distance": "Cosine",
-                "on_disk": true,
-            },
-            "on_disk_payload": true,
-            "metadata": {
-                "managedBy": "epiphany",
-                "schemaVersion": SEMANTIC_MANIFEST_SCHEMA_VERSION,
-                "indexRevision": index_revision,
-                "workspaceRoot": workspace_root.to_string_lossy(),
-                "embeddingModel": embedding_model,
-                "vectorSize": vector_size,
-            }
-        });
-
-        let response = self
-            .client
-            .put(format!("{}/collections/{collection_name}", self.base_url))
-            .query(&[("timeout", self.timeout_seconds)])
-            .json(&body)
-            .send()
-            .with_context(|| format!("failed to create Qdrant collection {collection_name}"))?;
-
-        parse_qdrant_response::<bool>(response).with_context(|| {
-            format!("failed to decode Qdrant create-collection response for {collection_name}")
-        })?;
-        Ok(())
-    }
-
-    fn upsert_points(&self, collection_name: &str, points: &[QdrantPointInput]) -> Result<()> {
-        for chunk in points.chunks(QDRANT_POINT_BATCH_SIZE) {
-            let body = json!({ "points": chunk });
-            let response = self
-                .client
-                .put(format!(
-                    "{}/collections/{collection_name}/points",
-                    self.base_url
-                ))
-                .query(&[
-                    ("wait", "true"),
-                    ("timeout", &self.timeout_seconds.to_string()),
-                ])
-                .json(&body)
-                .send()
-                .with_context(|| {
-                    format!("failed to upsert Qdrant points into {collection_name}")
-                })?;
-
-            parse_qdrant_response::<Value>(response).with_context(|| {
-                format!("failed to decode Qdrant upsert response for {collection_name}")
-            })?;
-        }
-        Ok(())
-    }
-
-    fn delete_points(&self, collection_name: &str, point_ids: &[String]) -> Result<()> {
-        if point_ids.is_empty() {
-            return Ok(());
-        }
-
-        for batch in point_ids.chunks(QDRANT_POINT_BATCH_SIZE) {
-            let body = json!({ "points": batch });
-            let response = self
-                .client
-                .post(format!(
-                    "{}/collections/{collection_name}/points/delete",
-                    self.base_url
-                ))
-                .query(&[
-                    ("wait", "true"),
-                    ("timeout", &self.timeout_seconds.to_string()),
-                ])
-                .json(&body)
-                .send()
-                .with_context(|| {
-                    format!("failed to delete Qdrant points from {collection_name}")
-                })?;
-
-            parse_qdrant_response::<Value>(response).with_context(|| {
-                format!("failed to decode Qdrant delete-points response for {collection_name}")
-            })?;
-        }
-        Ok(())
-    }
-
-    fn query_points(
-        &self,
-        collection_name: &str,
-        query_vector: &[f32],
-        limit: usize,
-    ) -> Result<Vec<QdrantQueryPoint>> {
-        let body = json!({
-            "query": query_vector,
-            "limit": limit,
-            "with_payload": true,
-            "with_vector": false,
-        });
-
-        let response = self
-            .client
-            .post(format!(
-                "{}/collections/{collection_name}/points/query",
-                self.base_url
-            ))
-            .query(&[("timeout", self.timeout_seconds)])
-            .json(&body)
-            .send()
-            .with_context(|| format!("failed to query Qdrant collection {collection_name}"))?;
-
-        let payload: QdrantEnvelope<QdrantQueryResultEnvelope> = parse_qdrant_response(response)
-            .with_context(|| {
-                format!("failed to decode Qdrant query response for {collection_name}")
-            })?;
-        Ok(payload.result.points)
-    }
-}
-
-struct OllamaEmbedder {
-    base_url: String,
-    model: String,
-    query_instruction: String,
-    client: Client,
-}
-
-impl OllamaEmbedder {
-    fn new(config: OllamaConfig) -> Result<Self> {
-        let client = ClientBuilder::new()
-            .timeout(Duration::from_millis(config.timeout_ms))
-            .build()
-            .context("failed to build Ollama client")?;
-
-        Ok(Self {
-            base_url: normalize_base_url(&config.base_url),
-            model: config.model,
-            query_instruction: config.query_instruction,
-            client,
-        })
-    }
-
-    fn embed_documents(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        let mut embeddings = Vec::new();
-        for batch in texts.chunks(OLLAMA_EMBED_BATCH_SIZE) {
-            let payload = self.embed_batch(batch)?;
-            embeddings.extend(payload);
-        }
-        Ok(embeddings)
-    }
-
-    fn embed_query(&self, query: &str) -> Result<Vec<f32>> {
-        let formatted = format!("Instruct: {}\nQuery: {}", self.query_instruction, query);
-        let mut payload = self.embed_batch(&[formatted])?;
-        payload
-            .pop()
-            .context("Ollama embedding backend returned no vector for query")
-    }
-
-    fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        let response = self
-            .client
-            .post(format!("{}/api/embed", self.base_url))
-            .json(&json!({
-                "model": self.model,
-                "input": texts,
-            }))
-            .send()
-            .with_context(|| {
-                format!(
-                    "failed to contact Ollama at {} using model {}",
-                    self.base_url, self.model
-                )
-            })?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            anyhow::bail!(
-                "Ollama embedding request failed with {status}: {body}. Make sure Ollama is running at {} and model {} is available",
-                self.base_url,
-                self.model
-            );
-        }
-
-        let payload: OllamaEmbedResponse = response.json().with_context(|| {
-            format!(
-                "failed to decode Ollama embedding response from {}",
-                self.base_url
-            )
-        })?;
-        payload
-            .embeddings
-            .context("Ollama embedding response did not include embeddings")
-    }
-}
-
-#[derive(Serialize)]
-struct QdrantPointInput {
-    id: String,
-    vector: Vec<f32>,
-    payload: QdrantPointPayload,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct QdrantPointPayload {
@@ -1032,46 +774,6 @@ struct QdrantPointPayload {
     line_start: u32,
     line_end: u32,
     excerpt: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct QdrantEnvelope<T> {
-    result: T,
-}
-
-#[derive(Debug, Deserialize)]
-struct QdrantCollectionExistsResult {
-    exists: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct QdrantQueryResultEnvelope {
-    points: Vec<QdrantQueryPoint>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct QdrantQueryPoint {
-    score: f32,
-    #[serde(default)]
-    payload: Option<QdrantPointPayload>,
-}
-
-#[derive(Debug, Deserialize)]
-struct OllamaEmbedResponse {
-    embeddings: Option<Vec<Vec<f32>>>,
-}
-
-fn parse_qdrant_response<T: for<'de> Deserialize<'de>>(
-    response: reqwest::blocking::Response,
-) -> Result<QdrantEnvelope<T>> {
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().unwrap_or_default();
-        anyhow::bail!("Qdrant request failed with {status}: {body}");
-    }
-    response
-        .json()
-        .context("failed to decode Qdrant response JSON")
 }
 
 fn collect_semantic_corpus(
@@ -1394,7 +1096,9 @@ fn search_semantic_chunks(
         .collect()
 }
 
-fn map_qdrant_hit_to_result(point: QdrantQueryPoint) -> Option<EpiphanyRetrieveResult> {
+fn map_qdrant_hit_to_result(
+    point: SemanticCandidate<QdrantPointPayload>,
+) -> Option<EpiphanyRetrieveResult> {
     let payload = point.payload?;
 
     Some(EpiphanyRetrieveResult {
@@ -1619,31 +1323,6 @@ fn normalize_payload_path(path: &Path) -> String {
         .join("/")
 }
 
-fn validate_embedding_batch(embeddings: &[Vec<f32>], expected_count: usize) -> Result<()> {
-    if embeddings.len() != expected_count {
-        anyhow::bail!(
-            "embedding backend returned {} vectors for {} chunks",
-            embeddings.len(),
-            expected_count
-        );
-    }
-
-    let Some(vector_length) = embeddings.first().map(Vec::len) else {
-        return Ok(());
-    };
-    if vector_length == 0 {
-        anyhow::bail!("embedding backend returned an empty vector");
-    }
-
-    for (index, embedding) in embeddings.iter().enumerate() {
-        if embedding.len() != vector_length {
-            anyhow::bail!("embedding backend returned inconsistent vector length at item {index}");
-        }
-    }
-
-    Ok(())
-}
-
 fn unix_timestamp_seconds(time: SystemTime) -> Result<i64> {
     Ok(i64::try_from(
         time.duration_since(UNIX_EPOCH)
@@ -1662,14 +1341,6 @@ fn unix_timestamp_nanos(time: SystemTime) -> Result<i64> {
         .and_then(|seconds| seconds.checked_add(u64::from(duration.subsec_nanos())))
         .context("timestamp overflow")?;
     Ok(i64::try_from(nanos)?)
-}
-
-fn normalize_base_url(input: &str) -> String {
-    input.trim_end_matches('/').to_string()
-}
-
-fn timeout_seconds(timeout_ms: u64) -> u64 {
-    timeout_ms.div_ceil(1000).max(1)
 }
 
 fn env_override(primary: &str, fallback: &str) -> Option<String> {
@@ -1929,6 +1600,22 @@ mod tests {
                 .mount(&ollama)
                 .await;
 
+            Mock::given(method("GET"))
+                .and(path(format!(
+                    "/collections/{}",
+                    config.collection_name(temp_dir.path())
+                )))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "result": {
+                        "config": {
+                            "metadata": expected_collection_compatibility(&config, 3)
+                        }
+                    }
+                })))
+                .expect(1)
+                .mount(&qdrant)
+                .await;
+
             Mock::given(method("POST"))
                 .and(path(format!(
                     "/collections/{}/points/query",
@@ -2020,6 +1707,144 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn index_rebuilds_an_existing_collection_with_incompatible_metadata() -> Result<()> {
+        let workspace = TempDir::new()?;
+        let codex_home = TempDir::new()?;
+        fs::write(
+            workspace.path().join("claim.md"),
+            "canonical machine claim\n",
+        )?;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let qdrant = runtime.block_on(MockServer::start());
+        let ollama = runtime.block_on(MockServer::start());
+        let config = SemanticBackendConfig {
+            qdrant: QdrantConfig {
+                url: qdrant.uri(),
+                api_key: None,
+                timeout_ms: 5_000,
+            },
+            ollama: OllamaConfig {
+                base_url: ollama.uri(),
+                model: "expected-model".into(),
+                timeout_ms: 5_000,
+                query_instruction: DEFAULT_QUERY_INSTRUCTION.into(),
+            },
+        };
+        let snapshot = collect_workspace_index_snapshot(workspace.path())?;
+        let manifest = SemanticIndexManifest {
+            schema_version: SEMANTIC_MANIFEST_SCHEMA_VERSION,
+            workspace_root: workspace.path().to_path_buf(),
+            collection_name: config.collection_name(workspace.path()),
+            index_revision: config.index_revision(),
+            indexed_at_unix_seconds: 1,
+            files: snapshot
+                .files
+                .iter()
+                .map(|(path, file)| SemanticIndexedFile {
+                    path: path.clone(),
+                    size_bytes: file.size_bytes,
+                    modified_unix_nanos: file.modified_unix_nanos,
+                    chunk_count: file.chunk_count,
+                    point_ids: vec!["foreign-point".into()],
+                })
+                .collect(),
+        };
+        write_semantic_manifest(
+            &config.manifest_path(codex_home.path(), workspace.path()),
+            &manifest,
+        )?;
+        runtime.block_on(async {
+            Mock::given(method("GET")).and(path(format!("/collections/{}/exists", manifest.collection_name))).respond_with(ResponseTemplate::new(200).set_body_json(json!({"result":{"exists":true}}))).mount(&qdrant).await;
+            Mock::given(method("GET")).and(path(format!("/collections/{}", manifest.collection_name))).respond_with(ResponseTemplate::new(200).set_body_json(json!({"result":{"config":{"metadata": CollectionCompatibility { embedding_model: "foreign-model".into(), ..expected_collection_compatibility(&config, 3) }}}}))).mount(&qdrant).await;
+            Mock::given(method("DELETE")).and(path(format!("/collections/{}", manifest.collection_name))).respond_with(ResponseTemplate::new(200).set_body_json(json!({"result":true}))).expect(1).mount(&qdrant).await;
+            Mock::given(method("PUT")).and(path(format!("/collections/{}", manifest.collection_name))).respond_with(ResponseTemplate::new(200).set_body_json(json!({"result":true}))).expect(1).mount(&qdrant).await;
+            Mock::given(method("PUT")).and(path(format!("/collections/{}/points", manifest.collection_name))).respond_with(ResponseTemplate::new(200).set_body_json(json!({"result":true}))).expect(1).mount(&qdrant).await;
+            Mock::given(method("POST")).and(path("/api/embed")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"embeddings":[[0.1,0.2,0.3]]}))).expect(2).mount(&ollama).await;
+        });
+        assert_eq!(
+            index_workspace_with_config(workspace.path(), codex_home.path(), false, &config)?
+                .status,
+            EpiphanyRetrievalStatus::Ready
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn query_refuses_incompatible_collection_metadata_without_reading_payloads() -> Result<()> {
+        let workspace = TempDir::new()?;
+        let codex_home = TempDir::new()?;
+        fs::write(
+            workspace.path().join("claim.md"),
+            "canonical machine claim\n",
+        )?;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let qdrant = runtime.block_on(MockServer::start());
+        let ollama = runtime.block_on(MockServer::start());
+        let config = SemanticBackendConfig {
+            qdrant: QdrantConfig {
+                url: qdrant.uri(),
+                api_key: None,
+                timeout_ms: 5_000,
+            },
+            ollama: OllamaConfig {
+                base_url: ollama.uri(),
+                model: "expected-model".into(),
+                timeout_ms: 5_000,
+                query_instruction: DEFAULT_QUERY_INSTRUCTION.into(),
+            },
+        };
+        let snapshot = collect_workspace_index_snapshot(workspace.path())?;
+        let manifest = SemanticIndexManifest {
+            schema_version: SEMANTIC_MANIFEST_SCHEMA_VERSION,
+            workspace_root: workspace.path().to_path_buf(),
+            collection_name: config.collection_name(workspace.path()),
+            index_revision: config.index_revision(),
+            indexed_at_unix_seconds: 1,
+            files: snapshot
+                .files
+                .iter()
+                .map(|(path, file)| SemanticIndexedFile {
+                    path: path.clone(),
+                    size_bytes: file.size_bytes,
+                    modified_unix_nanos: file.modified_unix_nanos,
+                    chunk_count: file.chunk_count,
+                    point_ids: vec!["point".into()],
+                })
+                .collect(),
+        };
+        write_semantic_manifest(
+            &config.manifest_path(codex_home.path(), workspace.path()),
+            &manifest,
+        )?;
+        runtime.block_on(async {
+            Mock::given(method("GET")).and(path(format!("/collections/{}/exists", manifest.collection_name))).respond_with(ResponseTemplate::new(200).set_body_json(json!({"result":{"exists":true}}))).mount(&qdrant).await;
+            Mock::given(method("GET")).and(path(format!("/collections/{}", manifest.collection_name))).respond_with(ResponseTemplate::new(200).set_body_json(json!({"result":{"config":{"metadata": CollectionCompatibility { managed_by: "foreign".into(), ..expected_collection_compatibility(&config, 3) }}}}))).expect(1).mount(&qdrant).await;
+            Mock::given(method("POST")).and(path("/api/embed")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"embeddings":[[0.1,0.2,0.3]]}))).mount(&ollama).await;
+        });
+        let response = retrieve_workspace_with_config(
+            workspace.path(),
+            codex_home.path(),
+            EpiphanyRetrieveQuery::new("machine claim".into()),
+            &config,
+        )?;
+        assert_eq!(
+            response.index_summary.status,
+            EpiphanyRetrievalStatus::Stale
+        );
+        assert!(
+            response
+                .results
+                .iter()
+                .all(|result| result.kind != EpiphanyRetrieveResultKind::SemanticChunk)
+        );
+        Ok(())
+    }
+
     fn retrieve_workspace_with_config(
         workspace_root: &Path,
         codex_home: &Path,
@@ -2081,7 +1906,7 @@ mod tests {
             });
         }
 
-        let qdrant = QdrantClient::new(config.qdrant.clone())?;
+        let qdrant = QdrantBackend::new(config.qdrant.clone())?;
         if !qdrant.collection_exists(&manifest.collection_name)? {
             return Ok(PersistentSemanticSearch::Fallback {
                 summary: Some(manifest_to_retrieval_state(
@@ -2095,6 +1920,18 @@ mod tests {
 
         let ollama = OllamaEmbedder::new(config.ollama.clone())?;
         let query_vector = ollama.embed_query(query)?;
+        if qdrant.collection_compatibility(&manifest.collection_name)?
+            != expected_collection_compatibility(config, query_vector.len())
+        {
+            return Ok(PersistentSemanticSearch::Fallback {
+                summary: Some(manifest_to_retrieval_state(
+                    workspace_root,
+                    &manifest,
+                    EpiphanyRetrievalStatus::Stale,
+                    Vec::new(),
+                )),
+            });
+        }
         let hits = qdrant.query_points(&manifest.collection_name, &query_vector, limit)?;
         Ok(PersistentSemanticSearch::Ready {
             summary: manifest_to_retrieval_state(

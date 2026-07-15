@@ -2,7 +2,6 @@ use crate::memory_graph::EpiphanyMemoryAnchor;
 use crate::memory_graph::EpiphanyMemoryDomain;
 use crate::memory_graph::EpiphanyMemoryEdge;
 use crate::memory_graph::EpiphanyMemoryEdgeKind;
-use crate::memory_graph::EpiphanyMemoryFreshness;
 use crate::memory_graph::EpiphanyMemoryFreshnessStatus;
 use crate::memory_graph::EpiphanyMemoryGraphSnapshot;
 use crate::memory_graph::EpiphanyMemoryLifecycle;
@@ -10,6 +9,7 @@ use crate::memory_graph::EpiphanyMemoryNode;
 use crate::memory_graph::EpiphanyMemoryNodeKind;
 use crate::memory_graph::EpiphanyMemoryProfile;
 use crate::memory_graph::EpiphanyMemorySummary;
+use crate::memory_graph::derive_memory_graph_freshness;
 use crate::memory_graph::memory_graph_domain_id;
 use crate::memory_graph::memory_graph_edge_id;
 use crate::memory_graph::memory_graph_node_id;
@@ -216,23 +216,18 @@ pub fn memory_graph_from_epiphany_graphs(
 
     import_graph_links(graphs.links.as_slice(), &node_map, &mut edges, repo_root);
 
-    let stale_node_ids = nodes
+    let stale = nodes
         .iter()
-        .filter(|node| node.lifecycle == EpiphanyMemoryLifecycle::Stale)
-        .map(|node| node.id.clone())
-        .collect::<Vec<_>>();
-    let stale_edge_ids = edges
-        .iter()
-        .filter(|edge| edge.lifecycle == EpiphanyMemoryLifecycle::Stale)
-        .map(|edge| edge.id.clone())
-        .collect::<Vec<_>>();
-    let stale = !stale_node_ids.is_empty() || !stale_edge_ids.is_empty();
+        .any(|node| node.lifecycle == EpiphanyMemoryLifecycle::Stale)
+        || edges
+            .iter()
+            .any(|edge| edge.lifecycle == EpiphanyMemoryLifecycle::Stale);
     if stale {
         for summary in &mut summaries {
             summary.freshness = EpiphanyMemoryFreshnessStatus::Stale;
         }
     }
-    Ok(EpiphanyMemoryGraphSnapshot {
+    let mut snapshot = EpiphanyMemoryGraphSnapshot {
         schema_version: Some("epiphany.memory_graph.v1".to_string()),
         graph_id: graph_id.into(),
         source: Some(crate::memory_graph::EpiphanyMemoryGraphSource {
@@ -244,26 +239,10 @@ pub fn memory_graph_from_epiphany_graphs(
         nodes,
         edges,
         summaries,
-        freshness: Some(EpiphanyMemoryFreshness {
-            status: if stale {
-                EpiphanyMemoryFreshnessStatus::Stale
-            } else {
-                EpiphanyMemoryFreshnessStatus::Ready
-            },
-            stale_node_ids,
-            stale_edge_ids,
-            note: Some(
-                if stale {
-                    "One or more accepted graph anchors could not be verified against source bytes."
-                } else {
-                    "Imported from accepted Epiphany graph state."
-                }
-                .to_string(),
-            ),
-            ..Default::default()
-        }),
         ..Default::default()
-    })
+    };
+    snapshot.freshness = Some(derive_memory_graph_freshness(&snapshot, &[]));
+    Ok(snapshot)
 }
 
 fn repo_domain(id: String, profile: EpiphanyMemoryProfile, title: &str) -> EpiphanyMemoryDomain {

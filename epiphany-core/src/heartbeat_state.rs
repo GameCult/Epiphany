@@ -1104,7 +1104,7 @@ fn persona_memory_recall_for_scheduled_turn(
     }
     let Some(agent_store) = agent_store else {
         return serde_json::json!({
-            "schemaVersion": crate::PERSONA_MEMORY_CACHE_SCHEMA_VERSION,
+            "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
             "status": "unavailable",
             "cacheStatus": "agent-store-missing",
             "renderedRecall": "- semantic Persona memory recall unavailable: no agent store was provided for this heartbeat tick",
@@ -1117,7 +1117,7 @@ fn persona_memory_recall_for_scheduled_turn(
         Ok(Some(entry)) => entry,
         Ok(None) => {
             return serde_json::json!({
-                "schemaVersion": crate::PERSONA_MEMORY_CACHE_SCHEMA_VERSION,
+                "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
                 "status": "unavailable",
                 "cacheStatus": "persona-memory-missing",
                 "renderedRecall": "- semantic Persona memory recall unavailable: Persona memory entry is missing",
@@ -1126,7 +1126,7 @@ fn persona_memory_recall_for_scheduled_turn(
         }
         Err(error) => {
             return serde_json::json!({
-                "schemaVersion": crate::PERSONA_MEMORY_CACHE_SCHEMA_VERSION,
+                "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
                 "status": "unavailable",
                 "cacheStatus": "persona-memory-load-failed",
                 "renderedRecall": format!("- semantic Persona memory recall unavailable: {}", compact_heartbeat_line(&format!("{error:#}"), 320)),
@@ -1136,43 +1136,50 @@ fn persona_memory_recall_for_scheduled_turn(
     };
 
     let query = persona_memory_recall_query(selected, pending_mentions);
-    let graph = crate::memory_graph_from_agent_memories(
-        "heartbeat-persona-memory",
-        std::slice::from_ref(&entry),
-    );
-    let fallback = crate::plan_memory_graph_context_cut(
+    let mut entries = Vec::new();
+    for role in crate::agent_memory_role_ids() {
+        if let Ok(Some(role_entry)) = crate::load_agent_memory_entry_for_role(agent_store, role) {
+            entries.push(role_entry);
+        }
+    }
+    let swarm_id = crate::swarm_identity_from_agent_memories(&entries);
+    let graph = crate::memory_graph_from_agent_memories(&format!("{swarm_id}-mind"), &entries);
+    let persona_domain_id =
+        crate::memory_graph_domain_id(crate::EpiphanyMemoryProfile::RoleSelf, "role", "Persona");
+    let query_document = EpiphanyMemoryContextQuery {
+        id: "heartbeat-persona-turn".to_string(),
+        profile: Some(crate::EpiphanyMemoryProfile::RoleSelf),
+        domain_ids: vec![persona_domain_id],
+        node_ids: Vec::new(),
+        edge_ids: Vec::new(),
+        text: Some(query.clone()),
+        budget: Some(8),
+    };
+    let config = memory_semantic_config_for_heartbeat();
+    let packet = crate::semantic_memory_context(
         &graph,
-        &EpiphanyMemoryContextQuery {
-            id: "heartbeat-persona-turn".to_string(),
-            profile: Some(crate::EpiphanyMemoryProfile::RoleSelf),
-            domain_ids: Vec::new(),
-            node_ids: Vec::new(),
-            edge_ids: Vec::new(),
-            text: Some(query.clone()),
-            budget: Some(8),
-        },
-    );
-    let config = persona_memory_cache_config_for_heartbeat();
-    let recall = crate::render_persona_memory_recall_with_cache(
-        &entry,
-        format!("{}#Persona", agent_store.display()),
-        &query,
-        8,
-        Some(&fallback),
+        &swarm_id,
+        crate::SemanticPartition::Mind,
+        &query_document,
         &config,
     );
+    let fallback = packet
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("canonical BM25 fallback"));
+    let rendered_recall = crate::render_persona_semantic_memory_recall(&packet);
 
     serde_json::json!({
-        "schemaVersion": recall.schema_version,
-        "status": recall.status,
-        "cacheStatus": recall.cache_status,
-        "identityId": recall.identity_id,
-        "roleId": recall.role_id,
-        "chunkCount": recall.chunk_count,
-        "hitCount": recall.hit_count,
-        "renderedRecall": recall.rendered_recall,
-        "warnings": recall.warnings,
-        "privateStateExposed": recall.private_state_exposed,
+        "schemaVersion": crate::SEMANTIC_PROJECTION_SCHEMA_VERSION,
+        "status": if fallback { "fallback" } else { "ready" },
+        "cacheStatus": if fallback { "canonical-bm25" } else { "shared-mind-qdrant" },
+        "identityId": entry.agent.agent_id,
+        "roleId": entry.role_id,
+        "chunkCount": graph.nodes.len() + graph.summaries.len(),
+        "hitCount": packet.nodes.len() + packet.summaries.len(),
+        "renderedRecall": rendered_recall,
+        "warnings": packet.warnings,
+        "privateStateExposed": false,
     })
 }
 
@@ -1202,8 +1209,8 @@ fn persona_memory_recall_query(
     )
 }
 
-fn persona_memory_cache_config_for_heartbeat() -> crate::PersonaMemoryCacheConfig {
-    let mut config = crate::PersonaMemoryCacheConfig::from_env();
+fn memory_semantic_config_for_heartbeat() -> crate::MemorySemanticIndexConfig {
+    let mut config = crate::MemorySemanticIndexConfig::from_env();
     config.qdrant_timeout_ms = config.qdrant_timeout_ms.min(1_000);
     config.ollama_timeout_ms = config.ollama_timeout_ms.min(1_000);
     config
@@ -3874,7 +3881,7 @@ mod tests {
         let recall = &tick["schedule"]["action_catalog"][0]["persona_memory_recall"];
         assert_eq!(
             recall["schemaVersion"],
-            crate::PERSONA_MEMORY_CACHE_SCHEMA_VERSION
+            crate::SEMANTIC_PROJECTION_SCHEMA_VERSION
         );
         assert_eq!(recall["roleId"], "Persona");
         assert_eq!(recall["privateStateExposed"], false);

@@ -533,9 +533,9 @@ fn memory_graph_context_cut_descends_when_summary_is_stale() {
     );
 
     assert!(packet.summaries.is_empty());
-    assert_eq!(packet.nodes.len(), 2);
-    assert_eq!(packet.edges.len(), 1);
-    assert_eq!(packet.anchors.len(), 3);
+    assert_eq!(packet.nodes.len(), 1);
+    assert!(packet.edges.is_empty());
+    assert_eq!(packet.anchors.len(), 1);
     assert!(
         packet
             .warnings
