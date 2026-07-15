@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "persona-bridge", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "service-tick", "managed-service-task-plan", "managed-service-task-install", "managed-service-task-status", "managed-service-task-start", "managed-service-task-stop", "managed-service-task-uninstall")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp", "agent-state-soa", "swarm-status", "swarm-poke-down", "swarm-triage", "cluster-topology", "eve-surfaces", "eve-connect", "collaboration-feedback", "persona-discord", "persona-reddit", "persona-other", "daemon-survival-rehearsal", "repo-livefire-closure", "bifrost-publication", "bifrost-public-proof", "bifrost-artifact-acceptance", "bifrost-metrics", "bifrost-ledger", "receipt-directory", "tool-directory", "tool-invoke", "swarm-overview", "repo-persona-intake", "repo-swarm-run", "repo-work-queue-run", "repo-work-public-proof", "repo-work-readiness", "repo-deployment-config-audit", "repo-deployment-runbook", "repo-deployment-aftercare-audit", "repo-work-service-plan", "repo-work-service-runbook", "repo-work-service-launch", "repo-work-service-audit", "service-policy-directory", "service-plan", "service-launch", "service-runbook", "service-tick", "managed-service-task-plan", "managed-service-task-install", "managed-service-task-status", "managed-service-task-start", "managed-service-task-stop", "managed-service-task-uninstall")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -296,7 +296,6 @@ $heartbeatExe = Join-Path $TargetDir "debug\epiphany-heartbeat-store.exe"
 $PersonaExe = Join-Path $TargetDir "debug\epiphany-persona-discord.exe"
 $PersonaRedditExe = Join-Path $TargetDir "debug\epiphany-persona-reddit.exe"
 $PersonaOtherExe = Join-Path $TargetDir "debug\epiphany-persona-other.exe"
-$PersonaBridgeSmokeExe = Join-Path $TargetDir "debug\epiphany-persona-bridge-smoke.exe"
 $characterLoopExe = Join-Path $TargetDir "debug\epiphany-character-loop.exe"
 $agentMemoryExe = Join-Path $TargetDir "debug\epiphany-agent-memory-store.exe"
 $modelProvider = "openai-codex"
@@ -363,8 +362,6 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-persona-discord",
             "--bin", "epiphany-persona-reddit",
             "--bin", "epiphany-persona-other",
-            "--bin", "epiphany-bifrost-bridge-status-smoke",
-            "--bin", "epiphany-persona-bridge-smoke",
             "--bin", "epiphany-character-loop",
             "--bin", "epiphany-agent-memory-store",
             "--bin", "epiphany-agent-telemetry",
@@ -412,9 +409,6 @@ function Format-ServiceExecutionFailedChecks {
         $observed = if ($null -eq $_.observedStatus -or $_.observedStatus -eq "") { "missing" } else { $_.observedStatus }
         "${serviceId}::$($_.action)=${observed}:followUp=tools/epiphany_local_run.ps1 -Mode swarm-overview"
     }) -join "; ")
-}
-if ($Mode -eq "persona-bridge") {
-    $requiredBinaries += @($PersonaBridgeSmokeExe)
 }
 if (@("plan", "smoke", "run", "mvp") -contains $Mode) {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
@@ -880,17 +874,6 @@ if (@("persona-discord", "persona-reddit", "persona-other") -contains $Mode) {
             -StdoutPath $resultPath `
             -StderrPath (Join-Path $artifactRoot "persona-other.stderr.log")
     }
-}
-
-if ($Mode -eq "persona-bridge") {
-    $resultPath = Join-Path $artifactRoot "persona-bridge.stdout.json"
-    Invoke-Checked `
-        -Label "prove Persona outside-world mouths route through Bifrost" `
-        -FilePath $PersonaBridgeSmokeExe `
-        -Arguments @() `
-        -WorkingDirectory $Root `
-        -StdoutPath $resultPath `
-        -StderrPath (Join-Path $artifactRoot "persona-bridge.stderr.log")
 }
 
 if ($Mode -eq "bifrost-publication") {
@@ -1742,11 +1725,7 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         if ($Mode -eq "smoke") {
             Write-Host "Smoke: cold=$($result.coldAction), pressure=$($result.pressureAction), privateBackendMutationRejected=$($result.directBackendCompletionRejected)"
         } elseif ($Mode -eq "status") {
-            $bridgeRows = "none"
-            if ($null -ne $result.bifrostBridge -and $null -ne $result.bifrostBridge.surfaces -and $result.bifrostBridge.surfaces.Count -gt 0) {
-                $bridgeRows = (@($result.bifrostBridge.surfaces) | ForEach-Object { "$($_.id)=$($_.status)" }) -join ","
-            }
-            Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action), bifrostBridge=$($result.bifrostBridge.status), providerReady=$($result.bifrostBridge.providerReadySurfaceCount)/$($result.bifrostBridge.surfaceCount), bridgeRows=$bridgeRows"
+            Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action)"
         } elseif ($Mode -eq "agent-state-soa") {
             $agentRows = "none"
             if ($null -ne $result.tuiRows -and $result.tuiRows.Count -gt 0) {
@@ -1833,18 +1812,6 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
                 $bridgeAction = "none"
             }
             Write-Host "Persona mouth: mode=$Mode, action=$PersonaMouthAction, decision=$decision, audit=$auditId, target=$target, bridgeAction=$bridgeAction, artifact=$resultPath"
-        } elseif ($Mode -eq "persona-bridge") {
-            $surfaceRows = "none"
-            if ($null -ne $result.surfaces -and $result.surfaces.Count -gt 0) {
-                $surfaceRows = (($result.surfaces | ForEach-Object {
-                    "$($_.surface):transport=$($_.transport),identity=$($_.bifrostIdentity),heimdall=$($_.heimdallCapabilityRef),private=$($_.speechAuditPrivateStateExposed)"
-                }) -join "; ")
-            }
-            $bridgeRows = "none"
-            if ($null -ne $result.readiness -and $null -ne $result.readiness.surfaces -and $result.readiness.surfaces.Count -gt 0) {
-                $bridgeRows = (($result.readiness.surfaces | ForEach-Object { "$($_.id)=$($_.status)" }) -join ",")
-            }
-            Write-Host "Persona bridge: status=$($result.status), bridge=$($result.readiness.status), providerReady=$($result.readiness.providerReadySurfaceCount)/$($result.readiness.surfaceCount), bridgeRows=$bridgeRows, mouthRows=$surfaceRows, privateStateExposed=$($result.privateStateExposed), artifact=$resultPath"
         } elseif ($Mode -eq "bifrost-publication") {
             Write-Host "Bifrost publication request: status=$($result.status), intent=$($result.intentId), responseOwner=$($result.responseOwner), privateStateExposed=$($result.privateStateExposed)"
         } elseif ($Mode -eq "bifrost-public-proof") {

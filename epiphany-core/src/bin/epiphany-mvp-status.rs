@@ -527,7 +527,6 @@ fn run_native_status(args: &Args) -> Result<Value> {
         "tools": tool_invocations,
         "heartbeat": native_aux.heartbeat,
         "persona": native_aux.persona,
-        "bifrostBridge": native_aux.bifrost_bridge,
         "voidMemory": native_aux.void_memory,
     });
     Ok(sanitize_for_operator(status))
@@ -536,7 +535,6 @@ fn run_native_status(args: &Args) -> Result<Value> {
 struct NativeAuxiliaryStatus {
     heartbeat: Value,
     persona: Value,
-    bifrost_bridge: Value,
     void_memory: Value,
 }
 
@@ -658,7 +656,6 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
         ],
         private_state_exposed: false,
     })?;
-    let bifrost_bridge = bifrost_bridge_readiness(root);
     let void_memory = native_json(
         "epiphany-void-memory",
         &["status", "--config", "state/void-memory.toml"],
@@ -668,7 +665,6 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     Ok(NativeAuxiliaryStatus {
         heartbeat,
         persona,
-        bifrost_bridge,
         void_memory,
     })
 }
@@ -728,109 +724,6 @@ fn persona_artifact_ref(source: &str, artifact: &Value) -> Option<PersonaArtifac
             .map(str::to_string),
         target,
         private_state_exposed: false,
-    })
-}
-
-fn bifrost_bridge_readiness(root: &Path) -> Value {
-    let bifrost_root = root
-        .parent()
-        .map(|parent| parent.join("Bifrost"))
-        .unwrap_or_else(|| root.join("../Bifrost"));
-    let advertisement_tool = bifrost_root
-        .join("tools")
-        .join("provider-advertisement.mjs");
-    if !advertisement_tool.exists() {
-        return json!({
-            "status": "unavailable",
-            "owner": "Bifrost",
-            "tool": advertisement_tool,
-            "note": "Bifrost provider advertisement tool was not found; Epiphany cannot infer outside-world bridge readiness locally.",
-            "privateStateExposed": false,
-        });
-    }
-
-    let output = Command::new("node")
-        .arg(&advertisement_tool)
-        .arg("print-surface")
-        .current_dir(&bifrost_root)
-        .output();
-    let Ok(output) = output else {
-        return json!({
-            "status": "unavailable",
-            "owner": "Bifrost",
-            "tool": advertisement_tool,
-            "note": "Failed to invoke Bifrost provider advertisement tool.",
-            "privateStateExposed": false,
-        });
-    };
-    if !output.status.success() {
-        return json!({
-            "status": "unavailable",
-            "owner": "Bifrost",
-            "tool": advertisement_tool,
-            "note": format!("Bifrost provider advertisement failed: {}", String::from_utf8_lossy(&output.stderr)),
-            "privateStateExposed": false,
-        });
-    }
-
-    let parsed: Value = match serde_json::from_slice(&output.stdout) {
-        Ok(value) => value,
-        Err(error) => {
-            return json!({
-                "status": "unavailable",
-                "owner": "Bifrost",
-                "tool": advertisement_tool,
-                "note": format!("Bifrost provider advertisement returned invalid JSON: {error}"),
-                "privateStateExposed": false,
-            });
-        }
-    };
-    let bridge = &parsed["stats"]["bridge"];
-    let surfaces = bridge["surfaces"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|surface| {
-            let provider_ready = surface["ready"].as_bool().unwrap_or(false);
-            let prepared = surface["prepared"].as_bool().unwrap_or(false);
-            json!({
-                "id": surface["id"].clone(),
-                "label": surface["label"].clone(),
-                "status": if provider_ready { "provider-ready" } else if prepared { "prepared" } else { "missing" },
-                "providerReady": provider_ready,
-                "prepared": prepared,
-                "authority": surface["authority"].clone(),
-                "credentialSource": surface["credentialSource"].clone(),
-                "note": surface["note"].clone(),
-            })
-        })
-        .collect::<Vec<_>>();
-    let ready_count = surfaces
-        .iter()
-        .filter(|surface| surface["providerReady"].as_bool().unwrap_or(false))
-        .count();
-    let prepared_count = surfaces
-        .iter()
-        .filter(|surface| {
-            surface["prepared"].as_bool().unwrap_or(false)
-                && !surface["providerReady"].as_bool().unwrap_or(false)
-        })
-        .count();
-    json!({
-        "status": if bridge["ready"].as_bool().unwrap_or(false) { "provider-ready" } else if bridge["prepared"].as_bool().unwrap_or(false) { "prepared" } else { "unavailable" },
-        "owner": "Bifrost",
-        "authority": "Bifrost owns outside-world crossing gates, bridge receipts, and readiness projection; Heimdall owns provider OAuth, account links, and capability truth; Epiphany consumes this as read-only bridge sight.",
-        "source": "Bifrost provider advertisement print-surface",
-        "tool": advertisement_tool,
-        "generatedAt": parsed["stats"]["generatedAt"].clone(),
-        "providerReady": bridge["ready"].clone(),
-        "prepared": bridge["prepared"].clone(),
-        "providerReadySurfaceCount": ready_count,
-        "preparedSurfaceCount": prepared_count,
-        "surfaceCount": surfaces.len(),
-        "surfaces": surfaces,
-        "privateStateExposed": false,
     })
 }
 
@@ -1244,7 +1137,6 @@ pub fn render_status(status: &Value) -> String {
     let coordinator = &status["coordinator"];
     let heartbeat = &status["heartbeat"];
     let persona = &status["persona"];
-    let bifrost_bridge = &status["bifrostBridge"];
     let planning_response = &status["planning"];
     let planning_summary = &planning_response["summary"];
     let checkpoint = &scene["investigationCheckpoint"];
@@ -1320,16 +1212,6 @@ pub fn render_status(status: &Value) -> String {
         format!(
             "- artifact path: {}",
             maybe(&latest_persona["path"], "none")
-        ),
-        format!(
-            "- Bifrost bridge: {} ({}/{})",
-            maybe(&bifrost_bridge["status"], "unavailable"),
-            maybe(&bifrost_bridge["providerReadySurfaceCount"], "0"),
-            maybe(&bifrost_bridge["surfaceCount"], "0")
-        ),
-        format!(
-            "- bridge surfaces: {}",
-            bifrost_bridge_surface_text(bifrost_bridge)
         ),
         String::new(),
         "Planning".to_string(),
@@ -1668,24 +1550,4 @@ fn list_text(value: &Value, fallback: &str) -> String {
         return fallback.to_string();
     }
     items.iter().map(text).collect::<Vec<_>>().join(", ")
-}
-
-fn bifrost_bridge_surface_text(value: &Value) -> String {
-    let Some(items) = value["surfaces"].as_array() else {
-        return "none".to_string();
-    };
-    if items.is_empty() {
-        return "none".to_string();
-    }
-    items
-        .iter()
-        .map(|surface| {
-            format!(
-                "{}={}",
-                maybe(&surface["id"], "unknown"),
-                maybe(&surface["status"], "unknown")
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
 }

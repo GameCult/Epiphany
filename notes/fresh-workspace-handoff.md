@@ -903,13 +903,6 @@ editor path discovery is `resolved`, and the editor package predicate is named
 `present`. Operability belongs to the subsequent `runStatus` receipt. The
 native Unity bridge smoke, 259 library tests, and all-bin check pass.
 
-Bifrost bridge sight no longer upgrades provider readiness to live transport.
-Epiphany reports `provider-ready`, `prepared`, or `missing`, with explicit
-`providerReady` fields/counts; publication still requires Bifrost receipts. The
-native bridge smoke validates evidence vocabulary rather than stale provider
-topology and was repaired to the current native status CLI. It passes alongside
-259 library tests and all-bin compilation.
-
 The generic Persona Other mouth no longer models accepted Bifrost requests as
 posts. Recent speech tracks `crossing_recorded` and
 `same_target_crossing_count`; actual publication still requires an external
@@ -1542,3 +1535,37 @@ live operator approval may the real reboot/logon proof run. It must establish
 the restored tasks and tunnel, a fresh reconciler -> exactly-one-projector
 chain, launch-correlated provider sight, and admitted semantic queries. Do not
 infer reboot authority from this scheduler cleanup.
+
+## Bifrost readiness projection deletion (2026-07-15)
+
+Epiphany no longer treats a sibling Bifrost path, executable presence, exit
+zero, parseable JSON, or caller-supplied readiness booleans as provider sight.
+The `epiphany-mvp-status` sibling subprocess projection and its `bifrostBridge`
+output are deleted, as are `epiphany-bifrost-bridge-status-smoke`, the aggregate
+Persona readiness fields, and wrapper readiness summaries. Missing authenticated
+typed provider evidence remains unknown.
+
+The surviving Persona Discord, Reddit, and future-surface paths are mouths, not
+Eyes. Epiphany owns speech eligibility and may invoke a configured Bifrost
+actuator for one named crossing. A validated returned receipt is bound only to
+that speech/request artifact as evidence of the single consequence; it cannot
+establish provider inventory, liveness, capability, readiness, publication, or
+future operability. The cross-mouth aggregate is deleted. Each Persona mouth
+tests only its own fail-closed eligibility, target-bound receipt shape, and
+private-state sealing.
+
+Authority map: the participating Bifrost/provider boundary owns consequence
+truth; one eligible crossing request and configured actuator coordinates are
+inputs; one artifact-scoped transport/request receipt is the output; global
+readiness is not derived. MVP status, wrapper summaries, cross-mouth aggregators,
+sibling-path probes, and caller booleans are forbidden readiness writers. All
+three mouths retain the same eligibility-to-receipt boundary without sharing
+consequence authority. The deletion line was the sibling readiness projector,
+both aggregate smoke binaries, aggregate output fields, and status presentation.
+
+The deployment next action remains unchanged and permission-bound: do not
+reboot without exact live operator approval. With that approval, prove both
+scheduled tasks and the tunnel return after logon, establish a fresh reconciler
+-> exactly-one-projector chain and launch-correlated heartbeat, then obtain
+semantic ranking from packaged Mind and Modeling queries using the explicit
+Qdrant and Ollama endpoints.

@@ -1497,17 +1497,27 @@ editor executable. The project version is now `pinned`, the editor path is
 Commands may use resolution to choose what to execute, but only `runStatus`
 records planned, completed, failed, or blocked execution consequence.
 
-## Provider readiness is not live transport
+## Sibling subprocess output is not provider readiness
 
-Epiphany consumed Bifrost's provider readiness boolean and renamed it `live`,
-turning credential/capability sight into a transport claim. The projection now
-preserves it as `provider-ready`; rows may otherwise be `prepared` or `missing`.
-Fields and counts use `providerReady` explicitly. Only a Bifrost transport
-receipt may prove publication or delivery.
+Epiphany first consumed Bifrost's provider readiness boolean and renamed it
+`live`, then tried to repair the substitution by renaming the same value
+`provider-ready`. The authority fault survived both names. Native status still
+inferred a sibling repository path, found a JavaScript executable, accepted
+exit zero and parseable JSON, and promoted caller-visible booleans into global
+provider sight without authenticated typed ingest or provider participation.
 
-The bridge smoke also stopped hard-coding an obsolete provider topology. It now
-checks the evidence-state vocabulary and private-state seal rather than
-asserting that a named surface must remain live forever.
+That projection is deleted. Native MVP status no longer invokes the sibling
+advertisement tool or emits Bifrost readiness, and both bridge aggregate smokes
+and their wrapper presentation are gone. Missing evidence remains unknown.
+
+Persona mouth receipts are a different organ. For one eligible Discord,
+Reddit, or future-surface crossing, the mouth may invoke its configured Bifrost
+actuator and bind a validated result to that one speech/request artifact. The
+receipt is evidence of that named consequence only. It cannot establish global
+provider inventory, liveness, capability, readiness, publication, or future
+operability. Each single-mouth smoke tests only its own eligibility, receipt
+shape and binding, and private-state sealing; no cross-mouth green aggregate
+remains.
 
 ## Crossing request is not publication
 

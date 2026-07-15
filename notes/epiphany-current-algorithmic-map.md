@@ -477,7 +477,36 @@ checks in native launch/coordinator code reject renewed Codex route authority.
 | Hands/Soul loop | Hands receipt tests plus coordinator launch-context tests |
 | Protocol starvation | source scans, app-server compile, generated-schema equivalence |
 | Verse privacy/authority | CultMesh/Verse focused smokes and typed receipt readbacks |
-| Public crossings | Persona/Bifrost bridge smokes with private-state seals |
+| Public crossings | Persona mouth contract smokes: fail-closed eligibility, single-crossing receipt binding, and private-state seals; no provider-readiness projection |
+
+### Persona mouth / provider-readiness boundary
+
+Owner: the participating Bifrost/provider boundary owns the consequence of a
+public crossing. Epiphany owns only Persona speech eligibility and artifact
+binding.
+
+Inputs: one eligible Discord, Reddit, or named future-surface request plus the
+configured actuator coordinates and target-shaped identity/capability
+references.
+
+Outputs: one validated transport/request receipt bound to that one
+speech/request artifact.
+
+Derived state: the receipt is artifact-local evidence of the named consequence.
+It does not derive provider inventory, liveness, capability, readiness,
+publication, or future operability. Missing evidence remains unknown.
+
+Forbidden writers: MVP status, wrapper summaries, fixture aggregators,
+sibling-path/executable probes, subprocess exit status, parseable JSON, and
+caller-supplied booleans cannot write provider readiness.
+
+Shared paths: Discord, Reddit, and future-surface mouths all use the same
+fail-closed eligibility-to-receipt boundary, but each single-mouth smoke proves
+only its own crossing. No cross-mouth aggregate remains.
+
+Deletion line: remove the sibling advertisement subprocess projection, both
+aggregate smoke binaries, aggregate output fields, and status/wrapper
+presentation. Retain only the scoped mouth consequence receipts.
 
 Repo-work map admission is a canonical generation-bound transaction. A map
 entry names its `RepoWorkModelingRoute` and generation; the runtime spine loads
