@@ -965,3 +965,20 @@ and the loser leaves no job, worker launch, or opened event. Full core proof:
 322 passed, 1 ignored. Next build the exclusive immutable Imagination result
 echo carrying the typed candidate, then Mind-only Adopt/Refuse/Hold admission
 and the narrow Adopt model transition that makes Hands routing true.
+
+The immutable Imagination result slice is now complete. Runtime role result v2
+adds an exclusive `frontier_planning_request_id` plus dedicated canonical
+MessagePack `RepoFrontierPlanCandidate`. Persistence replays the exact planning
+request, request-keyed launch binding, stored launch-document hash/projection,
+runtime/thread, current model/admission/frontier, deterministic candidate
+identity, and bounded safe paths. Planning results reject generic state, Self,
+RepoModel, Verification, and Modeling authority cargo before writing. The
+OpenAI ingress uses a specialized planning schema, supplies candidate
+schema/contract itself, derives candidate identity from semantic cargo, and
+does not expose generic patch mouths. The candidate remains embedded in the
+immutable result; no standalone candidate document is written. Proof: core
+325 passed/1 ignored; OpenAI runtime 9 passed; hostile missing/swapped request,
+missing/adjacent/escaped candidate, wrong role, generic patch smuggling, exact
+retry, and immutable collision checks pass. Next implement Mind-only terminal
+decision plus the dedicated Adopt RepoModel transition from Imagination to
+Hands, then delete the old internal candidate/adoption fixture writers.

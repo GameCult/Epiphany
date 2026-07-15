@@ -11,10 +11,18 @@ worker launch document. Caller-authored projections, mixed authority carriers,
 stale requests, causal substitutions, and duplicate/racing launches are
 refused without loser artifacts.
 
-The downstream nerve is still incomplete. Imagination has no exclusive
-immutable result carrying the candidate; Mind has no correlated admission; the
-old internal candidate/adoption fixture writers still exist; and Adopt still
-changes no RepoModel bytes or Hands truth.
+Imagination's output is now a v2 immutable runtime result with an exclusive
+planning-request echo and one dedicated canonical MessagePack candidate. Result
+persistence replays the current request, launch binding, stored launch bytes,
+projection, runtime/thread, model, admission, frontier, candidate identity, and
+safe-path scope before its absent-only write. Generic state, Self, RepoModel,
+Verification, and Modeling authority cargo are forbidden on this path. The
+candidate remains inside the immutable result until Mind admission; no
+independent candidate writer participates in production.
+
+The downstream nerve is still incomplete. Mind has no correlated admission;
+the old internal candidate/adoption fixture writers still exist for the legacy
+test chain; and Adopt still changes no RepoModel bytes or Hands truth.
 
 The public candidate/adoption writers remain removed. The existing internal
 functions are test scaffolding only and die when result correlation and Mind

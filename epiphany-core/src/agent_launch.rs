@@ -412,6 +412,61 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     schema
 }
 
+pub fn epiphany_frontier_planning_output_schema() -> serde_json::Value {
+    let mut schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Imagination);
+    let properties = schema["properties"]
+        .as_object_mut()
+        .expect("role output schema properties");
+    properties.remove("statePatch");
+    properties.remove("selfPatch");
+    properties.insert(
+        "frontierPlanningRequestId".to_string(),
+        serde_json::json!({
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact echo of the coordinator-bound repo frontier planning request."
+        }),
+    );
+    properties.insert(
+        "frontierPlanCandidate".to_string(),
+        serde_json::json!({
+            "type": "object",
+            "required": [
+                "planning_request_id", "model_revision", "model_hash",
+                "frontier_item_id", "frontier_item_hash", "safe_paths", "action", "command",
+                "checks", "stop_conditions", "rollback_steps", "commit_message", "proposed_at"
+            ],
+            "properties": {
+                "planning_request_id": {"type": "string", "minLength": 1},
+                "model_revision": {"type": "integer", "minimum": 0},
+                "model_hash": {"type": "string", "minLength": 1},
+                "frontier_item_id": {"type": "string", "minLength": 1},
+                "frontier_item_hash": {"type": "string", "minLength": 1},
+                "safe_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                "action": {"type": "string", "minLength": 1},
+                "command": {"type": "string", "minLength": 1},
+                "checks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                "stop_conditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                "rollback_steps": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                "commit_message": {"type": "string", "minLength": 1},
+                "proposed_at": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+        }),
+    );
+    schema["required"] = serde_json::json!([
+        "roleId",
+        "verdict",
+        "summary",
+        "nextSafeMove",
+        "filesInspected",
+        "frontierPlanningRequestId",
+        "frontierPlanCandidate"
+    ]);
+    schema["additionalProperties"] = serde_json::Value::Bool(false);
+    schema
+}
+
 pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
@@ -954,6 +1009,21 @@ mod tests {
             schema["allOf"][1]["then"]["required"][0],
             "claimRepairRequestId"
         );
+    }
+
+    #[test]
+    fn frontier_planning_schema_exposes_candidate_without_generic_patch_mouths() {
+        let schema = epiphany_frontier_planning_output_schema();
+        assert!(
+            schema["properties"]
+                .get("frontierPlanningRequestId")
+                .is_some()
+        );
+        assert!(schema["properties"].get("frontierPlanCandidate").is_some());
+        assert!(schema["properties"].get("statePatch").is_none());
+        assert!(schema["properties"].get("selfPatch").is_none());
+        assert!(schema["properties"].get("repoModelPatch").is_none());
+        assert_eq!(schema["additionalProperties"], false);
     }
 
     #[test]

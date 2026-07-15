@@ -48,7 +48,9 @@ use crate::repo_model_gateway::{
     REPO_FRONTIER_HANDS_AUTHORITY_CONTRACT, REPO_FRONTIER_HANDS_AUTHORITY_SCHEMA_VERSION,
     REPO_FRONTIER_MODELING_REQUEST_CONTRACT, REPO_FRONTIER_MODELING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_PLAN_ADOPTION_SCHEMA_VERSION, REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION,
-    REPO_FRONTIER_PLANNING_CONTRACT, REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION,
+    REPO_FRONTIER_PLANNING_CONTRACT, REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT,
+    REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION,
+    REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION,
     REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_CONTRACT,
     REPO_FRONTIER_PROPOSAL_MODELING_LAUNCH_BINDING_SCHEMA_VERSION,
     REPO_FRONTIER_PROPOSAL_MODELING_REQUEST_CONTRACT,
@@ -174,7 +176,7 @@ pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
-    "epiphany.runtime.role_worker_result.v1";
+    "epiphany.runtime.role_worker_result.v2";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.reorient_worker_result.v0";
 pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v0";
@@ -410,6 +412,10 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub proposal_modeling_request_id: Option<String>,
     #[cultcache(key = 25, default)]
     pub claim_repair_request_id: Option<String>,
+    #[cultcache(key = 26, default)]
+    pub frontier_planning_request_id: Option<String>,
+    #[cultcache(key = 27, default)]
+    pub frontier_plan_candidate_msgpack: Option<Vec<u8>>,
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
@@ -428,6 +434,13 @@ impl EpiphanyRuntimeRoleWorkerResult {
         decode_optional_msgpack(
             self.repo_model_patch_msgpack.as_deref(),
             "role worker repoModelPatch",
+        )
+    }
+
+    pub fn frontier_plan_candidate(&self) -> Result<Option<RepoFrontierPlanCandidate>> {
+        decode_optional_msgpack(
+            self.frontier_plan_candidate_msgpack.as_deref(),
+            "role worker frontierPlanCandidate",
         )
     }
 }
@@ -1457,6 +1470,11 @@ pub fn put_runtime_role_worker_result(
     validate_non_empty(&result.job_id, "role worker result job id")?;
     validate_non_empty(&result.result_id, "role worker result id")?;
     validate_non_empty(&result.role_id, "role worker result role id")?;
+    if result.schema_version != RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION {
+        return Err(anyhow!("role worker result schema version mismatch"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
     let is_verification = result.role_id == "verification";
     if is_verification
         != (result
@@ -1553,8 +1571,94 @@ pub fn put_runtime_role_worker_result(
             _ => {}
         }
     }
-    let mut cache = runtime_spine_cache(store_path)?;
-    cache.pull_all_backing_stores()?;
+    let has_planning_echo = result.frontier_planning_request_id.is_some();
+    let has_planning_candidate = result.frontier_plan_candidate_msgpack.is_some();
+    if has_planning_echo != has_planning_candidate {
+        return Err(anyhow!(
+            "frontier planning result requires both its request echo and typed candidate"
+        ));
+    }
+    if has_planning_echo {
+        if !result.role_id.eq_ignore_ascii_case("imagination") {
+            return Err(anyhow!(
+                "only Imagination results may echo a frontier planning request"
+            ));
+        }
+        if result.state_patch_msgpack.is_some()
+            || result.self_patch_msgpack.is_some()
+            || result.repo_model_patch_msgpack.is_some()
+            || result.verification_request_id.is_some()
+            || result.frontier_route_id.is_some()
+            || result.repo_frontier_modeling_request_id.is_some()
+            || result.proposal_modeling_request_id.is_some()
+            || result.claim_repair_request_id.is_some()
+        {
+            return Err(anyhow!(
+                "frontier planning result may carry only its request echo and typed candidate authority"
+            ));
+        }
+        let request_id = result
+            .frontier_planning_request_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("frontier planning request echo disappeared"))?;
+        let request = cache
+            .get::<RepoFrontierPlanningRequest>(request_id)?
+            .ok_or_else(|| anyhow!("frontier planning result requires persisted request"))?;
+        validate_current_repo_frontier_planning_request(&cache, &request)?;
+        let candidate = result
+            .frontier_plan_candidate()?
+            .ok_or_else(|| anyhow!("frontier planning candidate disappeared"))?;
+        validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &request)?;
+        let bindings = cache
+            .get_all::<RepoFrontierPlanningLaunchBinding>()?
+            .into_iter()
+            .filter(|binding| binding.planning_request_id == request.request_id)
+            .collect::<Vec<_>>();
+        if bindings.len() != 1 {
+            return Err(anyhow!(
+                "frontier planning result requires exactly one coordinator launch binding"
+            ));
+        }
+        let binding = &bindings[0];
+        let worker_launch = cache
+            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+            .ok_or_else(|| anyhow!("frontier planning result requires its worker launch"))?;
+        let launch_document = worker_launch.launch_document()?;
+        let projection = match &launch_document {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                document.frontier_planning_context.as_ref()
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+        };
+        let expected_projection =
+            crate::RepoFrontierPlanningContextProjection::from_request(&request);
+        let launch_hash = format!(
+            "{:x}",
+            Sha256::digest(&worker_launch.launch_document_msgpack)
+        );
+        if binding.schema_version != REPO_FRONTIER_PLANNING_LAUNCH_BINDING_SCHEMA_VERSION
+            || binding.contract != REPO_FRONTIER_PLANNING_LAUNCH_BINDING_CONTRACT
+            || binding.binding_record_id
+                != format!("repo-frontier-planning-launch-{}", request.request_id)
+            || binding.job_id != result.job_id
+            || binding.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+            || binding.runtime_id != request.runtime_id
+            || binding.thread_id != request.thread_id
+            || binding.worker_launch_document_sha256 != launch_hash
+            || worker_launch.job_id != result.job_id
+            || worker_launch.role != EPIPHANY_IMAGINATION_OWNER_ROLE
+            || worker_launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+            || worker_launch.frontier_planning_request_id.as_deref()
+                != Some(request.request_id.as_str())
+            || worker_launch.proposal_modeling_request_id.is_some()
+            || worker_launch.claim_repair_request_id.is_some()
+            || projection != Some(&expected_projection)
+        {
+            return Err(anyhow!(
+                "frontier planning result does not exactly bind request, launch, runtime, thread, and candidate"
+            ));
+        }
+    }
     if let Some(existing) = cache.get::<EpiphanyRuntimeRoleWorkerResult>(&result.job_id)? {
         return if existing == *result {
             Ok(())
@@ -3538,6 +3642,94 @@ pub(crate) fn put_repo_frontier_plan_candidate(
         return Err(anyhow!("candidate paths exceed frontier source scope"));
     }
     put_immutable_planning_entry(store_path, &candidate.candidate_id, candidate)
+}
+
+fn validate_repo_frontier_plan_candidate_against_request(
+    cache: &CultCache,
+    candidate: &RepoFrontierPlanCandidate,
+    request: &RepoFrontierPlanningRequest,
+) -> Result<()> {
+    if candidate.schema_version != REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION
+        || candidate.contract != REPO_FRONTIER_PLANNING_CONTRACT
+        || candidate.selected_fields_invalid()
+        || candidate.planning_request_id != request.request_id
+        || candidate.model_revision != request.model_revision
+        || candidate.model_hash != request.model_hash
+        || candidate.frontier_item_id != request.frontier_item_id
+        || candidate.frontier_item_hash != request.frontier_item_hash
+    {
+        return Err(anyhow!(
+            "frontier planning candidate substituted request identity or required cargo"
+        ));
+    }
+    let expected_candidate_id = canonical_repo_frontier_plan_candidate_id(candidate)?;
+    if candidate.candidate_id != expected_candidate_id {
+        return Err(anyhow!("frontier planning candidate id is not canonical"));
+    }
+    let admission = cache
+        .get::<RepoModelAdmissionReceipt>(&request.admission_receipt_id)?
+        .ok_or_else(|| anyhow!("frontier planning candidate requires exact admission receipt"))?;
+    if admission.schema_version != REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+        || admission.contract != REPO_MODEL_ADMISSION_CONTRACT
+        || admission.admitted_revision != request.model_revision
+        || admission.admitted_hash != request.model_hash
+    {
+        return Err(anyhow!(
+            "frontier planning candidate admission binding mismatch"
+        ));
+    }
+    let entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("frontier planning candidate requires canonical model"))?;
+    let model = entry.snapshot()?;
+    if model.model_revision != request.model_revision
+        || crate::memory_graph_model_hash(&model)? != request.model_hash
+    {
+        return Err(anyhow!("frontier planning candidate model is stale"));
+    }
+    let item = model
+        .frontier
+        .iter()
+        .find(|item| item.id == request.frontier_item_id)
+        .ok_or_else(|| anyhow!("frontier planning candidate frontier disappeared"))?;
+    if format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(item)?)) != request.frontier_item_hash
+        || item.source_scope != request.source_scope
+        || !candidate.safe_paths.iter().all(|path| {
+            request.source_scope.iter().any(|scope| {
+                path == scope
+                    || path.starts_with(&format!("{}/", scope.trim_end_matches(['/', '\\'])))
+            })
+        })
+    {
+        return Err(anyhow!(
+            "frontier planning candidate exceeds exact frontier authority"
+        ));
+    }
+    Ok(())
+}
+
+pub fn canonical_repo_frontier_plan_candidate_id(
+    candidate: &RepoFrontierPlanCandidate,
+) -> Result<String> {
+    let semantic_bytes = rmp_serde::to_vec_named(&(
+        &candidate.planning_request_id,
+        candidate.model_revision,
+        &candidate.model_hash,
+        &candidate.frontier_item_id,
+        &candidate.frontier_item_hash,
+        &candidate.safe_paths,
+        &candidate.action,
+        &candidate.command,
+        &candidate.checks,
+        &candidate.stop_conditions,
+        &candidate.rollback_steps,
+        &candidate.commit_message,
+        &candidate.proposed_at,
+    ))?;
+    Ok(format!(
+        "repo-frontier-plan-candidate-{:x}",
+        Sha256::digest(semantic_bytes)
+    ))
 }
 
 impl RepoFrontierPlanCandidate {
@@ -6980,6 +7172,8 @@ pub(crate) mod tests {
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: Some(selection.request_id),
             claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -7109,6 +7303,8 @@ pub(crate) mod tests {
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
             claim_repair_request_id: Some(repair.request_id.clone()),
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
@@ -8382,6 +8578,8 @@ pub(crate) mod tests {
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
             claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
         };
         put_runtime_role_worker_result(&store, &verification_result)?;
         let verdict = SoulVerdictReceipt {
@@ -8501,6 +8699,8 @@ pub(crate) mod tests {
             repo_frontier_modeling_request_id: Some(fixture.modeling_request.request_id.clone()),
             proposal_modeling_request_id: None,
             claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -8777,6 +8977,8 @@ pub(crate) mod tests {
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
             claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
         };
         put_runtime_role_worker_result(&fixture.store, &adjacent)?;
         put_soul_verdict_receipt(

@@ -59,6 +59,7 @@ pub use agent_launch::build_epiphany_reorient_launch_request_with_dynamic_contex
 pub use agent_launch::build_epiphany_role_launch_request;
 pub use agent_launch::build_epiphany_role_launch_request_with_dynamic_context;
 pub use agent_launch::epiphany_agent_prompt_with_memory;
+pub use agent_launch::epiphany_frontier_planning_output_schema;
 pub use agent_launch::epiphany_reorient_launch_output_schema;
 pub use agent_launch::epiphany_role_binding_id;
 pub use agent_launch::epiphany_role_label;
@@ -776,6 +777,7 @@ pub use runtime_spine::RuntimeSpineJobOptions;
 pub use runtime_spine::RuntimeSpineJobResultOptions;
 pub use runtime_spine::RuntimeSpineSessionOptions;
 pub use runtime_spine::append_runtime_event;
+pub use runtime_spine::canonical_repo_frontier_plan_candidate_id;
 pub use runtime_spine::clear_epiphany_job_binding_backend;
 pub use runtime_spine::commit_repo_frontier_modeling_request;
 pub use runtime_spine::commit_repo_frontier_verification_request_for_chain;

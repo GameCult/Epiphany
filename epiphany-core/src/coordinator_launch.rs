@@ -838,6 +838,62 @@ pub(crate) mod tests {
         Ok((store, state, launch, planning))
     }
 
+    fn frontier_planning_result(
+        planning: &RepoFrontierPlanningRequest,
+        job_id: &str,
+        proposed_at: &str,
+    ) -> Result<EpiphanyRuntimeRoleWorkerResult> {
+        let mut candidate = RepoFrontierPlanCandidate {
+            schema_version: REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.into(),
+            candidate_id: String::new(),
+            planning_request_id: planning.request_id.clone(),
+            model_revision: planning.model_revision,
+            model_hash: planning.model_hash.clone(),
+            frontier_item_id: planning.frontier_item_id.clone(),
+            frontier_item_hash: planning.frontier_item_hash.clone(),
+            safe_paths: vec![planning.source_scope[0].clone()],
+            action: "Implement the bounded frontier plan.".into(),
+            command: "cargo test --lib".into(),
+            checks: vec!["Focused tests pass.".into()],
+            stop_conditions: vec!["Authority scope changes.".into()],
+            rollback_steps: vec!["Revert the bounded commit.".into()],
+            commit_message: "Implement bounded frontier plan".into(),
+            proposed_at: proposed_at.into(),
+            contract: REPO_FRONTIER_PLANNING_CONTRACT.into(),
+        };
+        candidate.candidate_id = canonical_repo_frontier_plan_candidate_id(&candidate)?;
+        Ok(EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            result_id: format!("frontier-planning-result-{job_id}"),
+            job_id: job_id.into(),
+            role_id: "imagination".into(),
+            verdict: "draft-ready".into(),
+            summary: "Produced one bounded candidate.".into(),
+            next_safe_move: "Mind admission.".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: planning.source_scope.clone(),
+            frontier_node_ids: vec![planning.frontier_item_id.clone()],
+            evidence_ids: vec![planning.admission_receipt_id.clone()],
+            artifact_refs: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: std::collections::BTreeMap::new(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: Some(planning.request_id.clone()),
+            frontier_plan_candidate_msgpack: Some(rmp_serde::to_vec_named(&candidate)?),
+        })
+    }
+
     fn research_launch(state: &EpiphanyThreadState) -> EpiphanyJobLaunchRequest {
         build_epiphany_role_launch_request(
             "thread-1",
@@ -1317,6 +1373,107 @@ pub(crate) mod tests {
                 "planning causal mutation {mutation} must be refused"
             );
             assert_eq!(std::fs::read(&store)?, before);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn frontier_planning_result_is_exact_immutable_and_patch_sealed() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, planning) =
+            frontier_planning_launch_fixture(root.path(), "result-exact")?;
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-result".into(),
+            "backend-result".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &planning.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-15T09:00:03Z".into(),
+        )?;
+        let result = frontier_planning_result(&planning, "backend-result", "2026-07-15T09:00:04Z")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let stored = runtime_role_worker_result(&store, "backend-result")?
+            .expect("immutable planning result");
+        assert_eq!(stored, result);
+        let candidate = stored
+            .frontier_plan_candidate()?
+            .expect("typed candidate payload");
+        assert_eq!(candidate.planning_request_id, planning.request_id);
+        assert_eq!(
+            candidate.candidate_id,
+            canonical_repo_frontier_plan_candidate_id(&candidate)?
+        );
+        assert!(
+            coordinator_acceptance_cache(&store)?
+                .get_all::<RepoFrontierPlanCandidate>()?
+                .is_empty(),
+            "candidate must remain inside immutable result until Mind admission"
+        );
+        let mut counterfeit = result;
+        counterfeit.summary = "different result bytes".into();
+        let before = std::fs::read(&store)?;
+        assert!(put_runtime_role_worker_result(&store, &counterfeit).is_err());
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn frontier_planning_result_refuses_hostile_substitution_before_persistence() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        for mutation in 0..9 {
+            let (store, state, launch, planning) =
+                frontier_planning_launch_fixture(root.path(), &format!("result-{mutation}"))?;
+            let job_id = format!("backend-result-{mutation}");
+            let plan = plan_coordinator_job_launch(
+                &state,
+                &launch,
+                &store,
+                format!("launcher-result-{mutation}"),
+                job_id.clone(),
+            )?;
+            commit_coordinator_job_launch(
+                &store,
+                &planning.thread_id,
+                &state,
+                &launch,
+                &plan,
+                "2026-07-15T09:00:03Z".into(),
+            )?;
+            let mut result = frontier_planning_result(&planning, &job_id, "2026-07-15T09:00:04Z")?;
+            match mutation {
+                0 => result.frontier_planning_request_id = Some("swapped-request".into()),
+                1 => result.frontier_planning_request_id = None,
+                2 => result.frontier_plan_candidate_msgpack = None,
+                3 => result.role_id = "modeling".into(),
+                4 => result.state_patch_msgpack = Some(vec![0]),
+                5 => result.self_patch_msgpack = Some(vec![0]),
+                6 => result.repo_model_patch_msgpack = Some(vec![0]),
+                _ => {
+                    let mut candidate = result.frontier_plan_candidate()?.unwrap();
+                    if mutation == 7 {
+                        candidate.frontier_item_hash = "adjacent-frontier".into();
+                    } else {
+                        candidate.safe_paths = vec!["outside/authority".into()];
+                    }
+                    result.frontier_plan_candidate_msgpack =
+                        Some(rmp_serde::to_vec_named(&candidate)?);
+                }
+            }
+            let before = std::fs::read(&store)?;
+            assert!(
+                put_runtime_role_worker_result(&store, &result).is_err(),
+                "hostile planning result mutation {mutation} must fail"
+            );
+            assert_eq!(std::fs::read(&store)?, before);
+            assert!(runtime_role_worker_result(&store, &job_id)?.is_none());
         }
         Ok(())
     }

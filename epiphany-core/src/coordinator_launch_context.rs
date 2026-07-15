@@ -938,6 +938,8 @@ mod tests {
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: Some(selection.request_id),
             claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
         };
         crate::put_runtime_role_worker_result(store, &result)?;
         crate::commit_repo_model_admission(
@@ -1419,6 +1421,8 @@ mod tests {
             repo_frontier_modeling_request_id: None,
             proposal_modeling_request_id: None,
             claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
         };
         crate::put_runtime_role_worker_result(&runtime_store, &verification_result)?;
         crate::put_soul_verdict_receipt(

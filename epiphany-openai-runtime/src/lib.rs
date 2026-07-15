@@ -1298,7 +1298,11 @@ fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<
         EpiphanyWorkerLaunchDocument::Role(document) => {
             let role_id = role_result_id_for_launch_role(&document.role_id)
                 .with_context(|| format!("unknown role launch id {:?}", document.role_id))?;
-            epiphany_core::epiphany_role_launch_output_schema(role_id)
+            if document.frontier_planning_context.is_some() {
+                epiphany_core::epiphany_frontier_planning_output_schema()
+            } else {
+                epiphany_core::epiphany_role_launch_output_schema(role_id)
+            }
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             epiphany_core::epiphany_reorient_launch_output_schema()
@@ -1323,8 +1327,13 @@ fn role_result_id_for_launch_role(
 
 fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
     match document {
+        EpiphanyWorkerLaunchDocument::Role(document)
+            if document.frontier_planning_context.is_some() =>
+        {
+            "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanningRequestId, frontierPlanCandidate. Echo the exact request and candidate identity from the typed launch context. Do not emit statePatch, selfPatch, or repoModelPatch."
+        }
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers must include repoModelPatch; Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers must include repoModelPatch; ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -1355,6 +1364,27 @@ struct RoleWorkerResultIngress {
     frontier_route_id: Option<String>,
     repo_frontier_modeling_request_id: Option<String>,
     proposal_modeling_request_id: Option<String>,
+    claim_repair_request_id: Option<String>,
+    frontier_planning_request_id: Option<String>,
+    frontier_plan_candidate: Option<RepoFrontierPlanCandidateIngress>,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct RepoFrontierPlanCandidateIngress {
+    planning_request_id: String,
+    model_revision: u64,
+    model_hash: String,
+    frontier_item_id: String,
+    frontier_item_hash: String,
+    safe_paths: Vec<String>,
+    action: String,
+    command: String,
+    checks: Vec<String>,
+    stop_conditions: Vec<String>,
+    rollback_steps: Vec<String>,
+    commit_message: String,
+    proposed_at: String,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -1450,6 +1480,37 @@ fn role_worker_result_from_ingress(
         encode_optional_document(&result.repo_model_patch, "repoModelPatch");
     let (self_patch_msgpack, self_patch_error) =
         encode_optional_document(&result.self_patch, "selfPatch");
+    let (frontier_plan_candidate_msgpack, frontier_plan_candidate_error) = if let Some(ingress) =
+        result.frontier_plan_candidate.as_ref()
+    {
+        let mut candidate = epiphany_core::RepoFrontierPlanCandidate {
+            schema_version: epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION.to_string(),
+            candidate_id: String::new(),
+            planning_request_id: ingress.planning_request_id.clone(),
+            model_revision: ingress.model_revision,
+            model_hash: ingress.model_hash.clone(),
+            frontier_item_id: ingress.frontier_item_id.clone(),
+            frontier_item_hash: ingress.frontier_item_hash.clone(),
+            safe_paths: clean_string_vec(&ingress.safe_paths),
+            action: ingress.action.trim().to_string(),
+            command: ingress.command.trim().to_string(),
+            checks: clean_string_vec(&ingress.checks),
+            stop_conditions: clean_string_vec(&ingress.stop_conditions),
+            rollback_steps: clean_string_vec(&ingress.rollback_steps),
+            commit_message: ingress.commit_message.trim().to_string(),
+            proposed_at: ingress.proposed_at.trim().to_string(),
+            contract: epiphany_core::REPO_FRONTIER_PLANNING_CONTRACT.to_string(),
+        };
+        match epiphany_core::canonical_repo_frontier_plan_candidate_id(&candidate) {
+            Ok(candidate_id) => {
+                candidate.candidate_id = candidate_id;
+                encode_optional_document(&Some(candidate), "frontierPlanCandidate")
+            }
+            Err(error) => (None, Some(format!("frontierPlanCandidate: {error}"))),
+        }
+    } else {
+        (None, None)
+    };
     EpiphanyRuntimeRoleWorkerResult {
         schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         result_id: result_id.to_string(),
@@ -1475,8 +1536,11 @@ fn role_worker_result_from_ingress(
         state_patch_msgpack,
         self_patch_msgpack,
         item_error: merge_optional_errors(
-            merge_optional_errors(state_patch_error, self_patch_error),
-            repo_model_patch_error,
+            merge_optional_errors(
+                merge_optional_errors(state_patch_error, self_patch_error),
+                repo_model_patch_error,
+            ),
+            frontier_plan_candidate_error,
         ),
         metadata: std::collections::BTreeMap::new(),
         repo_model_patch_msgpack,
@@ -1488,6 +1552,11 @@ fn role_worker_result_from_ingress(
         proposal_modeling_request_id: clean_optional_string(
             result.proposal_modeling_request_id.as_deref(),
         ),
+        claim_repair_request_id: clean_optional_string(result.claim_repair_request_id.as_deref()),
+        frontier_planning_request_id: clean_optional_string(
+            result.frontier_planning_request_id.as_deref(),
+        ),
+        frontier_plan_candidate_msgpack,
     }
 }
 
@@ -1626,6 +1695,8 @@ mod tests {
                 epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
             ),
             proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -1641,6 +1712,80 @@ mod tests {
         assert_eq!(
             result.frontier_route_id.as_deref(),
             Some("frontier-route-1")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn frontier_planning_ingress_derives_typed_candidate_identity() -> Result<()> {
+        let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
+            r#"{
+                "roleId":"imagination",
+                "verdict":"draft-ready",
+                "summary":"bounded plan",
+                "nextSafeMove":"Mind admission",
+                "frontierPlanningRequestId":"planning-request-1",
+                "frontierPlanCandidate":{
+                    "planning_request_id":"planning-request-1",
+                    "model_revision":7,
+                    "model_hash":"model-hash",
+                    "frontier_item_id":"frontier-1",
+                    "frontier_item_hash":"frontier-hash",
+                    "safe_paths":["src"],
+                    "action":"Implement the bounded cut.",
+                    "command":"cargo test --lib",
+                    "checks":["focused test passes"],
+                    "stop_conditions":["scope changes"],
+                    "rollback_steps":["revert commit"],
+                    "commit_message":"Implement bounded cut",
+                    "proposed_at":"2026-07-15T10:00:00Z"
+                }
+            }"#,
+        )?;
+        let launch = EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: epiphany_core::RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
+            job_id: "planning-job-1".into(),
+            binding_id: epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID.into(),
+            role: epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE.into(),
+            authority_scope: "epiphany.role.imagination".into(),
+            instruction: "plan".into(),
+            output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.into(),
+            document_kind: "role".into(),
+            launch_document_msgpack: Vec::new(),
+            metadata: std::collections::BTreeMap::new(),
+            organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                "epiphany.role.imagination",
+                "role",
+                epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: Some("planning-request-1".into()),
+        };
+        let result = role_worker_result_from_ingress(
+            &launch,
+            "imagination",
+            "planning-result-1",
+            &parsed,
+            Vec::new(),
+        );
+        assert_eq!(
+            result.frontier_planning_request_id.as_deref(),
+            Some("planning-request-1")
+        );
+        assert!(result.state_patch_msgpack.is_none());
+        assert!(result.self_patch_msgpack.is_none());
+        let candidate = result
+            .frontier_plan_candidate()?
+            .expect("typed frontier candidate");
+        assert_eq!(candidate.planning_request_id, "planning-request-1");
+        assert_eq!(
+            candidate.candidate_id,
+            epiphany_core::canonical_repo_frontier_plan_candidate_id(&candidate)?
+        );
+        assert_eq!(
+            candidate.schema_version,
+            epiphany_core::REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION
         );
         Ok(())
     }
@@ -1818,6 +1963,8 @@ mod tests {
                                 .to_string(),
                         ),
                         proposal_modeling_context: None,
+                        claim_repair_context: None,
+                        frontier_planning_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -1840,6 +1987,8 @@ mod tests {
                     epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
                 proposal_modeling_request_id: None,
+                claim_repair_request_id: None,
+                frontier_planning_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -1945,6 +2094,8 @@ mod tests {
                                 .to_string(),
                         ),
                         proposal_modeling_context: None,
+                        claim_repair_context: None,
+                        frontier_planning_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -1967,6 +2118,8 @@ mod tests {
                     epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
                 proposal_modeling_request_id: None,
+                claim_repair_request_id: None,
+                frontier_planning_request_id: None,
                 created_at: now(),
             },
         )?;
