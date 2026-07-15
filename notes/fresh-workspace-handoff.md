@@ -1440,3 +1440,38 @@ artifact:
 This proves the exact recovery/resumption and fencing path. It does not prove
 global deployability. The remaining deployment evidence is still the real
 reboot/logon survival cycle above.
+
+## Runtime surface capability purification (2026-07-15)
+
+The systemic surface audit separated a real local projection from false wire
+authority. Commit `65445623` remains valid: it rebuilt
+`epiphany.persona_surface.v0` as a strict, content-free MVP-status projection
+over typed Persona artifact references, registered the real Reddit and Other
+artifact schemas, and kept speech eligibility, Mind admission, Bifrost
+acceptance, publication, and provider delivery outside the projection. Those
+schemas remain discoverable vocabulary and local projection validators. That
+does not make the projection a CultNet runtime capability.
+
+All seventeen unbacked `epiphany.surface.*` mutation contracts and their dead
+runtime constants are now removed. None had a typed document writer, Snapshot
+resolver, or action dispatcher; the compound MVP-status JSON was not a
+substitute for those owners. Runtime Hello and runtime status now derive the
+current executable mutation-contract list instead of trusting the historical
+`supported_document_types` stored in runtime identity. The live canonical
+store still carries that old field as inert history, but it cannot decide wire
+or status truth. A real canonical hello-frame contained zero
+`epiphany.surface.*` capabilities after the cut.
+
+Re-admission is deliberately expensive: an owning organ must prove
+`provider publish -> typed CultMesh document -> Snapshot -> schema validation
+-> Eve lowering`. Any advertised action additionally needs a real typed
+dispatcher and receipt path. Schema registration alone proves vocabulary, not
+runtime support.
+
+The adjacent Modeling frontier is the generic central Eve template builder.
+It currently synthesizes cluster rows and supported actions while its own prose
+claims the cluster daemon owns surface contents. That is the next conceptual
+substitution to map and cut or rebuild around provider publication. It does not
+replace the current deployment next action: first complete the real Windows
+reboot/logon proof for Task Scheduler, the Yggdrasil tunnel, Idunn, and the
+launch-correlated semantic projector heartbeat.

@@ -165,23 +165,6 @@ pub const MODEL_RECEIPT_TYPE: &str = "epiphany.model_receipt.v0";
 pub const TOOL_CAPABILITY_TYPE: &str = "epiphany.tool_capability.v0";
 pub const TOOL_INVOCATION_INTENT_TYPE: &str = "epiphany.tool_invocation_intent.v0";
 pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt.v0";
-pub const SURFACE_SCENE_TYPE: &str = "epiphany.surface.scene";
-pub const SURFACE_FRESHNESS_TYPE: &str = "epiphany.surface.freshness";
-pub const SURFACE_CONTEXT_TYPE: &str = "epiphany.surface.context";
-pub const SURFACE_GRAPH_QUERY_TYPE: &str = "epiphany.surface.graph_query";
-pub const SURFACE_PRESSURE_TYPE: &str = "epiphany.surface.pressure";
-pub const SURFACE_REORIENT_TYPE: &str = "epiphany.surface.reorient";
-pub const SURFACE_CRRC_TYPE: &str = "epiphany.surface.crrc";
-pub const SURFACE_JOBS_TYPE: &str = "epiphany.surface.jobs";
-pub const SURFACE_ROLES_TYPE: &str = "epiphany.surface.roles";
-pub const SURFACE_ROLE_RESULT_TYPE: &str = "epiphany.surface.role_result";
-pub const SURFACE_REORIENT_RESULT_TYPE: &str = "epiphany.surface.reorient_result";
-pub const SURFACE_PLANNING_TYPE: &str = "epiphany.surface.planning";
-pub const SURFACE_COORDINATOR_TYPE: &str = "epiphany.surface.coordinator";
-pub const SURFACE_PERSONA_TYPE: &str = "epiphany.surface.persona";
-pub const SURFACE_VOID_MEMORY_TYPE: &str = "epiphany.surface.void_memory";
-pub const SURFACE_REPO_INITIALIZATION_TYPE: &str = "epiphany.surface.repo_initialization";
-pub const SURFACE_REPO_BIRTH_RUNNER_TYPE: &str = "epiphany.surface.repo_birth_runner";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SWARM_BINDING_TYPE: &str = "epiphany.runtime.swarm_binding";
 pub const RUNTIME_SWARM_BINDING_KEY: &str = "runtime-swarm-binding";
@@ -205,24 +188,6 @@ pub const MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.model_receipt.v0";
 pub const TOOL_CAPABILITY_SCHEMA_VERSION: &str = "epiphany.tool_capability.v0";
 pub const TOOL_INVOCATION_INTENT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_intent.v0";
 pub const TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_receipt.v0";
-pub const SCENE_SURFACE_SCHEMA_VERSION: &str = "epiphany.scene_surface.v0";
-pub const FRESHNESS_SURFACE_SCHEMA_VERSION: &str = "epiphany.freshness_surface.v0";
-pub const CONTEXT_SURFACE_SCHEMA_VERSION: &str = "epiphany.context_surface.v0";
-pub const GRAPH_QUERY_SURFACE_SCHEMA_VERSION: &str = "epiphany.graph_query_surface.v0";
-pub const PRESSURE_SURFACE_SCHEMA_VERSION: &str = "epiphany.pressure_surface.v0";
-pub const REORIENT_SURFACE_SCHEMA_VERSION: &str = "epiphany.reorient_surface.v0";
-pub const CRRC_SURFACE_SCHEMA_VERSION: &str = "epiphany.crrc_surface.v0";
-pub const JOBS_SURFACE_SCHEMA_VERSION: &str = "epiphany.jobs_surface.v0";
-pub const ROLES_SURFACE_SCHEMA_VERSION: &str = "epiphany.roles_surface.v0";
-pub const ROLE_RESULT_SURFACE_SCHEMA_VERSION: &str = "epiphany.role_result_surface.v0";
-pub const REORIENT_RESULT_SURFACE_SCHEMA_VERSION: &str = "epiphany.reorient_result_surface.v0";
-pub const PLANNING_SURFACE_SCHEMA_VERSION: &str = "epiphany.planning_surface.v0";
-pub const COORDINATOR_SURFACE_SCHEMA_VERSION: &str = "epiphany.coordinator_surface.v0";
-pub const PERSONA_SURFACE_SCHEMA_VERSION: &str = "epiphany.persona_surface.v0";
-pub const VOID_MEMORY_SURFACE_SCHEMA_VERSION: &str = "epiphany.void_memory_surface.v0";
-pub const REPO_INITIALIZATION_SURFACE_SCHEMA_VERSION: &str =
-    "epiphany.repo_initialization_surface.v0";
-pub const REPO_BIRTH_RUNNER_SURFACE_SCHEMA_VERSION: &str = "epiphany.repo_birth_runner_surface.v0";
 pub const AGENT_MEMORY_PAYLOAD_SCHEMA_VERSION: &str = "epiphany.agent_memory.v0";
 pub const CULTNET_SCHEMA_INDEX_RELATIVE: &str = "schemas/cultnet/index.json";
 
@@ -6338,7 +6303,8 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
             .filter(|intent| !receipt_intent_ids.contains(intent.intent_id.as_str()))
             .count(),
         supported_document_types: identity
-            .map(|item| item.supported_document_types)
+            .is_some()
+            .then(runtime_registered_document_types)
             .unwrap_or_default(),
     })
 }
@@ -6402,7 +6368,7 @@ pub fn runtime_hello_frame(store_path: impl AsRef<Path>) -> Result<Vec<u8>> {
         agent_id: Some("self".to_string()),
         role: Some("coordinator".to_string()),
         display_name: Some(identity.display_name),
-        supported_document_types: Some(identity.supported_document_types),
+        supported_document_types: Some(runtime_registered_document_types()),
         supported_mutation_contracts: Some(epiphany_mutation_contracts()),
         supported_message_versions: Some(vec![
             "cultnet.hello.v0".to_string(),
@@ -6557,44 +6523,6 @@ fn mutation_contract(
         }),
         notes: (!notes.is_empty()).then(|| notes.into_iter().map(str::to_string).collect()),
     }
-}
-
-fn read_only_surface_contract(
-    document_type: impl Into<String>,
-    payload_schema_version: impl Into<String>,
-    notes: Vec<&str>,
-) -> CultNetDocumentMutationContract {
-    mutation_contract(
-        document_type,
-        payload_schema_version,
-        vec![CultNetDocumentOperation::Snapshot],
-        CultNetMutationAuthority::ReadOnly,
-        vec![],
-        vec![],
-        notes,
-    )
-}
-
-fn coordinator_surface_contract(
-    document_type: impl Into<String>,
-    payload_schema_version: impl Into<String>,
-    intent_document_types: Vec<&str>,
-    receipt_document_types: Vec<&str>,
-    notes: Vec<&str>,
-) -> CultNetDocumentMutationContract {
-    mutation_contract(
-        document_type,
-        payload_schema_version,
-        vec![
-            CultNetDocumentOperation::Snapshot,
-            CultNetDocumentOperation::IntentSubmit,
-            CultNetDocumentOperation::ReceiptWatch,
-        ],
-        CultNetMutationAuthority::Coordinator,
-        intent_document_types,
-        receipt_document_types,
-        notes,
-    )
 }
 
 fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
@@ -7505,194 +7433,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Operator run receipts record completed local wrapper actions and evidence artifact references.",
                 "Referenced artifacts remain evidence; the receipt is the native completion contract.",
-            ],
-        ),
-        read_only_surface_contract(
-            SURFACE_SCENE_TYPE,
-            SCENE_SURFACE_SCHEMA_VERSION,
-            vec![
-                "Operator-safe scene reflection over typed Epiphany state.",
-                "Aquarium should read this before offering live coordination actions.",
-            ],
-        ),
-        read_only_surface_contract(
-            SURFACE_FRESHNESS_TYPE,
-            FRESHNESS_SURFACE_SCHEMA_VERSION,
-            vec![
-                "Freshness reflection over retrieval, watcher, and graph staleness signals.",
-                "Use this to visualize retrieval and graph staleness without inventing a hidden refresh daemon.",
-            ],
-        ),
-        read_only_surface_contract(
-            SURFACE_CONTEXT_TYPE,
-            CONTEXT_SURFACE_SCHEMA_VERSION,
-            vec![
-                "Targeted graph, frontier, checkpoint, observation, and evidence context shard over typed Epiphany state.",
-                "Aquarium should inspect bounded state shards here instead of scraping state blobs by superstition.",
-            ],
-        ),
-        read_only_surface_contract(
-            SURFACE_GRAPH_QUERY_TYPE,
-            GRAPH_QUERY_SURFACE_SCHEMA_VERSION,
-            vec![
-                "Bounded graph traversal over typed architecture/dataflow graph state.",
-                "Use this for architecture/dataflow inspection and frontier neighborhoods without mutating state.",
-            ],
-        ),
-        read_only_surface_contract(
-            SURFACE_PRESSURE_TYPE,
-            PRESSURE_SURFACE_SCHEMA_VERSION,
-            vec![
-                "Current context pressure and compaction posture derived from typed pressure inputs.",
-                "This is a read-only warning surface, not a backdoor to force state mutation.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_REORIENT_TYPE,
-            REORIENT_SURFACE_SCHEMA_VERSION,
-            vec![
-                "epiphany.reorient_launch_intent.v0",
-                "epiphany.reorient_accept_intent.v0",
-            ],
-            vec![
-                "epiphany.swarm_control_receipt.v0",
-                "epiphany.reorient_result_surface.v0",
-            ],
-            vec![
-                "Reorientation policy is the typed resume/regather verdict surface.",
-                "Launch and acceptance stay review-gated through explicit typed intents.",
-                "The transport may carry a reorient launch intent and receipt, but the resume/regather verdict belongs to core.",
-            ],
-        ),
-        read_only_surface_contract(
-            SURFACE_CRRC_TYPE,
-            CRRC_SURFACE_SCHEMA_VERSION,
-            vec![
-                "CRRC recommendation surface over continuity, pressure, and reorientation signals.",
-                "Use this to understand continuity pressure without letting CRRC seize authority.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_JOBS_TYPE,
-            JOBS_SURFACE_SCHEMA_VERSION,
-            vec![
-                "epiphany.job_launch_intent.v0",
-                "epiphany.job_interrupt_intent.v0",
-            ],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Job reflection over typed job bindings and runtime-spine lifecycle receipts.",
-                "Heartbeat/runtime-spine owns activation; callers submit typed intents and watch receipts.",
-                "Launch receipts must name decisionOwner, transportRole, and any hostExecutorRole so transport never grows an unreadable second opinion.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_ROLES_TYPE,
-            ROLES_SURFACE_SCHEMA_VERSION,
-            vec!["epiphany.role_launch_intent.v0"],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Role ownership surface for fixed Epiphany lanes and launch affordances.",
-                "Treat this as the discoverable lane catalog for Aquarium.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_ROLE_RESULT_TYPE,
-            ROLE_RESULT_SURFACE_SCHEMA_VERSION,
-            vec!["epiphany.role_accept_intent.v0"],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Role findings are typed review surfaces accepted through explicit role acceptance intents.",
-                "Semantic findings remain explicitly review-gated.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_REORIENT_RESULT_TYPE,
-            REORIENT_RESULT_SURFACE_SCHEMA_VERSION,
-            vec!["epiphany.reorient_accept_intent.v0"],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Completed reorientation findings are typed review surfaces accepted through explicit reorientation acceptance intents.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_PLANNING_TYPE,
-            PLANNING_SURFACE_SCHEMA_VERSION,
-            vec![
-                "epiphany.planning_update_intent.v0",
-                "epiphany.objective_adoption_intent.v0",
-            ],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Planning projection over captures, backlog, roadmap streams, and Objective Drafts.",
-                "Backlog, captures, and Objective Drafts are planning state until explicit adoption.",
-            ],
-        ),
-        read_only_surface_contract(
-            SURFACE_COORDINATOR_TYPE,
-            COORDINATOR_SURFACE_SCHEMA_VERSION,
-            vec![
-                "Fixed-lane recommendation surface derived from typed role, pressure, reorientation, and result signals.",
-                "Aquarium should treat this as the primary action oracle, not invent its own scheduler.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_PERSONA_TYPE,
-            PERSONA_SURFACE_SCHEMA_VERSION,
-            vec![
-                "epiphany.persona_bubble_intent.v0",
-                "epiphany.character_turn_intent.v0",
-                "epiphany.discord_persona_post_intent.v0",
-                "epiphany.reddit_persona_post_intent.v0",
-            ],
-            vec![
-                "epiphany.persona_bubble.v0",
-                "epiphany.persona_chat.v0",
-                "epiphany.character_turn_packet.v0",
-                "epiphany.persona_reddit_post.v0",
-                "epiphany.persona_other_request.v0",
-            ],
-            vec![
-                "Persona bubble, Discord chat, Reddit post, and Other crossing-request artifacts are projected as discriminated typed references; public crossings route through Bifrost.",
-                "The Persona surface owns read projection only. It does not own speech eligibility, Mind admission, Bifrost request acceptance, publication, or provider delivery.",
-                "Humans talk to Persona; sealed inner thoughts stay behind the projection boundary.",
-            ],
-        ),
-        read_only_surface_contract(
-            SURFACE_VOID_MEMORY_TYPE,
-            VOID_MEMORY_SURFACE_SCHEMA_VERSION,
-            vec![
-                "Void-derived memory status/search/context availability is projected from the typed Void memory bridge.",
-                "This is an inspection surface for the memory organs, not a license to bypass typed Epiphany state.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_REPO_INITIALIZATION_TYPE,
-            REPO_INITIALIZATION_SURFACE_SCHEMA_VERSION,
-            vec![
-                "epiphany.repo_startup_intent.v0",
-                "epiphany.repo_initialization_accept_intent.v0",
-            ],
-            vec![
-                "epiphany.repo_personality_artifacts.v0",
-                "epiphany.repo_initialization_record.v0",
-            ],
-            vec![
-                "Repo birth/startup status is projected from typed repo-personality startup and accept-init receipts.",
-                "Birth specialists are startup-only and remain outside the heartbeat lane system.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_REPO_BIRTH_RUNNER_TYPE,
-            REPO_BIRTH_RUNNER_SURFACE_SCHEMA_VERSION,
-            vec!["epiphany.repo_birth_run_intent.v0"],
-            vec![
-                "epiphany.repo_birth_runner.v0",
-                "epiphany.repo_initialization_record.v0",
-            ],
-            vec![
-                "Startup-only birth runner plan/run affordances are projected from typed birth-runner receipts.",
-                "Aquarium should review birth artifacts and accept them explicitly instead of growing a hidden wizard.",
             ],
         ),
     ]
@@ -11215,6 +10955,14 @@ pub(crate) mod tests {
                 created_at: "2026-05-06T00:00:00Z".to_string(),
             },
         )?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let mut legacy_identity =
+            cache.get_required::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?;
+        legacy_identity
+            .supported_document_types
+            .push("epiphany.surface.persona".to_string());
+        cache.put(RUNTIME_IDENTITY_KEY, &legacy_identity)?;
         let frame = runtime_hello_frame(&store)?;
         let payload_len = u32::from_be_bytes([frame[0], frame[1], frame[2], frame[3]]) as usize;
         let message =
@@ -11230,12 +10978,21 @@ pub(crate) mod tests {
             } => {
                 assert_eq!(runtime_id, "epiphany-test");
                 assert_eq!(runtime_kind, "epiphany.native");
+                let supported_document_types = supported_document_types.unwrap();
+                assert!(supported_document_types.contains(&RUNTIME_JOB_RESULT_TYPE.to_string()));
                 assert!(
                     supported_document_types
-                        .unwrap()
-                        .contains(&RUNTIME_JOB_RESULT_TYPE.to_string())
+                        .iter()
+                        .all(|document_type| !document_type.starts_with("epiphany.surface.")),
+                    "Hello must advertise only runtime-backed document capabilities"
                 );
                 let contracts = supported_mutation_contracts.unwrap();
+                assert!(
+                    contracts.iter().all(|contract| {
+                        !contract.document_type.starts_with("epiphany.surface.")
+                    }),
+                    "schema vocabulary is not runtime mutation authority"
+                );
                 let heartbeat_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == HEARTBEAT_STATE_TYPE)
@@ -11327,30 +11084,6 @@ pub(crate) mod tests {
                         .iter()
                         .any(|note| note.contains("evidence ingress guardian"))
                 }));
-                let coordinator_contract = contracts
-                    .iter()
-                    .find(|contract| contract.document_type == SURFACE_COORDINATOR_TYPE)
-                    .expect("coordinator surface should advertise a read-only contract");
-                assert_eq!(
-                    coordinator_contract.authority,
-                    CultNetMutationAuthority::ReadOnly
-                );
-                let persona_contract = contracts
-                    .iter()
-                    .find(|contract| contract.document_type == SURFACE_PERSONA_TYPE)
-                    .expect("Persona surface should advertise an interactive contract");
-                assert_eq!(
-                    persona_contract.authority,
-                    CultNetMutationAuthority::Coordinator
-                );
-                assert!(
-                    persona_contract
-                        .receipt_document_types
-                        .as_ref()
-                        .is_some_and(|items| items
-                            .iter()
-                            .any(|item| item == "epiphany.persona_bubble.v0"))
-                );
                 let operator_snapshot_contract = contracts
                     .iter()
                     .find(|contract| {
@@ -11395,16 +11128,6 @@ pub(crate) mod tests {
                         .operations
                         .contains(&CultNetDocumentOperation::ReceiptWatch)
                 );
-                assert!(
-                    contracts
-                        .iter()
-                        .all(|contract| contract.document_type != "epiphany.surface.rider_bridge")
-                );
-                assert!(
-                    contracts
-                        .iter()
-                        .all(|contract| contract.document_type != "epiphany.surface.unity_bridge")
-                );
                 let coordinator_run_receipt_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == COORDINATOR_RUN_RECEIPT_TYPE)
@@ -11417,18 +11140,6 @@ pub(crate) mod tests {
                     coordinator_run_receipt_contract
                         .operations
                         .contains(&CultNetDocumentOperation::ReceiptWatch)
-                );
-                let birth_contract = contracts
-                    .iter()
-                    .find(|contract| contract.document_type == SURFACE_REPO_BIRTH_RUNNER_TYPE)
-                    .expect("repo birth runner surface should advertise startup actions");
-                assert!(
-                    birth_contract
-                        .receipt_document_types
-                        .as_ref()
-                        .is_some_and(|items| items
-                            .iter()
-                            .any(|item| item == "epiphany.repo_birth_runner.v0"))
                 );
                 let model_contract = contracts
                     .iter()
@@ -11494,7 +11205,8 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn runtime_spine_schema_catalog_includes_surface_and_control_receipts() -> Result<()> {
+    fn schema_catalog_discovers_surface_vocabulary_separately_from_runtime_capabilities()
+    -> Result<()> {
         let registry = epiphany_schema_registry()?;
         let schemas = registry.list(&cultnet_rs::CultNetSchemaCatalogOptions {
             include_schema_json: false,
@@ -11502,12 +11214,12 @@ pub(crate) mod tests {
             kinds: None,
         });
         assert!(schemas.iter().any(|schema| {
-            schema.document_type.as_deref() == Some(SURFACE_SCENE_TYPE)
-                && schema.schema_version.as_deref() == Some(SCENE_SURFACE_SCHEMA_VERSION)
+            schema.document_type.as_deref() == Some("epiphany.surface.scene")
+                && schema.schema_version.as_deref() == Some("epiphany.scene_surface.v0")
         }));
         assert!(schemas.iter().any(|schema| {
-            schema.document_type.as_deref() == Some(SURFACE_COORDINATOR_TYPE)
-                && schema.schema_version.as_deref() == Some(COORDINATOR_SURFACE_SCHEMA_VERSION)
+            schema.document_type.as_deref() == Some("epiphany.surface.coordinator")
+                && schema.schema_version.as_deref() == Some("epiphany.coordinator_surface.v0")
         }));
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some("epiphany.role_launch_intent.v0")

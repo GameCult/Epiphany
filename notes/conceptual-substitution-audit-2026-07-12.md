@@ -1697,3 +1697,22 @@ artifact arrays, and no producer writes a document with that schema version.
 Real Reddit and Other artifacts exist but are not registered as output
 contracts. Rebuild that surface around typed discriminated artifact references,
 register the real outputs, or stop advertising them as typed surface outputs.
+
+### Closure update (2026-07-15)
+
+Commit `65445623` closed the local Persona projection wound: the MVP-status
+projection now emits strict content-free typed artifact references, and the
+real Reddit and Other artifact schemas are registered. The subsequent systemic
+audit found the larger substitution: all seventeen `epiphany.surface.*` types
+were still Hello-advertised runtime mutation capabilities without providers,
+Snapshot resolvers, or action dispatchers. Those unbacked contracts and dead
+runtime constants are now cut. Surface schemas may remain discoverable
+vocabulary and local projection validators, but cannot claim executable wire
+support.
+
+The next adjacent surface frontier is the generic central Eve template builder,
+which synthesizes cluster surface rows and actions while claiming the cluster
+daemon owns their contents. A surface earns readmission only through an owning
+provider publishing a typed CultMesh document that survives Snapshot, schema
+validation, and Eve lowering; advertised actions additionally require a real
+typed dispatcher and receipt path.
