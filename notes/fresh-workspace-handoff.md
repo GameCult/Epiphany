@@ -1653,6 +1653,22 @@ target bytes) feed an ordered manifest whose domain-separated SHA-256 root is
 the authoritative Body identity. Manifest, observation, and manifest-root head
 commit atomically. Gitlinks are nonrecursive; unrepresentable paths fail closed.
 
+## Readiness join remains deliberately impossible (2026-07-15)
+
+Modeling audited the next ownership seam after the Body observer landed. Mind is
+the only coherent owner for a derived repository-readiness projection, but the
+inputs required to emit Ready do not exist yet: a continuity receipt covering
+the exact current Body head, RepoModel admission grounded to that manifest, and
+exact workspace-retrieval coverage for that same manifest. The existing
+semantic projector proves exact query eligibility for an admitted RepoModel
+projection; the legacy workspace retrieval JSON manifest proves only path/size/
+mtime/chunk cache agreement. Do not join its `Ready` label, empty dirty paths,
+watcher silence, Git OIDs, timestamps, counts, or Qdrant presence into repository
+readiness. A join evaluator built before those primitives may only return
+Missing/Unknown/Stale with reasons. Build order is continuity receipt, exact
+Body-grounded RepoModel admission, typed Body-bound retrieval coverage, the
+Mind-owned join, then deletion of local consumer interpretations.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.
