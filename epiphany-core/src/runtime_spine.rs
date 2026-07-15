@@ -843,6 +843,9 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
     cache.register_entry_type::<EpiphanyRuntimeSwarmBinding>()?;
     cache.register_entry_type::<crate::MemorySemanticProjectionObligation>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectionClaim>()?;
+    cache.register_entry_type::<crate::MemorySemanticProjectionAttempt>()?;
+    cache.register_entry_type::<crate::MemorySemanticIndexReceipt>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
@@ -3233,6 +3236,83 @@ pub fn runtime_current_repo_model(
         .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
         .map(|entry| entry.snapshot())
         .transpose()
+}
+
+pub fn runtime_modeling_semantic_projection_input(
+    store_path: impl AsRef<Path>,
+) -> Result<crate::MemorySemanticProjectionInput> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let binding = require_runtime_swarm_binding(&cache)?;
+    let entry = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("Modeling projection requires admitted RepoModel"))?;
+    let snapshot = entry.snapshot()?;
+    let model_hash = crate::memory_graph_model_hash(&snapshot)?;
+    let canonical_source_id = format!("epiphany.runtime/{}/repo-model", binding.runtime_id);
+    let matches = cache
+        .get_all::<crate::MemorySemanticProjectionObligation>()?
+        .into_iter()
+        .filter(|obligation| {
+            obligation.swarm_id == binding.swarm_id
+                && obligation.partition == "modeling"
+                && obligation.canonical_source_id == canonical_source_id
+                && obligation.graph_id == snapshot.graph_id
+                && obligation.source_generation == snapshot.model_revision
+                && obligation.source_model_hash == model_hash
+        })
+        .collect::<Vec<_>>();
+    if matches.len() != 1 {
+        return Err(anyhow!(
+            "Modeling projection requires exactly one obligation for current RepoModel"
+        ));
+    }
+    let obligation = matches.into_iter().next().expect("one obligation");
+    let expected = crate::derive_memory_semantic_projection_obligation(
+        &snapshot,
+        &binding.swarm_id,
+        crate::SemanticPartition::Modeling,
+        &canonical_source_id,
+        &obligation.source_commit_id,
+        &obligation.created_at,
+    )?;
+    if obligation != expected {
+        return Err(anyhow!(
+            "Modeling projection obligation does not match canonical RepoModel"
+        ));
+    }
+    let opening = cache.snapshot_envelopes();
+    let authority_envelopes = opening
+        .into_iter()
+        .filter(|envelope| {
+            (envelope.r#type == RUNTIME_SWARM_BINDING_TYPE
+                && envelope.key == RUNTIME_SWARM_BINDING_KEY)
+                || (envelope.r#type == crate::MEMORY_GRAPH_TYPE
+                    && envelope.key == crate::MEMORY_GRAPH_KEY)
+        })
+        .collect::<Vec<_>>();
+    if authority_envelopes.len() != 2 {
+        return Err(anyhow!(
+            "Modeling projection authority snapshot is incomplete"
+        ));
+    }
+    Ok(crate::MemorySemanticProjectionInput {
+        snapshot,
+        authority: crate::memory_graph::MemorySemanticProjectionAuthoritySnapshot {
+            head: crate::MemorySemanticProjectionSourceHead {
+                swarm_id: obligation.swarm_id.clone(),
+                partition: obligation.partition.clone(),
+                canonical_source_id: obligation.canonical_source_id.clone(),
+                source_commit_id: obligation.source_commit_id.clone(),
+                graph_id: obligation.graph_id.clone(),
+                source_generation: obligation.source_generation,
+                source_model_hash: obligation.source_model_hash.clone(),
+                canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+            },
+            envelopes: authority_envelopes,
+        },
+        obligation,
+    })
 }
 
 pub fn select_repo_frontier_work_proposal_for_modeling(
@@ -7865,7 +7945,11 @@ pub(crate) mod tests {
             migrate_legacy_repo_model_projection_obligation(&store)?,
             Some(obligation.clone())
         );
-        assert_eq!(runtime_current_repo_model(&store)?, Some(snapshot));
+        assert_eq!(runtime_current_repo_model(&store)?, Some(snapshot.clone()));
+        let input = runtime_modeling_semantic_projection_input(&store)?;
+        assert_eq!(input.snapshot, snapshot);
+        assert_eq!(input.obligation, obligation);
+        assert_eq!(input.authority.envelopes.len(), 2);
         Ok(())
     }
 

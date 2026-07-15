@@ -279,3 +279,115 @@ add projector claims/attempt terminal CAS and bind index receipts to exact
 obligations; make queries require the newest exact success before Qdrant
 ranking; then publish derived health through provider-owned CultMesh state and
 attach Idunn process survival.
+
+## Projector Execution Rebuild Map (2026-07-15)
+
+### Owner
+
+One projector executor owns mutation of a semantic scope identified by
+`(swarm_id, partition)` for the duration of an exact canonical obligation.
+Canonical admission owns the obligation. The executor owns only its durable
+claim, Qdrant synchronization, post-write observation, and terminal evidence.
+Qdrant, health projections, schedulers, Idunn, CultMesh, Eve, and Gjallar own
+none of those decisions.
+
+### Inputs And Outputs
+
+- Inputs: the newest exact obligation for the authenticated canonical source
+  head; the canonical snapshot reconstructed from that source; immutable swarm
+  identity; embedding and collection compatibility; projector incarnation.
+- Success output: an immutable receipt bound to every obligation/source field,
+  emitted only after the observed scoped point set and typed payload identities
+  equal the derived canonical projection.
+- Failure output: a terminal failed attempt for the claimed obligation. It
+  never erases the obligation or permits semantic query.
+- Derived output: `pending`, `failed`, `stale`, or `ready` health. Health is
+  recomputed sight, not writable state.
+
+### Derived State And Demotions
+
+- `MemorySemanticProjectionHealth` is no longer a prospective daemon status;
+  it is derived from canonical head, newest matching obligation, exact attempt,
+  and exact receipt.
+- Collection existence, compatibility, point counts, HTTP success, embedding
+  success, and process liveness are observations only.
+- An older success is no longer readiness once a newer canonical obligation
+  exists. A repair attempt begun after success suppresses that success until a
+  newer successful terminal receipt proves the scope again.
+
+### Forbidden Writers And Shared Paths
+
+- The CLI may not call the raw indexer and `put` an unbound ready receipt.
+- Query and Persona heartbeat recall may not touch Qdrant until the same gate
+  authenticates the current head, selects its newest exact obligation, and
+  finds its immutable exact success receipt.
+- A caller-supplied swarm id, arbitrary graph-store snapshot, timer, collection
+  metadata, Qdrant payload, or renderer status cannot open the gate.
+- Initial execution, crash replay, daemon restart, operator retry, and repair
+  all use the same scope claim and terminalization primitives.
+
+### Cut Line
+
+1. Remove the CLI's direct `index -> ordinary receipt put` authority path.
+2. Replace it with a scope-serialized claim, idempotent synchronization, fresh
+   canonical-head reauthentication, post-write verification, and terminal CAS.
+3. Delete the empty-partition refusal. An empty desired set bypasses Ollama,
+   deletes every point in its exact scope, preserves other scopes, and earns a
+   zero-document receipt; an absent collection is already synchronized.
+4. Require the exact readiness gate before embedding or Qdrant query; otherwise
+   use canonical BM25 without touching either external service.
+5. Only after execution and query authority are sealed, lower derived health to
+   CultMesh and give Idunn survival responsibility for the executor daemon.
+
+### Restart And Concurrency Law
+
+- Claims serialize the shared mutation scope, not merely an obligation id;
+  generations of one swarm partition overwrite the same point population.
+- A crash before terminal evidence leaves pressure open. Replay is idempotent
+  and repairs partial upsert/delete work; partial state is never queryable.
+- Recovery requires an explicit fenced incarnation/epoch. A wall-clock lease
+  alone may identify a candidate for recovery but cannot let the previous
+  executor publish afterward.
+- Terminal success CAS expects the exact live claim and reauthenticated source
+  head. If the source advanced mid-run, the old mutation may exist in Qdrant
+  but cannot become ready; the newer obligation repairs it while queries use
+  canonical BM25.
+
+## Projector Execution Landed (2026-07-15)
+
+- The direct CLI `raw index -> ordinary receipt put` authority path is gone.
+  The public executor claims the exact `(swarm, partition)` scope, records a
+  running attempt, synchronizes Qdrant, observes the resulting scope, and can
+  publish success only through an exact terminal CAS against the unchanged
+  canonical authority envelopes.
+- Claims carry executor identity and a monotonically fenced epoch. The internal
+  recovery transition terminalizes the abandoned attempt, advances the epoch,
+  and makes the old executor structurally unable to publish. That transition is
+  deliberately withheld from production callers until Idunn supplies typed
+  stale/recovery authority; a random peer cannot fence a live executor. Failed
+  execution leaves an exact failed terminal attempt and never grants readiness.
+- Mind source authentication includes immutable swarm identity, all seven
+  canonical role rows, and the latest generation witness. Modeling source
+  authentication includes immutable runtime swarm binding and the canonical
+  RepoModel envelope. Both reconstruct and compare the obligation before work.
+- Empty canonical partitions bypass Ollama. A missing collection already
+  represents the empty set; an existing compatible collection deletes every
+  point in the exact swarm/partition scope and confirms that none remain.
+  Non-empty synchronization observes the exact ID set and typed locator payload
+  set after upsert/delete before returning a candidate receipt.
+- Semantic query now requires the newest authenticated source input plus its
+  exact immutable success receipt before either Ollama or Qdrant is touched.
+  CLI context and Persona heartbeat use this gate. Missing, stale, foreign, or
+  unbound evidence selects canonical BM25 and reports fallback.
+- The live Mind generation-1 and Modeling revision-0 obligations for
+  `gamecult.epiphany.main` were discharged through the new protocol. Mind
+  indexed 43 documents and Modeling indexed 3 at 1024 dimensions. Repeated
+  execution returned the same receipts without another projection mutation;
+  live context then used Qdrant ranking while resolving every hit back to
+  canonical documents and ignoring payload prose.
+
+Remaining physiology: publish provider-owned derived projection health through
+CultMesh, attach Idunn-owned daemon survival and authorize the fenced recovery
+transition with typed stale/recovery evidence, and add the daemon pulse that
+discovers open obligations without letting time own their creation or
+completion.

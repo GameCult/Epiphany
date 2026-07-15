@@ -1102,10 +1102,40 @@ admission receipt, and Mind obligation together. Every extension re-hashes the
 canonical rows and authenticates the prior witness. Bootstrap/import/repair/raw
 replacement/trait seeding cannot write after a generation exists.
 
-Core proof after fixture repair: 342 tests passed, 0 failed, 1 intentional
-ignore; focused legacy migration and hostile concurrent Mind CAS tests pass;
-all binaries compile. The current `state/agents.msgpack` predates the generation
-witness and still needs one explicit legacy Mind-generation migration before
-query gating can regard its Qdrant projection as ready. Next implement
-restart-safe projector claim/attempt/terminal receipt execution and exact query
-eligibility, then CultMesh/Idunn physiology.
+Core proof for the landed atomic admission pass: 343 tests passed, 0 failed, 1
+intentional ignore; all binaries compile; the OpenAI runtime suites pass 22
+tests. The current `state/agents.msgpack` has now been admitted without row
+mutation as generation 1 under swarm `gamecult.epiphany.main`, with immutable
+witness `mind-generation-eb394e34-1c73-5d0a-8691-6ff1ba6145a4`, its Mind
+admission receipt, and its exact projection obligation. Repeating the migration
+is idempotent and validation remains clean. Next replace the direct projector
+CLI with restart-safe scope claims, attempt/terminal receipt CAS, observed
+zero-document synchronization, and exact query eligibility; then add
+CultMesh/Idunn physiology.
+
+## Restart-safe semantic projector and gated query (2026-07-15)
+
+The projection executor now serializes each `(swarm, partition)` mutation scope
+with a durable executor-bound claim and fencing epoch. An internal recovery
+transition proves that an abandoned attempt can be failed and fenced, but it is
+not exposed until Idunn supplies typed stale/recovery authority; arbitrary peers
+cannot steal a live scope. Terminal success requires the same live claim, exact
+bound receipt, unchanged canonical source envelopes, and observed Qdrant scope.
+The raw indexer and ordinary receipt writer are no longer public authority
+surfaces. Empty projections bypass Ollama and delete only their exact scope.
+Non-empty projections observe exact IDs and typed payload identities after
+synchronization.
+
+Query gating is live in the CLI and Persona heartbeat. Without the newest exact
+obligation/success pair they use canonical BM25 without contacting Ollama or
+Qdrant. With the pair they use Qdrant only for ranking, reload canonical typed
+documents, and ignore payload prose. The live `gamecult.epiphany.main` Mind and
+Modeling obligations were discharged through the protocol: 43 Mind documents
+and 3 Modeling documents, both 1024-dimensional. Repeated execution returned
+the same immutable receipts. Core proof: 349 passed, 0 failed, 1 intentional
+ignore; all binaries type-check.
+
+Next: derive and publish provider-owned health through CultMesh, make Idunn own
+projector process survival/restart and explicit fenced recovery routing, then
+run the deployability audit against daemon packaging, configuration, and live
+Yggdrasil assumptions. Neither CultMesh nor Idunn may mint readiness.

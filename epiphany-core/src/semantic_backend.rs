@@ -62,6 +62,12 @@ pub(crate) struct SemanticCandidate<P> {
     pub(crate) payload: Option<P>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SemanticStoredPoint<P> {
+    pub(crate) id: String,
+    pub(crate) payload: Option<P>,
+}
+
 pub(crate) struct QdrantBackend {
     base_url: String,
     timeout_seconds: u64,
@@ -286,6 +292,54 @@ impl QdrantBackend {
         }
         Ok(ids)
     }
+
+    pub(crate) fn points_for_scope<P: DeserializeOwned>(
+        &self,
+        name: &str,
+        scope: &[(&str, &str)],
+    ) -> Result<Vec<SemanticStoredPoint<P>>> {
+        let must = scope
+            .iter()
+            .map(|(key, value)| json!({ "key": key, "match": { "value": value } }))
+            .collect::<Vec<_>>();
+        let mut offset: Option<Value> = None;
+        let mut points = Vec::new();
+        loop {
+            let response = self
+                .client
+                .post(format!(
+                    "{}/collections/{name}/points/scroll",
+                    self.base_url
+                ))
+                .query(&[("timeout", self.timeout_seconds)])
+                .json(&json!({
+                    "filter": { "must": must },
+                    "limit": POINT_BATCH_SIZE,
+                    "offset": offset,
+                    "with_payload": true,
+                    "with_vector": false,
+                }))
+                .send()
+                .with_context(|| format!("failed to observe Qdrant scope in {name}"))?;
+            let envelope: Envelope<PayloadScrollResult<P>> = parse_response(response)
+                .with_context(|| format!("failed to decode Qdrant scope payloads in {name}"))?;
+            points.extend(
+                envelope
+                    .result
+                    .points
+                    .into_iter()
+                    .map(|point| SemanticStoredPoint {
+                        id: point.id,
+                        payload: point.payload,
+                    }),
+            );
+            offset = envelope.result.next_page_offset;
+            if offset.is_none() {
+                break;
+            }
+        }
+        Ok(points)
+    }
 }
 
 pub(crate) struct OllamaEmbedder {
@@ -431,6 +485,16 @@ struct ScrollResult {
 #[derive(Deserialize)]
 struct ScrollPoint {
     id: String,
+}
+#[derive(Deserialize)]
+struct PayloadScrollResult<P> {
+    points: Vec<PayloadScrollPoint<P>>,
+    next_page_offset: Option<Value>,
+}
+#[derive(Deserialize)]
+struct PayloadScrollPoint<P> {
+    id: String,
+    payload: Option<P>,
 }
 #[derive(Deserialize)]
 struct EmbedResponse {

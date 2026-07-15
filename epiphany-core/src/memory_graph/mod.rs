@@ -5,6 +5,7 @@ pub mod ids;
 pub mod profiles;
 pub mod semantic_index;
 pub mod semantic_projection;
+pub mod semantic_projector;
 pub mod store;
 pub mod validation;
 
@@ -48,6 +49,7 @@ pub use profiles::memory_graph_from_heartbeat_cognition;
 pub use profiles::refresh_or_validate_repo_memory_graph;
 pub use semantic_index::*;
 pub use semantic_projection::*;
+pub use semantic_projector::*;
 pub use store::EpiphanyMemoryGraphEntry;
 pub use store::MEMORY_GRAPH_KEY;
 pub use store::MEMORY_GRAPH_SCHEMA_VERSION;

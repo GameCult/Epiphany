@@ -1,10 +1,9 @@
 use anyhow::{Context, Result, anyhow};
-use chrono::{SecondsFormat, Utc};
 use epiphany_core::{
     EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot, MemorySemanticIndexConfig,
-    SemanticPartition, agent_memory_role_ids, index_memory_semantic_partition,
-    load_agent_memory_entry_for_role, load_memory_graph_snapshot, memory_graph_from_agent_memories,
-    persist_memory_semantic_index_receipt, runtime_current_repo_model, runtime_swarm_binding,
+    MemorySemanticProjectionInput, SemanticPartition, agent_memory_semantic_projection_input,
+    execute_memory_semantic_projection, load_memory_graph_snapshot,
+    load_memory_semantic_projection_readiness, runtime_modeling_semantic_projection_input,
     semantic_memory_context,
 };
 use std::env;
@@ -14,46 +13,31 @@ fn main() -> Result<()> {
     let mut args = env::args().skip(1);
     let command = args.next().ok_or_else(|| usage_error("missing command"))?;
     let options = Options::parse(args)?;
-    let (snapshot, swarm_id) = options.load_source()?;
     let config = MemorySemanticIndexConfig::from_env();
     match command.as_str() {
         "index" => {
-            let receipt_store = options
-                .receipt_store
-                .as_ref()
-                .ok_or_else(|| usage_error("index requires --receipt-store <path>"))?;
-            let receipt = index_memory_semantic_partition(
-                &snapshot,
-                &swarm_id,
-                options.partition,
-                &Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                &config,
-            )?;
-            persist_memory_semantic_index_receipt(receipt_store, &receipt)?;
-            print_json(&serde_json::json!({
-                "status": receipt.status,
-                "receiptId": receipt.receipt_id,
-                "receiptStore": receipt_store,
-                "swarmId": receipt.swarm_id,
-                "partition": receipt.partition,
-                "collectionName": receipt.collection_name,
-                "graphId": receipt.graph_id,
-                "modelRevision": receipt.model_revision,
-                "modelHash": receipt.model_hash,
-                "embeddingProviderId": receipt.embedding_provider_id,
-                "embeddingModel": receipt.embedding_model,
-                "vectorDimensions": receipt.vector_dimensions,
-                "indexedDocumentCount": receipt.indexed_document_count,
-                "deletedDocumentCount": receipt.deleted_document_count,
-                "canonicalContentSetHash": receipt.canonical_content_set_hash,
-                "indexedAt": receipt.indexed_at,
-            }))?;
+            let (input, source_store) = options.load_projection_input()?;
+            let executor_id = options
+                .executor_id
+                .as_deref()
+                .ok_or_else(|| usage_error("index requires --executor-id <id>"))?;
+            let receipt =
+                execute_memory_semantic_projection(source_store, &input, executor_id, &config)?;
+            print_receipt(&receipt, source_store)?;
         }
         "context" => {
+            let (snapshot, swarm_id) = options.load_source()?;
             let text = options
                 .text
                 .clone()
                 .ok_or_else(|| usage_error("context requires --text <query>"))?;
+            let projection_input = options.load_projection_input().ok().map(|(input, _)| input);
+            let readiness = match (&projection_input, options.source_store()) {
+                (Some(input), Some(store)) => {
+                    load_memory_semantic_projection_readiness(store, input)?
+                }
+                _ => None,
+            };
             let packet = semantic_memory_context(
                 &snapshot,
                 &swarm_id,
@@ -68,6 +52,7 @@ fn main() -> Result<()> {
                     budget: options.budget,
                     ..Default::default()
                 },
+                readiness.as_ref(),
                 &config,
             );
             print_json(&packet)?;
@@ -81,7 +66,7 @@ struct Options {
     graph_store: Option<PathBuf>,
     runtime_store: Option<PathBuf>,
     agent_store: Option<PathBuf>,
-    receipt_store: Option<PathBuf>,
+    executor_id: Option<String>,
     swarm_id: Option<String>,
     partition: SemanticPartition,
     text: Option<String>,
@@ -96,7 +81,7 @@ impl Options {
             graph_store: None,
             runtime_store: None,
             agent_store: None,
-            receipt_store: None,
+            executor_id: None,
             swarm_id: None,
             partition: SemanticPartition::Modeling,
             text: None,
@@ -114,7 +99,7 @@ impl Options {
                 "--graph-store" => options.graph_store = Some(PathBuf::from(value()?)),
                 "--runtime-store" => options.runtime_store = Some(PathBuf::from(value()?)),
                 "--agent-store" => options.agent_store = Some(PathBuf::from(value()?)),
-                "--receipt-store" => options.receipt_store = Some(PathBuf::from(value()?)),
+                "--executor-id" => options.executor_id = Some(value()?),
                 "--swarm-id" => options.swarm_id = Some(value()?),
                 "--partition" => options.partition = parse_partition(&value()?)?,
                 "--text" => options.text = Some(value()?),
@@ -161,53 +146,43 @@ impl Options {
     }
 
     fn load_source(&self) -> Result<(EpiphanyMemoryGraphSnapshot, String)> {
-        if let Some(path) = &self.runtime_store {
-            let binding = runtime_swarm_binding(path)?
-                .ok_or_else(|| anyhow!("runtime store has no immutable swarm binding"))?;
-            if self
-                .swarm_id
-                .as_ref()
-                .is_some_and(|claimed| claimed != &binding.swarm_id)
-            {
-                return Err(anyhow!("--swarm-id does not match runtime swarm binding"));
-            }
-            let snapshot = runtime_current_repo_model(path)?
-                .ok_or_else(|| anyhow!("runtime store has no admitted RepoModel"))?;
-            return Ok((snapshot, binding.swarm_id));
-        }
-        if let Some(path) = &self.agent_store {
-            let mut entries = Vec::new();
-            for role in agent_memory_role_ids() {
-                if let Some(entry) = load_agent_memory_entry_for_role(path, role)? {
-                    entries.push(entry);
-                }
-            }
-            if entries.is_empty() {
-                return Err(anyhow!("agent store has no admitted organ memory"));
-            }
-            let identity = epiphany_core::load_agent_memory_swarm_identity(path)?
-                .ok_or_else(|| anyhow!("agent store has no immutable swarm identity; run epiphany-agent-memory-store set-swarm-identity"))?;
-            if self
-                .swarm_id
-                .as_ref()
-                .is_some_and(|claimed| claimed != &identity.swarm_id)
-            {
-                return Err(anyhow!(
-                    "--swarm-id {:?} does not match the canonical agent-store swarm identity {:?}",
-                    self.swarm_id,
-                    identity.swarm_id
-                ));
-            }
-            let swarm_id = identity.swarm_id;
+        if self.runtime_store.is_some() || self.agent_store.is_some() {
+            let (input, _) = self.load_projection_input()?;
             return Ok((
-                memory_graph_from_agent_memories(format!("{swarm_id}-mind"), &entries),
-                swarm_id,
+                input.snapshot().clone(),
+                input.obligation().swarm_id.clone(),
             ));
         }
         let path = self.graph_store.as_ref().expect("validated graph store");
         let snapshot = load_memory_graph_snapshot(path)?
             .ok_or_else(|| anyhow!("memory graph store {} is missing", path.display()))?;
         Ok((snapshot, self.swarm_id.clone().expect("validated swarm id")))
+    }
+
+    fn load_projection_input(&self) -> Result<(MemorySemanticProjectionInput, &PathBuf)> {
+        let (input, store) = if let Some(path) = &self.runtime_store {
+            (runtime_modeling_semantic_projection_input(path)?, path)
+        } else if let Some(path) = &self.agent_store {
+            (agent_memory_semantic_projection_input(path)?, path)
+        } else {
+            return Err(anyhow!(
+                "graph-store snapshots have no canonical admission authority and are BM25-only"
+            ));
+        };
+        if self
+            .swarm_id
+            .as_ref()
+            .is_some_and(|claimed| claimed != &input.obligation().swarm_id)
+        {
+            return Err(anyhow!(
+                "--swarm-id does not match canonical source identity"
+            ));
+        }
+        Ok((input, store))
+    }
+
+    fn source_store(&self) -> Option<&PathBuf> {
+        self.runtime_store.as_ref().or(self.agent_store.as_ref())
     }
 }
 
@@ -226,11 +201,36 @@ fn parse_profile(value: &str) -> Result<epiphany_core::EpiphanyMemoryProfile> {
 
 fn usage_error(message: &str) -> anyhow::Error {
     anyhow!(
-        "{message}\nusage: epiphany-memory-semantic <index|context> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--receipt-store <path>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
+        "{message}\nusage: epiphany-memory-semantic <index|context> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--executor-id <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
     )
 }
 
 fn print_json(value: &impl serde::Serialize) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
+}
+
+fn print_receipt(
+    receipt: &epiphany_core::MemorySemanticIndexReceipt,
+    source_store: &PathBuf,
+) -> Result<()> {
+    print_json(&serde_json::json!({
+        "status": receipt.status,
+        "receiptId": receipt.receipt_id,
+        "sourceStore": source_store,
+        "obligationId": receipt.obligation_id,
+        "swarmId": receipt.swarm_id,
+        "partition": receipt.partition,
+        "collectionName": receipt.collection_name,
+        "graphId": receipt.graph_id,
+        "modelRevision": receipt.model_revision,
+        "modelHash": receipt.model_hash,
+        "embeddingProviderId": receipt.embedding_provider_id,
+        "embeddingModel": receipt.embedding_model,
+        "vectorDimensions": receipt.vector_dimensions,
+        "indexedDocumentCount": receipt.indexed_document_count,
+        "deletedDocumentCount": receipt.deleted_document_count,
+        "canonicalContentSetHash": receipt.canonical_content_set_hash,
+        "indexedAt": receipt.indexed_at,
+    }))
 }

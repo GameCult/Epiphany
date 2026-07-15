@@ -1165,7 +1165,11 @@ fn persona_memory_recall_for_scheduled_turn(
         }
     }
     let swarm_id = swarm_identity.swarm_id;
-    let graph = crate::memory_graph_from_agent_memories(&format!("{swarm_id}-mind"), &entries);
+    let projection_input = crate::agent_memory_semantic_projection_input(agent_store).ok();
+    let graph = projection_input.as_ref().map_or_else(
+        || crate::memory_graph_from_agent_memories(&format!("{swarm_id}-mind"), &entries),
+        |input| input.snapshot.clone(),
+    );
     let persona_domain_id =
         crate::memory_graph_domain_id(crate::EpiphanyMemoryProfile::RoleSelf, "role", "Persona");
     let query_document = EpiphanyMemoryContextQuery {
@@ -1178,11 +1182,17 @@ fn persona_memory_recall_for_scheduled_turn(
         budget: Some(8),
     };
     let config = memory_semantic_config_for_heartbeat();
+    let readiness = projection_input.as_ref().and_then(|input| {
+        crate::load_memory_semantic_projection_readiness(agent_store, input)
+            .ok()
+            .flatten()
+    });
     let packet = crate::semantic_memory_context(
         &graph,
         &swarm_id,
         crate::SemanticPartition::Mind,
         &query_document,
+        readiness.as_ref(),
         &config,
     );
     let fallback = packet

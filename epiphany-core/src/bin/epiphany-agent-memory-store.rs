@@ -2,6 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use epiphany_core::AgentMemoryLifecycleOperation;
 use epiphany_core::AgentSelfPatch;
+use epiphany_core::admit_legacy_agent_memory_generation;
 use epiphany_core::agent_memory_status;
 use epiphany_core::apply_agent_memory_lifecycle_operation;
 use epiphany_core::apply_agent_self_patch_document;
@@ -52,6 +53,10 @@ fn main() -> Result<()> {
             let store = require_path_arg(&mut args, "--store")?;
             let swarm_id = require_string_arg(&mut args, "--swarm-id")?;
             print_json(&ensure_agent_memory_swarm_identity(store, &swarm_id)?)?;
+        }
+        "admit-legacy-mind" => {
+            let store = require_path_arg(&mut args, "--store")?;
+            print_json(&admit_legacy_agent_memory_generation(store)?)?;
         }
         "refresh-soa" => {
             let store = require_path_arg(&mut args, "--store")?;
@@ -198,7 +203,7 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-agent-memory-store <migrate-json-dir|project-json-dir|project-persona|set-swarm-identity|status|refresh-soa|repair|validate|review-patch|apply-patch|review-lifecycle|apply-lifecycle|smoke> ..."
+        "usage: epiphany-agent-memory-store <migrate-json-dir|project-json-dir|project-persona|set-swarm-identity|admit-legacy-mind|status|refresh-soa|repair|validate|review-patch|apply-patch|review-lifecycle|apply-lifecycle|smoke> ..."
     );
 }
 

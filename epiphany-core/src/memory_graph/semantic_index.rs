@@ -9,12 +9,11 @@ use crate::semantic_backend::{
     SemanticPoint,
 };
 use anyhow::{Result, anyhow};
-use cultcache_rs::{CultCache, DatabaseEntry, SingleFileMessagePackBackingStore};
+use cultcache_rs::DatabaseEntry;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::env;
-use std::path::Path;
 
 pub const MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_index_receipt.v0";
@@ -191,6 +190,13 @@ pub struct MemorySemanticProjectionHealth {
     pub query_eligible: bool,
 }
 
+#[derive(Clone, Debug)]
+pub struct MemorySemanticProjectionReadiness {
+    pub(crate) obligation: MemorySemanticProjectionObligation,
+    pub(crate) current: MemorySemanticProjectionSourceHead,
+    pub(crate) receipt: MemorySemanticIndexReceipt,
+}
+
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
     type = "gamecult.epiphany.memory_semantic_index_receipt",
@@ -336,6 +342,11 @@ pub fn validate_memory_semantic_projection_attempt(
     if attempt.attempt_id.trim().is_empty()
         || attempt.obligation_id.trim().is_empty()
         || attempt.started_at.trim().is_empty()
+        || chrono::DateTime::parse_from_rfc3339(&attempt.started_at).is_err()
+        || attempt
+            .completed_at
+            .as_deref()
+            .is_some_and(|completed_at| chrono::DateTime::parse_from_rfc3339(completed_at).is_err())
     {
         return Err(anyhow!(
             "semantic projection attempt is missing identity or time"
@@ -344,6 +355,7 @@ pub fn validate_memory_semantic_projection_attempt(
     match attempt.status.as_str() {
         "running" if attempt.completed_at.is_none() && attempt.error.is_none() => Ok(()),
         "failed" if attempt.completed_at.is_some() && attempt.error.is_some() => Ok(()),
+        "succeeded" if attempt.completed_at.is_some() && attempt.error.is_none() => Ok(()),
         _ => Err(anyhow!(
             "semantic projection attempt status does not match its terminal fields"
         )),
@@ -368,26 +380,40 @@ pub fn derive_memory_semantic_projection_health(
         .iter()
         .filter(|receipt| receipt_matches_obligation(receipt, obligation))
         .collect::<Vec<_>>();
-    matching_receipts.sort_by(|left, right| left.indexed_at.cmp(&right.indexed_at));
+    matching_receipts.sort_by_key(|receipt| {
+        chrono::DateTime::parse_from_rfc3339(&receipt.indexed_at)
+            .expect("matching receipt has valid RFC3339 time")
+    });
     let receipt = matching_receipts.last().copied();
     let mut matching_attempts = attempts
         .iter()
         .filter(|attempt| attempt.obligation_id == obligation.obligation_id)
         .collect::<Vec<_>>();
-    matching_attempts.sort_by(|left, right| {
-        left.completed_at
-            .as_deref()
-            .unwrap_or(left.started_at.as_str())
-            .cmp(
-                right
-                    .completed_at
-                    .as_deref()
-                    .unwrap_or(right.started_at.as_str()),
-            )
+    matching_attempts.sort_by_key(|attempt| {
+        chrono::DateTime::parse_from_rfc3339(
+            attempt
+                .completed_at
+                .as_deref()
+                .unwrap_or(attempt.started_at.as_str()),
+        )
+        .expect("validated attempt has RFC3339 ordering time")
     });
     let latest_attempt = matching_attempts.last().copied();
+    let repair_after_receipt = latest_attempt
+        .zip(receipt)
+        .is_some_and(|(attempt, receipt)| {
+            chrono::DateTime::parse_from_rfc3339(&attempt.started_at).ok()
+                > chrono::DateTime::parse_from_rfc3339(&receipt.indexed_at).ok()
+                && attempt.status != "succeeded"
+        });
     let status = if stale {
         MemorySemanticProjectionHealthStatus::Stale
+    } else if repair_after_receipt
+        && latest_attempt.is_some_and(|attempt| attempt.status == "failed")
+    {
+        MemorySemanticProjectionHealthStatus::Failed
+    } else if repair_after_receipt {
+        MemorySemanticProjectionHealthStatus::Pending
     } else if receipt.is_some() {
         MemorySemanticProjectionHealthStatus::Ready
     } else if latest_attempt.is_some_and(|attempt| attempt.status == "failed") {
@@ -471,9 +497,10 @@ fn receipt_matches_obligation(
         && receipt.model_hash == obligation.source_model_hash
         && receipt.canonical_content_set_hash == obligation.canonical_content_set_hash
         && receipt.projection_schema_version == obligation.projection_schema_version
+        && chrono::DateTime::parse_from_rfc3339(&receipt.indexed_at).is_ok()
 }
 
-pub fn index_memory_semantic_partition(
+pub(super) fn index_memory_semantic_partition(
     snapshot: &EpiphanyMemoryGraphSnapshot,
     swarm_id: &str,
     partition: SemanticPartition,
@@ -484,11 +511,53 @@ pub fn index_memory_semantic_partition(
         .into_iter()
         .filter(|document| document.partition == partition)
         .collect::<Vec<_>>();
+    let backend = qdrant(config)?;
+    let collection = config.collection(partition);
+    let scope = [
+        ("swarmId", swarm_id),
+        ("partition", partition_name(partition)),
+    ];
+    let content_set_hash = canonical_content_set_hash(&documents);
+    let model_hash = crate::memory_graph_model_hash(snapshot)?;
+
     if documents.is_empty() {
-        return Err(anyhow!(
-            "semantic projection partition has no live documents"
+        let (vector_size, deleted_document_count) = if backend.collection_exists(collection)? {
+            let actual = backend.collection_compatibility(collection)?;
+            let expected = compatibility(config, partition, actual.vector_size);
+            if actual != expected {
+                return Err(anyhow!(
+                    "Qdrant collection {collection} is incompatible: actual {actual:?}, expected {expected:?}"
+                ));
+            }
+            let existing_ids = backend.point_ids_for_scope(collection, &scope)?;
+            backend.delete_points(collection, &existing_ids)?;
+            let observed_ids = backend.point_ids_for_scope(collection, &scope)?;
+            if !observed_ids.is_empty() {
+                return Err(anyhow!(
+                    "Qdrant scope synchronization failed: expected no points, observed {observed_ids:?}"
+                ));
+            }
+            (actual.vector_size as u32, existing_ids.len() as u32)
+        } else {
+            // An empty projection has nothing to embed and does not justify creating
+            // physical projection state. Absence already represents the empty set.
+            (0, 0)
+        };
+        return Ok(memory_semantic_index_receipt(
+            snapshot,
+            swarm_id,
+            partition,
+            indexed_at,
+            config,
+            collection,
+            &model_hash,
+            &content_set_hash,
+            vector_size,
+            0,
+            deleted_document_count,
         ));
     }
+
     let embedder = embedder(config, partition)?;
     let texts = documents
         .iter()
@@ -499,8 +568,6 @@ pub fn index_memory_semantic_partition(
         .first()
         .map(Vec::len)
         .ok_or_else(|| anyhow!("semantic projection produced no embeddings"))?;
-    let backend = qdrant(config)?;
-    let collection = config.collection(partition);
     let compatibility = compatibility(config, partition, vector_size);
     if backend.collection_exists(collection)? {
         let actual = backend.collection_compatibility(collection)?;
@@ -512,13 +579,7 @@ pub fn index_memory_semantic_partition(
     } else {
         backend.create_collection(collection, &compatibility)?;
     }
-    let existing_ids = backend.point_ids_for_scope(
-        collection,
-        &[
-            ("swarmId", swarm_id),
-            ("partition", partition_name(partition)),
-        ],
-    )?;
+    let existing_ids = backend.point_ids_for_scope(collection, &scope)?;
     let points = documents
         .iter()
         .zip(embeddings)
@@ -538,7 +599,65 @@ pub fn index_memory_semantic_partition(
         .filter(|id| !live_ids.contains(id.as_str()))
         .collect::<Vec<_>>();
     backend.delete_points(collection, &deleted_ids)?;
-    let content_set_hash = canonical_content_set_hash(&documents);
+    let observed_ids = backend.point_ids_for_scope(collection, &scope)?;
+    let desired_ids = documents
+        .iter()
+        .map(|document| document.point_id.clone())
+        .collect::<HashSet<_>>();
+    let observed_ids = observed_ids.into_iter().collect::<HashSet<_>>();
+    if observed_ids != desired_ids {
+        return Err(anyhow!(
+            "Qdrant scope synchronization failed: observed IDs do not equal the desired projection"
+        ));
+    }
+    let observed_payloads = backend
+        .points_for_scope::<MemorySemanticPointPayload>(collection, &scope)?
+        .into_iter()
+        .map(|point| {
+            point
+                .payload
+                .map(|payload| (point.id, payload))
+                .ok_or_else(|| anyhow!("Qdrant scoped point omitted typed projection payload"))
+        })
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    let desired_payloads = documents
+        .iter()
+        .map(|document| (document.point_id.clone(), point_payload(document, config)))
+        .collect::<BTreeMap<_, _>>();
+    if observed_payloads != desired_payloads {
+        return Err(anyhow!(
+            "Qdrant scope synchronization failed: observed payload identities do not equal the desired projection"
+        ));
+    }
+    Ok(memory_semantic_index_receipt(
+        snapshot,
+        swarm_id,
+        partition,
+        indexed_at,
+        config,
+        collection,
+        &model_hash,
+        &content_set_hash,
+        vector_size as u32,
+        documents.len() as u32,
+        deleted_ids.len() as u32,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn memory_semantic_index_receipt(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    swarm_id: &str,
+    partition: SemanticPartition,
+    indexed_at: &str,
+    config: &MemorySemanticIndexConfig,
+    collection: &str,
+    model_hash: &str,
+    content_set_hash: &str,
+    vector_dimensions: u32,
+    indexed_document_count: u32,
+    deleted_document_count: u32,
+) -> MemorySemanticIndexReceipt {
     let receipt_id = format!(
         "memory-semantic-index-{}-{}-{}-{}",
         partition_name(partition),
@@ -546,7 +665,7 @@ pub fn index_memory_semantic_partition(
         &content_set_hash[..16],
         &format!("{:x}", Sha256::digest(indexed_at.as_bytes()))[..12]
     );
-    Ok(MemorySemanticIndexReceipt {
+    MemorySemanticIndexReceipt {
         schema_version: MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id,
         swarm_id: swarm_id.to_string(),
@@ -554,13 +673,13 @@ pub fn index_memory_semantic_partition(
         collection_name: collection.to_string(),
         graph_id: snapshot.graph_id.clone(),
         model_revision: snapshot.model_revision,
-        model_hash: documents[0].model_hash.clone(),
+        model_hash: model_hash.to_string(),
         embedding_provider_id: config.embedding_provider_id.clone(),
         embedding_model: config.ollama_model.clone(),
-        vector_dimensions: vector_size as u32,
-        indexed_document_count: documents.len() as u32,
-        deleted_document_count: deleted_ids.len() as u32,
-        canonical_content_set_hash: content_set_hash,
+        vector_dimensions,
+        indexed_document_count,
+        deleted_document_count,
+        canonical_content_set_hash: content_set_hash.to_string(),
         indexed_at: indexed_at.to_string(),
         status: "ready".to_string(),
         obligation_id: String::new(),
@@ -568,19 +687,7 @@ pub fn index_memory_semantic_partition(
         source_commit_id: String::new(),
         source_generation: snapshot.model_revision,
         projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
-    })
-}
-
-pub fn persist_memory_semantic_index_receipt(
-    store_path: impl AsRef<Path>,
-    receipt: &MemorySemanticIndexReceipt,
-) -> Result<()> {
-    let mut cache = CultCache::new();
-    cache.register_entry_type::<MemorySemanticIndexReceipt>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
-    cache.pull_all_backing_stores()?;
-    cache.put(&receipt.receipt_id, receipt)?;
-    Ok(())
+    }
 }
 
 pub fn semantic_memory_context(
@@ -588,8 +695,41 @@ pub fn semantic_memory_context(
     swarm_id: &str,
     partition: SemanticPartition,
     query: &EpiphanyMemoryContextQuery,
+    readiness: Option<&MemorySemanticProjectionReadiness>,
     config: &MemorySemanticIndexConfig,
 ) -> EpiphanyMemoryContextPacket {
+    let eligible = readiness.is_some_and(|readiness| {
+        let source_matches_query = (|| -> Result<bool> {
+            let documents = derive_semantic_projection(swarm_id, snapshot)?
+                .into_iter()
+                .filter(|document| document.partition == partition)
+                .collect::<Vec<_>>();
+            Ok(readiness.obligation.swarm_id == swarm_id
+                && readiness.obligation.partition == partition_name(partition)
+                && readiness.obligation.graph_id == snapshot.graph_id
+                && readiness.obligation.source_generation == snapshot.model_revision
+                && readiness.obligation.source_model_hash
+                    == crate::memory_graph_model_hash(snapshot)?
+                && readiness.obligation.canonical_content_set_hash
+                    == canonical_content_set_hash(&documents))
+        })()
+        .unwrap_or(false);
+        source_matches_query
+            && memory_semantic_projection_query_eligible(
+                &readiness.obligation,
+                &readiness.current,
+                &readiness.receipt,
+            )
+    });
+    if !eligible {
+        let mut packet =
+            plan_memory_graph_context_cut_for_partition(snapshot, query, &[], partition);
+        packet.warnings.push(
+            "semantic projection unavailable; used canonical BM25 fallback: newest canonical obligation has no exact success receipt"
+                .to_string(),
+        );
+        return packet;
+    }
     match try_semantic_memory_context(snapshot, swarm_id, partition, query, config) {
         Ok(packet) => packet,
         Err(error) => {
@@ -775,6 +915,9 @@ mod tests {
         EpiphanyMemoryDomain, EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind,
         EpiphanyMemoryProfile, MEMORY_GRAPH_SCHEMA_VERSION, memory_graph_model_hash,
     };
+    use tokio::runtime::Runtime;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn snapshot() -> EpiphanyMemoryGraphSnapshot {
         let mut snapshot = EpiphanyMemoryGraphSnapshot {
@@ -807,6 +950,50 @@ mod tests {
         };
         snapshot.model_hash = memory_graph_model_hash(&snapshot).unwrap();
         snapshot
+    }
+
+    #[test]
+    fn empty_partition_bypasses_ollama_and_does_not_create_collection() -> Result<()> {
+        let runtime = Runtime::new()?;
+        let qdrant = runtime.block_on(MockServer::start());
+        runtime.block_on(
+            Mock::given(method("GET"))
+                .and(path("/collections/empty_modeling/exists"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": { "exists": false },
+                    "status": "ok",
+                    "time": 0.0
+                })))
+                .expect(1)
+                .mount(&qdrant),
+        );
+        let mut empty = EpiphanyMemoryGraphSnapshot {
+            schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
+            graph_id: "empty-semantic-source".to_string(),
+            model_revision: 9,
+            ..Default::default()
+        };
+        empty.model_hash = memory_graph_model_hash(&empty)?;
+        let mut config = MemorySemanticIndexConfig::from_env();
+        config.qdrant_url = qdrant.uri();
+        config.modeling_collection = "empty_modeling".to_string();
+        config.ollama_base_url = "http://127.0.0.1:1".to_string();
+        config.ollama_timeout_ms = 5;
+
+        let receipt = index_memory_semantic_partition(
+            &empty,
+            "swarm-empty",
+            SemanticPartition::Modeling,
+            "2026-07-15T12:00:00Z",
+            &config,
+        )?;
+
+        assert_eq!(receipt.indexed_document_count, 0);
+        assert_eq!(receipt.deleted_document_count, 0);
+        assert_eq!(receipt.vector_dimensions, 0);
+        assert_eq!(receipt.model_hash, empty.model_hash);
+        assert_eq!(receipt.status, "ready");
+        Ok(())
     }
 
     #[test]
@@ -866,6 +1053,7 @@ mod tests {
             "swarm",
             SemanticPartition::Modeling,
             &query,
+            None,
             &config,
         );
         assert_eq!(actual.nodes, expected.nodes);
@@ -877,6 +1065,77 @@ mod tests {
                 .iter()
                 .any(|warning| warning.contains("canonical BM25 fallback"))
         );
+    }
+
+    #[test]
+    fn exact_readiness_for_one_source_cannot_open_another_query_scope() -> Result<()> {
+        let snapshot = snapshot();
+        let obligation = derive_memory_semantic_projection_obligation(
+            &snapshot,
+            "swarm-a",
+            SemanticPartition::Modeling,
+            "runtime/repo-model",
+            "admission-current",
+            "2026-07-15T10:00:00Z",
+        )?;
+        let current = MemorySemanticProjectionSourceHead {
+            swarm_id: obligation.swarm_id.clone(),
+            partition: obligation.partition.clone(),
+            canonical_source_id: obligation.canonical_source_id.clone(),
+            source_commit_id: obligation.source_commit_id.clone(),
+            graph_id: obligation.graph_id.clone(),
+            source_generation: obligation.source_generation,
+            source_model_hash: obligation.source_model_hash.clone(),
+            canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+        };
+        let receipt = MemorySemanticIndexReceipt {
+            schema_version: MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "ready-current".to_string(),
+            swarm_id: obligation.swarm_id.clone(),
+            partition: obligation.partition.clone(),
+            collection_name: "modeling".to_string(),
+            graph_id: obligation.graph_id.clone(),
+            model_revision: obligation.source_generation,
+            model_hash: obligation.source_model_hash.clone(),
+            embedding_provider_id: "provider".to_string(),
+            embedding_model: "model".to_string(),
+            vector_dimensions: 3,
+            indexed_document_count: 3,
+            deleted_document_count: 0,
+            canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+            indexed_at: "2026-07-15T10:01:00Z".to_string(),
+            status: "ready".to_string(),
+            obligation_id: obligation.obligation_id.clone(),
+            canonical_source_id: obligation.canonical_source_id.clone(),
+            source_commit_id: obligation.source_commit_id.clone(),
+            source_generation: obligation.source_generation,
+            projection_schema_version: obligation.projection_schema_version.clone(),
+        };
+        let query = EpiphanyMemoryContextQuery {
+            id: "swapped-source".to_string(),
+            text: Some("authority".to_string()),
+            ..Default::default()
+        };
+        let mut config = MemorySemanticIndexConfig::from_env();
+        config.qdrant_url = "http://127.0.0.1:1".to_string();
+        config.ollama_base_url = "http://127.0.0.1:1".to_string();
+        let readiness = MemorySemanticProjectionReadiness {
+            obligation: obligation.clone(),
+            current: current.clone(),
+            receipt: receipt.clone(),
+        };
+        let packet = semantic_memory_context(
+            &snapshot,
+            "swarm-b",
+            SemanticPartition::Modeling,
+            &query,
+            Some(&readiness),
+            &config,
+        );
+        assert!(packet.warnings.iter().any(|warning| {
+            warning.contains("newest canonical obligation has no exact success receipt")
+        }));
+        Ok(())
     }
 
     #[test]
@@ -993,6 +1252,23 @@ mod tests {
         .unwrap();
         assert_eq!(ready.status, MemorySemanticProjectionHealthStatus::Ready);
         assert!(ready.query_eligible);
+
+        let mut repair = failed_attempt();
+        repair.attempt_id = "attempt-repair".to_string();
+        repair.started_at = "2026-07-15T10:02:00Z".to_string();
+        repair.completed_at = Some("2026-07-15T10:02:01Z".to_string());
+        let repairing = derive_memory_semantic_projection_health(
+            &obligation,
+            &current,
+            &[repair],
+            &[receipt()],
+        )
+        .unwrap();
+        assert_eq!(
+            repairing.status,
+            MemorySemanticProjectionHealthStatus::Failed
+        );
+        assert!(!repairing.query_eligible);
 
         let mut newer = current.clone();
         newer.source_generation += 1;
