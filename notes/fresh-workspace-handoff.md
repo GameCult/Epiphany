@@ -1655,16 +1655,29 @@ commit atomically. Gitlinks are nonrecursive; unrepresentable paths fail closed.
 Bind now installs one immutable runtime-side Body-store route containing the
 canonical external locator and exact Body-binding hash. Reads validate runtime,
 swarm, workspace, path, and Body binding; a runtime cannot substitute a second
-Body store. The route is the missing nerve needed by launch/admission, not proof
-that any current RepoModel was grounded through it.
+Body store. The route is the locator nerve used by the grounded chain below.
+
+## Modeling thinks from an authenticated Body observation (2026-07-15)
+
+Coordinator-owned Modeling launch observes the bound repository before worker
+thought and seals a typed `RepositoryBodyObservationBasis` into the immutable
+launch. Modeling output contract v3 requires an exact worker-authored echo.
+Result ingress reloads the launch and refuses missing, swapped, or non-Modeling
+basis cargo. Mind admission review v1 and receipt v5 carry the same basis; the
+admission CAS validates launch/result/review equality and the referenced
+historical Body artifacts before copying it into the receipt. It never samples
+current Body as a substitute. A valid historical basis remains admissible after
+the repository changes because it proves what Modeling saw, not timeless
+freshness. Direct Mind adoption and legacy migration remain explicitly
+ungrounded rather than manufacturing retroactive evidence.
 
 ## Readiness join remains deliberately impossible (2026-07-15)
 
 Modeling audited the next ownership seam after the Body observer landed. Mind is
 the only coherent owner for a derived repository-readiness projection, but the
-inputs required to emit observed-ready-at do not exist yet: RepoModel admission
-grounded to the exact current Body manifest and exact workspace-retrieval
-coverage for that same manifest. The existing
+remaining input required to emit observed-ready-at does not exist yet: exact
+workspace-retrieval coverage for that same Body manifest. RepoModel admission
+is now grounded to its exact pre-thought Body observation. The existing
 semantic projector proves exact query eligibility for an admitted RepoModel
 projection; the legacy workspace retrieval JSON manifest proves only path/size/
 mtime/chunk cache agreement. Do not join its `Ready` label, empty dirty paths,
@@ -1673,8 +1686,8 @@ readiness. Historical continuity was audited and rejected as another conceptual
 substitution. The correct join observes Body root R1, validates every artifact,
 observes R2, and emits only a time-bounded result when R1=R2. Watchers and Hands
 receipts trigger recomputation; they never replace either observation. Build
-order is exact Body-grounded RepoModel admission, typed Body-bound retrieval
-coverage, the Mind-owned race-safe join, then deletion of local interpretations.
+order is now typed Body-bound retrieval coverage, the Mind-owned race-safe join,
+then deletion of local interpretations.
 
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real

@@ -249,6 +249,7 @@ mod tests {
                     state_revision: 7,
                     objective: None,
                     dynamic_prompt_context: None,
+                    repository_body_observation_basis: None,
                     proposal_modeling_context: None,
                     claim_repair_context: None,
                     frontier_planning_context: None,

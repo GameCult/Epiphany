@@ -24,7 +24,7 @@ use crate::EpiphanyReorientFreshnessStatus;
 use crate::EpiphanyReorientPressureLevel;
 use crate::EpiphanyReorientReason;
 
-pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v2";
+pub const ROLE_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.role_result.v3";
 pub const REORIENT_WORKER_OUTPUT_CONTRACT_ID: &str = "epiphany.worker.reorient_result.v0";
 pub const REPO_FRONTIER_PROPOSAL_MODELING_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_proposal_modeling_context.v0";
@@ -92,6 +92,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub objective: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dynamic_prompt_context: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proposal_modeling_context: Option<RepoFrontierProposalModelingContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

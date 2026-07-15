@@ -75,6 +75,22 @@ pub struct RuntimeRepositoryBodyStoreBinding {
     pub body_binding_sha256: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryBodyObservationBasis {
+    pub schema_version: String,
+    pub workspace_id: String,
+    pub swarm_id: String,
+    pub runtime_id: String,
+    pub scope: String,
+    pub body_binding_sha256: String,
+    pub observation_id: String,
+    pub generation: u64,
+    pub manifest_root_sha256: String,
+    pub scan_started_at: String,
+    pub scan_finished_at: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.repository_body.observation",
@@ -235,6 +251,75 @@ pub fn runtime_repository_body_store_binding(
     let binding: RuntimeRepositoryBodyStoreBinding = decode(env)?;
     validate_runtime_body_store_binding(runtime_store, &binding)?;
     Ok(Some(binding))
+}
+
+pub fn observe_runtime_repository_body_basis(
+    runtime_store: &Path,
+) -> Result<RepositoryBodyObservationBasis> {
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let body_store = PathBuf::from(&route.body_store_path);
+    let entries = load_body_envelopes(&body_store)?;
+    let body_env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
+    let body: RepositoryBodyBinding = decode(body_env)?;
+    let observation = match observe_repository_body(
+        Path::new(&body.git_top_level),
+        &body_store,
+        runtime_store,
+    )? {
+        ObserveOutcome::Created(value) | ObserveOutcome::Unchanged(value) => value,
+    };
+    Ok(RepositoryBodyObservationBasis {
+        schema_version: BODY_SCHEMA_VERSION.into(),
+        workspace_id: body.workspace_id,
+        swarm_id: body.swarm_id,
+        runtime_id: body.runtime_id,
+        scope: body.scope,
+        body_binding_sha256: route.body_binding_sha256,
+        observation_id: observation.observation_id,
+        generation: observation.generation,
+        manifest_root_sha256: observation.manifest_root_sha256,
+        scan_started_at: observation.scan_started_at,
+        scan_finished_at: observation.scan_finished_at,
+    })
+}
+
+pub fn validate_repository_body_observation_basis(
+    runtime_store: &Path,
+    basis: &RepositoryBodyObservationBasis,
+) -> Result<()> {
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    if basis.schema_version != BODY_SCHEMA_VERSION
+        || basis.runtime_id != route.runtime_id
+        || basis.swarm_id != route.swarm_id
+        || basis.workspace_id != route.workspace_id
+        || basis.body_binding_sha256 != route.body_binding_sha256
+        || basis.generation == 0
+        || basis.observation_id != format!("{}:{}", basis.workspace_id, basis.generation)
+    {
+        bail!("repository Body observation basis disagrees with its immutable runtime route");
+    }
+    let entries = load_body_envelopes(Path::new(&route.body_store_path))?;
+    let binding_env = find(&entries, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+        .ok_or_else(|| anyhow!("runtime repository Body store has no Body binding"))?;
+    let binding: RepositoryBodyBinding = decode(binding_env)?;
+    let historical_head = RepositoryBodyHead {
+        schema_version: BODY_SCHEMA_VERSION.into(),
+        workspace_id: basis.workspace_id.clone(),
+        generation: basis.generation,
+        observation_id: basis.observation_id.clone(),
+        manifest_root_sha256: basis.manifest_root_sha256.clone(),
+    };
+    let (observation, _) = validate_body_chain(&entries, &binding, &historical_head)?;
+    if observation.scan_started_at != basis.scan_started_at
+        || observation.scan_finished_at != basis.scan_finished_at
+        || observation.scope != basis.scope
+    {
+        bail!("repository Body observation basis does not match its persisted observation");
+    }
+    Ok(())
 }
 
 pub fn observe_repository_body(

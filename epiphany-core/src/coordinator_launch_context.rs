@@ -931,6 +931,10 @@ mod tests {
         let patch_bytes = rmp_serde::to_vec_named(&patch)?;
         let result = crate::EpiphanyRuntimeRoleWorkerResult {
             schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            repository_body_observation_basis: crate::runtime_worker_launch_body_basis(
+                store,
+                "context-route-job",
+            )?,
             result_id: "context-route-result".to_string(),
             job_id: "context-route-job".to_string(),
             role_id: "modeling".to_string(),
@@ -978,6 +982,7 @@ mod tests {
                 evidence_ids: result.evidence_ids.clone(),
                 reviewed_at: "2026-06-12T00:00:04Z".to_string(),
                 contract: crate::REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+                repository_body_observation_basis: result.repository_body_observation_basis.clone(),
             },
         )?;
         let route = crate::select_and_commit_repo_frontier_route(store, "2026-06-12T00:00:05Z")?;
@@ -1129,6 +1134,10 @@ mod tests {
             &agent_store,
             "2026-07-12T00:00:01Z",
         )?;
+        crate::runtime_spine::tests::bind_test_repository_body(
+            &runtime_store,
+            "launch-context-workspace",
+        )?;
         let state = EpiphanyThreadState {
             revision: 7,
             objective: Some("Test launch context.".to_string()),
@@ -1155,7 +1164,7 @@ mod tests {
         assert!(local_verse_store_path(&runtime_store).exists());
         assert!(runtime_store.exists());
 
-        let launch_request = build_epiphany_role_launch_request_with_dynamic_context(
+        let mut launch_request = build_epiphany_role_launch_request_with_dynamic_context(
             "thread-1",
             EpiphanyRoleResultRoleId::Modeling,
             Some(state.revision),
@@ -1164,6 +1173,14 @@ mod tests {
             Some(rendered.clone()),
         )
         .map_err(anyhow::Error::msg)?;
+        let crate::EpiphanyWorkerLaunchDocument::Role(role_document) =
+            &mut launch_request.launch_document
+        else {
+            unreachable!("role launch builder returned reorient document")
+        };
+        role_document.repository_body_observation_basis = Some(
+            crate::observe_runtime_repository_body_basis(&runtime_store)?,
+        );
         open_runtime_spine_heartbeat_job(
             &runtime_store,
             RuntimeSpineHeartbeatJobOptions {
@@ -1281,6 +1298,14 @@ mod tests {
                 display_name: "Epiphany Hands Context Test".to_string(),
                 created_at: "2026-06-12T00:00:00Z".to_string(),
             },
+        )?;
+        crate::runtime_spine::tests::bind_test_runtime_swarm(
+            &runtime_store,
+            "hands-context-swarm",
+        )?;
+        crate::runtime_spine::tests::bind_test_repository_body(
+            &runtime_store,
+            "hands-context-workspace",
         )?;
         let stdout = temp.join("stdout.log");
         let stderr = temp.join("stderr.log");
@@ -1445,8 +1470,40 @@ mod tests {
             verification_request_id,
         )?
         .expect("persisted exact verification request");
+        let verification_launch = crate::build_epiphany_role_launch_request(
+            "context-thread",
+            crate::EpiphanyRoleResultRoleId::Verification,
+            Some(state.revision),
+            Some(60),
+            &state,
+        )
+        .map_err(anyhow::Error::msg)?;
+        crate::open_runtime_spine_heartbeat_job(
+            &runtime_store,
+            crate::RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "epiphany-hands-context-test".to_string(),
+                display_name: "Epiphany Hands Context Test".to_string(),
+                session_id: "context-thread".to_string(),
+                objective: "Verify the exact Hands receipt chain.".to_string(),
+                coordinator_note: "Fixture immutable Verification launch.".to_string(),
+                job_id: "verification-job-context".to_string(),
+                role: verification_launch.owner_role,
+                binding_id: verification_launch.binding_id,
+                authority_scope: verification_launch.authority_scope,
+                instruction: verification_launch.instruction,
+                launch_document: verification_launch.launch_document,
+                output_contract_id: verification_launch.output_contract_id,
+                organ_launch_contract: verification_launch.organ_launch_contract,
+                proposal_modeling_request_id: None,
+                claim_repair_request_id: None,
+                frontier_planning_request_id: None,
+                frontier_plan_mind_request_id: None,
+                created_at: "2026-06-12T00:00:06Z".to_string(),
+            },
+        )?;
         let verification_result = crate::EpiphanyRuntimeRoleWorkerResult {
             schema_version: crate::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            repository_body_observation_basis: None,
             result_id: "result-verification-context".to_string(),
             job_id: "verification-job-context".to_string(),
             role_id: "verification".to_string(),

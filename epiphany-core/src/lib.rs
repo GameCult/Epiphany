@@ -936,6 +936,7 @@ pub use runtime_spine::runtime_spine_status;
 pub use runtime_spine::runtime_substrate_gate_repo_access_grant_receipt;
 pub use runtime_spine::runtime_swarm_binding;
 pub use runtime_spine::runtime_tool_invocation_statuses;
+pub use runtime_spine::runtime_worker_launch_body_basis;
 pub use runtime_spine::runtime_worker_launch_request;
 pub use runtime_spine::select_and_commit_repo_frontier_planning_request;
 pub use runtime_spine::select_and_commit_repo_frontier_route;

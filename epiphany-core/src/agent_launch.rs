@@ -289,6 +289,32 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     } else if role_id == EpiphanyRoleResultRoleId::Modeling {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
+                "repositoryBodyObservationBasis".to_string(),
+                serde_json::json!({
+                    "type": "object",
+                    "description": "Exact echo of the immutable repository Body observation basis supplied in the Modeling launch.",
+                    "required": [
+                        "schemaVersion", "workspaceId", "swarmId", "runtimeId", "scope",
+                        "bodyBindingSha256", "observationId", "generation",
+                        "manifestRootSha256", "scanStartedAt", "scanFinishedAt"
+                    ],
+                    "properties": {
+                        "schemaVersion": {"type": "string", "minLength": 1},
+                        "workspaceId": {"type": "string", "minLength": 1},
+                        "swarmId": {"type": "string", "minLength": 1},
+                        "runtimeId": {"type": "string", "minLength": 1},
+                        "scope": {"type": "string", "minLength": 1},
+                        "bodyBindingSha256": {"type": "string", "minLength": 1},
+                        "observationId": {"type": "string", "minLength": 1},
+                        "generation": {"type": "integer", "minimum": 1},
+                        "manifestRootSha256": {"type": "string", "minLength": 1},
+                        "scanStartedAt": {"type": "string", "minLength": 1},
+                        "scanFinishedAt": {"type": "string", "minLength": 1}
+                    },
+                    "additionalProperties": false
+                }),
+            );
+            map.insert(
                 "repoModelPatch".to_string(),
                 serde_json::json!({
                     "type": "object",
@@ -366,6 +392,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         }
         required.push("frontierNodeIds");
         required.push("repoModelPatch");
+        required.push("repositoryBodyObservationBasis");
     }
     let mut schema = serde_json::json!({
         "type": "object",
@@ -658,6 +685,7 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         state_revision: state.revision,
         objective: state.objective.clone(),
         dynamic_prompt_context: None,
+        repository_body_observation_basis: None,
         proposal_modeling_context: None,
         claim_repair_context: None,
         frontier_planning_context: None,
@@ -753,6 +781,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         state_revision: state.revision,
         objective: state.objective.clone(),
         dynamic_prompt_context,
+        repository_body_observation_basis: None,
         proposal_modeling_context: None,
         claim_repair_context: None,
         frontier_planning_context: None,
@@ -1121,6 +1150,17 @@ mod tests {
     #[test]
     fn modeling_schema_exposes_only_typed_authority_purposes() {
         let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Modeling);
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|value| value == "repositoryBodyObservationBasis")
+        );
+        assert_eq!(
+            schema["properties"]["repositoryBodyObservationBasis"]["additionalProperties"],
+            false
+        );
         let purposes = schema["properties"]["repoModelPatch"]["properties"]["purpose"]["oneOf"]
             .as_array()
             .expect("typed Modeling purpose alternatives");

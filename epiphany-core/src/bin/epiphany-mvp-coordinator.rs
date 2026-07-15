@@ -1699,6 +1699,7 @@ mod tests {
             proposal_modeling_request_id: String::new(),
             claim_repair_request_id: String::new(),
             frontier_plan_decision_id: String::new(),
+            repository_body_observation_basis: None,
         };
         let mut cache = epiphany_core::runtime_spine_cache(store)?;
         cache.put(epiphany_core::MEMORY_GRAPH_KEY, &entry)?;

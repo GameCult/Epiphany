@@ -4,14 +4,14 @@ use serde::{Deserialize, Serialize};
 
 pub const REPO_MODEL_ADMISSION_REVIEW_TYPE: &str = "epiphany.mind.repo_model_admission_review";
 pub const REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION: &str =
-    "epiphany.mind.repo_model_admission_review.v0";
+    "epiphany.mind.repo_model_admission_review.v1";
 pub const REPO_MODEL_ADMISSION_RECEIPT_TYPE: &str = "epiphany.mind.repo_model_admission_receipt";
 pub const REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.mind.repo_model_admission_receipt.v4";
+    "epiphany.mind.repo_model_admission_receipt.v5";
 pub const REPO_MODEL_MIGRATION_RECEIPT_TYPE: &str = "epiphany.mind.repo_model_migration_receipt";
 pub const REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_model_migration_receipt.v0";
-pub const REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v4";
+pub const REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v5";
 pub const REPO_MODEL_MIGRATION_CONTRACT: &str = "epiphany.repo_model_migration.v0";
 pub const REPO_FRONTIER_ROUTE_TYPE: &str = "epiphany.self.repo_frontier_route";
 pub const REPO_FRONTIER_ROUTE_SCHEMA_VERSION: &str = "epiphany.self.repo_frontier_route.v1";
@@ -715,6 +715,8 @@ pub struct RepoModelAdmissionReview {
     pub reviewed_at: String,
     #[cultcache(key = 11)]
     pub contract: String,
+    #[cultcache(key = 12)]
+    pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -763,6 +765,8 @@ pub struct RepoModelAdmissionReceipt {
     pub claim_repair_request_id: String,
     #[cultcache(key = 19, default)]
     pub frontier_plan_decision_id: String,
+    #[cultcache(key = 20)]
+    pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]

@@ -173,7 +173,7 @@ pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v1";
 pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
-    "epiphany.runtime.role_worker_result.v2";
+    "epiphany.runtime.role_worker_result.v3";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.reorient_worker_result.v0";
 pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v0";
@@ -357,6 +357,17 @@ impl EpiphanyRuntimeWorkerLaunchRequest {
         }
         Ok(document)
     }
+
+    pub fn repository_body_observation_basis(
+        &self,
+    ) -> Result<Option<crate::RepositoryBodyObservationBasis>> {
+        Ok(match self.launch_document()? {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                document.repository_body_observation_basis
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -425,6 +436,8 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub frontier_plan_mind_request_id: Option<String>,
     #[cultcache(key = 29, default)]
     pub frontier_plan_mind_decision_msgpack: Option<Vec<u8>>,
+    #[cultcache(key = 30, default)]
+    pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
@@ -1233,6 +1246,7 @@ pub fn open_runtime_spine_heartbeat_job(
     validate_non_empty(&options.objective, "objective")?;
     validate_non_empty(&options.job_id, "job id")?;
     validate_non_empty(&options.role, "role")?;
+    validate_repository_body_launch_carrier(&options.role, &options.launch_document)?;
     validate_proposal_modeling_launch_carrier(
         &options.role,
         &options.binding_id,
@@ -1353,6 +1367,7 @@ pub fn prepare_runtime_spine_heartbeat_job(
     validate_non_empty(&options.objective, "objective")?;
     validate_non_empty(&options.job_id, "job id")?;
     validate_non_empty(&options.role, "role")?;
+    validate_repository_body_launch_carrier(&options.role, &options.launch_document)?;
     validate_proposal_modeling_launch_carrier(
         &options.role,
         &options.binding_id,
@@ -1528,6 +1543,37 @@ fn validate_proposal_modeling_launch_carrier(
     Ok(())
 }
 
+fn validate_repository_body_launch_carrier(
+    role: &str,
+    launch_document: &EpiphanyWorkerLaunchDocument,
+) -> Result<()> {
+    let (document_role, basis) = match launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => (
+            Some(document.role_id.as_str()),
+            document.repository_body_observation_basis.as_ref(),
+        ),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => (None, None),
+    };
+    let owner_is_modeling = role == EPIPHANY_MODELING_OWNER_ROLE;
+    let document_is_modeling = document_role.is_some_and(|value| value == "modeling");
+    if owner_is_modeling != document_is_modeling {
+        return Err(anyhow!(
+            "Modeling runtime owner and typed launch role must agree"
+        ));
+    }
+    if owner_is_modeling && basis.is_none() {
+        return Err(anyhow!(
+            "Modeling runtime launch requires a pre-thought repository Body basis"
+        ));
+    }
+    if !owner_is_modeling && basis.is_some() {
+        return Err(anyhow!(
+            "non-Modeling runtime launch cannot carry a repository Body basis"
+        ));
+    }
+    Ok(())
+}
+
 fn validate_claim_repair_launch_carrier(
     role: &str,
     binding_id: &str,
@@ -1634,6 +1680,15 @@ pub fn runtime_worker_launch_request(
     cache.get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)
 }
 
+pub fn runtime_worker_launch_body_basis(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<Option<crate::RepositoryBodyObservationBasis>> {
+    runtime_worker_launch_request(store_path, job_id)?
+        .ok_or_else(|| anyhow!("worker launch request {job_id:?} is missing"))?
+        .repository_body_observation_basis()
+}
+
 pub fn put_runtime_role_worker_result(
     store_path: impl AsRef<Path>,
     result: &EpiphanyRuntimeRoleWorkerResult,
@@ -1647,6 +1702,37 @@ pub fn put_runtime_role_worker_result(
     }
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
+    let worker_launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+        .ok_or_else(|| anyhow!("role worker result requires its immutable worker launch"))?;
+    let launch_document = worker_launch.launch_document()?;
+    let launch_body_basis = match &launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            document.repository_body_observation_basis.as_ref()
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let launch_is_modeling = worker_launch.role == EPIPHANY_MODELING_OWNER_ROLE;
+    let result_is_modeling = result.role_id.eq_ignore_ascii_case("modeling");
+    if launch_is_modeling != result_is_modeling {
+        return Err(anyhow!(
+            "role worker result cannot substitute Modeling launch authority"
+        ));
+    }
+    if launch_is_modeling {
+        let expected = launch_body_basis.ok_or_else(|| {
+            anyhow!("Modeling worker launch is missing its repository Body observation basis")
+        })?;
+        if result.repository_body_observation_basis.as_ref() != Some(expected) {
+            return Err(anyhow!(
+                "Modeling result must exactly echo its immutable launch repository Body observation basis"
+            ));
+        }
+    } else if launch_body_basis.is_some() || result.repository_body_observation_basis.is_some() {
+        return Err(anyhow!(
+            "non-Modeling worker launch and result must not carry a repository Body observation basis"
+        ));
+    }
     let is_verification = result.role_id == "verification";
     if is_verification
         != (result
@@ -2174,6 +2260,44 @@ pub fn commit_repo_model_admission(
             "repo model admission result role/job binding mismatch"
         ));
     }
+    let worker_launch = cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+        .ok_or_else(|| anyhow!("repo model admission requires the immutable Modeling launch"))?;
+    let launch_document = worker_launch.launch_document()?;
+    let launch_basis = match &launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document
+            .repository_body_observation_basis
+            .as_ref()
+            .ok_or_else(|| {
+                anyhow!("repo model admission launch has no repository Body observation basis")
+            })?,
+        EpiphanyWorkerLaunchDocument::Reorient(_) => {
+            return Err(anyhow!(
+                "repo model admission cannot originate from reorientation"
+            ));
+        }
+    };
+    let result_basis = result
+        .repository_body_observation_basis
+        .as_ref()
+        .ok_or_else(|| {
+            anyhow!("repo model admission result has no repository Body observation basis")
+        })?;
+    let review_basis = review
+        .repository_body_observation_basis
+        .as_ref()
+        .ok_or_else(|| {
+            anyhow!("repo model admission review has no repository Body observation basis")
+        })?;
+    if worker_launch.role != EPIPHANY_MODELING_OWNER_ROLE
+        || launch_basis != result_basis
+        || launch_basis != review_basis
+    {
+        return Err(anyhow!(
+            "repo model admission requires one exact launch/result/review repository Body observation basis"
+        ));
+    }
+    crate::validate_repository_body_observation_basis(runtime_store, launch_basis)?;
     let patch_bytes = result
         .repo_model_patch_msgpack
         .as_deref()
@@ -2244,6 +2368,8 @@ pub fn commit_repo_model_admission(
                     || !existing_receipt.soul_verdict_receipt_id.is_empty()
                     || !existing_receipt.frontier_modeling_request_id.is_empty()
                     || !existing_receipt.proposal_modeling_request_id.is_empty()
+                    || existing_receipt.repository_body_observation_basis
+                        != review.repository_body_observation_basis
                 {
                     return Err(anyhow!("repo model admission receipt identity collision"));
                 }
@@ -2885,6 +3011,8 @@ pub fn commit_repo_model_admission(
                 || existing_receipt.proposal_modeling_request_id != proposal_modeling_request_id
                 || existing_receipt.claim_repair_request_id != claim_repair_request_id
                 || !existing_receipt.frontier_plan_decision_id.is_empty()
+                || existing_receipt.repository_body_observation_basis
+                    != review.repository_body_observation_basis
             {
                 return Err(anyhow!("repo model admission receipt identity collision"));
             }
@@ -3012,6 +3140,7 @@ pub fn commit_repo_model_admission(
         proposal_modeling_request_id,
         claim_repair_request_id,
         frontier_plan_decision_id: String::new(),
+        repository_body_observation_basis: review.repository_body_observation_basis.clone(),
     };
     let (next_model_envelope, _) = cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &next_entry)?;
     let (review_envelope, _) = cache.prepare_entry(&review.review_id, review)?;
@@ -4529,6 +4658,7 @@ fn commit_repo_frontier_plan_decision_inner(
             ],
             reviewed_at: decided_at.to_string(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+            repository_body_observation_basis: None,
         };
         let admission = RepoModelAdmissionReceipt {
             schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
@@ -4551,6 +4681,7 @@ fn commit_repo_frontier_plan_decision_inner(
             proposal_modeling_request_id: String::new(),
             claim_repair_request_id: String::new(),
             frontier_plan_decision_id: decision_id.clone(),
+            repository_body_observation_basis: None,
         };
         let obligation = modeling_projection_obligation(
             &cache,
@@ -7649,6 +7780,85 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    pub(crate) fn bind_test_repository_body(store: &Path, workspace_id: &str) -> Result<()> {
+        if crate::runtime_repository_body_store_binding(store)?.is_some() {
+            return Ok(());
+        }
+        let repo = store.with_extension(format!("{workspace_id}.body-repo"));
+        std::fs::create_dir_all(&repo)?;
+        let init = std::process::Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(&repo)
+            .output()?;
+        if !init.status.success() {
+            return Err(anyhow!("test repository git init failed"));
+        }
+        std::fs::write(repo.join("body-seed.txt"), workspace_id.as_bytes())?;
+        let add = std::process::Command::new("git")
+            .args(["add", "body-seed.txt"])
+            .current_dir(&repo)
+            .output()?;
+        if !add.status.success() {
+            return Err(anyhow!("test repository git add failed"));
+        }
+        let body_store = store.with_extension(format!("{workspace_id}.body.cc"));
+        crate::bind_repository_body(&repo, &body_store, store, workspace_id)?;
+        Ok(())
+    }
+
+    fn put_test_non_modeling_worker_launch(store: &Path, job_id: &str, role: &str) -> Result<()> {
+        let document =
+            EpiphanyWorkerLaunchDocument::Role(crate::EpiphanyRoleWorkerLaunchDocument {
+                thread_id: format!("fixture-thread-{job_id}"),
+                role_id: role.to_string(),
+                state_revision: 0,
+                objective: Some(format!("Fixture {role} launch")),
+                dynamic_prompt_context: None,
+                repository_body_observation_basis: None,
+                proposal_modeling_context: None,
+                claim_repair_context: None,
+                frontier_planning_context: None,
+                frontier_plan_mind_context: None,
+                active_subgoal_id: None,
+                active_subgoals: Vec::new(),
+                active_graph_node_ids: Vec::new(),
+                investigation_checkpoint: None,
+                scratch: None,
+                invariants: Vec::new(),
+                graphs: None,
+                recent_evidence: Vec::new(),
+                recent_observations: Vec::new(),
+                graph_frontier: None,
+                graph_checkpoint: None,
+                planning: None,
+                churn: None,
+            });
+        let request = EpiphanyRuntimeWorkerLaunchRequest {
+            schema_version: RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
+            job_id: job_id.to_string(),
+            binding_id: format!("{role}-worker"),
+            role: role.to_string(),
+            authority_scope: role.to_string(),
+            instruction: format!("Fixture {role} instruction"),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+            document_kind: worker_launch_document_kind(&document).to_string(),
+            launch_document_msgpack: encode_worker_launch_document(&document)?,
+            metadata: BTreeMap::new(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                role,
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_mind_request_id: None,
+        };
+        let mut cache = runtime_spine_cache(store)?;
+        cache.put(job_id, &request)?;
+        Ok(())
+    }
+
     #[test]
     fn legacy_repo_model_migration_adds_only_exact_projection_pressure() -> Result<()> {
         let root = tempdir()?;
@@ -7754,6 +7964,7 @@ pub(crate) mod tests {
             format!("launcher-{job_id}"),
             job_id.to_string(),
         )?;
+        bind_test_repository_body(store, &format!("workspace-{result_id}"))?;
         crate::commit_coordinator_job_launch(
             store,
             &thread_id,
@@ -7786,6 +7997,7 @@ pub(crate) mod tests {
         let patch_bytes = rmp_serde::to_vec_named(&patch)?;
         let result = EpiphanyRuntimeRoleWorkerResult {
             schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            repository_body_observation_basis: runtime_worker_launch_body_basis(store, job_id)?,
             result_id: result_id.to_string(),
             job_id: job_id.to_string(),
             role_id: "modeling".to_string(),
@@ -7829,8 +8041,107 @@ pub(crate) mod tests {
             evidence_ids: result.evidence_ids.clone(),
             reviewed_at: "2026-07-13T04:00:01Z".to_string(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+            repository_body_observation_basis: result.repository_body_observation_basis.clone(),
         };
         Ok((result, review))
+    }
+
+    #[test]
+    fn modeling_result_ingress_requires_the_exact_immutable_launch_body_basis() -> Result<()> {
+        for mutation in ["missing", "swapped"] {
+            let root = tempdir()?;
+            let store = root.path().join(format!("body-basis-{mutation}.cc"));
+            initialize_runtime_spine(
+                &store,
+                RuntimeSpineInitOptions {
+                    runtime_id: format!("body-basis-runtime-{mutation}"),
+                    display_name: "Body basis ingress".into(),
+                    created_at: "2026-07-15T00:00:00Z".into(),
+                },
+            )?;
+            bind_test_runtime_swarm(&store, &format!("body-basis-swarm-{mutation}"))?;
+            let bootstrap = repo_model_bootstrap();
+            let legacy = root.path().join(format!("body-basis-{mutation}.legacy"));
+            let (current, _) =
+                ensure_runtime_repo_model(&store, &legacy, &bootstrap, "2026-07-15T00:00:01Z")?;
+            let (mut result, _) = repo_model_result_and_review(
+                &store,
+                &format!("body-basis-result-{mutation}"),
+                &format!("body-basis-job-{mutation}"),
+                &current,
+                &format!("body-basis-review-{mutation}"),
+            )?;
+            match mutation {
+                "missing" => result.repository_body_observation_basis = None,
+                "swapped" => {
+                    result
+                        .repository_body_observation_basis
+                        .as_mut()
+                        .expect("fixture Modeling basis")
+                        .observation_id = "counterfeit-observation".into();
+                }
+                _ => unreachable!(),
+            }
+            let before = std::fs::read(&store)?;
+            assert!(put_runtime_role_worker_result(&store, &result).is_err());
+            assert_eq!(std::fs::read(&store)?, before);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn repo_model_admission_refuses_review_body_substitution_without_writes() -> Result<()> {
+        let root = tempdir()?;
+        let (store, result, mut review) = proposal_admission_fixture(root.path(), "body-swap")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        review
+            .repository_body_observation_basis
+            .as_mut()
+            .expect("Modeling review basis")
+            .manifest_root_sha256 = "counterfeit-root".into();
+        let before = std::fs::read(&store)?;
+        assert!(commit_repo_model_admission(&store, &result.result_id, &review).is_err());
+        assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn repo_model_admission_preserves_valid_historical_body_basis() -> Result<()> {
+        let root = tempdir()?;
+        let (store, result, review) = proposal_admission_fixture(root.path(), "historical-body")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let original = review
+            .repository_body_observation_basis
+            .clone()
+            .expect("Modeling review basis");
+        let route =
+            crate::runtime_repository_body_store_binding(&store)?.expect("runtime Body route");
+        let body_store = PathBuf::from(route.body_store_path);
+        let (binding, _) =
+            crate::load_repository_body_status(&body_store)?.expect("repository Body status");
+        std::fs::write(
+            Path::new(&binding.git_top_level).join("body-seed.txt"),
+            b"changed after Modeling launch",
+        )?;
+        let add = std::process::Command::new("git")
+            .args(["add", "body-seed.txt"])
+            .current_dir(&binding.git_top_level)
+            .output()?;
+        assert!(add.status.success());
+        let changed = match crate::observe_repository_body(
+            Path::new(&binding.git_top_level),
+            &body_store,
+            &store,
+        )? {
+            crate::ObserveOutcome::Created(value) | crate::ObserveOutcome::Unchanged(value) => {
+                value
+            }
+        };
+        assert_ne!(changed.manifest_root_sha256, original.manifest_root_sha256);
+
+        let receipt = commit_repo_model_admission(&store, &result.result_id, &review)?;
+        assert_eq!(receipt.repository_body_observation_basis, Some(original));
+        Ok(())
     }
 
     fn proposal_admission_fixture(
@@ -7920,6 +8231,7 @@ pub(crate) mod tests {
         evidence_ids.dedup();
         let result = EpiphanyRuntimeRoleWorkerResult {
             schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            repository_body_observation_basis: runtime_worker_launch_body_basis(&store, &job_id)?,
             result_id: format!("claim-repair-result-{suffix}"),
             job_id,
             role_id: "modeling".into(),
@@ -7963,6 +8275,7 @@ pub(crate) mod tests {
             evidence_ids,
             reviewed_at: "2026-07-14T09:00:05Z".into(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
+            repository_body_observation_basis: result.repository_body_observation_basis.clone(),
         };
         Ok((store, result, review, repair))
     }
@@ -8065,6 +8378,9 @@ pub(crate) mod tests {
                             proposal_modeling_request_id: String::new(),
                             claim_repair_request_id: repair.request_id.clone(),
                             frontier_plan_decision_id: String::new(),
+                            repository_body_observation_basis: review
+                                .repository_body_observation_basis
+                                .clone(),
                         },
                     )?;
                 }
@@ -8284,7 +8600,7 @@ pub(crate) mod tests {
                 7 => result.job_id = "unrelated-modeling-job".into(),
                 _ => unreachable!(),
             }
-            if mutate == 6 {
+            if matches!(mutate, 6 | 7) {
                 let before = std::fs::read(&store)?;
                 assert!(put_runtime_role_worker_result(&store, &result).is_err());
                 assert_eq!(std::fs::read(&store)?, before);
@@ -8532,6 +8848,9 @@ pub(crate) mod tests {
                         proposal_modeling_request_id: "wrong-proposal-request".into(),
                         claim_repair_request_id: String::new(),
                         frontier_plan_decision_id: String::new(),
+                        repository_body_observation_basis: review
+                            .repository_body_observation_basis
+                            .clone(),
                     };
                     overwrite_test_entry(&store, &review.review_id, &review)?;
                     overwrite_test_entry(&store, &receipt_id, &receipt)?;
@@ -9006,6 +9325,7 @@ pub(crate) mod tests {
         )?;
         let verification_result = EpiphanyRuntimeRoleWorkerResult {
             schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            repository_body_observation_basis: None,
             result_id: format!("verification-result-{suffix}"),
             job_id: format!("verification-job-{suffix}"),
             role_id: "verification".to_string(),
@@ -9036,6 +9356,7 @@ pub(crate) mod tests {
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
         };
+        put_test_non_modeling_worker_launch(&store, &verification_result.job_id, "verification")?;
         put_runtime_role_worker_result(&store, &verification_result)?;
         let verdict = SoulVerdictReceipt {
             schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
@@ -9094,6 +9415,41 @@ pub(crate) mod tests {
         fixture: &FrontierVerdictFixture,
         suffix: &str,
     ) -> Result<(EpiphanyRuntimeRoleWorkerResult, RepoModelAdmissionReview)> {
+        bind_test_repository_body(&fixture.store, &format!("verdict-workspace-{suffix}"))?;
+        let state = crate::read_coordinator_state(&fixture.store)?
+            .ok_or_else(|| anyhow!("verdict fixture has no coordinator state"))?;
+        let thread_id = {
+            let mut cache = runtime_spine_cache(&fixture.store)?;
+            cache.pull_all_backing_stores()?;
+            cache
+                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+                .ok_or_else(|| anyhow!("verdict fixture has no thread state entry"))?
+                .thread_id
+        };
+        let launch = crate::build_epiphany_role_launch_request(
+            &thread_id,
+            crate::EpiphanyRoleResultRoleId::Modeling,
+            Some(state.revision),
+            Some(60),
+            &state,
+        )
+        .map_err(|error| anyhow!(error))?;
+        let job_id = format!("incorporation-job-{suffix}");
+        let plan = crate::plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &fixture.store,
+            format!("incorporation-launcher-{suffix}"),
+            job_id.clone(),
+        )?;
+        crate::commit_coordinator_job_launch(
+            &fixture.store,
+            &thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-13T06:00:09Z".into(),
+        )?;
         let mut item = fixture
             .current
             .frontier
@@ -9129,8 +9485,12 @@ pub(crate) mod tests {
         let bytes = rmp_serde::to_vec_named(&patch)?;
         let result = EpiphanyRuntimeRoleWorkerResult {
             schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            repository_body_observation_basis: runtime_worker_launch_body_basis(
+                &fixture.store,
+                &job_id,
+            )?,
             result_id: format!("incorporation-result-{suffix}"),
-            job_id: format!("incorporation-job-{suffix}"),
+            job_id,
             role_id: "modeling".to_string(),
             verdict: "checkpoint-ready".to_string(),
             summary: "Incorporate exact Soul verdict.".to_string(),
@@ -9172,6 +9532,7 @@ pub(crate) mod tests {
             evidence_ids: result.evidence_ids.clone(),
             reviewed_at: "2026-07-13T06:00:10Z".to_string(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+            repository_body_observation_basis: result.repository_body_observation_basis.clone(),
         };
         Ok((result, review))
     }
@@ -9467,6 +9828,7 @@ pub(crate) mod tests {
         let fixture = frontier_verdict_fixture(temp.path(), "request-adjacency", "pass")?;
         let adjacent = EpiphanyRuntimeRoleWorkerResult {
             schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+            repository_body_observation_basis: None,
             result_id: "adjacent-verification-result".to_string(),
             job_id: "adjacent-verification-job".to_string(),
             role_id: "verification".to_string(),
@@ -9497,6 +9859,7 @@ pub(crate) mod tests {
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
         };
+        put_test_non_modeling_worker_launch(&fixture.store, &adjacent.job_id, "verification")?;
         put_runtime_role_worker_result(&fixture.store, &adjacent)?;
         put_soul_verdict_receipt(
             &fixture.store,
@@ -9568,12 +9931,39 @@ pub(crate) mod tests {
                 commit_repo_model_admission(&fixture.store, &result.result_id, &review).is_err()
             );
             assert_eq!(fs::read(&fixture.store)?, before);
+            complete_runtime_job(
+                &fixture.store,
+                RuntimeSpineJobResultOptions {
+                    result_id: format!("terminal-{suffix}"),
+                    job_id: result.job_id.clone(),
+                    completed_at: "2026-07-13T06:00:11Z".into(),
+                    verdict: "rejected".into(),
+                    summary: "Hostile admission fixture rejected.".into(),
+                    next_safe_move: "Launch the next isolated fixture.".into(),
+                    evidence_refs: Vec::new(),
+                    artifact_refs: Vec::new(),
+                },
+            )?;
+            let mut cache = runtime_spine_cache(&fixture.store)?;
+            cache.pull_all_backing_stores()?;
+            let entry = cache
+                .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+                .ok_or_else(|| anyhow!("hostile fixture thread state disappeared"))?;
+            let mut state = entry.state()?;
+            for link in &mut state.runtime_links {
+                if link.runtime_job_id == result.job_id && link.runtime_result_id.is_none() {
+                    link.runtime_result_id = Some(format!("terminal-{suffix}"));
+                }
+            }
+            cache.put(
+                crate::THREAD_STATE_KEY,
+                &crate::EpiphanyThreadStateEntry::from_state(entry.thread_id, &state)?,
+            )?;
             Ok(())
         }
 
         let temp = tempdir()?;
-        let fixture = frontier_verdict_fixture(temp.path(), "hostile", "pass")?;
-
+        let fixture = frontier_verdict_fixture(temp.path(), "swapped-route", "pass")?;
         attempt(&fixture, "swapped-route", |patch| {
             patch.purpose = crate::RepoModelPatchPurpose::IncorporateFrontierVerdict {
                 route_id: "different-route".to_string(),
@@ -9586,6 +9976,8 @@ pub(crate) mod tests {
             ("swapped-verdict-route", "route"),
             ("swapped-result", "result"),
         ] {
+            let case_root = tempdir()?;
+            let fixture = frontier_verdict_fixture(case_root.path(), suffix, "pass")?;
             let mut counterfeit = fixture.verdict.clone();
             counterfeit.receipt_id = format!("counterfeit-{suffix}");
             match alter {
@@ -9603,12 +9995,16 @@ pub(crate) mod tests {
             })?;
         }
 
+        let case_root = tempdir()?;
+        let fixture = frontier_verdict_fixture(case_root.path(), "extra-op", "pass")?;
         attempt(&fixture, "extra-op", |patch| {
             let item = fixture.current.frontier[0].clone();
             patch
                 .operations
                 .push(crate::RepoModelPatchOperation::ReviseFrontier { item });
         })?;
+        let case_root = tempdir()?;
+        let fixture = frontier_verdict_fixture(case_root.path(), "wrong-item", "pass")?;
         attempt(&fixture, "wrong-item", |patch| {
             let crate::RepoModelPatchOperation::ReviseFrontier { item } = &mut patch.operations[0]
             else {
@@ -9616,6 +10012,8 @@ pub(crate) mod tests {
             };
             item.id = "other-frontier".to_string();
         })?;
+        let case_root = tempdir()?;
+        let fixture = frontier_verdict_fixture(case_root.path(), "wrong-status", "pass")?;
         attempt(&fixture, "wrong-status", |patch| {
             let crate::RepoModelPatchOperation::ReviseFrontier { item } = &mut patch.operations[0]
             else {
@@ -9625,23 +10023,6 @@ pub(crate) mod tests {
             item.gap = "still blocked".to_string();
         })?;
 
-        let (evolution_result, evolution_review) =
-            incorporation_result_and_review(&fixture, "intervening-result")?;
-        put_runtime_role_worker_result(&fixture.store, &evolution_result)?;
-        commit_repo_model_admission(
-            &fixture.store,
-            &evolution_result.result_id,
-            &evolution_review,
-        )?;
-        let (stale_result, stale_review) =
-            incorporation_result_and_review(&fixture, "stale-model")?;
-        put_runtime_role_worker_result(&fixture.store, &stale_result)?;
-        let before = fs::read(&fixture.store)?;
-        assert!(
-            commit_repo_model_admission(&fixture.store, &stale_result.result_id, &stale_review)
-                .is_err()
-        );
-        assert_eq!(fs::read(&fixture.store)?, before);
         Ok(())
     }
 
@@ -10714,17 +11095,18 @@ pub(crate) mod tests {
                 objective: "Run heartbeat worker.".to_string(),
                 coordinator_note: "Test launch.".to_string(),
                 job_id: "heartbeat-job-1".to_string(),
-                role: "modeling".to_string(),
-                binding_id: "modeling-checkpoint-worker".to_string(),
-                authority_scope: "modeling".to_string(),
+                role: crate::EPIPHANY_RESEARCH_OWNER_ROLE.to_string(),
+                binding_id: "research-worker".to_string(),
+                authority_scope: "research".to_string(),
                 instruction: "Inspect the checkpoint and return typed role findings.".to_string(),
                 launch_document: EpiphanyWorkerLaunchDocument::Role(
                     crate::EpiphanyRoleWorkerLaunchDocument {
                         thread_id: "thread-1".to_string(),
-                        role_id: "modeling".to_string(),
+                        role_id: "research".to_string(),
                         state_revision: 7,
                         objective: Some("Run heartbeat worker.".to_string()),
                         dynamic_prompt_context: None,
+                        repository_body_observation_basis: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
@@ -10746,7 +11128,7 @@ pub(crate) mod tests {
                 ),
                 output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
                 organ_launch_contract: crate::default_launch_organ_contract(
-                    "modeling",
+                    "research",
                     "role",
                     crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
                 ),
@@ -10760,7 +11142,7 @@ pub(crate) mod tests {
 
         assert_eq!(job.job_id, "heartbeat-job-1");
         assert_eq!(job.session_id, "epiphany-main");
-        assert_eq!(job.role, "modeling");
+        assert_eq!(job.role, crate::EPIPHANY_RESEARCH_OWNER_ROLE);
         let status = runtime_spine_status(&store)?;
         assert_eq!(status.sessions, 1);
         assert_eq!(status.jobs, 1);
@@ -10772,8 +11154,8 @@ pub(crate) mod tests {
             .get::<EpiphanyRuntimeWorkerLaunchRequest>("heartbeat-job-1")?
             .expect("typed worker launch request should be durable");
         assert_eq!(launch_request.job_id, "heartbeat-job-1");
-        assert_eq!(launch_request.binding_id, "modeling-checkpoint-worker");
-        assert_eq!(launch_request.role, "modeling");
+        assert_eq!(launch_request.binding_id, "research-worker");
+        assert_eq!(launch_request.role, crate::EPIPHANY_RESEARCH_OWNER_ROLE);
         assert_eq!(
             launch_request.output_contract_id,
             crate::ROLE_WORKER_OUTPUT_CONTRACT_ID
@@ -10783,21 +11165,10 @@ pub(crate) mod tests {
         assert_eq!(launch_request.launch_document()?.thread_id(), "thread-1");
         assert_eq!(launch_request.organ_launch_contract.document_kind, "role");
         assert!(
-            launch_request
-                .organ_launch_contract
-                .required_receipt_document_types
-                .contains(&crate::MIND_GATEWAY_REVIEW_TYPE.to_string())
-        );
-        assert!(
-            launch_request
+            !launch_request
                 .organ_launch_contract
                 .receipt_proof_profiles
-                .iter()
-                .any(|profile| profile.effect_kind
-                    == crate::EpiphanyReceiptEffectKind::StateAdmission
-                    && profile
-                        .required_before_promotion_document_types
-                        .contains(&crate::MIND_GATEWAY_REVIEW_TYPE.to_string()))
+                .is_empty()
         );
         Ok(())
     }
@@ -10822,6 +11193,7 @@ pub(crate) mod tests {
                         state_revision: 7,
                         objective: Some("keep state typed".to_string()),
                         dynamic_prompt_context: None,
+                        repository_body_observation_basis: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
@@ -10910,6 +11282,7 @@ pub(crate) mod tests {
                         state_revision: 7,
                         objective: None,
                         dynamic_prompt_context: None,
+                        repository_body_observation_basis: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,

@@ -797,17 +797,27 @@ The bind rite also writes one immutable runtime-side
 locator and hashes the exact Body binding while repeating runtime, swarm, and
 workspace identity. Every read reopens the Body store and validates that chain.
 One runtime cannot silently switch between Body stores; relocation or replacement
-requires a future explicit migration receipt. This is routing authority only. It
-does not claim that a Modeling launch, result, or admission is grounded yet.
+requires a future explicit migration receipt.
+
+Every coordinator-owned Modeling launch now obtains a typed
+`RepositoryBodyObservationBasis` before the worker thinks. The immutable launch
+binds runtime/swarm/workspace/scope, Body-binding hash, observation
+generation/id/root, and scan interval. Modeling output contract v3 requires the
+worker-authored exact echo; result ingress rejects missing or substituted basis.
+Non-Modeling launches and results cannot carry it. Mind review v1 and admission
+receipt v5 preserve the same basis. Admission validates exact
+launch/result/review equality and the referenced immutable historical Body
+artifacts before copying it into the CAS receipt. It does not resample current
+Body. Direct Mind adoption and legacy migration remain explicitly ungrounded.
 
 ## Mind readiness join boundary (2026-07-15)
 
-A truthful whole-repository readiness join does not yet exist. Mind must own a
+A truthful whole-repository readiness join does not yet exist. Body-grounded
+RepoModel admission now exists; Mind must own a
 derived `RepositoryReadinessProjection`; Body observation, Modeling, retrieval,
 semantic projection, schedulers, watchers, jobs, and UI are forbidden writers.
 Its required inputs are a fresh validated Body observation, the canonical
-RepoModel plus its exact Mind admission receipt, a RepoModel grounding receipt
-bound to that Body manifest,
+RepoModel plus its exact Mind admission receipt carrying its Body basis,
 the authenticated Modeling semantic projection receipt for that admitted model,
 and exact workspace-retrieval coverage bound to the same Body manifest and a
 named inclusion policy. Derivation must retry if any participating head advances.

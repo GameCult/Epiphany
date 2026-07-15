@@ -1380,6 +1380,7 @@ struct RoleWorkerResultIngress {
     frontier_plan_candidate: Option<RepoFrontierPlanCandidateIngress>,
     frontier_plan_mind_request_id: Option<String>,
     frontier_plan_mind_decision: Option<RepoFrontierPlanMindDecisionIngress>,
+    repository_body_observation_basis: Option<epiphany_core::RepositoryBodyObservationBasis>,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -1564,6 +1565,7 @@ fn role_worker_result_from_ingress(
         };
     EpiphanyRuntimeRoleWorkerResult {
         schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+        repository_body_observation_basis: result.repository_body_observation_basis.clone(),
         result_id: result_id.to_string(),
         job_id: launch_request.job_id.clone(),
         role_id: clean_optional_string(result.role_id.as_deref())
@@ -1730,6 +1732,30 @@ mod tests {
     use epiphany_core::runtime_job_snapshot;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
     use tempfile::tempdir;
+
+    #[test]
+    fn modeling_ingress_parses_camel_case_repository_body_basis() -> Result<()> {
+        let parsed = parse_assistant_json::<RoleWorkerResultIngress>(
+            r#"{
+                "roleId":"modeling","verdict":"checkpoint-ready","summary":"mapped",
+                "nextSafeMove":"Mind review","repositoryBodyObservationBasis":{
+                    "schemaVersion":"epiphany.repository_body.v2","workspaceId":"workspace-1",
+                    "swarmId":"swarm-1","runtimeId":"runtime-1","scope":"git_worktree",
+                    "bodyBindingSha256":"binding-hash","observationId":"workspace-1:1",
+                    "generation":1,"manifestRootSha256":"manifest-root",
+                    "scanStartedAt":"2026-07-15T00:00:00Z",
+                    "scanFinishedAt":"2026-07-15T00:00:01Z"
+                }
+            }"#,
+        )?;
+        let basis = parsed
+            .repository_body_observation_basis
+            .expect("typed Body basis");
+        assert_eq!(basis.workspace_id, "workspace-1");
+        assert_eq!(basis.generation, 1);
+        assert_eq!(basis.manifest_root_sha256, "manifest-root");
+        Ok(())
+    }
 
     #[test]
     fn verification_ingress_preserves_exact_request_and_route_binding() -> Result<()> {
@@ -2072,6 +2098,7 @@ mod tests {
                             "<epiphany_dynamic_context>\nlocal Verse: bounded\n</epiphany_dynamic_context>"
                                 .to_string(),
                         ),
+                        repository_body_observation_basis: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
@@ -2205,6 +2232,7 @@ mod tests {
                             "<verification_work_loop_telemetry>hands receipts</verification_work_loop_telemetry>"
                                 .to_string(),
                         ),
+                        repository_body_observation_basis: None,
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,

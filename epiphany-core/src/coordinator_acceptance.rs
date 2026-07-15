@@ -268,6 +268,12 @@ pub fn accept_coordinator_role_finding(
         let patch = result
             .repo_model_patch()?
             .ok_or_else(|| anyhow::anyhow!("Modeling repoModelPatch failed to decode"))?;
+        let repository_body_observation_basis = result
+            .repository_body_observation_basis
+            .clone()
+            .ok_or_else(|| {
+                anyhow::anyhow!("Modeling result has no Repository Body observation basis")
+            })?;
         let candidate_review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
             review_id: format!("repo-model-review-{result_id}"),
@@ -281,6 +287,7 @@ pub fn accept_coordinator_role_finding(
             evidence_ids: finding.evidence_ids.clone(),
             reviewed_at: accepted_at.clone(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+            repository_body_observation_basis: Some(repository_body_observation_basis),
         };
         let review = stable_repo_model_admission_review(store, candidate_review)?;
         commit_repo_model_admission(store, result_id, &review)?;
@@ -329,7 +336,9 @@ fn stable_repo_model_admission_review(
                 && existing.decision == candidate.decision
                 && existing.evidence_ids == candidate.evidence_ids
                 && existing.schema_version == candidate.schema_version
-                && existing.contract == candidate.contract =>
+                && existing.contract == candidate.contract
+                && existing.repository_body_observation_basis
+                    == candidate.repository_body_observation_basis =>
         {
             Ok(existing)
         }
@@ -1150,6 +1159,7 @@ mod tests {
             evidence_ids: vec!["evidence-split".to_string()],
             reviewed_at: "2026-07-13T09:00:01Z".to_string(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
+            repository_body_observation_basis: None,
         };
         let mut cache = coordinator_acceptance_cache(&store)?;
         cache.put(&existing.review_id, &existing)?;
@@ -1176,6 +1186,7 @@ mod tests {
                 proposal_modeling_request_id: String::new(),
                 claim_repair_request_id: String::new(),
                 frontier_plan_decision_id: String::new(),
+                repository_body_observation_basis: None,
             },
         )?;
         let mut fresh = existing.clone();
