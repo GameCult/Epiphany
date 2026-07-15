@@ -890,20 +890,26 @@ the indexed content. Receipt/head constructors and writers remain projector-
 private. Live query eligibility re-observes Qdrant; a stored receipt proves only
 that one exact observation completed.
 
-The crate-private acquisition/failure foundation now exists but is deliberately
-not production-reachable. Acquisition rechecks the exact current Body chain,
-verifies historical bytes, excludes empty/oversize/non-UTF-8 files, derives the
-named UTF-8-safe 96-line/8-line-overlap chunks, and CAS-installs immutable
-obligation/plan plus a running claim/attempt in the Body store. Failure can
-terminalize the exact attempt after Body advance and cannot publish a receipt or
-head. There is no Qdrant actuator, terminal-success path, recovery path, service
-pulse, query gate, or readiness claim yet.
+The crate-private execution path now exists but remains deliberately
+production-unreachable. It validates plan-sealed text hashes and vector
+dimensions, creates or authenticates one exact managed claim/epoch Qdrant
+collection, writes no empty upsert, whole-scrolls typed payloads, rejects cyclic
+pagination plus duplicate/extra/missing/substituted points, and terminal-CASes
+the receipt/head against the exact current Body authority, immutable plan,
+running claim/attempt, and prior coverage head acquired at start. A CAS loser
+cannot mint a receipt; failure can terminalize after Body advance.
 
-The service shell remains an explicit design fork. Reusing the reserved memory
-semantic-projector process minimizes process machinery but risks mixing
-Mind/Modeling projection authority with repository Body coverage. A dedicated
-workspace-coverage projector preserves ownership more visibly. Do not wire a
-convenient CLI or generic job while this is unresolved.
+The service fork is resolved in favor of a dedicated workspace-coverage
+projector. Before it becomes reachable, claims must bind an executor
+incarnation and startup lifecycle receipt authenticated by the reserved managed
+service. The pulse needs an exact `Current` result to avoid endless reprojection
+and a sealed text-rematerialization path rather than caller-supplied workspace
+bytes. Abandoned-claim recovery may use only a newer latest managed launch and
+its correlated ready heartbeat to fence the old incarnation in one Body-store
+CAS. Time, Qdrant state, generic policy, process guesses, and caller strings are
+not abandonment authority. If Body advanced, recovery terminalizes the stale
+claim and lets normal acquisition derive a new plan; it never resurrects stale
+work.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

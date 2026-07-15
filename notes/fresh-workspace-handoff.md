@@ -1742,6 +1742,27 @@ terminal-success CAS, and abandoned-claim recovery before choosing either a
 dedicated coverage service (preferred for ownership clarity) or a strictly
 separated lane in the reserved memory semantic-projector process. No CLI shim.
 
+## Exact coverage execution port (2026-07-15)
+
+The crate-private projector now executes a sealed plan through the shared typed
+Qdrant boundary. It validates text hashes and vector dimensions, authenticates
+exact collection metadata, skips empty upserts, observes the whole typed
+collection, rejects cyclic page offsets and duplicate/extra/missing/substituted
+point payloads, and publishes receipt/head only through an exact terminal CAS
+over Body authority, obligation, plan, claim, attempt, and the prior coverage
+head seen at acquisition. Body advance and stale-head competitors cannot mint
+success; ordinary failures terminalize the exact running attempt.
+
+This is still sealed foundation, not operational coverage. The dedicated
+workspace-coverage service is now the chosen owner, but claims first need an
+authenticated executor incarnation/startup receipt. Its pulse also needs an
+exact already-current classification and sealed chunk-text rematerialization.
+Recovery must consume a newer latest reserved-service launch plus its correlated
+ready heartbeat and fence the old claim in one Body-store CAS. Timeouts, generic
+managed policy, Qdrant contents, and process guesses are forbidden recovery
+authority. If Body advanced, terminalize the obsolete claim and acquire a fresh
+plan; never resurrect it.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.

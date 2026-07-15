@@ -144,6 +144,29 @@ impl QdrantBackend {
         Ok(())
     }
 
+    /// Ensures a collection exists under one exact managed contract. A
+    /// concurrent creator may win between exists/create; that is acceptable
+    /// only when the collection it created has the identical contract.
+    pub(crate) fn ensure_exact_collection(
+        &self,
+        name: &str,
+        contract: &CollectionCompatibility,
+    ) -> Result<()> {
+        if !self.collection_exists(name)? {
+            if let Err(create_error) = self.create_collection(name, contract) {
+                if !self.collection_exists(name)? {
+                    return Err(create_error).with_context(|| {
+                        format!("failed to create managed Qdrant collection {name}")
+                    });
+                }
+            }
+        }
+        if self.collection_compatibility(name)? != *contract {
+            anyhow::bail!("managed Qdrant collection {name} has incompatible metadata");
+        }
+        Ok(())
+    }
+
     pub(crate) fn upsert_points<P: Serialize>(
         &self,
         name: &str,
@@ -233,6 +256,7 @@ impl QdrantBackend {
             .map(|(key, value)| json!({ "key": key, "match": { "value": value } }))
             .collect::<Vec<_>>();
         let mut offset: Option<Value> = None;
+        let mut seen_offsets = Vec::<Value>::new();
         let mut ids = Vec::new();
         loop {
             let response = self
@@ -255,6 +279,12 @@ impl QdrantBackend {
                 .with_context(|| format!("failed to decode Qdrant scroll response for {name}"))?;
             ids.extend(envelope.result.points.into_iter().map(|point| point.id));
             offset = envelope.result.next_page_offset;
+            if let Some(next_offset) = offset.as_ref() {
+                if seen_offsets.contains(next_offset) {
+                    anyhow::bail!("Qdrant scroll repeated a prior page offset for {name}");
+                }
+                seen_offsets.push(next_offset.clone());
+            }
             if offset.is_none() {
                 break;
             }
@@ -272,6 +302,7 @@ impl QdrantBackend {
             .map(|(key, value)| json!({ "key": key, "match": { "value": value } }))
             .collect::<Vec<_>>();
         let mut offset: Option<Value> = None;
+        let mut seen_offsets = Vec::<Value>::new();
         let mut points = Vec::new();
         loop {
             let response = self
@@ -303,6 +334,12 @@ impl QdrantBackend {
                     }),
             );
             offset = envelope.result.next_page_offset;
+            if let Some(next_offset) = offset.as_ref() {
+                if seen_offsets.contains(next_offset) {
+                    anyhow::bail!("Qdrant payload scroll repeated a prior page offset for {name}");
+                }
+                seen_offsets.push(next_offset.clone());
+            }
             if offset.is_none() {
                 break;
             }
