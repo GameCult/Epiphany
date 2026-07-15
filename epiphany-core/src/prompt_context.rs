@@ -44,10 +44,10 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
     }
 
     if !input.local_verse.cluster_topology.is_empty() {
-        lines.push("## Cluster Topology".to_string());
+        lines.push("## Declared Cluster Topology".to_string());
         for cluster in input.local_verse.cluster_topology.iter().take(7) {
             lines.push(format!(
-                "- `{}` -> private Verse `{}`; body={}, daemon={}, Eve={}",
+                "- `{}` -> declared private Verse route `{}`; body domain={}, declared daemon target={}, Eve route={}",
                 cluster.display_name,
                 cluster.private_verse_id,
                 cluster.body_domain,

@@ -79,6 +79,22 @@ All confirmed substitutions above have now been structurally cut from their call
 
 Remaining audit work is provenance rather than this original dual-writer cluster: identify every production call site of response-receipt writers, ensure it belongs to a named provider executable or ingest boundary, and distill contaminated historical claims from `state/map.yaml`.
 
+## Static topology/presence split
+
+The plausible topology risk was confirmed. Bootstrap's seven faculty route
+declarations supplied daemon ids and private-Verse addresses; liveness loaders
+then manufactured seven `unknown` status rows, and overview counted those rows
+as seven agents and daemons without one provider observation.
+
+Declaration remains useful configuration for routing and Idunn reconciliation,
+but no longer materializes presence. Liveness returns only persisted
+provider-authored status rows. Topology, overview, triage, compact swarm output,
+and wrapper summaries distinguish declared faculty/routes/targets from observed
+daemons. The prompt labels topology addresses as declared. A daemon heartbeat
+does not prove an agent exists, so the overview carries no derived agent count.
+Negative proof is now structural: seven declared targets plus no heartbeat
+produce zero observed daemons; one status document produces one observed daemon.
+
 ## Bootstrap/provider split
 
 The later non-receipt pass found one surviving writer from the same original

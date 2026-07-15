@@ -534,6 +534,15 @@ The confirmed conceptual substitutions have been cut:
 
 The presentation boundary is now plain: `swarm overview` is a generic compact read-only projection. Gjallar is a downstream TUI application on Nightwing and is not an Epiphany organ, provider, owner, runtime, or architectural dependency. Eve/CultUI graphs may be lowered or composited downstream without Epiphany caring which presentation client does it.
 
+Static cluster topology is declaration, not attendance. Bootstrap persists seven
+faculty routes and desired private-Verse/daemon/Eve addresses, but missing
+provider status now produces zero observed daemon rows. Topology and overview
+publish explicitly declared counts separately from `observedDaemonCount`;
+daemon heartbeat sight never claims an agent count. Restart-policy rows may say
+`unobserved` for a desired target so Idunn can reconcile it without inventing a
+body. Prompt context names these as declared routes/targets. The deleted
+`unknown_daemon_status` constructor cannot put seven empty helmets on the roll.
+
 ## Authority map
 
 - Request owners write intents and requests.

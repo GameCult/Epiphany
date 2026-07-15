@@ -374,7 +374,8 @@ fn run_cli() -> Result<()> {
                     "runtimeId": args.runtime_id,
                     "lifecycleOwner": report.lifecycle_owner,
                     "hostedBody": report.hosted_body,
-                    "daemonCount": report.rows.len(),
+                    "declaredDaemonTargetCount": report.rows.len(),
+                    "observedDaemonCount": report.observed_daemon_count,
                     "coveredCount": report.covered_count,
                     "enabledCount": report.enabled_count,
                     "disabledCount": report.disabled_count,
@@ -744,7 +745,7 @@ fn run_cli() -> Result<()> {
                     "status": if report.rows.is_empty() { "unknown" } else if report.non_ready_count == 0 { "ready" } else { "attention" },
                     "store": args.store,
                     "runtimeId": args.runtime_id,
-                    "daemonCount": report.rows.len(),
+                    "observedDaemonCount": report.rows.len(),
                     "nonReadyCount": report.non_ready_count,
                     "pokeCommand": "epiphany-verse-query poke-down-daemons",
                     "wrapperMode": "tools/epiphany_local_run.ps1 -Mode swarm-poke-down",
@@ -760,11 +761,11 @@ fn run_cli() -> Result<()> {
             let report = cluster_topology_report(&topology);
             if !report.rows.iter().all(|row| {
                 !row.private_state_exposed
-                    && !row.private_verse_id.is_empty()
-                    && row.body_domain.starts_with("repo:")
-                    && !row.daemon_id.is_empty()
-                    && !row.daemon_surface_id.is_empty()
-                    && !row.eve_surface_id.is_empty()
+                    && !row.declared_private_verse_route.is_empty()
+                    && row.declared_body_domain.starts_with("repo:")
+                    && !row.declared_daemon_target.is_empty()
+                    && !row.declared_daemon_surface_route.is_empty()
+                    && !row.declared_eve_route.is_empty()
             }) {
                 anyhow::bail!(
                     "cluster topology report found an incomplete or private-state-exposing row"
@@ -777,9 +778,9 @@ fn run_cli() -> Result<()> {
                     "status": if report.rows.is_empty() { "empty" } else { "ok" },
                     "store": args.store,
                     "runtimeId": args.runtime_id,
-                    "clusterCount": report.rows.len(),
-                    "privateVerseCount": report.private_verse_count,
-                    "daemonCount": report.daemon_count,
+                    "declaredFacultyCount": report.rows.len(),
+                    "declaredPrivateVerseRouteCount": report.declared_private_verse_route_count,
+                    "declaredDaemonTargetCount": report.declared_daemon_target_count,
                     "publicDiscussionClusterCount": report.public_discussion_count,
                     "privateStateExposed": false,
                     "rows": report.rows,
@@ -1336,7 +1337,7 @@ fn run_cli() -> Result<()> {
             if !ready_report.tui_rows.iter().any(|row| {
                 row.contains("READY")
                     && row.contains("Persona")
-                    && row.contains("privateVerse=epiphany.cluster.persona.private")
+                    && row.contains("declaredPrivateVerseRoute=epiphany.cluster.persona.private")
                     && row.contains("followUp=tools/epiphany_local_run.ps1 -Mode swarm-poke-down")
                     && row.contains("private=false")
             }) {
@@ -1370,8 +1371,8 @@ fn run_cli() -> Result<()> {
                 load_epiphany_cultmesh_cluster_topology(&args.store, args.runtime_id.clone())?;
             let topology_report = cluster_topology_report(&loaded_topology);
             if topology_report.rows.len() != 7
-                || topology_report.private_verse_count != 7
-                || topology_report.daemon_count != 7
+                || topology_report.declared_private_verse_route_count != 7
+                || topology_report.declared_daemon_target_count != 7
                 || topology_report.public_discussion_count != 1
             {
                 anyhow::bail!("local Verse query smoke lost compact cluster topology invariants");
@@ -1382,7 +1383,7 @@ fn run_cli() -> Result<()> {
                     && row.contains("cluster=epiphany.cluster.persona")
                     && row.contains("role=Persona")
                     && row.contains("epiphany.cluster.persona.private")
-                    && row.contains("bodyKind=repository")
+                    && row.contains("declaredBodyKind=repository")
                     && row.contains("epiphany-daemon-persona")
             }) {
                 anyhow::bail!("local Verse query smoke lost compact Persona cluster topology row");
@@ -1420,8 +1421,8 @@ fn run_cli() -> Result<()> {
             if overview_daemon_report.rows.len() != 7
                 || overview_daemon_report.non_ready_count != 0
                 || topology_report.rows.len() != 7
-                || topology_report.private_verse_count != 7
-                || topology_report.daemon_count != 7
+                || topology_report.declared_private_verse_route_count != 7
+                || topology_report.declared_daemon_target_count != 7
                 || !overview_surface_report.rows.is_empty()
                 || overview_surface_report.public_discussion_count != 0
                 || !overview_tool_report.rows.is_empty()
@@ -1482,7 +1483,11 @@ fn run_cli() -> Result<()> {
                     "local Verse query smoke lost compact overview wrapper command hints"
                 );
             }
-            let policy_report = daemon_restart_policy_directory_report(&context);
+            let policy_directory = load_epiphany_cultmesh_daemon_restart_policy_directory(
+                &args.store,
+                args.runtime_id.clone(),
+            )?;
+            let policy_report = daemon_restart_policy_directory_report_from_rows(&policy_directory);
             if policy_report.rows.len() != 7
                 || policy_report.covered_count != 0
                 || policy_report.missing_count != 7
@@ -1537,10 +1542,12 @@ fn run_cli() -> Result<()> {
                     last_reconcile_utc: None,
                 },
             )?;
-            let context_with_disabled_policy =
-                query_epiphany_local_verse_context(&args.store, args.runtime_id.clone())?;
+            let disabled_policy_directory = load_epiphany_cultmesh_daemon_restart_policy_directory(
+                &args.store,
+                args.runtime_id.clone(),
+            )?;
             let disabled_policy_report =
-                daemon_restart_policy_directory_report(&context_with_disabled_policy);
+                daemon_restart_policy_directory_report_from_rows(&disabled_policy_directory);
             if disabled_policy_report.covered_count != 1
                 || disabled_policy_report.disabled_count != 1
                 || disabled_policy_report.missing_count != 6
@@ -1611,7 +1618,7 @@ fn run_cli() -> Result<()> {
                 || !degraded_report.tui_rows.iter().any(|row| {
                     row.contains("POKE")
                         && row.contains("epiphany-daemon-hands")
-                        && row.contains("privateVerse=epiphany.cluster.hands.private")
+                        && row.contains("declaredPrivateVerseRoute=epiphany.cluster.hands.private")
                         && row
                             .contains("followUp=tools/epiphany_local_run.ps1 -Mode swarm-poke-down")
                 })
@@ -1692,9 +1699,9 @@ fn run_cli() -> Result<()> {
             }
             if batch_pokes[0]["targetDaemonId"] != "epiphany-daemon-hands"
                 || batch_pokes[0]["observedStatus"] != "degraded"
-                || batch_pokes[0]["bodyDomain"] != "repo:E:/Projects/EpiphanyAgent"
-                || batch_pokes[0]["privateVerseId"] != "epiphany.cluster.hands.private"
-                || batch_pokes[0]["eveSurfaceId"] != "eve://epiphany/hands"
+                || batch_pokes[0]["declaredBodyDomain"] != "repo:E:/Projects/EpiphanyAgent"
+                || batch_pokes[0]["declaredPrivateVerseRoute"] != "epiphany.cluster.hands.private"
+                || batch_pokes[0]["declaredEveRoute"] != "eve://epiphany/hands"
                 || batch_pokes[0]["privateStateExposed"] != false
             {
                 anyhow::bail!(
@@ -1705,8 +1712,9 @@ fn run_cli() -> Result<()> {
             if !batch_poke_tui_row.contains("POKE")
                 || !batch_poke_tui_row.contains("Hands")
                 || !batch_poke_tui_row.contains("epiphany-daemon-hands")
-                || !batch_poke_tui_row.contains("privateVerse=epiphany.cluster.hands.private")
-                || !batch_poke_tui_row.contains("surface=eve://epiphany/hands")
+                || !batch_poke_tui_row
+                    .contains("declaredPrivateVerseRoute=epiphany.cluster.hands.private")
+                || !batch_poke_tui_row.contains("declaredEveRoute=eve://epiphany/hands")
                 || !batch_poke_tui_row.contains("receipt=unknown")
                 || !batch_poke_tui_row.contains("receiptStatus=unknown")
                 || !batch_poke_tui_row.contains("result=unknown")
@@ -1741,8 +1749,8 @@ fn run_cli() -> Result<()> {
                 || !triage_overview.tool_host_attention_tui_rows.is_empty()
                 || triage_pokes.len() != 1
                 || triage_pokes[0]["targetDaemonId"] != "epiphany-daemon-hands"
-                || triage_pokes[0]["privateVerseId"] != "epiphany.cluster.hands.private"
-                || triage_pokes[0]["eveSurfaceId"] != "eve://epiphany/hands"
+                || triage_pokes[0]["declaredPrivateVerseRoute"] != "epiphany.cluster.hands.private"
+                || triage_pokes[0]["declaredEveRoute"] != "eve://epiphany/hands"
                 || triage_pokes[0]["privateStateExposed"] != false
             {
                 anyhow::bail!(
@@ -2148,6 +2156,7 @@ fn run_cli() -> Result<()> {
                 disabled_count: 0,
                 missing_count: 0,
                 attention_count: 0,
+                observed_daemon_count: context.daemon_statuses.len(),
                 private_state_exposed: false,
             };
             let missing_artifact_action = ServiceExecutionRunbookAction {
@@ -2393,9 +2402,9 @@ struct DaemonLivenessRow {
     cluster_id: String,
     daemon_id: String,
     display_name: String,
-    body_domain: String,
-    private_verse_id: String,
-    eve_surface_id: String,
+    declared_body_domain: String,
+    declared_private_verse_route: String,
+    declared_eve_route: String,
     status: String,
     operator_action: String,
     last_heartbeat_utc: String,
@@ -2407,8 +2416,8 @@ struct DaemonLivenessRow {
 struct ClusterTopologyReport {
     rows: Vec<ClusterTopologyRow>,
     tui_rows: Vec<String>,
-    private_verse_count: usize,
-    daemon_count: usize,
+    declared_private_verse_route_count: usize,
+    declared_daemon_target_count: usize,
     public_discussion_count: usize,
 }
 
@@ -2418,12 +2427,12 @@ struct ClusterTopologyRow {
     cluster_id: String,
     display_name: String,
     role_id: String,
-    private_verse_id: String,
-    body_domain: String,
-    body_kind: String,
-    daemon_id: String,
-    daemon_surface_id: String,
-    eve_surface_id: String,
+    declared_private_verse_route: String,
+    declared_body_domain: String,
+    declared_body_kind: String,
+    declared_daemon_target: String,
+    declared_daemon_surface_route: String,
+    declared_eve_route: String,
     public_persona_discussion_allowed: bool,
     private_state_exposed: bool,
 }
@@ -2433,15 +2442,15 @@ fn cluster_topology_report(
 ) -> ClusterTopologyReport {
     let mut rows = Vec::new();
     let mut tui_rows = Vec::new();
-    let mut private_verse_count = 0_usize;
-    let mut daemon_count = 0_usize;
+    let mut declared_private_verse_route_count = 0_usize;
+    let mut declared_daemon_target_count = 0_usize;
     let mut public_discussion_count = 0_usize;
     for cluster in topology {
         if !cluster.private_verse_id.is_empty() {
-            private_verse_count += 1;
+            declared_private_verse_route_count += 1;
         }
         if !cluster.daemon_id.is_empty() {
-            daemon_count += 1;
+            declared_daemon_target_count += 1;
         }
         if cluster.public_persona_discussion_allowed {
             public_discussion_count += 1;
@@ -2452,7 +2461,7 @@ fn cluster_topology_report(
             "PRIVATE"
         };
         tui_rows.push(format!(
-            "{visibility} | {} | cluster={} | role={} | privateVerse={} | body={} | bodyKind={} | daemon={} | surface={}",
+            "{visibility} | {} | cluster={} | role={} | declaredPrivateVerseRoute={} | declaredBodyDomain={} | declaredBodyKind={} | declaredDaemonTarget={} | declaredEveRoute={}",
             cluster.display_name,
             cluster.cluster_id,
             cluster.role_id,
@@ -2466,12 +2475,12 @@ fn cluster_topology_report(
             cluster_id: cluster.cluster_id.clone(),
             display_name: cluster.display_name.clone(),
             role_id: cluster.role_id.clone(),
-            private_verse_id: cluster.private_verse_id.clone(),
-            body_domain: cluster.body_domain.clone(),
-            body_kind: cluster.body_kind.clone(),
-            daemon_id: cluster.daemon_id.clone(),
-            daemon_surface_id: cluster.daemon_surface_id.clone(),
-            eve_surface_id: cluster.eve_surface_id.clone(),
+            declared_private_verse_route: cluster.private_verse_id.clone(),
+            declared_body_domain: cluster.body_domain.clone(),
+            declared_body_kind: cluster.body_kind.clone(),
+            declared_daemon_target: cluster.daemon_id.clone(),
+            declared_daemon_surface_route: cluster.daemon_surface_id.clone(),
+            declared_eve_route: cluster.eve_surface_id.clone(),
             public_persona_discussion_allowed: cluster.public_persona_discussion_allowed,
             private_state_exposed: false,
         });
@@ -2479,8 +2488,8 @@ fn cluster_topology_report(
     ClusterTopologyReport {
         rows,
         tui_rows,
-        private_verse_count,
-        daemon_count,
+        declared_private_verse_route_count,
+        declared_daemon_target_count,
         public_discussion_count,
     }
 }
@@ -2501,9 +2510,9 @@ fn daemon_liveness_report(
         let operator_action = status.operator_action.clone();
         let last_heartbeat_utc = status.last_heartbeat_utc.clone();
         let supported_actions = status.supported_actions.clone();
-        let eve_surface_id = cluster.eve_surface_id.clone();
+        let declared_eve_route = cluster.eve_surface_id.clone();
         let body_domain = cluster.body_domain.clone();
-        let private_verse_id = cluster.private_verse_id.clone();
+        let declared_private_verse_route = cluster.private_verse_id.clone();
         let display_name = cluster.display_name.clone();
         let needs_poke = status_value != "ready";
         if needs_poke {
@@ -2511,11 +2520,11 @@ fn daemon_liveness_report(
         }
         let compact_status = if needs_poke { "POKE" } else { "READY" };
         tui_rows.push(format!(
-            "{compact_status} | {display_name} | {} | body={} | privateVerse={} | surface={} | followUp={} | private={}",
+            "{compact_status} | {display_name} | {} | declaredBodyDomain={} | declaredPrivateVerseRoute={} | declaredEveRoute={} | followUp={} | private={}",
             daemon_id,
             body_domain,
-            private_verse_id,
-            eve_surface_id,
+            declared_private_verse_route,
+            declared_eve_route,
             WRAPPER_POKE_NON_READY_COMMAND,
             status.private_state_exposed
         ));
@@ -2523,9 +2532,9 @@ fn daemon_liveness_report(
             cluster_id,
             daemon_id,
             display_name,
-            body_domain,
-            private_verse_id,
-            eve_surface_id,
+            declared_body_domain: body_domain,
+            declared_private_verse_route,
+            declared_eve_route,
             status: status_value,
             operator_action,
             last_heartbeat_utc,
@@ -2555,9 +2564,9 @@ struct EveSurfaceReport {
 struct EveSurfaceRow {
     cluster_id: String,
     display_name: String,
-    body_domain: String,
-    private_verse_id: String,
-    daemon_id: String,
+    declared_body_domain: String,
+    declared_private_verse_route: String,
+    declared_daemon_target: String,
     advertisement_id: String,
     eve_surface_id: String,
     tui_title: String,
@@ -2612,7 +2621,7 @@ fn eve_surface_report(
                 .join(",")
         };
         tui_rows.push(format!(
-            "{visibility} | {} | cluster={} | surface={} | daemon={} | body={} | privateVerse={} | publicDiscussion={} | actions={} | docs={} | repoWorkQueue={} | repoWorkGates={} | advertisement={} | private={private_state_exposed}",
+            "{visibility} | {} | cluster={} | surface={} | declaredDaemonTarget={} | declaredBodyDomain={} | declaredPrivateVerseRoute={} | publicDiscussion={} | actions={} | docs={} | repoWorkQueue={} | repoWorkGates={} | advertisement={} | private={private_state_exposed}",
             cluster.display_name,
             cluster.cluster_id,
             surface.surface_id,
@@ -2629,9 +2638,9 @@ fn eve_surface_report(
         rows.push(EveSurfaceRow {
             cluster_id: cluster.cluster_id.clone(),
             display_name: cluster.display_name.clone(),
-            body_domain: cluster.body_domain.clone(),
-            private_verse_id: cluster.private_verse_id.clone(),
-            daemon_id: cluster.daemon_id.clone(),
+            declared_body_domain: cluster.body_domain.clone(),
+            declared_private_verse_route: cluster.private_verse_id.clone(),
+            declared_daemon_target: cluster.daemon_id.clone(),
             advertisement_id: advertisement.advertisement_id.clone(),
             eve_surface_id: surface.surface_id.clone(),
             tui_title: surface.tui_title.clone(),
@@ -2836,6 +2845,7 @@ struct DaemonRestartPolicyDirectoryReport {
     disabled_count: usize,
     missing_count: usize,
     attention_count: usize,
+    observed_daemon_count: usize,
     private_state_exposed: bool,
 }
 
@@ -3222,10 +3232,10 @@ struct SwarmOverviewOutput {
     swarm_action_tui_rows: Vec<String>,
     store: PathBuf,
     runtime_id: String,
-    agent_count: usize,
-    cluster_count: usize,
-    private_verse_count: usize,
-    daemon_count: usize,
+    observed_daemon_count: usize,
+    declared_faculty_count: usize,
+    declared_private_verse_route_count: usize,
+    declared_daemon_target_count: usize,
     non_ready_daemon_count: usize,
     attention_daemon_ids: Vec<String>,
     surface_count: usize,
@@ -3334,10 +3344,12 @@ impl SwarmOverviewOutput {
             swarm_action_tui_rows: report.swarm_action_tui_rows,
             store,
             runtime_id,
-            agent_count: report.daemon_report.rows.len(),
-            cluster_count: report.topology_report.rows.len(),
-            private_verse_count: report.topology_report.private_verse_count,
-            daemon_count: report.daemon_report.rows.len(),
+            observed_daemon_count: report.daemon_report.rows.len(),
+            declared_faculty_count: report.topology_report.rows.len(),
+            declared_private_verse_route_count: report
+                .topology_report
+                .declared_private_verse_route_count,
+            declared_daemon_target_count: report.topology_report.declared_daemon_target_count,
             non_ready_daemon_count: report.daemon_report.non_ready_count,
             attention_daemon_ids: report.attention_daemon_ids,
             surface_count: report.surface_report.rows.len(),
@@ -3442,9 +3454,10 @@ struct SwarmTriageOutput {
     swarm_action_tui_rows: Vec<String>,
     store: PathBuf,
     runtime_id: String,
-    cluster_count: usize,
-    private_verse_count: usize,
-    daemon_count: usize,
+    declared_faculty_count: usize,
+    declared_private_verse_route_count: usize,
+    declared_daemon_target_count: usize,
+    observed_daemon_count: usize,
     non_ready_daemon_count: usize,
     attention_daemon_ids: Vec<String>,
     attention_tool_host_daemon_ids: Vec<String>,
@@ -3545,9 +3558,12 @@ impl SwarmTriageOutput {
             swarm_action_tui_rows: report.swarm_action_tui_rows,
             store,
             runtime_id,
-            cluster_count: report.topology_report.rows.len(),
-            private_verse_count: report.topology_report.private_verse_count,
-            daemon_count: report.daemon_report.rows.len(),
+            declared_faculty_count: report.topology_report.rows.len(),
+            declared_private_verse_route_count: report
+                .topology_report
+                .declared_private_verse_route_count,
+            declared_daemon_target_count: report.topology_report.declared_daemon_target_count,
+            observed_daemon_count: report.daemon_report.rows.len(),
             non_ready_daemon_count: report.daemon_report.non_ready_count,
             attention_daemon_ids: report.attention_daemon_ids,
             attention_tool_host_daemon_ids: report.attention_tool_host_daemon_ids,
@@ -5269,47 +5285,10 @@ fn service_execution_runbook_artifact_status(artifact_ref: &str) -> &'static str
     }
 }
 
-fn daemon_restart_policy_directory_report(
-    context: &EpiphanyLocalVerseContext,
-) -> DaemonRestartPolicyDirectoryReport {
-    let rows = context
-        .daemon_statuses
-        .iter()
-        .map(|status| {
-            let cluster = context
-                .cluster_topology
-                .iter()
-                .find(|cluster| cluster.daemon_id == status.daemon_id)
-                .cloned()
-                .unwrap_or_else(|| EpiphanyCultMeshClusterTopologyEntry {
-                    schema_version: "epiphany.cultmesh.cluster_topology.v0".to_string(),
-                    cluster_id: status.cluster_id.clone(),
-                    role_id: status.cluster_id.clone(),
-                    display_name: status.cluster_id.clone(),
-                    private_verse_id: "unknown".to_string(),
-                    body_domain: status.body_domain.clone(),
-                    body_kind: "unknown".to_string(),
-                    daemon_id: status.daemon_id.clone(),
-                    daemon_surface_id: status.daemon_surface_id.clone(),
-                    eve_surface_id: status.eve_surface_id.clone(),
-                    public_persona_discussion_allowed: false,
-                    notes: Vec::new(),
-                });
-            let policy = context
-                .daemon_restart_policies
-                .iter()
-                .find(|policy| policy.daemon_id == status.daemon_id)
-                .cloned();
-            (cluster, status.clone(), policy)
-        })
-        .collect::<Vec<_>>();
-    daemon_restart_policy_directory_report_from_rows(&rows)
-}
-
 fn daemon_restart_policy_directory_report_from_rows(
     policy_directory: &[(
         EpiphanyCultMeshClusterTopologyEntry,
-        EpiphanyCultMeshDaemonStatusEntry,
+        Option<EpiphanyCultMeshDaemonStatusEntry>,
         Option<EpiphanyCultMeshDaemonRestartPolicyEntry>,
     )],
 ) -> DaemonRestartPolicyDirectoryReport {
@@ -5321,11 +5300,18 @@ fn daemon_restart_policy_directory_report_from_rows(
     let mut missing_count = 0_usize;
     let mut attention_count = 0_usize;
     let mut private_state_exposed = false;
+    let mut observed_daemon_count = 0_usize;
 
     for (cluster, status, policy) in policy_directory {
+        if status.is_some() {
+            observed_daemon_count += 1;
+        }
         let policy = policy.as_ref();
         let display_name = cluster.display_name.clone();
-        let private_row_exposed = status.private_state_exposed
+        let private_row_exposed = status
+            .as_ref()
+            .map(|status| status.private_state_exposed)
+            .unwrap_or(false)
             || policy
                 .map(|policy| policy.private_state_exposed)
                 .unwrap_or(false);
@@ -5409,8 +5395,8 @@ fn daemon_restart_policy_directory_report_from_rows(
             "{compact_status} | {display_name} | owner={} | hostedBody={} | {} | daemon={} | policy={} | cooldown={}s | reconcile={}s | stale={}s | failures={} | last={} | followUp={} | private={}",
             SERVICE_LIFECYCLE_OWNER,
             SERVICE_LIFECYCLE_HOSTED_BODY,
-            status.daemon_id,
-            status.status,
+            cluster.daemon_id,
+            status.as_ref().map(|status| status.status.as_str()).unwrap_or("unobserved"),
             policy_id,
             cooldown_seconds,
             reconcile_interval_seconds,
@@ -5421,12 +5407,15 @@ fn daemon_restart_policy_directory_report_from_rows(
             private_row_exposed
         ));
         rows.push(DaemonRestartPolicyDirectoryRow {
-            cluster_id: status.cluster_id.clone(),
+            cluster_id: cluster.cluster_id.clone(),
             display_name,
             lifecycle_owner: SERVICE_LIFECYCLE_OWNER.to_string(),
             hosted_body: SERVICE_LIFECYCLE_HOSTED_BODY.to_string(),
-            daemon_id: status.daemon_id.clone(),
-            daemon_status: status.status.clone(),
+            daemon_id: cluster.daemon_id.clone(),
+            daemon_status: status
+                .as_ref()
+                .map(|status| status.status.clone())
+                .unwrap_or_else(|| "unobserved".to_string()),
             policy_id,
             policy_status,
             enabled,
@@ -5462,6 +5451,7 @@ fn daemon_restart_policy_directory_report_from_rows(
         disabled_count,
         missing_count,
         attention_count,
+        observed_daemon_count,
         private_state_exposed,
     }
 }
@@ -7884,9 +7874,9 @@ fn write_daemon_poke_intent(
         "targetDaemonId": written_intent.target_daemon_id,
         "targetClusterId": written_intent.target_cluster_id,
         "targetDisplayName": cluster.display_name.clone(),
-        "bodyDomain": cluster.body_domain.clone(),
-        "privateVerseId": cluster.private_verse_id.clone(),
-        "eveSurfaceId": cluster.eve_surface_id.clone(),
+        "declaredBodyDomain": cluster.body_domain.clone(),
+        "declaredPrivateVerseRoute": cluster.private_verse_id.clone(),
+        "declaredEveRoute": cluster.eve_surface_id.clone(),
         "observedStatus": written_intent.observed_status,
         "intentId": written_intent.intent_id,
         "receiptId": null,
@@ -8024,15 +8014,15 @@ fn run_invoke_tool_command(args: &Args) -> Result<()> {
             "requestingAgentId": written_intent.requesting_agent_id,
             "requestingClusterId": written_intent.requesting_cluster_id,
             "requestingDisplayName": requesting_cluster.display_name.clone(),
-            "requestingBodyDomain": requesting_cluster.body_domain.clone(),
-            "requestingPrivateVerseId": requesting_cluster.private_verse_id.clone(),
-            "requestingEveSurfaceId": requesting_cluster.eve_surface_id.clone(),
+            "requestingDeclaredBodyDomain": requesting_cluster.body_domain.clone(),
+            "requestingDeclaredPrivateVerseRoute": requesting_cluster.private_verse_id.clone(),
+            "requestingDeclaredEveRoute": requesting_cluster.eve_surface_id.clone(),
             "hostClusterId": written_intent.host_cluster_id,
             "hostDaemonId": written_intent.host_daemon_id,
             "hostDisplayName": host_cluster.display_name.clone(),
-            "hostBodyDomain": host_cluster.body_domain.clone(),
-            "hostPrivateVerseId": host_cluster.private_verse_id.clone(),
-            "hostEveSurfaceId": host_cluster.eve_surface_id.clone(),
+            "hostDeclaredBodyDomain": host_cluster.body_domain.clone(),
+            "hostDeclaredPrivateVerseRoute": host_cluster.private_verse_id.clone(),
+            "hostDeclaredEveRoute": host_cluster.eve_surface_id.clone(),
             "toolName": written_intent.tool_name,
             "operation": written_intent.operation,
             "intentId": written_intent.intent_id,
@@ -8057,16 +8047,18 @@ fn poke_result_tui_row(row: &serde_json::Value) -> String {
     let target_display_name = row["targetDisplayName"].as_str().unwrap_or("unknown");
     let target_daemon_id = row["targetDaemonId"].as_str().unwrap_or("unknown");
     let observed_status = row["observedStatus"].as_str().unwrap_or("unknown");
-    let body_domain = row["bodyDomain"].as_str().unwrap_or("unknown");
-    let private_verse_id = row["privateVerseId"].as_str().unwrap_or("unknown");
-    let eve_surface_id = row["eveSurfaceId"].as_str().unwrap_or("unknown");
+    let declared_body_domain = row["declaredBodyDomain"].as_str().unwrap_or("unknown");
+    let declared_private_verse_route = row["declaredPrivateVerseRoute"]
+        .as_str()
+        .unwrap_or("unknown");
+    let declared_eve_route = row["declaredEveRoute"].as_str().unwrap_or("unknown");
     let intent_id = row["intentId"].as_str().unwrap_or("unknown");
     let receipt_id = row["receiptId"].as_str().unwrap_or("unknown");
     let receipt_status = row["receiptStatus"].as_str().unwrap_or("unknown");
     let resulting_status = row["resultingStatus"].as_str().unwrap_or("unknown");
     let private_state_exposed = row["privateStateExposed"].as_bool().unwrap_or(false);
     format!(
-        "POKE | {target_display_name} | {target_daemon_id} | observed={observed_status} | body={body_domain} | privateVerse={private_verse_id} | surface={eve_surface_id} | intent={intent_id} | receipt={receipt_id} | receiptStatus={receipt_status} | result={resulting_status} | private={private_state_exposed}"
+        "POKE | {target_display_name} | {target_daemon_id} | observed={observed_status} | declaredBodyDomain={declared_body_domain} | declaredPrivateVerseRoute={declared_private_verse_route} | declaredEveRoute={declared_eve_route} | intent={intent_id} | receipt={receipt_id} | receiptStatus={receipt_status} | result={resulting_status} | private={private_state_exposed}"
     )
 }
 

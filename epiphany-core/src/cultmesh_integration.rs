@@ -6627,11 +6627,9 @@ pub fn load_epiphany_cultmesh_daemon_liveness(
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
-        let default_status = unknown_daemon_status(&cluster);
-        let status = node
-            .get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)?
-            .unwrap_or(default_status);
-        rows.push((cluster, status));
+        if let Some(status) = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)? {
+            rows.push((cluster, status));
+        }
     }
     Ok(rows)
 }
@@ -6642,7 +6640,7 @@ pub fn load_epiphany_cultmesh_daemon_restart_policy_directory(
 ) -> Result<
     Vec<(
         EpiphanyCultMeshClusterTopologyEntry,
-        EpiphanyCultMeshDaemonStatusEntry,
+        Option<EpiphanyCultMeshDaemonStatusEntry>,
         Option<EpiphanyCultMeshDaemonRestartPolicyEntry>,
     )>,
 > {
@@ -6651,10 +6649,7 @@ pub fn load_epiphany_cultmesh_daemon_restart_policy_directory(
     let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
     let mut rows = Vec::new();
     for cluster in load_epiphany_cultmesh_cluster_topology(store_path, runtime_id.clone())? {
-        let default_status = unknown_daemon_status(&cluster);
-        let status = node
-            .get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)?
-            .unwrap_or(default_status);
+        let status = node.get::<EpiphanyCultMeshDaemonStatusEntry>(&cluster.daemon_id)?;
         let policy = node.get::<EpiphanyCultMeshDaemonRestartPolicyEntry>(
             &epiphany_cultmesh_daemon_restart_policy_key(&cluster.daemon_id),
         )?;
@@ -6677,31 +6672,6 @@ pub fn load_epiphany_cultmesh_eve_surface_directory(
     // No provenance-bearing provider advertisement contract exists yet.
     // Topology supplies addresses, never availability.
     Ok(Vec::new())
-}
-
-fn unknown_daemon_status(
-    cluster: &EpiphanyCultMeshClusterTopologyEntry,
-) -> EpiphanyCultMeshDaemonStatusEntry {
-    EpiphanyCultMeshDaemonStatusEntry {
-        schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
-        daemon_id: cluster.daemon_id.clone(),
-        cluster_id: cluster.cluster_id.clone(),
-        body_domain: cluster.body_domain.clone(),
-        daemon_surface_id: cluster.daemon_surface_id.clone(),
-        eve_surface_id: cluster.eve_surface_id.clone(),
-        status: "unknown".to_string(),
-        last_heartbeat_utc: "unknown".to_string(),
-        supported_actions: vec![
-            "inspectStatus".to_string(),
-            "pokeDaemon".to_string(),
-            "watchHeartbeat".to_string(),
-        ],
-        operator_action: "pokeDaemon".to_string(),
-        private_state_exposed: false,
-        notes: vec![
-            "No daemon-authored status document was found; liveness remains unknown.".to_string(),
-        ],
-    }
 }
 
 pub fn load_epiphany_cultmesh_daemon_tool_directory(
@@ -9897,6 +9867,28 @@ mod tests {
         assert!(context.daemon_statuses.iter().all(|status| {
             !status.private_state_exposed && !status.last_heartbeat_utc.is_empty()
         }));
+        Ok(())
+    }
+
+    #[test]
+    fn declared_daemon_targets_do_not_materialize_observed_liveness() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-declared-versus-observed.ccmp");
+        let topology = write_epiphany_cultmesh_cluster_topology(&store, "epiphany-test")?;
+
+        assert_eq!(topology.len(), 7);
+        assert!(load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?.is_empty());
+
+        let observed = epiphany_cultmesh_daemon_statuses("2026-07-15T00:00:00Z")
+            .into_iter()
+            .next()
+            .expect("declared topology has a matching daemon status fixture");
+        let observed_daemon_id = observed.daemon_id.clone();
+        write_epiphany_cultmesh_daemon_status(&store, "epiphany-test", observed)?;
+
+        let liveness = load_epiphany_cultmesh_daemon_liveness(&store, "epiphany-test")?;
+        assert_eq!(liveness.len(), 1);
+        assert_eq!(liveness[0].1.daemon_id, observed_daemon_id);
         Ok(())
     }
 

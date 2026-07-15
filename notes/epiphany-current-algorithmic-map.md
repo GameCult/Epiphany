@@ -4,10 +4,20 @@
 
 - Owner: diagnostics only project persisted CultMesh state; they never initialize it.
 - Bootstrap owns static policy, topology, schema, brake, and organ-contract declarations. It does not own daemon liveness or provider availability.
-- Daemons own heartbeat/status documents. Missing status is represented as `unknown`, never promoted to `ready` by a reader or seeder.
+- Daemons own heartbeat/status documents. Missing status produces no observed daemon row; declared targets remain separate and are never promoted to presence or `ready` by a reader or seeder.
 - The provenance-free v0 Odin advertisement, Eve surface, and daemon-tool families are quarantined legacy vocabulary. Live provider directories return no rows from them; missing provider state produces no synthetic row.
 - Forbidden writers removed in this pass: read-command calls to `seed_epiphany_local_verse_context`, loader fallback constructors, and bootstrap's default-ready daemon-status loop.
 - Next authority cut: requester commands may author intents, but Bifrost, GitHub, tool providers, Eve providers, and daemon lifecycle owners must author their own response receipts.
+
+## Declared topology versus observed presence (updated 2026-07-15)
+
+- Owner of declaration: explicit bootstrap persists seven faculty routes, desired private-Verse addresses, and daemon/Eve targets as configuration.
+- Owner of presence: a provider-authored daemon status/heartbeat is the only input that creates an observed daemon row.
+- Outputs keep the distinction in their names: `declaredFacultyCount`, `declaredPrivateVerseRouteCount`, `declaredDaemonTargetCount`, and `observedDaemonCount`.
+- Restart-policy sight may enumerate desired targets with `daemonStatus=unobserved`; that supports Idunn reconciliation but does not materialize a daemon.
+- Prompt context labels topology as declared routes and targets. It cannot imply those addresses are inhabited.
+- Forbidden substitutions: topology rows cannot become daemon or agent counts; daemon heartbeats cannot become agent counts; configured private-Verse ids cannot become active Verse counts.
+- Cut line: the synthetic `unknown_daemon_status` constructor is deleted. A fresh bootstrap has seven declared targets and zero observed daemons; one persisted provider status yields exactly one observed daemon.
 
 ## Bifrost body-change request path (2026-07-12)
 

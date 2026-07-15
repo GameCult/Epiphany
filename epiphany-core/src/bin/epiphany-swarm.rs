@@ -292,10 +292,10 @@ fn run_online(args: OnlineArgs) -> Result<Value> {
         "soaRefresh": compact_fields(&soa_refresh, &["rowCount", "roleIds", "ok"]),
         "agentState": compact_fields(&agent_state, &["status", "summaryId", "rowCount", "privateStateExposed"]),
         "agentStateReport": compact_fields(&agent_state_report, &["status", "agentCount", "roleIds", "privateStateExposed"]),
-        "topology": compact_fields(&topology, &["status", "clusterCount", "privateVerseCount", "daemonCount", "publicDiscussionClusterCount", "privateStateExposed"]),
-        "liveness": compact_fields(&liveness, &["status", "daemonCount", "nonReadyCount", "privateStateExposed"]),
+        "topology": compact_fields(&topology, &["status", "declaredFacultyCount", "declaredPrivateVerseRouteCount", "declaredDaemonTargetCount", "publicDiscussionClusterCount", "privateStateExposed"]),
+        "liveness": compact_fields(&liveness, &["status", "observedDaemonCount", "nonReadyCount", "privateStateExposed"]),
         "toolDirectory": summarize_tool_directory(&tool_directory),
-        "overview": compact_fields(&overview, &["status", "agentCount", "daemonCount", "toolCount", "privateStateExposed", "recommendedWrapperMode", "recommendedWrapperCommand"]),
+        "overview": compact_fields(&overview, &["status", "observedDaemonCount", "declaredFacultyCount", "declaredPrivateVerseRouteCount", "declaredDaemonTargetCount", "toolCount", "privateStateExposed", "recommendedWrapperMode", "recommendedWrapperCommand"]),
         "proofBundle": {
             "repoLocalAgentStateSoa": agent_state_report["summaryId"],
             "clusterTopology": topology["schemaVersion"],
