@@ -155,7 +155,7 @@ pub const EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY: &str =
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE: &str =
     "epiphany.cultmesh.daemon_service_lifecycle_receipt";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.daemon_service_lifecycle_receipt.v0";
+    "epiphany.cultmesh.daemon_service_lifecycle_receipt.v1";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY: &str =
     "epiphany-local/daemon-service-lifecycle-receipt/latest";
 pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE: &str =
@@ -1460,6 +1460,14 @@ pub struct EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
     pub schema_preflight_passed: bool,
     #[cultcache(key = 22, default)]
     pub schema_catalog_sha256: String,
+    #[cultcache(key = 23, default)]
+    pub managed_policy_id: String,
+    #[cultcache(key = 24, default)]
+    pub managed_policy_digest: String,
+    #[cultcache(key = 25, default)]
+    pub provider_daemon_id: String,
+    #[cultcache(key = 26, default)]
+    pub startup_correlation_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -4080,22 +4088,159 @@ pub fn write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
     receipt: EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
 ) -> Result<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
     validate_daemon_service_lifecycle_receipt(&receipt)?;
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let store_path = store_path.as_ref();
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let receipt_key = epiphany_cultmesh_daemon_service_lifecycle_receipt_key(&receipt.receipt_id);
-    let written = node.put(receipt_key.as_str(), &receipt)?;
+    if let Some(existing) =
+        node.get::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(&receipt_key)?
+    {
+        if existing == receipt {
+            return Ok(existing);
+        }
+        return Err(anyhow!(
+            "daemon service lifecycle receipt identity collision for {:?}",
+            receipt.receipt_id
+        ));
+    }
+    let (receipt_envelope, written) = node.cache().prepare_entry(receipt_key, &receipt)?;
+    let mut expected = Vec::new();
+    let mut replacements = vec![receipt_envelope];
+    if written.service_id == EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID && written.action == "launch" {
+        let policy_key = epiphany_cultmesh_managed_service_policy_key(&written.service_id);
+        let policy_envelope = node
+            .cache()
+            .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&policy_key)?
+            .ok_or_else(|| anyhow!("reserved semantic projector managed policy is absent"))?;
+        let mut digest = Sha256::new();
+        digest.update(policy_envelope.r#type.as_bytes());
+        digest.update([0]);
+        digest.update(policy_envelope.key.as_bytes());
+        digest.update([0]);
+        digest.update(&policy_envelope.payload);
+        if written.managed_policy_digest != format!("sha256-{:x}", digest.finalize()) {
+            return Err(anyhow!(
+                "reserved semantic projector launch receipt has stale managed policy digest"
+            ));
+        }
+        expected.push(policy_envelope.clone());
+        replacements.push(policy_envelope);
+    }
     let current_latest = node.get::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(
         EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
     )?;
     if current_latest.as_ref().is_none_or(|current| {
         daemon_service_lifecycle_event_key(&written) >= daemon_service_lifecycle_event_key(current)
     }) {
-        node.put(
-            EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
-            &written,
-        )?;
+        if let Some(envelope) = node
+            .cache()
+            .get_envelope::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(
+                EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
+            )?
+        {
+            expected.push(envelope);
+        }
+        replacements.push(
+            node.cache()
+                .prepare_entry(
+                    EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY,
+                    &written,
+                )?
+                .0,
+        );
     }
-    node.flush()?;
-    Ok(written)
+    let service_latest_key =
+        epiphany_cultmesh_daemon_service_lifecycle_receipt_latest_key(&written.service_id);
+    let current_service_latest =
+        node.get::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(&service_latest_key)?;
+    if current_service_latest.as_ref().is_none_or(|current| {
+        daemon_service_lifecycle_event_key(&written) >= daemon_service_lifecycle_event_key(current)
+    }) {
+        if let Some(envelope) = node
+            .cache()
+            .get_envelope::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(
+                &service_latest_key,
+            )?
+        {
+            expected.push(envelope);
+        }
+        replacements.push(node.cache().prepare_entry(&service_latest_key, &written)?.0);
+    }
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    if backing.compare_and_swap_batch(&expected, replacements)? {
+        return Ok(written);
+    }
+    let reloaded = open_epiphany_cultmesh_node(store_path, "lifecycle-cas-readback")?;
+    match reloaded.get::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>(
+        &epiphany_cultmesh_daemon_service_lifecycle_receipt_key(&written.receipt_id),
+    )? {
+        Some(existing) if existing == written => Ok(existing),
+        Some(_) => Err(anyhow!(
+            "daemon service lifecycle receipt identity collision for {:?}",
+            written.receipt_id
+        )),
+        None => Err(anyhow!(
+            "daemon service lifecycle receipt CAS lost concurrent latest-state race"
+        )),
+    }
+}
+
+pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt_id: &str,
+) -> Result<Option<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(&epiphany_cultmesh_daemon_service_lifecycle_receipt_key(
+        receipt_id,
+    ))
+}
+
+pub fn load_epiphany_cultmesh_managed_service_policy_with_digest(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    service_id: &str,
+) -> Result<Option<(EpiphanyCultMeshManagedServicePolicyEntry, String)>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let key = epiphany_cultmesh_managed_service_policy_key(service_id);
+    let Some(policy) = node.get::<EpiphanyCultMeshManagedServicePolicyEntry>(&key)? else {
+        return Ok(None);
+    };
+    let digest =
+        cultmesh_envelope_digest::<EpiphanyCultMeshManagedServicePolicyEntry>(&node, &key)?;
+    Ok(Some((policy, digest)))
+}
+
+pub fn authenticate_epiphany_cultmesh_semantic_projector_launch(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    receipt_id: &str,
+) -> Result<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
+    let runtime_id = runtime_id.into();
+    let receipt = load_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+        store_path.as_ref(),
+        runtime_id.clone(),
+        receipt_id,
+    )?
+    .ok_or_else(|| anyhow!("semantic projector startup launch receipt is absent"))?;
+    validate_semantic_projector_launch_receipt(&receipt)?;
+    let (policy, digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+        store_path,
+        runtime_id,
+        EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID,
+    )?
+    .ok_or_else(|| anyhow!("semantic projector managed policy is absent"))?;
+    validate_semantic_projector_managed_service_policy(&policy)?;
+    if receipt.managed_policy_id != policy.policy_id
+        || receipt.managed_policy_digest != digest
+        || receipt.command != policy.command
+        || receipt.args != policy.args
+        || receipt.cwd != policy.cwd
+    {
+        return Err(anyhow!(
+            "semantic projector startup launch receipt disagrees with current managed policy"
+        ));
+    }
+    Ok(receipt)
 }
 
 pub fn load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt(
@@ -4114,7 +4259,10 @@ pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
     Ok(node
         .get_all_with_keys::<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry>()?
         .into_iter()
-        .filter(|(key, _)| key != EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY)
+        .filter(|(key, _)| {
+            key != EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY
+                && !key.starts_with("epiphany-local/daemon-service-lifecycle-receipt/latest/")
+        })
         .map(|(_, receipt)| receipt)
         .collect())
 }
@@ -4577,7 +4725,7 @@ fn validate_semantic_projector_managed_service_policy(
     if policy.policy_id != "managed-service-policy-epiphany-memory-semantic-projector-service"
         || policy.owner_daemon_id != "epiphany-daemon-supervisor"
         || policy.restart_mode != "always"
-        || policy.args.len() != 11
+        || policy.args.len() != 17
         || policy.args[0] != "serve"
         || policy.args[1] != "--agent-store"
         || policy.args[2].trim().is_empty()
@@ -4593,6 +4741,12 @@ fn validate_semantic_projector_managed_service_policy(
             .ok()
             .filter(|value| *value > 0)
             .is_none()
+        || policy.args[11] != "--qdrant-url"
+        || policy.args[12].trim().is_empty()
+        || policy.args[13] != "--ollama-base-url"
+        || policy.args[14].trim().is_empty()
+        || policy.args[15] != "--ollama-model"
+        || policy.args[16].trim().is_empty()
     {
         return Err(anyhow!(
             "reserved semantic projector policy must bind one packaged process to both canonical stores"
@@ -4699,6 +4853,32 @@ fn validate_daemon_service_lifecycle_receipt(
     {
         return Err(anyhow!(
             "typed daemon service lifecycle receipt requires passing schema preflight, executable fingerprint, and preflight witness"
+        ));
+    }
+    if receipt.service_id == EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID && receipt.action == "launch" {
+        validate_semantic_projector_launch_receipt(receipt)?;
+    }
+    Ok(())
+}
+
+fn validate_semantic_projector_launch_receipt(
+    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> Result<()> {
+    if receipt.schema_version != EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+        || receipt.service_id != EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID
+        || receipt.action != "launch"
+        || receipt.status != "launched"
+        || receipt.process_id.is_none()
+        || receipt.exit_code.is_some()
+        || receipt.completed_at_utc.is_none()
+        || receipt.managed_policy_id.trim().is_empty()
+        || !receipt.managed_policy_digest.starts_with("sha256-")
+        || receipt.provider_daemon_id != "epiphany-memory-semantic-projector"
+        || receipt.startup_correlation_id != receipt.receipt_id
+        || Uuid::parse_str(&receipt.receipt_id).is_err()
+    {
+        return Err(anyhow!(
+            "reserved semantic projector launch receipt must bind completed spawn to exact managed policy and provider identity"
         ));
     }
     Ok(())
@@ -6673,6 +6853,10 @@ fn epiphany_cultmesh_daemon_service_lifecycle_receipt_key(receipt_id: &str) -> S
     format!("epiphany-local/daemon-service-lifecycle-receipt/{receipt_id}")
 }
 
+fn epiphany_cultmesh_daemon_service_lifecycle_receipt_latest_key(service_id: &str) -> String {
+    format!("epiphany-local/daemon-service-lifecycle-receipt/latest/{service_id}")
+}
+
 fn epiphany_cultmesh_managed_service_policy_key(service_id: &str) -> String {
     format!("epiphany-local/managed-service-policy/{service_id}")
 }
@@ -7219,7 +7403,7 @@ pub fn idunn_recover_memory_semantic_projection_from_cultmesh(
     input: &crate::MemorySemanticProjectionInput,
     expected_claim_id: &str,
     replacement_executor_id: &str,
-    lifecycle_receipt_id: &str,
+    launch_lifecycle_receipt_id: &str,
     provider_heartbeat_id: &str,
     recovered_at: &str,
 ) -> Result<(
@@ -7231,33 +7415,20 @@ pub fn idunn_recover_memory_semantic_projection_from_cultmesh(
     let canonical_store = canonical_store.as_ref();
     crate::observe_memory_semantic_projection(canonical_store, input)?;
 
+    let receipt = authenticate_epiphany_cultmesh_semantic_projector_launch(
+        verse_store,
+        runtime_id.clone(),
+        launch_lifecycle_receipt_id,
+    )?;
+    let (policy, policy_digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+        verse_store,
+        runtime_id.clone(),
+        EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID,
+    )?
+    .ok_or_else(|| anyhow!("Idunn recovery managed service policy is absent"))?;
     let node = open_epiphany_cultmesh_node(verse_store, runtime_id)?;
-    let receipt_key = epiphany_cultmesh_daemon_poke_receipt_key(lifecycle_receipt_id);
-    let receipt = node
-        .get::<EpiphanyCultMeshDaemonPokeReceiptEntry>(&receipt_key)?
-        .ok_or_else(|| anyhow!("Idunn recovery lifecycle receipt is absent"))?;
-    validate_daemon_poke_receipt(&receipt)?;
-    if receipt.receipt_id != lifecycle_receipt_id
-        || receipt.target_daemon_id != "epiphany-memory-semantic-projector"
-        || receipt.status != "restart-succeeded"
-        || receipt.resulting_status != "awaiting-provider-heartbeat"
-    {
-        return Err(anyhow!(
-            "Idunn recovery requires the exact successful awaiting-heartbeat receipt"
-        ));
-    }
-
-    let intent_key = epiphany_cultmesh_daemon_poke_intent_key(&receipt.intent_id);
-    let intent = node
-        .get::<EpiphanyCultMeshDaemonPokeIntentEntry>(&intent_key)?
-        .ok_or_else(|| anyhow!("Idunn recovery lifecycle intent is absent"))?;
-    validate_daemon_poke_intent(&intent)?;
-    if intent.intent_id != receipt.intent_id
-        || intent.target_daemon_id != receipt.target_daemon_id
-        || intent.target_cluster_id != receipt.target_cluster_id
-    {
-        return Err(anyhow!("Idunn recovery lifecycle chain disagrees"));
-    }
+    let receipt_key =
+        epiphany_cultmesh_daemon_service_lifecycle_receipt_key(launch_lifecycle_receipt_id);
 
     let heartbeat_key = epiphany_cultmesh_daemon_heartbeat_event_key(provider_heartbeat_id);
     let heartbeat = node
@@ -7265,14 +7436,18 @@ pub fn idunn_recover_memory_semantic_projection_from_cultmesh(
         .ok_or_else(|| anyhow!("Idunn recovery provider heartbeat is absent"))?;
     validate_daemon_heartbeat_event(&heartbeat)?;
     if heartbeat.heartbeat_id != provider_heartbeat_id
-        || heartbeat.daemon_id != receipt.target_daemon_id
-        || heartbeat.cluster_id != receipt.target_cluster_id
+        || heartbeat.daemon_id != receipt.provider_daemon_id
+        || heartbeat.cluster_id != "local"
         || heartbeat.status != "ready"
         || heartbeat.startup_lifecycle_receipt_id != receipt.receipt_id
     {
         return Err(anyhow!("Idunn recovery provider heartbeat disagrees"));
     }
-    let receipt_completed = DateTime::parse_from_rfc3339(&receipt.completed_at_utc)?;
+    let receipt_completed_at = receipt
+        .completed_at_utc
+        .as_deref()
+        .ok_or_else(|| anyhow!("Idunn recovery launch receipt is not completed"))?;
+    let receipt_completed = DateTime::parse_from_rfc3339(receipt_completed_at)?;
     let heartbeat_at = DateTime::parse_from_rfc3339(&heartbeat.heartbeat_at)?;
     if heartbeat_at <= receipt_completed {
         return Err(anyhow!(
@@ -7280,10 +7455,9 @@ pub fn idunn_recover_memory_semantic_projection_from_cultmesh(
         ));
     }
 
-    let intent_digest =
-        cultmesh_envelope_digest::<EpiphanyCultMeshDaemonPokeIntentEntry>(&node, &intent_key)?;
-    let receipt_digest =
-        cultmesh_envelope_digest::<EpiphanyCultMeshDaemonPokeReceiptEntry>(&node, &receipt_key)?;
+    let receipt_digest = cultmesh_envelope_digest::<
+        EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+    >(&node, &receipt_key)?;
     let heartbeat_digest = cultmesh_envelope_digest::<EpiphanyCultMeshDaemonHeartbeatEventEntry>(
         &node,
         &heartbeat_key,
@@ -7294,11 +7468,11 @@ pub fn idunn_recover_memory_semantic_projection_from_cultmesh(
             input,
             expected_claim_id,
             &format!("idunn-{}", Uuid::new_v4()),
-            &intent.intent_id,
-            &intent_digest,
+            &policy.policy_id,
+            &policy_digest,
             &receipt.receipt_id,
             &receipt_digest,
-            &receipt.completed_at_utc,
+            receipt_completed_at,
             &heartbeat.heartbeat_id,
             &heartbeat_digest,
             &heartbeat.provider_incarnation,
@@ -7890,6 +8064,12 @@ mod tests {
                 "local",
                 "--interval-seconds",
                 "60",
+                "--qdrant-url",
+                "http://127.0.0.1:16333",
+                "--ollama-base-url",
+                "http://10.77.0.1:11435",
+                "--ollama-model",
+                "qwen3-embedding:0.6b",
             ]
             .into_iter()
             .map(str::to_string)
@@ -7915,8 +8095,77 @@ mod tests {
                 .is_err()
         );
         assert!(
-            write_epiphany_cultmesh_semantic_projector_service_policy(&store, "local", exact)
-                .is_ok()
+            write_epiphany_cultmesh_semantic_projector_service_policy(
+                &store,
+                "local",
+                exact.clone(),
+            )
+            .is_ok()
+        );
+        let (_, policy_digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+            &store,
+            "local",
+            EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID,
+        )?
+        .context("missing exact policy")?;
+        let receipt = EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                .into(),
+            receipt_id: "9f63fa72-a2e1-4ca5-9c1a-9292b7798891".into(),
+            service_id: EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID.into(),
+            scheduler_id: "epiphany-daemon-supervisor".into(),
+            runtime_id: "local".into(),
+            daemon_selector: "epiphany-daemon-supervisor".into(),
+            action: "launch".into(),
+            status: "launched".into(),
+            command: exact.command.clone(),
+            args: exact.args.clone(),
+            cwd: exact.cwd.clone(),
+            process_id: Some(4242),
+            exit_code: None,
+            started_at_utc: "2026-07-15T12:00:00Z".into(),
+            completed_at_utc: Some("2026-07-15T12:00:01Z".into()),
+            operator_artifact_ref: "service://semantic-projector/launch".into(),
+            private_state_exposed: false,
+            notes: vec![],
+            executable_sha256: String::new(),
+            preflight_witness_id: String::new(),
+            required_document_types: vec![],
+            schema_preflight_passed: false,
+            schema_catalog_sha256: String::new(),
+            managed_policy_id: exact.policy_id.clone(),
+            managed_policy_digest: policy_digest,
+            provider_daemon_id: "epiphany-memory-semantic-projector".into(),
+            startup_correlation_id: "9f63fa72-a2e1-4ca5-9c1a-9292b7798891".into(),
+        };
+        let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            &store,
+            "local",
+            receipt.clone(),
+        )?;
+        assert_eq!(
+            authenticate_epiphany_cultmesh_semantic_projector_launch(
+                &store,
+                "local",
+                &receipt.receipt_id,
+            )?,
+            written
+        );
+        assert_eq!(
+            write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+                &store,
+                "local",
+                receipt.clone(),
+            )?,
+            receipt
+        );
+        let mut collision = receipt;
+        collision.process_id = Some(4343);
+        assert!(
+            write_epiphany_cultmesh_daemon_service_lifecycle_receipt(&store, "local", collision,)
+                .unwrap_err()
+                .to_string()
+                .contains("identity collision")
         );
         Ok(())
     }
@@ -8472,6 +8721,10 @@ mod tests {
             required_document_types: Vec::new(),
             schema_preflight_passed: false,
             schema_catalog_sha256: String::new(),
+            managed_policy_id: String::new(),
+            managed_policy_digest: String::new(),
+            provider_daemon_id: String::new(),
+            startup_correlation_id: String::new(),
         };
         let mut second = first.clone();
         second.receipt_id = "service-lifecycle-second".to_string();
@@ -8630,6 +8883,10 @@ mod tests {
             required_document_types: Vec::new(),
             schema_preflight_passed: false,
             schema_catalog_sha256: String::new(),
+            managed_policy_id: String::new(),
+            managed_policy_digest: String::new(),
+            provider_daemon_id: String::new(),
+            startup_correlation_id: String::new(),
         };
         assert!(
             write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
@@ -8688,6 +8945,10 @@ mod tests {
                 required_document_types: Vec::new(),
                 schema_preflight_passed: false,
                 schema_catalog_sha256: String::new(),
+                managed_policy_id: String::new(),
+                managed_policy_digest: String::new(),
+                provider_daemon_id: String::new(),
+                startup_correlation_id: String::new(),
             },
         ]);
         let runbook_check = report
@@ -11193,7 +11454,7 @@ mod tests {
     }
 
     #[test]
-    fn semantic_recovery_requires_exact_correlated_restart_heartbeat_and_is_single_use()
+    fn semantic_recovery_requires_current_policy_launch_heartbeat_chain_and_is_single_use()
     -> Result<()> {
         let temp = tempfile::tempdir()?;
         let canonical = temp.path().join("canonical.msgpack");
@@ -11210,44 +11471,102 @@ mod tests {
                 "2026-07-15T12:00:00Z",
             )?
             .claim;
-        let status = EpiphanyCultMeshDaemonStatusEntry {
-            schema_version: EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION.to_string(),
-            daemon_id: "epiphany-memory-semantic-projector".to_string(),
-            cluster_id: "local".to_string(),
-            body_domain: "semantic-projection".to_string(),
-            daemon_surface_id: "daemon.semantic-projector".to_string(),
-            eve_surface_id: "eve.semantic-projector".to_string(),
-            status: "stale".to_string(),
-            last_heartbeat_utc: "2026-07-15T12:00:01Z".to_string(),
-            supported_actions: vec!["pokeDaemon".to_string()],
-            operator_action: "restart".to_string(),
-            private_state_exposed: false,
-            notes: Vec::new(),
+        let binary = if cfg!(windows) {
+            "C:\\epiphany-memory-semantic-projector.exe"
+        } else {
+            "/tmp/epiphany-memory-semantic-projector"
         };
-        let mut intent = epiphany_cultmesh_daemon_poke_intent_from_status(
-            "semantic-restart-intent-1",
-            "idunn",
-            &status,
-            "fence exact abandoned semantic projector claim",
-        );
-        intent.requested_at_utc = "2026-07-15T12:01:00Z".to_string();
-        write_epiphany_cultmesh_daemon_poke_intent(&verse, "runtime-test", intent.clone())?;
-        let mut receipt = epiphany_cultmesh_daemon_poke_receipt_for_intent(
-            "semantic-restart-receipt-1",
-            &intent,
-            "restart-succeeded",
-            "awaiting-provider-heartbeat",
-            "process://semantic-projector/exit/0",
-        );
-        receipt.attempted_at_utc = "2026-07-15T12:01:00Z".to_string();
-        receipt.completed_at_utc = "2026-07-15T12:02:00Z".to_string();
-        write_epiphany_cultmesh_daemon_poke_receipt(&verse, "runtime-test", receipt.clone())?;
+        let policy = EpiphanyCultMeshManagedServicePolicyEntry {
+            schema_version: EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION.to_string(),
+            policy_id: "managed-service-policy-epiphany-memory-semantic-projector-service".into(),
+            service_id: EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID.into(),
+            owner_daemon_id: "epiphany-daemon-supervisor".into(),
+            command: binary.into(),
+            args: vec![
+                "serve",
+                "--agent-store",
+                "mind.ccmp",
+                "--runtime-store",
+                "modeling.ccmp",
+                "--local-verse-store",
+                "verse.ccmp",
+                "--runtime-id",
+                "runtime-test",
+                "--interval-seconds",
+                "60",
+                "--qdrant-url",
+                "http://127.0.0.1:16333",
+                "--ollama-base-url",
+                "http://10.77.0.1:11435",
+                "--ollama-model",
+                "qwen3-embedding:0.6b",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+            cwd: None,
+            enabled: true,
+            restart_mode: "always".into(),
+            cooldown_seconds: 0,
+            backoff_multiplier: 1,
+            stdout_artifact: "projector.stdout.log".into(),
+            stderr_artifact: "projector.stderr.log".into(),
+            updated_at_utc: "2026-07-15T12:01:00Z".into(),
+            private_state_exposed: false,
+            notes: vec![],
+        };
+        write_epiphany_cultmesh_semantic_projector_service_policy(
+            &verse,
+            "runtime-test",
+            policy.clone(),
+        )?;
+        let (_, policy_digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+            &verse,
+            "runtime-test",
+            EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID,
+        )?
+        .context("semantic policy missing")?;
+        let receipt = EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION
+                .into(),
+            receipt_id: "f32666a9-94ce-47c5-b2bd-7d18624dfe9b".into(),
+            service_id: EPIPHANY_SEMANTIC_PROJECTOR_SERVICE_ID.into(),
+            scheduler_id: "epiphany-daemon-supervisor".into(),
+            runtime_id: "runtime-test".into(),
+            daemon_selector: "epiphany-daemon-supervisor".into(),
+            action: "launch".into(),
+            status: "launched".into(),
+            command: policy.command.clone(),
+            args: policy.args.clone(),
+            cwd: None,
+            process_id: Some(4242),
+            exit_code: None,
+            started_at_utc: "2026-07-15T12:01:00Z".into(),
+            completed_at_utc: Some("2026-07-15T12:02:00Z".into()),
+            operator_artifact_ref: "service://semantic-projector/launch".into(),
+            private_state_exposed: false,
+            notes: vec![],
+            executable_sha256: String::new(),
+            preflight_witness_id: String::new(),
+            required_document_types: vec![],
+            schema_preflight_passed: false,
+            schema_catalog_sha256: String::new(),
+            managed_policy_id: policy.policy_id.clone(),
+            managed_policy_digest: policy_digest,
+            provider_daemon_id: "epiphany-memory-semantic-projector".into(),
+            startup_correlation_id: "f32666a9-94ce-47c5-b2bd-7d18624dfe9b".into(),
+        };
+        write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            &verse,
+            "runtime-test",
+            receipt.clone(),
+        )?;
 
         let unrelated = EpiphanyCultMeshDaemonHeartbeatEventEntry {
             schema_version: EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION.to_string(),
             heartbeat_id: "semantic-heartbeat-unrelated".to_string(),
-            daemon_id: status.daemon_id.clone(),
-            cluster_id: status.cluster_id.clone(),
+            daemon_id: "epiphany-memory-semantic-projector".into(),
+            cluster_id: "local".into(),
             provider_incarnation: "provider-new".to_string(),
             sequence: 1,
             status: "ready".to_string(),
@@ -11271,6 +11590,31 @@ mod tests {
             .is_err()
         );
 
+        let mut advanced_policy = policy.clone();
+        advanced_policy.updated_at_utc = "2026-07-15T12:02:30Z".into();
+        write_epiphany_cultmesh_semantic_projector_service_policy(
+            &verse,
+            "runtime-test",
+            advanced_policy,
+        )?;
+        assert!(
+            idunn_recover_memory_semantic_projection_from_cultmesh(
+                &verse,
+                "runtime-test",
+                &canonical,
+                &input,
+                &claim.claim_id,
+                "executor-new",
+                &receipt.receipt_id,
+                "semantic-heartbeat-unrelated",
+                "2026-07-15T12:04:00Z",
+            )
+            .expect_err("an obsolete launch receipt cannot authorize a newer policy")
+            .to_string()
+            .contains("disagrees with current managed policy")
+        );
+        write_epiphany_cultmesh_semantic_projector_service_policy(&verse, "runtime-test", policy)?;
+
         let correlated = EpiphanyCultMeshDaemonHeartbeatEventEntry {
             heartbeat_id: "semantic-heartbeat-correlated".to_string(),
             sequence: 2,
@@ -11283,8 +11627,8 @@ mod tests {
             )
         };
         let mut correlated = correlated;
-        correlated.daemon_id = status.daemon_id;
-        correlated.cluster_id = status.cluster_id;
+        correlated.daemon_id = "epiphany-memory-semantic-projector".into();
+        correlated.cluster_id = "local".into();
         write_epiphany_cultmesh_daemon_heartbeat_event(&verse, "runtime-test", correlated.clone())?;
         let (_, recovered) = idunn_recover_memory_semantic_projection_from_cultmesh(
             &verse,

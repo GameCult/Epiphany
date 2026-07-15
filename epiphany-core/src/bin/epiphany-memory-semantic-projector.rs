@@ -3,7 +3,9 @@ use epiphany_core::{
     EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonHeartbeatEventEntry, MemorySemanticIndexConfig,
     MemorySemanticProjectionInput, MemorySemanticProjectorPulseStatus,
-    SemanticProjectorServiceBody, publish_epiphany_cultmesh_semantic_projection_health,
+    SemanticProjectorServiceBody, authenticate_epiphany_cultmesh_semantic_projector_launch,
+    load_epiphany_cultmesh_daemon_service_lifecycle_receipt,
+    publish_epiphany_cultmesh_semantic_projection_health,
     write_epiphany_cultmesh_daemon_heartbeat_event,
 };
 use serde_json::json;
@@ -11,17 +13,27 @@ use std::env;
 use std::path::PathBuf;
 use std::thread;
 use std::time::Duration;
+use std::time::Instant;
 use uuid::Uuid;
 
 const DAEMON_ID: &str = "epiphany-memory-semantic-projector";
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
-    let projector = SemanticProjectorServiceBody::new(
-        &args.agent_store,
-        &args.runtime_store,
-        MemorySemanticIndexConfig::from_env(),
-    )?;
+    if args.requires_managed_launch {
+        if args.startup_lifecycle_receipt_id.trim().is_empty() {
+            return Err(anyhow!(
+                "managed projector requires its startup launch receipt id"
+            ));
+        }
+        authenticate_managed_launch(&args)?;
+    }
+    let mut semantic_config = MemorySemanticIndexConfig::from_env();
+    semantic_config.qdrant_url = args.qdrant_url.clone();
+    semantic_config.ollama_base_url = args.ollama_base_url.clone();
+    semantic_config.ollama_model = args.ollama_model.clone();
+    let projector =
+        SemanticProjectorServiceBody::new(&args.agent_store, &args.runtime_store, semantic_config)?;
     let provider_incarnation = projector.provider_incarnation().to_string();
     let mut cursor = None;
     let mut sequence = 0_u64;
@@ -100,6 +112,32 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn authenticate_managed_launch(args: &Args) -> Result<()> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if load_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+            &args.local_verse_store,
+            args.runtime_id.clone(),
+            &args.startup_lifecycle_receipt_id,
+        )?
+        .is_some()
+        {
+            authenticate_epiphany_cultmesh_semantic_projector_launch(
+                &args.local_verse_store,
+                args.runtime_id.clone(),
+                &args.startup_lifecycle_receipt_id,
+            )?;
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(anyhow!(
+                "managed projector startup launch receipt was not persisted"
+            ));
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
 fn source_store<'a>(args: &'a Args, input: &MemorySemanticProjectionInput) -> Result<&'a PathBuf> {
     match input.obligation().partition.as_str() {
         "mind" => Ok(&args.agent_store),
@@ -128,6 +166,10 @@ struct Args {
     interval_seconds: u64,
     max_iterations: u64,
     startup_lifecycle_receipt_id: String,
+    qdrant_url: String,
+    ollama_base_url: String,
+    ollama_model: String,
+    requires_managed_launch: bool,
 }
 
 impl Args {
@@ -147,6 +189,9 @@ impl Args {
         } else {
             0
         };
+        let mut qdrant_url = None;
+        let mut ollama_base_url = None;
+        let mut ollama_model = "qwen3-embedding:0.6b".to_string();
         while let Some(flag) = values.next() {
             let mut value = || {
                 values
@@ -160,6 +205,9 @@ impl Args {
                 "--runtime-id" => runtime_id = value()?,
                 "--interval-seconds" => interval_seconds = value()?.parse()?,
                 "--max-iterations" => max_iterations = value()?.parse()?,
+                "--qdrant-url" => qdrant_url = Some(value()?),
+                "--ollama-base-url" => ollama_base_url = Some(value()?),
+                "--ollama-model" => ollama_model = value()?,
                 _ => return Err(anyhow!("unexpected argument {flag:?}")),
             }
         }
@@ -175,6 +223,10 @@ impl Args {
             max_iterations,
             startup_lifecycle_receipt_id: env::var("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID")
                 .unwrap_or_default(),
+            qdrant_url: qdrant_url.context("missing --qdrant-url")?,
+            ollama_base_url: ollama_base_url.context("missing --ollama-base-url")?,
+            ollama_model,
+            requires_managed_launch: matches!(command.as_str(), "serve" | "daemon"),
         })
     }
 }

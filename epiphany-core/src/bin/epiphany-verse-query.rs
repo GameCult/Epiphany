@@ -2685,6 +2685,10 @@ fn run_cli() -> Result<()> {
                 required_document_types: Vec::new(),
                 schema_preflight_passed: false,
                 schema_catalog_sha256: String::new(),
+                managed_policy_id: String::new(),
+                managed_policy_digest: String::new(),
+                provider_daemon_id: String::new(),
+                startup_correlation_id: String::new(),
             };
             let readiness_follow_up_row = receipt_directory_service_lifecycle_row(
                 "cluster-service-lifecycle",
@@ -9946,6 +9950,10 @@ mod lifecycle_projection_tests {
             notes: Vec::new(),
             executable_sha256: String::new(),
             schema_catalog_sha256: String::new(),
+            managed_policy_id: String::new(),
+            managed_policy_digest: String::new(),
+            provider_daemon_id: String::new(),
+            startup_correlation_id: String::new(),
             preflight_witness_id: String::new(),
             required_document_types: Vec::new(),
             schema_preflight_passed: false,

@@ -19,7 +19,7 @@ pub const MEMORY_SEMANTIC_PROJECTION_CLAIM_SCHEMA_VERSION: &str =
 pub const MEMORY_SEMANTIC_PROJECTOR_EXECUTOR_GRANT_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_projector_executor_grant.v1";
 pub const MEMORY_SEMANTIC_PROJECTOR_RECOVERY_AUTHORIZATION_SCHEMA_VERSION: &str =
-    "gamecult.epiphany.memory_semantic_projector_recovery_authorization.v1";
+    "gamecult.epiphany.memory_semantic_projector_recovery_authorization.v2";
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
@@ -285,16 +285,16 @@ mod authority_tests {
             &projection_input,
             &acquisition.claim.claim_id,
             "idunn-incarnation-a",
-            "poke-intent-1",
-            "sha256-intent",
-            "poke-receipt-1",
-            "sha256-receipt",
+            "managed-policy-1",
+            "sha256-policy",
+            "launch-receipt-1",
+            "sha256-launch-receipt",
             "2026-07-15T04:02:00Z",
             "heartbeat-1",
             "sha256-heartbeat",
             "provider-new",
             "2026-07-15T04:03:00Z",
-            "poke-receipt-1",
+            "launch-receipt-1",
         )?;
         let (authorization, recovered) = idunn_recover_memory_semantic_projection(
             &store,
@@ -306,8 +306,11 @@ mod authority_tests {
             "2026-07-15T04:04:00Z",
         )?;
         assert_eq!(authorization.status, "consumed");
-        assert_eq!(authorization.lifecycle_intent_id, "poke-intent-1");
-        assert_eq!(authorization.lifecycle_receipt_id, "poke-receipt-1");
+        assert_eq!(authorization.managed_service_policy_id, "managed-policy-1");
+        assert_eq!(
+            authorization.launch_lifecycle_receipt_id,
+            "launch-receipt-1"
+        );
         assert_eq!(authorization.provider_heartbeat_id, "heartbeat-1");
         assert_eq!(
             authorization.provider_incarnation,
@@ -329,16 +332,16 @@ mod authority_tests {
                 &projection_input,
                 &recovered.claim_id,
                 "idunn-incarnation-a",
-                "poke-intent-2",
-                "sha256-intent-2",
-                "poke-receipt-2",
-                "sha256-receipt-2",
+                "managed-policy-2",
+                "sha256-policy-2",
+                "launch-receipt-2",
+                "sha256-launch-receipt-2",
                 "2026-07-15T04:03:00Z",
                 "heartbeat-2",
                 "sha256-heartbeat-2",
                 "provider-new",
                 "2026-07-15T04:03:00Z",
-                "poke-receipt-2",
+                "launch-receipt-2",
             )
             .is_err()
         );
@@ -381,9 +384,9 @@ pub struct MemorySemanticProjectorRecoveryAuthorization {
     #[cultcache(key = 13)]
     pub issuer_incarnation: String,
     #[cultcache(key = 14)]
-    pub lifecycle_intent_id: String,
+    pub managed_service_policy_id: String,
     #[cultcache(key = 15)]
-    pub lifecycle_intent_digest: String,
+    pub managed_service_policy_digest: String,
     #[cultcache(key = 16)]
     pub status: String,
     #[cultcache(key = 17)]
@@ -397,11 +400,11 @@ pub struct MemorySemanticProjectorRecoveryAuthorization {
     #[cultcache(key = 21)]
     pub abandoned_executor_incarnation: String,
     #[cultcache(key = 22)]
-    pub lifecycle_receipt_id: String,
+    pub launch_lifecycle_receipt_id: String,
     #[cultcache(key = 23)]
-    pub lifecycle_receipt_digest: String,
+    pub launch_lifecycle_receipt_digest: String,
     #[cultcache(key = 24)]
-    pub lifecycle_receipt_completed_at: String,
+    pub launch_lifecycle_receipt_completed_at: String,
     #[cultcache(key = 25)]
     pub provider_heartbeat_id: String,
     #[cultcache(key = 26)]
@@ -413,7 +416,7 @@ pub struct MemorySemanticProjectorRecoveryAuthorization {
     #[cultcache(key = 29)]
     pub canonical_store_id: String,
     #[cultcache(key = 30)]
-    pub lifecycle_correlation_id: String,
+    pub startup_correlation_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -454,11 +457,11 @@ pub struct MemorySemanticProjectionClaim {
 #[derive(Clone, Debug)]
 pub struct IdunnSemanticRecoveryEvidence {
     issuer_incarnation: String,
-    lifecycle_intent_id: String,
-    lifecycle_intent_digest: String,
-    lifecycle_receipt_id: String,
-    lifecycle_receipt_digest: String,
-    lifecycle_receipt_completed_at: String,
+    managed_service_policy_id: String,
+    managed_service_policy_digest: String,
+    launch_lifecycle_receipt_id: String,
+    launch_lifecycle_receipt_digest: String,
+    launch_lifecycle_receipt_completed_at: String,
     provider_heartbeat_id: String,
     provider_heartbeat_digest: String,
     provider_incarnation: String,
@@ -471,7 +474,7 @@ pub struct IdunnSemanticRecoveryEvidence {
     claim_id: String,
     claim_epoch: u64,
     abandoned_executor_incarnation: String,
-    lifecycle_correlation_id: String,
+    startup_correlation_id: String,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -480,16 +483,16 @@ pub(crate) fn idunn_semantic_recovery_evidence_from_cultmesh(
     input: &MemorySemanticProjectionInput,
     expected_claim_id: &str,
     issuer_incarnation: &str,
-    lifecycle_intent_id: &str,
-    lifecycle_intent_digest: &str,
-    lifecycle_receipt_id: &str,
-    lifecycle_receipt_digest: &str,
-    lifecycle_receipt_completed_at: &str,
+    managed_service_policy_id: &str,
+    managed_service_policy_digest: &str,
+    launch_lifecycle_receipt_id: &str,
+    launch_lifecycle_receipt_digest: &str,
+    launch_lifecycle_receipt_completed_at: &str,
     provider_heartbeat_id: &str,
     provider_heartbeat_digest: &str,
     provider_incarnation: &str,
     provider_heartbeat_at: &str,
-    lifecycle_correlation_id: &str,
+    startup_correlation_id: &str,
 ) -> Result<IdunnSemanticRecoveryEvidence> {
     validate_memory_semantic_projection_obligation(&input.obligation)?;
     let store_path = store_path.as_ref();
@@ -526,11 +529,11 @@ pub(crate) fn idunn_semantic_recovery_evidence_from_cultmesh(
     authenticate_claim_authority_from_envelopes(&envelopes, &claim)?;
     let evidence = IdunnSemanticRecoveryEvidence {
         issuer_incarnation: issuer_incarnation.to_string(),
-        lifecycle_intent_id: lifecycle_intent_id.to_string(),
-        lifecycle_intent_digest: lifecycle_intent_digest.to_string(),
-        lifecycle_receipt_id: lifecycle_receipt_id.to_string(),
-        lifecycle_receipt_digest: lifecycle_receipt_digest.to_string(),
-        lifecycle_receipt_completed_at: lifecycle_receipt_completed_at.to_string(),
+        managed_service_policy_id: managed_service_policy_id.to_string(),
+        managed_service_policy_digest: managed_service_policy_digest.to_string(),
+        launch_lifecycle_receipt_id: launch_lifecycle_receipt_id.to_string(),
+        launch_lifecycle_receipt_digest: launch_lifecycle_receipt_digest.to_string(),
+        launch_lifecycle_receipt_completed_at: launch_lifecycle_receipt_completed_at.to_string(),
         provider_heartbeat_id: provider_heartbeat_id.to_string(),
         provider_heartbeat_digest: provider_heartbeat_digest.to_string(),
         provider_incarnation: provider_incarnation.to_string(),
@@ -543,7 +546,7 @@ pub(crate) fn idunn_semantic_recovery_evidence_from_cultmesh(
         claim_id: claim.claim_id,
         claim_epoch: claim.epoch,
         abandoned_executor_incarnation: claim.executor_incarnation,
-        lifecycle_correlation_id: lifecycle_correlation_id.to_string(),
+        startup_correlation_id: startup_correlation_id.to_string(),
     };
     validate_idunn_semantic_recovery_evidence(&evidence)?;
     Ok(evidence)
@@ -1159,9 +1162,9 @@ pub(crate) fn idunn_recover_memory_semantic_projection(
         ));
     }
     ensure_strictly_before(
-        &evidence.lifecycle_receipt_completed_at,
+        &evidence.launch_lifecycle_receipt_completed_at,
         &evidence.provider_heartbeat_at,
-        "provider heartbeat must follow lifecycle receipt",
+        "provider heartbeat must follow managed-service launch receipt",
     )?;
     ensure_not_before(
         recovered_at,
@@ -1231,8 +1234,8 @@ pub(crate) fn idunn_recover_memory_semantic_projection(
             format!(
                 "{}|{}|{}|{}",
                 evidence.canonical_store_id,
-                evidence.lifecycle_intent_digest,
-                evidence.lifecycle_receipt_digest,
+                evidence.managed_service_policy_digest,
+                evidence.launch_lifecycle_receipt_digest,
                 evidence.provider_heartbeat_digest
             )
             .as_bytes()
@@ -1277,17 +1280,19 @@ pub(crate) fn idunn_recover_memory_semantic_projection(
         replacement_executor_incarnation: replacement_executor_incarnation.to_string(),
         issuer_id: "idunn".to_string(),
         issuer_incarnation: evidence.issuer_incarnation.clone(),
-        lifecycle_intent_id: evidence.lifecycle_intent_id.clone(),
-        lifecycle_intent_digest: evidence.lifecycle_intent_digest.clone(),
-        lifecycle_receipt_id: evidence.lifecycle_receipt_id.clone(),
-        lifecycle_receipt_digest: evidence.lifecycle_receipt_digest.clone(),
-        lifecycle_receipt_completed_at: evidence.lifecycle_receipt_completed_at.clone(),
+        managed_service_policy_id: evidence.managed_service_policy_id.clone(),
+        managed_service_policy_digest: evidence.managed_service_policy_digest.clone(),
+        launch_lifecycle_receipt_id: evidence.launch_lifecycle_receipt_id.clone(),
+        launch_lifecycle_receipt_digest: evidence.launch_lifecycle_receipt_digest.clone(),
+        launch_lifecycle_receipt_completed_at: evidence
+            .launch_lifecycle_receipt_completed_at
+            .clone(),
         provider_heartbeat_id: evidence.provider_heartbeat_id.clone(),
         provider_heartbeat_digest: evidence.provider_heartbeat_digest.clone(),
         provider_incarnation: evidence.provider_incarnation.clone(),
         provider_heartbeat_at: evidence.provider_heartbeat_at.clone(),
         canonical_store_id: evidence.canonical_store_id.clone(),
-        lifecycle_correlation_id: evidence.lifecycle_correlation_id.clone(),
+        startup_correlation_id: evidence.startup_correlation_id.clone(),
         status: "consumed".to_string(),
         issued_at: recovered_at.to_string(),
         consumed_at: Some(recovered_at.to_string()),
@@ -1606,22 +1611,22 @@ pub fn validate_memory_semantic_projector_recovery_authorization(
         || !is_opaque_identity(&authorization.replacement_executor_incarnation)
         || authorization.issuer_id != "idunn"
         || !is_opaque_identity(&authorization.issuer_incarnation)
-        || !is_opaque_identity(&authorization.lifecycle_intent_id)
-        || !is_opaque_identity(&authorization.lifecycle_intent_digest)
-        || !is_opaque_identity(&authorization.lifecycle_receipt_id)
-        || !is_opaque_identity(&authorization.lifecycle_receipt_digest)
-        || !valid_rfc3339(&authorization.lifecycle_receipt_completed_at)
+        || !is_opaque_identity(&authorization.managed_service_policy_id)
+        || !is_opaque_identity(&authorization.managed_service_policy_digest)
+        || !is_opaque_identity(&authorization.launch_lifecycle_receipt_id)
+        || !is_opaque_identity(&authorization.launch_lifecycle_receipt_digest)
+        || !valid_rfc3339(&authorization.launch_lifecycle_receipt_completed_at)
         || !is_opaque_identity(&authorization.provider_heartbeat_id)
         || !is_opaque_identity(&authorization.provider_heartbeat_digest)
         || !is_opaque_identity(&authorization.provider_incarnation)
         || !valid_rfc3339(&authorization.provider_heartbeat_at)
         || !is_opaque_identity(&authorization.canonical_store_id)
-        || !is_opaque_identity(&authorization.lifecycle_correlation_id)
-        || authorization.lifecycle_correlation_id != authorization.lifecycle_receipt_id
+        || !is_opaque_identity(&authorization.startup_correlation_id)
+        || authorization.startup_correlation_id != authorization.launch_lifecycle_receipt_id
         || authorization.replacement_executor_incarnation != authorization.provider_incarnation
         || authorization.provider_incarnation == authorization.abandoned_executor_incarnation
         || !strictly_before(
-            &authorization.lifecycle_receipt_completed_at,
+            &authorization.launch_lifecycle_receipt_completed_at,
             &authorization.provider_heartbeat_at,
         )
         || !not_before(
@@ -1954,12 +1959,21 @@ fn validate_idunn_semantic_recovery_evidence(
 ) -> Result<()> {
     for (value, label) in [
         (&evidence.issuer_incarnation, "issuer incarnation"),
-        (&evidence.lifecycle_intent_id, "lifecycle intent identity"),
-        (&evidence.lifecycle_intent_digest, "lifecycle intent digest"),
-        (&evidence.lifecycle_receipt_id, "lifecycle receipt identity"),
         (
-            &evidence.lifecycle_receipt_digest,
-            "lifecycle receipt digest",
+            &evidence.managed_service_policy_id,
+            "managed service policy identity",
+        ),
+        (
+            &evidence.managed_service_policy_digest,
+            "managed service policy digest",
+        ),
+        (
+            &evidence.launch_lifecycle_receipt_id,
+            "launch lifecycle receipt identity",
+        ),
+        (
+            &evidence.launch_lifecycle_receipt_digest,
+            "launch lifecycle receipt digest",
         ),
         (
             &evidence.provider_heartbeat_id,
@@ -1980,20 +1994,20 @@ fn validate_idunn_semantic_recovery_evidence(
             "abandoned executor incarnation",
         ),
         (
-            &evidence.lifecycle_correlation_id,
-            "lifecycle correlation identity",
+            &evidence.startup_correlation_id,
+            "startup correlation identity",
         ),
     ] {
         validate_opaque_identity(value, label)?;
     }
-    if !valid_rfc3339(&evidence.lifecycle_receipt_completed_at)
+    if !valid_rfc3339(&evidence.launch_lifecycle_receipt_completed_at)
         || !valid_rfc3339(&evidence.provider_heartbeat_at)
         || !matches!(evidence.partition.as_str(), "mind" | "modeling")
         || evidence.claim_epoch == 0
         || evidence.provider_incarnation == evidence.abandoned_executor_incarnation
-        || evidence.lifecycle_correlation_id != evidence.lifecycle_receipt_id
+        || evidence.startup_correlation_id != evidence.launch_lifecycle_receipt_id
         || !strictly_before(
-            &evidence.lifecycle_receipt_completed_at,
+            &evidence.launch_lifecycle_receipt_completed_at,
             &evidence.provider_heartbeat_at,
         )
     {

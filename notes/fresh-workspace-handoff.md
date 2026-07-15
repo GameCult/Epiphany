@@ -1296,3 +1296,40 @@ then publish the reserved projector policy. Run one bounded live pulse, prove
 both derived health rows and provider heartbeat, kill the body once, and prove
 Idunn restart plus causally linked heartbeat/recovery/resumption. This is a
 preflight and survival proof, not permission to call deployment complete.
+
+## Managed semantic launch authority rebuild (2026-07-15)
+
+Deployment inspection found incompatible lifecycle stories. The packaged
+managed-service launcher spawned an infinite child and wrote a mutable v0
+event, while semantic recovery expected a completed daemon-poke receipt from a
+blocking restart command. That command could never truthfully witness this
+service.
+
+The authority is now one causal chain. The reserved managed policy is desired
+state. Idunn preallocates a UUID, injects it into the child, spawns once, and
+atomically writes an immutable v1 lifecycle receipt binding child PID, spawn
+completion, exact policy id and envelope digest, fixed projector daemon, and
+startup correlation. Failed persistence kills and waits for the child. The
+child authenticates that receipt against the current policy before constructing
+the service body or publishing a pulse or heartbeat. A launch receipt proves
+spawn completion, never readiness.
+
+Semantic recovery authorization is v2 and consumes only the current policy,
+its exact launch receipt, and a strictly later correlated provider heartbeat.
+Advancing policy invalidates an older launch receipt. Daemon poke remains an
+operator intervention surface for ordinary daemons but cannot authorize
+semantic recovery. Hostile tests cover unrelated heartbeat, policy advance,
+successful exact recovery, and single-use refusal. Full library proof is 371
+passed/1 ignored; supervisor tests are 7/7; all binaries compile.
+
+Infrastructure truth also changed. The retired local `voidbot-qdrant` must stay
+stopped. Shared Yggdrasil Qdrant is authoritative and reaches this workstation
+through the ops tunnel at `127.0.0.1:16333`; Yggdrasil Ollama is reachable at
+`http://10.77.0.1:11435`. Both Epiphany collections are green 1024-dimensional
+cosine collections using `qwen3-embedding:0.6b`.
+
+Next: publish the reserved policy and place both the managed-service reconciler
+and Qdrant tunnel under durable Idunn/OS survival ownership. Live proof must
+cover real child handshake, bounded pulse, heartbeat and health, forced
+restart/correlation, singleton refusal, and safe exact recovery/resumption
+where an abandoned claim can be created without forging canonical work.

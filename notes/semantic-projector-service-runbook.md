@@ -28,18 +28,20 @@ $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
 cargo build --release --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-memory-semantic-projector --bin epiphany-daemon-supervisor
 ```
 
-## Required configuration
+## Transport configuration
 
-Set these in the Idunn service environment before launch:
+The reserved typed service policy binds the non-secret transport coordinates:
 
 ```text
-EPIPHANY_QDRANT_URL=http://127.0.0.1:6333
-EPIPHANY_OLLAMA_URL=http://<yggdrasil-wireguard-address>:11435
+--qdrant-url http://127.0.0.1:16333
+--ollama-base-url http://10.77.0.1:11435
+--ollama-model qwen3-embedding:0.6b
 ```
 
-Use the embedding model and collection configuration already consumed by
-`MemorySemanticIndexConfig::from_env`. Keep credentials in the service
-environment or secret store; never place them in policy arguments or logs.
+Qdrant REST reaches Yggdrasil loopback through the ops-owned SSH tunnel; Ollama
+is admitted directly on WireGuard. API keys remain in the service environment
+or secret store and never enter policy arguments or logs. Collection names and
+timeouts retain their typed configuration defaults unless deliberately changed.
 
 ## Preflight
 
@@ -54,10 +56,11 @@ environment or secret store; never place them in policy arguments or logs.
 5. Confirm the local Verse store is bootstrapped and Idunn's managed-service
    reconciler is running.
 
-Current local observation on 2026-07-15: Docker reports `voidbot-qdrant` as
-`Exited (143)`. Its name indicates foreign service ownership, so this runbook
-does not restart or silently adopt it. Deployment remains blocked until an
-explicit Epiphany-owned or intentionally shared Qdrant endpoint is live.
+Current observation on 2026-07-15: the workstation's retired
+`voidbot-qdrant` container is intentionally stopped after the VoidBot cutover.
+The authoritative Yggdrasil Qdrant is physically shared and contains the
+Epiphany Mind and Modeling collections. The ops tunnel exposes its loopback
+REST/gRPC ports locally as `16333`/`16334`; do not restart the retired node.
 
 ## Publish the typed service policy
 
@@ -67,7 +70,10 @@ $supervisor = '.\target\release\epiphany-daemon-supervisor.exe'
   --store .\.epiphany-run\cultmesh\local-verse.ccmp `
   --runtime-id epiphany-local `
   --agent-store .\state\agents.msgpack `
-  --runtime-store <runtime-spine-store> `
+  --runtime-store .\state\runtime-spine.msgpack `
+  --qdrant-url http://127.0.0.1:16333 `
+  --ollama-base-url http://10.77.0.1:11435 `
+  --ollama-model qwen3-embedding:0.6b `
   --loop-interval-seconds 60
 ```
 
@@ -81,17 +87,31 @@ limits do not own this service shape. The generic managed-service writer
 refuses the reserved service id.
 
 Idunn's existing `managed-service-serve` loop reconciles that policy and writes
-the startup lifecycle receipt identifier into the child environment. The
-projector publishes its first provider heartbeat only after it holds the OS
-singleton and validates both canonical inputs.
+the startup lifecycle receipt identifier into the child environment. For each
+launch it preallocates a fresh UUID, authenticates the exact current reserved
+policy envelope, spawns the one infinite child, then atomically seals an
+immutable v1 lifecycle receipt. That receipt binds `action=launch`,
+`status=launched`, the child PID, spawn completion time, policy id and envelope
+digest, fixed projector daemon id, and a startup correlation id equal to the
+receipt id. If sealing fails, Idunn kills and waits for the unowned child.
+
+The projector resolves that exact receipt from the local Verse and rechecks its
+binding to the current reserved policy before constructing its service body or
+publishing a pulse or heartbeat. A launch receipt proves process creation; it
+does not claim semantic readiness. The first heartbeat comes later, after the
+projector holds the OS singleton and validates both canonical inputs.
 
 ## Recovery
 
-Use `semantic-recover` only with the exact abandoned claim, successful Idunn
-restart receipt, and causally linked provider heartbeat. Recovery always assigns
-the fixed packaged projector executor identity. It rotates authority; it does
-not execute projection or mint readiness. The running projector resumes its own
-recovered claim on the next pulse.
+Use `semantic-recover` only with the exact abandoned claim, the immutable launch
+receipt for the current reserved managed policy, and its causally later provider
+heartbeat. The launch receipt must still authenticate against the current policy
+envelope; advancing policy invalidates an older launch witness. Ordinary daemon
+poke intents and receipts cannot authorize semantic recovery.
+
+Recovery always assigns the fixed packaged projector executor identity. It
+rotates authority; it does not execute projection or mint readiness. The running
+projector resumes its own recovered claim on the next pulse.
 
 ## Proof after launch
 

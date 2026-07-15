@@ -28,6 +28,7 @@ use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::load_epiphany_cultmesh_daemon_service_lifecycle_receipts;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policies;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
+use epiphany_core::load_epiphany_cultmesh_managed_service_policy_with_digest;
 use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::observe_native_process as observe_process;
@@ -370,8 +371,33 @@ fn service_launch(args: Args) -> Result<()> {
     let started_at = Utc::now();
     let command_path = service_command_path(&args)?;
     let service_args = service_serve_args(&args);
+    let reserved_launch = if args.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
+        let (policy, digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+            &args.store,
+            args.runtime_id.clone(),
+            SEMANTIC_PROJECTOR_SERVICE_ID,
+        )?
+        .context("reserved semantic projector managed policy is absent")?;
+        if command_path != PathBuf::from(&policy.command)
+            || service_args != policy.args
+            || args.cwd.as_ref().map(|path| path.display().to_string()) != policy.cwd
+        {
+            anyhow::bail!(
+                "reserved semantic projector launch must use the exact current managed policy"
+            );
+        }
+        if args.wait_child {
+            anyhow::bail!("reserved semantic projector launch is an infinite managed child");
+        }
+        Some((policy.policy_id, digest, Uuid::new_v4().to_string()))
+    } else {
+        None
+    };
     let mut command = Command::new(&command_path);
     command.args(&service_args);
+    if let Some((_, _, receipt_id)) = &reserved_launch {
+        command.env("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID", receipt_id);
+    }
     if let Some(stdout_path) = &args.stdout_artifact {
         if let Some(parent) = stdout_path.parent() {
             fs::create_dir_all(parent)?;
@@ -400,7 +426,7 @@ fn service_launch(args: Args) -> Result<()> {
         .with_context(|| format!("failed to launch service {}", command_path.display()))?;
     let process_id = Some(child.id());
     let mut exit_code = None;
-    let mut completed_at = None;
+    let mut completed_at = reserved_launch.as_ref().map(|_| Utc::now());
     let mut status = "launched".to_string();
     if args.wait_child {
         let output = child
@@ -414,7 +440,7 @@ fn service_launch(args: Args) -> Result<()> {
             "failed".to_string()
         };
     }
-    let receipt = service_lifecycle_receipt(
+    let mut receipt = service_lifecycle_receipt(
         &args,
         "launch",
         &status,
@@ -428,11 +454,27 @@ fn service_launch(args: Args) -> Result<()> {
             .as_ref()
             .map(|path| path.display().to_string()),
     );
-    let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+    if let Some((policy_id, policy_digest, receipt_id)) = reserved_launch {
+        receipt.receipt_id = receipt_id.clone();
+        receipt.managed_policy_id = policy_id;
+        receipt.managed_policy_digest = policy_digest;
+        receipt.provider_daemon_id = SEMANTIC_PROJECTOR_EXECUTOR_ID.to_string();
+        receipt.startup_correlation_id = receipt_id;
+    }
+    let written = match write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
         &args.store,
         args.runtime_id.clone(),
         receipt,
-    )?;
+    ) {
+        Ok(written) => written,
+        Err(error) => {
+            if args.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            return Err(error).context("failed to persist service launch receipt");
+        }
+    };
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
@@ -557,6 +599,14 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
         .runtime_store
         .as_ref()
         .context("semantic-projector-service-policy requires --runtime-store")?;
+    let qdrant_url = args
+        .qdrant_url
+        .as_deref()
+        .context("semantic-projector-service-policy requires --qdrant-url")?;
+    let ollama_base_url = args
+        .ollama_base_url
+        .as_deref()
+        .context("semantic-projector-service-policy requires --ollama-base-url")?;
     if agent_store == runtime_store {
         anyhow::bail!("semantic projector Mind and Modeling stores must be distinct");
     }
@@ -572,6 +622,9 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
         &args.store,
         &args.runtime_id,
         args.loop_interval_seconds,
+        qdrant_url,
+        ollama_base_url,
+        &args.ollama_model,
     );
     if args.max_iterations != 0 {
         anyhow::bail!("semantic projector managed service must not have a finite iteration limit");
@@ -603,6 +656,9 @@ fn semantic_projector_service_args(
     local_verse_store: &Path,
     runtime_id: &str,
     interval_seconds: i64,
+    qdrant_url: &str,
+    ollama_base_url: &str,
+    ollama_model: &str,
 ) -> Vec<String> {
     vec![
         "serve".to_string(),
@@ -616,6 +672,12 @@ fn semantic_projector_service_args(
         runtime_id.to_string(),
         "--interval-seconds".to_string(),
         interval_seconds.to_string(),
+        "--qdrant-url".to_string(),
+        qdrant_url.to_string(),
+        "--ollama-base-url".to_string(),
+        ollama_base_url.to_string(),
+        "--ollama-model".to_string(),
+        ollama_model.to_string(),
     ]
 }
 
@@ -3483,6 +3545,10 @@ fn service_lifecycle_receipt(
         preflight_witness_id: String::new(),
         required_document_types: Vec::new(),
         schema_preflight_passed: false,
+        managed_policy_id: String::new(),
+        managed_policy_digest: String::new(),
+        provider_daemon_id: String::new(),
+        startup_correlation_id: String::new(),
     }
 }
 
@@ -3693,6 +3759,9 @@ mod semantic_projector_authority_tests {
             Path::new("local-verse.ccmp"),
             "local-runtime",
             60,
+            "http://127.0.0.1:16333",
+            "http://10.77.0.1:11435",
+            "qwen3-embedding:0.6b",
         );
         assert_eq!(
             args,
@@ -3708,9 +3777,38 @@ mod semantic_projector_authority_tests {
                 "local-runtime",
                 "--interval-seconds",
                 "60",
+                "--qdrant-url",
+                "http://127.0.0.1:16333",
+                "--ollama-base-url",
+                "http://10.77.0.1:11435",
+                "--ollama-model",
+                "qwen3-embedding:0.6b",
             ]
         );
         assert_eq!(args.iter().filter(|arg| arg.as_str() == "serve").count(), 1);
+    }
+
+    #[test]
+    fn reserved_projector_launch_seals_spawn_before_the_child_may_publish() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source.find("fn service_launch(args: Args)").unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn ").unwrap();
+        let body = &tail[..end];
+        let uuid = body.find("Uuid::new_v4()").unwrap();
+        let env = body.find("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID").unwrap();
+        let spawn = body.find(".spawn()").unwrap();
+        let completion = body
+            .find("reserved_launch.as_ref().map(|_| Utc::now())")
+            .unwrap();
+        let persist = body
+            .find("write_epiphany_cultmesh_daemon_service_lifecycle_receipt")
+            .unwrap();
+        assert!(uuid < env && env < spawn && spawn < completion && completion < persist);
+        assert!(body.contains("receipt.managed_policy_digest = policy_digest"));
+        assert!(body.contains("receipt.startup_correlation_id = receipt_id"));
+        assert!(body.contains("let _ = child.kill()"));
+        assert!(body.contains("let _ = child.wait()"));
     }
 
     #[test]
@@ -3784,6 +3882,9 @@ struct Args {
     runtime_store: Option<PathBuf>,
     expected_claim_id: Option<String>,
     provider_heartbeat_id: Option<String>,
+    qdrant_url: Option<String>,
+    ollama_base_url: Option<String>,
+    ollama_model: String,
 }
 
 impl Args {
@@ -3831,6 +3932,9 @@ impl Args {
         let mut runtime_store = None;
         let mut expected_claim_id = None;
         let mut provider_heartbeat_id = None;
+        let mut qdrant_url = None;
+        let mut ollama_base_url = None;
+        let mut ollama_model = "qwen3-embedding:0.6b".to_string();
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -3994,6 +4098,16 @@ impl Args {
                             .context("missing --provider-heartbeat-id value")?,
                     )
                 }
+                "--qdrant-url" => {
+                    qdrant_url = Some(values.next().context("missing --qdrant-url value")?)
+                }
+                "--ollama-base-url" => {
+                    ollama_base_url =
+                        Some(values.next().context("missing --ollama-base-url value")?)
+                }
+                "--ollama-model" => {
+                    ollama_model = values.next().context("missing --ollama-model value")?
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -4135,6 +4249,9 @@ impl Args {
             runtime_store,
             expected_claim_id,
             provider_heartbeat_id,
+            qdrant_url,
+            ollama_base_url,
+            ollama_model,
         })
     }
 }
