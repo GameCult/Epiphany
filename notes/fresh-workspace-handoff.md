@@ -1139,3 +1139,33 @@ Next: derive and publish provider-owned health through CultMesh, make Idunn own
 projector process survival/restart and explicit fenced recovery routing, then
 run the deployability audit against daemon packaging, configuration, and live
 Yggdrasil assumptions. Neither CultMesh nor Idunn may mint readiness.
+
+## Physical semantic fence correction (2026-07-15)
+
+Hostile recovery review found that the logical claim epoch fenced CultCache
+terminal receipts but did not fence the Qdrant actuator. A resumed old process
+could still mutate the shared `(swarm, partition)` points after replacement.
+The physical projection is now isolated by exact obligation, claim id, and
+claim epoch in its UUIDs, typed payload, mutation/observation filters, success
+receipt v1, and opaque-readiness-selected query filter. Old receipt v0 decodes
+only for migration inspection and cannot become ready. A second process cannot
+share a running claim merely by reusing its executor label.
+
+The readiness loader now authenticates the full persisted success chain:
+obligation, succeeded scope claim, exact claim id/epoch on the receipt, and the
+claim's succeeded attempt. Hostile substituted claim, epoch, and attempt
+evidence fails closed. The live Mind and Modeling projections were rebuilt into
+claim-owned namespaces (43 and 3 documents at 1024 dimensions), and exact live
+queries used Qdrant ranking while resolving canonical documents. Core proof is
+353 passed, 0 failed, 1 intentional ignore.
+
+Deployment Eyes found the live boundary: local Qdrant and Ollama work, but no
+Epiphany/Idunn projector service is installed. New Yggdrasil has healthy GPU
+Ollama, Odin, and Idunn, but no Qdrant, Epiphany artifact/config, or projector
+target. Local Qdrant is unexpectedly published on all host interfaces. Do not
+deploy dual projectors or silently move canonical Mind/Modeling stores.
+
+Next: cut Idunn supervisor writes to provider-owned daemon heartbeat/status;
+then publish derived semantic health through CultMesh and add typed Idunn
+executor/recovery authority plus open-obligation discovery. Recovery remains
+withheld until that authority exists.

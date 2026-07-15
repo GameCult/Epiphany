@@ -99,11 +99,32 @@ pub fn load_memory_semantic_projection_success(
     let receipt_id = health
         .receipt_id
         .ok_or_else(|| anyhow!("ready semantic projection health lost receipt identity"))?;
-    receipts
+    let receipt = receipts
         .into_iter()
         .find(|receipt| receipt.receipt_id == receipt_id)
-        .map(Some)
-        .ok_or_else(|| anyhow!("ready semantic projection receipt disappeared"))
+        .ok_or_else(|| anyhow!("ready semantic projection receipt disappeared"))?;
+    let scope_id = projection_scope_id(&obligation.swarm_id, &obligation.partition)?;
+    let claim = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)?
+        .ok_or_else(|| anyhow!("ready semantic projection lost its scope claim"))?;
+    validate_memory_semantic_projection_claim(&claim)?;
+    if claim.status != "succeeded"
+        || claim.obligation_id != obligation.obligation_id
+        || receipt.claim_id != claim.claim_id
+        || receipt.claim_epoch != claim.epoch
+    {
+        return Err(anyhow!(
+            "ready semantic projection receipt is not authenticated by the succeeded scope claim"
+        ));
+    }
+    let attempt = decode_one::<MemorySemanticProjectionAttempt>(&envelopes, &claim.attempt_id)?
+        .ok_or_else(|| anyhow!("ready semantic projection lost its claim attempt"))?;
+    validate_memory_semantic_projection_attempt(&attempt)?;
+    if attempt.status != "succeeded" || attempt.obligation_id != claim.obligation_id {
+        return Err(anyhow!(
+            "ready semantic projection claim is not authenticated by its succeeded attempt"
+        ));
+    }
+    Ok(Some(receipt))
 }
 
 pub fn load_memory_semantic_projection_readiness(
@@ -165,6 +186,11 @@ pub fn execute_memory_semantic_projection(
         &input.snapshot,
         &input.obligation.swarm_id,
         partition,
+        &super::semantic_index::MemorySemanticProjectionNamespace {
+            obligation_id: claim.obligation_id.clone(),
+            claim_id: claim.claim_id.clone(),
+            claim_epoch: claim.epoch,
+        },
         &started_at,
         config,
     ) {
@@ -275,16 +301,10 @@ pub(crate) fn claim_memory_semantic_projection(
     if let Some(current) = &current {
         validate_memory_semantic_projection_claim(current)?;
         if current.status == "running" {
-            return if current.obligation_id == obligation.obligation_id
-                && current.executor_id == executor_id
-            {
-                Ok(current.clone())
-            } else {
-                Err(anyhow!(
-                    "semantic projection scope is already claimed by executor {:?}",
-                    current.executor_id
-                ))
-            };
+            return Err(anyhow!(
+                "semantic projection scope is already claimed by executor {:?}; executor identity does not confer shared mutation authority",
+                current.executor_id
+            ));
         }
         if current.status == "succeeded" && current.obligation_id == obligation.obligation_id {
             return Ok(current.clone());
@@ -446,6 +466,14 @@ pub(crate) fn succeed_memory_semantic_projection_claim(
     let obligation =
         decode_one::<MemorySemanticProjectionObligation>(&opening, &claim.obligation_id)?
             .ok_or_else(|| anyhow!("semantic projection success lost obligation"))?;
+    if receipt.obligation_id != claim.obligation_id
+        || receipt.claim_id != claim.claim_id
+        || receipt.claim_epoch != claim.epoch
+    {
+        return Err(anyhow!(
+            "semantic projection result belongs to a different physical claim namespace"
+        ));
+    }
     let receipt = bind_memory_semantic_index_receipt(receipt, &obligation)?;
     if !memory_semantic_projection_query_eligible(&obligation, &authority.head, &receipt) {
         return Err(anyhow!(
@@ -779,6 +807,17 @@ mod tests {
             source_commit_id: String::new(),
             source_generation: obligation.source_generation,
             projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
+            claim_id: String::new(),
+            claim_epoch: 0,
+        }
+    }
+
+    fn receipt_for_claim(claim: &MemorySemanticProjectionClaim) -> MemorySemanticIndexReceipt {
+        MemorySemanticIndexReceipt {
+            obligation_id: claim.obligation_id.clone(),
+            claim_id: claim.claim_id.clone(),
+            claim_epoch: claim.epoch,
+            ..receipt()
         }
     }
 
@@ -796,6 +835,16 @@ mod tests {
             "executor-a",
             "2026-07-15T04:01:00Z",
         )?;
+        assert!(
+            claim_memory_semantic_projection(
+                &store,
+                &obligation,
+                "executor-a",
+                "2026-07-15T04:01:00Z"
+            )
+            .is_err(),
+            "executor labels are not reusable mutation capabilities"
+        );
         assert!(
             claim_memory_semantic_projection(
                 &store,
@@ -840,7 +889,7 @@ mod tests {
                 head: source_head(),
                 envelopes: vec![authority_envelope],
             },
-            receipt(),
+            receipt_for_claim(&recovered),
             "2026-07-15T04:03:00Z",
         )?;
         assert_eq!(bound.obligation_id, obligation.obligation_id);
@@ -889,7 +938,7 @@ mod tests {
             "executor-a",
             "2026-07-15T04:01:00Z",
         )?;
-        let mut collision = receipt();
+        let mut collision = receipt_for_claim(&claim);
         collision.status = "failed".to_string();
         cache.put(&collision.receipt_id, &collision)?;
         let authority_envelope = SingleFileMessagePackBackingStore::new(&store)
@@ -908,7 +957,7 @@ mod tests {
                     head: source_head(),
                     envelopes: vec![authority_envelope],
                 },
-                receipt(),
+                receipt_for_claim(&claim),
                 "2026-07-15T04:03:00Z",
             )
             .is_err()
@@ -944,7 +993,7 @@ mod tests {
                 head: source_head(),
                 envelopes: vec![authority_envelope],
             },
-            receipt(),
+            receipt_for_claim(&claim),
             "2026-07-15T04:03:00Z",
         )?;
         let mut cache = semantic_projector_cache(&store)?;
@@ -963,6 +1012,104 @@ mod tests {
         assert_eq!(reopened.status, "running");
         assert_eq!(reopened.epoch, terminal.epoch + 1);
         assert_ne!(reopened.claim_id, terminal.claim_id);
+        Ok(())
+    }
+
+    #[test]
+    fn readiness_refuses_receipt_namespace_substitution_and_invented_epoch() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("receipt-namespace-substitution.msgpack");
+        let obligation = obligation();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let claim = claim_memory_semantic_projection(
+            &store,
+            &obligation,
+            "executor-a",
+            "2026-07-15T04:01:00Z",
+        )?;
+        let authority_envelope = SingleFileMessagePackBackingStore::new(&store)
+            .pull_all()?
+            .into_iter()
+            .find(|envelope| {
+                envelope.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
+                    && envelope.key == obligation.obligation_id
+            })
+            .expect("obligation envelope");
+        let bound = succeed_memory_semantic_projection_claim(
+            &store,
+            &claim.claim_id,
+            &MemorySemanticProjectionAuthoritySnapshot {
+                head: source_head(),
+                envelopes: vec![authority_envelope],
+            },
+            receipt_for_claim(&claim),
+            "2026-07-15T04:03:00Z",
+        )?;
+
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        cache.delete::<MemorySemanticIndexReceipt>(&bound.receipt_id)?;
+        let mut substituted = bound.clone();
+        substituted.claim_id = "invented-claim".to_string();
+        cache.put(&substituted.receipt_id, &substituted)?;
+        assert!(
+            load_memory_semantic_projection_success(&store, &obligation, &source_head()).is_err()
+        );
+
+        cache.delete::<MemorySemanticIndexReceipt>(&substituted.receipt_id)?;
+        let mut invented_epoch = bound;
+        invented_epoch.claim_epoch = claim.epoch + 99;
+        cache.put(&invented_epoch.receipt_id, &invented_epoch)?;
+        assert!(
+            load_memory_semantic_projection_success(&store, &obligation, &source_head()).is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn readiness_refuses_succeeded_claim_with_substituted_attempt_obligation() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("attempt-substitution.msgpack");
+        let obligation = obligation();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let claim = claim_memory_semantic_projection(
+            &store,
+            &obligation,
+            "executor-a",
+            "2026-07-15T04:01:00Z",
+        )?;
+        let authority_envelope = SingleFileMessagePackBackingStore::new(&store)
+            .pull_all()?
+            .into_iter()
+            .find(|envelope| {
+                envelope.r#type == "gamecult.epiphany.memory_semantic_projection_obligation"
+                    && envelope.key == obligation.obligation_id
+            })
+            .expect("obligation envelope");
+        succeed_memory_semantic_projection_claim(
+            &store,
+            &claim.claim_id,
+            &MemorySemanticProjectionAuthoritySnapshot {
+                head: source_head(),
+                envelopes: vec![authority_envelope],
+            },
+            receipt_for_claim(&claim),
+            "2026-07-15T04:03:00Z",
+        )?;
+
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let mut attempt = cache
+            .get::<MemorySemanticProjectionAttempt>(&claim.attempt_id)?
+            .expect("terminal attempt");
+        cache.delete::<MemorySemanticProjectionAttempt>(&attempt.attempt_id)?;
+        attempt.obligation_id = "invented-obligation".to_string();
+        cache.put(&attempt.attempt_id, &attempt)?;
+        assert!(
+            load_memory_semantic_projection_success(&store, &obligation, &source_head()).is_err()
+        );
         Ok(())
     }
 }

@@ -14,9 +14,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
 use std::env;
+use uuid::Uuid;
 
 pub const MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION: &str =
-    "gamecult.epiphany.memory_semantic_index_receipt.v0";
+    "gamecult.epiphany.memory_semantic_index_receipt.v1";
 pub const MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_projection_obligation.v0";
 pub const MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION: &str =
@@ -89,6 +90,9 @@ struct MemorySemanticPointPayload {
     point_id: String,
     swarm_id: String,
     partition: SemanticPartition,
+    obligation_id: String,
+    claim_id: String,
+    claim_epoch: String,
     canonical_locator: String,
     canonical_type: String,
     canonical_key: String,
@@ -245,6 +249,17 @@ pub struct MemorySemanticIndexReceipt {
     pub source_generation: u64,
     #[cultcache(key = 20)]
     pub projection_schema_version: String,
+    #[cultcache(key = 21, default)]
+    pub claim_id: String,
+    #[cultcache(key = 22, default)]
+    pub claim_epoch: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct MemorySemanticProjectionNamespace {
+    pub(super) obligation_id: String,
+    pub(super) claim_id: String,
+    pub(super) claim_epoch: u64,
 }
 
 pub fn validate_memory_semantic_projection_obligation(
@@ -497,6 +512,8 @@ fn receipt_matches_obligation(
         && receipt.model_hash == obligation.source_model_hash
         && receipt.canonical_content_set_hash == obligation.canonical_content_set_hash
         && receipt.projection_schema_version == obligation.projection_schema_version
+        && !receipt.claim_id.trim().is_empty()
+        && receipt.claim_epoch > 0
         && chrono::DateTime::parse_from_rfc3339(&receipt.indexed_at).is_ok()
 }
 
@@ -504,6 +521,7 @@ pub(super) fn index_memory_semantic_partition(
     snapshot: &EpiphanyMemoryGraphSnapshot,
     swarm_id: &str,
     partition: SemanticPartition,
+    namespace: &MemorySemanticProjectionNamespace,
     indexed_at: &str,
     config: &MemorySemanticIndexConfig,
 ) -> Result<MemorySemanticIndexReceipt> {
@@ -513,9 +531,19 @@ pub(super) fn index_memory_semantic_partition(
         .collect::<Vec<_>>();
     let backend = qdrant(config)?;
     let collection = config.collection(partition);
+    if namespace.obligation_id.trim().is_empty()
+        || namespace.claim_id.trim().is_empty()
+        || namespace.claim_epoch == 0
+    {
+        return Err(anyhow!("semantic projection physical namespace is invalid"));
+    }
+    let claim_epoch = namespace.claim_epoch.to_string();
     let scope = [
         ("swarmId", swarm_id),
         ("partition", partition_name(partition)),
+        ("obligationId", namespace.obligation_id.as_str()),
+        ("claimId", namespace.claim_id.as_str()),
+        ("claimEpoch", claim_epoch.as_str()),
     ];
     let content_set_hash = canonical_content_set_hash(&documents);
     let model_hash = crate::memory_graph_model_hash(snapshot)?;
@@ -555,6 +583,7 @@ pub(super) fn index_memory_semantic_partition(
             vector_size,
             0,
             deleted_document_count,
+            namespace,
         ));
     }
 
@@ -584,15 +613,15 @@ pub(super) fn index_memory_semantic_partition(
         .iter()
         .zip(embeddings)
         .map(|(document, vector)| SemanticPoint {
-            id: document.point_id.clone(),
+            id: physical_point_id(namespace, &document.point_id),
             vector,
-            payload: point_payload(document, config),
+            payload: point_payload(document, config, namespace),
         })
         .collect::<Vec<_>>();
     backend.upsert_points(collection, &points)?;
     let live_ids = documents
         .iter()
-        .map(|document| document.point_id.as_str())
+        .map(|document| physical_point_id(namespace, &document.point_id))
         .collect::<HashSet<_>>();
     let deleted_ids = existing_ids
         .into_iter()
@@ -602,7 +631,7 @@ pub(super) fn index_memory_semantic_partition(
     let observed_ids = backend.point_ids_for_scope(collection, &scope)?;
     let desired_ids = documents
         .iter()
-        .map(|document| document.point_id.clone())
+        .map(|document| physical_point_id(namespace, &document.point_id))
         .collect::<HashSet<_>>();
     let observed_ids = observed_ids.into_iter().collect::<HashSet<_>>();
     if observed_ids != desired_ids {
@@ -622,7 +651,12 @@ pub(super) fn index_memory_semantic_partition(
         .collect::<Result<BTreeMap<_, _>>>()?;
     let desired_payloads = documents
         .iter()
-        .map(|document| (document.point_id.clone(), point_payload(document, config)))
+        .map(|document| {
+            (
+                physical_point_id(namespace, &document.point_id),
+                point_payload(document, config, namespace),
+            )
+        })
         .collect::<BTreeMap<_, _>>();
     if observed_payloads != desired_payloads {
         return Err(anyhow!(
@@ -641,6 +675,7 @@ pub(super) fn index_memory_semantic_partition(
         vector_size as u32,
         documents.len() as u32,
         deleted_ids.len() as u32,
+        namespace,
     ))
 }
 
@@ -657,13 +692,23 @@ fn memory_semantic_index_receipt(
     vector_dimensions: u32,
     indexed_document_count: u32,
     deleted_document_count: u32,
+    namespace: &MemorySemanticProjectionNamespace,
 ) -> MemorySemanticIndexReceipt {
     let receipt_id = format!(
         "memory-semantic-index-{}-{}-{}-{}",
         partition_name(partition),
         snapshot.model_revision,
         &content_set_hash[..16],
-        &format!("{:x}", Sha256::digest(indexed_at.as_bytes()))[..12]
+        &format!(
+            "{:x}",
+            Sha256::digest(
+                format!(
+                    "{}|{}|{}|{}",
+                    indexed_at, namespace.obligation_id, namespace.claim_id, namespace.claim_epoch
+                )
+                .as_bytes()
+            )
+        )[..12]
     );
     MemorySemanticIndexReceipt {
         schema_version: MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
@@ -682,11 +727,13 @@ fn memory_semantic_index_receipt(
         canonical_content_set_hash: content_set_hash.to_string(),
         indexed_at: indexed_at.to_string(),
         status: "ready".to_string(),
-        obligation_id: String::new(),
+        obligation_id: namespace.obligation_id.clone(),
         canonical_source_id: snapshot.graph_id.clone(),
         source_commit_id: String::new(),
         source_generation: snapshot.model_revision,
         projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
+        claim_id: namespace.claim_id.clone(),
+        claim_epoch: namespace.claim_epoch,
     }
 }
 
@@ -730,7 +777,8 @@ pub fn semantic_memory_context(
         );
         return packet;
     }
-    match try_semantic_memory_context(snapshot, swarm_id, partition, query, config) {
+    let readiness = readiness.expect("eligible semantic readiness disappeared");
+    match try_semantic_memory_context(snapshot, swarm_id, partition, query, readiness, config) {
         Ok(packet) => packet,
         Err(error) => {
             let mut packet =
@@ -748,6 +796,7 @@ fn try_semantic_memory_context(
     swarm_id: &str,
     partition: SemanticPartition,
     query: &EpiphanyMemoryContextQuery,
+    readiness: &MemorySemanticProjectionReadiness,
     config: &MemorySemanticIndexConfig,
 ) -> Result<EpiphanyMemoryContextPacket> {
     let text = query
@@ -769,6 +818,7 @@ fn try_semantic_memory_context(
         return Err(anyhow!("semantic collection compatibility mismatch"));
     }
     let limit = query.budget.unwrap_or(12).clamp(1, QUERY_LIMIT_MAX as u32) as usize;
+    let query_claim_epoch = readiness.receipt.claim_epoch.to_string();
     let ranked = backend.query_points_for_scope::<MemorySemanticPointPayload>(
         collection,
         &vector,
@@ -776,6 +826,9 @@ fn try_semantic_memory_context(
         &[
             ("swarmId", swarm_id),
             ("partition", partition_name(partition)),
+            ("obligationId", readiness.receipt.obligation_id.as_str()),
+            ("claimId", readiness.receipt.claim_id.as_str()),
+            ("claimEpoch", query_claim_epoch.as_str()),
         ],
     )?;
     let mut ranked_ids = Vec::new();
@@ -785,6 +838,9 @@ fn try_semantic_memory_context(
             .ok_or_else(|| anyhow!("semantic candidate omitted its typed locator payload"))?;
         if payload.swarm_id != swarm_id
             || payload.partition != partition
+            || payload.obligation_id != readiness.receipt.obligation_id
+            || payload.claim_id != readiness.receipt.claim_id
+            || payload.claim_epoch != readiness.receipt.claim_epoch.to_string()
             || payload.embedding_provider_id != config.embedding_provider_id
             || payload.embedding_model != config.ollama_model
             || payload.projection_schema_version != SEMANTIC_PROJECTION_SCHEMA_VERSION
@@ -822,11 +878,15 @@ fn try_semantic_memory_context(
 fn point_payload(
     document: &SemanticProjectionDocument,
     config: &MemorySemanticIndexConfig,
+    namespace: &MemorySemanticProjectionNamespace,
 ) -> MemorySemanticPointPayload {
     MemorySemanticPointPayload {
         point_id: document.point_id.clone(),
         swarm_id: document.swarm_id.clone(),
         partition: document.partition,
+        obligation_id: namespace.obligation_id.clone(),
+        claim_id: namespace.claim_id.clone(),
+        claim_epoch: namespace.claim_epoch.to_string(),
         canonical_locator: document.canonical.locator.clone(),
         canonical_type: document.canonical.canonical_type.clone(),
         canonical_key: document.canonical.canonical_key.clone(),
@@ -840,6 +900,21 @@ fn point_payload(
         embedding_provider_id: config.embedding_provider_id.clone(),
         embedding_model: config.ollama_model.clone(),
     }
+}
+
+fn physical_point_id(
+    namespace: &MemorySemanticProjectionNamespace,
+    canonical_point_id: &str,
+) -> String {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!(
+            "{}|{}|{}|{}",
+            namespace.obligation_id, namespace.claim_id, namespace.claim_epoch, canonical_point_id
+        )
+        .as_bytes(),
+    )
+    .to_string()
 }
 
 fn qdrant(config: &MemorySemanticIndexConfig) -> Result<QdrantBackend> {
@@ -984,6 +1059,11 @@ mod tests {
             &empty,
             "swarm-empty",
             SemanticPartition::Modeling,
+            &MemorySemanticProjectionNamespace {
+                obligation_id: "obligation-empty".to_string(),
+                claim_id: "claim-empty".to_string(),
+                claim_epoch: 1,
+            },
             "2026-07-15T12:00:00Z",
             &config,
         )?;
@@ -1110,6 +1190,8 @@ mod tests {
             source_commit_id: obligation.source_commit_id.clone(),
             source_generation: obligation.source_generation,
             projection_schema_version: obligation.projection_schema_version.clone(),
+            claim_id: "claim-current".to_string(),
+            claim_epoch: 1,
         };
         let query = EpiphanyMemoryContextQuery {
             id: "swapped-source".to_string(),
@@ -1149,6 +1231,51 @@ mod tests {
             config.query_instruction(SemanticPartition::Mind),
             config.query_instruction(SemanticPartition::Modeling)
         );
+    }
+
+    #[test]
+    fn physical_point_identity_is_claim_epoch_isolated_while_locator_stays_canonical() {
+        let document = derive_semantic_projection("swarm-a", &snapshot())
+            .unwrap()
+            .into_iter()
+            .next()
+            .expect("semantic document");
+        let first = MemorySemanticProjectionNamespace {
+            obligation_id: "obligation-a".to_string(),
+            claim_id: "claim-a".to_string(),
+            claim_epoch: 1,
+        };
+        let fenced = MemorySemanticProjectionNamespace {
+            claim_id: "claim-b".to_string(),
+            claim_epoch: 2,
+            ..first.clone()
+        };
+        let first_id = physical_point_id(&first, &document.point_id);
+        let fenced_id = physical_point_id(&fenced, &document.point_id);
+        assert_ne!(first_id, fenced_id);
+        assert!(Uuid::parse_str(&first_id).is_ok());
+        assert!(Uuid::parse_str(&fenced_id).is_ok());
+
+        let payload = point_payload(&document, &MemorySemanticIndexConfig::from_env(), &fenced);
+        assert_eq!(payload.point_id, document.point_id);
+        assert_eq!(payload.obligation_id, fenced.obligation_id);
+        assert_eq!(payload.claim_id, fenced.claim_id);
+        assert_eq!(payload.claim_epoch, fenced.claim_epoch.to_string());
+    }
+
+    #[test]
+    fn pre_namespace_receipt_is_never_query_eligible() {
+        let obligation = obligation();
+        let current = source_head();
+        let mut legacy = receipt();
+        legacy.schema_version = "gamecult.epiphany.memory_semantic_index_receipt.v0".to_string();
+        legacy.claim_id.clear();
+        legacy.claim_epoch = 0;
+        assert!(!memory_semantic_projection_query_eligible(
+            &obligation,
+            &current,
+            &legacy
+        ));
     }
 
     fn obligation() -> MemorySemanticProjectionObligation {
@@ -1206,6 +1333,8 @@ mod tests {
             source_commit_id: obligation.source_commit_id,
             source_generation: obligation.source_generation,
             projection_schema_version: obligation.projection_schema_version,
+            claim_id: "claim-7".to_string(),
+            claim_epoch: 1,
         }
     }
 

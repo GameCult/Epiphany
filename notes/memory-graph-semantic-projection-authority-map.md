@@ -391,3 +391,121 @@ CultMesh, attach Idunn-owned daemon survival and authorize the fenced recovery
 transition with typed stale/recovery evidence, and add the daemon pulse that
 discovers open obligations without letting time own their creation or
 completion.
+
+## CultMesh Health And Idunn Recovery Authority Map (2026-07-15)
+
+### Owner
+
+- Canonical Mind and Modeling admission own projection demand through the exact
+  source head and semantic-projection obligation in their source store.
+- The projector executor owns only its scope claim, projection mutation,
+  post-write observation, attempt terminalization, and exact success receipt.
+- The provider-side health projector owns recomputing and publishing derived
+  sight from that canonical evidence. It cannot mint the opaque readiness token
+  consumed by query.
+- Idunn owns projector process survival, restart policy, stale-process
+  observation, and explicit recovery authorization. The projector still owns
+  the fenced recovery CAS; Idunn cannot write projection completion.
+- CultMesh transports the provider-owned health projection. Eve, Gjallar, and
+  other downstream consumers lower or render it without acquiring authority.
+
+### Inputs And Outputs
+
+- Health input is an authenticated `MemorySemanticProjectionInput` plus the
+  exact claims, attempts, and receipts in the same canonical source store.
+- Recovery input binds the exact swarm, partition, claim id, epoch, abandoned
+  executor incarnation, replacement executor incarnation, and Idunn evidence
+  that the abandoned process is dead or otherwise physically unable to write.
+  Elapsed time alone may nominate a stale claim for inspection; it cannot grant
+  fencing authority.
+- Health output is one typed provider-authored CultMesh document per
+  `(swarm_id, partition)`: canonical source identity and generation, obligation
+  id, derived `pending|failed|stale|ready`, optional exact receipt and latest
+  attempt/error, provider incarnation, observation time, and private-state
+  seal. Any `queryEligible` field is display-only.
+- Recovery output is an Idunn authorization/receipt paired with the projector's
+  epoch-advancing CAS. The old running attempt becomes terminally failed and the
+  replacement claim becomes the only logical completion writer.
+
+### Physical Epoch Isolation
+
+Projector mutation is now confined to the exact
+`(obligation_id, claim_id, claim_epoch)` namespace. Qdrant payload filters bind
+all three identities, physical point UUIDs include all three identities plus
+the canonical locator point id, and payload `pointId` remains the canonical
+locator identity. Empty synchronization, upsert, observation, deletion, and
+query therefore address one claim incarnation only.
+
+Success receipts use schema v1 and bind `claim_id` and `claim_epoch`. Legacy
+receipts decode with empty/zero defaults but cannot become query eligible.
+Opaque readiness carries the exact successful receipt, and query derives its
+Qdrant filter only from that receipt. Activation is consequently the CultCache
+terminal-success CAS selecting an already-observed physical namespace; a
+fenced writer can continue harming only its abandoned namespace.
+
+This cut makes the following structurally true:
+
+- an executor can upsert, observe, query, and delete only within its own epoch;
+- the exact success receipt binds the epoch namespace that query will filter or
+  address;
+- activation of a successful epoch is atomic from the query gate's perspective;
+- a superseded executor resuming late cannot mutate the active epoch;
+- retirement and garbage collection of old epochs are separate derived
+  maintenance and cannot decide readiness.
+
+Executor labels are diagnostic identity, not reusable capabilities: a second
+claim call is refused even when it presents the same `executor_id`. Recovery
+remains withheld until Idunn provides typed authorization; this physical cut
+does not invent that grant.
+
+### Derived State And Forbidden Writers
+
+- Projection health, staleness, Qdrant counts, collection existence, process
+  liveness, timestamps, and latest error are observation/cache state only.
+- Idunn command exit is not provider heartbeat, semantic readiness, or proof
+  that a restarted child initialized successfully.
+- The health mirror, Self, operator commands, CultMesh, Eve, and Gjallar cannot
+  create obligations, attempts, receipts, canonical state, or readiness.
+- Arbitrary peers cannot invoke recovery with free-form claim and reason
+  strings. Production recovery requires store-authenticated typed Idunn
+  authorization and physical epoch isolation.
+
+### Provider-Status Ownership Cut
+
+`epiphany-cluster-daemon` is the legitimate production writer of its typed
+heartbeat/status. The current daemon supervisor contains two obsolete writers
+that must be removed before its liveness model is trusted:
+
+- scheduler staleness handling rewrites the provider status to `degraded` and
+  adds a supervisor-authored heartbeat note;
+- restart reconciliation rewrites provider status to `ready` or `down` and
+  advances `last_heartbeat_utc` from the child command's exit result.
+
+Idunn should instead record stale observation, command execution, restart, and
+awaiting-provider-heartbeat in its own scheduler/poke/recovery receipts. A
+restarted provider becomes ready only when that provider publishes a newer
+authentic heartbeat. The generic daemon-status writer should be narrowed so
+production callers cannot counterfeit provider liveness; synthetic writers
+remain confined to test/quarantine bodies.
+
+### Shared Paths And Verification Layer
+
+- Initial execution, retry, crash replay, scheduled rediscovery, and operator
+  request share the same projector execution primitive. A stuck running claim
+  branches only through typed Idunn recovery, then re-enters that path.
+- Mind and Modeling authenticate from distinct canonical stores but publish the
+  same renderer-neutral CultMesh health schema.
+- The daemon pulse discovers current open obligations after restart. It never
+  creates an obligation or infers completion from time, process state, or
+  Qdrant existence.
+- Negative verification must prove supervisor tick/reconcile cannot change a
+  provider status envelope and command exit zero cannot produce a heartbeat.
+- Recovery verification must suspend an old executor at each mutation phase,
+  recover under a new epoch, resume the old executor after replacement success,
+  and prove it cannot alter the active epoch or publish terminal success.
+- Publication verification must derive every health state from canonical
+  evidence, repair a missing/stale CultMesh mirror without changing readiness,
+  and prove hostile mirror state cannot open semantic query.
+- Restart verification must rediscover open Mind and Modeling obligations,
+  preserve exact-success idempotence, and require a real provider heartbeat
+  before Idunn reports the projector body ready.
