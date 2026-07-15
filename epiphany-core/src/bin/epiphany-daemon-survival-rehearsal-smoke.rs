@@ -71,6 +71,33 @@ fn run_smoke(args: Args) -> Result<Value> {
         vec!["-c", "exit 0"]
     };
 
+    cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "seed",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            runtime_id,
+        ],
+        &root,
+    )?;
+    cargo_json(
+        &manifest,
+        "epiphany-cluster-daemon",
+        &[
+            "heartbeat",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            runtime_id,
+            "--daemon-id",
+            daemon_id,
+        ],
+        &root,
+    )?;
+
     let mut policy_args = vec![
         "policy",
         "--store",
@@ -90,7 +117,7 @@ fn run_smoke(args: Args) -> Result<Value> {
         "--reconcile-interval-seconds",
         "0",
         "--heartbeat-stale-seconds",
-        "3600",
+        "2",
     ]
     .into_iter()
     .map(str::to_string)
@@ -103,6 +130,18 @@ fn run_smoke(args: Args) -> Result<Value> {
         &manifest,
         "epiphany-daemon-supervisor",
         &string_refs(&policy_args),
+        &root,
+    )?;
+    let provider_before = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "swarm-status",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            runtime_id,
+        ],
         &root,
     )?;
 
@@ -120,11 +159,11 @@ fn run_smoke(args: Args) -> Result<Value> {
         "0",
         "--max-iterations",
         "2",
-        "--force",
     ]
     .into_iter()
     .map(str::to_string)
     .collect::<Vec<_>>();
+    std::thread::sleep(std::time::Duration::from_secs(3));
     let serve = cargo_json(
         &manifest,
         "epiphany-daemon-supervisor",
@@ -145,6 +184,8 @@ fn run_smoke(args: Args) -> Result<Value> {
     if outputs.len() != 2 {
         return Err(anyhow!("expected 2 serve outputs, got {}", outputs.len()));
     }
+    let mut intent_ids = Vec::new();
+    let mut receipt_ids = Vec::new();
     for (idx, output) in outputs.iter().enumerate() {
         require_eq(output, &["status"], "tickComplete")?;
         require_eq(output, &["schedulerId"], scheduler_id)?;
@@ -160,10 +201,91 @@ fn run_smoke(args: Args) -> Result<Value> {
         let outcome = outcomes
             .first()
             .ok_or_else(|| anyhow!("tick output missing first outcome"))?;
-        require_eq(outcome, &["status"], "restarted")?;
+        require_eq(outcome, &["status"], "awaiting-provider-heartbeat")?;
+        require_eq(outcome, &["resultingStatus"], "awaiting-provider-heartbeat")?;
+        require_bool(outcome, &["observedHeartbeatStale"], true)?;
         require_eq(outcome, &["daemonId"], daemon_id)?;
         require_bool(outcome, &["privateStateExposed"], false)?;
+        intent_ids.push(
+            outcome["intentId"]
+                .as_str()
+                .context("restart outcome missing intentId")?
+                .to_string(),
+        );
+        receipt_ids.push(
+            outcome["receiptId"]
+                .as_str()
+                .context("restart outcome missing receiptId")?
+                .to_string(),
+        );
     }
+    if intent_ids[0] == intent_ids[1] || receipt_ids[0] == receipt_ids[1] {
+        return Err(anyhow!(
+            "two supervisor attempts reused immutable intent/receipt identity"
+        ));
+    }
+
+    let provider_after = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "swarm-status",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            runtime_id,
+        ],
+        &root,
+    )?;
+    let provider_row = |report: &Value| -> Result<Value> {
+        rows(report)
+            .iter()
+            .find(|row| row.get("daemonId").and_then(Value::as_str) == Some(daemon_id))
+            .map(|row| (*row).clone())
+            .ok_or_else(|| anyhow!("swarm status omitted provider daemon {daemon_id}"))
+    };
+    let before_row = provider_row(&provider_before)?;
+    let after_row = provider_row(&provider_after)?;
+    for field in ["status", "operatorAction", "lastHeartbeatUtc"] {
+        if before_row[field] != after_row[field] {
+            return Err(anyhow!(
+                "supervisor changed provider-owned {field}: before={} after={}",
+                before_row[field],
+                after_row[field]
+            ));
+        }
+    }
+
+    cargo_json(
+        &manifest,
+        "epiphany-cluster-daemon",
+        &[
+            "heartbeat",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            runtime_id,
+            "--daemon-id",
+            daemon_id,
+        ],
+        &root,
+    )?;
+    let recovered = cargo_json(
+        &manifest,
+        "epiphany-daemon-supervisor",
+        &[
+            "reconcile",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            runtime_id,
+            "--daemon-id",
+            daemon_id,
+        ],
+        &root,
+    )?;
+    require_eq(&recovered, &["status"], "noop")?;
+    require_bool(&recovered, &["providerHeartbeatProvedRecovery"], true)?;
 
     let receipt_directory = cargo_json(
         &manifest,
@@ -186,6 +308,30 @@ fn run_smoke(args: Args) -> Result<Value> {
     require_eq(&scheduler_row, &["status"], "tickComplete")?;
     require_eq(&scheduler_row, &["route"], daemon_id)?;
     require_bool(&scheduler_row, &["privateStateExposed"], false)?;
+    let poke_row = rows(&receipt_directory)
+        .iter()
+        .find(|row| row.get("family").and_then(Value::as_str) == Some("daemon-poke"))
+        .cloned()
+        .ok_or_else(|| anyhow!("receipt directory did not expose daemon poke row"))?;
+    require_eq(&poke_row, &["status"], "resolved")?;
+    let policy_directory = cargo_json(
+        &manifest,
+        "epiphany-verse-query",
+        &[
+            "restart-policy-directory",
+            "--store",
+            path_str(&local_verse)?,
+            "--runtime-id",
+            runtime_id,
+        ],
+        &root,
+    )?;
+    let recovered_policy = rows(&policy_directory)
+        .iter()
+        .find(|row| row.get("daemonId").and_then(Value::as_str) == Some(daemon_id))
+        .copied()
+        .ok_or_else(|| anyhow!("restart policy directory omitted {daemon_id}"))?;
+    require_u64(recovered_policy, &["failureCount"], 0)?;
 
     let summary = json!({
         "schemaVersion": "epiphany.daemon_survival_rehearsal_smoke.v0",
@@ -201,6 +347,13 @@ fn run_smoke(args: Args) -> Result<Value> {
         "serveIterations": serve["iterations"],
         "schedulerReceiptId": scheduler_row["latestId"],
         "schedulerReceiptStatus": scheduler_row["status"],
+        "pokeReceiptStatus": poke_row["status"],
+        "providerEnvelopeUnchanged": true,
+        "providerHeartbeatRequiredForRecovery": true,
+        "providerHeartbeatResolvedReceipt": true,
+        "providerHeartbeatResetFailureCount": true,
+        "distinctAttemptIntentIds": intent_ids,
+        "distinctAttemptReceiptIds": receipt_ids,
         "restartCommand": restart_command,
         "restartArgs": restart_args,
         "boundedProofMode": true,

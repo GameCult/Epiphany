@@ -1169,3 +1169,28 @@ Next: cut Idunn supervisor writes to provider-owned daemon heartbeat/status;
 then publish derived semantic health through CultMesh and add typed Idunn
 executor/recovery authority plus open-obligation discovery. Recovery remains
 withheld until that authority exists.
+
+## Idunn/provider-status ownership cut (2026-07-15)
+
+The supervisor no longer writes provider heartbeat/status. Idunn owns only
+staleness observation, immutable poke intent/receipt events, restart command
+execution, policy, and backoff. The target `epiphany-cluster-daemon` remains the
+sole production owner of its status, operator action, and heartbeat timestamp.
+Command exit zero now records `awaiting-provider-heartbeat`, never `ready`, and
+restart pressure remains until a provider heartbeat newer than the completed
+attempt proves recovery.
+
+Poke intent/receipt v1 binds the pre-intervention heartbeat and request,
+attempt, and completion times. Immutable identity and chronological `latest`
+advance in one CAS: exact retry is idempotent, collision is refused, and late
+replay cannot rewind sight. Receipt-directory resolution is derived only; it
+cannot repair provider truth. The bounded survival rehearsal proves two
+successful restart commands leave the provider envelope unchanged and produce
+distinct awaiting receipts, then a real provider heartbeat resolves the
+lifecycle observation and clears restart pressure.
+
+Next: publish renderer-neutral semantic projection health derived from
+canonical Mind/Modeling evidence through CultMesh; then give Idunn typed
+executor grants, single-use fenced recovery authority, open-obligation
+discovery, and one packaged projector owner. CultMesh, Idunn, Eve, and Gjallar
+remain unable to mint semantic readiness.

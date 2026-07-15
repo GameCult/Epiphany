@@ -1,5 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
+use chrono::DateTime;
 use chrono::Utc;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
@@ -7329,22 +7330,58 @@ fn receipt_directory_daemon_poke_status(
     context: &EpiphanyLocalVerseContext,
     receipt: &EpiphanyCultMeshDaemonPokeReceiptEntry,
 ) -> String {
-    let Some(current_status) = context
+    let Some(current) = context
         .daemon_statuses
         .iter()
         .find(|status| status.daemon_id == receipt.target_daemon_id)
-        .map(|status| status.status.as_str())
     else {
         return receipt.resulting_status.clone();
     };
+    let current_status = current.status.as_str();
 
-    if current_status == "ready" && receipt.resulting_status != "ready" {
+    let causally_recovered = current_status == "ready"
+        && receipt.resulting_status == "awaiting-provider-heartbeat"
+        && context
+            .latest_daemon_poke_intent
+            .as_ref()
+            .filter(|intent| intent.intent_id == receipt.intent_id)
+            .map(|intent| {
+                provider_heartbeat_causally_follows_attempt(
+                    &current.last_heartbeat_utc,
+                    &intent.observed_last_heartbeat_utc,
+                    &receipt.completed_at_utc,
+                )
+            })
+            .unwrap_or(false);
+
+    if causally_recovered {
+        "resolved".to_string()
+    } else if receipt.resulting_status == "awaiting-provider-heartbeat" {
+        receipt.resulting_status.clone()
+    } else if current_status == "ready" && receipt.resulting_status != "ready" {
         "resolved".to_string()
     } else if current_status != receipt.resulting_status {
         format!("current-{current_status}")
     } else {
         receipt.resulting_status.clone()
     }
+}
+
+fn provider_heartbeat_causally_follows_attempt(
+    current_heartbeat_utc: &str,
+    observed_heartbeat_utc: &str,
+    attempt_completed_utc: &str,
+) -> bool {
+    let Ok(current) = DateTime::parse_from_rfc3339(current_heartbeat_utc) else {
+        return false;
+    };
+    let Ok(observed) = DateTime::parse_from_rfc3339(observed_heartbeat_utc) else {
+        return false;
+    };
+    let Ok(completed) = DateTime::parse_from_rfc3339(attempt_completed_utc) else {
+        return false;
+    };
+    current > observed && current > completed
 }
 
 fn service_execution_audit_check_tui_row(check: &EpiphanyServiceExecutionAuditCheck) -> String {
@@ -9386,6 +9423,24 @@ fn required_list(values: &Option<Vec<String>>, message: &str) -> Result<Vec<Stri
 #[cfg(test)]
 mod lifecycle_projection_tests {
     use super::*;
+
+    #[test]
+    fn stale_ready_heartbeat_cannot_resolve_a_later_restart_attempt() {
+        assert!(!provider_heartbeat_causally_follows_attempt(
+            "2026-07-15T10:00:00Z",
+            "2026-07-15T10:00:00Z",
+            "2026-07-15T10:01:00Z",
+        ));
+    }
+
+    #[test]
+    fn newer_provider_heartbeat_resolves_a_completed_restart_attempt() {
+        assert!(provider_heartbeat_causally_follows_attempt(
+            "2026-07-15T10:02:00Z",
+            "2026-07-15T10:00:00Z",
+            "2026-07-15T10:01:00Z",
+        ));
+    }
 
     fn managed_service_row(
         service_id: &str,

@@ -473,20 +473,33 @@ does not invent that grant.
 ### Provider-Status Ownership Cut
 
 `epiphany-cluster-daemon` is the legitimate production writer of its typed
-heartbeat/status. The current daemon supervisor contains two obsolete writers
-that must be removed before its liveness model is trusted:
+heartbeat/status. Idunn records stale observation, command execution, restart,
+and awaiting-provider-heartbeat in scheduler/poke/recovery state without
+rewriting provider status, operator action, or heartbeat time. A restarted
+provider becomes ready only when that provider publishes a newer authentic
+heartbeat; synthetic provider writers remain confined to test/quarantine
+bodies.
 
-- scheduler staleness handling rewrites the provider status to `degraded` and
-  adds a supervisor-authored heartbeat note;
-- restart reconciliation rewrites provider status to `ready` or `down` and
-  advances `last_heartbeat_utc` from the child command's exit result.
-
-Idunn should instead record stale observation, command execution, restart, and
-awaiting-provider-heartbeat in its own scheduler/poke/recovery receipts. A
-restarted provider becomes ready only when that provider publishes a newer
-authentic heartbeat. The generic daemon-status writer should be narrowed so
-production callers cannot counterfeit provider liveness; synthetic writers
-remain confined to test/quarantine bodies.
+This ownership cut is now landed. Scheduler staleness forces Idunn
+reconciliation without changing the provider envelope. Command success records
+`awaiting-provider-heartbeat`; failure records `restart-failed`. The persisted
+poke intent binds the observed stale heartbeat and configured threshold, while
+provider status, operator action, and `last_heartbeat_utc` remain unchanged.
+Only a later provider-authored heartbeat can establish readiness.
+Poke intent/receipt v1 binds the heartbeat observed before intervention and the
+attempt/completion timestamps. Receipt-directory sight resolves
+`awaiting-provider-heartbeat` only when the same provider publishes a heartbeat
+newer than both that observation and the completed attempt. Command attempts
+increase restart backoff pressure regardless of exit code; a causally newer
+provider heartbeat is the sole event that clears the failure count. The bounded
+survival rehearsal proves the provider envelope remains unchanged across two
+successful restart commands while the lifecycle receipt remains awaiting,
+then publishes a real provider heartbeat and proves the receipt resolves and
+restart pressure resets.
+Generated supervisor attempts use unique intent identities and receipt identity
+derives from the intent. Identity plus latest-pointer publication is one CAS:
+non-identical reuse is refused, exact retry is idempotent, and a delayed retry
+cannot rewind the latest lifecycle observation.
 
 ### Shared Paths And Verification Layer
 
