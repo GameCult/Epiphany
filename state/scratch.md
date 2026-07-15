@@ -50,3 +50,18 @@ stopped. The hostile proof fixes passed; a real ignored smoke started Qdrant,
 projected through Ollama, exact-scroll-verified payloads and vectors, classified
 the result Current, deleted its isolated collection, verified no coverage
 collection remained, and stopped Qdrant again.
+
+## Exact native process identity (2026-07-16)
+
+The process-observation foundation now identifies a process incarnation by PID,
+native creation token, and canonical executable path. Windows compares identity
+through a held process handle before classifying it alive or exited; Toolhelp
+absence is distinct from access denial and query failure. Linux uses boot id,
+proc starttime, executable identity, and zombie state. Unsupported Unix targets
+refuse to pretend they have Linux `/proc` evidence.
+
+The legacy PID-only projection is display-only and can emit only `Alive` or
+`Missing`; it cannot mint death evidence. Tests prove current-instance life,
+PID-incarnation replacement, and exact child exit. Next add enrolled OS-host
+identity, then reserved launch/heartbeat and immutable termination documents
+before any recovery CAS.

@@ -1796,6 +1796,17 @@ immutable termination observation bound to the exact old launch/PID/executable/
 policy/heartbeat/provider. Only that proof plus a current replacement launch may
 authorize one Body-store recovery CAS. Do not add timeout recovery.
 
+The native process-instance probe foundation is now implemented and locally
+proved. Windows uses PID + process-creation FILETIME + canonical executable,
+compares exact identity through a held query/synchronize handle before
+alive/exited classification, and separates Toolhelp absence, access denial, and
+indeterminate query failure. Linux uses boot id + proc starttime + executable
+and recognizes exact zombie exit; other Unix targets refuse to claim Linux
+evidence. The old PID-only projection has no `Dead` state. This substrate does
+not itself authorize recovery. Next build the enrolled OS-host identity and
+specialized reserved launch/heartbeat and termination documents; only then wire
+the Body recovery CAS.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.
