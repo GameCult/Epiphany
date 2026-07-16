@@ -2275,3 +2275,16 @@ it never mutates or inherits the old collection. If live external evidence is
 missing or changed, it restarts from zero. Required backend cuts are a single
 bounded waited upsert, exact retrieve-by-ID with vectors/payloads, and a common
 readback/checkpoint primitive for newly embedded and recovered copied points.
+
+The first bounded-batch pressure run terminated exactly as the model predicted.
+At `2026-07-17T01:23:50+02:00`, after 50 minutes of candidate-health waiting,
+Idunn stopped Epiphany, left `/srv/epiphany/deploy/deployment.env` absent, and
+reported `Idunn did not publish exact-candidate Epiphany daemon-health proof`.
+Ollama had completed 3,389 embed HTTP calls since candidate startup. After the
+Mind projection calls, that represents roughly 13.3k workspace chunks—about
+90% of the estimated 14,734-chunk Body. The GPU remained usefully saturated,
+but the monolithic executor had not yet upserted the accumulated workspace
+vectors, so Qdrant's inherited Modeling collection remained at 22 points and
+the hour of partial work was discarded. This is the live falsification of the
+current execution/deployment contract. Do not reinterpret it as an Ollama or
+GPU failure and do not repair it by lengthening the total wall timeout.
