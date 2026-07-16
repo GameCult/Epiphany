@@ -2190,3 +2190,68 @@ root-seals immutable source/application releases, starts Epiphany against
 Ygg-local Qdrant and Ollama, requires post-candidate Idunn RUDP acceptance, and
 only then publishes the v2 deployment witness. These source bodies are not yet
 live on Ygg; bootstrap and deployment remain the next phase.
+
+## Yggdrasil GPU pressure exposed missing progress authority (2026-07-17)
+
+The live authority chain now reaches Yggdrasil. Bifrost authorized exact
+Epiphany main commit `586147a751c6eec2d59cd8dc10bd17ce0d02a4d1`; Idunn fetched that exact
+upstream commit, built it in the pinned Rust container, installed immutable
+release `sha256-a5a43af6d2502377d2078dcb42ab98088f4a812487217436ec1af0ddd0d26b3d`,
+and started both local projectors against Ygg-local Qdrant and GPU-backed
+Ollama. Mind completed its first pulse, reported `providerStatus=ready`, and
+published 215 vectors. Workspace coverage is a real 3,956-file Body pressure
+run; a local line-based estimate is 14,734 UTF-8 chunks.
+
+The GTX 1080 is genuinely used: the workspace projector sustains roughly
+93-100% compute utilization at 2,419 MiB VRAM. The prior 32-text HTTP batches
+could monopolize one request for more than thirty minutes. Commit `586147a7`
+bounds batches at four; live Ollama receipts now complete continuously in
+roughly 0.7-1.7 seconds per call at about 53-63 calls/minute. This proves useful
+forward GPU work, not merely allocation. It also proves the full first pass is
+roughly an hour at the current hardware ceiling, longer than Idunn's 50-minute
+deployment-health wall clock.
+
+Do not fix that by increasing the wall clock. The current execution primitive
+embeds the entire sealed plan into memory, then performs Qdrant publication and
+verification, and only returns to the binary afterward. The binary therefore
+emits no signed provider heartbeat during the long pulse. Ollama logs,
+`nvidia-smi`, process existence, elapsed time, and Qdrant point counts cannot
+become progress authority.
+
+Authority map for the repair:
+
+- Owner: the authenticated workspace-coverage projector owns domain progress;
+  Idunn owns deployment admission, and the supervisor only derives aggregate
+  health.
+- Inputs: exact packaged release/policy/managed launch, provider incarnation,
+  claim and attempt epoch, sealed plan, Body observation/generation, immutable
+  embedding artifact/dimensions, and acknowledged durable Qdrant checkpoint.
+- Outputs: an append-only provider-signed
+  `epiphany.workspace_coverage.projection_progress.v0` event plus CAS latest
+  pointer. It binds sequence/time, exact authority identities, phase,
+  completed/total units, and the currently bounded backend operation.
+- Derived state: `warming` requires a fresh independent process heartbeat and
+  fresh monotonically advancing exact-lineage progress. `stalled` follows an
+  expired named operation/no-advance deadline. `active` still requires the
+  canonical receipt/head and live verification; progress at 100% is not
+  readiness.
+- Forbidden writers: Idunn, deploy scripts, supervisor, Ollama logs, GPU
+  telemetry, stdout, Qdrant counts, running claims, and free-running heartbeat
+  churn cannot advance progress.
+- Shared path: first projection, ordinary Body change, retry, and authenticated
+  successor recovery use the same durable batch/checkpoint primitive.
+- Cut line: split monolithic embed/upsert/verify execution at deterministic
+  durable boundaries; keep liveness heartbeat independent; remove total wall
+  duration as the health verdict. A successor launch cannot inherit work
+  without an explicit authenticated resume/checkpoint contract.
+
+Negative proof must cover frozen progress with live heartbeats, stale heartbeat
+with advancing progress, replay across launch/Body/plan/model/release, sequence
+or count regression, mutable totals, progress without acknowledged Qdrant
+durability, 100% without a valid receipt, deleted/substituted collections,
+restart inheritance without recovery authority, concurrent owners, clock
+hostility, and Idunn accidentally treating warming as active.
+
+The current live run remains diagnostic evidence only until its terminal
+workspace receipt, exact aggregate RUDP health, and deployment witness land.
+No reboot is authorized.
