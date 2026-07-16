@@ -102,6 +102,22 @@ pub(crate) trait WorkspaceCoverageProjectionPort {
     ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>>;
 }
 
+/// Read-only Qdrant surface used by Mind's bounded repository-readiness join.
+/// It can observe one exact collection, but cannot create, mutate, or retire it.
+#[allow(dead_code)] // Sealed read surface for the Mind readiness join.
+pub(crate) trait WorkspaceCoverageEvidencePort {
+    fn authenticate_exact_collection(
+        &mut self,
+        collection: &str,
+        compatibility: &CollectionCompatibility,
+    ) -> Result<()>;
+
+    fn observe_all_for_evidence(
+        &mut self,
+        collection: &str,
+    ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>>;
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct WorkspaceCoverageRetirementCandidate {
     pub collection_name: String,
@@ -147,6 +163,53 @@ impl WorkspaceCoverageProjectionPort for QdrantBackend {
     ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>> {
         self.points_for_scope(name, &[])
     }
+}
+
+impl WorkspaceCoverageEvidencePort for QdrantBackend {
+    fn authenticate_exact_collection(
+        &mut self,
+        name: &str,
+        expected: &CollectionCompatibility,
+    ) -> Result<()> {
+        if !self.collection_exists(name)? || self.collection_compatibility(name)? != *expected {
+            bail!("live workspace coverage collection is absent or incompatible");
+        }
+        Ok(())
+    }
+
+    fn observe_all_for_evidence(
+        &mut self,
+        name: &str,
+    ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>> {
+        self.points_for_scope(name, &[])
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(dead_code)] // Sealed evidence for the Mind readiness join.
+pub(crate) struct WorkspaceCoverageReadinessEvidence {
+    pub workspace_id: String,
+    pub body_binding_sha256: String,
+    pub manifest_root_sha256: String,
+    pub policy_id: String,
+    pub policy_sha256: String,
+    pub obligation_id: String,
+    pub obligation_envelope_digest: String,
+    pub plan_id: String,
+    pub plan_envelope_digest: String,
+    pub claim_id: String,
+    pub claim_epoch: u64,
+    pub claim_envelope_digest: String,
+    pub attempt_id: String,
+    pub attempt_envelope_digest: String,
+    pub receipt_id: String,
+    pub receipt_envelope_digest: String,
+    pub head_envelope_digest: String,
+    pub collection_name: String,
+    pub observed_point_count: u64,
+    pub observed_point_set_sha256: String,
+    pub observed_point_binding_set_sha256: String,
+    pub observed_vector_binding_set_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -771,6 +834,157 @@ pub(crate) fn classify_current_workspace_coverage(
     } else {
         WorkspaceCoverageCurrentState::NeedsPreparation
     })
+}
+
+/// Authenticates and re-observes the exact current workspace projection.
+///
+/// A persisted coverage head is historical evidence only. This reader returns
+/// evidence only after the current succeeded claim/attempt chain and the live
+/// Qdrant payload/vector bindings agree with that head's sealed plan.
+#[allow(dead_code)] // Wired by the Mind readiness join, never by the projector.
+pub(crate) fn observe_current_workspace_coverage_evidence(
+    runtime_store: &Path,
+    basis: &RepositoryBodyObservationBasis,
+    policy: &WorkspaceCoveragePolicy,
+    embedding_provider_id: &str,
+    embedding_model: &str,
+    vector_dimensions: u32,
+    port: &mut impl WorkspaceCoverageEvidencePort,
+) -> Result<Option<WorkspaceCoverageReadinessEvidence>> {
+    if policy.schema_version != crate::WORKSPACE_COVERAGE_POLICY_SCHEMA_VERSION
+        || policy.policy_id.trim().is_empty()
+        || policy.maximum_file_bytes == 0
+        || embedding_provider_id.trim().is_empty()
+        || embedding_model.trim().is_empty()
+        || vector_dimensions == 0
+    {
+        bail!("workspace coverage evidence requires an exact policy and embedding identity");
+    }
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let opening = SingleFileMessagePackBackingStore::new(&route.body_store_path).pull_all()?;
+    exact_body_authority(&opening, basis)?;
+    let Some(head_env) = find(&opening, HEAD_TYPE, HEAD_KEY) else {
+        return Ok(None);
+    };
+    let head: WorkspaceCoverageHead = decode(head_env)?;
+    let obligation_env = find(&opening, OBLIGATION_TYPE, &head.obligation_id)
+        .ok_or_else(|| anyhow!("current workspace coverage head names a missing obligation"))?;
+    let plan_env = find(&opening, PLAN_TYPE, &head.plan_id)
+        .ok_or_else(|| anyhow!("current workspace coverage head names a missing plan"))?;
+    let receipt_env = find(&opening, RECEIPT_TYPE, &head.receipt_id)
+        .ok_or_else(|| anyhow!("current workspace coverage head names a missing receipt"))?;
+    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)
+        .ok_or_else(|| anyhow!("current workspace coverage lost its projection claim"))?;
+    let obligation: WorkspaceCoverageObligation = decode(obligation_env)?;
+    let plan: WorkspaceCoverageProjectionPlan = decode(plan_env)?;
+    let receipt: WorkspaceCoverageReceipt = decode(receipt_env)?;
+    let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
+    let attempt_env = find(&opening, ATTEMPT_TYPE, &claim.attempt_id)
+        .ok_or_else(|| anyhow!("current workspace coverage lost its projection attempt"))?;
+    let attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
+    validate_workspace_coverage_head(&obligation, &plan, &receipt, &head)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+
+    let policy_sha256 = format!(
+        "{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(policy).map_err(|error| anyhow!(error))?)
+    );
+    let exact = head.workspace_id == basis.workspace_id
+        && head.body_observation_id == basis.observation_id
+        && head.body_generation == basis.generation
+        && head.manifest_root_sha256 == basis.manifest_root_sha256
+        && obligation.workspace_id == basis.workspace_id
+        && obligation.swarm_id == basis.swarm_id
+        && obligation.runtime_id == basis.runtime_id
+        && obligation.body_binding_sha256 == basis.body_binding_sha256
+        && obligation.body_observation_id == basis.observation_id
+        && obligation.body_generation == basis.generation
+        && obligation.manifest_root_sha256 == basis.manifest_root_sha256
+        && obligation.policy_id == policy.policy_id
+        && obligation.policy_sha256 == policy_sha256
+        && plan.projection_schema_version == PROJECTION_SCHEMA
+        && plan.chunker_id == CHUNKER_ID
+        && plan.embedding_provider_id == embedding_provider_id
+        && plan.embedding_model == embedding_model
+        && plan.vector_dimensions == vector_dimensions
+        && receipt.embedding_provider_id == embedding_provider_id
+        && receipt.embedding_model == embedding_model
+        && receipt.vector_dimensions == vector_dimensions
+        && claim.status == "succeeded"
+        && claim.claim_id == receipt.claim_id
+        && claim.claim_epoch == receipt.claim_epoch
+        && claim.plan_id == plan.plan_id
+        && claim.obligation_id == obligation.obligation_id
+        && claim.body_observation_id == obligation.body_observation_id
+        && claim.body_generation == obligation.body_generation
+        && claim.manifest_root_sha256 == obligation.manifest_root_sha256;
+    if !exact {
+        return Ok(None);
+    }
+
+    port.authenticate_exact_collection(&receipt.collection_name, &collection_compatibility(&plan))?;
+    let observed = observe_sealed_bindings(
+        &obligation,
+        &plan,
+        &receipt.collection_name,
+        port.observe_all_for_evidence(&receipt.collection_name)?,
+        None,
+    )?;
+    if observed.point_count != receipt.observed_point_count
+        || observed.point_set_sha256 != receipt.observed_point_set_sha256
+        || observed.point_binding_set_sha256 != receipt.observed_point_binding_set_sha256
+        || observed.vector_binding_set_sha256 != receipt.observed_vector_binding_set_sha256
+    {
+        bail!("live workspace coverage observation disagrees with its exact receipt");
+    }
+
+    // Qdrant observation is outside the Body-store lock domain. Close the
+    // mixed-epoch window by reopening both the runtime route and Body store,
+    // then require every authority envelope consumed above to remain exact.
+    let closing_route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime lost its repository Body-store binding"))?;
+    if closing_route != route {
+        return Ok(None);
+    }
+    let closing =
+        SingleFileMessagePackBackingStore::new(&closing_route.body_store_path).pull_all()?;
+    for expected in [
+        head_env,
+        obligation_env,
+        plan_env,
+        claim_env,
+        attempt_env,
+        receipt_env,
+    ] {
+        if find(&closing, &expected.r#type, &expected.key) != Some(expected) {
+            return Ok(None);
+        }
+    }
+    Ok(Some(WorkspaceCoverageReadinessEvidence {
+        workspace_id: obligation.workspace_id,
+        body_binding_sha256: obligation.body_binding_sha256,
+        manifest_root_sha256: obligation.manifest_root_sha256,
+        policy_id: obligation.policy_id,
+        policy_sha256: obligation.policy_sha256,
+        obligation_id: obligation.obligation_id,
+        obligation_envelope_digest: cultcache_envelope_digest(obligation_env),
+        plan_id: plan.plan_id,
+        plan_envelope_digest: cultcache_envelope_digest(plan_env),
+        claim_id: claim.claim_id,
+        claim_epoch: claim.claim_epoch,
+        claim_envelope_digest: cultcache_envelope_digest(claim_env),
+        attempt_id: attempt.attempt_id,
+        attempt_envelope_digest: cultcache_envelope_digest(attempt_env),
+        receipt_id: receipt.receipt_id,
+        receipt_envelope_digest: cultcache_envelope_digest(receipt_env),
+        head_envelope_digest: cultcache_envelope_digest(head_env),
+        collection_name: observed.collection_name,
+        observed_point_count: observed.point_count,
+        observed_point_set_sha256: observed.point_set_sha256,
+        observed_point_binding_set_sha256: observed.point_binding_set_sha256,
+        observed_vector_binding_set_sha256: observed.vector_binding_set_sha256,
+    }))
 }
 
 pub(crate) fn prepare_workspace_coverage_projection(
@@ -1507,6 +1721,23 @@ fn observe_exact_bindings(
     observed: Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>,
     submitted_vector_bindings: &[WorkspaceCoverageVectorBinding],
 ) -> Result<WorkspaceCoverageObservedBinding> {
+    let binding = observe_sealed_bindings(
+        &acquisition.obligation,
+        &acquisition.plan,
+        collection_name,
+        observed,
+        Some(submitted_vector_bindings),
+    )?;
+    Ok(binding)
+}
+
+fn observe_sealed_bindings(
+    obligation: &WorkspaceCoverageObligation,
+    plan: &WorkspaceCoverageProjectionPlan,
+    collection_name: &str,
+    observed: Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>,
+    expected_vector_bindings: Option<&[WorkspaceCoverageVectorBinding]>,
+) -> Result<WorkspaceCoverageObservedBinding> {
     let mut bindings = Vec::with_capacity(observed.len());
     let mut vector_bindings = Vec::with_capacity(observed.len());
     for point in observed {
@@ -1520,7 +1751,7 @@ fn observe_exact_bindings(
         let vector = point
             .vector
             .ok_or_else(|| anyhow!("observed workspace point omitted vector"))?;
-        if vector.len() != acquisition.plan.vector_dimensions as usize
+        if vector.len() != plan.vector_dimensions as usize
             || vector.iter().any(|value| !value.is_finite())
         {
             bail!("observed workspace point has an invalid vector");
@@ -1537,12 +1768,25 @@ fn observe_exact_bindings(
     {
         bail!("observed workspace collection contains duplicate point IDs");
     }
-    if bindings != acquisition.plan.point_bindings {
+    if bindings != plan.point_bindings {
         bail!("observed workspace point bindings do not equal the sealed plan");
     }
     vector_bindings.sort_by(|left, right| left.point_id.cmp(&right.point_id));
-    if vector_bindings != submitted_vector_bindings {
+    if expected_vector_bindings.is_some_and(|expected| vector_bindings != expected) {
         bail!("observed workspace vectors do not equal the submitted vectors");
+    }
+    // Payload hashes bind the exact obligation as well as the sealed plan.
+    // Recompute one expected payload per point rather than trusting Qdrant's
+    // typed decoding to establish semantic equality.
+    for point in &plan.planned_points {
+        let expected = payload_for(obligation, plan, point);
+        let expected_binding = WorkspaceCoveragePointBinding {
+            point_id: point.point_id.clone(),
+            payload_sha256: digest(&expected)?,
+        };
+        if !bindings.contains(&expected_binding) {
+            bail!("observed workspace payload does not equal its sealed obligation and plan");
+        }
     }
     let ids = bindings
         .iter()
@@ -1867,6 +2111,8 @@ mod tests {
         hostility: Hostility,
         points: Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>,
         upsert_calls: usize,
+        collection_present: bool,
+        collection_compatibility: Option<CollectionCompatibility>,
     }
 
     impl FakeProjectionPort {
@@ -1875,15 +2121,22 @@ mod tests {
                 hostility,
                 points: Vec::new(),
                 upsert_calls: 0,
+                collection_present: true,
+                collection_compatibility: None,
             }
         }
     }
 
     impl WorkspaceCoverageProjectionPort for FakeProjectionPort {
-        fn ensure_exact_collection(&mut self, _: &str, _: &CollectionCompatibility) -> Result<()> {
+        fn ensure_exact_collection(
+            &mut self,
+            _: &str,
+            compatibility: &CollectionCompatibility,
+        ) -> Result<()> {
             if matches!(self.hostility, Hostility::IncompatibleCollection) {
                 bail!("incompatible preexisting collection metadata");
             }
+            self.collection_compatibility = Some(compatibility.clone());
             Ok(())
         }
         fn upsert(
@@ -1927,6 +2180,64 @@ mod tests {
                 Hostility::NonFiniteVector => {
                     points[0].vector.as_mut().unwrap()[0] = f32::NAN;
                 }
+            }
+            Ok(points)
+        }
+    }
+
+    impl WorkspaceCoverageEvidencePort for FakeProjectionPort {
+        fn authenticate_exact_collection(
+            &mut self,
+            _: &str,
+            expected: &CollectionCompatibility,
+        ) -> Result<()> {
+            if !self.collection_present || self.collection_compatibility.as_ref() != Some(expected)
+            {
+                bail!("live collection is absent or incompatible");
+            }
+            Ok(())
+        }
+
+        fn observe_all_for_evidence(
+            &mut self,
+            collection: &str,
+        ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>> {
+            WorkspaceCoverageProjectionPort::observe_all(self, collection)
+        }
+    }
+
+    struct AdvancingEvidencePort {
+        inner: FakeProjectionPort,
+        body_store: PathBuf,
+    }
+
+    impl WorkspaceCoverageEvidencePort for AdvancingEvidencePort {
+        fn authenticate_exact_collection(
+            &mut self,
+            collection: &str,
+            expected: &CollectionCompatibility,
+        ) -> Result<()> {
+            self.inner
+                .authenticate_exact_collection(collection, expected)
+        }
+
+        fn observe_all_for_evidence(
+            &mut self,
+            collection: &str,
+        ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>> {
+            let points = self.inner.observe_all_for_evidence(collection)?;
+            let backing = SingleFileMessagePackBackingStore::new(&self.body_store);
+            let opening = backing.pull_all()?;
+            let current = find(&opening, CLAIM_TYPE, CLAIM_KEY)
+                .ok_or_else(|| anyhow!("test current claim disappeared"))?
+                .clone();
+            let mut advanced: WorkspaceCoverageProjectionClaim = decode(&current)?;
+            advanced.executor_id.push_str("-advanced");
+            if !backing.compare_and_swap_batch(
+                &[current],
+                vec![envelope(CLAIM_TYPE, CLAIM_KEY, &advanced)?],
+            )? {
+                bail!("test authority advance lost its CAS");
             }
             Ok(points)
         }
@@ -2118,6 +2429,166 @@ mod tests {
         };
         Ok((prepared, acquisition))
     }
+
+    #[test]
+    fn live_coverage_evidence_requires_exact_rescroll_and_authority_chain() -> Result<()> {
+        let (repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let inputs = projection_inputs(&acquisition, repo.path())?;
+        let expected_claim_id = acquisition.claim.claim_id.clone();
+        let mut projection = FakeProjectionPort::new(Hostility::Honest);
+        let receipt = execute_preembedded_workspace_coverage_projection(
+            &acquisition,
+            inputs,
+            &mut projection,
+        )?;
+        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+
+        let evidence = observe_current_workspace_coverage_evidence(
+            &runtime,
+            &basis,
+            &policy,
+            "provider",
+            "model",
+            3,
+            &mut projection,
+        )?
+        .expect("live exact coverage evidence");
+        assert_eq!(evidence.claim_id, expected_claim_id);
+        assert_eq!(evidence.receipt_id, receipt.receipt_id);
+        assert_eq!(
+            evidence.observed_vector_binding_set_sha256,
+            receipt.observed_vector_binding_set_sha256
+        );
+        assert!(evidence.head_envelope_digest.starts_with("sha256-"));
+
+        let wrong_policy =
+            WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES - 1)?;
+        assert!(
+            observe_current_workspace_coverage_evidence(
+                &runtime,
+                &basis,
+                &wrong_policy,
+                "provider",
+                "model",
+                3,
+                &mut projection,
+            )?
+            .is_none()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stored_current_coverage_cannot_substitute_for_live_qdrant_evidence() -> Result<()> {
+        let (repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let inputs = projection_inputs(&acquisition, repo.path())?;
+        let mut projection = FakeProjectionPort::new(Hostility::Honest);
+        execute_preembedded_workspace_coverage_projection(&acquisition, inputs, &mut projection)?;
+        assert!(matches!(
+            classify_current_workspace_coverage(&runtime, &basis, "provider", "model", 3)?,
+            WorkspaceCoverageCurrentState::Current(_)
+        ));
+        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+
+        let mut missing_live_collection = FakeProjectionPort::new(Hostility::Honest);
+        missing_live_collection.collection_present = false;
+        assert!(
+            observe_current_workspace_coverage_evidence(
+                &runtime,
+                &basis,
+                &policy,
+                "provider",
+                "model",
+                3,
+                &mut missing_live_collection,
+            )
+            .is_err()
+        );
+
+        let mut wrong_compatibility = FakeProjectionPort {
+            hostility: Hostility::Honest,
+            points: projection.points.clone(),
+            upsert_calls: 0,
+            collection_present: true,
+            collection_compatibility: projection.collection_compatibility.clone(),
+        };
+        wrong_compatibility
+            .collection_compatibility
+            .as_mut()
+            .expect("test collection compatibility")
+            .vector_size += 1;
+        assert!(
+            observe_current_workspace_coverage_evidence(
+                &runtime,
+                &basis,
+                &policy,
+                "provider",
+                "model",
+                3,
+                &mut wrong_compatibility,
+            )
+            .is_err()
+        );
+
+        for hostility in [Hostility::WrongPayload, Hostility::WrongVector] {
+            let mut hostile = FakeProjectionPort {
+                hostility,
+                points: projection.points.clone(),
+                upsert_calls: 0,
+                collection_present: true,
+                collection_compatibility: projection.collection_compatibility.clone(),
+            };
+            assert!(
+                observe_current_workspace_coverage_evidence(
+                    &runtime,
+                    &basis,
+                    &policy,
+                    "provider",
+                    "model",
+                    3,
+                    &mut hostile,
+                )
+                .is_err()
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn live_evidence_refuses_authority_advanced_during_qdrant_scroll() -> Result<()> {
+        let (repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let inputs = projection_inputs(&acquisition, repo.path())?;
+        let mut projection = FakeProjectionPort::new(Hostility::Honest);
+        execute_preembedded_workspace_coverage_projection(&acquisition, inputs, &mut projection)?;
+        let body_store = PathBuf::from(
+            runtime_repository_body_store_binding(&runtime)?
+                .expect("runtime Body route")
+                .body_store_path,
+        );
+        let mut advancing = AdvancingEvidencePort {
+            inner: projection,
+            body_store,
+        };
+        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+        assert!(
+            observe_current_workspace_coverage_evidence(
+                &runtime,
+                &basis,
+                &policy,
+                "provider",
+                "model",
+                3,
+                &mut advancing,
+            )?
+            .is_none(),
+            "authority advanced during live scroll must request retry, not emit evidence"
+        );
+        Ok(())
+    }
+
     #[test]
     fn named_chunker_preserves_utf8_boundaries_and_eight_line_overlap() -> Result<()> {
         let text = (0..105)
