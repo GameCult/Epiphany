@@ -15,6 +15,7 @@ mod distillation;
 mod eyes_gateway;
 mod hands_gateway;
 mod heartbeat_state;
+mod host_identity;
 mod memory_graph;
 mod mind_gateway;
 mod organ_dependencies;
@@ -648,6 +649,13 @@ pub use heartbeat_state::validate_heartbeat_state;
 pub use heartbeat_state::write_heartbeat_cognition_entry;
 pub use heartbeat_state::write_heartbeat_stale_turn_repair_receipt;
 pub use heartbeat_state::write_heartbeat_state_entry;
+pub use host_identity::{
+    HOST_IDENTITY_KEY, HOST_IDENTITY_SCHEMA_VERSION, HOST_IDENTITY_TYPE, HostIdentitySignature,
+    HostIdentitySigner, HostIncarnationIdentityEntry, LINUX_HOST_IDENTITY_ASSURANCE,
+    WINDOWS_HOST_IDENTITY_ASSURANCE, default_host_identity_store_path,
+    enroll_default_host_identity, enroll_host_identity_at, open_default_host_identity,
+    open_host_identity_at, verify_host_identity_signature,
+};
 pub use memory_graph::EpiphanyMemoryEdgeKind;
 pub use memory_graph::EpiphanyMemoryEmbeddingManifest;
 pub use memory_graph::EpiphanyMemoryGraphEntry;

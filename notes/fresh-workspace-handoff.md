@@ -1807,6 +1807,17 @@ not itself authorize recovery. Next build the enrolled OS-host identity and
 specialized reserved launch/heartbeat and termination documents; only then wire
 the Body recovery CAS.
 
+The enrolled host-incarnation foundation is also implemented. Its single
+non-workspace CultCache record owns an Ed25519 public identity and protected
+private seed; opening validates the exact type/key/schema, platform binding,
+public/private match, and immutable singleton shape. Enrollment refuses any
+existing store and never regenerates malformed state. Windows uses CurrentUser
+DPAPI with UI disabled and the deliberately limited assurance label
+`os_user_installation_bound_best_effort`; Linux uses 0700/0600 state plus
+machine-id binding and declares its cloneable baseline. No code calls this
+physical-machine identity. Next remove reserved coverage authority from generic
+lifecycle/heartbeat and replace it with identity-bound signed documents.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.

@@ -65,3 +65,15 @@ The legacy PID-only projection is display-only and can emit only `Alive` or
 PID-incarnation replacement, and exact child exit. Next add enrolled OS-host
 identity, then reserved launch/heartbeat and immutable termination documents
 before any recovery CAS.
+
+## Enrolled host incarnation (2026-07-16)
+
+The host root is now a dedicated non-workspace CultCache document with one
+immutable Ed25519 enrollment and a narrow signing handle. Existing, malformed,
+unprotectable, or binding-mismatched state fails closed; enrollment never
+silently regenerates identity. Windows stores it under LocalAppData, protects
+the seed with CurrentUser DPAPI, and labels its limited assurance honestly.
+Linux uses the XDG/home state root, 0700/0600 permissions and machine-id binding,
+explicitly labeled cloneable. This is enrolled OS-installation continuity, not
+a claim about physical chassis. Purpose-bound signature and immutable/fail-
+closed tests pass. The next cut is specialized reserved launch/heartbeat state.
