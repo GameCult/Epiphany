@@ -1,8 +1,9 @@
 use anyhow::{Result, bail};
 use chrono::Utc;
 use epiphany_core::{
-    EpiphanyMemoryDomain, EpiphanyMemoryGraphSnapshot, EpiphanyMemoryLifecycle,
-    EpiphanyMemoryNode, EpiphanyMemoryNodeKind, EpiphanyMemoryProfile, MEMORY_GRAPH_SCHEMA_VERSION,
+    EpiphanyMemoryAnchor, EpiphanyMemoryDomain, EpiphanyMemoryGraphSnapshot,
+    EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind,
+    EpiphanyMemoryProfile, MEMORY_GRAPH_SCHEMA_VERSION,
     ObserveOutcome, RuntimeSpineInitOptions, bind_repository_body,
     admit_legacy_agent_memory_generation, bind_runtime_to_agent_memory_swarm,
     ensure_agent_memory_swarm_identity, ensure_runtime_repo_model,
@@ -64,7 +65,17 @@ fn main() -> Result<()> {
                         .to_string(),
                     action_implication:
                         "Expand only through Body-grounded Modeling admission.".to_string(),
-                    source_hashes: vec![binding.source_identity_sha256.clone()],
+                    anchors: vec![EpiphanyMemoryAnchor {
+                        id: "anchor-deployed-repository-body".to_string(),
+                        kind: "repository_body_binding".to_string(),
+                        target: binding.git_top_level.clone(),
+                        source_hash: Some(binding.source_identity_sha256.clone()),
+                        note: Some(
+                            "Cold-start anchor to the authenticated deployed Git Body."
+                                .to_string(),
+                        ),
+                        ..Default::default()
+                    }],
                     lifecycle: EpiphanyMemoryLifecycle::Accepted,
                     ..Default::default()
                 }],
