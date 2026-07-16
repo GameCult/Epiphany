@@ -49,10 +49,16 @@ use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
 use epiphany_core::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
 use epiphany_core::{
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION, WorkspaceCoverageManagedProcessLaunchEntry,
-    WorkspaceCoverageProcessBootstrap, capture_process_instance, native_boot_identity,
-    open_default_host_identity, sign_workspace_coverage_launch,
-    workspace_coverage_host_identity_record_digest,
+    WorkspaceCoverageProcessBootstrap, authenticate_workspace_coverage_provider_heartbeat,
+    authenticate_workspace_coverage_termination_with_envelope_digest, capture_process_instance,
+    current_workspace_coverage_recovery_target,
+    load_latest_workspace_coverage_managed_process_launch,
+    load_latest_workspace_coverage_provider_heartbeat,
+    load_workspace_coverage_process_termination_observation, native_boot_identity,
+    open_default_host_identity, recover_workspace_coverage_projection,
+    sign_workspace_coverage_launch, workspace_coverage_host_identity_record_digest,
     write_workspace_coverage_managed_process_launch, write_workspace_coverage_process_bootstrap,
+    write_workspace_coverage_process_termination_observation,
 };
 use rand_core::{OsRng, RngCore};
 use serde_json::Value;
@@ -64,6 +70,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::process::Stdio;
+use std::thread;
+use std::time::Duration as StdDuration;
 use uuid::Uuid;
 use zeroize::Zeroize;
 
@@ -798,7 +806,26 @@ fn service_plan(args: Args) -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone)]
+struct CoverageReplacementEvidence {
+    old_launch_id: String,
+    termination_id: String,
+    termination_envelope_digest: String,
+}
+
+struct ServiceLaunchOutcome {
+    coverage_launch: Option<WorkspaceCoverageManagedProcessLaunchEntry>,
+}
+
 fn service_launch(args: Args) -> Result<()> {
+    service_launch_internal(args, None, true).map(|_| ())
+}
+
+fn service_launch_internal(
+    args: Args,
+    replacement: Option<CoverageReplacementEvidence>,
+    emit_output: bool,
+) -> Result<ServiceLaunchOutcome> {
     let brake = load_epiphany_cultmesh_swarm_brake(&args.store, args.runtime_id.clone())?;
     assert_swarm_brake_allows_service_lifecycle_entry(brake.as_ref())?;
     let started_at = Utc::now();
@@ -982,6 +1009,15 @@ fn service_launch(args: Args) -> Result<()> {
                 supervisor_id: "epiphany-daemon-supervisor".to_string(),
                 identity_captured_at_utc: Utc::now().to_rfc3339(),
                 signature_algorithm: "ed25519".to_string(),
+                replaces_launch_id: replacement
+                    .as_ref()
+                    .map(|evidence| evidence.old_launch_id.clone()),
+                replaces_termination_id: replacement
+                    .as_ref()
+                    .map(|evidence| evidence.termination_id.clone()),
+                replaces_termination_envelope_digest: replacement
+                    .as_ref()
+                    .map(|evidence| evidence.termination_envelope_digest.clone()),
             };
             sign_workspace_coverage_launch(&mut launch, &host)?;
             write_workspace_coverage_managed_process_launch(
@@ -994,19 +1030,23 @@ fn service_launch(args: Args) -> Result<()> {
         seed.zeroize();
         match persist_result {
             Ok(written) => {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&json!({
-                        "status": "launched",
-                        "store": args.store,
-                        "runtimeId": args.runtime_id,
-                        "serviceId": written.service_id,
-                        "launchId": written.launch_id,
-                        "processId": written.process_id,
-                        "privateStateExposed": false,
-                    }))?
-                );
-                return Ok(());
+                if emit_output {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "status": "launched",
+                            "store": args.store,
+                            "runtimeId": args.runtime_id,
+                            "serviceId": written.service_id,
+                            "launchId": written.launch_id,
+                            "processId": written.process_id,
+                            "privateStateExposed": false,
+                        }))?
+                    );
+                }
+                return Ok(ServiceLaunchOutcome {
+                    coverage_launch: Some(written),
+                });
             }
             Err(error) => {
                 let _ = child.kill();
@@ -1070,9 +1110,10 @@ fn service_launch(args: Args) -> Result<()> {
             return Err(error).context("failed to persist service launch receipt");
         }
     };
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&json!({
+    if emit_output {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
             "status": written.status,
             "store": args.store,
             "runtimeId": args.runtime_id,
@@ -1083,9 +1124,12 @@ fn service_launch(args: Args) -> Result<()> {
             "stdoutArtifact": args.stdout_artifact,
             "stderrArtifact": args.stderr_artifact,
             "privateStateExposed": written.private_state_exposed,
-        }))?
-    );
-    Ok(())
+            }))?
+        );
+    }
+    Ok(ServiceLaunchOutcome {
+        coverage_launch: None,
+    })
 }
 
 fn managed_service_policy(args: Args) -> Result<()> {
@@ -1427,6 +1471,9 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
         &args.service_id,
     )?
     .with_context(|| format!("managed service policy missing for {}", args.service_id))?;
+    if policy.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
+        return reconcile_workspace_coverage_projector(args, policy);
+    }
     let latest = load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
         &args.store,
         args.runtime_id.clone(),
@@ -1522,6 +1569,230 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
         observation.label()
     ));
     service_launch(args)
+}
+
+fn reconcile_workspace_coverage_projector(
+    mut args: Args,
+    policy: EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<()> {
+    if !policy.enabled || policy.restart_mode == "never" {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                "status": "disabled",
+                "serviceId": policy.service_id,
+                "restarted": false,
+                "privateStateExposed": false,
+            }))?
+        );
+        return Ok(());
+    }
+    let runtime_store = args
+        .runtime_store
+        .clone()
+        .context("workspace coverage reconciliation requires --runtime-store")?;
+    let Some(target) = current_workspace_coverage_recovery_target(&runtime_store)? else {
+        let latest = load_latest_workspace_coverage_managed_process_launch(
+            &args.store,
+            args.runtime_id.clone(),
+        )?;
+        if let Some(latest) = latest {
+            let host = open_default_host_identity()
+                .context("workspace coverage reconciliation requires an enrolled host identity")?;
+            if load_workspace_coverage_process_termination_observation(
+                &args.store,
+                args.runtime_id.clone(),
+                &latest.launch_id,
+            )?
+            .is_none()
+                && let Err(error) = write_workspace_coverage_process_termination_observation(
+                    &args.store,
+                    args.runtime_id.clone(),
+                    &latest.launch_id,
+                    &host,
+                )
+            {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                        "status": "awaiting-first-claim",
+                        "serviceId": policy.service_id,
+                        "launchId": latest.launch_id,
+                        "reason": error.to_string(),
+                        "restarted": false,
+                        "privateStateExposed": false,
+                    }))?
+                );
+                return Ok(());
+            }
+            let (termination, termination_digest) =
+                authenticate_workspace_coverage_termination_with_envelope_digest(
+                    &args.store,
+                    args.runtime_id.clone(),
+                    &latest.launch_id,
+                    host.entry(),
+                )?;
+            if load_latest_workspace_coverage_managed_process_launch(
+                &args.store,
+                args.runtime_id.clone(),
+            )?
+            .is_some_and(|candidate| {
+                candidate.replaces_termination_id.as_deref()
+                    == Some(termination.termination_id.as_str())
+            }) {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                        "status": "awaiting-first-claim",
+                        "serviceId": policy.service_id,
+                        "restarted": false,
+                        "privateStateExposed": false,
+                    }))?
+                );
+                return Ok(());
+            }
+            args.service_command = Some(PathBuf::from(&policy.command));
+            args.service_args = policy.args;
+            args.cwd = policy.cwd.map(PathBuf::from);
+            args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact));
+            args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact));
+            let replacement = CoverageReplacementEvidence {
+                old_launch_id: latest.launch_id,
+                termination_id: termination.termination_id,
+                termination_envelope_digest: termination_digest,
+            };
+            let _ = service_launch_internal(args, Some(replacement), true)?;
+            return Ok(());
+        } else {
+            args.service_command = Some(PathBuf::from(&policy.command));
+            args.service_args = policy.args;
+            args.cwd = policy.cwd.map(PathBuf::from);
+            args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact));
+            args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact));
+            let _ = service_launch_internal(args, None, true)?;
+            return Ok(());
+        }
+    };
+
+    let host = open_default_host_identity()
+        .context("workspace coverage reconciliation requires an enrolled host identity")?;
+    if load_workspace_coverage_process_termination_observation(
+        &args.store,
+        args.runtime_id.clone(),
+        &target.managed_process_launch_id,
+    )?
+    .is_none()
+    {
+        if let Err(error) = write_workspace_coverage_process_termination_observation(
+            &args.store,
+            args.runtime_id.clone(),
+            &target.managed_process_launch_id,
+            &host,
+        ) {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "awaiting-exact-termination",
+                    "serviceId": policy.service_id,
+                    "claimId": target.claim_id,
+                    "reason": error.to_string(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+    }
+    let (termination, termination_digest) =
+        authenticate_workspace_coverage_termination_with_envelope_digest(
+            &args.store,
+            args.runtime_id.clone(),
+            &target.managed_process_launch_id,
+            host.entry(),
+        )?;
+    let replacement_evidence = CoverageReplacementEvidence {
+        old_launch_id: target.managed_process_launch_id.clone(),
+        termination_id: termination.termination_id.clone(),
+        termination_envelope_digest: termination_digest,
+    };
+    let existing_replacement = load_latest_workspace_coverage_managed_process_launch(
+        &args.store,
+        args.runtime_id.clone(),
+    )?
+    .filter(|launch| {
+        launch.replaces_launch_id.as_deref() == Some(target.managed_process_launch_id.as_str())
+            && launch.replaces_termination_id.as_deref()
+                == Some(termination.termination_id.as_str())
+    });
+    let replacement = if let Some(existing) = existing_replacement {
+        existing
+    } else {
+        args.service_command = Some(PathBuf::from(&policy.command));
+        args.service_args = policy.args;
+        args.cwd = policy.cwd.map(PathBuf::from);
+        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact));
+        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact));
+        service_launch_internal(args.clone(), Some(replacement_evidence), false)?
+            .coverage_launch
+            .context("workspace coverage replacement launch returned no specialized identity")?
+    };
+
+    let ready = (0..100).find_map(|_| {
+        let observed = load_latest_workspace_coverage_provider_heartbeat(
+            &args.store,
+            args.runtime_id.clone(),
+            &replacement.launch_id,
+        )
+        .ok()
+        .flatten();
+        if let Some(heartbeat) = observed
+            && heartbeat.status == "ready"
+            && authenticate_workspace_coverage_provider_heartbeat(
+                &args.store,
+                args.runtime_id.clone(),
+                &heartbeat.heartbeat_id,
+                host.entry(),
+            )
+            .is_ok()
+        {
+            return Some(heartbeat);
+        }
+        thread::sleep(StdDuration::from_millis(100));
+        None
+    });
+    let Some(ready) = ready else {
+        anyhow::bail!("workspace coverage replacement did not publish signed readiness in time");
+    };
+    let recovered = recover_workspace_coverage_projection(
+        &runtime_store,
+        &args.store,
+        &args.runtime_id,
+        host.entry(),
+        &target.managed_process_launch_id,
+        &replacement.launch_id,
+        &ready.heartbeat_id,
+        &target.claim_id,
+    )?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+            "status": "recovered",
+            "serviceId": policy.service_id,
+            "oldClaimId": target.claim_id,
+            "newClaimId": recovered.claim_id,
+            "claimEpoch": recovered.claim_epoch,
+            "replacementLaunchId": replacement.launch_id,
+            "recoveryReceiptId": recovered.recovery_receipt_id,
+            "restarted": true,
+            "privateStateExposed": false,
+        }))?
+    );
+    Ok(())
 }
 
 fn service_runbook(args: Args) -> Result<()> {
@@ -2960,7 +3231,7 @@ mod semantic_projector_authority_tests {
     #[test]
     fn reserved_projector_launch_seals_spawn_before_the_child_may_publish() {
         let source = include_str!("epiphany-daemon-supervisor.rs");
-        let start = source.find("fn service_launch(args: Args)").unwrap();
+        let start = source.find("fn service_launch_internal(").unwrap();
         let tail = &source[start..];
         let end = tail.find("\nfn ").unwrap();
         let body = &tail[..end];
@@ -2983,7 +3254,7 @@ mod semantic_projector_authority_tests {
     #[test]
     fn workspace_coverage_launch_uses_only_specialized_process_authority() {
         let source = include_str!("epiphany-daemon-supervisor.rs");
-        let start = source.find("fn service_launch(args: Args)").unwrap();
+        let start = source.find("fn service_launch_internal(").unwrap();
         let tail = &source[start..];
         let end = tail.find("\nfn ").unwrap();
         let body = &tail[..end];
@@ -3002,6 +3273,28 @@ mod semantic_projector_authority_tests {
         assert!(body.contains("seed.zeroize()"));
         assert!(body.contains("let _ = child.kill()"));
         assert!(body.contains("let _ = child.wait()"));
+    }
+
+    #[test]
+    fn workspace_coverage_reconcile_orders_termination_launch_readiness_and_body_transfer() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source
+            .find("fn reconcile_workspace_coverage_projector(")
+            .unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn service_runbook").unwrap();
+        let body = &tail[..end];
+        let termination = body
+            .rfind("authenticate_workspace_coverage_termination_with_envelope_digest")
+            .unwrap();
+        let launch = body.rfind("service_launch_internal").unwrap();
+        let readiness = body
+            .rfind("load_latest_workspace_coverage_provider_heartbeat")
+            .unwrap();
+        let recovery = body.rfind("recover_workspace_coverage_projection").unwrap();
+        assert!(termination < launch && launch < readiness && readiness < recovery);
+        assert!(body.contains("write_workspace_coverage_process_termination_observation"));
+        assert!(body.contains("status == \"ready\""));
     }
 
     #[test]

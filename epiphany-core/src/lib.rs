@@ -1168,6 +1168,7 @@ pub use workspace_coverage_process_documents::{
     authenticate_workspace_coverage_managed_process_launch,
     authenticate_workspace_coverage_process_termination_observation,
     authenticate_workspace_coverage_provider_heartbeat,
+    authenticate_workspace_coverage_termination_with_envelope_digest,
     load_latest_workspace_coverage_managed_process_launch,
     load_latest_workspace_coverage_provider_heartbeat,
     load_workspace_coverage_managed_process_launch,
@@ -1180,6 +1181,11 @@ pub use workspace_coverage_process_documents::{
     workspace_coverage_termination_statement, write_workspace_coverage_managed_process_launch,
     write_workspace_coverage_process_termination_observation,
     write_workspace_coverage_provider_heartbeat,
+};
+pub use workspace_coverage_projector::{
+    WorkspaceCoverageRecoveryOutcome, WorkspaceCoverageRecoveryTarget,
+    authenticate_workspace_coverage_recovery_receipt, current_workspace_coverage_recovery_target,
+    recover_workspace_coverage_projection,
 };
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;

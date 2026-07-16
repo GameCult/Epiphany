@@ -18,7 +18,7 @@ use std::path::Path;
 pub const WORKSPACE_COVERAGE_PROCESS_LAUNCH_TYPE: &str =
     "epiphany.workspace_coverage.managed_process_launch";
 pub const WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION: &str =
-    "epiphany.workspace_coverage.managed_process_launch.v0";
+    "epiphany.workspace_coverage.managed_process_launch.v1";
 pub const WORKSPACE_COVERAGE_PROCESS_LAUNCH_LATEST_KEY: &str =
     "epiphany-local/workspace-coverage/managed-process-launch/latest";
 pub const WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE: &str =
@@ -99,6 +99,12 @@ pub struct WorkspaceCoverageManagedProcessLaunchEntry {
     pub identity_captured_at_utc: String,
     #[cultcache(key = 26)]
     pub signature_algorithm: String,
+    #[cultcache(key = 27, default)]
+    pub replaces_launch_id: Option<String>,
+    #[cultcache(key = 28, default)]
+    pub replaces_termination_id: Option<String>,
+    #[cultcache(key = 29, default)]
+    pub replaces_termination_envelope_digest: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -252,6 +258,9 @@ struct LaunchStatement<'a> {
     supervisor_id: &'a str,
     identity_captured_at_utc: &'a str,
     signature_algorithm: &'a str,
+    replaces_launch_id: &'a Option<String>,
+    replaces_termination_id: &'a Option<String>,
+    replaces_termination_envelope_digest: &'a Option<String>,
 }
 
 #[derive(Serialize)]
@@ -349,6 +358,9 @@ pub fn workspace_coverage_launch_statement(
         supervisor_id: &entry.supervisor_id,
         identity_captured_at_utc: &entry.identity_captured_at_utc,
         signature_algorithm: &entry.signature_algorithm,
+        replaces_launch_id: &entry.replaces_launch_id,
+        replaces_termination_id: &entry.replaces_termination_id,
+        replaces_termination_envelope_digest: &entry.replaces_termination_envelope_digest,
     })?)
 }
 
@@ -504,6 +516,43 @@ pub fn write_workspace_coverage_managed_process_launch(
         policy_envelope,
         node.cache().prepare_entry(&identity_key, &entry)?.0,
     ];
+    if let (Some(old_launch_id), Some(termination_id), Some(termination_digest)) = (
+        entry.replaces_launch_id.as_deref(),
+        entry.replaces_termination_id.as_deref(),
+        entry.replaces_termination_envelope_digest.as_deref(),
+    ) {
+        let termination_envelope = node
+            .cache()
+            .get_envelope::<WorkspaceCoverageProcessTerminationObservationEntry>(&termination_key(
+                old_launch_id,
+            ))?
+            .ok_or_else(|| anyhow!("workspace coverage replacement termination is absent"))?;
+        let termination: WorkspaceCoverageProcessTerminationObservationEntry =
+            rmp_serde::from_slice(&termination_envelope.payload)?;
+        authenticate_workspace_coverage_process_termination_observation(
+            store_path,
+            entry.runtime_id.clone(),
+            old_launch_id,
+            host_identity,
+        )?;
+        if termination.termination_id != termination_id
+            || envelope_digest(&termination_envelope) != termination_digest
+        {
+            bail!("workspace coverage replacement launch disagrees with exact termination");
+        }
+        let replacement_key =
+            format!("epiphany-local/workspace-coverage/replacement-for/{old_launch_id}");
+        if node
+            .cache()
+            .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&replacement_key)?
+            .is_some()
+        {
+            bail!("workspace coverage termination already has a replacement launch");
+        }
+        expected.push(termination_envelope.clone());
+        replacements.push(termination_envelope);
+        replacements.push(node.cache().prepare_entry(&replacement_key, &entry)?.0);
+    }
     if let Some(latest) = node
         .cache()
         .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(
@@ -717,6 +766,46 @@ pub fn authenticate_workspace_coverage_provider_heartbeat(
     Ok(heartbeat)
 }
 
+pub(crate) fn authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host_identity: &HostIncarnationIdentityEntry,
+) -> Result<(WorkspaceCoverageManagedProcessLaunchEntry, String)> {
+    let runtime_id = runtime_id.into();
+    let launch = authenticate_workspace_coverage_managed_process_launch(
+        store_path.as_ref(),
+        runtime_id.clone(),
+        launch_id,
+        host_identity,
+    )?;
+    let envelope = open_epiphany_cultmesh_node(store_path, runtime_id)?
+        .cache()
+        .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(launch_id))?
+        .ok_or_else(|| anyhow!("workspace coverage launch envelope disappeared"))?;
+    Ok((launch, envelope_digest(&envelope)))
+}
+
+pub(crate) fn authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    heartbeat_id: &str,
+    host_identity: &HostIncarnationIdentityEntry,
+) -> Result<(WorkspaceCoverageProviderHeartbeatEntry, String)> {
+    let runtime_id = runtime_id.into();
+    let heartbeat = authenticate_workspace_coverage_provider_heartbeat(
+        store_path.as_ref(),
+        runtime_id.clone(),
+        heartbeat_id,
+        host_identity,
+    )?;
+    let envelope = open_epiphany_cultmesh_node(store_path, runtime_id)?
+        .cache()
+        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&heartbeat_key(heartbeat_id))?
+        .ok_or_else(|| anyhow!("workspace coverage heartbeat envelope disappeared"))?;
+    Ok((heartbeat, envelope_digest(&envelope)))
+}
+
 pub fn write_workspace_coverage_process_termination_observation(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -926,6 +1015,29 @@ pub fn authenticate_workspace_coverage_process_termination_observation(
     Ok(entry)
 }
 
+pub fn authenticate_workspace_coverage_termination_with_envelope_digest(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host: &HostIncarnationIdentityEntry,
+) -> Result<(WorkspaceCoverageProcessTerminationObservationEntry, String)> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let entry = authenticate_workspace_coverage_process_termination_observation(
+        store_path,
+        runtime_id.clone(),
+        launch_id,
+        host,
+    )?;
+    let envelope = open_epiphany_cultmesh_node(store_path, runtime_id)?
+        .cache()
+        .get_envelope::<WorkspaceCoverageProcessTerminationObservationEntry>(&termination_key(
+            launch_id,
+        ))?
+        .ok_or_else(|| anyhow!("workspace coverage termination envelope disappeared"))?;
+    Ok((entry, envelope_digest(&envelope)))
+}
+
 fn validate_launch(
     entry: &WorkspaceCoverageManagedProcessLaunchEntry,
     host: &HostIncarnationIdentityEntry,
@@ -936,6 +1048,19 @@ fn validate_launch(
         || entry.supervisor_id != "epiphany-daemon-supervisor"
     {
         bail!("workspace coverage launch violates its reserved schema or authority");
+    }
+    match (
+        entry.replaces_launch_id.as_deref(),
+        entry.replaces_termination_id.as_deref(),
+        entry.replaces_termination_envelope_digest.as_deref(),
+    ) {
+        (None, None, None) => {}
+        (Some(launch_id), Some(termination_id), Some(digest))
+            if !launch_id.trim().is_empty() && !termination_id.trim().is_empty() =>
+        {
+            validate_digest("replacement termination", digest)?;
+        }
+        _ => bail!("workspace coverage replacement launch has a partial causal edge"),
     }
     for (name, value) in [
         ("launch id", entry.launch_id.as_str()),
@@ -1282,7 +1407,9 @@ mod tests {
         EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION, enroll_host_identity_at,
         write_epiphany_cultmesh_workspace_coverage_projector_service_policy,
     };
+    use cultcache_rs::CacheBackingStore;
     use rand_core::{OsRng, RngCore};
+    use std::process::Command;
     use uuid::Uuid;
 
     struct FakeObservation {
@@ -1392,6 +1519,9 @@ mod tests {
             supervisor_id: "epiphany-daemon-supervisor".to_string(),
             identity_captured_at_utc: now,
             signature_algorithm: "ed25519".to_string(),
+            replaces_launch_id: None,
+            replaces_termination_id: None,
+            replaces_termination_envelope_digest: None,
         };
         sign_workspace_coverage_launch(&mut entry, host)?;
         Ok(entry)
@@ -1683,6 +1813,281 @@ mod tests {
                 .is_none()
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn body_recovery_is_one_exact_evidence_fenced_transaction() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let (verse, host, old_launch) = persisted_chain(temp.path())?;
+
+        let repo = temp.path().join("repo");
+        std::fs::create_dir_all(&repo)?;
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()?;
+        std::fs::write(repo.join("source.rs"), "fn awake() {}\n")?;
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()?;
+        let runtime = temp.path().join("runtime.ccmp");
+        let agents = temp.path().join("agents.ccmp");
+        let body_store = temp.path().join("body.ccmp");
+        crate::initialize_runtime_spine(
+            &runtime,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "local".into(),
+                display_name: "recovery-test".into(),
+                created_at: "2026-07-16T00:00:00Z".into(),
+            },
+        )?;
+        crate::ensure_agent_memory_swarm_identity(&agents, "recovery-swarm")?;
+        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-16T00:00:01Z")?;
+        crate::bind_repository_body(&repo, &body_store, &runtime, "recovery-workspace")?;
+        let basis = crate::observe_runtime_repository_body_basis(&runtime)?;
+        let session = crate::RepositoryBodyReadSession::open(&runtime, &basis)?;
+        let prepared = crate::workspace_coverage_projector::prepare_workspace_coverage_projection(
+            &session,
+            "test-provider",
+            "test-model",
+            3,
+        )?;
+        let acquired =
+            match crate::workspace_coverage_projector::acquire_workspace_coverage_projection(
+                &prepared,
+                EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID,
+                &old_launch.provider_incarnation_id,
+                &old_launch.launch_id,
+            )? {
+                crate::workspace_coverage_projector::WorkspaceCoverageAcquireResult::Acquired(
+                    value,
+                ) => value,
+                _ => bail!("fixture did not acquire old claim"),
+            };
+
+        let source = FakeObservation {
+            boot: Some(old_launch.boot_identity.clone()),
+            process: ProcessInstanceObservation::Missing,
+        };
+        let termination = write_workspace_coverage_process_termination_observation_with_source(
+            &verse,
+            "local",
+            &old_launch.launch_id,
+            &host,
+            &source,
+        )?;
+        let (_, termination_digest) =
+            authenticate_workspace_coverage_termination_with_envelope_digest(
+                &verse,
+                "local",
+                &old_launch.launch_id,
+                host.entry(),
+            )?;
+
+        let node = open_epiphany_cultmesh_node(&verse, "local")?;
+        let policy_envelope = node
+            .cache()
+            .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&managed_policy_key())?
+            .context("policy missing")?;
+        let policy: EpiphanyCultMeshManagedServicePolicyEntry =
+            rmp_serde::from_slice(&policy_envelope.payload)?;
+        let body_before_refusal = std::fs::read(&body_store)?;
+        let out_of_order_provider = provider_key();
+        let mut out_of_order = launch(
+            &policy,
+            envelope_digest(&policy_envelope),
+            &host,
+            &out_of_order_provider,
+        )?;
+        out_of_order.launched_at_utc = termination.observed_at_utc.clone();
+        out_of_order.identity_captured_at_utc = termination.observed_at_utc.clone();
+        sign_workspace_coverage_launch(&mut out_of_order, &host)?;
+        write_workspace_coverage_managed_process_launch(
+            &verse,
+            "local",
+            out_of_order.clone(),
+            host.entry(),
+        )?;
+        let out_of_order_envelope = open_epiphany_cultmesh_node(&verse, "local")?
+            .cache()
+            .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(
+                &out_of_order.launch_id,
+            ))?
+            .context("out-of-order launch missing")?;
+        let out_of_order_ready = heartbeat(
+            &out_of_order,
+            envelope_digest(&out_of_order_envelope),
+            &out_of_order_provider,
+            1,
+        )?;
+        write_workspace_coverage_provider_heartbeat(&verse, "local", out_of_order_ready.clone())?;
+        assert!(
+            crate::workspace_coverage_projector::recover_workspace_coverage_projection(
+                &runtime,
+                &verse,
+                "local",
+                host.entry(),
+                &old_launch.launch_id,
+                &out_of_order.launch_id,
+                &out_of_order_ready.heartbeat_id,
+                &acquired.claim.claim_id,
+            )
+            .is_err(),
+            "unbound replacement must be refused"
+        );
+        assert_eq!(std::fs::read(&body_store)?, body_before_refusal);
+
+        let replacement_provider = provider_key();
+        let mut replacement = launch(
+            &policy,
+            envelope_digest(&policy_envelope),
+            &host,
+            &replacement_provider,
+        )?;
+        replacement.replaces_launch_id = Some(old_launch.launch_id.clone());
+        replacement.replaces_termination_id = Some(termination.termination_id.clone());
+        replacement.replaces_termination_envelope_digest = Some(termination_digest);
+        sign_workspace_coverage_launch(&mut replacement, &host)?;
+        write_workspace_coverage_managed_process_launch(
+            &verse,
+            "local",
+            replacement.clone(),
+            host.entry(),
+        )?;
+        let competing_provider = provider_key();
+        let mut competing = launch(
+            &policy,
+            envelope_digest(&policy_envelope),
+            &host,
+            &competing_provider,
+        )?;
+        competing.replaces_launch_id = Some(old_launch.launch_id.clone());
+        competing.replaces_termination_id = Some(termination.termination_id.clone());
+        competing.replaces_termination_envelope_digest =
+            replacement.replaces_termination_envelope_digest.clone();
+        sign_workspace_coverage_launch(&mut competing, &host)?;
+        assert!(
+            write_workspace_coverage_managed_process_launch(
+                &verse,
+                "local",
+                competing,
+                host.entry(),
+            )
+            .is_err(),
+            "one termination must authorize at most one replacement launch"
+        );
+        let replacement_envelope = open_epiphany_cultmesh_node(&verse, "local")?
+            .cache()
+            .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(
+                &replacement.launch_id,
+            ))?
+            .context("replacement launch missing")?;
+        let initial_ready = heartbeat(
+            &replacement,
+            envelope_digest(&replacement_envelope),
+            &replacement_provider,
+            1,
+        )?;
+        write_workspace_coverage_provider_heartbeat(&verse, "local", initial_ready)?;
+
+        let body_before_refusal = std::fs::read(&body_store)?;
+        let mut degraded = heartbeat(
+            &replacement,
+            envelope_digest(&replacement_envelope),
+            &replacement_provider,
+            2,
+        )?;
+        degraded.status = "degraded".into();
+        sign_workspace_coverage_heartbeat(&mut degraded, &replacement_provider)?;
+        write_workspace_coverage_provider_heartbeat(&verse, "local", degraded.clone())?;
+        assert!(
+            crate::workspace_coverage_projector::recover_workspace_coverage_projection(
+                &runtime,
+                &verse,
+                "local",
+                host.entry(),
+                &old_launch.launch_id,
+                &replacement.launch_id,
+                &degraded.heartbeat_id,
+                &acquired.claim.claim_id,
+            )
+            .is_err(),
+            "degraded replacement must not inherit Body authority"
+        );
+        assert_eq!(std::fs::read(&body_store)?, body_before_refusal);
+
+        let ready = heartbeat(
+            &replacement,
+            envelope_digest(&replacement_envelope),
+            &replacement_provider,
+            3,
+        )?;
+        write_workspace_coverage_provider_heartbeat(&verse, "local", ready.clone())?;
+
+        let recovered = crate::workspace_coverage_projector::recover_workspace_coverage_projection(
+            &runtime,
+            &verse,
+            "local",
+            host.entry(),
+            &old_launch.launch_id,
+            &replacement.launch_id,
+            &ready.heartbeat_id,
+            &acquired.claim.claim_id,
+        )?;
+        assert_eq!(recovered.claim_epoch, acquired.claim.claim_epoch + 1);
+        assert_eq!(recovered.managed_process_launch_id, replacement.launch_id);
+        assert_eq!(
+            recovered.executor_incarnation,
+            replacement.provider_incarnation_id
+        );
+        let opening = SingleFileMessagePackBackingStore::new(&body_store).pull_all()?;
+        let old_history: crate::workspace_coverage_projector::WorkspaceCoverageProjectionClaim =
+            rmp_serde::from_slice(
+                &opening
+                    .iter()
+                    .find(|entry| {
+                        entry.r#type == "gamecult.epiphany.workspace_coverage_projection_claim"
+                            && entry.key == format!("history/{}", acquired.claim.claim_id)
+                    })
+                    .context("failed claim history missing")?
+                    .payload,
+            )?;
+        assert_eq!(old_history.status, "failed");
+        assert!(old_history.termination_evidence_digest.is_some());
+        let recovery_id = recovered.recovery_receipt_id.as_str();
+        let recovery_digest = recovered.recovery_receipt_digest.as_str();
+        crate::workspace_coverage_projector::authenticate_workspace_coverage_recovery_receipt(
+            &body_store,
+            &verse,
+            "local",
+            host.entry(),
+            recovery_id,
+            recovery_digest,
+        )?;
+        assert_eq!(
+            old_history.recovery_receipt_id.as_deref(),
+            Some(recovery_id)
+        );
+        assert_eq!(
+            old_history.recovery_receipt_digest.as_deref(),
+            Some(recovery_digest)
+        );
+        assert!(
+            crate::workspace_coverage_projector::recover_workspace_coverage_projection(
+                &runtime,
+                &verse,
+                "local",
+                host.entry(),
+                &old_launch.launch_id,
+                &replacement.launch_id,
+                &ready.heartbeat_id,
+                &acquired.claim.claim_id,
+            )
+            .is_err(),
+            "moved claim/attempt must refuse replay"
+        );
         Ok(())
     }
 }

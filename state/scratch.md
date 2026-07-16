@@ -137,3 +137,23 @@ Authentication rejoins the signed record to all exact persisted sources.
 Next wire reconcile order: termination first, replacement launch second,
 replacement signed-ready third, then one Body recovery CAS. No timer gets a
 vote.
+
+## Exact abandoned-claim transfer and Idunn wiring (2026-07-16)
+
+Recovery now derives the Body store from the runtime route, authenticates the
+live Body basis, joins obligation/plan/claim to it, verifies exact old launch
+and immutable termination, requires the replacement's signed causal edge plus
+current ready heartbeat, and commits failed history, epoch+1 successor, and an
+immutable recovery receipt in one Body CAS. The receipt binds exact CultMesh
+envelope digests and reconstructs against CultMesh plus current Body state.
+
+Idunn has a reserved reconciliation branch. Generic lifecycle PID receipts no
+longer decide workspace-coverage survival. Exact termination precedes spawn;
+the launch writer admits one replacement for that termination; signed ready
+precedes Body recovery. A concurrent launch loser is killed.
+
+Remaining wound: termination requires a latest heartbeat. A child dying after
+signed launch persistence but before heartbeat sequence one can strand the
+chain. Make heartbeat optional additional termination evidence, then run an
+isolated live death/replacement/recovery smoke. Reboot still needs live operator
+approval.

@@ -4,15 +4,22 @@ use crate::semantic_backend::{
 };
 use crate::{
     BODY_BINDING_KEY, BODY_BINDING_TYPE, BODY_HEAD_KEY, BODY_HEAD_TYPE, BODY_MANIFEST_TYPE,
-    BODY_OBSERVATION_TYPE, RepositoryBodyHead, RepositoryBodyObservationBasis,
-    WORKSPACE_COVERAGE_HEAD_SCHEMA_VERSION, WORKSPACE_COVERAGE_RECEIPT_SCHEMA_VERSION,
-    WorkspaceCoverageChunkDescriptor, WorkspaceCoverageHead, WorkspaceCoverageObligation,
-    WorkspaceCoveragePointBinding, WorkspaceCoveragePointPayload, WorkspaceCoveragePolicy,
-    WorkspaceCoverageProjectionPlan, WorkspaceCoverageReceipt, WorkspaceCoverageVectorBinding,
+    BODY_OBSERVATION_TYPE, HostIncarnationIdentityEntry, RepositoryBodyHead,
+    RepositoryBodyObservationBasis, WORKSPACE_COVERAGE_HEAD_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_RECEIPT_SCHEMA_VERSION, WorkspaceCoverageChunkDescriptor,
+    WorkspaceCoverageHead, WorkspaceCoverageObligation, WorkspaceCoveragePointBinding,
+    WorkspaceCoveragePointPayload, WorkspaceCoveragePolicy, WorkspaceCoverageProjectionPlan,
+    WorkspaceCoverageReceipt, WorkspaceCoverageVectorBinding,
     derive_workspace_coverage_obligation_from_authenticated_manifest,
-    derive_workspace_coverage_projection_plan, refine_workspace_coverage_obligation_utf8,
+    derive_workspace_coverage_projection_plan, load_latest_workspace_coverage_provider_heartbeat,
+    observe_runtime_repository_body_basis, refine_workspace_coverage_obligation_utf8,
     runtime_repository_body_store_binding, validate_workspace_coverage_head,
     validate_workspace_coverage_projection_plan, workspace_coverage_execution_collection,
+    workspace_coverage_process_documents::{
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest,
+        authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest,
+        authenticate_workspace_coverage_termination_with_envelope_digest,
+    },
 };
 use anyhow::{Result, anyhow, bail};
 use cultcache_rs::{
@@ -27,6 +34,12 @@ const ATTEMPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_atte
 const CLAIM_KEY: &str = "workspace-coverage-projector-current";
 const CLAIM_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v1";
 const ATTEMPT_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v1";
+const CLAIM_SCHEMA_V2: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v2";
+const ATTEMPT_SCHEMA_V2: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v2";
+const CLAIM_SCHEMA_V3: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v3";
+const ATTEMPT_SCHEMA_V3: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v3";
+const RECOVERY_TYPE: &str = "gamecult.epiphany.workspace_coverage_recovery_receipt";
+const RECOVERY_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_recovery_receipt.v0";
 const PROJECTION_SCHEMA: &str = "gamecult.epiphany.workspace_bytes_projection.v0";
 const CHUNKER_ID: &str = "utf8_lines_96_overlap_8_v0";
 const MAXIMUM_FILE_BYTES: u64 = 4 * 1024 * 1024;
@@ -52,6 +65,23 @@ pub(crate) struct WorkspaceCoverageObservedBinding {
     point_set_sha256: String,
     point_binding_set_sha256: String,
     vector_binding_set_sha256: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceCoverageRecoveryTarget {
+    pub claim_id: String,
+    pub claim_epoch: u64,
+    pub managed_process_launch_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceCoverageRecoveryOutcome {
+    pub claim_id: String,
+    pub claim_epoch: u64,
+    pub managed_process_launch_id: String,
+    pub executor_incarnation: String,
+    pub recovery_receipt_id: String,
+    pub recovery_receipt_digest: String,
 }
 
 pub(crate) trait WorkspaceCoverageProjectionPort {
@@ -127,9 +157,9 @@ pub(crate) struct WorkspaceCoverageProjectionClaim {
     #[cultcache(key = 0)]
     schema_version: String,
     #[cultcache(key = 1)]
-    claim_id: String,
+    pub(crate) claim_id: String,
     #[cultcache(key = 2)]
-    claim_epoch: u64,
+    pub(crate) claim_epoch: u64,
     #[cultcache(key = 3)]
     plan_id: String,
     #[cultcache(key = 4)]
@@ -143,18 +173,28 @@ pub(crate) struct WorkspaceCoverageProjectionClaim {
     #[cultcache(key = 8)]
     manifest_root_sha256: String,
     #[cultcache(key = 9)]
-    status: String,
+    pub(crate) status: String,
     #[cultcache(key = 10)]
     executor_id: String,
     #[cultcache(key = 11)]
-    executor_incarnation: String,
-    #[cultcache(key = 12)]
-    managed_process_launch_id: String,
+    pub(crate) executor_incarnation: String,
+    #[cultcache(key = 12, default)]
+    pub(crate) managed_process_launch_id: String,
+    #[cultcache(key = 13, default)]
+    termination_evidence_id: Option<String>,
+    #[cultcache(key = 14, default)]
+    pub(crate) termination_evidence_digest: Option<String>,
+    #[cultcache(key = 15, default)]
+    pub(crate) recovery_receipt_id: Option<String>,
+    #[cultcache(key = 16, default)]
+    pub(crate) recovery_receipt_digest: Option<String>,
 }
 
 fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim) -> Result<()> {
-    if claim.schema_version != CLAIM_SCHEMA
-        || claim.claim_id.trim().is_empty()
+    if !matches!(
+        claim.schema_version.as_str(),
+        CLAIM_SCHEMA | CLAIM_SCHEMA_V2 | CLAIM_SCHEMA_V3
+    ) || claim.claim_id.trim().is_empty()
         || claim.claim_epoch == 0
         || claim.plan_id.trim().is_empty()
         || claim.attempt_id.trim().is_empty()
@@ -168,12 +208,42 @@ fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim) -> Result
     {
         bail!("invalid workspace coverage projection claim");
     }
+    match claim.status.as_str() {
+        "failed" if claim.schema_version == CLAIM_SCHEMA_V2 => {
+            validate_terminal_evidence(
+                &claim.termination_evidence_id,
+                &claim.termination_evidence_digest,
+            )?;
+        }
+        _ if claim.termination_evidence_id.is_some()
+            || claim.termination_evidence_digest.is_some() =>
+        {
+            bail!("workspace coverage claim has misplaced termination evidence")
+        }
+        _ => {}
+    }
+    if claim.schema_version == CLAIM_SCHEMA_V2 && claim.status != "failed" {
+        bail!("workspace coverage recovery claim schema is terminal-only");
+    }
+    match claim.schema_version.as_str() {
+        CLAIM_SCHEMA
+            if claim.recovery_receipt_id.is_some() || claim.recovery_receipt_digest.is_some() =>
+        {
+            bail!("ordinary workspace coverage claim cites recovery evidence")
+        }
+        CLAIM_SCHEMA_V2 | CLAIM_SCHEMA_V3 => {
+            validate_terminal_evidence(&claim.recovery_receipt_id, &claim.recovery_receipt_digest)?
+        }
+        _ => {}
+    }
     Ok(())
 }
 
 fn validate_projection_attempt(attempt: &WorkspaceCoverageProjectionAttempt) -> Result<()> {
-    if attempt.schema_version != ATTEMPT_SCHEMA
-        || attempt.attempt_id.trim().is_empty()
+    if !matches!(
+        attempt.schema_version.as_str(),
+        ATTEMPT_SCHEMA | ATTEMPT_SCHEMA_V2 | ATTEMPT_SCHEMA_V3
+    ) || attempt.attempt_id.trim().is_empty()
         || attempt.claim_id.trim().is_empty()
         || attempt.claim_epoch == 0
         || attempt.plan_id.trim().is_empty()
@@ -202,7 +272,54 @@ fn validate_projection_attempt(attempt: &WorkspaceCoverageProjectionAttempt) -> 
         _ => {}
     }
     if let Some(value) = &attempt.completed_at {
-        chrono::DateTime::parse_from_rfc3339(value)?;
+        let completed = chrono::DateTime::parse_from_rfc3339(value)?;
+        let started = chrono::DateTime::parse_from_rfc3339(&attempt.started_at)?;
+        if completed < started {
+            bail!("workspace coverage attempt completes before it starts");
+        }
+    }
+    match attempt.status.as_str() {
+        "failed" if attempt.schema_version == ATTEMPT_SCHEMA_V2 => {
+            validate_terminal_evidence(
+                &attempt.termination_evidence_id,
+                &attempt.termination_evidence_digest,
+            )?;
+        }
+        _ if attempt.termination_evidence_id.is_some()
+            || attempt.termination_evidence_digest.is_some() =>
+        {
+            bail!("workspace coverage attempt has misplaced termination evidence")
+        }
+        _ => {}
+    }
+    if attempt.schema_version == ATTEMPT_SCHEMA_V2 && attempt.status != "failed" {
+        bail!("workspace coverage recovery attempt schema is terminal-only");
+    }
+    match attempt.schema_version.as_str() {
+        ATTEMPT_SCHEMA
+            if attempt.recovery_receipt_id.is_some()
+                || attempt.recovery_receipt_digest.is_some() =>
+        {
+            bail!("ordinary workspace coverage attempt cites recovery evidence")
+        }
+        ATTEMPT_SCHEMA_V2 | ATTEMPT_SCHEMA_V3 => validate_terminal_evidence(
+            &attempt.recovery_receipt_id,
+            &attempt.recovery_receipt_digest,
+        )?,
+        _ => {}
+    }
+    Ok(())
+}
+
+fn validate_terminal_evidence(id: &Option<String>, digest: &Option<String>) -> Result<()> {
+    let (Some(id), Some(digest)) = (id.as_deref(), digest.as_deref()) else {
+        bail!("recovered workspace coverage terminal state lacks exact evidence")
+    };
+    let Some(hex) = digest.strip_prefix("sha256-") else {
+        bail!("recovered workspace coverage terminal evidence is invalid")
+    };
+    if id.trim().is_empty() || hex.len() != 64 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        bail!("recovered workspace coverage terminal evidence is invalid")
     }
     Ok(())
 }
@@ -214,6 +331,15 @@ fn validate_claim_attempt_link(
     validate_projection_claim(claim)?;
     validate_projection_attempt(attempt)?;
     if claim.claim_id != attempt.claim_id
+        || !matches!(
+            (
+                claim.schema_version.as_str(),
+                attempt.schema_version.as_str()
+            ),
+            (CLAIM_SCHEMA, ATTEMPT_SCHEMA)
+                | (CLAIM_SCHEMA_V2, ATTEMPT_SCHEMA_V2)
+                | (CLAIM_SCHEMA_V3, ATTEMPT_SCHEMA_V3)
+        )
         || claim.claim_epoch != attempt.claim_epoch
         || claim.attempt_id != attempt.attempt_id
         || claim.plan_id != attempt.plan_id
@@ -221,6 +347,10 @@ fn validate_claim_attempt_link(
         || claim.executor_id != attempt.executor_id
         || claim.executor_incarnation != attempt.executor_incarnation
         || claim.managed_process_launch_id != attempt.managed_process_launch_id
+        || claim.termination_evidence_id != attempt.termination_evidence_id
+        || claim.termination_evidence_digest != attempt.termination_evidence_digest
+        || claim.recovery_receipt_id != attempt.recovery_receipt_id
+        || claim.recovery_receipt_digest != attempt.recovery_receipt_digest
     {
         bail!("workspace coverage claim/attempt authority is split");
     }
@@ -257,6 +387,169 @@ pub(crate) struct WorkspaceCoverageProjectionAttempt {
     executor_incarnation: String,
     #[cultcache(key = 11)]
     managed_process_launch_id: String,
+    #[cultcache(key = 12, default)]
+    termination_evidence_id: Option<String>,
+    #[cultcache(key = 13, default)]
+    termination_evidence_digest: Option<String>,
+    #[cultcache(key = 14, default)]
+    recovery_receipt_id: Option<String>,
+    #[cultcache(key = 15, default)]
+    recovery_receipt_digest: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "gamecult.epiphany.workspace_coverage_recovery_receipt",
+    schema = "WorkspaceCoverageRecoveryReceipt"
+)]
+struct WorkspaceCoverageRecoveryReceipt {
+    #[cultcache(key = 0)]
+    schema_version: String,
+    #[cultcache(key = 1)]
+    recovery_id: String,
+    #[cultcache(key = 2)]
+    old_claim_id: String,
+    #[cultcache(key = 3)]
+    old_attempt_id: String,
+    #[cultcache(key = 4)]
+    old_claim_epoch: u64,
+    #[cultcache(key = 5)]
+    termination_id: String,
+    #[cultcache(key = 6)]
+    termination_envelope_digest: String,
+    #[cultcache(key = 7)]
+    replacement_launch_id: String,
+    #[cultcache(key = 8)]
+    replacement_launch_envelope_digest: String,
+    #[cultcache(key = 9)]
+    ready_heartbeat_id: String,
+    #[cultcache(key = 10)]
+    ready_heartbeat_envelope_digest: String,
+    #[cultcache(key = 11)]
+    new_claim_id: String,
+    #[cultcache(key = 12)]
+    new_attempt_id: String,
+    #[cultcache(key = 13)]
+    new_claim_epoch: u64,
+    #[cultcache(key = 14)]
+    recovered_at_utc: String,
+    #[cultcache(key = 15)]
+    old_launch_id: String,
+}
+
+fn validate_recovery_receipt(receipt: &WorkspaceCoverageRecoveryReceipt) -> Result<()> {
+    if receipt.schema_version != RECOVERY_SCHEMA
+        || receipt.recovery_id.trim().is_empty()
+        || receipt.old_claim_id.trim().is_empty()
+        || receipt.old_attempt_id.trim().is_empty()
+        || receipt.old_launch_id.trim().is_empty()
+        || receipt.old_claim_epoch == 0
+        || receipt.replacement_launch_id.trim().is_empty()
+        || receipt.ready_heartbeat_id.trim().is_empty()
+        || receipt.new_claim_id.trim().is_empty()
+        || receipt.new_attempt_id.trim().is_empty()
+        || receipt.old_claim_epoch.checked_add(1) != Some(receipt.new_claim_epoch)
+    {
+        bail!("invalid workspace coverage recovery receipt");
+    }
+    validate_terminal_evidence(
+        &Some(receipt.termination_id.clone()),
+        &Some(receipt.termination_envelope_digest.clone()),
+    )?;
+    validate_terminal_evidence(
+        &Some(receipt.replacement_launch_id.clone()),
+        &Some(receipt.replacement_launch_envelope_digest.clone()),
+    )?;
+    validate_terminal_evidence(
+        &Some(receipt.ready_heartbeat_id.clone()),
+        &Some(receipt.ready_heartbeat_envelope_digest.clone()),
+    )?;
+    chrono::DateTime::parse_from_rfc3339(&receipt.recovered_at_utc)?;
+    Ok(())
+}
+
+fn cultcache_envelope_digest(value: &CultCacheEnvelope) -> String {
+    let mut digest = Sha256::new();
+    digest.update(value.r#type.as_bytes());
+    digest.update([0]);
+    digest.update(value.key.as_bytes());
+    digest.update([0]);
+    digest.update(&value.payload);
+    format!("sha256-{:x}", digest.finalize())
+}
+
+pub fn authenticate_workspace_coverage_recovery_receipt(
+    body_store: impl AsRef<Path>,
+    cultmesh_store: impl AsRef<Path>,
+    runtime_id: &str,
+    host: &HostIncarnationIdentityEntry,
+    recovery_id: &str,
+    expected_digest: &str,
+) -> Result<()> {
+    let opening = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
+    let receipt_env = find(&opening, RECOVERY_TYPE, recovery_id)
+        .ok_or_else(|| anyhow!("workspace coverage recovery receipt is absent"))?;
+    if cultcache_envelope_digest(receipt_env) != expected_digest {
+        bail!("workspace coverage recovery receipt digest disagrees with authority");
+    }
+    let receipt: WorkspaceCoverageRecoveryReceipt = decode(receipt_env)?;
+    validate_recovery_receipt(&receipt)?;
+    if receipt.recovery_id != recovery_id {
+        bail!("workspace coverage recovery receipt key disagrees with payload");
+    }
+    let (_, termination_digest) = authenticate_workspace_coverage_termination_with_envelope_digest(
+        cultmesh_store.as_ref(),
+        runtime_id,
+        &receipt.old_launch_id,
+        host,
+    )?;
+    let (replacement_launch, replacement_launch_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            cultmesh_store.as_ref(),
+            runtime_id,
+            &receipt.replacement_launch_id,
+            host,
+        )?;
+    let (ready, ready_digest) =
+        authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
+            cultmesh_store.as_ref(),
+            runtime_id,
+            &receipt.ready_heartbeat_id,
+            host,
+        )?;
+    let latest = load_latest_workspace_coverage_provider_heartbeat(
+        cultmesh_store,
+        runtime_id,
+        &receipt.replacement_launch_id,
+    )?
+    .ok_or_else(|| anyhow!("workspace coverage recovery receipt has no current heartbeat"))?;
+    if termination_digest != receipt.termination_envelope_digest
+        || replacement_launch_digest != receipt.replacement_launch_envelope_digest
+        || ready_digest != receipt.ready_heartbeat_envelope_digest
+        || replacement_launch.launch_id != receipt.replacement_launch_id
+        || ready.launch_id != receipt.replacement_launch_id
+        || ready.status != "ready"
+        || latest.sequence < ready.sequence
+        || (latest.sequence == ready.sequence && latest.heartbeat_id != ready.heartbeat_id)
+    {
+        bail!("workspace coverage recovery receipt external evidence has moved or disagrees");
+    }
+    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)
+        .ok_or_else(|| anyhow!("workspace coverage recovered claim is absent"))?;
+    let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
+    let attempt_env = find(&opening, ATTEMPT_TYPE, &claim.attempt_id)
+        .ok_or_else(|| anyhow!("workspace coverage recovered attempt is absent"))?;
+    let attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+    if claim.claim_id != receipt.new_claim_id
+        || attempt.attempt_id != receipt.new_attempt_id
+        || claim.claim_epoch != receipt.new_claim_epoch
+        || claim.recovery_receipt_id.as_deref() != Some(recovery_id)
+        || claim.recovery_receipt_digest.as_deref() != Some(expected_digest)
+    {
+        bail!("workspace coverage recovery receipt disagrees with current Body authority");
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug)]
@@ -616,6 +909,10 @@ pub(crate) fn acquire_workspace_coverage_projection(
         executor_id: executor_id.into(),
         executor_incarnation: executor_incarnation.into(),
         managed_process_launch_id: managed_process_launch_id.into(),
+        termination_evidence_id: None,
+        termination_evidence_digest: None,
+        recovery_receipt_id: None,
+        recovery_receipt_digest: None,
     };
     let attempt = WorkspaceCoverageProjectionAttempt {
         schema_version: ATTEMPT_SCHEMA.into(),
@@ -630,6 +927,10 @@ pub(crate) fn acquire_workspace_coverage_projection(
         executor_id: executor_id.into(),
         executor_incarnation: executor_incarnation.into(),
         managed_process_launch_id: managed_process_launch_id.into(),
+        termination_evidence_id: None,
+        termination_evidence_digest: None,
+        recovery_receipt_id: None,
+        recovery_receipt_digest: None,
     };
     let mut expected = authority.clone();
     if let Some(existing) = existing_claim {
@@ -663,6 +964,308 @@ pub(crate) fn acquire_workspace_coverage_projection(
             prior_head: find(&opening, HEAD_TYPE, HEAD_KEY).cloned(),
         },
     ))
+}
+
+/// Atomically transfers a projection lease only after CultMesh proves the old
+/// process dead and the replacement process ready. This does not launch either
+/// process; the supervisor must establish the evidence ordering first.
+pub fn current_workspace_coverage_recovery_target(
+    runtime_store: impl AsRef<Path>,
+) -> Result<Option<WorkspaceCoverageRecoveryTarget>> {
+    let runtime_store = runtime_store.as_ref();
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("workspace coverage runtime has no Body-store binding"))?;
+    let opening = SingleFileMessagePackBackingStore::new(&route.body_store_path).pull_all()?;
+    let Some(claim_env) = find(&opening, CLAIM_TYPE, CLAIM_KEY) else {
+        return Ok(None);
+    };
+    let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
+    let attempt_env = find(&opening, ATTEMPT_TYPE, &claim.attempt_id)
+        .ok_or_else(|| anyhow!("workspace coverage current attempt is absent"))?;
+    let attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+    if claim.status != "running" {
+        return Ok(None);
+    }
+    Ok(Some(WorkspaceCoverageRecoveryTarget {
+        claim_id: claim.claim_id,
+        claim_epoch: claim.claim_epoch,
+        managed_process_launch_id: claim.managed_process_launch_id,
+    }))
+}
+
+pub fn recover_workspace_coverage_projection(
+    runtime_store: impl AsRef<Path>,
+    cultmesh_store: impl AsRef<Path>,
+    runtime_id: &str,
+    host: &HostIncarnationIdentityEntry,
+    old_launch_id: &str,
+    replacement_launch_id: &str,
+    replacement_ready_heartbeat_id: &str,
+    expected_old_claim_id: &str,
+) -> Result<WorkspaceCoverageRecoveryOutcome> {
+    let runtime_store = runtime_store.as_ref();
+    let body_route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("workspace coverage recovery runtime has no Body-store binding"))?;
+    if body_route.runtime_id != runtime_id {
+        bail!("workspace coverage recovery runtime disagrees with its Body route");
+    }
+    let cultmesh_store = cultmesh_store.as_ref();
+    let (old_launch, _) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            cultmesh_store,
+            runtime_id,
+            old_launch_id,
+            host,
+        )?;
+    let (termination, termination_digest) =
+        authenticate_workspace_coverage_termination_with_envelope_digest(
+            cultmesh_store,
+            runtime_id,
+            old_launch_id,
+            host,
+        )?;
+    let (replacement_launch, replacement_launch_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            cultmesh_store,
+            runtime_id,
+            replacement_launch_id,
+            host,
+        )?;
+    let (ready, ready_digest) =
+        authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
+            cultmesh_store,
+            runtime_id,
+            replacement_ready_heartbeat_id,
+            host,
+        )?;
+    let latest = load_latest_workspace_coverage_provider_heartbeat(
+        cultmesh_store,
+        runtime_id,
+        &replacement_launch.launch_id,
+    )?
+    .ok_or_else(|| anyhow!("workspace coverage recovery replacement has no current heartbeat"))?;
+    if old_launch.launch_id == replacement_launch.launch_id
+        || replacement_launch.replaces_launch_id.as_deref() != Some(old_launch.launch_id.as_str())
+        || replacement_launch.replaces_termination_id.as_deref()
+            != Some(termination.termination_id.as_str())
+        || replacement_launch
+            .replaces_termination_envelope_digest
+            .as_deref()
+            != Some(termination_digest.as_str())
+        || ready.launch_id != replacement_launch.launch_id
+        || latest.heartbeat_id != ready.heartbeat_id
+        || ready.status != "ready"
+        || ready.sequence == 0
+    {
+        bail!("workspace coverage recovery replacement is not exact and ready");
+    }
+    let terminated_at = chrono::DateTime::parse_from_rfc3339(&termination.observed_at_utc)?;
+    let replacement_launched_at =
+        chrono::DateTime::parse_from_rfc3339(&replacement_launch.launched_at_utc)?;
+    if terminated_at >= replacement_launched_at {
+        bail!("workspace coverage recovery requires termination before replacement launch");
+    }
+
+    let body_store = PathBuf::from(&body_route.body_store_path);
+    let body_basis = observe_runtime_repository_body_basis(runtime_store)?;
+    RepositoryBodyReadSession::open(runtime_store, &body_basis)?;
+    let backing = SingleFileMessagePackBackingStore::new(&body_store);
+    let opening = backing.pull_all()?;
+    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)
+        .ok_or_else(|| anyhow!("workspace coverage recovery running claim is absent"))?;
+    let old_claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
+    let attempt_env = find(&opening, ATTEMPT_TYPE, &old_claim.attempt_id)
+        .ok_or_else(|| anyhow!("workspace coverage recovery running attempt is absent"))?;
+    let old_attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
+    validate_claim_attempt_link(&old_claim, &old_attempt)?;
+    if old_claim.schema_version != CLAIM_SCHEMA
+        || old_attempt.schema_version != ATTEMPT_SCHEMA
+        || old_claim.status != "running"
+        || old_claim.claim_id != expected_old_claim_id
+        || old_claim.managed_process_launch_id != old_launch.launch_id
+        || old_claim.executor_id != old_launch.provider_daemon_id
+        || old_claim.executor_incarnation != old_launch.provider_incarnation_id
+    {
+        bail!("workspace coverage recovery refuses moved, terminal, legacy, or misbound authority");
+    }
+
+    let body_head_env = find(&opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)
+        .ok_or_else(|| anyhow!("current Body head missing"))?;
+    let body_head: RepositoryBodyHead = decode(body_head_env)?;
+    if body_head.observation_id != old_claim.body_observation_id
+        || body_head.generation != old_claim.body_generation
+        || body_head.manifest_root_sha256 != old_claim.manifest_root_sha256
+    {
+        bail!("workspace coverage recovery refuses moved Body authority");
+    }
+    let mut authority = vec![
+        find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)
+            .cloned()
+            .ok_or_else(|| anyhow!("Body binding missing"))?,
+        body_head_env.clone(),
+        find(
+            &opening,
+            BODY_OBSERVATION_TYPE,
+            &old_claim.body_observation_id,
+        )
+        .cloned()
+        .ok_or_else(|| anyhow!("Body observation missing"))?,
+        find(
+            &opening,
+            BODY_MANIFEST_TYPE,
+            &old_claim.manifest_root_sha256,
+        )
+        .cloned()
+        .ok_or_else(|| anyhow!("Body manifest missing"))?,
+    ];
+    let obligation_env = find(&opening, OBLIGATION_TYPE, &old_claim.obligation_id)
+        .cloned()
+        .ok_or_else(|| anyhow!("projection obligation missing"))?;
+    let plan_env = find(&opening, PLAN_TYPE, &old_claim.plan_id)
+        .cloned()
+        .ok_or_else(|| anyhow!("projection plan missing"))?;
+    let obligation: WorkspaceCoverageObligation = decode(&obligation_env)?;
+    let plan: WorkspaceCoverageProjectionPlan = decode(&plan_env)?;
+    validate_workspace_coverage_projection_plan(&obligation, &plan)?;
+    if plan.plan_id != old_claim.plan_id
+        || plan.obligation_id != old_claim.obligation_id
+        || obligation.runtime_id != body_basis.runtime_id
+        || obligation.swarm_id != body_basis.swarm_id
+        || obligation.workspace_id != body_basis.workspace_id
+        || obligation.body_binding_sha256 != body_basis.body_binding_sha256
+        || obligation.body_observation_id != body_basis.observation_id
+        || obligation.body_generation != body_basis.generation
+        || obligation.manifest_root_sha256 != body_basis.manifest_root_sha256
+        || old_claim.body_observation_id != body_basis.observation_id
+        || old_claim.body_generation != body_basis.generation
+        || old_claim.manifest_root_sha256 != body_basis.manifest_root_sha256
+    {
+        bail!("workspace coverage recovery refuses substituted plan");
+    }
+    authority.push(obligation_env.clone());
+    authority.push(plan_env.clone());
+    let prior_head = find(&opening, HEAD_TYPE, HEAD_KEY).cloned();
+    if let Some(head) = &prior_head {
+        authority.push(head.clone());
+    }
+
+    let claim_epoch = old_claim
+        .claim_epoch
+        .checked_add(1)
+        .ok_or_else(|| anyhow!("claim epoch exhausted"))?;
+    let claim_id = uuid::Uuid::new_v4().to_string();
+    let attempt_id = uuid::Uuid::new_v4().to_string();
+    let recovery_id = uuid::Uuid::new_v4().to_string();
+    let receipt = WorkspaceCoverageRecoveryReceipt {
+        schema_version: RECOVERY_SCHEMA.into(),
+        recovery_id: recovery_id.clone(),
+        old_claim_id: old_claim.claim_id.clone(),
+        old_attempt_id: old_attempt.attempt_id.clone(),
+        old_claim_epoch: old_claim.claim_epoch,
+        termination_id: termination.termination_id.clone(),
+        termination_envelope_digest: termination_digest.clone(),
+        replacement_launch_id: replacement_launch.launch_id.clone(),
+        replacement_launch_envelope_digest: replacement_launch_digest,
+        ready_heartbeat_id: ready.heartbeat_id.clone(),
+        ready_heartbeat_envelope_digest: ready_digest,
+        new_claim_id: claim_id.clone(),
+        new_attempt_id: attempt_id.clone(),
+        new_claim_epoch: claim_epoch,
+        recovered_at_utc: ready.observed_at_utc.clone(),
+        old_launch_id: old_launch.launch_id.clone(),
+    };
+    validate_recovery_receipt(&receipt)?;
+    let receipt_env = envelope(RECOVERY_TYPE, &recovery_id, &receipt)?;
+    let receipt_digest = cultcache_envelope_digest(&receipt_env);
+
+    let completed_at = termination.observed_at_utc.clone();
+    let mut failed_claim = old_claim.clone();
+    failed_claim.schema_version = CLAIM_SCHEMA_V2.into();
+    failed_claim.status = "failed".into();
+    failed_claim.termination_evidence_id = Some(termination.termination_id.clone());
+    failed_claim.termination_evidence_digest = Some(termination_digest.clone());
+    failed_claim.recovery_receipt_id = Some(recovery_id.clone());
+    failed_claim.recovery_receipt_digest = Some(receipt_digest.clone());
+    let mut failed_attempt = old_attempt.clone();
+    failed_attempt.schema_version = ATTEMPT_SCHEMA_V2.into();
+    failed_attempt.status = "failed".into();
+    failed_attempt.completed_at = Some(completed_at.clone());
+    failed_attempt.error = Some("executor process terminated; lease recovered".into());
+    failed_attempt.termination_evidence_id = Some(termination.termination_id.clone());
+    failed_attempt.termination_evidence_digest = Some(termination_digest);
+    failed_attempt.recovery_receipt_id = Some(recovery_id.clone());
+    failed_attempt.recovery_receipt_digest = Some(receipt_digest.clone());
+    validate_claim_attempt_link(&failed_claim, &failed_attempt)?;
+
+    let claim = WorkspaceCoverageProjectionClaim {
+        schema_version: CLAIM_SCHEMA_V3.into(),
+        claim_id: claim_id.clone(),
+        claim_epoch,
+        plan_id: plan.plan_id.clone(),
+        attempt_id: attempt_id.clone(),
+        obligation_id: obligation.obligation_id.clone(),
+        body_observation_id: old_claim.body_observation_id.clone(),
+        body_generation: old_claim.body_generation,
+        manifest_root_sha256: old_claim.manifest_root_sha256.clone(),
+        status: "running".into(),
+        executor_id: replacement_launch.provider_daemon_id.clone(),
+        executor_incarnation: replacement_launch.provider_incarnation_id.clone(),
+        managed_process_launch_id: replacement_launch.launch_id.clone(),
+        termination_evidence_id: None,
+        termination_evidence_digest: None,
+        recovery_receipt_id: Some(recovery_id.clone()),
+        recovery_receipt_digest: Some(receipt_digest.clone()),
+    };
+    let attempt = WorkspaceCoverageProjectionAttempt {
+        schema_version: ATTEMPT_SCHEMA_V3.into(),
+        attempt_id: attempt_id.clone(),
+        claim_id,
+        claim_epoch,
+        plan_id: plan.plan_id.clone(),
+        status: "running".into(),
+        started_at: ready.observed_at_utc.clone(),
+        completed_at: None,
+        error: None,
+        executor_id: replacement_launch.provider_daemon_id.clone(),
+        executor_incarnation: replacement_launch.provider_incarnation_id.clone(),
+        managed_process_launch_id: replacement_launch.launch_id.clone(),
+        termination_evidence_id: None,
+        termination_evidence_digest: None,
+        recovery_receipt_id: Some(recovery_id.clone()),
+        recovery_receipt_digest: Some(receipt_digest),
+    };
+    validate_claim_attempt_link(&claim, &attempt)?;
+    let mut expected = authority.clone();
+    expected.extend([claim_env.clone(), attempt_env.clone()]);
+    let mut replacements = authority;
+    let history_key = format!("history/{}", old_claim.claim_id);
+    if find(&opening, CLAIM_TYPE, &history_key).is_some() {
+        bail!("workspace coverage recovery claim history identity already exists");
+    }
+    if find(&opening, RECOVERY_TYPE, &recovery_id).is_some() {
+        bail!("workspace coverage recovery receipt identity already exists");
+    }
+    replacements.extend([
+        receipt_env,
+        envelope(CLAIM_TYPE, &history_key, &failed_claim)?,
+        envelope(ATTEMPT_TYPE, &failed_attempt.attempt_id, &failed_attempt)?,
+        envelope(CLAIM_TYPE, CLAIM_KEY, &claim)?,
+        envelope(ATTEMPT_TYPE, &attempt.attempt_id, &attempt)?,
+    ]);
+    if !backing.compare_and_swap_batch(&expected, replacements)? {
+        bail!("workspace coverage recovery lost exact Body/plan/claim/attempt CAS");
+    }
+    Ok(WorkspaceCoverageRecoveryOutcome {
+        claim_id: claim.claim_id,
+        claim_epoch: claim.claim_epoch,
+        managed_process_launch_id: claim.managed_process_launch_id,
+        executor_incarnation: claim.executor_incarnation,
+        recovery_receipt_id: recovery_id,
+        recovery_receipt_digest: claim
+            .recovery_receipt_digest
+            .ok_or_else(|| anyhow!("recovered claim lost recovery receipt digest"))?,
+    })
 }
 
 fn validate_current_projection(

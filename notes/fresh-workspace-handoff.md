@@ -1871,3 +1871,37 @@ Body tests before calling recovery operational.
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.
+
+## Workspace coverage exact Body recovery and Idunn reconciliation (2026-07-16)
+
+The abandoned-claim path is typed end to end. Recovery refuses caller-owned
+Body paths, reopens the runtime's authenticated Body route/basis, joins current
+Body, obligation, plan, claim, and attempt, authenticates the old launch plus
+immutable host-signed termination, and accepts only a causally linked
+replacement launch whose current signed heartbeat is `ready`. One exact Body
+CAS archives the failed owner, advances the fencing epoch, installs the
+successor claim/attempt, and writes an immutable recovery receipt binding the
+old claim, termination envelope, replacement launch envelope, ready heartbeat
+envelope, and successor authority. Restart authentication reconstructs both
+CultMesh evidence and current Body authority.
+
+Reserved launch schema v1 adds a signed causal replacement edge. Its writer
+exact-CASes a singleton `replacement-for/<old-launch>` slot with exact
+termination and launch state. A second replacement refuses; the supervisor
+kills a spawned loser when persistence loses CAS.
+
+Idunn branches workspace coverage away from generic lifecycle PID receipts. It
+persists or reuses termination, reuses a causal replacement after interruption,
+otherwise launches through the fixed stdin/bootstrap path, waits for the exact
+latest signed ready heartbeat, then invokes Body recovery. Initial/pre-claim
+launches use the same specialized authority.
+
+Proof passed: 5 process-document/recovery tests, 14 supervisor tests, 15
+projector tests plus 1 ignored live Qdrant/Ollama test, and all-target check.
+
+Next cut: termination v0 still requires a provider heartbeat. A child dying
+after launch persistence but before heartbeat sequence one strands the chain.
+Rebuild termination so signed launch plus enrolled host/boot/process observation
+is sufficient, with heartbeat optional additional evidence. Then run a
+GUID-scoped live initial launch -> death -> replacement -> Body recovery smoke.
+Reboot/logon proof remains permission-bound.
