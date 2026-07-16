@@ -950,6 +950,8 @@ fn launch_role(
         )
         .map_err(anyhow::Error::msg)?;
     } else if role == epiphany_core::EpiphanyRoleResultRoleId::Modeling {
+        context = epiphany_core::append_modeling_repo_model_shape_context(context, runtime_store)
+            .map_err(anyhow::Error::msg)?;
         context = epiphany_core::append_modeling_work_loop_telemetry_context(
             context,
             runtime_store,

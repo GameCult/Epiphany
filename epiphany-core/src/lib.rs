@@ -182,6 +182,7 @@ pub use coordinator_launch::EpiphanyCoordinatorJobLaunchPlan;
 pub use coordinator_launch::commit_coordinator_job_launch;
 pub use coordinator_launch::plan_coordinator_job_launch;
 pub use coordinator_launch_context::EPIPHANY_LOCAL_VERSE_RUNTIME_ID;
+pub use coordinator_launch_context::append_modeling_repo_model_shape_context;
 pub use coordinator_launch_context::append_modeling_work_loop_telemetry_context;
 pub use coordinator_launch_context::append_verification_hands_receipt_context;
 pub use coordinator_launch_context::local_verse_store_path;

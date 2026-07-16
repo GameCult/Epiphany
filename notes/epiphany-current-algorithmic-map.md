@@ -26,7 +26,11 @@
   Modeling subsequently produced a source-grounded Body-bound RepoModel
   proposal, but Mind refused it because `Evolution` attempted an unrequested
   frontier upsert. Ordinary evolution owns nodes and edges only; frontier
-  mutation remains request-bound. A fresh post-correction admission is pending.
+  mutation remains request-bound. A second proposal correctly removed frontier
+  operations but invented a domain id and illegal lifecycle because launch
+  context exposed semantic nodes without the canonical aggregate shape.
+  Modeling launch context now includes current model revision/hash, exact
+  existing domains, and legal repo lifecycles. A fresh admission is pending.
 
 ## Observation and bootstrap authority correction (2026-07-12)
 

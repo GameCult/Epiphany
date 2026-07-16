@@ -10,6 +10,7 @@ use crate::ensure_runtime_repo_model;
 use crate::load_epiphany_cultmesh_cluster_topology;
 use crate::load_epiphany_cultmesh_status;
 use crate::load_latest_epiphany_cultmesh_work_loop_telemetry;
+use crate::load_memory_graph_snapshot;
 use crate::memory_graph_from_epiphany_graphs;
 use crate::plan_memory_graph_context_cut;
 use crate::query_epiphany_local_verse_context;
@@ -246,6 +247,40 @@ pub fn append_verification_hands_receipt_context(
         "Use these typed internal Verse receipts, artifacts, and source references as the concrete Hands evidence under review. Do not ask for generic receipt-path evidence without first judging this packet.\n",
     );
     context.push_str("</verification_work_loop_telemetry>");
+    Ok(context)
+}
+
+pub fn append_modeling_repo_model_shape_context(
+    mut context: String,
+    runtime_store_path: &Path,
+) -> Result<String, String> {
+    let graph_store = memory_graph_store_path(runtime_store_path);
+    let snapshot = load_memory_graph_snapshot(&graph_store)
+        .map_err(|error| format!("failed to load canonical RepoModel shape: {error}"))?
+        .ok_or_else(|| {
+            format!(
+                "canonical RepoModel is missing from {} after launch-context assembly",
+                graph_store.display()
+            )
+        })?;
+    context.push_str("\n\n<canonical_repo_model_shape>\n");
+    context.push_str(&format!(
+        "modelRevision: {}\nmodelHash: {}\n",
+        snapshot.model_revision, snapshot.model_hash
+    ));
+    context.push_str("existingDomains:\n");
+    for domain in &snapshot.domains {
+        let profile = serde_json::to_string(&domain.profile)
+            .map_err(|error| format!("failed to encode RepoModel domain profile: {error}"))?;
+        let lifecycle = serde_json::to_string(&domain.lifecycle)
+            .map_err(|error| format!("failed to encode RepoModel domain lifecycle: {error}"))?;
+        context.push_str(&format!(
+            "- id={} profile={} lifecycle={} title={}\n",
+            domain.id, profile, lifecycle, domain.title
+        ));
+    }
+    context.push_str("New nodes must reference one exact existing domain id; RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. Prefer accepted for a source-grounded current claim. Do not invent a domain because RepoModel patches have no domain mutation operation.\n");
+    context.push_str("</canonical_repo_model_shape>");
     Ok(context)
 }
 
@@ -1107,6 +1142,11 @@ mod tests {
         let preserved = load_memory_graph_snapshot(&graph_store)?.expect("canonical model");
         assert_eq!(preserved.model_revision, 4);
         assert_eq!(preserved.frontier, snapshot.frontier);
+        let shape = append_modeling_repo_model_shape_context("base".to_string(), &runtime_store)
+            .map_err(anyhow::Error::msg)?;
+        assert!(shape.contains("<canonical_repo_model_shape>"));
+        assert!(shape.contains("id=repo"));
+        assert!(shape.contains("Prefer accepted"));
         fs::remove_dir_all(&temp)?;
         Ok(())
     }

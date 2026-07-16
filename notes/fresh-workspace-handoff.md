@@ -28,6 +28,14 @@ Only after Mind accepts an exact Body-basis RepoModel patch should
 `epiphany-memory-semantic repository-readiness` be run with local Ollama
 `qwen3-embedding:0.6b`, 1024 dimensions, and the runtime spine.
 
+The next nodes/edges-only proposal reached Mind and exposed one further missing
+launch input: the worker invented a workspace-derived domain id and used
+`active` lifecycle, while the canonical revision-0 RepoModel has domain `repo`
+and permits only observed/proposed/accepted/stale/retired for repo profiles.
+`<canonical_repo_model_shape>` now carries exact current revision/hash, existing
+domains, and lifecycle law into every Modeling launch. The rejected result is
+already superseded. Rebuild/commit this context change, then relaunch once.
+
 Exact remaining sequence:
 
 1. finish tests/format/docs and commit so the Body is stable;
