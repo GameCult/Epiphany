@@ -42,7 +42,7 @@ const RECOVERY_TYPE: &str = "gamecult.epiphany.workspace_coverage_recovery_recei
 const RECOVERY_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_recovery_receipt.v0";
 const PROJECTION_SCHEMA: &str = "gamecult.epiphany.workspace_bytes_projection.v0";
 const CHUNKER_ID: &str = "utf8_lines_96_overlap_8_v0";
-const MAXIMUM_FILE_BYTES: u64 = 4 * 1024 * 1024;
+pub const WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const CHUNK_LINES: usize = 96;
 const CHUNK_OVERLAP_LINES: usize = 8;
 const RECEIPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_receipt";
@@ -803,7 +803,8 @@ pub(crate) fn classify_current_workspace_coverage(
             .ok_or_else(|| anyhow!("current workspace coverage head names a missing receipt"))?,
     )?;
     validate_workspace_coverage_head(&obligation, &plan, &receipt, &head)?;
-    let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+    let policy =
+        WorkspaceCoveragePolicy::bounded_regular_files_v0(WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES)?;
     let policy_sha256 = format!(
         "{:x}",
         Sha256::digest(rmp_serde::to_vec_named(&policy).map_err(|error| anyhow!(error))?)
@@ -994,7 +995,8 @@ pub(crate) fn prepare_workspace_coverage_projection(
     vector_dimensions: u32,
 ) -> Result<PreparedWorkspaceCoverageProjection> {
     let basis = body.basis();
-    let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+    let policy =
+        WorkspaceCoveragePolicy::bounded_regular_files_v0(WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES)?;
     let raw_obligation = derive_workspace_coverage_obligation_from_authenticated_manifest(
         basis,
         body.manifest(),
@@ -2442,7 +2444,9 @@ mod tests {
             inputs,
             &mut projection,
         )?;
-        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(
+            WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
+        )?;
 
         let evidence = observe_current_workspace_coverage_evidence(
             &runtime,
@@ -2462,8 +2466,9 @@ mod tests {
         );
         assert!(evidence.head_envelope_digest.starts_with("sha256-"));
 
-        let wrong_policy =
-            WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES - 1)?;
+        let wrong_policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(
+            WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES - 1,
+        )?;
         assert!(
             observe_current_workspace_coverage_evidence(
                 &runtime,
@@ -2490,7 +2495,9 @@ mod tests {
             classify_current_workspace_coverage(&runtime, &basis, "provider", "model", 3)?,
             WorkspaceCoverageCurrentState::Current(_)
         ));
-        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(
+            WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
+        )?;
 
         let mut missing_live_collection = FakeProjectionPort::new(Hostility::Honest);
         missing_live_collection.collection_present = false;
@@ -2572,7 +2579,9 @@ mod tests {
             inner: projection,
             body_store,
         };
-        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(MAXIMUM_FILE_BYTES)?;
+        let policy = WorkspaceCoveragePolicy::bounded_regular_files_v0(
+            WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
+        )?;
         assert!(
             observe_current_workspace_coverage_evidence(
                 &runtime,

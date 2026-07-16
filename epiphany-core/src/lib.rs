@@ -1196,9 +1196,9 @@ pub use workspace_coverage_process_documents::{
     write_workspace_coverage_provider_heartbeat,
 };
 pub use workspace_coverage_projector::{
-    WorkspaceCoverageRecoveryOutcome, WorkspaceCoverageRecoveryTarget,
-    authenticate_workspace_coverage_recovery_receipt, current_workspace_coverage_recovery_target,
-    recover_workspace_coverage_projection,
+    WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES, WorkspaceCoverageRecoveryOutcome,
+    WorkspaceCoverageRecoveryTarget, authenticate_workspace_coverage_recovery_receipt,
+    current_workspace_coverage_recovery_target, recover_workspace_coverage_projection,
 };
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;

@@ -1,9 +1,10 @@
 use anyhow::{Context, Result, anyhow};
 use epiphany_core::{
     EpiphanyMemoryContextQuery, EpiphanyMemoryGraphSnapshot, MemorySemanticIndexConfig,
-    MemorySemanticProjectionInput, SemanticPartition, agent_memory_semantic_projection_input,
+    MemorySemanticProjectionInput, SemanticPartition, WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
+    WorkspaceCoveragePolicy, WorkspaceProjectionIdentity, agent_memory_semantic_projection_input,
     load_memory_graph_snapshot, load_memory_semantic_projection_readiness,
-    publish_epiphany_cultmesh_semantic_projection_health,
+    observe_repository_readiness, publish_epiphany_cultmesh_semantic_projection_health,
     runtime_modeling_semantic_projection_input, semantic_memory_context,
 };
 use std::env;
@@ -62,6 +63,42 @@ fn main() -> Result<()> {
             );
             print_json(&packet)?;
         }
+        "repository-readiness" => {
+            let runtime_store = options.runtime_store.as_ref().ok_or_else(|| {
+                usage_error("repository-readiness requires --runtime-store <path>")
+            })?;
+            if options.graph_store.is_some() || options.agent_store.is_some() {
+                return Err(usage_error(
+                    "repository-readiness accepts only --runtime-store <path>",
+                ));
+            }
+            let workspace_identity = WorkspaceProjectionIdentity {
+                policy: WorkspaceCoveragePolicy::bounded_regular_files_v0(
+                    WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
+                )?,
+                qdrant_url: config.qdrant_url.clone(),
+                qdrant_api_key: config.qdrant_api_key.clone(),
+                qdrant_timeout_ms: config.qdrant_timeout_ms,
+                embedding_provider_id: options.workspace_embedding_provider_id.clone().ok_or_else(
+                    || {
+                        usage_error(
+                            "repository-readiness requires --workspace-embedding-provider-id <id>",
+                        )
+                    },
+                )?,
+                embedding_model: options.workspace_embedding_model.clone().ok_or_else(|| {
+                    usage_error("repository-readiness requires --workspace-embedding-model <model>")
+                })?,
+                vector_dimensions: options.workspace_vector_dimensions.ok_or_else(|| {
+                    usage_error("repository-readiness requires --workspace-vector-dimensions <n>")
+                })?,
+            };
+            print_json(&observe_repository_readiness(
+                runtime_store,
+                &config,
+                &workspace_identity,
+            )?)?;
+        }
         _ => return Err(usage_error(&format!("unknown command {command:?}"))),
     }
     Ok(())
@@ -80,6 +117,9 @@ struct Options {
     query_id: Option<String>,
     budget: Option<u32>,
     profile: Option<epiphany_core::EpiphanyMemoryProfile>,
+    workspace_embedding_provider_id: Option<String>,
+    workspace_embedding_model: Option<String>,
+    workspace_vector_dimensions: Option<u32>,
 }
 
 impl Options {
@@ -97,6 +137,9 @@ impl Options {
             query_id: None,
             budget: None,
             profile: None,
+            workspace_embedding_provider_id: None,
+            workspace_embedding_model: None,
+            workspace_vector_dimensions: None,
         };
         let mut args = args.peekable();
         while let Some(flag) = args.next() {
@@ -117,6 +160,17 @@ impl Options {
                 "--query-id" => options.query_id = Some(value()?),
                 "--budget" => options.budget = Some(value()?.parse().context("invalid budget")?),
                 "--profile" => options.profile = Some(parse_profile(&value()?)?),
+                "--workspace-embedding-provider-id" => {
+                    options.workspace_embedding_provider_id = Some(value()?)
+                }
+                "--workspace-embedding-model" => options.workspace_embedding_model = Some(value()?),
+                "--workspace-vector-dimensions" => {
+                    options.workspace_vector_dimensions = Some(
+                        value()?
+                            .parse()
+                            .context("invalid workspace vector dimensions")?,
+                    )
+                }
                 _ => return Err(usage_error(&format!("unexpected argument {flag:?}"))),
             }
         }
@@ -221,7 +275,7 @@ fn parse_profile(value: &str) -> Result<epiphany_core::EpiphanyMemoryProfile> {
 
 fn usage_error(message: &str) -> anyhow::Error {
     anyhow!(
-        "{message}\nusage: epiphany-memory-semantic <context|health> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>]"
+        "{message}\nusage: epiphany-memory-semantic <context|health|repository-readiness> (--runtime-store <path>|--agent-store <path>|--graph-store <path>) [--swarm-id <id>] --partition <mind|modeling> [--local-verse-store <path> --runtime-id <id> --provider-incarnation <id>] [--text <query>] [--query-id <id>] [--budget <n>] [--profile <profile>] [--workspace-embedding-provider-id <id> --workspace-embedding-model <model> --workspace-vector-dimensions <n>]"
     )
 }
 
