@@ -25,8 +25,8 @@ use std::path::{Path, PathBuf};
 const CLAIM_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_claim";
 const ATTEMPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_attempt";
 const CLAIM_KEY: &str = "workspace-coverage-projector-current";
-const CLAIM_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v0";
-const ATTEMPT_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v0";
+const CLAIM_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v1";
+const ATTEMPT_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v1";
 const PROJECTION_SCHEMA: &str = "gamecult.epiphany.workspace_bytes_projection.v0";
 const CHUNKER_ID: &str = "utf8_lines_96_overlap_8_v0";
 const MAXIMUM_FILE_BYTES: u64 = 4 * 1024 * 1024;
@@ -149,7 +149,7 @@ pub(crate) struct WorkspaceCoverageProjectionClaim {
     #[cultcache(key = 11)]
     executor_incarnation: String,
     #[cultcache(key = 12)]
-    startup_lifecycle_receipt_id: String,
+    managed_process_launch_id: String,
 }
 
 fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim) -> Result<()> {
@@ -163,7 +163,7 @@ fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim) -> Result
         || claim.manifest_root_sha256.trim().is_empty()
         || claim.executor_id.trim().is_empty()
         || claim.executor_incarnation.trim().is_empty()
-        || claim.startup_lifecycle_receipt_id.trim().is_empty()
+        || claim.managed_process_launch_id.trim().is_empty()
         || !matches!(claim.status.as_str(), "running" | "failed" | "succeeded")
     {
         bail!("invalid workspace coverage projection claim");
@@ -180,7 +180,7 @@ fn validate_projection_attempt(attempt: &WorkspaceCoverageProjectionAttempt) -> 
         || attempt.started_at.trim().is_empty()
         || attempt.executor_id.trim().is_empty()
         || attempt.executor_incarnation.trim().is_empty()
-        || attempt.startup_lifecycle_receipt_id.trim().is_empty()
+        || attempt.managed_process_launch_id.trim().is_empty()
         || !matches!(attempt.status.as_str(), "running" | "failed" | "succeeded")
     {
         bail!("invalid workspace coverage projection attempt");
@@ -220,7 +220,7 @@ fn validate_claim_attempt_link(
         || claim.status != attempt.status
         || claim.executor_id != attempt.executor_id
         || claim.executor_incarnation != attempt.executor_incarnation
-        || claim.startup_lifecycle_receipt_id != attempt.startup_lifecycle_receipt_id
+        || claim.managed_process_launch_id != attempt.managed_process_launch_id
     {
         bail!("workspace coverage claim/attempt authority is split");
     }
@@ -256,7 +256,7 @@ pub(crate) struct WorkspaceCoverageProjectionAttempt {
     #[cultcache(key = 10)]
     executor_incarnation: String,
     #[cultcache(key = 11)]
-    startup_lifecycle_receipt_id: String,
+    managed_process_launch_id: String,
 }
 
 #[derive(Clone, Debug)]
@@ -563,11 +563,11 @@ pub(crate) fn acquire_workspace_coverage_projection(
     prepared: &PreparedWorkspaceCoverageProjection,
     executor_id: &str,
     executor_incarnation: &str,
-    startup_lifecycle_receipt_id: &str,
+    managed_process_launch_id: &str,
 ) -> Result<WorkspaceCoverageAcquireResult> {
     if executor_id.trim().is_empty()
         || executor_incarnation.trim().is_empty()
-        || startup_lifecycle_receipt_id.trim().is_empty()
+        || managed_process_launch_id.trim().is_empty()
     {
         bail!("workspace coverage acquisition requires exact executor lifecycle identity");
     }
@@ -615,7 +615,7 @@ pub(crate) fn acquire_workspace_coverage_projection(
         status: "running".into(),
         executor_id: executor_id.into(),
         executor_incarnation: executor_incarnation.into(),
-        startup_lifecycle_receipt_id: startup_lifecycle_receipt_id.into(),
+        managed_process_launch_id: managed_process_launch_id.into(),
     };
     let attempt = WorkspaceCoverageProjectionAttempt {
         schema_version: ATTEMPT_SCHEMA.into(),
@@ -629,7 +629,7 @@ pub(crate) fn acquire_workspace_coverage_projection(
         error: None,
         executor_id: executor_id.into(),
         executor_incarnation: executor_incarnation.into(),
-        startup_lifecycle_receipt_id: startup_lifecycle_receipt_id.into(),
+        managed_process_launch_id: managed_process_launch_id.into(),
     };
     let mut expected = authority.clone();
     if let Some(existing) = existing_claim {

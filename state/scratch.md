@@ -105,3 +105,20 @@ public key, then waits for and authenticates the launch document before acting.
 Write or persistence failure kills and waits the child; all nonreserved service
 stdin is explicitly null. This uses Rust's stable cross-platform child-stdin
 contract instead of bespoke inherited-handle plumbing.
+
+## Live reserved authority migration (2026-07-16)
+
+The supervisor/projector chain now consumes the specialized documents. Idunn
+generates the ephemeral provider seed, spawns, captures exact process identity,
+writes the fixed stdin frame, then host-signs and persists the launch; every
+failure after spawn kills and waits. The child reads exact frame+EOF and checks
+host, current policy, boot, PID generation/path, launch digest, and derived
+public key before any service pulse. Heartbeats are specialized and signed.
+
+Generic lifecycle and generic heartbeat writers now refuse the reserved
+coverage identities, and the old coverage lifecycle authenticator is gone.
+Claim/attempt schema v1 binds `managed_process_launch_id`; v0 positional state
+cannot impersonate the new semantic owner. A native `epiphany-host-identity`
+enroll/status actuator was added, and this Windows installation was enrolled
+once at the default DPAPI CurrentUser path. Next build immutable termination
+evidence before replacement and only then the Body recovery CAS.

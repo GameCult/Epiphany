@@ -1834,6 +1834,24 @@ child launch authentication, specialized heartbeat publication, then generic
 writer rejection for reserved coverage. Do not let the new and old documents
 remain co-owners after that cut.
 
+The migration cut is now implemented and verified. Reserved-child stdin carries
+one fixed binary launch-id/seed frame and requires EOF; all nonreserved service
+stdin is null. Supervisor captures the spawned process incarnation, sends the
+secret, host-signs/CAS-persists the specialized launch, and kills/waits on any
+failure. The projector authenticates host, current policy, boot, exact process,
+launch digest, and derived provider key before service construction, then emits
+only specialized signed heartbeats. Generic lifecycle and daemon-heartbeat
+writers reject the reserved coverage identities, and the old generic coverage
+authenticator is deleted. Coverage claim/attempt v1 now binds
+`managed_process_launch_id`, refusing semantic reinterpretation of v0 state.
+
+The new native `epiphany-host-identity enroll|status` actuator explicitly
+enrolled this Windows installation at the default LocalAppData DPAPI store;
+status reopened identity
+`17f041421045aa66d4c8ab0488f462dbb5ea1a7d8507dbf75216f5ec368dbb7a`.
+Next implement immutable Idunn termination observation before replacement spawn,
+then the exact Body recovery CAS. Timeout recovery remains forbidden.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.

@@ -36,6 +36,7 @@ mod substrate_gate;
 mod surfaces;
 mod thread_state_store;
 mod weksa_interlingua;
+mod workspace_coverage_process_bootstrap;
 mod workspace_coverage_process_documents;
 mod workspace_coverage_projector;
 mod workspace_coverage_projector_service;
@@ -395,7 +396,6 @@ pub use cultmesh_integration::EpiphanyLocalVerseWorkLoopSummary;
 pub use cultmesh_integration::EpiphanyServiceExecutionAuditCheck;
 pub use cultmesh_integration::EpiphanyServiceExecutionAuditReport;
 pub use cultmesh_integration::authenticate_epiphany_cultmesh_semantic_projector_launch;
-pub use cultmesh_integration::authenticate_epiphany_cultmesh_workspace_coverage_projector_launch;
 pub use cultmesh_integration::default_epiphany_cultmesh_swarm_brake;
 pub use cultmesh_integration::epiphany_cluster_service_execution_audit_report;
 pub use cultmesh_integration::epiphany_cultmesh_agent_state_soa_summary_from_entry;
@@ -1154,6 +1154,10 @@ pub use weksa_interlingua::build_weksa_interlingua_packet;
 pub use weksa_interlingua::build_weksa_lowering_prompt;
 pub use weksa_interlingua::build_weksa_target_lowering_request;
 pub use weksa_interlingua::record_weksa_target_lowering_receipt;
+pub use workspace_coverage_process_bootstrap::{
+    WorkspaceCoverageProcessBootstrap, read_workspace_coverage_process_bootstrap,
+    write_workspace_coverage_process_bootstrap,
+};
 pub use workspace_coverage_process_documents::{
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_LATEST_KEY, WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_TYPE, WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY,
@@ -1164,11 +1168,13 @@ pub use workspace_coverage_process_documents::{
     authenticate_workspace_coverage_provider_heartbeat,
     load_latest_workspace_coverage_managed_process_launch,
     load_latest_workspace_coverage_provider_heartbeat,
-    load_workspace_coverage_managed_process_launch, load_workspace_coverage_provider_heartbeat,
-    process_identity_from_workspace_coverage_launch, sign_workspace_coverage_heartbeat,
-    sign_workspace_coverage_launch, workspace_coverage_heartbeat_statement,
-    workspace_coverage_host_identity_record_digest, workspace_coverage_launch_statement,
-    write_workspace_coverage_managed_process_launch, write_workspace_coverage_provider_heartbeat,
+    load_workspace_coverage_managed_process_launch,
+    load_workspace_coverage_managed_process_launch_with_digest,
+    load_workspace_coverage_provider_heartbeat, process_identity_from_workspace_coverage_launch,
+    sign_workspace_coverage_heartbeat, sign_workspace_coverage_launch,
+    workspace_coverage_heartbeat_statement, workspace_coverage_host_identity_record_digest,
+    workspace_coverage_launch_statement, write_workspace_coverage_managed_process_launch,
+    write_workspace_coverage_provider_heartbeat,
 };
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;

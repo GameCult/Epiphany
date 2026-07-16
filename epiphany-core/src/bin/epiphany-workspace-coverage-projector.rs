@@ -1,28 +1,37 @@
 use anyhow::{Context, Result, anyhow};
+use ed25519_dalek::SigningKey;
 use epiphany_core::{
-    EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION,
-    EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID, EpiphanyCultMeshDaemonHeartbeatEventEntry,
-    EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry, WorkspaceCoverageProjectorConfig,
+    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
+    WorkspaceCoverageManagedProcessLaunchEntry, WorkspaceCoverageProjectorConfig,
     WorkspaceCoverageProjectorPulseStatus, WorkspaceCoverageProjectorServiceBody,
-    authenticate_epiphany_cultmesh_workspace_coverage_projector_launch,
-    load_epiphany_cultmesh_daemon_service_lifecycle_receipt,
-    write_epiphany_cultmesh_daemon_heartbeat_event,
+    WorkspaceCoverageProviderHeartbeatEntry,
+    authenticate_workspace_coverage_managed_process_launch, capture_process_instance,
+    load_workspace_coverage_managed_process_launch,
+    load_workspace_coverage_managed_process_launch_with_digest, native_boot_identity,
+    open_default_host_identity, read_workspace_coverage_process_bootstrap,
+    sign_workspace_coverage_heartbeat, write_workspace_coverage_provider_heartbeat,
 };
 use serde_json::json;
-use sha2::{Digest, Sha256};
 use std::env;
-use std::fs;
+use std::io;
 use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
+use zeroize::Zeroize;
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
-    let receipt = authenticate_managed_launch(&args)?;
-    authenticate_process_body(&receipt)?;
+    let mut bootstrap = read_workspace_coverage_process_bootstrap(io::stdin().lock())?;
+    if bootstrap.launch_id.to_string() != args.managed_process_launch_id {
+        return Err(anyhow!(
+            "bootstrap launch id disagrees with launch environment"
+        ));
+    }
+    let provider_key = SigningKey::from_bytes(&bootstrap.provider_signing_seed);
+    bootstrap.provider_signing_seed.zeroize();
+    let (launch, launch_digest) = authenticate_managed_launch(&args, &provider_key)?;
 
-    let provider_incarnation = Uuid::new_v4().to_string();
     let mut config = WorkspaceCoverageProjectorConfig::from_env();
     config.qdrant_url = args.qdrant_url.clone();
     config.ollama_base_url = args.ollama_base_url.clone();
@@ -31,8 +40,8 @@ fn main() -> Result<()> {
         &args.runtime_store,
         &args.runtime_id,
         config,
-        &provider_incarnation,
-        &args.startup_lifecycle_receipt_id,
+        &launch.provider_incarnation_id,
+        &launch.launch_id,
     )?;
 
     let mut sequence = 0_u64;
@@ -45,21 +54,33 @@ fn main() -> Result<()> {
         // Publishing it as degraded would make a live successor unable to
         // establish the ready heartbeat required to fence an abandoned owner.
         let degraded = matches!(pulse.status, WorkspaceCoverageProjectorPulseStatus::Refused);
-        let heartbeat = write_epiphany_cultmesh_daemon_heartbeat_event(
+        let mut heartbeat = WorkspaceCoverageProviderHeartbeatEntry {
+            schema_version: WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION.to_string(),
+            heartbeat_id: Uuid::new_v4().to_string(),
+            launch_id: launch.launch_id.clone(),
+            launch_envelope_digest: launch_digest.clone(),
+            service_id: launch.service_id.clone(),
+            provider_daemon_id: launch.provider_daemon_id.clone(),
+            runtime_id: launch.runtime_id.clone(),
+            host_identity_id: launch.host_identity_id.clone(),
+            host_identity_record_digest: launch.host_identity_record_digest.clone(),
+            boot_identity: launch.boot_identity.clone(),
+            process_id: launch.process_id,
+            process_creation_token: launch.process_creation_token,
+            process_executable_path: launch.process_executable_path.clone(),
+            provider_incarnation_id: launch.provider_incarnation_id.clone(),
+            provider_public_key: launch.provider_public_key.clone(),
+            sequence,
+            status: if degraded { "degraded" } else { "ready" }.to_string(),
+            observed_at_utc: chrono::Utc::now().to_rfc3339(),
+            provider_signature: Vec::new(),
+            signature_algorithm: "ed25519".to_string(),
+        };
+        sign_workspace_coverage_heartbeat(&mut heartbeat, &provider_key)?;
+        let heartbeat = write_workspace_coverage_provider_heartbeat(
             &args.local_verse_store,
             args.runtime_id.clone(),
-            EpiphanyCultMeshDaemonHeartbeatEventEntry {
-                schema_version: EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION.to_string(),
-                heartbeat_id: Uuid::new_v4().to_string(),
-                daemon_id: EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID.to_string(),
-                cluster_id: "local".to_string(),
-                provider_incarnation: projector.provider_incarnation().to_string(),
-                sequence,
-                status: if degraded { "degraded" } else { "ready" }.to_string(),
-                heartbeat_at: chrono::Utc::now().to_rfc3339(),
-                private_state_exposed: false,
-                startup_lifecycle_receipt_id: projector.startup_lifecycle_receipt_id().to_string(),
-            },
+            heartbeat,
         )?;
         println!(
             "{}",
@@ -85,55 +106,52 @@ fn main() -> Result<()> {
 
 fn authenticate_managed_launch(
     args: &Args,
-) -> Result<EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry> {
+    provider_key: &SigningKey,
+) -> Result<(WorkspaceCoverageManagedProcessLaunchEntry, String)> {
+    let host = open_default_host_identity()?;
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
-        if load_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+        if load_workspace_coverage_managed_process_launch(
             &args.local_verse_store,
             args.runtime_id.clone(),
-            &args.startup_lifecycle_receipt_id,
+            &args.managed_process_launch_id,
         )?
         .is_some()
         {
-            return authenticate_epiphany_cultmesh_workspace_coverage_projector_launch(
+            let launch = authenticate_workspace_coverage_managed_process_launch(
                 &args.local_verse_store,
                 args.runtime_id.clone(),
-                &args.startup_lifecycle_receipt_id,
-            );
+                &args.managed_process_launch_id,
+                host.entry(),
+            )?;
+            let own = capture_process_instance(std::process::id())?;
+            let boot = native_boot_identity()
+                .ok_or_else(|| anyhow!("native boot identity is not provable"))?;
+            if launch.boot_identity != boot
+                || launch.process_id != own.process_id
+                || launch.process_creation_token != own.creation_token
+                || PathBuf::from(&launch.process_executable_path) != own.executable_path
+                || launch.provider_public_key != provider_key.verifying_key().to_bytes()
+            {
+                return Err(anyhow!(
+                    "managed launch disagrees with this exact provider process"
+                ));
+            }
+            let (_, digest) = load_workspace_coverage_managed_process_launch_with_digest(
+                &args.local_verse_store,
+                args.runtime_id.clone(),
+                &args.managed_process_launch_id,
+            )?
+            .ok_or_else(|| anyhow!("managed launch disappeared"))?;
+            return Ok((launch, digest));
         }
         if Instant::now() >= deadline {
             return Err(anyhow!(
-                "managed workspace coverage projector startup launch receipt was not persisted"
+                "managed workspace coverage projector launch was not persisted"
             ));
         }
         thread::sleep(Duration::from_millis(20));
     }
-}
-
-fn authenticate_process_body(
-    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
-) -> Result<()> {
-    if receipt.process_id != Some(std::process::id()) {
-        return Err(anyhow!(
-            "managed workspace coverage projector process disagrees with its launch receipt"
-        ));
-    }
-    let executable = env::current_exe().context("failed to resolve projector executable")?;
-    let executable_sha256 = format!(
-        "sha256-{:x}",
-        Sha256::digest(fs::read(&executable).with_context(|| {
-            format!(
-                "failed to fingerprint projector executable {}",
-                executable.display()
-            )
-        })?)
-    );
-    if receipt.executable_sha256 != executable_sha256 {
-        return Err(anyhow!(
-            "managed workspace coverage projector executable disagrees with its launch receipt"
-        ));
-    }
-    Ok(())
 }
 
 fn pulse_status(status: WorkspaceCoverageProjectorPulseStatus) -> &'static str {
@@ -150,7 +168,7 @@ struct Args {
     local_verse_store: PathBuf,
     runtime_id: String,
     interval_seconds: u64,
-    startup_lifecycle_receipt_id: String,
+    managed_process_launch_id: String,
     qdrant_url: String,
     ollama_base_url: String,
     ollama_model: String,
@@ -191,11 +209,11 @@ impl Args {
         if interval_seconds == 0 {
             return Err(anyhow!("--interval-seconds must be positive"));
         }
-        let startup_lifecycle_receipt_id =
-            env::var("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID").unwrap_or_default();
-        if startup_lifecycle_receipt_id.trim().is_empty() {
+        let managed_process_launch_id =
+            env::var("EPIPHANY_WORKSPACE_COVERAGE_LAUNCH_ID").unwrap_or_default();
+        if managed_process_launch_id.trim().is_empty() {
             return Err(anyhow!(
-                "managed workspace coverage projector requires its startup launch receipt id"
+                "managed workspace coverage projector requires its managed process launch id"
             ));
         }
         Ok(Self {
@@ -203,7 +221,7 @@ impl Args {
             local_verse_store: local_verse_store.context("missing --local-verse-store")?,
             runtime_id: runtime_id.context("missing --runtime-id")?,
             interval_seconds,
-            startup_lifecycle_receipt_id,
+            managed_process_launch_id,
             qdrant_url: required_nonempty(qdrant_url, "--qdrant-url")?,
             ollama_base_url: required_nonempty(ollama_base_url, "--ollama-base-url")?,
             ollama_model: required_nonempty(ollama_model, "--ollama-model")?,

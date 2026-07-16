@@ -3,6 +3,7 @@ use anyhow::Result;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
+use ed25519_dalek::SigningKey;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_RESTART_POLICY_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION;
@@ -46,6 +47,14 @@ use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
 use epiphany_core::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
+use epiphany_core::{
+    WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION, WorkspaceCoverageManagedProcessLaunchEntry,
+    WorkspaceCoverageProcessBootstrap, capture_process_instance, native_boot_identity,
+    open_default_host_identity, sign_workspace_coverage_launch,
+    workspace_coverage_host_identity_record_digest,
+    write_workspace_coverage_managed_process_launch, write_workspace_coverage_process_bootstrap,
+};
+use rand_core::{OsRng, RngCore};
 use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
@@ -56,6 +65,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::process::Stdio;
 use uuid::Uuid;
+use zeroize::Zeroize;
 
 const SEMANTIC_PROJECTOR_SERVICE_ID: &str = "epiphany-memory-semantic-projector-service";
 const SEMANTIC_PROJECTOR_EXECUTOR_ID: &str = "epiphany-memory-semantic-projector";
@@ -794,9 +804,9 @@ fn service_launch(args: Args) -> Result<()> {
     let started_at = Utc::now();
     let command_path = service_command_path(&args)?;
     let service_args = service_serve_args(&args);
+    let coverage_reserved = args.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID;
     let reserved_executor_id = match args.service_id.as_str() {
         SEMANTIC_PROJECTOR_SERVICE_ID => Some(SEMANTIC_PROJECTOR_EXECUTOR_ID),
-        WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID => Some(WORKSPACE_COVERAGE_PROJECTOR_EXECUTOR_ID),
         _ => None,
     };
     let reserved_launch = if let Some(executor_id) = reserved_executor_id {
@@ -828,10 +838,55 @@ fn service_launch(args: Args) -> Result<()> {
     } else {
         None
     };
+    let coverage_launch = if coverage_reserved {
+        let (policy, digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+            &args.store,
+            args.runtime_id.clone(),
+            &args.service_id,
+        )?
+        .context("reserved workspace coverage managed policy is absent")?;
+        if command_path != PathBuf::from(&policy.command)
+            || service_args != policy.args
+            || args.cwd.as_ref().map(|path| path.display().to_string()) != policy.cwd
+        {
+            anyhow::bail!("workspace coverage launch must use the exact current managed policy");
+        }
+        if args.wait_child {
+            anyhow::bail!("workspace coverage launch is an infinite managed child");
+        }
+        let host = open_default_host_identity()
+            .context("workspace coverage launch requires an enrolled host identity")?;
+        let boot = native_boot_identity()
+            .context("workspace coverage launch requires a proven native boot identity")?;
+        let mut seed = [0_u8; 32];
+        OsRng.fill_bytes(&mut seed);
+        let provider_key = SigningKey::from_bytes(&seed);
+        Some((
+            policy,
+            digest,
+            host,
+            boot,
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            seed,
+            provider_key,
+        ))
+    } else {
+        None
+    };
     let mut command = Command::new(&command_path);
     command.args(&service_args);
     if let Some((_, _, receipt_id, _, _)) = &reserved_launch {
         command.env("EPIPHANY_STARTUP_LIFECYCLE_RECEIPT_ID", receipt_id);
+    }
+    if let Some((_, _, _, _, launch_id, _, _, _)) = &coverage_launch {
+        command.env(
+            "EPIPHANY_WORKSPACE_COVERAGE_LAUNCH_ID",
+            launch_id.to_string(),
+        );
+        command.stdin(Stdio::piped());
+    } else {
+        command.stdin(Stdio::null());
     }
     if let Some(stdout_path) = &args.stdout_artifact {
         if let Some(parent) = stdout_path.parent() {
@@ -859,6 +914,108 @@ fn service_launch(args: Args) -> Result<()> {
     let mut child = command
         .spawn()
         .with_context(|| format!("failed to launch service {}", command_path.display()))?;
+    if let Some((
+        policy,
+        policy_digest,
+        host,
+        boot,
+        launch_id,
+        incarnation_id,
+        mut seed,
+        provider_key,
+    )) = coverage_launch
+    {
+        let persist_result = (|| -> Result<WorkspaceCoverageManagedProcessLaunchEntry> {
+            let process = capture_process_instance(child.id())
+                .context("failed to capture exact workspace coverage process identity")?;
+            let canonical_executable = command_path
+                .canonicalize()
+                .context("failed to canonicalize workspace coverage executable")?;
+            if process.executable_path != canonical_executable {
+                anyhow::bail!(
+                    "spawned workspace coverage process executable disagrees with policy command"
+                );
+            }
+            let executable_sha256 = local_file_sha256(&canonical_executable.display().to_string())
+                .map(|digest| format!("sha256-{digest}"))
+                .context("workspace coverage executable cannot be fingerprinted")?;
+            let mut bootstrap = WorkspaceCoverageProcessBootstrap {
+                launch_id,
+                provider_signing_seed: seed,
+            };
+            let mut stdin = child
+                .stdin
+                .take()
+                .context("workspace coverage child stdin is unavailable")?;
+            write_workspace_coverage_process_bootstrap(&mut stdin, &bootstrap)?;
+            drop(stdin);
+            bootstrap.provider_signing_seed.zeroize();
+            seed.zeroize();
+            let launched_at = started_at.to_rfc3339();
+            let mut launch = WorkspaceCoverageManagedProcessLaunchEntry {
+                schema_version: WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION.to_string(),
+                launch_id: launch_id.to_string(),
+                service_id: WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID.to_string(),
+                provider_daemon_id: WORKSPACE_COVERAGE_PROJECTOR_EXECUTOR_ID.to_string(),
+                runtime_id: args.runtime_id.clone(),
+                policy_id: policy.policy_id,
+                policy_envelope_digest: policy_digest,
+                command: policy.command,
+                args: policy.args,
+                cwd: policy.cwd,
+                launched_at_utc: launched_at,
+                host_identity_id: host.entry().identity_id.clone(),
+                host_public_key: host.entry().public_key.clone(),
+                host_assurance: host.entry().assurance.clone(),
+                host_identity_record_digest: workspace_coverage_host_identity_record_digest(
+                    host.entry(),
+                )?,
+                boot_identity: boot,
+                process_id: process.process_id,
+                process_creation_token: process.creation_token,
+                process_created_at_rfc3339: process.created_at_rfc3339,
+                process_executable_path: process.executable_path.display().to_string(),
+                executable_sha256,
+                provider_incarnation_id: incarnation_id.to_string(),
+                provider_public_key: provider_key.verifying_key().to_bytes().to_vec(),
+                host_signature: Vec::new(),
+                supervisor_id: "epiphany-daemon-supervisor".to_string(),
+                identity_captured_at_utc: Utc::now().to_rfc3339(),
+                signature_algorithm: "ed25519".to_string(),
+            };
+            sign_workspace_coverage_launch(&mut launch, &host)?;
+            write_workspace_coverage_managed_process_launch(
+                &args.store,
+                args.runtime_id.clone(),
+                launch,
+                host.entry(),
+            )
+        })();
+        seed.zeroize();
+        match persist_result {
+            Ok(written) => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "status": "launched",
+                        "store": args.store,
+                        "runtimeId": args.runtime_id,
+                        "serviceId": written.service_id,
+                        "launchId": written.launch_id,
+                        "processId": written.process_id,
+                        "privateStateExposed": false,
+                    }))?
+                );
+                return Ok(());
+            }
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error)
+                    .context("failed to establish authenticated workspace coverage launch");
+            }
+        }
+    }
     let process_id = Some(child.id());
     let mut exit_code = None;
     let mut completed_at = reserved_launch.as_ref().map(|_| Utc::now());
@@ -2819,6 +2976,30 @@ mod semantic_projector_authority_tests {
         assert!(uuid < env && env < spawn && spawn < completion && completion < persist);
         assert!(body.contains("receipt.managed_policy_digest = policy_digest"));
         assert!(body.contains("receipt.startup_correlation_id = receipt_id"));
+        assert!(body.contains("let _ = child.kill()"));
+        assert!(body.contains("let _ = child.wait()"));
+    }
+
+    #[test]
+    fn workspace_coverage_launch_uses_only_specialized_process_authority() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source.find("fn service_launch(args: Args)").unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn ").unwrap();
+        let body = &tail[..end];
+        let env = body.find("EPIPHANY_WORKSPACE_COVERAGE_LAUNCH_ID").unwrap();
+        let spawn = body.find(".spawn()").unwrap();
+        let capture = body.find("capture_process_instance(child.id())").unwrap();
+        let bootstrap = body
+            .find("write_workspace_coverage_process_bootstrap")
+            .unwrap();
+        let persist = body
+            .find("write_workspace_coverage_managed_process_launch")
+            .unwrap();
+        assert!(env < spawn && spawn < capture && capture < bootstrap && bootstrap < persist);
+        assert!(body.contains("open_default_host_identity"));
+        assert!(body.contains("native_boot_identity"));
+        assert!(body.contains("seed.zeroize()"));
         assert!(body.contains("let _ = child.kill()"));
         assert!(body.contains("let _ = child.wait()"));
     }

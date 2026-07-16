@@ -169,7 +169,7 @@ pub struct WorkspaceCoverageProjectorServiceBody {
     _singleton: WorkspaceCoverageProjectorSingletonGuard,
     runtime_store: PathBuf,
     executor_incarnation: String,
-    startup_lifecycle_receipt_id: String,
+    managed_process_launch_id: String,
     embedder: OllamaEmbedder,
     qdrant: QdrantBackend,
 }
@@ -180,16 +180,17 @@ impl WorkspaceCoverageProjectorServiceBody {
         runtime_id: impl Into<String>,
         config: WorkspaceCoverageProjectorConfig,
         executor_incarnation: impl Into<String>,
-        startup_lifecycle_receipt_id: impl Into<String>,
+        managed_process_launch_id: impl Into<String>,
     ) -> Result<Self> {
         config.validate()?;
         let executor_incarnation = executor_incarnation.into();
         if executor_incarnation.trim().is_empty() {
             bail!("workspace coverage projector requires its executor incarnation");
         }
-        let startup_lifecycle_receipt_id = startup_lifecycle_receipt_id.into();
-        Uuid::parse_str(&startup_lifecycle_receipt_id)
-            .context("workspace coverage projector requires its authenticated launch receipt id")?;
+        let managed_process_launch_id = managed_process_launch_id.into();
+        Uuid::parse_str(&managed_process_launch_id).context(
+            "workspace coverage projector requires its authenticated managed process launch id",
+        )?;
         let runtime_id = runtime_id.into();
         if runtime_id.trim().is_empty() {
             bail!("workspace coverage projector requires its CultMesh runtime id");
@@ -226,7 +227,7 @@ impl WorkspaceCoverageProjectorServiceBody {
             _singleton: singleton,
             runtime_store,
             executor_incarnation,
-            startup_lifecycle_receipt_id,
+            managed_process_launch_id,
             embedder,
             qdrant,
         })
@@ -236,8 +237,8 @@ impl WorkspaceCoverageProjectorServiceBody {
         &self.executor_incarnation
     }
 
-    pub fn startup_lifecycle_receipt_id(&self) -> &str {
-        &self.startup_lifecycle_receipt_id
+    pub fn managed_process_launch_id(&self) -> &str {
+        &self.managed_process_launch_id
     }
 
     pub fn pulse(&mut self) -> WorkspaceCoverageProjectorServicePulse {
@@ -298,7 +299,7 @@ impl WorkspaceCoverageProjectorServiceBody {
             &prepared,
             EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID,
             &self.executor_incarnation,
-            &self.startup_lifecycle_receipt_id,
+            &self.managed_process_launch_id,
         )? {
             WorkspaceCoverageAcquireResult::Contended => {
                 Ok(WorkspaceCoverageProjectorServicePulse {

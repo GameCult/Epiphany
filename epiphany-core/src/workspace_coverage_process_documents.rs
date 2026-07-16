@@ -448,6 +448,23 @@ pub fn load_workspace_coverage_managed_process_launch(
     open_epiphany_cultmesh_node(store_path, runtime_id)?.get(&launch_key(launch_id))
 }
 
+pub fn load_workspace_coverage_managed_process_launch_with_digest(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+) -> Result<Option<(WorkspaceCoverageManagedProcessLaunchEntry, String)>> {
+    require_nonempty("launch id", launch_id)?;
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let Some(envelope) = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(launch_id))?
+    else {
+        return Ok(None);
+    };
+    let digest = envelope_digest(&envelope);
+    Ok(Some((rmp_serde::from_slice(&envelope.payload)?, digest)))
+}
+
 pub fn load_latest_workspace_coverage_managed_process_launch(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
