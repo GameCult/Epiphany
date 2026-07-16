@@ -16,14 +16,16 @@ output is terminally sealed with a bounded diagnostic rather than marked
 complete. The stale OpenAI-runtime Modeling fixture now carries and echoes a
 Body basis and passes again.
 
-No current Modeling admission exists yet. The most recent worker inspected
-source through eleven tool rounds, then the provider request failed before a
-typed result was published. Do not inspect its sealed transcript. Rebuild the
-coordinator after any final edits, supersede that failed result with
-`--supersede-failed-results`, and relaunch in `--mode run` with the existing
-accepted Eyes basis. Make no source edits between the final Body observation
-and Mind admission. Only after Mind accepts an exact Body-basis RepoModel patch
-should `epiphany-memory-semantic repository-readiness` be run with local Ollama
+No current Modeling admission exists yet. After the Body was committed at
+`f574a194`, Modeling completed a source-grounded typed proposal over the
+repository Body. Mind correctly refused it because ordinary `Evolution` also
+carried `upsert_frontier`, which requires an explicit frontier request. The
+prompt now makes the invariant explicit: ordinary Evolution changes nodes and
+edges only. Commit this small correction, rebuild the coordinator, supersede
+the refused result, and relaunch in `--mode run` with the accepted Eyes basis.
+Make no source edits between the final Body observation and Mind admission.
+Only after Mind accepts an exact Body-basis RepoModel patch should
+`epiphany-memory-semantic repository-readiness` be run with local Ollama
 `qwen3-embedding:0.6b`, 1024 dimensions, and the runtime spine.
 
 Exact remaining sequence:

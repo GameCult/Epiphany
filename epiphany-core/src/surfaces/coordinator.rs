@@ -323,7 +323,7 @@ pub fn derive_coordinator_finding_signals(
         })
     });
     let modeling_result_reviewable =
-        modeling_finding.is_some_and(modeling_finding_has_reviewable_state_patch);
+        modeling_finding.is_some_and(modeling_finding_has_reviewable_repo_model_patch);
     let modeling_result_requests_regather =
         modeling_finding.is_some_and(modeling_finding_requests_regather);
     let modeling_result_failure_reviewed = modeling_finding.as_ref().is_some_and(|finding| {
@@ -418,13 +418,16 @@ pub fn reorient_finding_already_accepted(
     false
 }
 
-fn modeling_finding_has_reviewable_state_patch(
+fn modeling_finding_has_reviewable_repo_model_patch(
     finding: &EpiphanyRoleFindingInterpretation,
 ) -> bool {
-    finding
-        .state_patch
-        .as_ref()
-        .is_some_and(|patch| super::modeling_role_state_patch_policy_errors(patch).is_empty())
+    finding.item_error.is_none()
+        && finding.job_error.is_none()
+        && finding.repo_model_patch.is_some()
+        && finding
+            .state_patch
+            .as_ref()
+            .is_none_or(|patch| super::modeling_role_state_patch_policy_errors(patch).is_empty())
 }
 
 fn research_finding_has_reviewable_state_patch(

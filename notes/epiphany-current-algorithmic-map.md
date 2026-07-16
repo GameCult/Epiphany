@@ -23,8 +23,10 @@
   explicit supersession receipt before relaunch. Exact repeat is idempotent;
   conflicting acceptance authority is refused.
 - Current live evidence: Eyes produced and Mind accepted a code-grounded result.
-  Modeling has not yet produced a current admissible Body-grounded result; its
-  latest eleven-tool run ended at the provider request boundary.
+  Modeling subsequently produced a source-grounded Body-bound RepoModel
+  proposal, but Mind refused it because `Evolution` attempted an unrequested
+  frontier upsert. Ordinary evolution owns nodes and edges only; frontier
+  mutation remains request-bound. A fresh post-correction admission is pending.
 
 ## Observation and bootstrap authority correction (2026-07-12)
 

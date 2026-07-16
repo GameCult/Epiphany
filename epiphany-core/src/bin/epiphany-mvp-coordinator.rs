@@ -1097,7 +1097,8 @@ fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
     }
     match role_id {
         "verification" => true,
-        "research" | "modeling" | "imagination" => finding["statePatch"].is_object(),
+        "research" | "imagination" => finding["statePatch"].is_object(),
+        "modeling" => finding["repoModelPatch"].is_object(),
         _ => false,
     }
 }
@@ -1714,6 +1715,29 @@ mod tests {
     }
 
     #[test]
+    fn auto_review_accepts_modeling_repo_patch_without_generic_state_patch() {
+        let result = json!({
+            "status": "completed",
+            "finding": {
+                "runtimeResultId": "result-modeling-typed",
+                "runtimeJobId": "job-modeling-typed",
+                "repoModelPatch": {
+                    "patch_id": "patch-typed",
+                    "base_revision": 0,
+                    "base_hash": "base",
+                    "applied_at": "2026-07-16T00:00:00Z",
+                    "purpose": {"kind": "evolution"},
+                    "operations": [{"operation": "retire_node", "node_id": "old"}]
+                },
+                "statePatch": null
+            }
+        });
+
+        assert!(role_result_auto_acceptable("modeling", &result));
+        assert!(!role_result_needs_supersession("modeling", &result));
+    }
+
+    #[test]
     fn supersession_includes_unreviewable_modeling_results() {
         let unreviewable = json!({
             "status": "completed",
@@ -1732,6 +1756,14 @@ mod tests {
                 "summary": "Mapped with state.",
                 "runtimeResultId": "result-modeling-2",
                 "runtimeJobId": "job-modeling-2",
+                "repoModelPatch": {
+                    "patch_id": "patch-modeling-2",
+                    "base_revision": 0,
+                    "base_hash": "base",
+                    "applied_at": "2026-07-16T00:00:00Z",
+                    "purpose": {"kind": "evolution"},
+                    "operations": [{"operation": "retire_node", "node_id": "old"}]
+                },
                 "statePatch": {"scratch": {"summary": "mapped"}}
             }
         });
