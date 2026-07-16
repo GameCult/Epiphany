@@ -1905,3 +1905,23 @@ Rebuild termination so signed launch plus enrolled host/boot/process observation
 is sufficient, with heartbeat optional additional evidence. Then run a
 GUID-scoped live initial launch -> death -> replacement -> Body recovery smoke.
 Reboot/logon proof remains permission-bound.
+
+## Pre-readiness workspace coverage death is recoverable (2026-07-16)
+
+The heartbeat prerequisite was rebuilt, not relaxed with nullable fields alone.
+Each specialized launch owns one typed process-evidence head. Launch initializes
+it; every signed heartbeat advances it by exact CAS; termination advances and
+seals it by exact CAS. Termination v1 uses signed launch plus enrolled
+host/boot/process observation as sufficient death proof and includes heartbeat
+id/digest only when the head names a current signed heartbeat. Heartbeat after
+termination refuses, so publication and death cannot win on separate keys.
+
+Focused proof now includes death before heartbeat sequence one, successful
+heartbeat-free termination authentication, and refusal of a late heartbeat.
+All six process-document/recovery tests, fourteen supervisor tests, fifteen
+projector tests plus one ignored live test, and all-target check pass.
+
+Next: create/run a GUID-scoped live smoke through real packaged supervisor and
+projector binaries, local Qdrant/Ollama, exact child kill, causal replacement,
+epoch+1 recovery, and restart-time receipt authentication. Restore the prior
+Qdrant container state afterward. Reboot/logon remains permission-bound.

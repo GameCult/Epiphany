@@ -6,10 +6,11 @@ use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
 use crate::workspace_coverage_process_documents::{
+    WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
-    WorkspaceCoverageManagedProcessLaunchEntry,
+    WorkspaceCoverageManagedProcessLaunchEntry, WorkspaceCoverageProcessEvidenceHead,
     WorkspaceCoverageProcessTerminationObservationEntry, WorkspaceCoverageProviderHeartbeatEntry,
 };
 use anyhow::Context;
@@ -2646,6 +2647,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshManagedServicePolicyEntry => EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION,
     WorkspaceCoverageManagedProcessLaunchEntry => WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
+    WorkspaceCoverageProcessEvidenceHead => WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION,
     WorkspaceCoverageProviderHeartbeatEntry => WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
     WorkspaceCoverageProcessTerminationObservationEntry => WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnDeploymentReceiptEntry => EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION,

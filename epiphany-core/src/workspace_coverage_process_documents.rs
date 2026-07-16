@@ -30,7 +30,9 @@ pub const WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY: &str =
 pub const WORKSPACE_COVERAGE_PROCESS_TERMINATION_TYPE: &str =
     "epiphany.workspace_coverage.process_termination_observation";
 pub const WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION: &str =
-    "epiphany.workspace_coverage.process_termination_observation.v0";
+    "epiphany.workspace_coverage.process_termination_observation.v1";
+pub(crate) const WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION: &str =
+    "epiphany.workspace_coverage.process_evidence_head.v0";
 
 const HOST_LAUNCH_PURPOSE: &str = "epiphany.workspace-coverage.managed-process-launch.v0";
 const PROVIDER_HEARTBEAT_DOMAIN: &[u8] =
@@ -170,9 +172,9 @@ pub struct WorkspaceCoverageProcessTerminationObservationEntry {
     #[cultcache(key = 3)]
     pub launch_envelope_digest: String,
     #[cultcache(key = 4)]
-    pub heartbeat_id: String,
-    #[cultcache(key = 5)]
-    pub heartbeat_envelope_digest: String,
+    pub heartbeat_id: Option<String>,
+    #[cultcache(key = 5, default)]
+    pub heartbeat_envelope_digest: Option<String>,
     #[cultcache(key = 6)]
     pub policy_id: String,
     #[cultcache(key = 7)]
@@ -213,6 +215,26 @@ pub struct WorkspaceCoverageProcessTerminationObservationEntry {
     pub host_signature: Vec<u8>,
     #[cultcache(key = 25)]
     pub signature_algorithm: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.workspace_coverage.process_evidence_head",
+    schema = "WorkspaceCoverageProcessEvidenceHead"
+)]
+pub(crate) struct WorkspaceCoverageProcessEvidenceHead {
+    #[cultcache(key = 0)]
+    schema_version: String,
+    #[cultcache(key = 1)]
+    launch_id: String,
+    #[cultcache(key = 2)]
+    generation: u64,
+    #[cultcache(key = 3)]
+    state: String,
+    #[cultcache(key = 4, default)]
+    heartbeat_id: Option<String>,
+    #[cultcache(key = 5, default)]
+    termination_id: Option<String>,
 }
 
 trait WorkspaceCoverageProcessObservationSource {
@@ -292,8 +314,8 @@ struct TerminationStatement<'a> {
     termination_id: &'a str,
     launch_id: &'a str,
     launch_envelope_digest: &'a str,
-    heartbeat_id: &'a str,
-    heartbeat_envelope_digest: &'a str,
+    heartbeat_id: &'a Option<String>,
+    heartbeat_envelope_digest: &'a Option<String>,
     policy_id: &'a str,
     policy_envelope_digest: &'a str,
     runtime_id: &'a str,
@@ -511,10 +533,29 @@ pub fn write_workspace_coverage_managed_process_launch(
         }
         bail!("workspace coverage launch identity collision");
     }
+    let evidence_head_key = process_evidence_head_key(&entry.launch_id);
+    if node
+        .cache()
+        .get_envelope::<WorkspaceCoverageProcessEvidenceHead>(&evidence_head_key)?
+        .is_some()
+    {
+        bail!("workspace coverage launch evidence head identity collision");
+    }
+    let evidence_head = WorkspaceCoverageProcessEvidenceHead {
+        schema_version: WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION.into(),
+        launch_id: entry.launch_id.clone(),
+        generation: 1,
+        state: "launched".into(),
+        heartbeat_id: None,
+        termination_id: None,
+    };
     let mut expected = vec![policy_envelope.clone()];
     let mut replacements = vec![
         policy_envelope,
         node.cache().prepare_entry(&identity_key, &entry)?.0,
+        node.cache()
+            .prepare_entry(&evidence_head_key, &evidence_head)?
+            .0,
     ];
     if let (Some(old_launch_id), Some(termination_id), Some(termination_digest)) = (
         entry.replaces_launch_id.as_deref(),
@@ -601,9 +642,34 @@ pub fn write_workspace_coverage_provider_heartbeat(
         }
         bail!("workspace coverage heartbeat identity collision");
     }
-    let mut expected = vec![launch_envelope.clone()];
+    let evidence_head_key = process_evidence_head_key(&entry.launch_id);
+    let evidence_head_envelope = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageProcessEvidenceHead>(&evidence_head_key)?
+        .ok_or_else(|| anyhow!("workspace coverage heartbeat process evidence head is absent"))?;
+    let evidence_head: WorkspaceCoverageProcessEvidenceHead =
+        rmp_serde::from_slice(&evidence_head_envelope.payload)?;
+    validate_process_evidence_head(&evidence_head, &entry.launch_id)?;
+    if evidence_head.state == "terminated" {
+        bail!("workspace coverage heartbeat cannot advance a terminated process");
+    }
+    let next_evidence_head = WorkspaceCoverageProcessEvidenceHead {
+        schema_version: WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION.into(),
+        launch_id: entry.launch_id.clone(),
+        generation: evidence_head
+            .generation
+            .checked_add(1)
+            .ok_or_else(|| anyhow!("workspace coverage process evidence generation exhausted"))?,
+        state: "heartbeat".into(),
+        heartbeat_id: Some(entry.heartbeat_id.clone()),
+        termination_id: None,
+    };
+    let mut expected = vec![launch_envelope.clone(), evidence_head_envelope.clone()];
     let mut replacements = vec![
         launch_envelope,
+        node.cache()
+            .prepare_entry(&evidence_head_key, &next_evidence_head)?
+            .0,
         node.cache().prepare_entry(&identity_key, &entry)?.0,
     ];
     let latest_key = heartbeat_latest_key(&entry.launch_id);
@@ -858,13 +924,38 @@ fn write_workspace_coverage_process_termination_observation_with_source(
         bail!("workspace coverage termination launch disagrees with current managed policy");
     }
 
-    let heartbeat_latest_envelope = node
+    let evidence_head_key = process_evidence_head_key(launch_id);
+    let evidence_head_envelope = node
         .cache()
-        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&heartbeat_latest_key(launch_id))?
-        .ok_or_else(|| anyhow!("workspace coverage launch has no provider heartbeat"))?;
-    let heartbeat: WorkspaceCoverageProviderHeartbeatEntry =
-        rmp_serde::from_slice(&heartbeat_latest_envelope.payload)?;
-    authenticate_heartbeat_against_launch(&heartbeat, &launch, &envelope_digest(&launch_envelope))?;
+        .get_envelope::<WorkspaceCoverageProcessEvidenceHead>(&evidence_head_key)?
+        .ok_or_else(|| anyhow!("workspace coverage termination process evidence head is absent"))?;
+    let evidence_head: WorkspaceCoverageProcessEvidenceHead =
+        rmp_serde::from_slice(&evidence_head_envelope.payload)?;
+    validate_process_evidence_head(&evidence_head, launch_id)?;
+    if evidence_head.state == "terminated" {
+        bail!("workspace coverage process already has terminal evidence");
+    }
+    let heartbeat_evidence = if let Some(heartbeat_id) = evidence_head.heartbeat_id.as_deref() {
+        let envelope = node
+            .cache()
+            .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&heartbeat_latest_key(
+                launch_id,
+            ))?
+            .ok_or_else(|| anyhow!("workspace coverage evidence head heartbeat is absent"))?;
+        let heartbeat: WorkspaceCoverageProviderHeartbeatEntry =
+            rmp_serde::from_slice(&envelope.payload)?;
+        authenticate_heartbeat_against_launch(
+            &heartbeat,
+            &launch,
+            &envelope_digest(&launch_envelope),
+        )?;
+        if heartbeat.heartbeat_id != heartbeat_id {
+            bail!("workspace coverage evidence head disagrees with latest heartbeat");
+        }
+        Some((envelope, heartbeat))
+    } else {
+        None
+    };
 
     let observed_boot_identity = source
         .boot_identity()
@@ -897,8 +988,12 @@ fn write_workspace_coverage_process_termination_observation_with_source(
         termination_id: launch.launch_id.clone(),
         launch_id: launch.launch_id.clone(),
         launch_envelope_digest: envelope_digest(&launch_envelope),
-        heartbeat_id: heartbeat.heartbeat_id.clone(),
-        heartbeat_envelope_digest: envelope_digest(&heartbeat_latest_envelope),
+        heartbeat_id: heartbeat_evidence
+            .as_ref()
+            .map(|(_, heartbeat)| heartbeat.heartbeat_id.clone()),
+        heartbeat_envelope_digest: heartbeat_evidence
+            .as_ref()
+            .map(|(envelope, _)| envelope_digest(envelope)),
         policy_id: policy.policy_id.clone(),
         policy_envelope_digest: envelope_digest(&policy_envelope),
         runtime_id,
@@ -928,20 +1023,38 @@ fn write_workspace_coverage_process_termination_observation_with_source(
     validate_termination(&entry, host.entry())?;
 
     let key = termination_key(launch_id);
+    let terminal_head = WorkspaceCoverageProcessEvidenceHead {
+        schema_version: WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION.into(),
+        launch_id: launch_id.into(),
+        generation: evidence_head
+            .generation
+            .checked_add(1)
+            .ok_or_else(|| anyhow!("workspace coverage process evidence generation exhausted"))?,
+        state: "terminated".into(),
+        heartbeat_id: evidence_head.heartbeat_id.clone(),
+        termination_id: Some(entry.termination_id.clone()),
+    };
     let replacement = node.cache().prepare_entry(&key, &entry)?.0;
-    if !SingleFileMessagePackBackingStore::new(store_path).compare_and_swap_batch(
-        &[
-            policy_envelope.clone(),
-            launch_envelope.clone(),
-            heartbeat_latest_envelope.clone(),
-        ],
-        vec![
-            policy_envelope,
-            launch_envelope,
-            heartbeat_latest_envelope,
-            replacement,
-        ],
-    )? {
+    let mut expected = vec![
+        policy_envelope.clone(),
+        launch_envelope.clone(),
+        evidence_head_envelope,
+    ];
+    let mut replacements = vec![
+        policy_envelope,
+        launch_envelope,
+        node.cache()
+            .prepare_entry(&evidence_head_key, &terminal_head)?
+            .0,
+        replacement,
+    ];
+    if let Some((heartbeat_envelope, _)) = heartbeat_evidence {
+        expected.push(heartbeat_envelope.clone());
+        replacements.push(heartbeat_envelope);
+    }
+    if !SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&expected, replacements)?
+    {
         bail!("workspace coverage termination lost exact policy/launch/heartbeat CAS or collided");
     }
     Ok(entry)
@@ -989,20 +1102,51 @@ pub fn authenticate_workspace_coverage_process_termination_observation(
     let launch: WorkspaceCoverageManagedProcessLaunchEntry =
         rmp_serde::from_slice(&launch_envelope.payload)?;
     validate_launch(&launch, host)?;
-    let heartbeat_envelope = node
-        .cache()
-        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&heartbeat_latest_key(launch_id))?
-        .ok_or_else(|| anyhow!("workspace coverage termination heartbeat evidence is absent"))?;
-    let heartbeat: WorkspaceCoverageProviderHeartbeatEntry =
-        rmp_serde::from_slice(&heartbeat_envelope.payload)?;
-    authenticate_heartbeat_against_launch(&heartbeat, &launch, &envelope_digest(&launch_envelope))?;
+    let evidence_head: WorkspaceCoverageProcessEvidenceHead = node
+        .get(&process_evidence_head_key(launch_id))?
+        .ok_or_else(|| anyhow!("workspace coverage termination process evidence head is absent"))?;
+    validate_process_evidence_head(&evidence_head, launch_id)?;
+    if evidence_head.state != "terminated"
+        || evidence_head.termination_id.as_deref() != Some(entry.termination_id.as_str())
+        || evidence_head.heartbeat_id != entry.heartbeat_id
+    {
+        bail!("workspace coverage termination disagrees with process evidence head");
+    }
+    let heartbeat_evidence = match (
+        entry.heartbeat_id.as_deref(),
+        entry.heartbeat_envelope_digest.as_deref(),
+    ) {
+        (Some(heartbeat_id), Some(expected_digest)) => {
+            let envelope = node
+                .cache()
+                .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&heartbeat_latest_key(
+                    launch_id,
+                ))?
+                .ok_or_else(|| {
+                    anyhow!("workspace coverage termination heartbeat evidence is absent")
+                })?;
+            let heartbeat: WorkspaceCoverageProviderHeartbeatEntry =
+                rmp_serde::from_slice(&envelope.payload)?;
+            authenticate_heartbeat_against_launch(
+                &heartbeat,
+                &launch,
+                &envelope_digest(&launch_envelope),
+            )?;
+            if heartbeat.heartbeat_id != heartbeat_id
+                || envelope_digest(&envelope) != expected_digest
+            {
+                bail!("workspace coverage termination heartbeat evidence disagrees");
+            }
+            Some(heartbeat)
+        }
+        (None, None) => None,
+        _ => bail!("workspace coverage termination has partial heartbeat evidence"),
+    };
     if entry.policy_id != policy.policy_id
         || entry.policy_envelope_digest != envelope_digest(&policy_envelope)
         || launch.policy_id != policy.policy_id
         || launch.policy_envelope_digest != entry.policy_envelope_digest
         || entry.launch_envelope_digest != envelope_digest(&launch_envelope)
-        || entry.heartbeat_id != heartbeat.heartbeat_id
-        || entry.heartbeat_envelope_digest != envelope_digest(&heartbeat_envelope)
         || entry.host_identity_id != launch.host_identity_id
         || entry.host_identity_record_digest != launch.host_identity_record_digest
         || entry.expected_boot_identity != launch.boot_identity
@@ -1011,6 +1155,13 @@ pub fn authenticate_workspace_coverage_process_termination_observation(
         || entry.expected_process_executable_path != launch.process_executable_path
     {
         bail!("workspace coverage termination evidence chain disagrees with its exact sources");
+    }
+    if heartbeat_evidence
+        .as_ref()
+        .map(|heartbeat| heartbeat.heartbeat_id.as_str())
+        != entry.heartbeat_id.as_deref()
+    {
+        bail!("workspace coverage termination heartbeat identity disagrees");
     }
     Ok(entry)
 }
@@ -1246,12 +1397,21 @@ fn validate_termination(
         bail!("workspace coverage termination violates its reserved authority");
     }
     uuid::Uuid::parse_str(&entry.launch_id).context("termination launch id must be UUID")?;
-    uuid::Uuid::parse_str(&entry.heartbeat_id).context("termination heartbeat id must be UUID")?;
+    match (
+        entry.heartbeat_id.as_deref(),
+        entry.heartbeat_envelope_digest.as_deref(),
+    ) {
+        (Some(id), Some(digest)) => {
+            uuid::Uuid::parse_str(id).context("termination heartbeat id must be UUID")?;
+            validate_digest("heartbeat", digest)?;
+        }
+        (None, None) => {}
+        _ => bail!("termination heartbeat evidence is partial"),
+    }
     DateTime::parse_from_rfc3339(&entry.observed_at_utc)
         .context("termination observation time must be RFC3339")?;
     for (label, digest) in [
         ("launch", &entry.launch_envelope_digest),
-        ("heartbeat", &entry.heartbeat_envelope_digest),
         ("policy", &entry.policy_envelope_digest),
         ("host identity record", &entry.host_identity_record_digest),
     ] {
@@ -1383,6 +1543,31 @@ fn heartbeat_latest_key(launch_id: &str) -> String {
 }
 fn termination_key(launch_id: &str) -> String {
     format!("epiphany-local/workspace-coverage/process-termination/{launch_id}")
+}
+fn process_evidence_head_key(launch_id: &str) -> String {
+    format!("epiphany-local/workspace-coverage/process-evidence-head/{launch_id}")
+}
+
+fn validate_process_evidence_head(
+    head: &WorkspaceCoverageProcessEvidenceHead,
+    launch_id: &str,
+) -> Result<()> {
+    if head.schema_version != WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION
+        || head.launch_id != launch_id
+        || head.generation == 0
+    {
+        bail!("workspace coverage process evidence head is invalid");
+    }
+    match head.state.as_str() {
+        "launched"
+            if head.generation == 1
+                && head.heartbeat_id.is_none()
+                && head.termination_id.is_none() => {}
+        "heartbeat" if head.heartbeat_id.is_some() && head.termination_id.is_none() => {}
+        "terminated" if head.termination_id.is_some() => {}
+        _ => bail!("workspace coverage process evidence head state is incoherent"),
+    }
+    Ok(())
 }
 fn managed_policy_key() -> String {
     format!(
@@ -1729,7 +1914,7 @@ mod tests {
                 )
                 .expect_err("termination key is immutable")
                 .to_string()
-                .contains("collided")
+                .contains("already has terminal evidence")
             );
             let mut advanced_policy = policy()?;
             advanced_policy.updated_at_utc = "2026-07-16T23:59:59Z".to_string();
@@ -1813,6 +1998,60 @@ mod tests {
                 .is_none()
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn termination_before_first_heartbeat_seals_the_process_evidence_head() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.ccmp");
+        let host = enroll_host_identity_at(&temp.path().join("host.ccmp"))?;
+        let policy = policy()?;
+        let mut node = open_epiphany_cultmesh_node(&store, "local")?;
+        node.put(managed_policy_key(), &policy)?;
+        let policy_envelope = node
+            .cache()
+            .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&managed_policy_key())?
+            .context("test policy envelope absent")?;
+        let provider = provider_key();
+        let launch = launch(&policy, envelope_digest(&policy_envelope), &host, &provider)?;
+        write_workspace_coverage_managed_process_launch(
+            &store,
+            "local",
+            launch.clone(),
+            host.entry(),
+        )?;
+        let source = FakeObservation {
+            boot: Some(launch.boot_identity.clone()),
+            process: ProcessInstanceObservation::Missing,
+        };
+        let termination = write_workspace_coverage_process_termination_observation_with_source(
+            &store,
+            "local",
+            &launch.launch_id,
+            &host,
+            &source,
+        )?;
+        assert!(termination.heartbeat_id.is_none());
+        assert!(termination.heartbeat_envelope_digest.is_none());
+        authenticate_workspace_coverage_process_termination_observation(
+            &store,
+            "local",
+            &launch.launch_id,
+            host.entry(),
+        )?;
+
+        let launch_envelope = open_epiphany_cultmesh_node(&store, "local")?
+            .cache()
+            .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(
+                &launch.launch_id,
+            ))?
+            .context("test launch envelope absent")?;
+        let pulse = heartbeat(&launch, envelope_digest(&launch_envelope), &provider, 1)?;
+        assert!(
+            write_workspace_coverage_provider_heartbeat(&store, "local", pulse).is_err(),
+            "a late heartbeat must not resurrect a terminated launch"
+        );
         Ok(())
     }
 

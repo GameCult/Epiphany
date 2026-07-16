@@ -157,3 +157,12 @@ signed launch persistence but before heartbeat sequence one can strand the
 chain. Make heartbeat optional additional termination evidence, then run an
 isolated live death/replacement/recovery smoke. Reboot still needs live operator
 approval.
+
+## Pre-readiness death seam closed (2026-07-16)
+
+Launch, heartbeat, and termination now contend on one typed per-launch process
+evidence head. Launch creates generation 1; heartbeat advances it; termination
+seals it. Termination v1 can carry no heartbeat when the exact signed launch and
+native host/boot/process proof already establish death. A late heartbeat cannot
+resurrect the launch. Six focused process tests, supervisor/projector suites,
+and all-target check pass. Next: real GUID-scoped recovery smoke.
