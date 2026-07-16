@@ -38,6 +38,7 @@ fn main() -> Result<()> {
             admit_legacy_agent_memory_generation(&agent_store)?;
             bind_runtime_to_agent_memory_swarm(&runtime_store, &agent_store, &at)?;
             let binding = bind_repository_body(&repo, &store, &runtime_store, workspace_id)?;
+            observe_repository_body(&repo, &store, &runtime_store)?;
             let bootstrap = EpiphanyMemoryGraphSnapshot {
                 schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
                 graph_id: format!("{}-repo-model", binding.runtime_id),
