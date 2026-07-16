@@ -245,6 +245,7 @@ impl WorkspaceCoverageProjectorServiceBody {
         match self.pulse_inner() {
             Ok(pulse) => pulse,
             Err(_error) => {
+                eprintln!("workspace coverage pulse failed: {_error:#}");
                 #[cfg(feature = "workspace-coverage-recovery-smoke")]
                 if std::env::var_os("EPIPHANY_WORKSPACE_COVERAGE_SMOKE_DIAGNOSTICS").is_some() {
                     eprintln!("workspace coverage smoke diagnostic: {_error:#}");
