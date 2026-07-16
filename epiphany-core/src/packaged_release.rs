@@ -113,6 +113,14 @@ pub fn required_packaged_release_binaries() -> Vec<(&'static str, &'static str)>
                 "epiphany-memory-semantic"
             },
         ),
+        (
+            "verse-query",
+            if cfg!(windows) {
+                "epiphany-verse-query.exe"
+            } else {
+                "epiphany-verse-query"
+            },
+        ),
     ]
 }
 
