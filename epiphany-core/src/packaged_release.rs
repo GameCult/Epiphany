@@ -295,13 +295,7 @@ fn build_required_release_siblings(repo: &Path, target_dir: &Path, target: &str)
         .arg(target);
     command.arg("--locked");
     for (role, _) in required_packaged_release_binaries() {
-        let binary = match role {
-            "supervisor" => "epiphany-daemon-supervisor",
-            "semantic-projector" => "epiphany-memory-semantic-projector",
-            "workspace-coverage-projector" => "epiphany-workspace-coverage-projector",
-            "semantic-query" => "epiphany-memory-semantic",
-            _ => bail!("unknown required release role {role}"),
-        };
+        let binary = required_release_binary(role)?;
         command.arg("--bin").arg(binary);
     }
     let status = command
@@ -311,6 +305,17 @@ fn build_required_release_siblings(repo: &Path, target_dir: &Path, target: &str)
         bail!("owned Epiphany release build failed");
     }
     Ok(())
+}
+
+fn required_release_binary(role: &str) -> Result<&'static str> {
+    match role {
+        "supervisor" => Ok("epiphany-daemon-supervisor"),
+        "semantic-projector" => Ok("epiphany-memory-semantic-projector"),
+        "workspace-coverage-projector" => Ok("epiphany-workspace-coverage-projector"),
+        "semantic-query" => Ok("epiphany-memory-semantic"),
+        "verse-query" => Ok("epiphany-verse-query"),
+        _ => bail!("unknown required release role {role}"),
+    }
 }
 
 pub fn validate_epiphany_packaged_release(entry: &EpiphanyPackagedReleaseEntry) -> Result<()> {
@@ -636,6 +641,13 @@ fn require_nonempty(label: &str, value: &str) -> Result<()> {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn every_required_release_role_has_a_build_target() {
+        for (role, _) in required_packaged_release_binaries() {
+            required_release_binary(role).expect("required release role must resolve");
+        }
+    }
 
     fn fixture() -> (TempDir, EpiphanyPackagedReleaseEntry) {
         let dir = TempDir::new().unwrap();
