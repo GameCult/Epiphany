@@ -124,7 +124,7 @@ pub fn package_and_publish_epiphany_release(
     require_nonempty("target triple", request.target_triple)?;
     require_nonempty("toolchain fingerprint", request.toolchain_fingerprint)?;
     fs::create_dir_all(request.destination)?;
-    let destination = fs::canonicalize(request.destination)?;
+    let destination = canonical_path(request.destination)?;
     let source_root = destination.join(format!(".source-{}", Uuid::new_v4()));
     let source_guard = GitWorktreeGuard::create(request.repo, &source_root, &source_commit_sha)?;
     let build_root = destination.join(format!(".build-{}", Uuid::new_v4()));
@@ -335,7 +335,7 @@ pub fn validate_epiphany_packaged_release(entry: &EpiphanyPackagedReleaseEntry) 
 
 pub fn verify_epiphany_packaged_release_files(entry: &EpiphanyPackagedReleaseEntry) -> Result<()> {
     validate_epiphany_packaged_release(entry)?;
-    let root = fs::canonicalize(&entry.package_root).context("packaged release root is absent")?;
+    let root = canonical_path(&entry.package_root).context("packaged release root is absent")?;
     if root != PathBuf::from(&entry.package_root) {
         bail!("packaged release root is not canonical");
     }
@@ -352,7 +352,7 @@ pub fn verify_epiphany_packaged_release_files(entry: &EpiphanyPackagedReleaseEnt
     }
     for binary in &entry.binaries {
         let path = root.join(&binary.file_name);
-        if fs::canonicalize(&path)? != PathBuf::from(&binary.canonical_path) {
+        if canonical_path(&path)? != PathBuf::from(&binary.canonical_path) {
             bail!("packaged sibling path aliases another file");
         }
         let metadata = fs::metadata(&path)?;
@@ -500,7 +500,7 @@ fn binary_record(
     file_name: &str,
     path: &Path,
 ) -> Result<EpiphanyPackagedReleaseBinary> {
-    let canonical = fs::canonicalize(path)?;
+    let canonical = canonical_path(path)?;
     let len = fs::metadata(&canonical)?.len();
     if len == 0 {
         bail!("required packaged sibling is empty: {file_name}");
@@ -556,6 +556,20 @@ fn witness_sha256(entry: &EpiphanyPackagedReleaseEntry) -> Result<String> {
 fn file_sha256(path: &Path) -> Result<String> {
     Ok(format!("sha256-{:x}", Sha256::digest(fs::read(path)?)))
 }
+fn canonical_path(path: impl AsRef<Path>) -> Result<PathBuf> {
+    let canonical = fs::canonicalize(path)?;
+    #[cfg(windows)]
+    {
+        let text = canonical.to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return Ok(PathBuf::from(format!(r"\\{rest}")));
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return Ok(PathBuf::from(rest));
+        }
+    }
+    Ok(canonical)
+}
 fn validate_sha256(value: &str) -> Result<()> {
     if value.len() != 71
         || !value.starts_with("sha256-")
@@ -606,7 +620,7 @@ mod tests {
             cargo_profile: "release".into(),
             toolchain_fingerprint: "rustc".into(),
             created_at_utc: Utc::now().to_rfc3339(),
-            package_root: fs::canonicalize(root).unwrap().display().to_string(),
+            package_root: canonical_path(root).unwrap().display().to_string(),
             binaries,
             private_state_exposed: false,
         };
