@@ -29,9 +29,9 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
-const CLAIM_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_claim";
-const ATTEMPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_attempt";
-const CLAIM_KEY: &str = "workspace-coverage-projector-current";
+pub(crate) const CLAIM_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_claim";
+pub(crate) const ATTEMPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_attempt";
+pub(crate) const CLAIM_KEY: &str = "workspace-coverage-projector-current";
 const CLAIM_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v1";
 const ATTEMPT_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v1";
 const CLAIM_SCHEMA_V2: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v2";
@@ -48,8 +48,8 @@ const CHUNK_OVERLAP_LINES: usize = 8;
 const RECEIPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_receipt";
 const HEAD_TYPE: &str = "gamecult.epiphany.workspace_coverage_head";
 const HEAD_KEY: &str = "current";
-const OBLIGATION_TYPE: &str = "gamecult.epiphany.workspace_coverage_obligation";
-const PLAN_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_plan";
+pub(crate) const OBLIGATION_TYPE: &str = "gamecult.epiphany.workspace_coverage_obligation";
+pub(crate) const PLAN_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_plan";
 
 #[derive(Clone, Debug)]
 struct WorkspaceCoverageProjectionInput {
@@ -219,27 +219,27 @@ pub(crate) struct WorkspaceCoverageReadinessEvidence {
 )]
 pub(crate) struct WorkspaceCoverageProjectionClaim {
     #[cultcache(key = 0)]
-    schema_version: String,
+    pub(crate) schema_version: String,
     #[cultcache(key = 1)]
     pub(crate) claim_id: String,
     #[cultcache(key = 2)]
     pub(crate) claim_epoch: u64,
     #[cultcache(key = 3)]
-    plan_id: String,
+    pub(crate) plan_id: String,
     #[cultcache(key = 4)]
-    attempt_id: String,
+    pub(crate) attempt_id: String,
     #[cultcache(key = 5)]
-    obligation_id: String,
+    pub(crate) obligation_id: String,
     #[cultcache(key = 6)]
-    body_observation_id: String,
+    pub(crate) body_observation_id: String,
     #[cultcache(key = 7)]
-    body_generation: u64,
+    pub(crate) body_generation: u64,
     #[cultcache(key = 8)]
-    manifest_root_sha256: String,
+    pub(crate) manifest_root_sha256: String,
     #[cultcache(key = 9)]
     pub(crate) status: String,
     #[cultcache(key = 10)]
-    executor_id: String,
+    pub(crate) executor_id: String,
     #[cultcache(key = 11)]
     pub(crate) executor_incarnation: String,
     #[cultcache(key = 12, default)]
@@ -254,7 +254,7 @@ pub(crate) struct WorkspaceCoverageProjectionClaim {
     pub(crate) recovery_receipt_digest: Option<String>,
 }
 
-fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim) -> Result<()> {
+pub(crate) fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim) -> Result<()> {
     if !matches!(
         claim.schema_version.as_str(),
         CLAIM_SCHEMA | CLAIM_SCHEMA_V2 | CLAIM_SCHEMA_V3
@@ -303,7 +303,7 @@ fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim) -> Result
     Ok(())
 }
 
-fn validate_projection_attempt(attempt: &WorkspaceCoverageProjectionAttempt) -> Result<()> {
+pub(crate) fn validate_projection_attempt(attempt: &WorkspaceCoverageProjectionAttempt) -> Result<()> {
     if !matches!(
         attempt.schema_version.as_str(),
         ATTEMPT_SCHEMA | ATTEMPT_SCHEMA_V2 | ATTEMPT_SCHEMA_V3
@@ -388,7 +388,7 @@ fn validate_terminal_evidence(id: &Option<String>, digest: &Option<String>) -> R
     Ok(())
 }
 
-fn validate_claim_attempt_link(
+pub(crate) fn validate_claim_attempt_link(
     claim: &WorkspaceCoverageProjectionClaim,
     attempt: &WorkspaceCoverageProjectionAttempt,
 ) -> Result<()> {
@@ -428,37 +428,37 @@ fn validate_claim_attempt_link(
 )]
 pub(crate) struct WorkspaceCoverageProjectionAttempt {
     #[cultcache(key = 0)]
-    schema_version: String,
+    pub(crate) schema_version: String,
     #[cultcache(key = 1)]
-    attempt_id: String,
+    pub(crate) attempt_id: String,
     #[cultcache(key = 2)]
-    claim_id: String,
+    pub(crate) claim_id: String,
     #[cultcache(key = 3)]
-    claim_epoch: u64,
+    pub(crate) claim_epoch: u64,
     #[cultcache(key = 4)]
-    plan_id: String,
+    pub(crate) plan_id: String,
     #[cultcache(key = 5)]
-    status: String,
+    pub(crate) status: String,
     #[cultcache(key = 6)]
-    started_at: String,
+    pub(crate) started_at: String,
     #[cultcache(key = 7)]
-    completed_at: Option<String>,
+    pub(crate) completed_at: Option<String>,
     #[cultcache(key = 8)]
-    error: Option<String>,
+    pub(crate) error: Option<String>,
     #[cultcache(key = 9)]
-    executor_id: String,
+    pub(crate) executor_id: String,
     #[cultcache(key = 10)]
-    executor_incarnation: String,
+    pub(crate) executor_incarnation: String,
     #[cultcache(key = 11)]
-    managed_process_launch_id: String,
+    pub(crate) managed_process_launch_id: String,
     #[cultcache(key = 12, default)]
-    termination_evidence_id: Option<String>,
+    pub(crate) termination_evidence_id: Option<String>,
     #[cultcache(key = 13, default)]
-    termination_evidence_digest: Option<String>,
+    pub(crate) termination_evidence_digest: Option<String>,
     #[cultcache(key = 14, default)]
-    recovery_receipt_id: Option<String>,
+    pub(crate) recovery_receipt_id: Option<String>,
     #[cultcache(key = 15, default)]
-    recovery_receipt_digest: Option<String>,
+    pub(crate) recovery_receipt_digest: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -1917,7 +1917,7 @@ fn commit_workspace_coverage_success(
     Ok(receipt)
 }
 
-fn payload_for(
+pub(crate) fn payload_for(
     obligation: &WorkspaceCoverageObligation,
     plan: &WorkspaceCoverageProjectionPlan,
     point: &crate::WorkspaceCoveragePlannedPoint,
@@ -1936,7 +1936,7 @@ fn payload_for(
     }
 }
 
-fn exact_obligation_body_authority(
+pub(crate) fn exact_obligation_body_authority(
     opening: &[CultCacheEnvelope],
     obligation: &WorkspaceCoverageObligation,
 ) -> Result<Vec<CultCacheEnvelope>> {

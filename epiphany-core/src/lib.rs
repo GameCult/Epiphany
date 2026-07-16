@@ -42,6 +42,7 @@ mod thread_state_store;
 mod weksa_interlingua;
 mod workspace_coverage_process_bootstrap;
 mod workspace_coverage_process_documents;
+mod workspace_coverage_projection_batch_checkpoint;
 mod workspace_coverage_projection_progress;
 mod workspace_coverage_projector;
 mod workspace_coverage_projector_service;
@@ -1211,6 +1212,16 @@ pub use workspace_coverage_process_documents::{
     workspace_coverage_termination_statement, write_workspace_coverage_managed_process_launch,
     write_workspace_coverage_process_termination_observation,
     write_workspace_coverage_provider_heartbeat,
+};
+pub use workspace_coverage_projection_batch_checkpoint::{
+    WORKSPACE_COVERAGE_BATCH_CHECKPOINT_MAX_POINTS,
+    WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_TYPE,
+    WorkspaceCoverageProjectionBatchCheckpointAdmission,
+    WorkspaceCoverageProjectionBatchCheckpointEntry,
+    WorkspaceCoverageProjectionBatchCheckpointHeadEntry,
+    admit_workspace_coverage_projection_batch_checkpoint,
+    sign_workspace_coverage_projection_batch_checkpoint,
 };
 pub use workspace_coverage_projection_progress::{
     WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
