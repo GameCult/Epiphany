@@ -2,7 +2,7 @@ use super::{
     MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION, MemorySemanticIndexReceipt,
     MemorySemanticProjectionAttempt, MemorySemanticProjectionObligation,
     MemorySemanticProjectionSourceHead, bind_memory_semantic_index_receipt,
-    memory_semantic_projection_query_eligible, memory_semantic_projection_terminal_success,
+    memory_semantic_projection_terminal_success,
     validate_memory_semantic_projection_attempt, validate_memory_semantic_projection_obligation,
 };
 use anyhow::{Result, anyhow};
@@ -406,7 +406,7 @@ mod authority_tests {
         )?;
         let readiness = load_memory_semantic_projection_readiness(&store, &input)?
             .expect("terminal empty receipt remains authenticated");
-        assert!(!memory_semantic_projection_query_eligible(
+        assert!(!super::super::memory_semantic_projection_query_eligible(
             &obligation,
             &input.authority.head,
             &readiness.receipt

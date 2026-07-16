@@ -2026,3 +2026,37 @@ IgnoreNew recurrence refusal while the foreground task is running.
 The installed sibling-generation gate is closed for the current boot. Next:
 build Mind's whole-repository observed-readiness join. Reboot/logon remains
 permission-bound.
+
+## Mind whole-repository readiness join (2026-07-16)
+
+The missing join now exists in source. `repository_readiness.rs` is Mind's sole
+owner for a historical `gamecult.epiphany.repository_readiness_projection.v0`.
+It derives every authority decision from raw snapshots and observations: fresh
+Body R1, one canonical RepoModel, exactly one current v5 admission whose
+historical Body basis is authenticated, the exact succeeded Modeling semantic
+chain, live semantic vectors, live workspace coverage bound to R1, fresh Body
+R2 with equal content identity, repeated live observations, and one complete
+closing runtime-store snapshot. The final projection append uses CultCache's
+new full-snapshot conditional append, so a concurrent unknown receipt or
+obligation defeats the write. Stored readiness is historical evidence only and
+cannot admit a later query or readiness answer.
+
+Semantic receipts are now v2 and seal the deterministic post-scroll vector
+binding root. Old, malformed, substituted, or stale receipts cannot grant query
+eligibility. Exact empty projections may terminal-succeed once while remaining
+non-queryable, avoiding a retry wound. Both semantic and workspace live readers
+revalidate their persisted authority after Qdrant observation.
+
+CultCache envelope identity is now the tuple `(type, key)`, not delimiter
+concatenation, and `append_if_snapshot_unchanged` compares the complete
+canonical snapshot beneath the single-file exclusive lock. Soul approved the
+join after hostile passes for alien keys, duplicate grounded/ungrounded
+admissions, forged raw semantic heads, receipt cross-field substitution,
+historical Body failure, Body/authority drift, R1-bound coverage ordering, CAS
+refusal, and exact concurrent idempotence.
+
+Verification: 21/21 CultCache tests and 465/465 Epiphany library tests passed;
+two existing live tests remain intentionally ignored. Next: commit/push the
+CultCache submodule and parent changes, package a new witnessed release, deploy
+it, then derive the first live whole-repository projection. Reboot/logon remains
+permission-bound and requires explicit live operator approval.

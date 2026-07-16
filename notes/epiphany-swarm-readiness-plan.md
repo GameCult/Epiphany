@@ -79,11 +79,13 @@ it no longer owns Epiphany routes, prompts, scheduling, or state mutation.
 - Mind and Modeling semantic query admission reauthenticate canonical CultCache
   authority at query time against the Yggdrasil-hosted Qdrant/Ollama substrate.
 
-The installed host is operational after login, but its mutable release directory
-does not yet prove that supervisor, projectors, and query gate are one source
-generation. Whole-repository readiness also lacks its Mind-owned race-bounded
-join. Those are the remaining non-permission architecture gates. A real reboot/
-logon survival proof remains a separate operator-authorized boundary.
+The installed host is operational after login through one witnessed immutable
+release generation. Mind now owns the race-bounded whole-repository readiness
+join in source: fresh Body R1/R2, exact admitted RepoModel, live Modeling
+semantic vectors, live workspace coverage, complete authority snapshots, and an
+atomic historical projection append. A real reboot/logon survival proof remains
+the separate operator-authorized host boundary. The new join still needs to be
+included in the next witnessed release before it can produce live host evidence.
 
 ## Invariants
 
@@ -117,7 +119,7 @@ not permission for another row to borrow the result.
 | Branch-local autonomous action | Substrate Gate + Hands + Soul + Mind | scoped grants and patch/command/commit/verdict/admission chains | closed |
 | Semantic projection/query recovery | canonical admission + projector + query gate + Idunn | live Mind/Modeling semantic ranking and GUID-scoped exact process-recovery smokes | closed |
 | Atomic installed sibling generation | release packager + Idunn | release `sha256-c94109f94ee42c1257089830f399cb87cd5ad672772c274194371995ce4df923` binds commit `dd80f4a5`, four exact binaries, task args, policy role paths, and recurrence receipts | closed |
-| Whole-repository observed readiness | Mind | required Body R1/R2 + admitted model + live semantic + live workspace-coverage join does not yet exist | open |
+| Whole-repository observed readiness | Mind | typed source join, hostile raw-orchestration tests, live semantic/coverage rereaders, and full-snapshot CultCache append fence | closed in source; not yet witnessed/deployed |
 | Current host package | release deployment | witnessed supervisor PID 21228 and direct-child projector PID 19748; Mind/Modeling semantic query admission passed | closed for current boot |
 | After-login recurrence | Task Scheduler + Idunn + ops tunnel | task recurrence and exact child recovery observed on current boot | closed for current boot |
 | Reboot/logon survival | Task Scheduler + Idunn + ops tunnel | requires fresh post-boot lineage and query proof | permission-bound |
@@ -164,12 +166,12 @@ Rebuild:
 
 ## Immediate Work Queue
 
-1. Build and authenticate one immutable, commit-addressed sibling release. Task
-   installation and Idunn must consume that witness and reject mixed binaries.
-2. Implement Mind's race-bounded `RepositoryReadinessProjection`, including a
-   live workspace-coverage Qdrant evidence reader; stored `Current` is not enough.
-3. Deploy the witnessed release, replace the stale running reconciler/projector,
-   and repeat exact recurrence plus Mind/Modeling query admission proofs.
+1. Package the current source, including semantic receipt v2 and Mind's
+   `RepositoryReadinessProjection`, into a new immutable witnessed release.
+2. Deploy that witness and derive one live whole-repository observation through
+   the production join; a prior stored projection must not substitute.
+3. Repeat exact current-boot recurrence plus Mind/Modeling query admission and
+   whole-repository observation proofs from the new release.
 4. With explicit live operator approval, reboot and prove the fresh Task
    Scheduler -> Idunn -> exactly-one-projector lineage plus tunnel and query
    admission. Do not silently widen after-login authority into boot service
