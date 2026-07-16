@@ -121,6 +121,14 @@ pub fn required_packaged_release_binaries() -> Vec<(&'static str, &'static str)>
                 "epiphany-verse-query"
             },
         ),
+        (
+            "repository-body",
+            if cfg!(windows) {
+                "epiphany-repository-body.exe"
+            } else {
+                "epiphany-repository-body"
+            },
+        ),
     ]
 }
 
@@ -314,6 +322,7 @@ fn required_release_binary(role: &str) -> Result<&'static str> {
         "workspace-coverage-projector" => Ok("epiphany-workspace-coverage-projector"),
         "semantic-query" => Ok("epiphany-memory-semantic"),
         "verse-query" => Ok("epiphany-verse-query"),
+        "repository-body" => Ok("epiphany-repository-body"),
         _ => bail!("unknown required release role {role}"),
     }
 }
