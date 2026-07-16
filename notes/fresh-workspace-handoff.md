@@ -2255,3 +2255,23 @@ hostility, and Idunn accidentally treating warming as active.
 The current live run remains diagnostic evidence only until its terminal
 workspace receipt, exact aggregate RUDP health, and deployment witness land.
 No reboot is authorized.
+
+Checkpoint implementation cut: the authoritative batch checkpoint lives in
+the repository Body CultCache, not the local Verse. It is admitted by one CAS
+against unchanged Body/obligation/plan/running claim/running attempt and a
+claim-scoped checkpoint head. Each checkpoint carries a contiguous canonical
+plan range plus the exact ordered point, payload-hash, and vector-hash bindings
+read back from Qdrant after a waited upsert. The signed Verse progress event
+references the checkpoint's exact CultCache envelope digest; neither a random
+provider hash nor Qdrant operation text is evidence. Terminal readiness still
+requires the existing whole-collection scroll and receipt/head CAS.
+
+Same-claim retry may continue only from a contiguous authenticated checkpoint
+chain whose batches still re-observe exactly in Qdrant. Recovery uses a new
+claim epoch and new epoch-fenced collection. A successor may authenticate and
+copy predecessor checkpoint batches into its own collection after exact death
+and recovery proof, then emit new-claim checkpoints citing the source envelope;
+it never mutates or inherits the old collection. If live external evidence is
+missing or changed, it restarts from zero. Required backend cuts are a single
+bounded waited upsert, exact retrieve-by-ID with vectors/payloads, and a common
+readback/checkpoint primitive for newly embedded and recovered copied points.
