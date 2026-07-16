@@ -822,17 +822,17 @@ pub fn recommend_coordinator_action(
     if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && !input.modeling_result_accepted
     {
+        if input.modeling_result_failure_reviewed {
+            return build(
+                EpiphanyCoordinatorAction::LaunchModeling,
+                Some(EpiphanyCoordinatorRoleId::Modeling),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "The completed Modeling result was rejected by admission and superseded; relaunch Modeling against current typed authority.",
+            );
+        }
         if !input.modeling_result_reviewable {
-            if input.modeling_result_failure_reviewed {
-                return build(
-                    EpiphanyCoordinatorAction::LaunchModeling,
-                    Some(EpiphanyCoordinatorRoleId::Modeling),
-                    Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
-                    false,
-                    true,
-                    "The completed modeling/checkpoint result was reviewed as unreviewable and superseded; relaunch Modeling so it can emit the required statePatch before Hands continues.",
-                );
-            }
             if input.modeling_result_requests_regather
                 && !input.research_result_accepted
                 && matches!(
@@ -859,7 +859,7 @@ pub fn recommend_coordinator_action(
                 Some(EpiphanyCoordinatorSceneAction::RoleResult),
                 false,
                 false,
-                "The completed modeling/checkpoint finding has no acceptable statePatch; inspect the finding instead of relaunching the same lane.",
+                "The completed Modeling finding has no acceptable RepoModel proposal; inspect the finding instead of relaunching the same lane.",
             );
         }
         return build(
@@ -1764,6 +1764,7 @@ mod tests {
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
             modeling_result_failure_reviewed: true,
+            modeling_result_reviewable: true,
             ..input()
         });
         assert_eq!(
@@ -1771,7 +1772,11 @@ mod tests {
             EpiphanyCoordinatorAction::LaunchModeling
         );
         assert!(relaunch_superseded_modeling.can_auto_run);
-        assert!(relaunch_superseded_modeling.reason.contains("statePatch"));
+        assert!(
+            relaunch_superseded_modeling
+                .reason
+                .contains("rejected by admission")
+        );
 
         let launch_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {
