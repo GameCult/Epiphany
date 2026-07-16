@@ -5,6 +5,11 @@ use crate::default_hands_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
+use crate::workspace_coverage_process_documents::{
+    WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
+    WorkspaceCoverageManagedProcessLaunchEntry, WorkspaceCoverageProviderHeartbeatEntry,
+};
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -2638,6 +2643,8 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshDaemonSchedulerReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry => EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshManagedServicePolicyEntry => EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION,
+    WorkspaceCoverageManagedProcessLaunchEntry => WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
+    WorkspaceCoverageProviderHeartbeatEntry => WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnDeploymentReceiptEntry => EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnAftercareAuditReceiptEntry => EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshSwarmBrakeEntry => EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,
@@ -4872,7 +4879,7 @@ fn validate_semantic_projector_managed_service_policy(
     Ok(())
 }
 
-fn validate_workspace_coverage_projector_managed_service_policy(
+pub(crate) fn validate_workspace_coverage_projector_managed_service_policy(
     policy: &EpiphanyCultMeshManagedServicePolicyEntry,
 ) -> Result<()> {
     let expected_binary = if cfg!(windows) {

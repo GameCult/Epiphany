@@ -36,6 +36,7 @@ mod substrate_gate;
 mod surfaces;
 mod thread_state_store;
 mod weksa_interlingua;
+mod workspace_coverage_process_documents;
 mod workspace_coverage_projector;
 mod workspace_coverage_projector_service;
 #[allow(dead_code)]
@@ -1153,6 +1154,22 @@ pub use weksa_interlingua::build_weksa_interlingua_packet;
 pub use weksa_interlingua::build_weksa_lowering_prompt;
 pub use weksa_interlingua::build_weksa_target_lowering_request;
 pub use weksa_interlingua::record_weksa_target_lowering_receipt;
+pub use workspace_coverage_process_documents::{
+    WORKSPACE_COVERAGE_PROCESS_LAUNCH_LATEST_KEY, WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_PROCESS_LAUNCH_TYPE, WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY,
+    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE, WorkspaceCoverageManagedProcessLaunchEntry,
+    WorkspaceCoverageProviderHeartbeatEntry,
+    authenticate_workspace_coverage_managed_process_launch,
+    authenticate_workspace_coverage_provider_heartbeat,
+    load_latest_workspace_coverage_managed_process_launch,
+    load_latest_workspace_coverage_provider_heartbeat,
+    load_workspace_coverage_managed_process_launch, load_workspace_coverage_provider_heartbeat,
+    process_identity_from_workspace_coverage_launch, sign_workspace_coverage_heartbeat,
+    sign_workspace_coverage_launch, workspace_coverage_heartbeat_statement,
+    workspace_coverage_host_identity_record_digest, workspace_coverage_launch_statement,
+    write_workspace_coverage_managed_process_launch, write_workspace_coverage_provider_heartbeat,
+};
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServiceBody;

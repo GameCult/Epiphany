@@ -77,3 +77,31 @@ Linux uses the XDG/home state root, 0700/0600 permissions and machine-id binding
 explicitly labeled cloneable. This is enrolled OS-installation continuity, not
 a claim about physical chassis. Purpose-bound signature and immutable/fail-
 closed tests pass. The next cut is specialized reserved launch/heartbeat state.
+
+## Reserved managed-process authority map (2026-07-16)
+
+Generic lifecycle and daemon-heartbeat documents are no longer acceptable
+owners for the reserved coverage projector. The replacement has three typed
+documents with separate authority:
+
+- Idunn's signed launch binds the exact current policy envelope, enrolled host
+  record, proven boot, PID+creation-token+canonical executable, executable
+  digest, provider incarnation, and an ephemeral provider public key.
+- The provider's signed heartbeat binds that exact launch envelope and repeats
+  the host/boot/process tuple with monotonic per-launch sequence.
+- Idunn's immutable termination observation names the exact prior launch and
+  last heartbeat and may record only exact exit, exact missing/replaced process
+  on the same proven boot, or a different proven boot on the same enrolled host.
+
+Termination must be persisted before replacement spawn. Replacement launch and
+signed ready heartbeat follow; only then may one Body CAS terminalize the old
+claim/attempt and acquire epoch+1. Generic lifecycle/heartbeat writers must
+reject reserved coverage identities after migration. Timeout, staleness, newer
+launch, Qdrant state, PID-only absence, inaccessible process, unknown boot, or
+host mismatch are never death evidence. The provider signing seed travels in
+one fixed-size binary frame over reserved-child stdin (`Stdio::piped()`), never
+argv/env/store/logs. The child requires exact frame length plus EOF, derives the
+public key, then waits for and authenticates the launch document before acting.
+Write or persistence failure kills and waits the child; all nonreserved service
+stdin is explicitly null. This uses Rust's stable cross-platform child-stdin
+contract instead of bespoke inherited-handle plumbing.

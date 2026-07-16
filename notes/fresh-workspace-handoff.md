@@ -1818,6 +1818,22 @@ machine-id binding and declares its cloneable baseline. No code calls this
 physical-machine identity. Next remove reserved coverage authority from generic
 lifecycle/heartbeat and replace it with identity-bound signed documents.
 
+Those specialized documents are now implemented but not yet wired. The launch
+is a mandatory host-signed CultMesh record over exact current reserved policy,
+host record digest, boot, PID incarnation, executable path/digest, provider
+incarnation, and ephemeral provider public key. The provider heartbeat is
+ephemeral-key signed, binds the exact launch envelope and same tuple, and owns a
+strict per-launch sequence/time CAS. Validation rechecks the current specialized
+policy but does not reread the historical executable path, so deletion cannot
+erase evidence. Focused hostile tests reject forged signatures, sequence gaps,
+identity collisions, wrong supervisor/status/runtime, and tuple drift.
+
+Next migrate the supervisor and projector together: fixed-size provider seed
+frame over reserved-child stdin, exact process capture, signed launch persist,
+child launch authentication, specialized heartbeat publication, then generic
+writer rejection for reserved coverage. Do not let the new and old documents
+remain co-owners after that cut.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.
