@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 const POINT_BATCH_SIZE: usize = 128;
-const EMBED_BATCH_SIZE: usize = 32;
+const EMBED_BATCH_SIZE: usize = 4;
 
 #[derive(Clone, Debug)]
 pub(crate) struct QdrantConfig {
