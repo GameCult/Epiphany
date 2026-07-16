@@ -2,8 +2,8 @@ use super::{
     MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION, MemorySemanticIndexReceipt,
     MemorySemanticProjectionAttempt, MemorySemanticProjectionObligation,
     MemorySemanticProjectionSourceHead, bind_memory_semantic_index_receipt,
-    memory_semantic_projection_query_eligible, validate_memory_semantic_projection_attempt,
-    validate_memory_semantic_projection_obligation,
+    memory_semantic_projection_query_eligible, memory_semantic_projection_terminal_success,
+    validate_memory_semantic_projection_attempt, validate_memory_semantic_projection_obligation,
 };
 use anyhow::{Result, anyhow};
 use cultcache_rs::{
@@ -351,6 +351,83 @@ mod authority_tests {
                 envelopes: vec![authority],
             },
         })
+    }
+
+    #[test]
+    fn empty_projection_terminal_succeeds_once_without_becoming_query_eligible() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("empty-terminal.cc");
+        let mut obligation = obligation();
+        obligation.canonical_content_set_hash = format!("{:x}", Sha256::digest([]));
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&obligation.obligation_id, &obligation)?;
+        let input = input(&store, &obligation)?;
+        let acquisition = idunn_acquire_memory_semantic_projection(
+            &store,
+            &input,
+            "executor-a",
+            "executor-incarnation-a",
+            "execute",
+            "idunn-a",
+            "2026-07-15T04:01:00Z",
+        )?;
+        let receipt = MemorySemanticIndexReceipt {
+            schema_version: crate::MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "empty-receipt".into(),
+            swarm_id: obligation.swarm_id.clone(),
+            partition: obligation.partition.clone(),
+            collection_name: "epiphany_modeling_v1".into(),
+            graph_id: obligation.graph_id.clone(),
+            model_revision: obligation.source_generation,
+            model_hash: obligation.source_model_hash.clone(),
+            embedding_provider_id: "provider".into(),
+            embedding_model: "model".into(),
+            vector_dimensions: 0,
+            indexed_document_count: 0,
+            deleted_document_count: 0,
+            canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+            indexed_at: "2026-07-15T04:02:00Z".into(),
+            status: "ready".into(),
+            obligation_id: obligation.obligation_id.clone(),
+            canonical_source_id: obligation.canonical_source_id.clone(),
+            source_commit_id: obligation.source_commit_id.clone(),
+            source_generation: obligation.source_generation,
+            projection_schema_version: obligation.projection_schema_version.clone(),
+            claim_id: acquisition.claim.claim_id.clone(),
+            claim_epoch: acquisition.claim.epoch,
+            observed_vector_binding_root_sha256: format!("{:x}", Sha256::digest([])),
+        };
+        succeed_memory_semantic_projection_claim(
+            &store,
+            &acquisition.claim.claim_id,
+            &input.authority,
+            receipt,
+            "2026-07-15T04:02:01Z",
+        )?;
+        let readiness = load_memory_semantic_projection_readiness(&store, &input)?
+            .expect("terminal empty receipt remains authenticated");
+        assert!(!memory_semantic_projection_query_eligible(
+            &obligation,
+            &input.authority.head,
+            &readiness.receipt
+        ));
+        assert_eq!(
+            classify_memory_semantic_projection_for_pulse(&store, &input)?,
+            crate::MemorySemanticProjectorPulseClassification::Succeeded
+        );
+        assert!(
+            idunn_acquire_memory_semantic_projection(
+                &store,
+                &input,
+                "executor-b",
+                "executor-incarnation-b",
+                "execute",
+                "idunn-b",
+                "2026-07-15T04:03:00Z",
+            )
+            .is_err()
+        );
+        Ok(())
     }
 
     #[test]
@@ -1898,7 +1975,7 @@ pub(crate) fn succeed_memory_semantic_projection_claim(
         ));
     }
     let receipt = bind_memory_semantic_index_receipt(receipt, &obligation)?;
-    if !memory_semantic_projection_query_eligible(&obligation, &authority.head, &receipt) {
+    if !memory_semantic_projection_terminal_success(&obligation, &authority.head, &receipt) {
         return Err(anyhow!(
             "semantic projection success no longer matches canonical source head"
         ));

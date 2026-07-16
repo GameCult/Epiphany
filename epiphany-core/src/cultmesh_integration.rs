@@ -8765,6 +8765,7 @@ mod tests {
             projection_schema_version: crate::SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
             claim_id: claim.claim_id.clone(),
             claim_epoch: claim.epoch,
+            observed_vector_binding_root_sha256: "0".repeat(64),
         };
         crate::memory_graph::semantic_projector::succeed_memory_semantic_projection_claim(
             &canonical,

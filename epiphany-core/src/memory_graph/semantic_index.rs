@@ -9,15 +9,16 @@ use crate::semantic_backend::{
     SemanticPoint,
 };
 use anyhow::{Result, anyhow};
-use cultcache_rs::DatabaseEntry;
+use cultcache_rs::{CacheBackingStore, DatabaseEntry, SingleFileMessagePackBackingStore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
 use std::env;
+use std::path::Path;
 use uuid::Uuid;
 
 pub const MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION: &str =
-    "gamecult.epiphany.memory_semantic_index_receipt.v1";
+    "gamecult.epiphany.memory_semantic_index_receipt.v2";
 pub const MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION: &str =
     "gamecult.epiphany.memory_semantic_projection_obligation.v0";
 pub const MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION: &str =
@@ -86,7 +87,7 @@ impl MemorySemanticIndexConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct MemorySemanticPointPayload {
+pub(super) struct MemorySemanticPointPayload {
     point_id: String,
     swarm_id: String,
     partition: SemanticPartition,
@@ -211,6 +212,39 @@ pub struct MemorySemanticProjectionReadiness {
     pub(crate) receipt: MemorySemanticIndexReceipt,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MemorySemanticLiveEvidence {
+    pub(crate) collection_name: String,
+    pub(crate) observed_point_count: u32,
+    pub(crate) observed_vector_binding_root_sha256: String,
+}
+
+pub(super) trait MemorySemanticEvidencePort {
+    fn collection_exists(&mut self, name: &str) -> Result<bool>;
+    fn collection_compatibility(&mut self, name: &str) -> Result<CollectionCompatibility>;
+    fn points_for_scope(
+        &mut self,
+        name: &str,
+        scope: &[(&str, &str)],
+    ) -> Result<Vec<crate::semantic_backend::SemanticStoredPoint<MemorySemanticPointPayload>>>;
+}
+
+impl MemorySemanticEvidencePort for QdrantBackend {
+    fn collection_exists(&mut self, name: &str) -> Result<bool> {
+        QdrantBackend::collection_exists(self, name)
+    }
+    fn collection_compatibility(&mut self, name: &str) -> Result<CollectionCompatibility> {
+        QdrantBackend::collection_compatibility(self, name)
+    }
+    fn points_for_scope(
+        &mut self,
+        name: &str,
+        scope: &[(&str, &str)],
+    ) -> Result<Vec<crate::semantic_backend::SemanticStoredPoint<MemorySemanticPointPayload>>> {
+        QdrantBackend::points_for_scope(self, name, scope)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
     type = "gamecult.epiphany.memory_semantic_index_receipt",
@@ -263,6 +297,8 @@ pub struct MemorySemanticIndexReceipt {
     pub claim_id: String,
     #[cultcache(key = 22, default)]
     pub claim_epoch: u64,
+    #[cultcache(key = 23, default)]
+    pub observed_vector_binding_root_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -465,7 +501,10 @@ pub fn derive_memory_semantic_projection_health(
         receipt_id: receipt.map(|receipt| receipt.receipt_id.clone()),
         latest_attempt_id: latest_attempt.map(|attempt| attempt.attempt_id.clone()),
         latest_error: latest_attempt.and_then(|attempt| attempt.error.clone()),
-        query_eligible: status == MemorySemanticProjectionHealthStatus::Ready,
+        query_eligible: status == MemorySemanticProjectionHealthStatus::Ready
+            && receipt.is_some_and(|receipt| {
+                memory_semantic_projection_query_eligible(obligation, current, receipt)
+            }),
     })
 }
 
@@ -477,6 +516,31 @@ pub fn memory_semantic_projection_query_eligible(
     validate_memory_semantic_projection_obligation(obligation).is_ok()
         && obligation_matches_source(obligation, current)
         && receipt_matches_obligation(receipt, obligation)
+        && receipt.vector_dimensions > 0
+        && receipt.indexed_document_count > 0
+}
+
+pub(super) fn memory_semantic_projection_terminal_success(
+    obligation: &MemorySemanticProjectionObligation,
+    current: &MemorySemanticProjectionSourceHead,
+    receipt: &MemorySemanticIndexReceipt,
+) -> bool {
+    validate_memory_semantic_projection_obligation(obligation).is_ok()
+        && obligation_matches_source(obligation, current)
+        && receipt_matches_obligation(receipt, obligation)
+        && ((receipt.indexed_document_count > 0 && receipt.vector_dimensions > 0)
+            || (receipt.indexed_document_count == 0
+                && receipt.vector_dimensions == 0
+                && obligation.canonical_content_set_hash == canonical_content_set_hash(&[])
+                && receipt.observed_vector_binding_root_sha256
+                    == format!("{:x}", Sha256::digest([]))))
+}
+
+fn is_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 pub fn bind_memory_semantic_index_receipt(
@@ -484,7 +548,9 @@ pub fn bind_memory_semantic_index_receipt(
     obligation: &MemorySemanticProjectionObligation,
 ) -> Result<MemorySemanticIndexReceipt> {
     validate_memory_semantic_projection_obligation(obligation)?;
-    if receipt.swarm_id != obligation.swarm_id
+    if receipt.schema_version != MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION
+        || !is_sha256(&receipt.observed_vector_binding_root_sha256)
+        || receipt.swarm_id != obligation.swarm_id
         || receipt.partition != obligation.partition
         || receipt.graph_id != obligation.graph_id
         || receipt.model_revision != obligation.source_generation
@@ -537,7 +603,70 @@ fn receipt_matches_obligation(
         && receipt.projection_schema_version == obligation.projection_schema_version
         && !receipt.claim_id.trim().is_empty()
         && receipt.claim_epoch > 0
+        && is_sha256(&receipt.observed_vector_binding_root_sha256)
         && chrono::DateTime::parse_from_rfc3339(&receipt.indexed_at).is_ok()
+}
+
+fn authenticate_observed_projection(
+    observed: Vec<crate::semantic_backend::SemanticStoredPoint<MemorySemanticPointPayload>>,
+    desired: &BTreeMap<String, MemorySemanticPointPayload>,
+    vector_dimensions: usize,
+) -> Result<String> {
+    if observed.len() != desired.len() {
+        return Err(anyhow!(
+            "semantic projection live point count disagrees with canonical set"
+        ));
+    }
+    let mut seen = HashSet::new();
+    let mut vector_bindings = Vec::with_capacity(observed.len());
+    for point in observed {
+        if !seen.insert(point.id.clone()) {
+            return Err(anyhow!(
+                "semantic projection live scroll returned a duplicate point id"
+            ));
+        }
+        let expected = desired.get(&point.id).ok_or_else(|| {
+            anyhow!("semantic projection live scroll returned a foreign point id")
+        })?;
+        if point.payload.as_ref() != Some(expected) {
+            return Err(anyhow!(
+                "semantic projection live payload disagrees with canonical payload"
+            ));
+        }
+        let vector = point
+            .vector
+            .ok_or_else(|| anyhow!("semantic projection live point omitted its vector"))?;
+        if vector_dimensions == 0 || vector.len() != vector_dimensions {
+            return Err(anyhow!(
+                "semantic projection live vector dimensions disagree"
+            ));
+        }
+        if vector.iter().any(|value| !value.is_finite()) {
+            return Err(anyhow!(
+                "semantic projection live vector contains a non-finite value"
+            ));
+        }
+        let vector_sha256 = format!(
+            "{:x}",
+            Sha256::digest(
+                vector
+                    .iter()
+                    .flat_map(|value| value.to_le_bytes())
+                    .collect::<Vec<_>>()
+            )
+        );
+        vector_bindings.push(format!("{}|{}", point.id, vector_sha256));
+    }
+    if seen.len() != desired.len() || desired.keys().any(|id| !seen.contains(id)) {
+        return Err(anyhow!(
+            "semantic projection live IDs disagree with canonical set"
+        ));
+    }
+    vector_bindings.sort();
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(vector_bindings.join("\n").as_bytes())
+    ))
 }
 
 pub(super) fn index_memory_semantic_partition(
@@ -606,6 +735,7 @@ pub(super) fn index_memory_semantic_partition(
             vector_size,
             0,
             deleted_document_count,
+            &format!("{:x}", Sha256::digest([])),
             namespace,
         ));
     }
@@ -662,16 +792,6 @@ pub(super) fn index_memory_semantic_partition(
             "Qdrant scope synchronization failed: observed IDs do not equal the desired projection"
         ));
     }
-    let observed_payloads = backend
-        .points_for_scope::<MemorySemanticPointPayload>(collection, &scope)?
-        .into_iter()
-        .map(|point| {
-            point
-                .payload
-                .map(|payload| (point.id, payload))
-                .ok_or_else(|| anyhow!("Qdrant scoped point omitted typed projection payload"))
-        })
-        .collect::<Result<BTreeMap<_, _>>>()?;
     let desired_payloads = documents
         .iter()
         .map(|document| {
@@ -681,11 +801,11 @@ pub(super) fn index_memory_semantic_partition(
             )
         })
         .collect::<BTreeMap<_, _>>();
-    if observed_payloads != desired_payloads {
-        return Err(anyhow!(
-            "Qdrant scope synchronization failed: observed payload identities do not equal the desired projection"
-        ));
-    }
+    let observed_vector_binding_root_sha256 = authenticate_observed_projection(
+        backend.points_for_scope::<MemorySemanticPointPayload>(collection, &scope)?,
+        &desired_payloads,
+        vector_size,
+    )?;
     Ok(memory_semantic_index_receipt(
         snapshot,
         swarm_id,
@@ -698,6 +818,7 @@ pub(super) fn index_memory_semantic_partition(
         vector_size as u32,
         documents.len() as u32,
         deleted_ids.len() as u32,
+        &observed_vector_binding_root_sha256,
         namespace,
     ))
 }
@@ -715,6 +836,7 @@ fn memory_semantic_index_receipt(
     vector_dimensions: u32,
     indexed_document_count: u32,
     deleted_document_count: u32,
+    observed_vector_binding_root_sha256: &str,
     namespace: &MemorySemanticProjectionNamespace,
 ) -> MemorySemanticIndexReceipt {
     let receipt_id = format!(
@@ -757,6 +879,7 @@ fn memory_semantic_index_receipt(
         projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
         claim_id: namespace.claim_id.clone(),
         claim_epoch: namespace.claim_epoch,
+        observed_vector_binding_root_sha256: observed_vector_binding_root_sha256.to_string(),
     }
 }
 
@@ -898,7 +1021,7 @@ fn try_semantic_memory_context(
     Ok(packet)
 }
 
-fn point_payload(
+pub(super) fn point_payload(
     document: &SemanticProjectionDocument,
     config: &MemorySemanticIndexConfig,
     namespace: &MemorySemanticProjectionNamespace,
@@ -925,7 +1048,7 @@ fn point_payload(
     }
 }
 
-fn physical_point_id(
+pub(super) fn physical_point_id(
     namespace: &MemorySemanticProjectionNamespace,
     canonical_point_id: &str,
 ) -> String {
@@ -946,6 +1069,147 @@ fn qdrant(config: &MemorySemanticIndexConfig) -> Result<QdrantBackend> {
         api_key: config.qdrant_api_key.clone(),
         timeout_ms: config.qdrant_timeout_ms,
     })
+}
+
+#[allow(dead_code)] // Consumed by the repository-readiness join in the next bounded cut.
+pub(crate) fn observe_memory_semantic_live_evidence(
+    store_path: &Path,
+    config: &MemorySemanticIndexConfig,
+    input: &super::MemorySemanticProjectionInput,
+    readiness: &MemorySemanticProjectionReadiness,
+) -> Result<Option<MemorySemanticLiveEvidence>> {
+    let mut backend = qdrant(config)?;
+    observe_memory_semantic_live_evidence_with_port(
+        store_path,
+        config,
+        input,
+        readiness,
+        &mut backend,
+    )
+}
+
+pub(super) fn observe_memory_semantic_live_evidence_with_port(
+    store_path: &Path,
+    config: &MemorySemanticIndexConfig,
+    input: &super::MemorySemanticProjectionInput,
+    readiness: &MemorySemanticProjectionReadiness,
+    port: &mut impl MemorySemanticEvidencePort,
+) -> Result<Option<MemorySemanticLiveEvidence>> {
+    let store_path = store_path.to_path_buf();
+    observe_memory_semantic_live_evidence_with(config, input, readiness, port, || {
+        semantic_authority_still_exact(&store_path, input, readiness)
+    })
+}
+
+fn observe_memory_semantic_live_evidence_with(
+    config: &MemorySemanticIndexConfig,
+    input: &super::MemorySemanticProjectionInput,
+    readiness: &MemorySemanticProjectionReadiness,
+    port: &mut impl MemorySemanticEvidencePort,
+    mut authority_still_exact: impl FnMut() -> Result<bool>,
+) -> Result<Option<MemorySemanticLiveEvidence>> {
+    if readiness.obligation != input.obligation
+        || readiness.current != input.authority.head
+        || !receipt_matches_obligation(&readiness.receipt, &input.obligation)
+    {
+        return Ok(None);
+    }
+    let partition = match input.obligation.partition.as_str() {
+        "mind" => SemanticPartition::Mind,
+        "modeling" => SemanticPartition::Modeling,
+        _ => return Ok(None),
+    };
+    if readiness.receipt.collection_name != config.collection(partition) {
+        return Ok(None);
+    }
+    let documents = derive_semantic_projection(&input.obligation.swarm_id, &input.snapshot)?
+        .into_iter()
+        .filter(|document| document.partition == partition)
+        .collect::<Vec<_>>();
+    if documents.len() as u32 != readiness.receipt.indexed_document_count
+        || canonical_content_set_hash(&documents) != readiness.receipt.canonical_content_set_hash
+        || readiness.receipt.embedding_provider_id != config.embedding_provider_id
+        || readiness.receipt.embedding_model != config.ollama_model
+        || readiness.receipt.vector_dimensions == 0
+    {
+        return Ok(None);
+    }
+    if !authority_still_exact()? {
+        return Ok(None);
+    }
+    let collection = readiness.receipt.collection_name.as_str();
+    if !port.collection_exists(collection)?
+        || port.collection_compatibility(collection)?
+            != compatibility(
+                config,
+                partition,
+                readiness.receipt.vector_dimensions as usize,
+            )
+    {
+        return Ok(None);
+    }
+    let namespace = MemorySemanticProjectionNamespace {
+        obligation_id: readiness.receipt.obligation_id.clone(),
+        claim_id: readiness.receipt.claim_id.clone(),
+        claim_epoch: readiness.receipt.claim_epoch,
+    };
+    let epoch = namespace.claim_epoch.to_string();
+    let scope = [
+        ("swarmId", input.obligation.swarm_id.as_str()),
+        ("partition", input.obligation.partition.as_str()),
+        ("obligationId", namespace.obligation_id.as_str()),
+        ("claimId", namespace.claim_id.as_str()),
+        ("claimEpoch", epoch.as_str()),
+    ];
+    let desired = documents
+        .iter()
+        .map(|document| {
+            (
+                physical_point_id(&namespace, &document.point_id),
+                point_payload(document, config, &namespace),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let observed = port.points_for_scope(collection, &scope)?;
+    let count = observed.len() as u32;
+    let root = authenticate_observed_projection(
+        observed,
+        &desired,
+        readiness.receipt.vector_dimensions as usize,
+    )?;
+    if root != readiness.receipt.observed_vector_binding_root_sha256 || !authority_still_exact()? {
+        return Ok(None);
+    }
+    Ok(Some(MemorySemanticLiveEvidence {
+        collection_name: collection.to_string(),
+        observed_point_count: count,
+        observed_vector_binding_root_sha256: root,
+    }))
+}
+
+#[allow(dead_code)] // Production half of the bounded live-evidence reader.
+fn semantic_authority_still_exact(
+    store_path: &Path,
+    input: &super::MemorySemanticProjectionInput,
+    expected: &MemorySemanticProjectionReadiness,
+) -> Result<bool> {
+    let envelopes = SingleFileMessagePackBackingStore::new(store_path).pull_all()?;
+    if input.authority.envelopes.is_empty()
+        || input.authority.envelopes.iter().any(|expected| {
+            envelopes
+                .iter()
+                .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+                != Some(expected)
+        })
+    {
+        return Ok(false);
+    }
+    let current = super::load_memory_semantic_projection_readiness(store_path, input)?;
+    Ok(current.is_some_and(|current| {
+        current.obligation == expected.obligation
+            && current.current == expected.current
+            && current.receipt == expected.receipt
+    }))
 }
 
 fn embedder(
@@ -1078,12 +1342,21 @@ mod tests {
         config.ollama_base_url = "http://127.0.0.1:1".to_string();
         config.ollama_timeout_ms = 5;
 
+        let obligation = derive_memory_semantic_projection_obligation(
+            &empty,
+            "swarm-empty",
+            SemanticPartition::Modeling,
+            "source-empty",
+            "commit-empty",
+            "2026-07-15T11:59:00Z",
+        )?;
+
         let receipt = index_memory_semantic_partition(
             &empty,
             "swarm-empty",
             SemanticPartition::Modeling,
             &MemorySemanticProjectionNamespace {
-                obligation_id: "obligation-empty".to_string(),
+                obligation_id: obligation.obligation_id.clone(),
                 claim_id: "claim-empty".to_string(),
                 claim_epoch: 1,
             },
@@ -1096,6 +1369,26 @@ mod tests {
         assert_eq!(receipt.vector_dimensions, 0);
         assert_eq!(receipt.model_hash, empty.model_hash);
         assert_eq!(receipt.status, "ready");
+        let bound = bind_memory_semantic_index_receipt(receipt, &obligation)?;
+        let current = MemorySemanticProjectionSourceHead {
+            swarm_id: obligation.swarm_id.clone(),
+            partition: obligation.partition.clone(),
+            canonical_source_id: obligation.canonical_source_id.clone(),
+            source_commit_id: obligation.source_commit_id.clone(),
+            graph_id: obligation.graph_id.clone(),
+            source_generation: obligation.source_generation,
+            source_model_hash: obligation.source_model_hash.clone(),
+            canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+        };
+        assert!(!memory_semantic_projection_query_eligible(
+            &obligation,
+            &current,
+            &bound
+        ));
+        let health =
+            derive_memory_semantic_projection_health(&obligation, &current, &[], &[bound])?;
+        assert_eq!(health.status, MemorySemanticProjectionHealthStatus::Ready);
+        assert!(!health.query_eligible);
         Ok(())
     }
 
@@ -1215,6 +1508,7 @@ mod tests {
             projection_schema_version: obligation.projection_schema_version.clone(),
             claim_id: "claim-current".to_string(),
             claim_epoch: 1,
+            observed_vector_binding_root_sha256: "0".repeat(64),
         };
         let query = EpiphanyMemoryContextQuery {
             id: "swapped-source".to_string(),
@@ -1358,6 +1652,7 @@ mod tests {
             projection_schema_version: obligation.projection_schema_version,
             claim_id: "claim-7".to_string(),
             claim_epoch: 1,
+            observed_vector_binding_root_sha256: "0".repeat(64),
         }
     }
 
@@ -1458,6 +1753,10 @@ mod tests {
             "content",
             "projection-schema",
             "status",
+            "schema",
+            "vector-root",
+            "uppercase-vector-root",
+            "short-vector-root",
         ] {
             let mut hostile = receipt();
             match field {
@@ -1473,6 +1772,15 @@ mod tests {
                 "content" => hostile.canonical_content_set_hash = "other".to_string(),
                 "projection-schema" => hostile.projection_schema_version = "other".to_string(),
                 "status" => hostile.status = "failed".to_string(),
+                "schema" => {
+                    hostile.schema_version =
+                        "gamecult.epiphany.memory_semantic_index_receipt.v1".to_string()
+                }
+                "vector-root" => hostile.observed_vector_binding_root_sha256.clear(),
+                "uppercase-vector-root" => {
+                    hostile.observed_vector_binding_root_sha256 = "A".repeat(64)
+                }
+                "short-vector-root" => hostile.observed_vector_binding_root_sha256 = "0".repeat(63),
                 _ => unreachable!(),
             }
             assert!(
@@ -1501,5 +1809,481 @@ mod tests {
             &current,
             &bound
         ));
+    }
+
+    #[test]
+    fn v1_and_default_vector_roots_cannot_bind_as_terminal_success() {
+        let obligation = obligation();
+        let mut v1 = receipt();
+        v1.schema_version = "gamecult.epiphany.memory_semantic_index_receipt.v1".to_string();
+        assert!(bind_memory_semantic_index_receipt(v1, &obligation).is_err());
+        let mut default_root = receipt();
+        default_root.observed_vector_binding_root_sha256.clear();
+        assert!(bind_memory_semantic_index_receipt(default_root, &obligation).is_err());
+    }
+
+    #[test]
+    fn zero_count_receipt_cannot_emptywash_a_nonempty_obligation() {
+        let obligation = obligation();
+        assert_ne!(
+            obligation.canonical_content_set_hash,
+            canonical_content_set_hash(&[])
+        );
+        let current = source_head();
+        let mut hostile = receipt();
+        hostile.indexed_document_count = 0;
+        hostile.vector_dimensions = 0;
+        hostile.observed_vector_binding_root_sha256 = format!("{:x}", Sha256::digest([]));
+        assert!(receipt_matches_obligation(&hostile, &obligation));
+        assert!(!memory_semantic_projection_terminal_success(
+            &obligation,
+            &current,
+            &hostile,
+        ));
+    }
+
+    fn observed_payload(id: &str) -> MemorySemanticPointPayload {
+        MemorySemanticPointPayload {
+            point_id: id.to_string(),
+            swarm_id: "swarm-a".to_string(),
+            partition: SemanticPartition::Modeling,
+            obligation_id: "obligation-a".to_string(),
+            claim_id: "claim-a".to_string(),
+            claim_epoch: "1".to_string(),
+            canonical_locator: format!("locator:{id}"),
+            canonical_type: "node".to_string(),
+            canonical_key: id.to_string(),
+            canonical_document_id: id.to_string(),
+            canonical_schema_version: "v0".to_string(),
+            graph_id: "graph-a".to_string(),
+            indexed_model_revision: 1,
+            indexed_model_hash: "model-a".to_string(),
+            indexed_canonical_content_hash: "content-a".to_string(),
+            projection_schema_version: SEMANTIC_PROJECTION_SCHEMA_VERSION.to_string(),
+            embedding_provider_id: "provider".to_string(),
+            embedding_model: "model".to_string(),
+        }
+    }
+
+    fn stored(
+        id: &str,
+        payload: MemorySemanticPointPayload,
+        vector: Option<Vec<f32>>,
+    ) -> crate::semantic_backend::SemanticStoredPoint<MemorySemanticPointPayload> {
+        crate::semantic_backend::SemanticStoredPoint {
+            id: id.to_string(),
+            payload: Some(payload),
+            vector,
+        }
+    }
+
+    #[test]
+    fn observed_projection_authentication_rejects_every_live_substitution_shape() {
+        let desired = BTreeMap::from([
+            ("a".to_string(), observed_payload("a")),
+            ("b".to_string(), observed_payload("b")),
+        ]);
+        let valid = vec![
+            stored("a", observed_payload("a"), Some(vec![1.0, 2.0])),
+            stored("b", observed_payload("b"), Some(vec![3.0, 4.0])),
+        ];
+        let root = authenticate_observed_projection(valid.clone(), &desired, 2).unwrap();
+        assert!(!root.is_empty());
+
+        let mut cases = Vec::new();
+        cases.push(vec![valid[0].clone()]); // missing
+        cases.push(vec![
+            valid[0].clone(),
+            valid[1].clone(),
+            stored("x", observed_payload("x"), Some(vec![1.0, 2.0])),
+        ]); // extra
+        cases.push(vec![valid[0].clone(), valid[0].clone()]); // duplicate plus missing
+        let mut wrong_id = valid.clone();
+        wrong_id[1].id = "x".to_string();
+        cases.push(wrong_id);
+        let mut wrong_payload = valid.clone();
+        wrong_payload[1].payload = Some(observed_payload("x"));
+        cases.push(wrong_payload);
+        let mut absent_vector = valid.clone();
+        absent_vector[1].vector = None;
+        cases.push(absent_vector);
+        let mut wrong_dimension = valid.clone();
+        wrong_dimension[1].vector = Some(vec![1.0]);
+        cases.push(wrong_dimension);
+        let mut nonfinite = valid.clone();
+        nonfinite[1].vector = Some(vec![f32::NAN, 1.0]);
+        cases.push(nonfinite);
+        for hostile in cases {
+            assert!(authenticate_observed_projection(hostile, &desired, 2).is_err());
+        }
+
+        let mut substituted = valid;
+        substituted[1].vector = Some(vec![30.0, 40.0]);
+        assert_ne!(
+            authenticate_observed_projection(substituted, &desired, 2).unwrap(),
+            root
+        );
+    }
+
+    struct FakeEvidencePort {
+        exists: bool,
+        compatibility: CollectionCompatibility,
+        points: Vec<crate::semantic_backend::SemanticStoredPoint<MemorySemanticPointPayload>>,
+    }
+
+    struct StoreAdvancingPort {
+        store: std::path::PathBuf,
+        compatibility: CollectionCompatibility,
+        points: Vec<crate::semantic_backend::SemanticStoredPoint<MemorySemanticPointPayload>>,
+        replacement: crate::EpiphanyMemoryGraphEntry,
+    }
+
+    impl MemorySemanticEvidencePort for StoreAdvancingPort {
+        fn collection_exists(&mut self, _name: &str) -> Result<bool> {
+            Ok(true)
+        }
+        fn collection_compatibility(&mut self, _name: &str) -> Result<CollectionCompatibility> {
+            Ok(self.compatibility.clone())
+        }
+        fn points_for_scope(
+            &mut self,
+            _name: &str,
+            _scope: &[(&str, &str)],
+        ) -> Result<Vec<crate::semantic_backend::SemanticStoredPoint<MemorySemanticPointPayload>>>
+        {
+            let mut cache = crate::runtime_spine_cache(&self.store)?;
+            cache.put(crate::MEMORY_GRAPH_KEY, &self.replacement)?;
+            Ok(self.points.clone())
+        }
+    }
+
+    impl MemorySemanticEvidencePort for FakeEvidencePort {
+        fn collection_exists(&mut self, _name: &str) -> Result<bool> {
+            Ok(self.exists)
+        }
+        fn collection_compatibility(&mut self, _name: &str) -> Result<CollectionCompatibility> {
+            Ok(self.compatibility.clone())
+        }
+        fn points_for_scope(
+            &mut self,
+            _name: &str,
+            _scope: &[(&str, &str)],
+        ) -> Result<Vec<crate::semantic_backend::SemanticStoredPoint<MemorySemanticPointPayload>>>
+        {
+            Ok(self.points.clone())
+        }
+    }
+
+    fn live_evidence_fixture() -> (
+        MemorySemanticIndexConfig,
+        super::super::MemorySemanticProjectionInput,
+        MemorySemanticProjectionReadiness,
+        FakeEvidencePort,
+    ) {
+        let snapshot = snapshot();
+        let mut config = MemorySemanticIndexConfig::from_env();
+        config.embedding_provider_id = "provider".to_string();
+        config.ollama_model = "model".to_string();
+        config.modeling_collection = "modeling-exact".to_string();
+        let obligation = derive_memory_semantic_projection_obligation(
+            &snapshot,
+            "swarm-a",
+            SemanticPartition::Modeling,
+            "source-a",
+            "commit-a",
+            "2026-07-16T00:00:00Z",
+        )
+        .unwrap();
+        let namespace = MemorySemanticProjectionNamespace {
+            obligation_id: obligation.obligation_id.clone(),
+            claim_id: "claim-a".to_string(),
+            claim_epoch: 1,
+        };
+        let documents = derive_semantic_projection("swarm-a", &snapshot)
+            .unwrap()
+            .into_iter()
+            .filter(|row| row.partition == SemanticPartition::Modeling)
+            .collect::<Vec<_>>();
+        let desired = documents
+            .iter()
+            .map(|document| {
+                (
+                    physical_point_id(&namespace, &document.point_id),
+                    point_payload(document, &config, &namespace),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let points = desired
+            .iter()
+            .enumerate()
+            .map(|(index, (id, payload))| {
+                stored(
+                    id,
+                    payload.clone(),
+                    Some(vec![index as f32 + 1.0, index as f32 + 2.0]),
+                )
+            })
+            .collect::<Vec<_>>();
+        let root = authenticate_observed_projection(points.clone(), &desired, 2).unwrap();
+        let raw = memory_semantic_index_receipt(
+            &snapshot,
+            "swarm-a",
+            SemanticPartition::Modeling,
+            "2026-07-16T00:01:00Z",
+            &config,
+            &config.modeling_collection,
+            &memory_graph_model_hash(&snapshot).unwrap(),
+            &canonical_content_set_hash(&documents),
+            2,
+            documents.len() as u32,
+            0,
+            &root,
+            &namespace,
+        );
+        let receipt = bind_memory_semantic_index_receipt(raw, &obligation).unwrap();
+        let current = MemorySemanticProjectionSourceHead {
+            swarm_id: obligation.swarm_id.clone(),
+            partition: obligation.partition.clone(),
+            canonical_source_id: obligation.canonical_source_id.clone(),
+            source_commit_id: obligation.source_commit_id.clone(),
+            graph_id: obligation.graph_id.clone(),
+            source_generation: obligation.source_generation,
+            source_model_hash: obligation.source_model_hash.clone(),
+            canonical_content_set_hash: obligation.canonical_content_set_hash.clone(),
+        };
+        let input = super::super::MemorySemanticProjectionInput {
+            snapshot,
+            obligation: obligation.clone(),
+            authority: super::super::MemorySemanticProjectionAuthoritySnapshot {
+                head: current.clone(),
+                envelopes: vec![],
+            },
+        };
+        let readiness = MemorySemanticProjectionReadiness {
+            obligation,
+            current,
+            receipt,
+        };
+        let port = FakeEvidencePort {
+            exists: true,
+            compatibility: compatibility(&config, SemanticPartition::Modeling, 2),
+            points,
+        };
+        (config, input, readiness, port)
+    }
+
+    #[test]
+    fn live_evidence_requires_named_collection_compatibility_and_stable_authority() {
+        let (config, input, readiness, mut port) = live_evidence_fixture();
+        let mut calls = 0;
+        let evidence = observe_memory_semantic_live_evidence_with(
+            &config,
+            &input,
+            &readiness,
+            &mut port,
+            || {
+                calls += 1;
+                Ok(true)
+            },
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(calls, 2);
+        assert_eq!(
+            evidence.observed_vector_binding_root_sha256,
+            readiness.receipt.observed_vector_binding_root_sha256
+        );
+
+        let (_, _, _, mut missing) = live_evidence_fixture();
+        missing.exists = false;
+        assert!(
+            observe_memory_semantic_live_evidence_with(
+                &config,
+                &input,
+                &readiness,
+                &mut missing,
+                || Ok(true)
+            )
+            .unwrap()
+            .is_none()
+        );
+        let (_, _, _, mut incompatible) = live_evidence_fixture();
+        incompatible.compatibility.vector_size = 3;
+        assert!(
+            observe_memory_semantic_live_evidence_with(
+                &config,
+                &input,
+                &readiness,
+                &mut incompatible,
+                || Ok(true)
+            )
+            .unwrap()
+            .is_none()
+        );
+        let mut wrong_collection = readiness.clone();
+        wrong_collection.receipt.collection_name = "compatible-but-wrong".to_string();
+        let (_, _, _, mut port) = live_evidence_fixture();
+        assert!(
+            observe_memory_semantic_live_evidence_with(
+                &config,
+                &input,
+                &wrong_collection,
+                &mut port,
+                || Ok(true)
+            )
+            .unwrap()
+            .is_none()
+        );
+        let (_, _, _, mut port) = live_evidence_fixture();
+        let mut phase = 0;
+        assert!(
+            observe_memory_semantic_live_evidence_with(
+                &config,
+                &input,
+                &readiness,
+                &mut port,
+                || {
+                    phase += 1;
+                    Ok(phase == 1)
+                }
+            )
+            .unwrap()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn store_backed_live_reader_refuses_repo_model_advance_during_scroll() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("semantic-authority-race.cc");
+        crate::initialize_runtime_spine(
+            &store,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "semantic-race-runtime".into(),
+                display_name: "Semantic race runtime".into(),
+                created_at: "2026-07-16T00:00:00Z".into(),
+            },
+        )?;
+        crate::runtime_spine::tests::bind_test_runtime_swarm(&store, "swarm-a")?;
+        let model = snapshot();
+        let entry = crate::EpiphanyMemoryGraphEntry::from_snapshot(&model)?;
+        let migration = crate::RepoModelMigrationReceipt {
+            schema_version: crate::REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "repo-model-migration".into(),
+            source_store: "semantic-race-test".into(),
+            source_graph_id: model.graph_id.clone(),
+            imported_revision: model.model_revision,
+            imported_hash: memory_graph_model_hash(&model)?,
+            imported_at: "2026-07-16T00:00:01Z".into(),
+            contract: crate::REPO_MODEL_MIGRATION_CONTRACT.to_string(),
+        };
+        let mut cache = crate::runtime_spine_cache(&store)?;
+        cache.put(crate::MEMORY_GRAPH_KEY, &entry)?;
+        cache.put(&migration.receipt_id, &migration)?;
+        crate::migrate_legacy_repo_model_projection_obligation(&store)?
+            .expect("projection obligation");
+        let mut input = crate::runtime_modeling_semantic_projection_input(&store)?;
+        assert_eq!(input.authority.envelopes.len(), 2);
+        let mut authority_cache = crate::runtime_spine_cache(&store)?;
+        authority_cache.pull_all_backing_stores()?;
+        let extra = authority_cache
+            .snapshot_envelopes()
+            .into_iter()
+            .find(|row| {
+                !input
+                    .authority
+                    .envelopes
+                    .iter()
+                    .any(|captured| captured.r#type == row.r#type && captured.key == row.key)
+            })
+            .expect("runtime provides an additional exact authority envelope");
+        input.authority.envelopes.push(extra);
+        assert!(input.authority.envelopes.len() > 2);
+        let acquisition =
+            super::super::semantic_projector::idunn_acquire_memory_semantic_projection(
+                &store,
+                &input,
+                "executor-a",
+                "executor-incarnation-a",
+                "execute",
+                "idunn-a",
+                "2026-07-16T00:00:30Z",
+            )?;
+        let mut config = MemorySemanticIndexConfig::from_env();
+        config.embedding_provider_id = "provider".into();
+        config.ollama_model = "model".into();
+        config.modeling_collection = "modeling-exact".into();
+        let namespace = MemorySemanticProjectionNamespace {
+            obligation_id: input.obligation.obligation_id.clone(),
+            claim_id: acquisition.claim.claim_id.clone(),
+            claim_epoch: acquisition.claim.epoch,
+        };
+        let documents = derive_semantic_projection("swarm-a", &model)?
+            .into_iter()
+            .filter(|row| row.partition == SemanticPartition::Modeling)
+            .collect::<Vec<_>>();
+        let desired = documents
+            .iter()
+            .map(|document| {
+                (
+                    physical_point_id(&namespace, &document.point_id),
+                    point_payload(document, &config, &namespace),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let points = desired
+            .iter()
+            .enumerate()
+            .map(|(index, (id, payload))| {
+                stored(
+                    id,
+                    payload.clone(),
+                    Some(vec![index as f32 + 1.0, index as f32 + 2.0]),
+                )
+            })
+            .collect::<Vec<_>>();
+        let root = authenticate_observed_projection(points.clone(), &desired, 2)?;
+        let raw = memory_semantic_index_receipt(
+            &model,
+            "swarm-a",
+            SemanticPartition::Modeling,
+            "2026-07-16T00:01:00Z",
+            &config,
+            &config.modeling_collection,
+            &memory_graph_model_hash(&model)?,
+            &canonical_content_set_hash(&documents),
+            2,
+            documents.len() as u32,
+            0,
+            &root,
+            &namespace,
+        );
+        let receipt = bind_memory_semantic_index_receipt(raw, &input.obligation)?;
+        super::super::semantic_projector::succeed_memory_semantic_projection_claim(
+            &store,
+            &acquisition.claim.claim_id,
+            &input.authority,
+            receipt,
+            "2026-07-16T00:01:01Z",
+        )?;
+        let readiness = super::super::load_memory_semantic_projection_readiness(&store, &input)?
+            .expect("authenticated readiness");
+        let mut advanced = model.clone();
+        advanced.model_revision += 1;
+        advanced.model_hash = memory_graph_model_hash(&advanced)?;
+        let replacement = crate::EpiphanyMemoryGraphEntry::from_snapshot(&advanced)?;
+        let mut port = StoreAdvancingPort {
+            store: store.clone(),
+            compatibility: compatibility(&config, SemanticPartition::Modeling, 2),
+            points,
+            replacement,
+        };
+        assert!(
+            observe_memory_semantic_live_evidence_with_port(
+                &store, &config, &input, &readiness, &mut port,
+            )?
+            .is_none()
+        );
+        Ok(())
     }
 }
