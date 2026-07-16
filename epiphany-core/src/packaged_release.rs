@@ -228,10 +228,28 @@ impl GitWorktreeGuard {
                 String::from_utf8_lossy(&output.stderr)
             );
         }
-        Ok(Self {
+        let guard = Self {
             repo: repo.to_path_buf(),
             path: path.to_path_buf(),
-        })
+        };
+        let submodules = std::process::Command::new("git")
+            .args([
+                "-c",
+                "core.longpaths=true",
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            ])
+            .current_dir(&guard.path)
+            .output()?;
+        if !submodules.status.success() {
+            bail!(
+                "failed to initialize exact release submodules: {}",
+                String::from_utf8_lossy(&submodules.stderr)
+            );
+        }
+        Ok(guard)
     }
 }
 
