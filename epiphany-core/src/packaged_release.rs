@@ -125,9 +125,9 @@ pub fn package_and_publish_epiphany_release(
     require_nonempty("toolchain fingerprint", request.toolchain_fingerprint)?;
     fs::create_dir_all(request.destination)?;
     let destination = canonical_path(request.destination)?;
-    let source_root = destination.join(format!(".source-{}", Uuid::new_v4()));
+    let source_root = short_temporary_path("ep-src");
     let source_guard = GitWorktreeGuard::create(request.repo, &source_root, &source_commit_sha)?;
-    let build_root = destination.join(format!(".build-{}", Uuid::new_v4()));
+    let build_root = short_temporary_path("ep-build");
     let _build_guard = DirectoryCleanup(build_root.clone());
     build_required_release_siblings(&source_guard.path, &build_root, request.target_triple)?;
     let built_dir = build_root.join(request.target_triple).join("release");
@@ -185,6 +185,11 @@ pub fn package_and_publish_epiphany_release(
         let _ = fs::remove_dir_all(staging);
     }
     result
+}
+
+fn short_temporary_path(prefix: &str) -> PathBuf {
+    let id = Uuid::new_v4().simple().to_string();
+    std::env::temp_dir().join(format!("{prefix}-{}", &id[..12]))
 }
 
 struct DirectoryCleanup(PathBuf);
