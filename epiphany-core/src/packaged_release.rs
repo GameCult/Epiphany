@@ -205,12 +205,19 @@ struct GitWorktreeGuard {
 impl GitWorktreeGuard {
     fn create(repo: &Path, path: &Path, commit: &str) -> Result<Self> {
         let output = std::process::Command::new("git")
-            .args(["worktree", "add", "--detach"])
+            .args(["-c", "core.longpaths=true", "worktree", "add", "--detach"])
             .arg(path)
             .arg(commit)
             .current_dir(repo)
             .output()?;
         if !output.status.success() {
+            if path.exists() {
+                let _ = fs::remove_dir_all(path);
+            }
+            let _ = std::process::Command::new("git")
+                .args(["worktree", "prune"])
+                .current_dir(repo)
+                .status();
             bail!(
                 "failed to create exact-source release worktree: {}",
                 String::from_utf8_lossy(&output.stderr)
