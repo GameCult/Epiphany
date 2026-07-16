@@ -10,9 +10,10 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
-const POINT_BATCH_SIZE: usize = 128;
+pub(crate) const QDRANT_POINT_BATCH_MAX: usize = 128;
 const EMBED_BATCH_SIZE: usize = 4;
 
 #[derive(Clone, Debug)]
@@ -73,6 +74,13 @@ pub(crate) struct SemanticStoredPoint<P> {
     pub(crate) id: String,
     pub(crate) payload: Option<P>,
     pub(crate) vector: Option<Vec<f32>>,
+}
+
+/// Transport acknowledgement only. This proves that Qdrant completed one
+/// waited operation; it does not prove any domain projection invariant.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct QdrantCompletedAcknowledgement {
+    pub(crate) operation_id: u64,
 }
 
 pub(crate) struct QdrantBackend {
@@ -211,25 +219,43 @@ impl QdrantBackend {
         points: &[SemanticPoint<P>],
     ) -> Result<()> {
         validate_point_batch(points)?;
-        for batch in points.chunks(POINT_BATCH_SIZE) {
-            let response = self
-                .client
-                .put(format!("{}/collections/{name}/points", self.base_url))
-                .query(&[
-                    ("wait", "true"),
-                    ("timeout", &self.timeout_seconds.to_string()),
-                ])
-                .json(&json!({ "points": batch }))
-                .send()
-                .with_context(|| format!("failed to upsert Qdrant points into {name}"))?;
-            parse_response::<Value>(response)
-                .with_context(|| format!("failed to decode Qdrant upsert response for {name}"))?;
+        for batch in points.chunks(QDRANT_POINT_BATCH_MAX) {
+            self.upsert_point_batch_waited(name, batch)?;
         }
         Ok(())
     }
 
+    pub(crate) fn upsert_point_batch_waited<P: Serialize>(
+        &self,
+        name: &str,
+        points: &[SemanticPoint<P>],
+    ) -> Result<QdrantCompletedAcknowledgement> {
+        if points.is_empty() {
+            anyhow::bail!("Qdrant waited upsert batch must not be empty");
+        }
+        if points.len() > QDRANT_POINT_BATCH_MAX {
+            anyhow::bail!(
+                "Qdrant waited upsert batch exceeds canonical maximum {QDRANT_POINT_BATCH_MAX}"
+            );
+        }
+        validate_point_batch(points)?;
+        let response = self
+            .client
+            .put(format!("{}/collections/{name}/points", self.base_url))
+            .query(&[
+                ("wait", "true"),
+                ("timeout", &self.timeout_seconds.to_string()),
+            ])
+            .json(&json!({ "points": points }))
+            .send()
+            .with_context(|| format!("failed to upsert Qdrant points into {name}"))?;
+        let envelope: Envelope<QdrantUpdateResult> = parse_response(response)
+            .with_context(|| format!("failed to decode Qdrant upsert response for {name}"))?;
+        validate_completed_acknowledgement(envelope.result)
+    }
+
     pub(crate) fn delete_points(&self, name: &str, point_ids: &[String]) -> Result<()> {
-        for batch in point_ids.chunks(POINT_BATCH_SIZE) {
+        for batch in point_ids.chunks(QDRANT_POINT_BATCH_MAX) {
             let response = self
                 .client
                 .post(format!(
@@ -248,6 +274,28 @@ impl QdrantBackend {
             })?;
         }
         Ok(())
+    }
+
+    pub(crate) fn retrieve_points_by_ids<P: DeserializeOwned>(
+        &self,
+        name: &str,
+        point_ids: &[String],
+    ) -> Result<Vec<SemanticStoredPoint<P>>> {
+        validate_requested_point_ids(point_ids)?;
+        let response = self
+            .client
+            .post(format!("{}/collections/{name}/points", self.base_url))
+            .query(&[("timeout", self.timeout_seconds)])
+            .json(&json!({
+                "ids": point_ids,
+                "with_payload": true,
+                "with_vector": true,
+            }))
+            .send()
+            .with_context(|| format!("failed to retrieve exact Qdrant points from {name}"))?;
+        let envelope: Envelope<Vec<PayloadScrollPoint<P>>> = parse_response(response)
+            .with_context(|| format!("failed to decode exact Qdrant points from {name}"))?;
+        order_and_validate_retrieved_points(point_ids, envelope.result)
     }
 
     pub(crate) fn query_points_for_scope<P: DeserializeOwned>(
@@ -306,7 +354,7 @@ impl QdrantBackend {
                 .query(&[("timeout", self.timeout_seconds)])
                 .json(&json!({
                     "filter": { "must": must },
-                    "limit": POINT_BATCH_SIZE,
+                    "limit": QDRANT_POINT_BATCH_MAX,
                     "offset": offset,
                     "with_payload": false,
                     "with_vector": false,
@@ -352,7 +400,7 @@ impl QdrantBackend {
                 .query(&[("timeout", self.timeout_seconds)])
                 .json(&json!({
                     "filter": { "must": must },
-                    "limit": POINT_BATCH_SIZE,
+                    "limit": QDRANT_POINT_BATCH_MAX,
                     "offset": offset,
                     "with_payload": true,
                     "with_vector": true,
@@ -544,14 +592,117 @@ pub(crate) fn validate_point_batch<P>(points: &[SemanticPoint<P>]) -> Result<()>
     if vector_size == 0 {
         anyhow::bail!("point 0 has an empty vector");
     }
-    if let Some((index, _)) = points
-        .iter()
-        .enumerate()
-        .find(|(_, point)| point.vector.len() != vector_size)
-    {
-        anyhow::bail!("point {index} has an inconsistent vector length");
+    let mut ids = HashSet::with_capacity(points.len());
+    for (index, point) in points.iter().enumerate() {
+        if point.id.trim().is_empty() {
+            anyhow::bail!("point {index} has a blank id");
+        }
+        if !ids.insert(point.id.as_str()) {
+            anyhow::bail!("point batch contains duplicate id {}", point.id);
+        }
+        if point.vector.len() != vector_size {
+            anyhow::bail!("point {index} has an inconsistent vector length");
+        }
+        if point.vector.iter().any(|value| !value.is_finite()) {
+            anyhow::bail!("point {index} has a non-finite vector");
+        }
     }
     Ok(())
+}
+
+fn validate_requested_point_ids(point_ids: &[String]) -> Result<()> {
+    if point_ids.is_empty() {
+        anyhow::bail!("exact Qdrant point retrieval requires at least one id");
+    }
+    if point_ids.len() > QDRANT_POINT_BATCH_MAX {
+        anyhow::bail!(
+            "exact Qdrant point retrieval exceeds canonical maximum {QDRANT_POINT_BATCH_MAX}"
+        );
+    }
+    let mut seen = HashSet::with_capacity(point_ids.len());
+    for point_id in point_ids {
+        if point_id.trim().is_empty() {
+            anyhow::bail!("exact Qdrant point retrieval contains a blank requested id");
+        }
+        if !seen.insert(point_id.as_str()) {
+            anyhow::bail!(
+                "exact Qdrant point retrieval contains duplicate requested id {point_id}"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn order_and_validate_retrieved_points<P>(
+    requested_ids: &[String],
+    returned: Vec<PayloadScrollPoint<P>>,
+) -> Result<Vec<SemanticStoredPoint<P>>> {
+    validate_requested_point_ids(requested_ids)?;
+    let requested = requested_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let mut by_id = HashMap::with_capacity(returned.len());
+    for point in returned {
+        if !requested.contains(point.id.as_str()) {
+            anyhow::bail!(
+                "Qdrant substituted or returned unrequested point id {}",
+                point.id
+            );
+        }
+        let payload = point
+            .payload
+            .context("Qdrant exact point response omitted a requested payload")?;
+        let vector = point
+            .vector
+            .context("Qdrant exact point response omitted a requested vector")?;
+        if vector.iter().any(|value| !value.is_finite()) {
+            anyhow::bail!("Qdrant exact point response contained a non-finite vector");
+        }
+        let id = point.id;
+        if by_id
+            .insert(
+                id.clone(),
+                SemanticStoredPoint {
+                    id: id.clone(),
+                    payload: Some(payload),
+                    vector: Some(vector),
+                },
+            )
+            .is_some()
+        {
+            anyhow::bail!("Qdrant exact point response duplicated point id {id}");
+        }
+    }
+    if by_id.len() != requested_ids.len() {
+        let missing = requested_ids
+            .iter()
+            .find(|point_id| !by_id.contains_key(point_id.as_str()))
+            .expect("cardinality mismatch has a missing requested id");
+        anyhow::bail!("Qdrant exact point response omitted requested point id {missing}");
+    }
+    requested_ids
+        .iter()
+        .map(|point_id| {
+            by_id
+                .remove(point_id.as_str())
+                .with_context(|| format!("Qdrant exact point response omitted {point_id}"))
+        })
+        .collect()
+}
+
+fn validate_completed_acknowledgement(
+    result: QdrantUpdateResult,
+) -> Result<QdrantCompletedAcknowledgement> {
+    if result.status != "completed" {
+        anyhow::bail!(
+            "Qdrant waited operation returned status {} instead of completed",
+            result.status
+        );
+    }
+    Ok(QdrantCompletedAcknowledgement {
+        operation_id: result.operation_id,
+    })
 }
 
 #[derive(Deserialize)]
@@ -569,6 +720,11 @@ struct CollectionInfo {
 #[derive(Deserialize)]
 struct CollectionConfig {
     metadata: Option<CollectionCompatibility>,
+}
+#[derive(Deserialize)]
+struct QdrantUpdateResult {
+    operation_id: u64,
+    status: String,
 }
 #[derive(Deserialize)]
 struct QueryResult<P> {
@@ -646,7 +802,7 @@ fn timeout_seconds(timeout_ms: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path};
+    use wiremock::matchers::{body_json, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn embedder(base_url: String, model: &str) -> Result<OllamaEmbedder> {
@@ -656,6 +812,146 @@ mod tests {
             timeout_ms: 5_000,
             query_instruction: String::new(),
         })
+    }
+
+    fn qdrant(base_url: String) -> Result<QdrantBackend> {
+        QdrantBackend::new(QdrantConfig {
+            url: base_url,
+            api_key: None,
+            timeout_ms: 5_000,
+        })
+    }
+
+    #[test]
+    fn waited_upsert_requires_completed_qdrant_acknowledgement() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
+        for (status, accepted) in [("completed", true), ("acknowledged", false)] {
+            let server = runtime.block_on(MockServer::start());
+            runtime.block_on(
+                Mock::given(method("PUT"))
+                    .and(path("/collections/c/points"))
+                    .and(query_param("wait", "true"))
+                    .and(query_param("timeout", "5"))
+                    .and(body_json(json!({
+                        "points": [{"id":"p","vector":[1.0],"payload":{"kind":"test"}}]
+                    })))
+                    .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                        "result": {"operation_id": 42, "status": status}
+                    })))
+                    .mount(&server),
+            );
+            let points = vec![SemanticPoint {
+                id: "p".into(),
+                vector: vec![1.0],
+                payload: json!({"kind":"test"}),
+            }];
+            let result = qdrant(server.uri())?.upsert_point_batch_waited("c", &points);
+            assert_eq!(result.is_ok(), accepted);
+            if let Ok(acknowledgement) = result {
+                assert_eq!(acknowledgement.operation_id, 42);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn waited_upsert_enforces_one_canonical_batch() -> Result<()> {
+        let backend = qdrant("http://127.0.0.1:1".into())?;
+        let empty: Vec<SemanticPoint<Value>> = Vec::new();
+        assert!(backend.upsert_point_batch_waited("c", &empty).is_err());
+        let too_many = (0..=QDRANT_POINT_BATCH_MAX)
+            .map(|index| SemanticPoint {
+                id: index.to_string(),
+                vector: vec![1.0],
+                payload: Value::Null,
+            })
+            .collect::<Vec<_>>();
+        assert!(backend.upsert_point_batch_waited("c", &too_many).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn exact_point_retrieval_restores_request_order() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?;
+        let server = runtime.block_on(MockServer::start());
+        runtime.block_on(
+                Mock::given(method("POST"))
+                .and(path("/collections/c/points"))
+                .and(query_param("timeout", "5"))
+                .and(body_json(json!({
+                    "ids": ["b", "a"],
+                    "with_payload": true,
+                    "with_vector": true
+                })))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "result": [
+                        {"id":"a","payload":{"n":1},"vector":[1.0]},
+                        {"id":"b","payload":{"n":2},"vector":[2.0]}
+                    ]
+                })))
+                .mount(&server),
+        );
+        let points = qdrant(server.uri())?
+            .retrieve_points_by_ids::<Value>("c", &["b".into(), "a".into()])?;
+        assert_eq!(
+            points
+                .iter()
+                .map(|point| point.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["b", "a"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn exact_point_response_validator_rejects_hostile_shapes() {
+        let requested = vec!["a".to_string(), "b".to_string()];
+        let point =
+            |id: &str, payload: Option<Value>, vector: Option<Vec<f32>>| PayloadScrollPoint {
+                id: id.into(),
+                payload,
+                vector,
+            };
+        assert!(validate_requested_point_ids(&[]).is_err());
+        assert!(validate_requested_point_ids(&[" ".into()]).is_err());
+        assert!(validate_requested_point_ids(&["a".into(), "a".into()]).is_err());
+        assert!(
+            validate_requested_point_ids(
+                &(0..=QDRANT_POINT_BATCH_MAX)
+                    .map(|index| index.to_string())
+                    .collect::<Vec<_>>()
+            )
+            .is_err()
+        );
+        for returned in [
+            vec![
+                point("a", Some(json!({})), Some(vec![1.0])),
+                point("x", Some(json!({})), Some(vec![2.0])),
+            ],
+            vec![point("a", Some(json!({})), Some(vec![1.0]))],
+            vec![
+                point("a", Some(json!({})), Some(vec![1.0])),
+                point("a", Some(json!({})), Some(vec![1.0])),
+            ],
+            vec![
+                point("a", None, Some(vec![1.0])),
+                point("b", Some(json!({})), Some(vec![2.0])),
+            ],
+            vec![
+                point("a", Some(json!({})), None),
+                point("b", Some(json!({})), Some(vec![2.0])),
+            ],
+            vec![
+                point("a", Some(json!({})), Some(vec![f32::NAN])),
+                point("b", Some(json!({})), Some(vec![2.0])),
+            ],
+        ] {
+            assert!(order_and_validate_retrieved_points(&requested, returned).is_err());
+        }
     }
 
     #[test]
