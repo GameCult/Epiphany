@@ -116,9 +116,9 @@ not permission for another row to borrow the result.
 | Public speech/crossing eligibility | Persona + Bifrost/Heimdall | speech-audit receipts and fail-closed identity/capability checks | closed |
 | Branch-local autonomous action | Substrate Gate + Hands + Soul + Mind | scoped grants and patch/command/commit/verdict/admission chains | closed |
 | Semantic projection/query recovery | canonical admission + projector + query gate + Idunn | live Mind/Modeling semantic ranking and GUID-scoped exact process-recovery smokes | closed |
-| Atomic installed sibling generation | release packager + Idunn | no immutable commit-addressed package witness yet; mutable sibling directory can mix builds | open |
+| Atomic installed sibling generation | release packager + Idunn | release `sha256-c94109f94ee42c1257089830f399cb87cd5ad672772c274194371995ce4df923` binds commit `dd80f4a5`, four exact binaries, task args, policy role paths, and recurrence receipts | closed |
 | Whole-repository observed readiness | Mind | required Body R1/R2 + admitted model + live semantic + live workspace-coverage join does not yet exist | open |
-| Current host package | release deployment | installed supervisor/projectors predate current recovery repairs | open |
+| Current host package | release deployment | witnessed supervisor PID 21228 and direct-child projector PID 19748; Mind/Modeling semantic query admission passed | closed for current boot |
 | After-login recurrence | Task Scheduler + Idunn + ops tunnel | task recurrence and exact child recovery observed on current boot | closed for current boot |
 | Reboot/logon survival | Task Scheduler + Idunn + ops tunnel | requires fresh post-boot lineage and query proof | permission-bound |
 

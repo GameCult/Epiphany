@@ -1993,3 +1993,36 @@ no opinion. Query-time reauthentication remains the semantic admission owner.
 After the witnessed release is deployed, prove exact current-boot recurrence
 and Mind/Modeling query ranking. A reboot/logon proof remains the sole
 permission-bound host gate; do not reboot without explicit live approval.
+
+## First witnessed deployment (2026-07-16)
+
+The release packager failed closed three times before publication and exposed
+three substrate wounds: Git rejected verbatim/deep Windows worktree paths,
+Cargo could not traverse the remaining deep vendor path, and the exact commit
+did not contain `epiphany-core/Cargo.lock`. The final machine uses normalized
+canonical package paths, short temporary exact-source/build roots, initialized
+pinned submodule bodies, and a tracked lockfile with `--locked`. It builds from
+a detached worktree at the witnessed commit; caller-supplied binaries have no
+entry path.
+
+Published release:
+
+- source commit: `dd80f4a51c18425a6665710698a357be61154abf`
+- release id: `sha256-c94109f94ee42c1257089830f399cb87cd5ad672772c274194371995ce4df923`
+- witness digest: `sha256-f0394590e2e9762b7cb1579f6a06db009f4701730fe1b44ea0f20c1175aee04a`
+- package root: `E:\Projects\EpiphanyAgent\.epiphany-run\releases\dd80f4a51c18425a6665710698a357be61154abf\sha256-c94109f94ee42c1257089830f399cb87cd5ad672772c274194371995ce4df923`
+
+The typed semantic-projector policy now names the witnessed role path. Task
+Scheduler pins the witnessed supervisor plus release id/digest. Reconciler PID
+`21228` launched direct-child projector PID `22736`; both witnessed Mind and
+Modeling query gates returned semantic ranking. After exact-path verification,
+PID `22736` was killed once; Idunn launched direct child PID `19748` with new
+launch receipt `86a42d51-9930-4b5d-9e61-e74c82a0d808`, ready heartbeat
+`4fc91977-b635-474b-812b-c364847e2b4b`, and executable SHA-256
+`1060dd64e8c2b520ec8744b67e8306db04a6618d463fc2117c352adf9e30e6b0`,
+which equals the witnessed file. Task result `0x800710E0` remains the expected
+IgnoreNew recurrence refusal while the foreground task is running.
+
+The installed sibling-generation gate is closed for the current boot. Next:
+build Mind's whole-repository observed-readiness join. Reboot/logon remains
+permission-bound.

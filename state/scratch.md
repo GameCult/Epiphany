@@ -196,3 +196,14 @@ replacement. Mind still needs the R1/model+admission/live-semantic/live-coverage
 R2 repository-readiness join. The readiness plan's June queue was stale and is
 now an evidence matrix. Sight surfaces no longer say `queryAdmission=false`;
 they never owned that decision. Final reboot/logon proof needs live approval.
+
+## Witnessed release deployed (2026-07-16)
+
+Commit `dd80f4a5` packaged as release `sha256-c941...f923`, witness
+`sha256-f039...e04a`. Exact detached source plus initialized submodules plus
+tracked lockfile plus isolated `--locked` build; four siblings only. Task and
+Idunn pin the witness. Reconciler 21228 -> projector 22736; Mind/Modeling query
+admission passed. Exact-path child kill -> direct-child projector 19748, launch
+receipt `86a42d51-9930-4b5d-9e61-e74c82a0d808`, ready heartbeat
+`4fc91977-b635-474b-812b-c364847e2b4b`, witnessed digest match. Next is Mind's
+repository readiness join. Reboot remains permission-bound.
