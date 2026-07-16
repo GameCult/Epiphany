@@ -1213,23 +1213,12 @@ pub use workspace_coverage_process_documents::{
     write_workspace_coverage_process_termination_observation,
     write_workspace_coverage_provider_heartbeat,
 };
-pub use workspace_coverage_projection_batch_checkpoint::{
-    WORKSPACE_COVERAGE_BATCH_CHECKPOINT_MAX_POINTS,
-    WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_TYPE,
-    WorkspaceCoverageProjectionBatchCheckpointAdmission,
-    WorkspaceCoverageProjectionBatchCheckpointEntry,
-    WorkspaceCoverageProjectionBatchCheckpointHeadEntry,
-    admit_workspace_coverage_projection_batch_checkpoint,
-    sign_workspace_coverage_projection_batch_checkpoint,
-};
 pub use workspace_coverage_projection_progress::{
     WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROJECTION_PROGRESS_TYPE, WorkspaceCoverageProjectionProgressEntry,
     authenticate_workspace_coverage_projection_progress,
     load_latest_workspace_coverage_projection_progress,
-    load_workspace_coverage_projection_progress, sign_workspace_coverage_projection_progress,
-    workspace_coverage_projection_progress_statement, write_workspace_coverage_projection_progress,
+    load_workspace_coverage_projection_progress,
 };
 pub use workspace_coverage_projector::{
     WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES, WorkspaceCoverageRecoveryOutcome,

@@ -1,3 +1,17 @@
+use crate::workspace_coverage_process_documents::authenticate_workspace_coverage_managed_process_launch_with_envelope_digest;
+use crate::workspace_coverage_projection_batch_checkpoint::{
+    load_authenticated_current_checkpoint, WorkspaceCoverageProjectionBatchCheckpointAdmission,
+};
+use crate::workspace_coverage_projector::{
+    exact_obligation_body_authority, validate_claim_attempt_link, validate_projection_attempt,
+    validate_projection_claim, WorkspaceCoverageProjectionAttempt,
+    WorkspaceCoverageProjectionClaim, ATTEMPT_TYPE, CLAIM_KEY, CLAIM_TYPE, OBLIGATION_TYPE,
+    PLAN_TYPE,
+};
+use crate::workspace_retrieval_coverage::{
+    validate_workspace_coverage_projection_plan, WorkspaceCoverageObligation,
+    WorkspaceCoverageProjectionPlan,
+};
 use crate::{
     authenticate_workspace_coverage_managed_process_launch,
     load_workspace_coverage_managed_process_launch_with_digest, open_epiphany_cultmesh_node,
@@ -5,7 +19,9 @@ use crate::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::DateTime;
-use cultcache_rs::{DatabaseEntry, SingleFileMessagePackBackingStore};
+use cultcache_rs::{
+    CacheBackingStore, CultCacheEnvelope, DatabaseEntry, SingleFileMessagePackBackingStore,
+};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::Serialize;
 use std::path::Path;
@@ -65,6 +81,8 @@ pub struct WorkspaceCoverageProjectionProgressEntry {
     #[cultcache(key = 20)]
     pub operation_started_at_utc: String,
     #[cultcache(key = 21)]
+    /// Provider-observed operation timeout. This is telemetry, not Body policy
+    /// or deployment authority; consumers must not use it to authorize work.
     pub operation_timeout_ms: u64,
     #[cultcache(key = 22)]
     pub observed_at_utc: String,
@@ -118,7 +136,7 @@ struct ProgressStatement<'a> {
     signature_algorithm: &'a str,
 }
 
-pub fn workspace_coverage_projection_progress_statement(
+pub(crate) fn workspace_coverage_projection_progress_statement(
     entry: &WorkspaceCoverageProjectionProgressEntry,
 ) -> Result<Vec<u8>> {
     let mut unsigned = entry.clone();
@@ -156,7 +174,7 @@ pub fn workspace_coverage_projection_progress_statement(
     })?)
 }
 
-pub fn sign_workspace_coverage_projection_progress(
+pub(crate) fn sign_workspace_coverage_projection_progress(
     entry: &mut WorkspaceCoverageProjectionProgressEntry,
     key: &SigningKey,
 ) -> Result<()> {
@@ -169,7 +187,253 @@ pub fn sign_workspace_coverage_projection_progress(
     Ok(())
 }
 
-pub fn write_workspace_coverage_projection_progress(
+pub(crate) fn publish_workspace_coverage_progress_genesis(
+    body_store: impl AsRef<Path>,
+    local_verse_store: impl AsRef<Path>,
+    runtime_id: &str,
+    trusted_host: &HostIncarnationIdentityEntry,
+    provider_signing_key: &SigningKey,
+    operation_timeout_ms: u64,
+) -> Result<WorkspaceCoverageProjectionProgressEntry> {
+    if operation_timeout_ms == 0 {
+        bail!("workspace coverage progress operation timeout must be positive");
+    }
+    let opening = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
+    let claim_env = find_authority(&opening, CLAIM_TYPE, CLAIM_KEY)?;
+    let claim: WorkspaceCoverageProjectionClaim = rmp_serde::from_slice(&claim_env.payload)?;
+    let attempt_env = find_authority(&opening, ATTEMPT_TYPE, &claim.attempt_id)?;
+    let attempt: WorkspaceCoverageProjectionAttempt = rmp_serde::from_slice(&attempt_env.payload)?;
+    validate_projection_claim(&claim)?;
+    validate_projection_attempt(&attempt)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+    if claim.status != "running" {
+        bail!("workspace coverage progress genesis requires running claim authority");
+    }
+    let obligation_env = find_authority(&opening, OBLIGATION_TYPE, &claim.obligation_id)?;
+    let plan_env = find_authority(&opening, PLAN_TYPE, &claim.plan_id)?;
+    let obligation: WorkspaceCoverageObligation = rmp_serde::from_slice(&obligation_env.payload)?;
+    let plan: WorkspaceCoverageProjectionPlan = rmp_serde::from_slice(&plan_env.payload)?;
+    validate_workspace_coverage_projection_plan(&obligation, &plan)?;
+    exact_obligation_body_authority(&opening, &obligation)?;
+    let (launch, launch_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            local_verse_store.as_ref(),
+            runtime_id,
+            &claim.managed_process_launch_id,
+            trusted_host,
+        )?;
+    if launch.provider_incarnation_id != claim.executor_incarnation
+        || launch.provider_daemon_id != claim.executor_id
+        || provider_signing_key.verifying_key().to_bytes().as_slice()
+            != launch.provider_public_key.as_slice()
+        || obligation.runtime_id != runtime_id
+    {
+        bail!("workspace coverage progress genesis signer/launch/Body authority disagrees");
+    }
+    if load_latest_workspace_coverage_projection_progress(
+        local_verse_store.as_ref(),
+        runtime_id,
+        &launch.launch_id,
+        &claim.claim_id,
+    )?
+    .is_some()
+    {
+        bail!("workspace coverage progress genesis already exists");
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut entry = WorkspaceCoverageProjectionProgressEntry {
+        schema_version: WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION.into(),
+        progress_id: uuid::Uuid::new_v4().to_string(),
+        runtime_id: runtime_id.into(),
+        launch_id: launch.launch_id.clone(),
+        launch_envelope_digest: launch_digest,
+        provider_incarnation_id: launch.provider_incarnation_id.clone(),
+        provider_public_key: launch.provider_public_key.clone(),
+        claim_id: claim.claim_id,
+        claim_epoch: claim.claim_epoch,
+        attempt_id: attempt.attempt_id,
+        plan_id: plan.plan_id,
+        body_observation_id: obligation.body_observation_id.clone(),
+        body_generation: obligation.body_generation,
+        embedding_artifact_identity: plan.embedding_model,
+        embedding_dimensions: plan.vector_dimensions,
+        phase: "preparing".into(),
+        status: "warming".into(),
+        completed_units: 0,
+        total_units: plan.expected_point_count,
+        unit_kind: "points".into(),
+        operation_started_at_utc: now.clone(),
+        operation_timeout_ms,
+        observed_at_utc: now.clone(),
+        last_advanced_at_utc: now,
+        sequence: 1,
+        checkpoint_id: None,
+        checkpoint_binding_sha256: None,
+        provider_signature: Vec::new(),
+        signature_algorithm: "ed25519".into(),
+    };
+    sign_workspace_coverage_projection_progress(&mut entry, provider_signing_key)?;
+    let admitted = write_workspace_coverage_projection_progress(
+        local_verse_store.as_ref(),
+        runtime_id,
+        entry,
+    )?;
+    // Body and Verse are distinct stores and cannot share an atomic CAS. A
+    // progress event is therefore provider observation only. Reopen Body after
+    // Verse admission and require the exact authority envelopes used above;
+    // downstream use must repeat Body/checkpoint authentication rather than
+    // treating this event as a capability.
+    let after = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
+    for expected in [claim_env, attempt_env, obligation_env, plan_env] {
+        let current = find_authority(&after, &expected.r#type, &expected.key)?;
+        if current.r#type != expected.r#type
+            || current.key != expected.key
+            || current.payload != expected.payload
+        {
+            bail!("Body authority changed during cross-store progress genesis admission");
+        }
+    }
+    exact_obligation_body_authority(&after, &obligation)?;
+    Ok(admitted)
+}
+
+pub(crate) fn publish_workspace_coverage_progress_for_checkpoint(
+    local_verse_store: impl AsRef<Path>,
+    runtime_id: &str,
+    provider_signing_key: &SigningKey,
+    admission: &WorkspaceCoverageProjectionBatchCheckpointAdmission,
+) -> Result<WorkspaceCoverageProjectionProgressEntry> {
+    let checkpoint = &admission.checkpoint;
+    if checkpoint.runtime_id != runtime_id {
+        bail!("checkpoint progress runtime disagrees with admission");
+    }
+    let prior = load_latest_workspace_coverage_projection_progress(
+        local_verse_store.as_ref(),
+        runtime_id,
+        &checkpoint.managed_process_launch_id,
+        &checkpoint.claim_id,
+    )?
+    .ok_or_else(|| anyhow!("checkpoint progress requires canonical genesis"))?;
+    let expected_sequence = checkpoint
+        .sequence
+        .checked_add(1)
+        .ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?;
+    if checkpoint_progress_alignment(&prior, admission)? == CheckpointProgressAlignment::Current {
+        return Ok(prior);
+    }
+    if prior.sequence != checkpoint.sequence || checkpoint.cumulative_point_count <= prior.completed_units {
+        bail!("checkpoint progress does not durably advance completed units");
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut entry = WorkspaceCoverageProjectionProgressEntry {
+        schema_version: WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION.into(),
+        progress_id: uuid::Uuid::new_v4().to_string(),
+        runtime_id: runtime_id.into(),
+        launch_id: checkpoint.managed_process_launch_id.clone(),
+        launch_envelope_digest: checkpoint.managed_process_launch_envelope_digest.clone(),
+        provider_incarnation_id: checkpoint.provider_incarnation_id.clone(),
+        provider_public_key: checkpoint.provider_public_key.clone(),
+        claim_id: checkpoint.claim_id.clone(),
+        claim_epoch: checkpoint.claim_epoch,
+        attempt_id: checkpoint.attempt_id.clone(),
+        plan_id: checkpoint.plan_id.clone(),
+        body_observation_id: checkpoint.body_observation_id.clone(),
+        body_generation: checkpoint.body_generation,
+        embedding_artifact_identity: checkpoint.embedding_artifact_identity.clone(),
+        embedding_dimensions: checkpoint.vector_dimensions,
+        phase: "projecting".into(),
+        status: "warming".into(),
+        completed_units: checkpoint.cumulative_point_count,
+        total_units: checkpoint.total_point_count,
+        unit_kind: "points".into(),
+        operation_started_at_utc: prior.operation_started_at_utc.clone(),
+        operation_timeout_ms: prior.operation_timeout_ms,
+        observed_at_utc: now.clone(),
+        last_advanced_at_utc: now,
+        sequence: expected_sequence,
+        checkpoint_id: Some(checkpoint.checkpoint_id.clone()),
+        checkpoint_binding_sha256: Some(admission.checkpoint_envelope_digest.clone()),
+        provider_signature: Vec::new(),
+        signature_algorithm: "ed25519".into(),
+    };
+    sign_workspace_coverage_projection_progress(&mut entry, provider_signing_key)?;
+    write_workspace_coverage_projection_progress(local_verse_store, runtime_id, entry)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CheckpointProgressAlignment {
+    NeedsReconciliation,
+    Current,
+}
+
+fn checkpoint_progress_alignment(
+    progress: &WorkspaceCoverageProjectionProgressEntry,
+    admission: &WorkspaceCoverageProjectionBatchCheckpointAdmission,
+) -> Result<CheckpointProgressAlignment> {
+    let checkpoint = &admission.checkpoint;
+    checkpoint_progress_binding_alignment(
+        progress,
+        checkpoint.sequence,
+        &checkpoint.checkpoint_id,
+        &admission.checkpoint_envelope_digest,
+        checkpoint.cumulative_point_count,
+    )
+}
+
+fn checkpoint_progress_binding_alignment(
+    progress: &WorkspaceCoverageProjectionProgressEntry,
+    checkpoint_sequence: u64,
+    checkpoint_id: &str,
+    checkpoint_digest: &str,
+    cumulative_point_count: u64,
+) -> Result<CheckpointProgressAlignment> {
+    let expected = checkpoint_sequence
+        .checked_add(1)
+        .ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?;
+    if progress.sequence == checkpoint_sequence {
+        return Ok(CheckpointProgressAlignment::NeedsReconciliation);
+    }
+    if progress.sequence == expected
+        && progress.checkpoint_id.as_deref() == Some(checkpoint_id)
+        && progress.checkpoint_binding_sha256.as_deref() == Some(checkpoint_digest)
+        && progress.completed_units == cumulative_point_count
+    {
+        return Ok(CheckpointProgressAlignment::Current);
+    }
+    bail!("progress does not map exactly to the authenticated current checkpoint")
+}
+
+pub(crate) fn reconcile_workspace_coverage_checkpoint_progress(
+    body_store: impl AsRef<Path>,
+    local_verse_store: impl AsRef<Path>,
+    runtime_id: &str,
+    trusted_host: &HostIncarnationIdentityEntry,
+    provider_signing_key: &SigningKey,
+    claim_id: &str,
+    claim_epoch: u64,
+) -> Result<Option<WorkspaceCoverageProjectionProgressEntry>> {
+    let Some(admission) = load_authenticated_current_checkpoint(
+        body_store,
+        local_verse_store.as_ref(),
+        trusted_host,
+        claim_id,
+        claim_epoch,
+    )? else {
+        return Ok(None);
+    };
+    if admission.checkpoint.runtime_id != runtime_id {
+        bail!("current checkpoint runtime disagrees with reconciliation runtime");
+    }
+    publish_workspace_coverage_progress_for_checkpoint(
+        local_verse_store,
+        runtime_id,
+        provider_signing_key,
+        &admission,
+    )
+    .map(Some)
+}
+
+pub(crate) fn write_workspace_coverage_projection_progress(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
     entry: WorkspaceCoverageProjectionProgressEntry,
@@ -323,7 +587,7 @@ fn validate_shape(entry: &WorkspaceCoverageProjectionProgressEntry, signed: bool
     }
     if !matches!(
         entry.phase.as_str(),
-        "preparing" | "embedding" | "upserting" | "verifying" | "committing"
+        "preparing" | "projecting" | "verifying" | "committing"
     ) || !matches!(entry.status.as_str(), "warming" | "failed" | "complete")
     {
         bail!("workspace coverage progress phase or status is invalid");
@@ -466,7 +730,6 @@ fn authenticate_same_authority(
         || a.embedding_artifact_identity != b.embedding_artifact_identity
         || a.embedding_dimensions != b.embedding_dimensions
         || a.operation_started_at_utc != b.operation_started_at_utc
-        || a.operation_timeout_ms != b.operation_timeout_ms
         || a.total_units != b.total_units
         || a.unit_kind != b.unit_kind
     {
@@ -478,10 +741,9 @@ fn authenticate_same_authority(
 fn phase_rank(value: &str) -> Result<u8> {
     Ok(match value {
         "preparing" => 0,
-        "embedding" => 1,
-        "upserting" => 2,
-        "verifying" => 3,
-        "committing" => 4,
+        "projecting" => 1,
+        "verifying" => 2,
+        "committing" => 3,
         _ => bail!("invalid progress phase"),
     })
 }
@@ -508,6 +770,16 @@ fn require(name: &str, value: &str) -> Result<()> {
         bail!("workspace coverage {name} is empty")
     }
     Ok(())
+}
+fn find_authority<'a>(
+    entries: &'a [CultCacheEnvelope],
+    ty: &str,
+    key: &str,
+) -> Result<&'a CultCacheEnvelope> {
+    entries
+        .iter()
+        .find(|entry| entry.r#type == ty && entry.key == key)
+        .ok_or_else(|| anyhow!("workspace coverage progress authority {ty}/{key} is absent"))
 }
 fn progress_key(id: &str) -> String {
     format!("epiphany-local/workspace-coverage/projection-progress/event/{id}")
@@ -570,7 +842,7 @@ mod tests {
         next.progress_id = uuid::Uuid::new_v4().to_string();
         next.sequence += 1;
         next.completed_units += 1;
-        next.phase = "embedding".into();
+        next.phase = "projecting".into();
         next.observed_at_utc = "2026-07-16T10:00:02Z".into();
         next.last_advanced_at_utc = next.observed_at_utc.clone();
         next.checkpoint_id = Some(format!("checkpoint-{}", next.sequence));
@@ -599,18 +871,52 @@ mod tests {
     fn substitution_and_mutable_total_are_refused() {
         let k = SigningKey::from_bytes(&[7; 32]);
         let a = entry(&k);
-        for mutate in ["plan", "body", "model", "total", "operation", "timeout"] {
+        for mutate in ["plan", "body", "model", "total", "operation"] {
             let mut b = advance(&a, &k);
             match mutate {
                 "plan" => b.plan_id.push('x'),
                 "body" => b.body_generation += 1,
                 "model" => b.embedding_artifact_identity.push('x'),
                 "total" => b.total_units += 1,
-                "operation" => b.operation_started_at_utc = "2026-07-16T10:00:01Z".into(),
-                _ => b.operation_timeout_ms += 1,
+                _ => b.operation_started_at_utc = "2026-07-16T10:00:01Z".into(),
             };
             assert!(validate_transition(&a, &b).is_err(), "{mutate}");
         }
+    }
+    #[test]
+    fn checkpoint_progress_restart_mapping_is_exact_and_idempotent() {
+        let k = SigningKey::from_bytes(&[7; 32]);
+        let genesis = entry(&k);
+        assert_eq!(
+            checkpoint_progress_binding_alignment(&genesis, 1, "checkpoint", &format!("sha256-{}", "b".repeat(64)), 1).unwrap(),
+            CheckpointProgressAlignment::NeedsReconciliation
+        );
+        let current = advance(&genesis, &k);
+        let digest = current.checkpoint_binding_sha256.clone().unwrap();
+        let id = current.checkpoint_id.clone().unwrap();
+        assert_eq!(
+            checkpoint_progress_binding_alignment(&current, 1, &id, &digest, 1).unwrap(),
+            CheckpointProgressAlignment::Current
+        );
+        assert_eq!(
+            checkpoint_progress_binding_alignment(&current, 2, "next-checkpoint", &digest, 2).unwrap(),
+            CheckpointProgressAlignment::NeedsReconciliation
+        );
+        let mut skipped = current.clone();
+        skipped.sequence = 3;
+        assert!(checkpoint_progress_binding_alignment(&skipped, 1, &id, &digest, 1).is_err());
+        assert!(checkpoint_progress_binding_alignment(&current, 1, "stale-head", &digest, 1).is_err());
+        assert!(checkpoint_progress_binding_alignment(&current, 1, &id, &format!("sha256-{}", "c".repeat(64)), 1).is_err());
+    }
+    #[test]
+    fn provider_timeout_observation_is_not_progress_authority() {
+        let k = SigningKey::from_bytes(&[7; 32]);
+        let genesis = entry(&k);
+        let mut next = advance(&genesis, &k);
+        next.operation_timeout_ms += 1;
+        next.provider_signature.clear();
+        sign_workspace_coverage_projection_progress(&mut next, &k).unwrap();
+        validate_transition(&genesis, &next).unwrap();
     }
     #[test]
     fn completion_regression_and_phase_jump_are_refused() {
@@ -620,7 +926,7 @@ mod tests {
         b.completed_units = 0;
         assert!(validate_transition(&a, &b).is_err());
         let mut b = advance(&a, &k);
-        b.phase = "upserting".into();
+        b.phase = "verifying".into();
         assert!(validate_transition(&a, &b).is_err());
     }
     #[test]
@@ -667,7 +973,7 @@ mod tests {
         ] {
             let mut alien = genesis.clone();
             match mutate {
-                "phase" => alien.phase = "embedding".into(),
+                "phase" => alien.phase = "projecting".into(),
                 "status" => alien.status = "failed".into(),
                 "count" => alien.completed_units = 1,
                 "checkpoint" => {

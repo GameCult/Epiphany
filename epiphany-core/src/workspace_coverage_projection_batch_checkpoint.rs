@@ -173,7 +173,392 @@ pub struct WorkspaceCoverageProjectionBatchCheckpointAdmission {
     pub checkpoint_envelope_digest: String,
 }
 
-pub fn sign_workspace_coverage_projection_batch_checkpoint(
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ObservedWorkspaceCoverageBatchInput {
+    pub claim_id: String,
+    pub attempt_id: String,
+    pub plan_id: String,
+    pub first_plan_ordinal: u64,
+    pub point_bindings: Vec<WorkspaceCoveragePointBinding>,
+    pub vector_bindings: Vec<WorkspaceCoverageVectorBinding>,
+}
+
+pub(crate) fn admit_observed_workspace_coverage_batch(
+    body_store: impl AsRef<Path>,
+    local_verse_store: impl AsRef<Path>,
+    runtime_id: &str,
+    trusted_host: &HostIncarnationIdentityEntry,
+    provider_signing_key: &SigningKey,
+    observed: ObservedWorkspaceCoverageBatchInput,
+) -> Result<WorkspaceCoverageProjectionBatchCheckpointAdmission> {
+    validate_observed_batch_input(&observed)?;
+    let body_store = body_store.as_ref();
+    let opening = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
+    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)?;
+    let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
+    let attempt_env = find(&opening, ATTEMPT_TYPE, &claim.attempt_id)?;
+    let attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+    if claim.status != "running"
+        || claim.claim_id != observed.claim_id
+        || attempt.attempt_id != observed.attempt_id
+        || claim.plan_id != observed.plan_id
+    {
+        bail!("observed batch expected identity disagrees with current running authority");
+    }
+    let obligation_env = find(&opening, OBLIGATION_TYPE, &claim.obligation_id)?;
+    let plan_env = find(&opening, PLAN_TYPE, &claim.plan_id)?;
+    let obligation: WorkspaceCoverageObligation = decode(obligation_env)?;
+    let plan: WorkspaceCoverageProjectionPlan = decode(plan_env)?;
+    validate_workspace_coverage_projection_plan(&obligation, &plan)?;
+    let authority = exact_obligation_body_authority(&opening, &obligation)?;
+    let binding_env = find(&authority, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
+    let body_head_env = find(&authority, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
+    let observation_env = find(
+        &authority,
+        BODY_OBSERVATION_TYPE,
+        &obligation.body_observation_id,
+    )?;
+    let manifest_env = find(
+        &authority,
+        BODY_MANIFEST_TYPE,
+        &obligation.manifest_root_sha256,
+    )?;
+    let binding: RepositoryBodyBinding = decode(binding_env)?;
+    if binding.runtime_id != runtime_id || obligation.runtime_id != runtime_id {
+        bail!("observed batch runtime disagrees with Body authority");
+    }
+    let (launch, launch_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            local_verse_store.as_ref(),
+            runtime_id,
+            &claim.managed_process_launch_id,
+            trusted_host,
+        )?;
+    if launch.provider_incarnation_id != claim.executor_incarnation
+        || launch.provider_daemon_id != claim.executor_id
+        || provider_signing_key.verifying_key().to_bytes().as_slice()
+            != launch.provider_public_key.as_slice()
+    {
+        bail!("observed batch signer/launch disagrees with claim executor");
+    }
+    if let Some(current) = load_authenticated_current_checkpoint(
+        body_store,
+        local_verse_store.as_ref(),
+        trusted_host,
+        &claim.claim_id,
+        claim.claim_epoch,
+    )? {
+        let progress = crate::workspace_coverage_projection_progress::load_latest_workspace_coverage_projection_progress(
+            local_verse_store.as_ref(),
+            runtime_id,
+            &claim.managed_process_launch_id,
+            &claim.claim_id,
+        )?
+        .ok_or_else(|| anyhow!("current checkpoint exists without canonical progress genesis"))?;
+        if progress.sequence != current.checkpoint.sequence.checked_add(1).ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?
+            || progress.checkpoint_id.as_deref() != Some(current.checkpoint.checkpoint_id.as_str())
+            || progress.checkpoint_binding_sha256.as_deref() != Some(current.checkpoint_envelope_digest.as_str())
+            || progress.completed_units != current.checkpoint.cumulative_point_count
+        {
+            bail!("current checkpoint is ahead of progress; reconcile before admitting a new batch");
+        }
+    }
+    let head_key = checkpoint_head_key(&claim.claim_id, claim.claim_epoch);
+    let prior: Option<WorkspaceCoverageProjectionBatchCheckpointHeadEntry> = opening
+        .iter()
+        .find(|env| env.r#type == HEAD_TYPE && env.key == head_key)
+        .map(decode)
+        .transpose()?;
+    let sequence = prior.as_ref().map_or(Ok(1), |head| {
+        head.sequence
+            .checked_add(1)
+            .ok_or_else(|| anyhow!("checkpoint sequence exhausted"))
+    })?;
+    let batch_ordinal = sequence
+        .checked_sub(1)
+        .ok_or_else(|| anyhow!("checkpoint ordinal underflow"))?;
+    let point_count: u64 = observed.point_bindings.len().try_into()?;
+    let cumulative = observed
+        .first_plan_ordinal
+        .checked_add(point_count)
+        .ok_or_else(|| anyhow!("checkpoint cumulative count overflow"))?;
+    let point_ids = observed
+        .point_bindings
+        .iter()
+        .map(|binding| binding.point_id.clone())
+        .collect();
+    let mut entry = WorkspaceCoverageProjectionBatchCheckpointEntry {
+        schema_version: WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_SCHEMA_VERSION.into(),
+        checkpoint_id: uuid::Uuid::new_v4().to_string(),
+        sequence,
+        predecessor_checkpoint_id: prior.as_ref().map(|head| head.checkpoint_id.clone()),
+        predecessor_checkpoint_envelope_digest: prior
+            .as_ref()
+            .map(|head| head.checkpoint_envelope_digest.clone()),
+        runtime_id: runtime_id.into(),
+        workspace_id: obligation.workspace_id.clone(),
+        body_binding_sha256: obligation.body_binding_sha256.clone(),
+        body_binding_envelope_digest: envelope_digest(binding_env),
+        body_head_envelope_digest: envelope_digest(body_head_env),
+        body_observation_id: obligation.body_observation_id.clone(),
+        body_generation: obligation.body_generation,
+        body_observation_envelope_digest: envelope_digest(observation_env),
+        manifest_root_sha256: obligation.manifest_root_sha256.clone(),
+        body_manifest_envelope_digest: envelope_digest(manifest_env),
+        obligation_id: obligation.obligation_id.clone(),
+        obligation_envelope_digest: envelope_digest(obligation_env),
+        plan_id: plan.plan_id.clone(),
+        plan_envelope_digest: envelope_digest(plan_env),
+        claim_id: claim.claim_id.clone(),
+        claim_epoch: claim.claim_epoch,
+        claim_envelope_digest: envelope_digest(claim_env),
+        attempt_id: attempt.attempt_id.clone(),
+        attempt_envelope_digest: envelope_digest(attempt_env),
+        managed_process_launch_id: launch.launch_id.clone(),
+        managed_process_launch_envelope_digest: launch_digest,
+        provider_incarnation_id: launch.provider_incarnation_id.clone(),
+        provider_public_key: launch.provider_public_key.clone(),
+        projection_schema_version: plan.projection_schema_version.clone(),
+        chunker_id: plan.chunker_id.clone(),
+        embedding_provider_id: plan.embedding_provider_id.clone(),
+        embedding_artifact_identity: plan.embedding_model.clone(),
+        vector_dimensions: plan.vector_dimensions,
+        collection_name: workspace_coverage_execution_collection(
+            &plan.plan_id,
+            &claim.claim_id,
+            claim.claim_epoch,
+        )?,
+        batch_ordinal,
+        first_plan_ordinal: observed.first_plan_ordinal,
+        point_count,
+        cumulative_point_count: cumulative,
+        total_point_count: plan.expected_point_count,
+        point_ids,
+        point_bindings: observed.point_bindings,
+        vector_bindings: observed.vector_bindings,
+        observed_at_utc: chrono::Utc::now().to_rfc3339(),
+        observation_method: OBSERVATION_METHOD.into(),
+        provider_signature: Vec::new(),
+        signature_algorithm: "ed25519".into(),
+    };
+    sign_workspace_coverage_projection_batch_checkpoint(&mut entry, provider_signing_key)?;
+    admit_workspace_coverage_projection_batch_checkpoint(
+        body_store,
+        local_verse_store,
+        trusted_host,
+        entry,
+    )
+}
+
+pub(crate) fn load_authenticated_current_checkpoint(
+    body_store: impl AsRef<Path>,
+    local_verse_store: impl AsRef<Path>,
+    trusted_host: &HostIncarnationIdentityEntry,
+    claim_id: &str,
+    claim_epoch: u64,
+) -> Result<Option<WorkspaceCoverageProjectionBatchCheckpointAdmission>> {
+    let opening = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
+    let head_key = checkpoint_head_key(claim_id, claim_epoch);
+    let Some(head_env) = opening
+        .iter()
+        .find(|env| env.r#type == HEAD_TYPE && env.key == head_key)
+    else {
+        return Ok(None);
+    };
+    let head: WorkspaceCoverageProjectionBatchCheckpointHeadEntry = decode(head_env)?;
+    if head.schema_version != HEAD_SCHEMA
+        || head.claim_id != claim_id
+        || head.claim_epoch != claim_epoch
+        || head.sequence == 0
+    {
+        bail!("current checkpoint head identity is invalid");
+    }
+    let event_env = find(
+        &opening,
+        WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_TYPE,
+        &checkpoint_key(claim_id, &head.checkpoint_id),
+    )?;
+    if envelope_digest(event_env) != head.checkpoint_envelope_digest {
+        bail!("current checkpoint head digest disagrees with event");
+    }
+    let checkpoint: WorkspaceCoverageProjectionBatchCheckpointEntry = decode(event_env)?;
+    validate_shape(&checkpoint, true)?;
+    authenticate_signature(&checkpoint)?;
+    let (launch, launch_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            local_verse_store,
+            checkpoint.runtime_id.clone(),
+            &checkpoint.managed_process_launch_id,
+            trusted_host,
+        )?;
+    validate_launch(&checkpoint, &launch, &launch_digest)?;
+    validate_current_head_event_identity(&checkpoint, &head)?;
+    let binding_env = find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
+    let body_head_env = find(&opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
+    let observation_env = find(
+        &opening,
+        BODY_OBSERVATION_TYPE,
+        &checkpoint.body_observation_id,
+    )?;
+    let manifest_env = find(
+        &opening,
+        BODY_MANIFEST_TYPE,
+        &checkpoint.manifest_root_sha256,
+    )?;
+    let obligation_env = find(&opening, OBLIGATION_TYPE, &checkpoint.obligation_id)?;
+    let plan_env = find(&opening, PLAN_TYPE, &checkpoint.plan_id)?;
+    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)?;
+    let attempt_env = find(&opening, ATTEMPT_TYPE, &checkpoint.attempt_id)?;
+    let binding: RepositoryBodyBinding = decode(binding_env)?;
+    let body_head: RepositoryBodyHead = decode(body_head_env)?;
+    let observation: RepositoryBodyObservation = decode(observation_env)?;
+    let manifest: RepositoryBodyManifest = decode(manifest_env)?;
+    let obligation: WorkspaceCoverageObligation = decode(obligation_env)?;
+    let plan: WorkspaceCoverageProjectionPlan = decode(plan_env)?;
+    let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
+    let attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
+    validate_projection_claim(&claim)?;
+    validate_projection_attempt(&attempt)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+    validate_current_projection_binding(
+        &checkpoint,
+        CurrentProjectionBinding {
+            claim_status: &claim.status,
+            claim_id: &claim.claim_id,
+            claim_epoch: claim.claim_epoch,
+            attempt_status: &attempt.status,
+            attempt_id: &attempt.attempt_id,
+            claim_plan_id: &claim.plan_id,
+            attempt_plan_id: &attempt.plan_id,
+            plan_id: &plan.plan_id,
+            claim_obligation_id: &claim.obligation_id,
+            obligation_id: &obligation.obligation_id,
+            plan_obligation_id: &plan.obligation_id,
+            claim_body_observation_id: &claim.body_observation_id,
+            obligation_body_observation_id: &obligation.body_observation_id,
+            claim_body_generation: claim.body_generation,
+            obligation_body_generation: obligation.body_generation,
+            claim_manifest_root: &claim.manifest_root_sha256,
+            obligation_manifest_root: &obligation.manifest_root_sha256,
+        },
+    )?;
+    validate_workspace_coverage_projection_plan(&obligation, &plan)?;
+    exact_obligation_body_authority(&opening, &obligation)?;
+    validate_authority(
+        &checkpoint,
+        &binding,
+        binding_env,
+        &body_head,
+        body_head_env,
+        &observation,
+        observation_env,
+        &manifest,
+        manifest_env,
+        &obligation,
+        obligation_env,
+        &plan,
+        plan_env,
+        &claim,
+        claim_env,
+        &attempt,
+        attempt_env,
+    )?;
+    validate_batch_against_plan(&checkpoint, &obligation, &plan)?;
+    Ok(Some(WorkspaceCoverageProjectionBatchCheckpointAdmission {
+        checkpoint,
+        checkpoint_envelope_digest: head.checkpoint_envelope_digest,
+    }))
+}
+
+#[derive(Clone, Copy)]
+struct CurrentProjectionBinding<'a> {
+    claim_status: &'a str,
+    claim_id: &'a str,
+    claim_epoch: u64,
+    attempt_status: &'a str,
+    attempt_id: &'a str,
+    claim_plan_id: &'a str,
+    attempt_plan_id: &'a str,
+    plan_id: &'a str,
+    claim_obligation_id: &'a str,
+    obligation_id: &'a str,
+    plan_obligation_id: &'a str,
+    claim_body_observation_id: &'a str,
+    obligation_body_observation_id: &'a str,
+    claim_body_generation: u64,
+    obligation_body_generation: u64,
+    claim_manifest_root: &'a str,
+    obligation_manifest_root: &'a str,
+}
+
+fn validate_current_projection_binding(
+    checkpoint: &WorkspaceCoverageProjectionBatchCheckpointEntry,
+    current: CurrentProjectionBinding<'_>,
+) -> Result<()> {
+    if current.claim_status != "running"
+        || current.attempt_status != "running"
+        || checkpoint.claim_id != current.claim_id
+        || checkpoint.claim_epoch != current.claim_epoch
+        || checkpoint.attempt_id != current.attempt_id
+        || checkpoint.plan_id != current.claim_plan_id
+        || checkpoint.plan_id != current.attempt_plan_id
+        || checkpoint.plan_id != current.plan_id
+        || checkpoint.obligation_id != current.claim_obligation_id
+        || checkpoint.obligation_id != current.obligation_id
+        || current.plan_obligation_id != current.obligation_id
+        || checkpoint.body_observation_id != current.claim_body_observation_id
+        || checkpoint.body_observation_id != current.obligation_body_observation_id
+        || checkpoint.body_generation != current.claim_body_generation
+        || checkpoint.body_generation != current.obligation_body_generation
+        || checkpoint.manifest_root_sha256 != current.claim_manifest_root
+        || checkpoint.manifest_root_sha256 != current.obligation_manifest_root
+    {
+        bail!("checkpoint no longer belongs to current running Body projection authority");
+    }
+    Ok(())
+}
+
+fn validate_current_head_event_identity(
+    checkpoint: &WorkspaceCoverageProjectionBatchCheckpointEntry,
+    head: &WorkspaceCoverageProjectionBatchCheckpointHeadEntry,
+) -> Result<()> {
+    if checkpoint.claim_id != head.claim_id
+        || checkpoint.claim_epoch != head.claim_epoch
+        || checkpoint.checkpoint_id != head.checkpoint_id
+        || checkpoint.sequence != head.sequence
+        || checkpoint.cumulative_point_count != head.cumulative_point_count
+        || checkpoint.total_point_count != head.total_point_count
+        || checkpoint.collection_name != head.collection_name
+    {
+        bail!("current checkpoint head is stale or substituted");
+    }
+    Ok(())
+}
+
+fn validate_observed_batch_input(observed: &ObservedWorkspaceCoverageBatchInput) -> Result<()> {
+    if observed.claim_id.trim().is_empty()
+        || observed.attempt_id.trim().is_empty()
+        || observed.plan_id.trim().is_empty()
+        || observed.point_bindings.is_empty()
+        || observed.point_bindings.len() > WORKSPACE_COVERAGE_BATCH_CHECKPOINT_MAX_POINTS
+        || observed.point_bindings.len() != observed.vector_bindings.len()
+    {
+        bail!("observed workspace coverage batch has invalid bounded cardinality");
+    }
+    for (point, vector) in observed.point_bindings.iter().zip(&observed.vector_bindings) {
+        if point.point_id.trim().is_empty()
+            || point.point_id != vector.point_id
+            || !canonical_sha256(&point.payload_sha256)
+            || !canonical_sha256(&vector.vector_sha256)
+        {
+            bail!("observed workspace coverage batch binding shape is invalid");
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn sign_workspace_coverage_projection_batch_checkpoint(
     entry: &mut WorkspaceCoverageProjectionBatchCheckpointEntry,
     key: &SigningKey,
 ) -> Result<()> {
@@ -186,7 +571,7 @@ pub fn sign_workspace_coverage_projection_batch_checkpoint(
     Ok(())
 }
 
-pub fn admit_workspace_coverage_projection_batch_checkpoint(
+pub(crate) fn admit_workspace_coverage_projection_batch_checkpoint(
     body_store: impl AsRef<Path>,
     local_verse_store: impl AsRef<Path>,
     trusted_host: &HostIncarnationIdentityEntry,
@@ -866,6 +1251,112 @@ mod tests {
         };
         e.sequence = 1;
         assert!(validate_chain(&e, Some(&head)).is_err());
+    }
+    #[test]
+    fn high_level_builder_input_refuses_caller_identity_and_binding_substitution() {
+        let valid = ObservedWorkspaceCoverageBatchInput {
+            claim_id: "claim".into(),
+            attempt_id: "attempt".into(),
+            plan_id: "plan".into(),
+            first_plan_ordinal: 0,
+            point_bindings: vec![WorkspaceCoveragePointBinding {
+                point_id: "sealed-point".into(),
+                payload_sha256: "a".repeat(64),
+            }],
+            vector_bindings: vec![WorkspaceCoverageVectorBinding {
+                point_id: "sealed-point".into(),
+                vector_sha256: "b".repeat(64),
+            }],
+        };
+        validate_observed_batch_input(&valid).unwrap();
+        for mutation in ["claim", "point", "payload", "vector", "empty"] {
+            let mut alien = valid.clone();
+            match mutation {
+                "claim" => alien.claim_id.clear(),
+                "point" => alien.vector_bindings[0].point_id = "substituted".into(),
+                "payload" => alien.point_bindings[0].payload_sha256 = "not-a-digest".into(),
+                "vector" => alien.vector_bindings[0].vector_sha256 = "not-a-digest".into(),
+                _ => {
+                    alien.point_bindings.clear();
+                    alien.vector_bindings.clear();
+                }
+            }
+            assert!(validate_observed_batch_input(&alien).is_err(), "{mutation}");
+        }
+    }
+    #[test]
+    fn authenticated_head_identity_refuses_stale_or_substituted_event() {
+        let k = SigningKey::from_bytes(&[7; 32]);
+        let event = sample(&k);
+        let head = WorkspaceCoverageProjectionBatchCheckpointHeadEntry {
+            schema_version: HEAD_SCHEMA.into(),
+            claim_id: event.claim_id.clone(),
+            claim_epoch: event.claim_epoch,
+            checkpoint_id: event.checkpoint_id.clone(),
+            checkpoint_envelope_digest: format!("sha256-{}", "9".repeat(64)),
+            sequence: event.sequence,
+            cumulative_point_count: event.cumulative_point_count,
+            total_point_count: event.total_point_count,
+            collection_name: event.collection_name.clone(),
+        };
+        validate_current_head_event_identity(&event, &head).unwrap();
+        for mutation in ["sequence", "count", "claim", "checkpoint", "collection"] {
+            let mut stale = head.clone();
+            match mutation {
+                "sequence" => stale.sequence += 1,
+                "count" => stale.cumulative_point_count += 1,
+                "claim" => stale.claim_id.push('x'),
+                "checkpoint" => stale.checkpoint_id.push('x'),
+                _ => stale.collection_name.push('x'),
+            }
+            assert!(validate_current_head_event_identity(&event, &stale).is_err(), "{mutation}");
+        }
+    }
+    #[test]
+    fn current_body_projection_rejects_historical_or_terminal_checkpoint_authority() {
+        let k = SigningKey::from_bytes(&[7; 32]);
+        let event = sample(&k);
+        let current = CurrentProjectionBinding {
+            claim_status: "running",
+            claim_id: &event.claim_id,
+            claim_epoch: event.claim_epoch,
+            attempt_status: "running",
+            attempt_id: &event.attempt_id,
+            claim_plan_id: &event.plan_id,
+            attempt_plan_id: &event.plan_id,
+            plan_id: &event.plan_id,
+            claim_obligation_id: &event.obligation_id,
+            obligation_id: &event.obligation_id,
+            plan_obligation_id: &event.obligation_id,
+            claim_body_observation_id: &event.body_observation_id,
+            obligation_body_observation_id: &event.body_observation_id,
+            claim_body_generation: event.body_generation,
+            obligation_body_generation: event.body_generation,
+            claim_manifest_root: &event.manifest_root_sha256,
+            obligation_manifest_root: &event.manifest_root_sha256,
+        };
+        validate_current_projection_binding(&event, current).unwrap();
+        for mutation in [
+            "prior-generation",
+            "terminal-claim",
+            "terminal-attempt",
+            "replaced-claim",
+            "changed-plan",
+            "changed-obligation",
+            "changed-manifest",
+        ] {
+            let mut stale = current;
+            match mutation {
+                "prior-generation" => stale.obligation_body_generation += 1,
+                "terminal-claim" => stale.claim_status = "succeeded",
+                "terminal-attempt" => stale.attempt_status = "failed",
+                "replaced-claim" => stale.claim_id = "replacement-claim",
+                "changed-plan" => stale.plan_id = "replacement-plan",
+                "changed-obligation" => stale.obligation_id = "replacement-obligation",
+                _ => stale.obligation_manifest_root = "replacement-manifest",
+            }
+            assert!(validate_current_projection_binding(&event, stale).is_err(), "{mutation}");
+        }
     }
     #[test]
     fn authority_model_collection_and_total_are_signed() {
