@@ -129,6 +129,14 @@ pub fn required_packaged_release_binaries() -> Vec<(&'static str, &'static str)>
                 "epiphany-repository-body"
             },
         ),
+        (
+            "host-identity",
+            if cfg!(windows) {
+                "epiphany-host-identity.exe"
+            } else {
+                "epiphany-host-identity"
+            },
+        ),
     ]
 }
 
@@ -323,6 +331,7 @@ fn required_release_binary(role: &str) -> Result<&'static str> {
         "semantic-query" => Ok("epiphany-memory-semantic"),
         "verse-query" => Ok("epiphany-verse-query"),
         "repository-body" => Ok("epiphany-repository-body"),
+        "host-identity" => Ok("epiphany-host-identity"),
         _ => bail!("unknown required release role {role}"),
     }
 }
