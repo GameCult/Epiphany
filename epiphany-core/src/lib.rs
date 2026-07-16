@@ -42,6 +42,7 @@ mod thread_state_store;
 mod weksa_interlingua;
 mod workspace_coverage_process_bootstrap;
 mod workspace_coverage_process_documents;
+mod workspace_coverage_projection_progress;
 mod workspace_coverage_projector;
 mod workspace_coverage_projector_service;
 #[allow(dead_code)]
@@ -1210,6 +1211,14 @@ pub use workspace_coverage_process_documents::{
     workspace_coverage_termination_statement, write_workspace_coverage_managed_process_launch,
     write_workspace_coverage_process_termination_observation,
     write_workspace_coverage_provider_heartbeat,
+};
+pub use workspace_coverage_projection_progress::{
+    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_TYPE, WorkspaceCoverageProjectionProgressEntry,
+    authenticate_workspace_coverage_projection_progress,
+    load_latest_workspace_coverage_projection_progress,
+    load_workspace_coverage_projection_progress, sign_workspace_coverage_projection_progress,
+    workspace_coverage_projection_progress_statement, write_workspace_coverage_projection_progress,
 };
 pub use workspace_coverage_projector::{
     WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES, WorkspaceCoverageRecoveryOutcome,
