@@ -2,7 +2,8 @@ use anyhow::{Result, bail};
 use chrono::Utc;
 use epiphany_core::{
     ObserveOutcome, RuntimeSpineInitOptions, bind_repository_body,
-    bind_runtime_to_agent_memory_swarm, ensure_agent_memory_swarm_identity,
+    admit_legacy_agent_memory_generation, bind_runtime_to_agent_memory_swarm,
+    ensure_agent_memory_swarm_identity,
     initialize_runtime_spine, load_repository_body_status, observe_repository_body,
 };
 use std::path::PathBuf;
@@ -31,6 +32,7 @@ fn main() -> Result<()> {
                 },
             )?;
             ensure_agent_memory_swarm_identity(&agent_store, swarm_id)?;
+            admit_legacy_agent_memory_generation(&agent_store)?;
             bind_runtime_to_agent_memory_swarm(&runtime_store, &agent_store, &at)?;
             let binding = bind_repository_body(&repo, &store, &runtime_store, workspace_id)?;
             println!(
