@@ -1852,6 +1852,22 @@ status reopened identity
 Next implement immutable Idunn termination observation before replacement spawn,
 then the exact Body recovery CAS. Timeout recovery remains forbidden.
 
+Immutable termination evidence is now implemented. The only public writer uses
+native boot/process observation; the injectable source is private to tests. A
+host-signed per-launch record binds the exact current policy envelope, exact
+specialized launch, exact per-launch latest signed heartbeat, enrolled host,
+expected boot/PID generation/path, observed outcome, and optional exact exit or
+replacement material. Publication exact-CASes those three source envelopes and
+an absent immutable termination key. There is no latest termination pointer.
+Alive, inaccessible, indeterminate, unknown boot, host mismatch, collision, or
+moved source state refuses. Authentication reconstructs the complete persisted
+chain instead of blessing the signed blob by itself.
+
+Next wire Idunn ordering and Body recovery: predecessor termination must persist
+before replacement spawn; replacement signed ready must exist before one atomic
+v1 claim/attempt terminalize-and-reacquire CAS. Add negative ordering and stale-
+Body tests before calling recovery operational.
+
 The deployment next action is unchanged and permission-bound. Do not reboot
 without exact live operator approval. With that approval, run the real
 reboot/logon recovery proof already specified above.

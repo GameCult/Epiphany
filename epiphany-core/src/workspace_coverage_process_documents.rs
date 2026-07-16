@@ -3,7 +3,8 @@ use crate::{
     EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID,
     EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID, EpiphanyCultMeshManagedServicePolicyEntry,
     HOST_IDENTITY_KEY, HOST_IDENTITY_TYPE, HostIdentitySignature, HostIdentitySigner,
-    HostIncarnationIdentityEntry, ProcessInstanceIdentity, open_epiphany_cultmesh_node,
+    HostIncarnationIdentityEntry, ProcessInstanceIdentity, ProcessInstanceObservation,
+    native_boot_identity, observe_process_instance, open_epiphany_cultmesh_node,
     verify_host_identity_signature,
 };
 use anyhow::{Context, Result, anyhow, bail};
@@ -26,10 +27,17 @@ pub const WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION: &str =
     "epiphany.workspace_coverage.provider_heartbeat.v0";
 pub const WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY: &str =
     "epiphany-local/workspace-coverage/provider-heartbeat/latest/";
+pub const WORKSPACE_COVERAGE_PROCESS_TERMINATION_TYPE: &str =
+    "epiphany.workspace_coverage.process_termination_observation";
+pub const WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION: &str =
+    "epiphany.workspace_coverage.process_termination_observation.v0";
 
 const HOST_LAUNCH_PURPOSE: &str = "epiphany.workspace-coverage.managed-process-launch.v0";
 const PROVIDER_HEARTBEAT_DOMAIN: &[u8] =
     b"epiphany.workspace-coverage.provider-heartbeat.signature.v0\0";
+const HOST_TERMINATION_PURPOSE: &str =
+    "epiphany.workspace-coverage.process-termination-observation.v0";
+const WORKSPACE_COVERAGE_TERMINATION_OBSERVER: &str = "epiphany-daemon-supervisor";
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -141,6 +149,81 @@ pub struct WorkspaceCoverageProviderHeartbeatEntry {
     pub signature_algorithm: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.workspace_coverage.process_termination_observation",
+    schema = "WorkspaceCoverageProcessTerminationObservationEntry"
+)]
+pub struct WorkspaceCoverageProcessTerminationObservationEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub termination_id: String,
+    #[cultcache(key = 2)]
+    pub launch_id: String,
+    #[cultcache(key = 3)]
+    pub launch_envelope_digest: String,
+    #[cultcache(key = 4)]
+    pub heartbeat_id: String,
+    #[cultcache(key = 5)]
+    pub heartbeat_envelope_digest: String,
+    #[cultcache(key = 6)]
+    pub policy_id: String,
+    #[cultcache(key = 7)]
+    pub policy_envelope_digest: String,
+    #[cultcache(key = 8)]
+    pub runtime_id: String,
+    #[cultcache(key = 9)]
+    pub host_identity_id: String,
+    #[cultcache(key = 10)]
+    pub host_identity_record_digest: String,
+    #[cultcache(key = 11)]
+    pub expected_boot_identity: String,
+    #[cultcache(key = 12)]
+    pub expected_process_id: u32,
+    #[cultcache(key = 13)]
+    pub expected_process_creation_token: u64,
+    #[cultcache(key = 14)]
+    pub expected_process_executable_path: String,
+    #[cultcache(key = 15)]
+    pub observed_boot_identity: String,
+    #[cultcache(key = 16)]
+    pub outcome: String,
+    #[cultcache(key = 17)]
+    pub exit_code: Option<u32>,
+    #[cultcache(key = 18)]
+    pub replacement_process_id: Option<u32>,
+    #[cultcache(key = 19)]
+    pub replacement_process_creation_token: Option<u64>,
+    #[cultcache(key = 20)]
+    pub replacement_process_created_at_rfc3339: Option<String>,
+    #[cultcache(key = 21)]
+    pub replacement_process_executable_path: Option<String>,
+    #[cultcache(key = 22)]
+    pub observed_at_utc: String,
+    #[cultcache(key = 23)]
+    pub observer_id: String,
+    #[cultcache(key = 24)]
+    pub host_signature: Vec<u8>,
+    #[cultcache(key = 25)]
+    pub signature_algorithm: String,
+}
+
+trait WorkspaceCoverageProcessObservationSource {
+    fn boot_identity(&self) -> Option<String>;
+    fn observe(&self, expected: &ProcessInstanceIdentity) -> ProcessInstanceObservation;
+}
+
+struct NativeWorkspaceCoverageProcessObservationSource;
+impl WorkspaceCoverageProcessObservationSource for NativeWorkspaceCoverageProcessObservationSource {
+    fn boot_identity(&self) -> Option<String> {
+        native_boot_identity()
+    }
+    fn observe(&self, expected: &ProcessInstanceIdentity) -> ProcessInstanceObservation {
+        observe_process_instance(expected)
+    }
+}
+
 #[derive(Serialize)]
 struct LaunchStatement<'a> {
     schema_version: &'a str,
@@ -191,6 +274,35 @@ struct HeartbeatStatement<'a> {
     sequence: u64,
     status: &'a str,
     observed_at_utc: &'a str,
+    signature_algorithm: &'a str,
+}
+
+#[derive(Serialize)]
+struct TerminationStatement<'a> {
+    schema_version: &'a str,
+    termination_id: &'a str,
+    launch_id: &'a str,
+    launch_envelope_digest: &'a str,
+    heartbeat_id: &'a str,
+    heartbeat_envelope_digest: &'a str,
+    policy_id: &'a str,
+    policy_envelope_digest: &'a str,
+    runtime_id: &'a str,
+    host_identity_id: &'a str,
+    host_identity_record_digest: &'a str,
+    expected_boot_identity: &'a str,
+    expected_process_id: u32,
+    expected_process_creation_token: u64,
+    expected_process_executable_path: &'a str,
+    observed_boot_identity: &'a str,
+    outcome: &'a str,
+    exit_code: Option<u32>,
+    replacement_process_id: Option<u32>,
+    replacement_process_creation_token: Option<u64>,
+    replacement_process_created_at_rfc3339: &'a Option<String>,
+    replacement_process_executable_path: &'a Option<String>,
+    observed_at_utc: &'a str,
+    observer_id: &'a str,
     signature_algorithm: &'a str,
 }
 
@@ -277,6 +389,51 @@ pub fn workspace_coverage_heartbeat_statement(
         observed_at_utc: &entry.observed_at_utc,
         signature_algorithm: &entry.signature_algorithm,
     })?)
+}
+
+pub fn workspace_coverage_termination_statement(
+    entry: &WorkspaceCoverageProcessTerminationObservationEntry,
+) -> Result<Vec<u8>> {
+    Ok(rmp_serde::to_vec_named(&TerminationStatement {
+        schema_version: &entry.schema_version,
+        termination_id: &entry.termination_id,
+        launch_id: &entry.launch_id,
+        launch_envelope_digest: &entry.launch_envelope_digest,
+        heartbeat_id: &entry.heartbeat_id,
+        heartbeat_envelope_digest: &entry.heartbeat_envelope_digest,
+        policy_id: &entry.policy_id,
+        policy_envelope_digest: &entry.policy_envelope_digest,
+        runtime_id: &entry.runtime_id,
+        host_identity_id: &entry.host_identity_id,
+        host_identity_record_digest: &entry.host_identity_record_digest,
+        expected_boot_identity: &entry.expected_boot_identity,
+        expected_process_id: entry.expected_process_id,
+        expected_process_creation_token: entry.expected_process_creation_token,
+        expected_process_executable_path: &entry.expected_process_executable_path,
+        observed_boot_identity: &entry.observed_boot_identity,
+        outcome: &entry.outcome,
+        exit_code: entry.exit_code,
+        replacement_process_id: entry.replacement_process_id,
+        replacement_process_creation_token: entry.replacement_process_creation_token,
+        replacement_process_created_at_rfc3339: &entry.replacement_process_created_at_rfc3339,
+        replacement_process_executable_path: &entry.replacement_process_executable_path,
+        observed_at_utc: &entry.observed_at_utc,
+        observer_id: &entry.observer_id,
+        signature_algorithm: &entry.signature_algorithm,
+    })?)
+}
+
+pub fn sign_workspace_coverage_termination(
+    entry: &mut WorkspaceCoverageProcessTerminationObservationEntry,
+    signer: &HostIdentitySigner,
+) -> Result<()> {
+    entry.host_signature.clear();
+    let proof = signer.sign(
+        HOST_TERMINATION_PURPOSE,
+        &workspace_coverage_termination_statement(entry)?,
+    )?;
+    entry.host_signature = proof.signature;
+    Ok(())
 }
 
 pub fn sign_workspace_coverage_heartbeat(
@@ -560,6 +717,215 @@ pub fn authenticate_workspace_coverage_provider_heartbeat(
     Ok(heartbeat)
 }
 
+pub fn write_workspace_coverage_process_termination_observation(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host: &HostIdentitySigner,
+) -> Result<WorkspaceCoverageProcessTerminationObservationEntry> {
+    write_workspace_coverage_process_termination_observation_with_source(
+        store_path,
+        runtime_id,
+        launch_id,
+        host,
+        &NativeWorkspaceCoverageProcessObservationSource,
+    )
+}
+
+fn write_workspace_coverage_process_termination_observation_with_source(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host: &HostIdentitySigner,
+    source: &dyn WorkspaceCoverageProcessObservationSource,
+) -> Result<WorkspaceCoverageProcessTerminationObservationEntry> {
+    require_nonempty("launch id", launch_id)?;
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
+
+    let policy_envelope = node
+        .cache()
+        .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&managed_policy_key())?
+        .ok_or_else(|| anyhow!("workspace coverage managed policy is absent"))?;
+    let policy: EpiphanyCultMeshManagedServicePolicyEntry =
+        rmp_serde::from_slice(&policy_envelope.payload)?;
+    validate_workspace_coverage_projector_managed_service_policy(&policy)?;
+
+    let launch_envelope = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(launch_id))?
+        .ok_or_else(|| anyhow!("workspace coverage managed process launch is absent"))?;
+    let launch: WorkspaceCoverageManagedProcessLaunchEntry =
+        rmp_serde::from_slice(&launch_envelope.payload)?;
+    validate_launch(&launch, host.entry())?;
+    if launch.runtime_id != runtime_id
+        || launch.policy_id != policy.policy_id
+        || launch.policy_envelope_digest != envelope_digest(&policy_envelope)
+        || launch.command != policy.command
+        || launch.args != policy.args
+        || launch.cwd != policy.cwd
+    {
+        bail!("workspace coverage termination launch disagrees with current managed policy");
+    }
+
+    let heartbeat_latest_envelope = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&heartbeat_latest_key(launch_id))?
+        .ok_or_else(|| anyhow!("workspace coverage launch has no provider heartbeat"))?;
+    let heartbeat: WorkspaceCoverageProviderHeartbeatEntry =
+        rmp_serde::from_slice(&heartbeat_latest_envelope.payload)?;
+    authenticate_heartbeat_against_launch(&heartbeat, &launch, &envelope_digest(&launch_envelope))?;
+
+    let observed_boot_identity = source
+        .boot_identity()
+        .ok_or_else(|| anyhow!("current boot identity is unavailable; termination is unproved"))?;
+    let (outcome, exit_code, replacement) = if observed_boot_identity != launch.boot_identity {
+        ("boot_superseded", None, None)
+    } else {
+        match source.observe(&process_identity_from_workspace_coverage_launch(&launch)) {
+            ProcessInstanceObservation::ExactExited { exit_code } => {
+                ("exact_exited", exit_code, None)
+            }
+            ProcessInstanceObservation::Missing => ("process_missing", None, None),
+            ProcessInstanceObservation::Replaced { observed } => {
+                ("process_replaced", None, Some(observed))
+            }
+            ProcessInstanceObservation::ExactAlive => {
+                bail!("exact workspace coverage process instance is still alive")
+            }
+            ProcessInstanceObservation::Inaccessible => {
+                bail!("workspace coverage process observation is inaccessible")
+            }
+            ProcessInstanceObservation::Indeterminate { reason } => {
+                bail!("workspace coverage process termination is indeterminate: {reason}")
+            }
+        }
+    };
+    let observed_at_utc = chrono::Utc::now().to_rfc3339();
+    let mut entry = WorkspaceCoverageProcessTerminationObservationEntry {
+        schema_version: WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION.to_string(),
+        termination_id: launch.launch_id.clone(),
+        launch_id: launch.launch_id.clone(),
+        launch_envelope_digest: envelope_digest(&launch_envelope),
+        heartbeat_id: heartbeat.heartbeat_id.clone(),
+        heartbeat_envelope_digest: envelope_digest(&heartbeat_latest_envelope),
+        policy_id: policy.policy_id.clone(),
+        policy_envelope_digest: envelope_digest(&policy_envelope),
+        runtime_id,
+        host_identity_id: host.entry().identity_id.clone(),
+        host_identity_record_digest: workspace_coverage_host_identity_record_digest(host.entry())?,
+        expected_boot_identity: launch.boot_identity.clone(),
+        expected_process_id: launch.process_id,
+        expected_process_creation_token: launch.process_creation_token,
+        expected_process_executable_path: launch.process_executable_path.clone(),
+        observed_boot_identity,
+        outcome: outcome.to_string(),
+        exit_code,
+        replacement_process_id: replacement.as_ref().map(|value| value.process_id),
+        replacement_process_creation_token: replacement.as_ref().map(|value| value.creation_token),
+        replacement_process_created_at_rfc3339: replacement
+            .as_ref()
+            .and_then(|value| value.created_at_rfc3339.clone()),
+        replacement_process_executable_path: replacement
+            .as_ref()
+            .map(|value| value.executable_path.display().to_string()),
+        observed_at_utc,
+        observer_id: WORKSPACE_COVERAGE_TERMINATION_OBSERVER.to_string(),
+        host_signature: Vec::new(),
+        signature_algorithm: "ed25519".to_string(),
+    };
+    sign_workspace_coverage_termination(&mut entry, host)?;
+    validate_termination(&entry, host.entry())?;
+
+    let key = termination_key(launch_id);
+    let replacement = node.cache().prepare_entry(&key, &entry)?.0;
+    if !SingleFileMessagePackBackingStore::new(store_path).compare_and_swap_batch(
+        &[
+            policy_envelope.clone(),
+            launch_envelope.clone(),
+            heartbeat_latest_envelope.clone(),
+        ],
+        vec![
+            policy_envelope,
+            launch_envelope,
+            heartbeat_latest_envelope,
+            replacement,
+        ],
+    )? {
+        bail!("workspace coverage termination lost exact policy/launch/heartbeat CAS or collided");
+    }
+    Ok(entry)
+}
+
+pub fn load_workspace_coverage_process_termination_observation(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+) -> Result<Option<WorkspaceCoverageProcessTerminationObservationEntry>> {
+    require_nonempty("launch id", launch_id)?;
+    open_epiphany_cultmesh_node(store_path, runtime_id)?.get(&termination_key(launch_id))
+}
+
+pub fn authenticate_workspace_coverage_process_termination_observation(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host: &HostIncarnationIdentityEntry,
+) -> Result<WorkspaceCoverageProcessTerminationObservationEntry> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let entry = load_workspace_coverage_process_termination_observation(
+        store_path,
+        runtime_id.clone(),
+        launch_id,
+    )?
+    .ok_or_else(|| anyhow!("workspace coverage process termination observation is absent"))?;
+    validate_termination(&entry, host)?;
+    if entry.runtime_id != runtime_id || entry.launch_id != launch_id {
+        bail!("workspace coverage termination request disagrees with signed identity");
+    }
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let policy_envelope = node
+        .cache()
+        .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&managed_policy_key())?
+        .ok_or_else(|| anyhow!("workspace coverage termination policy evidence is absent"))?;
+    let policy: EpiphanyCultMeshManagedServicePolicyEntry =
+        rmp_serde::from_slice(&policy_envelope.payload)?;
+    validate_workspace_coverage_projector_managed_service_policy(&policy)?;
+    let launch_envelope = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(launch_id))?
+        .ok_or_else(|| anyhow!("workspace coverage termination launch evidence is absent"))?;
+    let launch: WorkspaceCoverageManagedProcessLaunchEntry =
+        rmp_serde::from_slice(&launch_envelope.payload)?;
+    validate_launch(&launch, host)?;
+    let heartbeat_envelope = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&heartbeat_latest_key(launch_id))?
+        .ok_or_else(|| anyhow!("workspace coverage termination heartbeat evidence is absent"))?;
+    let heartbeat: WorkspaceCoverageProviderHeartbeatEntry =
+        rmp_serde::from_slice(&heartbeat_envelope.payload)?;
+    authenticate_heartbeat_against_launch(&heartbeat, &launch, &envelope_digest(&launch_envelope))?;
+    if entry.policy_id != policy.policy_id
+        || entry.policy_envelope_digest != envelope_digest(&policy_envelope)
+        || launch.policy_id != policy.policy_id
+        || launch.policy_envelope_digest != entry.policy_envelope_digest
+        || entry.launch_envelope_digest != envelope_digest(&launch_envelope)
+        || entry.heartbeat_id != heartbeat.heartbeat_id
+        || entry.heartbeat_envelope_digest != envelope_digest(&heartbeat_envelope)
+        || entry.host_identity_id != launch.host_identity_id
+        || entry.host_identity_record_digest != launch.host_identity_record_digest
+        || entry.expected_boot_identity != launch.boot_identity
+        || entry.expected_process_id != launch.process_id
+        || entry.expected_process_creation_token != launch.process_creation_token
+        || entry.expected_process_executable_path != launch.process_executable_path
+    {
+        bail!("workspace coverage termination evidence chain disagrees with its exact sources");
+    }
+    Ok(entry)
+}
+
 fn validate_launch(
     entry: &WorkspaceCoverageManagedProcessLaunchEntry,
     host: &HostIncarnationIdentityEntry,
@@ -742,6 +1108,123 @@ fn provider_message(statement: &[u8]) -> Vec<u8> {
     out.extend_from_slice(statement);
     out
 }
+
+fn validate_termination(
+    entry: &WorkspaceCoverageProcessTerminationObservationEntry,
+    host: &HostIncarnationIdentityEntry,
+) -> Result<()> {
+    if entry.schema_version != WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION
+        || entry.observer_id != WORKSPACE_COVERAGE_TERMINATION_OBSERVER
+        || entry.termination_id != entry.launch_id
+        || entry.runtime_id.trim().is_empty()
+    {
+        bail!("workspace coverage termination violates its reserved authority");
+    }
+    uuid::Uuid::parse_str(&entry.launch_id).context("termination launch id must be UUID")?;
+    uuid::Uuid::parse_str(&entry.heartbeat_id).context("termination heartbeat id must be UUID")?;
+    DateTime::parse_from_rfc3339(&entry.observed_at_utc)
+        .context("termination observation time must be RFC3339")?;
+    for (label, digest) in [
+        ("launch", &entry.launch_envelope_digest),
+        ("heartbeat", &entry.heartbeat_envelope_digest),
+        ("policy", &entry.policy_envelope_digest),
+        ("host identity record", &entry.host_identity_record_digest),
+    ] {
+        validate_digest(label, digest)?;
+    }
+    for (label, value) in [
+        ("policy id", entry.policy_id.as_str()),
+        ("host identity id", entry.host_identity_id.as_str()),
+        (
+            "expected boot identity",
+            entry.expected_boot_identity.as_str(),
+        ),
+        (
+            "observed boot identity",
+            entry.observed_boot_identity.as_str(),
+        ),
+    ] {
+        require_nonempty(label, value)?;
+    }
+    validate_absolute_path(&entry.expected_process_executable_path)?;
+    if entry.expected_process_id == 0 || entry.expected_process_creation_token == 0 {
+        bail!("termination expected process identity is invalid");
+    }
+    match entry.outcome.as_str() {
+        "exact_exited" => {
+            if replacement_fields_present(entry) {
+                bail!("exact exit must not carry a replacement process identity");
+            }
+        }
+        "process_missing" => {
+            if entry.exit_code.is_some() || replacement_fields_present(entry) {
+                bail!("missing process must not carry exit or replacement material");
+            }
+        }
+        "process_replaced" => {
+            if entry.exit_code.is_some()
+                || entry.replacement_process_id.unwrap_or(0) == 0
+                || entry.replacement_process_creation_token.unwrap_or(0) == 0
+                || entry.replacement_process_executable_path.is_none()
+            {
+                bail!("replaced process requires one complete replacement identity");
+            }
+            validate_absolute_path(
+                entry
+                    .replacement_process_executable_path
+                    .as_deref()
+                    .unwrap_or_default(),
+            )?;
+            if entry.replacement_process_id == Some(entry.expected_process_id)
+                && entry.replacement_process_creation_token
+                    == Some(entry.expected_process_creation_token)
+                && entry.replacement_process_executable_path.as_deref()
+                    == Some(entry.expected_process_executable_path.as_str())
+            {
+                bail!("replacement process identity must differ from the terminated instance");
+            }
+        }
+        "boot_superseded" => {
+            if entry.observed_boot_identity == entry.expected_boot_identity
+                || entry.exit_code.is_some()
+                || replacement_fields_present(entry)
+            {
+                bail!("boot supersession requires two distinct boot identities only");
+            }
+        }
+        _ => bail!("workspace coverage termination outcome is not authoritative"),
+    }
+    if entry.outcome != "boot_superseded"
+        && entry.observed_boot_identity != entry.expected_boot_identity
+    {
+        bail!("same-boot process outcome disagrees with the expected boot identity");
+    }
+    if entry.signature_algorithm != "ed25519"
+        || entry.host_signature.len() != 64
+        || entry.host_identity_id != host.identity_id
+        || entry.host_identity_record_digest
+            != workspace_coverage_host_identity_record_digest(host)?
+    {
+        bail!("workspace coverage termination host signature material is invalid");
+    }
+    verify_host_identity_signature(
+        host,
+        HOST_TERMINATION_PURPOSE,
+        &workspace_coverage_termination_statement(entry)?,
+        &HostIdentitySignature {
+            identity_id: entry.host_identity_id.clone(),
+            signature: entry.host_signature.clone(),
+        },
+    )
+}
+
+fn replacement_fields_present(entry: &WorkspaceCoverageProcessTerminationObservationEntry) -> bool {
+    entry.replacement_process_id.is_some()
+        || entry.replacement_process_creation_token.is_some()
+        || entry.replacement_process_created_at_rfc3339.is_some()
+        || entry.replacement_process_executable_path.is_some()
+}
+
 fn require_nonempty(name: &str, value: &str) -> Result<()> {
     if value.trim().is_empty() {
         bail!("workspace coverage {name} is required");
@@ -773,6 +1256,9 @@ fn heartbeat_key(id: &str) -> String {
 fn heartbeat_latest_key(launch_id: &str) -> String {
     format!("{WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY}{launch_id}")
 }
+fn termination_key(launch_id: &str) -> String {
+    format!("epiphany-local/workspace-coverage/process-termination/{launch_id}")
+}
 fn managed_policy_key() -> String {
     format!(
         "epiphany-local/managed-service-policy/{}",
@@ -792,9 +1278,25 @@ fn envelope_digest(envelope: &cultcache_rs::CultCacheEnvelope) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION, enroll_host_identity_at};
+    use crate::{
+        EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_SCHEMA_VERSION, enroll_host_identity_at,
+        write_epiphany_cultmesh_workspace_coverage_projector_service_policy,
+    };
     use rand_core::{OsRng, RngCore};
     use uuid::Uuid;
+
+    struct FakeObservation {
+        boot: Option<String>,
+        process: ProcessInstanceObservation,
+    }
+    impl WorkspaceCoverageProcessObservationSource for FakeObservation {
+        fn boot_identity(&self) -> Option<String> {
+            self.boot.clone()
+        }
+        fn observe(&self, _expected: &ProcessInstanceIdentity) -> ProcessInstanceObservation {
+            self.process.clone()
+        }
+    }
 
     fn provider_key() -> SigningKey {
         let mut seed = [0_u8; 32];
@@ -927,6 +1429,41 @@ mod tests {
         Ok(entry)
     }
 
+    fn persisted_chain(
+        root: &Path,
+    ) -> Result<(
+        std::path::PathBuf,
+        HostIdentitySigner,
+        WorkspaceCoverageManagedProcessLaunchEntry,
+    )> {
+        let store = root.join("verse.ccmp");
+        let host = enroll_host_identity_at(&root.join("host.ccmp"))?;
+        let policy = policy()?;
+        let mut node = open_epiphany_cultmesh_node(&store, "local")?;
+        node.put(managed_policy_key(), &policy)?;
+        let policy_envelope = node
+            .cache()
+            .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&managed_policy_key())?
+            .context("test policy envelope absent")?;
+        let provider = provider_key();
+        let launch = launch(&policy, envelope_digest(&policy_envelope), &host, &provider)?;
+        write_workspace_coverage_managed_process_launch(
+            &store,
+            "local",
+            launch.clone(),
+            host.entry(),
+        )?;
+        let launch_envelope = open_epiphany_cultmesh_node(&store, "local")?
+            .cache()
+            .get_envelope::<WorkspaceCoverageManagedProcessLaunchEntry>(&launch_key(
+                &launch.launch_id,
+            ))?
+            .context("test launch envelope absent")?;
+        let pulse = heartbeat(&launch, envelope_digest(&launch_envelope), &provider, 1)?;
+        write_workspace_coverage_provider_heartbeat(&store, "local", pulse)?;
+        Ok((store, host, launch))
+    }
+
     #[test]
     fn signed_launch_and_per_launch_heartbeat_chain_is_exact() -> Result<()> {
         let temp = tempfile::tempdir()?;
@@ -1005,6 +1542,147 @@ mod tests {
         heartbeat.status = "healthy-ish".to_string();
         sign_workspace_coverage_heartbeat(&mut heartbeat, &provider)?;
         assert!(validate_heartbeat_shape(&heartbeat).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn termination_observation_accepts_only_exact_native_proofs_and_is_immutable() -> Result<()> {
+        let cases = vec![
+            (
+                "exact_exited",
+                ProcessInstanceObservation::ExactExited { exit_code: Some(7) },
+            ),
+            ("process_missing", ProcessInstanceObservation::Missing),
+            (
+                "process_replaced",
+                ProcessInstanceObservation::Replaced {
+                    observed: ProcessInstanceIdentity {
+                        process_id: 777,
+                        creation_token: 888,
+                        created_at_rfc3339: None,
+                        executable_path: std::fs::canonicalize(std::env::current_exe()?)?,
+                    },
+                },
+            ),
+        ];
+        for (expected_outcome, process) in cases {
+            let temp = tempfile::tempdir()?;
+            let (store, host, launch) = persisted_chain(temp.path())?;
+            let source = FakeObservation {
+                boot: Some(launch.boot_identity.clone()),
+                process,
+            };
+            let proof = write_workspace_coverage_process_termination_observation_with_source(
+                &store,
+                "local",
+                &launch.launch_id,
+                &host,
+                &source,
+            )?;
+            assert_eq!(proof.outcome, expected_outcome);
+            assert_eq!(
+                authenticate_workspace_coverage_process_termination_observation(
+                    &store,
+                    "local",
+                    &launch.launch_id,
+                    host.entry(),
+                )?,
+                proof
+            );
+            assert!(
+                write_workspace_coverage_process_termination_observation_with_source(
+                    &store,
+                    "local",
+                    &launch.launch_id,
+                    &host,
+                    &source,
+                )
+                .expect_err("termination key is immutable")
+                .to_string()
+                .contains("collided")
+            );
+            let mut advanced_policy = policy()?;
+            advanced_policy.updated_at_utc = "2026-07-16T23:59:59Z".to_string();
+            write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+                &store,
+                "local",
+                advanced_policy,
+            )?;
+            assert!(
+                authenticate_workspace_coverage_process_termination_observation(
+                    &store,
+                    "local",
+                    &launch.launch_id,
+                    host.entry(),
+                )
+                .expect_err("moved policy source invalidates exact termination chain")
+                .to_string()
+                .contains("disagrees")
+            );
+        }
+
+        let temp = tempfile::tempdir()?;
+        let (store, host, launch) = persisted_chain(temp.path())?;
+        let source = FakeObservation {
+            boot: Some("proved-new-boot".to_string()),
+            process: ProcessInstanceObservation::ExactAlive,
+        };
+        let proof = write_workspace_coverage_process_termination_observation_with_source(
+            &store,
+            "local",
+            &launch.launch_id,
+            &host,
+            &source,
+        )?;
+        assert_eq!(proof.outcome, "boot_superseded");
+        assert_ne!(proof.expected_boot_identity, proof.observed_boot_identity);
+        Ok(())
+    }
+
+    #[test]
+    fn termination_observation_refuses_missing_boot_alive_and_uncertain_processes() -> Result<()> {
+        let cases = vec![
+            FakeObservation {
+                boot: None,
+                process: ProcessInstanceObservation::Missing,
+            },
+            FakeObservation {
+                boot: Some("test-boot-incarnation".into()),
+                process: ProcessInstanceObservation::ExactAlive,
+            },
+            FakeObservation {
+                boot: Some("test-boot-incarnation".into()),
+                process: ProcessInstanceObservation::Inaccessible,
+            },
+            FakeObservation {
+                boot: Some("test-boot-incarnation".into()),
+                process: ProcessInstanceObservation::Indeterminate {
+                    reason: "host lied".into(),
+                },
+            },
+        ];
+        for source in cases {
+            let temp = tempfile::tempdir()?;
+            let (store, host, launch) = persisted_chain(temp.path())?;
+            assert!(
+                write_workspace_coverage_process_termination_observation_with_source(
+                    &store,
+                    "local",
+                    &launch.launch_id,
+                    &host,
+                    &source,
+                )
+                .is_err()
+            );
+            assert!(
+                load_workspace_coverage_process_termination_observation(
+                    &store,
+                    "local",
+                    &launch.launch_id,
+                )?
+                .is_none()
+            );
+        }
         Ok(())
     }
 }

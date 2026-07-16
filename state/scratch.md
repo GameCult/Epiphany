@@ -122,3 +122,18 @@ cannot impersonate the new semantic owner. A native `epiphany-host-identity`
 enroll/status actuator was added, and this Windows installation was enrolled
 once at the default DPAPI CurrentUser path. Next build immutable termination
 evidence before replacement and only then the Body recovery CAS.
+
+## Immutable exact termination evidence (2026-07-16)
+
+Idunn can now publish one host-signed termination observation for one exact
+coverage launch. It exact-CASes the current policy, signed launch, and that
+launch's latest signed heartbeat while inserting an immutable per-launch key;
+there is no global termination head. Different proven boot, exact exit, exact
+same-boot absence, and exact PID replacement are the only outcomes. Alive,
+inaccessible, indeterminate, unknown boot, host mismatch, collisions, and moved
+source envelopes fail closed. The fake observation seam is module-private.
+Authentication rejoins the signed record to all exact persisted sources.
+
+Next wire reconcile order: termination first, replacement launch second,
+replacement signed-ready third, then one Body recovery CAS. No timer gets a
+vote.
