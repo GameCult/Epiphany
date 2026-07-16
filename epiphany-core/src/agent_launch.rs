@@ -72,6 +72,134 @@ pub fn epiphany_role_label(role_id: EpiphanyRoleResultRoleId) -> &'static str {
     }
 }
 
+fn repo_frontier_item_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["id", "migration_body", "question", "gap", "recommended_next_organ", "status"],
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "migration_body": {"type": "string", "minLength": 1},
+            "question": {"type": "string", "minLength": 1},
+            "gap": {"type": "string", "minLength": 1},
+            "target_claim_ids": {"type": "array", "items": {"type": "string"}},
+            "source_scope": {"type": "array", "items": {"type": "string"}},
+            "recommended_next_organ": {"type": "string", "minLength": 1},
+            "dependency_item_ids": {"type": "array", "items": {"type": "string"}},
+            "status": {"type": "string", "enum": ["proposed", "active", "blocked", "resolved", "retired", "superseded"]},
+            "evidence_refs": {"type": "array", "items": {"type": "string"}},
+            "created_at": {"type": "string"},
+            "updated_at": {"type": "string"}
+        }
+    })
+}
+
+fn repo_model_node_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["id", "domain_id", "profile", "kind", "title", "claim", "question", "tension", "action_implication"],
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "domain_id": {"type": "string", "minLength": 1},
+            "profile": {"type": "string", "enum": ["repo_architecture", "repo_dataflow", "role_self", "short_term", "incubation", "agency_pressure", "candidate_intervention", "identity", "evidence"]},
+            "kind": {"type": "string", "enum": ["domain", "module", "crate", "binary", "schema", "runtime_contract", "adapter", "test_seam", "state_store", "role_memory", "short_term_thought", "incubation_thread", "agency_pressure", "candidate_intervention", "identity", "evidence", "summary", "other"]},
+            "title": {"type": "string"},
+            "claim": {"type": "string"},
+            "question": {"type": "string"},
+            "tension": {"type": "string"},
+            "action_implication": {"type": "string"},
+            "anchors": {"type": "array", "items": memory_anchor_output_schema()},
+            "source_hashes": {"type": "array", "items": {"type": "string"}},
+            "lifecycle": {"type": "string"},
+            "salience": {"type": "integer", "minimum": 0},
+            "confidence": {"type": "integer", "minimum": 0},
+            "created_at": {"type": "string"},
+            "updated_at": {"type": "string"}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn repo_model_edge_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["id", "source_id", "target_id", "kind", "profile", "claim"],
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "source_id": {"type": "string", "minLength": 1},
+            "target_id": {"type": "string", "minLength": 1},
+            "kind": {"type": "string", "enum": ["owns", "reads", "writes", "derives", "adapts", "persists", "launches", "verifies", "supports", "contradicts", "distills", "revises", "retires", "grounds", "triggers", "spoken_as", "cools", "clusters_with", "resonates_with", "depends_on", "other"]},
+            "profile": {"type": "string", "enum": ["repo_architecture", "repo_dataflow", "role_self", "short_term", "incubation", "agency_pressure", "candidate_intervention", "identity", "evidence"]},
+            "claim": {"type": "string"},
+            "anchors": {"type": "array", "items": memory_anchor_output_schema()},
+            "lifecycle": {"type": "string"},
+            "confidence": {"type": "integer", "minimum": 0}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn code_ref_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+            "path": {"type": "string", "minLength": 1},
+            "start_line": {"type": "integer", "minimum": 1},
+            "end_line": {"type": "integer", "minimum": 1},
+            "symbol": {"type": "string"},
+            "note": {"type": "string"}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn memory_anchor_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["id", "kind", "target"],
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "kind": {"type": "string", "minLength": 1},
+            "target": {"type": "string", "minLength": 1},
+            "code_ref": code_ref_output_schema(),
+            "evidence_id": {"type": "string"},
+            "source_hash": {"type": "string"}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn observation_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["id", "summary", "source_kind", "status"],
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "summary": {"type": "string", "minLength": 1},
+            "source_kind": {"type": "string", "minLength": 1},
+            "status": {"type": "string", "minLength": 1},
+            "code_refs": {"type": "array", "items": code_ref_output_schema()},
+            "evidence_ids": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": false
+    })
+}
+
+fn evidence_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "required": ["id", "kind", "status", "summary"],
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "kind": {"type": "string", "minLength": 1},
+            "status": {"type": "string", "minLength": 1},
+            "summary": {"type": "string", "minLength": 1},
+            "code_refs": {"type": "array", "items": code_ref_output_schema()}
+        },
+        "additionalProperties": false
+    })
+}
+
 pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> serde_json::Value {
     let verdict_enum = match role_id {
         EpiphanyRoleResultRoleId::Imagination => {
@@ -275,6 +403,32 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                                 "required": ["id", "kind", "status", "summary"],
                                 "additionalProperties": true
                             }
+                        },
+                        "scratch": {
+                            "type": "object",
+                            "required": ["summary"],
+                            "properties": {
+                                "summary": {"type": "string", "minLength": 1}
+                            },
+                            "additionalProperties": true
+                        },
+                        "investigationCheckpoint": {
+                            "type": "object",
+                            "description": "Outer statePatch uses camelCase; this typed checkpoint payload uses its canonical snake_case field names.",
+                            "required": ["checkpoint_id", "kind", "disposition", "focus"],
+                            "properties": {
+                                "checkpoint_id": {"type": "string", "minLength": 1},
+                                "kind": {"type": "string", "minLength": 1},
+                                "disposition": {"type": "string", "enum": ["resume_ready", "regather_required"]},
+                                "focus": {"type": "string", "minLength": 1},
+                                "summary": {"type": "string"},
+                                "next_action": {"type": "string"},
+                                "captured_at_turn_id": {"type": "string"},
+                                "open_questions": {"type": "array", "items": {"type": "string"}},
+                                "code_refs": {"type": "array", "items": {"type": "object"}},
+                                "evidence_ids": {"type": "array", "items": {"type": "string"}}
+                            },
+                            "additionalProperties": false
                         }
                     },
                     "anyOf": [
@@ -349,10 +503,38 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                                     "required": ["kind"],
                                     "properties": {"kind": {"const": "repair_claim"}},
                                     "additionalProperties": false
+                                },
+                                {
+                                    "type": "object",
+                                    "required": ["kind", "planning_request_id", "result_id", "candidate_id"],
+                                    "properties": {
+                                        "kind": {"const": "adopt_frontier_plan"},
+                                        "planning_request_id": {"type": "string", "minLength": 1},
+                                        "result_id": {"type": "string", "minLength": 1},
+                                        "candidate_id": {"type": "string", "minLength": 1}
+                                    },
+                                    "additionalProperties": false
                                 }
                             ]
                         },
-                        "operations": {"type": "array", "minItems": 1, "items": {"type": "object"}}
+                        "operations": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "anyOf": [
+                                    {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "upsert_node"}, "node": repo_model_node_output_schema()}},
+                                    {"type": "object", "required": ["operation", "node"], "properties": {"operation": {"const": "revise_node"}, "node": repo_model_node_output_schema()}},
+                                    {"type": "object", "required": ["operation", "node_id"], "properties": {"operation": {"const": "retire_node"}, "node_id": {"type": "string", "minLength": 1}}},
+                                    {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "upsert_edge"}, "edge": repo_model_edge_output_schema()}},
+                                    {"type": "object", "required": ["operation", "edge"], "properties": {"operation": {"const": "revise_edge"}, "edge": repo_model_edge_output_schema()}},
+                                    {"type": "object", "required": ["operation", "edge_id"], "properties": {"operation": {"const": "retire_edge"}, "edge_id": {"type": "string", "minLength": 1}}},
+                                    {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "upsert_frontier"}, "item": repo_frontier_item_output_schema()}},
+                                    {"type": "object", "required": ["operation", "item"], "properties": {"operation": {"const": "revise_frontier"}, "item": repo_frontier_item_output_schema()}},
+                                    {"type": "object", "required": ["operation", "item_id"], "properties": {"operation": {"const": "retire_frontier"}, "item_id": {"type": "string", "minLength": 1}, "retired_at": {"type": "string"}, "superseded_by": {"type": "string"}}},
+                                    {"type": "object", "required": ["operation", "frontier_item_id", "expected_frontier_item_hash", "adopted_plan"], "properties": {"operation": {"const": "adopt_frontier_plan"}, "frontier_item_id": {"type": "string", "minLength": 1}, "expected_frontier_item_hash": {"type": "string", "minLength": 1}, "adopted_plan": {"type": "object"}}}
+                                ]
+                            }
+                        }
                     },
                     "additionalProperties": true
                 }),
@@ -383,8 +565,8 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                     "type": "object",
                     "description": "Optional generic Mind-reviewable observations/evidence only. Repository anatomy belongs exclusively in repoModelPatch.",
                     "properties": {
-                        "observations": {"type": "array"},
-                        "evidence": {"type": "array"}
+                        "observations": {"type": "array", "items": observation_output_schema()},
+                        "evidence": {"type": "array", "items": evidence_output_schema()}
                     },
                     "additionalProperties": false
                 }),
@@ -1107,6 +1289,7 @@ mod tests {
 
         assert!(prompt.contains("Epiphany Worker Boundary"));
         assert!(prompt.contains("Act as the Epiphany modeling/checkpoint specialist"));
+        assert!(prompt.contains("node `kind` is a closed vocabulary"));
         assert!(!prompt.contains("## Epiphany Persistent Memory"));
         assert!(!prompt.contains("Heartbeat: every lane"));
     }
@@ -1164,7 +1347,7 @@ mod tests {
         let purposes = schema["properties"]["repoModelPatch"]["properties"]["purpose"]["oneOf"]
             .as_array()
             .expect("typed Modeling purpose alternatives");
-        assert_eq!(purposes.len(), 3);
+        assert_eq!(purposes.len(), 4);
         assert_eq!(purposes[0]["properties"]["kind"]["const"], "evolution");
         assert_eq!(
             purposes[1]["properties"]["kind"]["const"],
@@ -1183,9 +1366,22 @@ mod tests {
         );
         assert_eq!(purposes[2]["properties"]["kind"]["const"], "repair_claim");
         assert_eq!(
+            purposes[3]["properties"]["kind"]["const"],
+            "adopt_frontier_plan"
+        );
+        assert_eq!(
             schema["allOf"][1]["then"]["required"][0],
             "claimRepairRequestId"
         );
+        let operations =
+            schema["properties"]["repoModelPatch"]["properties"]["operations"]["items"]["anyOf"]
+                .as_array()
+                .expect("typed Modeling operations");
+        let node_kinds = operations[0]["properties"]["node"]["properties"]["kind"]["enum"]
+            .as_array()
+            .expect("typed RepoModel node kinds");
+        assert!(node_kinds.iter().any(|kind| kind == "runtime_contract"));
+        assert!(!node_kinds.iter().any(|kind| kind == "claim"));
     }
 
     #[test]

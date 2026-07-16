@@ -572,6 +572,10 @@ pub fn build_worker_model_request(
         worker_instructions(launch_request, &launch_document, &output_schema_json);
     if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
         instructions.push_str("\n\nTool mandate: before returning `needs-evidence` because source files, command artifacts, commit diffs, or Hands receipt bodies are not inspectable, call the read-only source tools available on this request. Use `mcp__epiphany_source__read_file` for cited source/artifact paths, `mcp__epiphany_source__git_show` for commit diffs, and `mcp__epiphany_source__read_hands_receipt` for Hands patch/command/commit receipts. If a tool fails, cite that failed tool result and the exact remaining blocker.");
+    } else if launch_request.binding_id == epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID {
+        instructions.push_str("\n\nTool mandate: Eyes must inspect current repository sources before emitting evidence. Call the bounded read-only file or Git tools, cite the exact inspected paths/revisions in filesInspected and evidence, and report a source gap if the required body cannot be observed.");
+    } else if launch_request.binding_id == epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID {
+        instructions.push_str("\n\nTool mandate: Modeling must inspect current repository sources before proposing repository anatomy. Call the bounded read-only file or Git tools, cite the exact inspected paths/revisions in filesInspected and evidence, and emit regather-needed instead of inventing unobserved structure.");
     }
     let mut request = EpiphanyModelRequest::new(
         request_id,
@@ -589,8 +593,13 @@ pub fn build_worker_model_request(
     request.reasoning_summary = Some("concise".to_string());
     request.output_contract_id = Some(launch_request.output_contract_id.clone());
     request.output_schema_json = Some(output_schema_json);
-    if launch_request.binding_id == epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID {
-        request.tools = verification_source_tools();
+    if matches!(
+        launch_request.binding_id.as_str(),
+        epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID
+            | epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID
+            | epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID
+    ) {
+        request.tools = repository_source_tools();
     }
     Ok(request)
 }
@@ -603,9 +612,15 @@ pub fn complete_worker_job_from_assistant_text(
     assistant_text: &str,
 ) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
     let launch_document = launch_request.launch_document()?;
-    let parsed = parse_worker_result_ingress(&launch_document, assistant_text).ok();
+    let parsed_result = parse_worker_result_ingress(&launch_document, assistant_text);
+    let parse_error = parsed_result
+        .as_ref()
+        .err()
+        .map(|error| format!("{error:#}"));
+    let parsed = parsed_result.ok();
     let openai_failed = openai_summary.verdict != "pass";
-    let verdict = if openai_failed {
+    let contract_failed = !openai_failed && parsed.is_none();
+    let verdict = if openai_failed || contract_failed {
         "failed".to_string()
     } else {
         parsed
@@ -615,18 +630,28 @@ pub fn complete_worker_job_from_assistant_text(
     };
     let summary = if openai_failed {
         format!("Worker model request {openai_request_id} failed before producing usable output.")
+    } else if let Some(error) = parse_error.as_deref() {
+        format!(
+            "Worker model response failed declared output contract {}: {error}",
+            launch_request.output_contract_id
+        )
     } else {
         parsed
             .as_ref()
             .and_then(WorkerResultIngress::summary)
             .unwrap_or_else(|| "Worker completed without a structured summary.".to_string())
     };
-    let next_safe_move = parsed
-        .as_ref()
-        .and_then(WorkerResultIngress::next_safe_move)
-        .unwrap_or_else(|| {
-            "Review the typed worker runtime result before accepting state.".to_string()
-        });
+    let next_safe_move = if contract_failed {
+        "Repair the worker prompt/output-schema boundary before relaunching; no typed role result was admitted."
+            .to_string()
+    } else {
+        parsed
+            .as_ref()
+            .and_then(WorkerResultIngress::next_safe_move)
+            .unwrap_or_else(|| {
+                "Review the typed worker runtime result before accepting state.".to_string()
+            })
+    };
     let mut evidence_refs = parsed
         .as_ref()
         .map(WorkerResultIngress::evidence_ids)
@@ -1034,11 +1059,11 @@ pub fn openai_request_from_model_request(
     }
 }
 
-fn verification_source_tools() -> Vec<EpiphanyModelToolDefinition> {
+fn repository_source_tools() -> Vec<EpiphanyModelToolDefinition> {
     vec![
         EpiphanyModelToolDefinition {
             name: "mcp__epiphany_source__read_file".to_string(),
-            description: "Read a bounded UTF-8 text slice from the current workspace for Soul verification. Use only for source files and operator-safe artifacts named in the launch packet.".to_string(),
+            description: "Read a bounded UTF-8 text slice from the current workspace for source-grounded Eyes, Modeling, or Soul work. Use only for repository sources and operator-safe artifacts in scope.".to_string(),
             parameters_json: serde_json::json!({
                 "type": "object",
                 "additionalProperties": false,
@@ -2075,6 +2100,19 @@ mod tests {
     fn completes_worker_job_from_model_json_without_codex_worker_runtime() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
+        let body_basis = epiphany_core::RepositoryBodyObservationBasis {
+            schema_version: "epiphany.repository_body.observation_basis.v0".to_string(),
+            workspace_id: "workspace-test".to_string(),
+            swarm_id: "swarm-test".to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            scope: "whole_repository".to_string(),
+            body_binding_sha256: "body-binding".to_string(),
+            observation_id: "body-observation-1".to_string(),
+            generation: 1,
+            manifest_root_sha256: "manifest-root".to_string(),
+            scan_started_at: "2026-07-13T00:00:00Z".to_string(),
+            scan_finished_at: "2026-07-13T00:00:01Z".to_string(),
+        };
         open_runtime_spine_heartbeat_job(
             &store,
             RuntimeSpineHeartbeatJobOptions {
@@ -2084,7 +2122,7 @@ mod tests {
                 objective: "Run typed worker.".to_string(),
                 coordinator_note: "test".to_string(),
                 job_id: "worker-job-1".to_string(),
-                role: "modeling".to_string(),
+                role: epiphany_core::EPIPHANY_MODELING_OWNER_ROLE.to_string(),
                 binding_id: "modeling-checkpoint-worker".to_string(),
                 authority_scope: "epiphany.role.modeling".to_string(),
                 instruction: "Return the required role-result JSON.".to_string(),
@@ -2098,7 +2136,7 @@ mod tests {
                             "<epiphany_dynamic_context>\nlocal Verse: bounded\n</epiphany_dynamic_context>"
                                 .to_string(),
                         ),
-                        repository_body_observation_basis: None,
+                        repository_body_observation_basis: Some(body_basis.clone()),
                         proposal_modeling_context: None,
                         claim_repair_context: None,
                         frontier_planning_context: None,
@@ -2154,7 +2192,13 @@ mod tests {
                 .contains("<epiphany_dynamic_context>")
         );
         assert!(model_request.instructions.contains("local Verse: bounded"));
-        assert!(model_request.tools.is_empty());
+        assert!(
+            model_request
+                .tools
+                .iter()
+                .any(|tool| tool.name == "mcp__epiphany_source__read_file")
+        );
+        assert!(model_request.instructions.contains("Modeling must inspect"));
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
             session_id: "openai-worker-session-modeling-checkpoint-worker".to_string(),
@@ -2167,12 +2211,34 @@ mod tests {
             receipt_id: Some(model_request.request_id.clone()),
             tool_intent_ids: Vec::new(),
         };
+        let assistant_text = serde_json::json!({
+            "roleId": "modeling",
+            "verdict": "checkpoint-ready",
+            "summary": "Mapped.",
+            "nextSafeMove": "Review the patch.",
+            "filesInspected": ["src/lib.rs"],
+            "frontierNodeIds": ["old"],
+            "evidenceIds": ["ev-1"],
+            "artifactRefs": ["artifact:model"],
+            "repositoryBodyObservationBasis": body_basis,
+            "repoModelPatch": {
+                "patch_id": "modeling-runtime-test",
+                "base_revision": 0,
+                "base_hash": "legacy-hash",
+                "applied_at": "2026-07-13T00:00:00Z",
+                "purpose": {"kind": "evolution"},
+                "operations": [{"operation": "retire_node", "node_id": "old"}]
+            },
+            "statePatch": {"observations": [], "evidence": []},
+            "selfPatch": {"reason": "typed nested document"}
+        })
+        .to_string();
         let result = complete_worker_job_from_assistant_text(
             &store,
             &launch_request,
             &model_request.request_id,
             &openai_summary,
-            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"frontierNodeIds":["old"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"],"repoModelPatch":{"patch_id":"modeling-runtime-test","base_revision":0,"base_hash":"legacy-hash","applied_at":"2026-07-13T00:00:00Z","purpose":{"kind":"evolution"},"operations":[{"operation":"retire_node","node_id":"old"}]},"statePatch":{"observations":[],"evidence":[]},"selfPatch":{"reason":"typed nested document"}} "#,
+            &assistant_text,
         )?;
 
         assert_eq!(result.job_id, "worker-job-1");

@@ -115,17 +115,10 @@ pub fn recommend_crrc_action(input: EpiphanyCrrcInput) -> EpiphanyCrrcRecommenda
             if input.finding_accepted
                 && input.reorient_action == EpiphanyCrrcReorientAction::Regather
             {
-                if input.loaded {
-                    return build(
-                        EpiphanyCrrcAction::LaunchReorientWorker,
-                        Some(EpiphanyCrrcSceneAction::ReorientLaunch),
-                        "The accepted reorientation finding is stale against the current regather checkpoint; launch a fresh bounded worker before implementation continues.",
-                    );
-                }
                 return build(
                     EpiphanyCrrcAction::RegatherManually,
                     Some(EpiphanyCrrcSceneAction::Reorient),
-                    "The accepted reorientation finding is stale against the current regather checkpoint, but the thread is not loaded.",
+                    "The accepted reorientation finding requires source regather; hand off to Eyes rather than relaunching the continuity judge.",
                 );
             }
             if input.finding_accepted {
@@ -251,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn relaunches_stale_accepted_regather() {
+    fn hands_accepted_regather_to_eyes() {
         let recommendation = recommend_crrc_action(EpiphanyCrrcInput {
             reorient_action: EpiphanyCrrcReorientAction::Regather,
             result_status: EpiphanyCrrcResultStatus::Completed,
@@ -260,9 +253,10 @@ mod tests {
             ..input()
         });
 
+        assert_eq!(recommendation.action, EpiphanyCrrcAction::RegatherManually);
         assert_eq!(
-            recommendation.action,
-            EpiphanyCrrcAction::LaunchReorientWorker
+            recommendation.recommended_scene_action,
+            Some(EpiphanyCrrcSceneAction::Reorient)
         );
     }
 }

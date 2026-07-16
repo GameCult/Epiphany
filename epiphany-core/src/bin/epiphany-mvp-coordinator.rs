@@ -69,6 +69,7 @@ struct Args {
     tool_adapter_bin: PathBuf,
     model_provider: String,
     thread_id: Option<String>,
+    objective: Option<String>,
     cwd: PathBuf,
     codex_home: PathBuf,
     artifact_dir: PathBuf,
@@ -96,6 +97,7 @@ impl Args {
             tool_adapter_bin: PathBuf::from(DEFAULT_TOOL_ADAPTER_BIN),
             model_provider: "openai-codex".to_string(),
             thread_id: None,
+            objective: None,
             cwd: root.clone(),
             codex_home: env::var_os("CODEX_HOME")
                 .map(PathBuf::from)
@@ -136,6 +138,7 @@ impl Args {
                     parsed.model_provider = take_string(&mut args, "--model-provider")?;
                 }
                 "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
+                "--objective" => parsed.objective = Some(take_string(&mut args, "--objective")?),
                 "--proposal-modeling-request-id" => {
                     parsed.proposal_modeling_request_id =
                         Some(take_string(&mut args, "--proposal-modeling-request-id")?);
@@ -268,6 +271,15 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "sessionId": runtime_session.session_id,
         "eventId": runtime_event.event_id,
     }));
+    if let Some(objective) = args.objective.as_deref() {
+        let intake = intake_operator_objective(&runtime_store, &thread_id, objective)?;
+        startup_events.push(json!({
+            "type": "operatorObjectiveIntake",
+            "threadId": thread_id,
+            "revision": intake.state.revision,
+            "changed": intake.changed,
+        }));
+    }
 
     for index in 0..args.max_steps {
         let status = collect_coordinator_status(&runtime_store, &thread_id)?;
@@ -396,6 +408,24 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     steps.push(step);
                     break;
                 }
+                let can_accept = args.auto_review
+                    && reorient_result_auto_acceptable(&result)
+                    && revision.is_some();
+                if can_accept {
+                    let accepted = accept_reorient(
+                        &runtime_store,
+                        &thread_id,
+                        revision.and_then(|value| u64::try_from(value).ok()),
+                    )?;
+                    push_event(
+                        &mut step,
+                        json!({"type": "reorientAccept", "accepted": status_cli::sanitize_for_operator(accepted)}),
+                    );
+                    final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    continue;
+                }
                 final_action = json!({"action": "reviewReorientResult", "reason": result["note"]});
                 append_operator_step_jsonl(&steps_path, &step)?;
                 steps.push(step);
@@ -424,6 +454,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
                 let launch = launch_role(
                     &runtime_store,
+                    &local_verse_store,
                     &thread_id,
                     role_id,
                     revision,
@@ -488,6 +519,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "launchReorientWorker" => {
                 let launch = launch_reorient(
                     &runtime_store,
+                    &local_verse_store,
                     &thread_id,
                     revision,
                     args.max_runtime_seconds,
@@ -660,6 +692,21 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         }),
     )?;
     Ok(summary)
+}
+
+fn intake_operator_objective(
+    runtime_store: &Path,
+    thread_id: &str,
+    objective: &str,
+) -> Result<epiphany_core::UserObjectiveIntakeApplied> {
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
+    service.intake_user_objective(epiphany_core::UserObjectiveIntakeInput {
+        thread_id: thread_id.to_string(),
+        objective: objective.to_string(),
+        source_actor: "operator".to_string(),
+        source_ref: "cli://epiphany-mvp-coordinator".to_string(),
+        submitted_at: now(),
+    })
 }
 
 fn assert_local_verse_brake_released(local_verse_store: &Path, runner_name: &str) -> Result<()> {
@@ -850,6 +897,7 @@ fn hands_record_pass_command(runtime_store: &Path, artifact_dir: &Path) -> Value
 
 fn launch_role(
     runtime_store: &Path,
+    local_verse_store: &Path,
     thread_id: &str,
     role_id: &str,
     expected_revision: Option<i64>,
@@ -864,6 +912,7 @@ fn launch_role(
     let expected_revision = expected_revision.and_then(|value| u64::try_from(value).ok());
     let mut context = epiphany_core::render_launch_dynamic_prompt_context(
         runtime_store,
+        local_verse_store,
         &state,
         epiphany_core::role_launch_context_focus(&state, epiphany_core::epiphany_role_label(role)),
     )
@@ -943,6 +992,55 @@ fn accept_role(
     }))
 }
 
+fn accept_reorient(
+    runtime_store: &Path,
+    thread_id: &str,
+    expected_revision: Option<u64>,
+) -> Result<Value> {
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
+    let state = service
+        .state()?
+        .ok_or_else(|| anyhow!("cannot accept reorientation without native coordinator state"))?;
+    let snapshot = service.reorient_result(epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID)?;
+    if let Some(result_id) = snapshot
+        .finding
+        .as_ref()
+        .and_then(|finding| finding.runtime_result_id.as_deref())
+        && let Some(existing) = state.acceptance_receipts.iter().find(|receipt| {
+            receipt.result_id == result_id
+                && receipt.binding_id == epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID
+                && receipt.surface == "reorientAccept"
+                && receipt.status == "accepted"
+        })
+    {
+        return Ok(json!({
+            "revision": state.revision,
+            "state": state,
+            "acceptedReceiptId": existing.id,
+            "changed": false,
+        }));
+    }
+    let accepted = service.accept_reorient(
+        thread_id,
+        &state,
+        epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+        expected_revision,
+        None,
+        now(),
+        &Uuid::new_v4().to_string(),
+        true,
+        true,
+    )?;
+    Ok(json!({
+        "revision": accepted.state.revision,
+        "state": accepted.state,
+        "acceptedReceiptId": accepted.update.accepted_receipt_id,
+        "acceptedObservationId": accepted.update.accepted_observation_id,
+        "acceptedEvidenceId": accepted.update.accepted_evidence_id,
+        "finding": accepted.finding,
+    }))
+}
+
 fn parse_role_id(role_id: &str) -> Result<epiphany_core::EpiphanyRoleResultRoleId> {
     match role_id {
         "imagination" => Ok(epiphany_core::EpiphanyRoleResultRoleId::Imagination),
@@ -999,9 +1097,28 @@ fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
     }
     match role_id {
         "verification" => true,
-        "research" | "modeling" | "imagination" => finding.get("statePatch").is_some(),
+        "research" | "modeling" | "imagination" => finding["statePatch"].is_object(),
         _ => false,
     }
+}
+
+fn reorient_result_auto_acceptable(result: &Value) -> bool {
+    if result["status"].as_str() != Some("completed") {
+        return false;
+    }
+    let finding = &result["finding"];
+    finding["runtimeResultId"]
+        .as_str()
+        .is_some_and(|id| !id.trim().is_empty())
+        && finding["runtimeJobId"]
+            .as_str()
+            .is_some_and(|id| !id.trim().is_empty())
+        && finding["summary"]
+            .as_str()
+            .is_some_and(|summary| !summary.trim().is_empty())
+        && finding["checkpointStillValid"].is_boolean()
+        && !finding["jobError"].is_string()
+        && !finding["itemError"].is_string()
 }
 
 fn role_result_needs_supersession(role_id: &str, result: &Value) -> bool {
@@ -1029,6 +1146,35 @@ fn supersede_role_result(
         .unwrap_or_else(|| default_binding_id_for_role(role_id));
     let summary = first_string_at(result, &[&["finding", "summary"], &["note"]])
         .unwrap_or_else(|| "Role result reviewed and superseded.".to_string());
+    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
+    if let Some(state) = service.state()?
+        && let Some(existing) = state
+            .acceptance_receipts
+            .iter()
+            .find(|receipt| receipt.result_id == result_id)
+    {
+        if existing.job_id == job_id
+            && existing.binding_id == binding_id
+            && existing.surface == "roleFailureReview"
+            && existing.role_id == role_id
+            && existing.status == "superseded"
+        {
+            return Ok(json!({
+                "revision": state.revision,
+                "changedFields": [],
+                "state": state,
+                "receipt": existing,
+                "changed": false,
+            }));
+        }
+        return Err(anyhow!(
+            "runtime result already has conflicting acceptance authority: surface={:?} role={:?} status={:?} binding={:?}",
+            existing.surface,
+            existing.role_id,
+            existing.status,
+            existing.binding_id
+        ));
+    }
     let receipt = epiphany_state_model::EpiphanyAcceptanceReceipt {
         id: format!("role-failure-review-{}", Uuid::new_v4()),
         result_id,
@@ -1042,7 +1188,6 @@ fn supersede_role_result(
         accepted_evidence_id: None,
         summary: Some(summary),
     };
-    let service = epiphany_core::EpiphanyCoordinatorService::new(runtime_store);
     let applied = service.apply_state_update(
         thread_id,
         epiphany_core::EpiphanyStateUpdate {
@@ -1072,6 +1217,7 @@ fn default_binding_id_for_role(role_id: &str) -> String {
 
 fn launch_reorient(
     runtime_store: &Path,
+    local_verse_store: &Path,
     thread_id: &str,
     expected_revision: Option<i64>,
     max_runtime_seconds: u64,
@@ -1090,6 +1236,7 @@ fn launch_reorient(
             .context("native reorientation status did not contain a typed decision")?;
     let context = epiphany_core::render_launch_dynamic_prompt_context(
         runtime_store,
+        local_verse_store,
         &state,
         epiphany_core::reorient_launch_context_focus(&state, &decision.next_action),
     )
@@ -1508,6 +1655,25 @@ mod tests {
     }
 
     #[test]
+    fn operator_objective_intake_creates_once_and_refuses_replacement() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime.cc");
+
+        let first = intake_operator_objective(&store, "thread-1", "Map the machine")?;
+        assert!(first.changed);
+        assert_eq!(first.state.revision, 1);
+
+        let repeated = intake_operator_objective(&store, "thread-1", " Map the machine ")?;
+        assert!(!repeated.changed);
+        assert_eq!(repeated.state.revision, first.state.revision);
+
+        let error = intake_operator_objective(&store, "thread-1", "Replace the machine")
+            .expect_err("objective replacement must require a typed adoption flow");
+        assert!(error.to_string().contains("refusing to replace"));
+        Ok(())
+    }
+
+    #[test]
     fn auto_review_accepts_receipt_only_verification_findings() {
         let result = json!({
             "status": "completed",
@@ -1569,8 +1735,18 @@ mod tests {
                 "statePatch": {"scratch": {"summary": "mapped"}}
             }
         });
+        let null_patch = json!({
+            "status": "completed",
+            "finding": {
+                "summary": "Explicit null is still no state patch.",
+                "runtimeResultId": "result-modeling-null",
+                "runtimeJobId": "job-modeling-null",
+                "statePatch": null
+            }
+        });
 
         assert!(role_result_needs_supersession("modeling", &unreviewable));
+        assert!(role_result_needs_supersession("modeling", &null_patch));
         assert!(!role_result_needs_supersession("modeling", &reviewable));
         assert!(!role_result_needs_supersession(
             "verification",

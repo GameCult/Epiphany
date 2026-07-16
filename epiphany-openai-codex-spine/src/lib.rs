@@ -213,6 +213,11 @@ pub fn responses_body_from_epiphany(
             .input
             .iter()
             .any(|item| matches!(item, EpiphanyOpenAiInputItem::ToolResult { .. }));
+    let text = responses_text_format(
+        request.output_contract_id.as_deref(),
+        request.output_schema_json.as_deref(),
+        &request.request_id,
+    )?;
     let body = EpiphanyResponsesBody {
         model: request.model,
         instructions: request.instructions,
@@ -226,7 +231,12 @@ pub fn responses_body_from_epiphany(
             .into_iter()
             .map(openai_tool_from_epiphany_tool)
             .collect::<Result<Vec<_>>>()?,
-        tool_choice: if requires_initial_tool { "required" } else { "auto" }.to_string(),
+        tool_choice: if requires_initial_tool {
+            "required"
+        } else {
+            "auto"
+        }
+        .to_string(),
         parallel_tool_calls: false,
         reasoning: Some(EpiphanyResponsesReasoning {
             effort: parse_reasoning_effort(request.reasoning_effort.as_deref())?,
@@ -238,10 +248,71 @@ pub fn responses_body_from_epiphany(
         service_tier: parse_service_tier(request.service_tier.as_deref())?,
         previous_response_id: request.previous_response_id,
         prompt_cache_key: None,
-        text: None,
+        text,
         client_metadata: None,
     };
     serde_json::to_value(body).context("failed to encode typed Epiphany Responses body")
+}
+
+fn responses_text_format(
+    output_contract_id: Option<&str>,
+    output_schema_json: Option<&str>,
+    request_id: &str,
+) -> Result<Option<serde_json::Value>> {
+    let Some(schema_json) = output_schema_json else {
+        return Ok(None);
+    };
+    let mut schema: serde_json::Value =
+        serde_json::from_str(schema_json).context("output_schema_json is not valid JSON Schema")?;
+    lower_schema_for_responses_format(&mut schema);
+    let raw_name = output_contract_id.unwrap_or(request_id);
+    let mut name = raw_name
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .take(64)
+        .collect::<String>();
+    if name.is_empty() {
+        name = "epiphany_worker_result".to_string();
+    }
+    Ok(Some(serde_json::json!({
+        "format": {
+            "type": "json_schema",
+            "name": name,
+            "strict": false,
+            "schema": schema
+        }
+    })))
+}
+
+fn lower_schema_for_responses_format(schema: &mut serde_json::Value) {
+    match schema {
+        serde_json::Value::Object(map) => {
+            // Responses structured output accepts only a JSON-Schema subset.
+            // Canonical conditional authority remains enforced by Epiphany ingress
+            // and Mind admission; this projection owns formatting only.
+            for unsupported in ["allOf", "if", "then", "else"] {
+                map.remove(unsupported);
+            }
+            if let Some(one_of) = map.remove("oneOf") {
+                map.insert("anyOf".to_string(), one_of);
+            }
+            for value in map.values_mut() {
+                lower_schema_for_responses_format(value);
+            }
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                lower_schema_for_responses_format(value);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn openai_tool_from_epiphany_tool(
@@ -848,6 +919,71 @@ mod tests {
         let responses = responses_body_from_epiphany(request).expect("request should map");
 
         assert_eq!(responses["tool_choice"], "required");
+    }
+
+    #[test]
+    fn declared_output_schema_reaches_responses_text_format() {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "req-schema",
+            "conversation-schema",
+            "gpt-5.4",
+            "Return the typed result.",
+        );
+        request.output_contract_id = Some("epiphany.role_worker_output.v3".to_string());
+        request.output_schema_json = Some(
+            serde_json::json!({
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {"summary": {"type": "string"}},
+                "required": ["summary"]
+            })
+            .to_string(),
+        );
+
+        let responses = responses_body_from_epiphany(request).expect("request should map");
+
+        assert_eq!(responses["text"]["format"]["type"], "json_schema");
+        assert_eq!(
+            responses["text"]["format"]["name"],
+            "epiphany_role_worker_output_v3"
+        );
+        assert_eq!(responses["text"]["format"]["strict"], false);
+        assert_eq!(
+            responses["text"]["format"]["schema"]["required"][0],
+            "summary"
+        );
+    }
+
+    #[test]
+    fn provider_schema_projection_drops_conditional_authority_only() {
+        let mut request = EpiphanyOpenAiModelRequest::new(
+            "req-conditional",
+            "conversation-conditional",
+            "gpt-5.4",
+            "Return the typed result.",
+        );
+        request.output_contract_id = Some("epiphany.worker".to_string());
+        request.output_schema_json = Some(
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "purpose": {
+                        "oneOf": [
+                            {"type": "string", "const": "evolution"},
+                            {"type": "string", "const": "repair"}
+                        ]
+                    }
+                },
+                "allOf": [{"if": {"properties": {"purpose": {"const": "repair"}}}, "then": {"required": ["receipt"]}}]
+            })
+            .to_string(),
+        );
+
+        let responses = responses_body_from_epiphany(request).expect("request should map");
+        let schema = &responses["text"]["format"]["schema"];
+        assert!(schema.get("allOf").is_none());
+        assert!(schema["properties"]["purpose"].get("oneOf").is_none());
+        assert!(schema["properties"]["purpose"]["anyOf"].is_array());
     }
 
     #[test]

@@ -1,5 +1,31 @@
 # Epiphany Current Algorithmic Map
 
+## Coordinator cold start and source-regather ownership (2026-07-16)
+
+- Owner: typed `UserObjectiveIntake` owns first objective/state creation. It is
+  seed-only, atomic, idempotent for identical input, and refuses replacement.
+- Eyes owns source gathering. An accepted CRRC `Regather` judgment becomes
+  `RegatherManually`, which Self maps to Research; the continuity judge does not
+  recursively relaunch itself after its judgment is accepted.
+- Modeling owns Body mapping only after source inspection. Research, Modeling,
+  and Verification share bounded repository read/Git tools; tool receipts are
+  operator-safe evidence while direct thought stays sealed.
+- Mind owns admission. Provider JSON Schema is a formatting projection, not
+  authority. Canonical worker-result parsing, exact launch Body-basis replay,
+  and Mind review/admission decide whether a RepoModel patch exists.
+- Derived state: status, role boards, and coordinator decisions read one
+  canonical typed role/reorient result path. Display synthesis cannot remember
+  a finding that coordinator signals forget, or vice versa.
+- Forbidden writers cut: sibling-path local-Verse inference, fake checkpoint
+  preparation, recursive reorientation after accepted regather, duplicate
+  display/coordinator result readers, and JSON null treated as a state patch.
+- Failure lifecycle: failed and completed-unreviewable results require an
+  explicit supersession receipt before relaunch. Exact repeat is idempotent;
+  conflicting acceptance authority is refused.
+- Current live evidence: Eyes produced and Mind accepted a code-grounded result.
+  Modeling has not yet produced a current admissible Body-grounded result; its
+  latest eleven-tool run ended at the provider request boundary.
+
 ## Observation and bootstrap authority correction (2026-07-12)
 
 - Owner: diagnostics only project persisted CultMesh state; they never initialize it.

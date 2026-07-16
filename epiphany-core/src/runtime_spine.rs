@@ -818,6 +818,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let store_path = store_path.as_ref();
     let mut cache = CultCache::new();
     cache.register_entry_type::<crate::EpiphanyThreadStateEntry>()?;
+    cache.register_entry_type::<crate::UserObjectiveIntake>()?;
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
     cache.register_entry_type::<EpiphanyRuntimeSwarmBinding>()?;
     cache.register_entry_type::<crate::MemorySemanticProjectionObligation>()?;
@@ -6660,6 +6661,21 @@ fn mutation_contract(
 
 fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
     vec![
+        mutation_contract(
+            crate::USER_OBJECTIVE_INTAKE_TYPE,
+            crate::USER_OBJECTIVE_INTAKE_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![crate::USER_OBJECTIVE_INTAKE_TYPE],
+            vec![crate::THREAD_STATE_TYPE],
+            vec![
+                "The human owns the initial objective assertion; Self atomically records it with the first canonical thread state.",
+                "Objective replacement requires a separate reviewed adoption flow.",
+            ],
+        ),
         mutation_contract(
             RUNTIME_IDENTITY_TYPE,
             RUNTIME_SPINE_SCHEMA_VERSION,

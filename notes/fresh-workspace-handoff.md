@@ -1,5 +1,41 @@
 # Fresh Workspace Handoff
 
+## Live Body-grounded admission rite — 2026-07-16
+
+Thread `readiness-grounding-20260716` now has a typed, immutable user objective
+and an accepted code-grounded Eyes result. Cold-start objective intake, explicit
+local-Verse path ownership, source tools for Eyes/Modeling, canonical result
+readers, failed-result supersession, reorient auto-acceptance, and the
+CRRC-regather handoff to Eyes are implemented in the current worktree.
+
+The live rite exposed output-contract wounds one at a time. Modeling operations,
+frontier items, nodes, edges, profiles, anchors, code refs, observations, and
+evidence now have provider-facing typed shapes matching canonical ingress;
+explicit null no longer impersonates a reviewable state patch. Failed worker
+output is terminally sealed with a bounded diagnostic rather than marked
+complete. The stale OpenAI-runtime Modeling fixture now carries and echoes a
+Body basis and passes again.
+
+No current Modeling admission exists yet. The most recent worker inspected
+source through eleven tool rounds, then the provider request failed before a
+typed result was published. Do not inspect its sealed transcript. Rebuild the
+coordinator after any final edits, supersede that failed result with
+`--supersede-failed-results`, and relaunch in `--mode run` with the existing
+accepted Eyes basis. Make no source edits between the final Body observation
+and Mind admission. Only after Mind accepts an exact Body-basis RepoModel patch
+should `epiphany-memory-semantic repository-readiness` be run with local Ollama
+`qwen3-embedding:0.6b`, 1024 dimensions, and the runtime spine.
+
+Exact remaining sequence:
+
+1. finish tests/format/docs and commit so the Body is stable;
+2. relaunch Modeling against thread `readiness-grounding-20260716`;
+3. inspect only the operator-safe role finding, then auto-accept if its Body
+   basis, RepoModel patch, and state patch are typed and current;
+4. run the live repository-readiness join and preserve its projection;
+5. investigate the provider failure only through typed request/receipt
+   diagnostics if it repeats; raw worker thought remains sealed.
+
 ## Counterfeit planning writers cut - 2026-07-15
 
 Modeling and Eyes traced the repo-frontier planning family and found a typed but

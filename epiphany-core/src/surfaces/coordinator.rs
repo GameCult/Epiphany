@@ -133,6 +133,7 @@ pub struct EpiphanyCoordinatorInput {
     pub signals: EpiphanyCoordinatorSignals,
     pub research_result_accepted: bool,
     pub research_result_reviewable: bool,
+    pub research_result_failure_reviewed: bool,
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
@@ -176,6 +177,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub reorient_result_status: super::EpiphanyCrrcResultStatus,
     pub research_result_accepted: bool,
     pub research_result_reviewable: bool,
+    pub research_result_failure_reviewed: bool,
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
@@ -204,6 +206,7 @@ pub struct EpiphanyCoordinatorStatus {
 pub struct EpiphanyCoordinatorFindingSignals {
     pub research_result_accepted: bool,
     pub research_result_reviewable: bool,
+    pub research_result_failure_reviewed: bool,
     pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
@@ -268,6 +271,7 @@ pub fn derive_coordinator_status(
         },
         research_result_accepted: input.research_result_accepted,
         research_result_reviewable: input.research_result_reviewable,
+        research_result_failure_reviewed: input.research_result_failure_reviewed,
         modeling_result_requests_regather: input.modeling_result_requests_regather,
         modeling_result_accepted: input.modeling_result_accepted,
         modeling_result_reviewable: input.modeling_result_reviewable,
@@ -308,6 +312,11 @@ pub fn derive_coordinator_finding_signals(
     });
     let research_result_reviewable =
         research_finding.is_some_and(research_finding_has_reviewable_state_patch);
+    let research_result_failure_reviewed = research_finding.as_ref().is_some_and(|finding| {
+        state.is_some_and(|state| {
+            role_finding_failure_reviewed(state, EpiphanyCoordinatorRoleId::Research, finding)
+        })
+    });
     let modeling_result_accepted = modeling_finding.as_ref().is_some_and(|finding| {
         state.is_some_and(|state| {
             role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Modeling, finding)
@@ -375,6 +384,7 @@ pub fn derive_coordinator_finding_signals(
     EpiphanyCoordinatorFindingSignals {
         research_result_accepted,
         research_result_reviewable,
+        research_result_failure_reviewed,
         modeling_result_requests_regather,
         modeling_result_accepted,
         modeling_result_reviewable,
@@ -683,14 +693,14 @@ pub fn recommend_coordinator_action(
         reason: reason.to_string(),
     };
 
-    if input.state_status == EpiphanyCrrcStateStatus::Missing || !input.checkpoint_present {
+    if input.state_status == EpiphanyCrrcStateStatus::Missing {
         return build(
             EpiphanyCoordinatorAction::PrepareCheckpoint,
             Some(EpiphanyCoordinatorRoleId::Modeling),
             Some(EpiphanyCoordinatorSceneAction::Update),
             false,
             false,
-            "Authoritative state or investigation checkpoint is missing; prepare a checkpoint before coordination can continue.",
+            "Authoritative state is missing; accept an explicit operator objective before coordination can continue.",
         );
     }
 
@@ -749,6 +759,16 @@ pub fn recommend_coordinator_action(
     if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && !input.research_result_accepted
     {
+        if !input.research_result_reviewable && input.research_result_failure_reviewed {
+            return build(
+                EpiphanyCoordinatorAction::LaunchResearch,
+                Some(EpiphanyCoordinatorRoleId::Research),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "The unreviewable Eyes result has a supersession receipt; relaunch Research against the current source contract.",
+            );
+        }
         return build(
             EpiphanyCoordinatorAction::ReviewResearchResult,
             Some(EpiphanyCoordinatorRoleId::Research),
@@ -762,6 +782,16 @@ pub fn recommend_coordinator_action(
     if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
         && !input.research_result_accepted
     {
+        if input.research_result_failure_reviewed {
+            return build(
+                EpiphanyCoordinatorAction::LaunchResearch,
+                Some(EpiphanyCoordinatorRoleId::Research),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "The failed Eyes result has a supersession receipt; relaunch Research against the current source contract.",
+            );
+        }
         return build(
             EpiphanyCoordinatorAction::ReviewResearchResult,
             Some(EpiphanyCoordinatorRoleId::Research),
@@ -1276,6 +1306,7 @@ mod tests {
             },
             research_result_accepted: false,
             research_result_reviewable: false,
+            research_result_failure_reviewed: false,
             modeling_result_requests_regather: false,
             modeling_result_accepted: false,
             modeling_result_reviewable: false,
@@ -1441,20 +1472,65 @@ mod tests {
     }
 
     #[test]
-    fn prepares_missing_checkpoint() {
+    fn reviewed_failed_research_relaunches_eyes() {
+        let mut state = EpiphanyThreadState::default();
+        state.acceptance_receipts.push(EpiphanyAcceptanceReceipt {
+            id: "failure-review-research".to_string(),
+            result_id: "result-research".to_string(),
+            job_id: "job-research".to_string(),
+            binding_id: "research-source-gather-worker".to_string(),
+            surface: "roleFailureReview".to_string(),
+            role_id: "research".to_string(),
+            status: "superseded".to_string(),
+            accepted_at: "2026-07-16T00:00:00Z".to_string(),
+            accepted_observation_id: None,
+            accepted_evidence_id: None,
+            summary: Some("Malformed Eyes result reviewed.".to_string()),
+        });
+        let research = finding("result-research", "job-research", Vec::new());
+        let signals =
+            derive_coordinator_finding_signals(Some(&state), Some(&research), None, None, None);
+        assert!(signals.research_result_failure_reviewed);
+
+        let base = input();
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
+                ..base.signals
+            },
+            research_result_failure_reviewed: true,
+            ..base
+        });
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchResearch);
+    }
+
+    #[test]
+    fn routes_missing_checkpoint_to_modeling_owner() {
         let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
             checkpoint_present: false,
             recommendation: recommendation(EpiphanyCrrcAction::PrepareCheckpoint),
             ..input()
         });
 
-        assert_eq!(
-            decision.action,
-            EpiphanyCoordinatorAction::PrepareCheckpoint
-        );
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchModeling);
         assert_eq!(
             decision.target_role,
             Some(EpiphanyCoordinatorRoleId::Modeling)
+        );
+        assert!(decision.can_auto_run);
+    }
+
+    #[test]
+    fn missing_state_still_requires_explicit_intake() {
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            state_status: EpiphanyCrrcStateStatus::Missing,
+            checkpoint_present: false,
+            ..input()
+        });
+
+        assert_eq!(
+            decision.action,
+            EpiphanyCoordinatorAction::PrepareCheckpoint
         );
         assert!(!decision.can_auto_run);
     }

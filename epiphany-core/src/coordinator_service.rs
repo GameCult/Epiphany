@@ -46,6 +46,13 @@ impl EpiphanyCoordinatorService {
         crate::intake_user_repo_frontier_proposal(&self.store, input)
     }
 
+    pub fn intake_user_objective(
+        &self,
+        input: crate::UserObjectiveIntakeInput,
+    ) -> Result<crate::UserObjectiveIntakeApplied> {
+        crate::intake_user_objective(&self.store, input)
+    }
+
     pub fn select_repo_frontier_proposal_for_modeling(
         &self,
         proposal_id: &str,

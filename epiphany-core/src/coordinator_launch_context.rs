@@ -68,11 +68,11 @@ pub fn reorient_launch_context_focus(state: &EpiphanyThreadState, next_action: &
 
 pub fn render_launch_dynamic_prompt_context(
     runtime_store_path: &Path,
+    local_verse_store: &Path,
     state: &EpiphanyThreadState,
     focus: String,
 ) -> Result<String, String> {
-    let local_verse_store = local_verse_store_path(runtime_store_path);
-    load_epiphany_cultmesh_status(&local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
+    load_epiphany_cultmesh_status(local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
         .map_err(|error| {
             format!(
                 "failed to inspect local Verse context store {}: {error}",
@@ -85,16 +85,14 @@ pub fn render_launch_dynamic_prompt_context(
                 local_verse_store.display()
             )
         })?;
-    let topology = load_epiphany_cultmesh_cluster_topology(
-        &local_verse_store,
-        EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
-    )
-    .map_err(|error| {
-        format!(
-            "failed to inspect local Verse topology store {}: {error}",
-            local_verse_store.display()
-        )
-    })?;
+    let topology =
+        load_epiphany_cultmesh_cluster_topology(local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
+            .map_err(|error| {
+                format!(
+                    "failed to inspect local Verse topology store {}: {error}",
+                    local_verse_store.display()
+                )
+            })?;
     if topology.is_empty() {
         return Err(format!(
             "local Verse has no persisted cluster topology at {}; initialize it before building worker launch context",
@@ -102,7 +100,7 @@ pub fn render_launch_dynamic_prompt_context(
         ));
     }
     let local_verse =
-        query_epiphany_local_verse_context(&local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
+        query_epiphany_local_verse_context(local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
             .map_err(|error| {
                 format!(
                     "failed to query local Verse context store {}: {error}",
@@ -1151,6 +1149,7 @@ mod tests {
 
         let rendered = render_launch_dynamic_prompt_context(
             &runtime_store,
+            &local_verse_store_path(&runtime_store),
             &state,
             role_launch_context_focus(&state, "modeling"),
         )
@@ -1235,6 +1234,7 @@ mod tests {
 
         let error = render_launch_dynamic_prompt_context(
             &runtime_store,
+            &local_verse_store,
             &state,
             role_launch_context_focus(&state, "modeling"),
         )
