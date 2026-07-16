@@ -268,10 +268,8 @@ pub fn append_modeling_repo_model_shape_context(
     ));
     context.push_str("existingDomains:\n");
     for domain in &snapshot.domains {
-        let profile = serde_json::to_string(&domain.profile)
-            .map_err(|error| format!("failed to encode RepoModel domain profile: {error}"))?;
-        let lifecycle = serde_json::to_string(&domain.lifecycle)
-            .map_err(|error| format!("failed to encode RepoModel domain lifecycle: {error}"))?;
+        let profile = debug_variant_snake_case(domain.profile);
+        let lifecycle = debug_variant_snake_case(domain.lifecycle);
         context.push_str(&format!(
             "- id={} profile={} lifecycle={} title={}\n",
             domain.id, profile, lifecycle, domain.title
@@ -280,6 +278,18 @@ pub fn append_modeling_repo_model_shape_context(
     context.push_str("New nodes must reference one exact existing domain id; RepoArchitecture and RepoDataflow nodes/edges may use only observed, proposed, accepted, stale, or retired lifecycle. Prefer accepted for a source-grounded current claim. Do not invent a domain because RepoModel patches have no domain mutation operation.\n");
     context.push_str("</canonical_repo_model_shape>");
     Ok(context)
+}
+
+fn debug_variant_snake_case(value: impl std::fmt::Debug) -> String {
+    let name = format!("{value:?}");
+    let mut output = String::with_capacity(name.len() + 4);
+    for (index, character) in name.chars().enumerate() {
+        if character.is_ascii_uppercase() && index > 0 {
+            output.push('_');
+        }
+        output.push(character.to_ascii_lowercase());
+    }
+    output
 }
 
 pub fn append_modeling_work_loop_telemetry_context(

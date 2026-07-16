@@ -1,0 +1,287 @@
+use anyhow::{Context, Result, anyhow, bail};
+use cultnet_rs::{
+    CultNetMessage, CultNetRawDocumentRecord, CultNetRawPayloadEncoding,
+    CultNetRudpSocketTransportConnection, CultNetRudpSocketTransportOptions, CultNetWireContract,
+    encode_cultnet_message_to_vec,
+};
+use serde::{Deserialize, Serialize};
+use std::net::{SocketAddr, UdpSocket};
+use std::time::{Duration, Instant};
+
+pub const IDUNN_DAEMON_HEALTH_TYPE: &str = "idunn.daemon_health";
+pub const IDUNN_DAEMON_HEALTH_SCHEMA_VERSION: &str = "idunn.daemon_health.v1";
+pub const EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT: &str = "epiphany.cultnet-rudp-runtime-health";
+pub const CULTNET_RUDP_PROTOCOL_ID: &str = "cultnet.transport.rudp.v0";
+const IDUNN_HEALTH_RUDP_CONNECTION_ID: u32 = 0x4944_554e;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IdunnDaemonHealthDocument {
+    pub daemon_id: String,
+    pub state: String,
+    pub detail: String,
+    pub observed_at: String,
+    pub health_contract: String,
+    pub publication_source: String,
+    pub transport: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EpiphanyAggregateRuntimeHealthInput {
+    pub daemon_id: String,
+    pub health_contract: String,
+    pub observed_at: String,
+    pub release_authenticated: bool,
+    pub expected_service_count: usize,
+    pub current_service_count: usize,
+    pub contradictions: Vec<String>,
+}
+
+pub fn derive_epiphany_aggregate_runtime_health(
+    input: EpiphanyAggregateRuntimeHealthInput,
+) -> Result<IdunnDaemonHealthDocument> {
+    require_id(&input.daemon_id, "Idunn daemon id")?;
+    require_id(&input.health_contract, "Idunn health contract")?;
+    require_id(&input.observed_at, "Idunn health observation time")?;
+    if input.expected_service_count == 0 {
+        bail!("aggregate runtime health requires at least one managed service");
+    }
+    if input.current_service_count > input.expected_service_count {
+        bail!("current managed service count exceeds the expected service count");
+    }
+
+    let (state, detail) = if !input.contradictions.is_empty() {
+        (
+            "failed",
+            format!(
+                "Epiphany runtime authority is contradictory: {}",
+                input.contradictions.join("; ")
+            ),
+        )
+    } else if !input.release_authenticated {
+        (
+            "failed",
+            "Epiphany packaged release authentication failed.".to_string(),
+        )
+    } else if input.current_service_count != input.expected_service_count {
+        (
+            "degraded",
+            format!(
+                "Epiphany is reconciling managed services: {}/{} have current authenticated lineage.",
+                input.current_service_count, input.expected_service_count
+            ),
+        )
+    } else {
+        (
+            "active",
+            format!(
+                "Epiphany packaged release and all {} managed services have current authenticated lineage.",
+                input.expected_service_count
+            ),
+        )
+    };
+
+    Ok(IdunnDaemonHealthDocument {
+        daemon_id: input.daemon_id,
+        state: state.to_string(),
+        detail,
+        observed_at: input.observed_at,
+        health_contract: input.health_contract,
+        publication_source: "daemon-published".to_string(),
+        transport: CULTNET_RUDP_PROTOCOL_ID.to_string(),
+    })
+}
+
+pub fn publish_idunn_daemon_health_rudp(
+    endpoint: SocketAddr,
+    source_runtime_id: &str,
+    health: &IdunnDaemonHealthDocument,
+) -> Result<()> {
+    validate_health_document(health)?;
+    require_id(source_runtime_id, "health publisher runtime id")?;
+    let message = CultNetMessage::DocumentPutRaw {
+        message_id: format!(
+            "epiphany-health:{}:{}",
+            health.daemon_id,
+            health.observed_at.replace(':', "-")
+        ),
+        document: CultNetRawDocumentRecord {
+            schema_id: IDUNN_DAEMON_HEALTH_TYPE.to_string(),
+            record_key: health.daemon_id.clone(),
+            stored_at: health.observed_at.clone(),
+            payload_encoding: CultNetRawPayloadEncoding::Messagepack,
+            payload: rmp_serde::to_vec(health).context("encoding Idunn daemon health")?,
+            source_runtime_id: Some(source_runtime_id.to_string()),
+            source_agent_id: None,
+            source_role: Some("daemon-health-publisher".to_string()),
+            tags: Some(vec![CULTNET_RUDP_PROTOCOL_ID.to_string()]),
+        },
+    };
+    let bind = if endpoint.is_ipv4() {
+        "0.0.0.0:0"
+    } else {
+        "[::]:0"
+    };
+    let socket = UdpSocket::bind(bind)
+        .with_context(|| format!("binding Epiphany Idunn RUDP sender at {bind}"))?;
+    socket.set_read_timeout(Some(Duration::from_millis(100)))?;
+    let mut transport =
+        CultNetRudpSocketTransportConnection::new(CultNetRudpSocketTransportOptions::client(
+            source_runtime_id,
+            socket,
+            endpoint,
+            IDUNN_HEALTH_RUDP_CONNECTION_ID,
+        ))?;
+    transport.connect(Vec::new())?;
+    let deadline = Instant::now() + Duration::from_millis(500);
+    while !transport.connected() {
+        let _ = transport.receive_once()?;
+        transport.poll_resends()?;
+        if Instant::now() >= deadline {
+            return Err(anyhow!(
+                "timed out connecting Epiphany health publisher to {endpoint}"
+            ));
+        }
+    }
+    let payload = encode_cultnet_message_to_vec(&message, CultNetWireContract::CultNetSchemaV0)
+        .context("encoding Idunn health CultNet message")?;
+    transport
+        .send("schema", payload)
+        .with_context(|| format!("sending Epiphany Idunn health to {endpoint}"))
+}
+
+fn validate_health_document(health: &IdunnDaemonHealthDocument) -> Result<()> {
+    require_id(&health.daemon_id, "Idunn daemon id")?;
+    require_id(&health.health_contract, "Idunn health contract")?;
+    require_id(&health.observed_at, "Idunn health observation time")?;
+    if !matches!(health.state.as_str(), "active" | "degraded" | "failed") {
+        bail!("unsupported Idunn daemon health state");
+    }
+    if health.publication_source != "daemon-published"
+        || health.transport != CULTNET_RUDP_PROTOCOL_ID
+    {
+        bail!("Idunn daemon health publication authority is invalid");
+    }
+    Ok(())
+}
+
+fn require_id(value: &str, label: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        bail!("{label} is required");
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cultnet_rs::decode_cultnet_message_from_slice;
+    use std::thread;
+
+    fn input(current: usize) -> EpiphanyAggregateRuntimeHealthInput {
+        EpiphanyAggregateRuntimeHealthInput {
+            daemon_id: "yggdrasil-epiphany".into(),
+            health_contract: EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT.into(),
+            observed_at: "2026-07-16T00:00:00Z".into(),
+            release_authenticated: true,
+            expected_service_count: 2,
+            current_service_count: current,
+            contradictions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn aggregate_health_requires_every_current_lineage() {
+        assert_eq!(
+            derive_epiphany_aggregate_runtime_health(input(2))
+                .unwrap()
+                .state,
+            "active"
+        );
+        assert_eq!(
+            derive_epiphany_aggregate_runtime_health(input(1))
+                .unwrap()
+                .state,
+            "degraded"
+        );
+    }
+
+    #[test]
+    fn aggregate_health_fails_authenticated_contradictions() {
+        let mut value = input(2);
+        value
+            .contradictions
+            .push("semantic child uses stale policy".into());
+        let health = derive_epiphany_aggregate_runtime_health(value).unwrap();
+        assert_eq!(health.state, "failed");
+        assert!(health.detail.contains("stale policy"));
+    }
+
+    #[test]
+    fn semantic_sight_cannot_substitute_for_runtime_lineage() {
+        let health = derive_epiphany_aggregate_runtime_health(input(0)).unwrap();
+        assert_ne!(health.state, "active");
+    }
+
+    #[test]
+    fn health_document_rejects_alien_publication_authority() {
+        let mut health = derive_epiphany_aggregate_runtime_health(input(2)).unwrap();
+        health.publication_source = "probe".into();
+        assert!(validate_health_document(&health).is_err());
+    }
+
+    #[test]
+    fn rudp_publisher_emits_exact_messagepack_health_document() {
+        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_millis(100)))
+            .unwrap();
+        let endpoint = socket.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let mut transport = CultNetRudpSocketTransportConnection::new(
+                CultNetRudpSocketTransportOptions::server(
+                    "idunn-test",
+                    socket,
+                    IDUNN_HEALTH_RUDP_CONNECTION_ID,
+                ),
+            )
+            .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(2);
+            loop {
+                if let Some(frame) = transport.receive_once().unwrap() {
+                    return decode_cultnet_message_from_slice(
+                        &frame.payload,
+                        CultNetWireContract::CultNetSchemaV0,
+                    )
+                    .unwrap();
+                }
+                transport.poll_resends().unwrap();
+                assert!(Instant::now() < deadline, "health frame timed out");
+            }
+        });
+        let health = derive_epiphany_aggregate_runtime_health(input(2)).unwrap();
+        publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &health).unwrap();
+        let CultNetMessage::DocumentPutRaw { document, .. } = server.join().unwrap() else {
+            panic!("publisher emitted a non-document message")
+        };
+        assert_eq!(document.schema_id, IDUNN_DAEMON_HEALTH_TYPE);
+        assert_eq!(document.record_key, health.daemon_id);
+        assert_eq!(
+            document.payload_encoding,
+            CultNetRawPayloadEncoding::Messagepack
+        );
+        let decoded: IdunnDaemonHealthDocument = rmp_serde::from_slice(&document.payload).unwrap();
+        assert_eq!(decoded, health);
+    }
+
+    #[test]
+    fn rudp_publisher_fails_closed_when_idunn_does_not_accept() {
+        let reserved = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let endpoint = reserved.local_addr().unwrap();
+        drop(reserved);
+        let health = derive_epiphany_aggregate_runtime_health(input(2)).unwrap();
+        assert!(
+            publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &health,)
+                .is_err()
+        );
+    }
+}

@@ -17,6 +17,7 @@ mod eyes_gateway;
 mod hands_gateway;
 mod heartbeat_state;
 mod host_identity;
+mod idunn_runtime_health;
 mod memory_graph;
 mod mind_gateway;
 mod organ_dependencies;
@@ -47,6 +48,12 @@ mod workspace_coverage_projector_service;
 mod workspace_retrieval_coverage;
 
 pub use agent_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
+pub use idunn_runtime_health::{
+    CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,
+    EpiphanyAggregateRuntimeHealthInput, IDUNN_DAEMON_HEALTH_SCHEMA_VERSION,
+    IDUNN_DAEMON_HEALTH_TYPE, IdunnDaemonHealthDocument,
+    derive_epiphany_aggregate_runtime_health, publish_idunn_daemon_health_rudp,
+};
 pub use agent_launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 pub use agent_launch::EPIPHANY_MIND_OWNER_ROLE;
 pub use agent_launch::EPIPHANY_MIND_ROLE_BINDING_ID;

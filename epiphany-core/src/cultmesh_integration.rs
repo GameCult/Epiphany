@@ -164,7 +164,7 @@ pub const EPIPHANY_CULTMESH_DAEMON_SCHEDULER_RECEIPT_LATEST_KEY: &str =
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_TYPE: &str =
     "epiphany.cultmesh.daemon_service_lifecycle_receipt";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.daemon_service_lifecycle_receipt.v1";
+    "epiphany.cultmesh.daemon_service_lifecycle_receipt.v2";
 pub const EPIPHANY_CULTMESH_DAEMON_SERVICE_LIFECYCLE_RECEIPT_LATEST_KEY: &str =
     "epiphany-local/daemon-service-lifecycle-receipt/latest";
 pub const EPIPHANY_CULTMESH_MANAGED_SERVICE_POLICY_TYPE: &str =
@@ -1480,6 +1480,12 @@ pub struct EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry {
     pub provider_daemon_id: String,
     #[cultcache(key = 26, default)]
     pub startup_correlation_id: String,
+    #[cultcache(key = 27, default)]
+    pub process_creation_token: u64,
+    #[cultcache(key = 28, default)]
+    pub process_created_at_rfc3339: Option<String>,
+    #[cultcache(key = 29, default)]
+    pub process_executable_path: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -5014,6 +5020,8 @@ fn validate_semantic_projector_launch_receipt(
         || receipt.action != "launch"
         || receipt.status != "launched"
         || receipt.process_id.is_none()
+        || receipt.process_creation_token == 0
+        || receipt.process_executable_path.trim().is_empty()
         || receipt.exit_code.is_some()
         || receipt.completed_at_utc.is_none()
         || !receipt.executable_sha256.starts_with("sha256-")
@@ -8243,6 +8251,9 @@ mod tests {
             managed_policy_digest: policy_digest,
             provider_daemon_id: "epiphany-memory-semantic-projector".into(),
             startup_correlation_id: "9f63fa72-a2e1-4ca5-9c1a-9292b7798891".into(),
+            process_creation_token: 1,
+            process_created_at_rfc3339: None,
+            process_executable_path: "C:\\epiphany\\semantic-projector.exe".into(),
         };
         let written = write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
             &store,
@@ -8382,6 +8393,9 @@ mod tests {
             managed_policy_digest: "sha256-dead-authority".into(),
             provider_daemon_id: EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID.into(),
             startup_correlation_id: receipt_id.into(),
+            process_creation_token: 1,
+            process_created_at_rfc3339: None,
+            process_executable_path: "C:\\epiphany\\semantic-projector.exe".into(),
         };
         let mut wrong_provider = receipt.clone();
         wrong_provider.receipt_id = "f6d454dd-3765-44cb-930a-bae0d47487aa".into();
@@ -9000,6 +9014,9 @@ mod tests {
             managed_policy_digest: String::new(),
             provider_daemon_id: String::new(),
             startup_correlation_id: String::new(),
+            process_creation_token: 0,
+            process_created_at_rfc3339: None,
+            process_executable_path: String::new(),
         };
         let mut second = first.clone();
         second.receipt_id = "service-lifecycle-second".to_string();
@@ -9162,6 +9179,9 @@ mod tests {
             managed_policy_digest: String::new(),
             provider_daemon_id: String::new(),
             startup_correlation_id: String::new(),
+            process_creation_token: 0,
+            process_created_at_rfc3339: None,
+            process_executable_path: String::new(),
         };
         assert!(
             write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
@@ -9224,6 +9244,9 @@ mod tests {
                 managed_policy_digest: String::new(),
                 provider_daemon_id: String::new(),
                 startup_correlation_id: String::new(),
+                process_creation_token: 0,
+                process_created_at_rfc3339: None,
+                process_executable_path: String::new(),
             },
         ]);
         let runbook_check = report
@@ -11827,6 +11850,9 @@ mod tests {
             managed_policy_digest: policy_digest,
             provider_daemon_id: "epiphany-memory-semantic-projector".into(),
             startup_correlation_id: "f32666a9-94ce-47c5-b2bd-7d18624dfe9b".into(),
+            process_creation_token: 1,
+            process_created_at_rfc3339: None,
+            process_executable_path: "C:\\epiphany\\semantic-projector.exe".into(),
         };
         write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
             &verse,

@@ -2013,6 +2013,9 @@ fn run_cli() -> Result<()> {
                 managed_policy_digest: String::new(),
                 provider_daemon_id: String::new(),
                 startup_correlation_id: String::new(),
+                process_creation_token: 0,
+                process_created_at_rfc3339: None,
+                process_executable_path: String::new(),
             };
             let readiness_follow_up_row = receipt_directory_service_lifecycle_row(
                 "cluster-service-lifecycle",
@@ -7988,6 +7991,9 @@ mod lifecycle_projection_tests {
             managed_policy_digest: String::new(),
             provider_daemon_id: String::new(),
             startup_correlation_id: String::new(),
+            process_creation_token: 0,
+            process_created_at_rfc3339: None,
+            process_executable_path: String::new(),
             preflight_witness_id: String::new(),
             required_document_types: Vec::new(),
             schema_preflight_passed: false,

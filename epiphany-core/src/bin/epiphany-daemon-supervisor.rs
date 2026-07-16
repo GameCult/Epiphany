@@ -18,6 +18,7 @@ use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
 use epiphany_core::MemorySemanticProjectionInput;
 use epiphany_core::agent_memory_semantic_projection_input;
+use epiphany_core::authenticate_epiphany_cultmesh_semantic_projector_launch;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
@@ -48,16 +49,22 @@ use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
 use epiphany_core::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
+use epiphany_core::{
+    EpiphanyAggregateRuntimeHealthInput, derive_epiphany_aggregate_runtime_health,
+    publish_idunn_daemon_health_rudp,
+};
 use epiphany_core::{EpiphanyPackagedReleaseEntry, authenticate_epiphany_packaged_release};
 use epiphany_core::{
+    ProcessInstanceIdentity, ProcessInstanceObservation,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION, WorkspaceCoverageManagedProcessLaunchEntry,
-    WorkspaceCoverageProcessBootstrap, authenticate_workspace_coverage_provider_heartbeat,
+    WorkspaceCoverageProcessBootstrap, authenticate_workspace_coverage_managed_process_launch,
+    authenticate_workspace_coverage_provider_heartbeat,
     authenticate_workspace_coverage_termination_with_envelope_digest, capture_process_instance,
     current_workspace_coverage_recovery_target,
     load_latest_workspace_coverage_managed_process_launch,
     load_latest_workspace_coverage_provider_heartbeat,
     load_workspace_coverage_process_termination_observation, native_boot_identity,
-    open_default_host_identity, recover_workspace_coverage_projection,
+    observe_process_instance, open_default_host_identity, recover_workspace_coverage_projection,
     sign_workspace_coverage_launch, workspace_coverage_host_identity_record_digest,
     write_workspace_coverage_managed_process_launch, write_workspace_coverage_process_bootstrap,
     write_workspace_coverage_process_termination_observation,
@@ -72,6 +79,7 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::env;
 use std::fs;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::process::Stdio;
@@ -85,6 +93,14 @@ const SEMANTIC_PROJECTOR_EXECUTOR_ID: &str = "epiphany-memory-semantic-projector
 const WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID: &str =
     "epiphany-workspace-coverage-projector-service";
 const WORKSPACE_COVERAGE_PROJECTOR_EXECUTOR_ID: &str = "epiphany-workspace-coverage-projector";
+const AGGREGATE_HEARTBEAT_FRESH_SECONDS: i64 = 180;
+
+enum ManagedServiceLineage {
+    Current,
+    Pending,
+    Stale(String),
+    LegacyV1,
+}
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -793,6 +809,7 @@ fn managed_service_serve(args: Args) -> Result<()> {
             service_args.service_id = policy.service_id.clone();
             managed_service_reconcile(service_args)?;
         }
+        publish_managed_service_iteration_health(&args, &release, &policies);
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
@@ -812,6 +829,300 @@ fn managed_service_serve(args: Args) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+fn publish_managed_service_iteration_health(
+    args: &Args,
+    release: &EpiphanyPackagedReleaseEntry,
+    policies: &[EpiphanyCultMeshManagedServicePolicyEntry],
+) {
+    let (Some(endpoint), Some(daemon_id), Some(health_contract)) = (
+        args.idunn_rudp_health,
+        args.idunn_daemon.as_deref(),
+        args.idunn_health_contract.as_deref(),
+    ) else {
+        return;
+    };
+    let required = [
+        SEMANTIC_PROJECTOR_SERVICE_ID,
+        WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
+    ];
+    let expected = required.len();
+    let mut current = 0_usize;
+    let mut contradictions = Vec::new();
+    for service_id in required {
+        let Some(policy) = policies
+            .iter()
+            .find(|policy| policy.service_id == service_id)
+        else {
+            continue;
+        };
+        if !policy.enabled || policy.restart_mode == "never" {
+            continue;
+        }
+        match managed_service_lineage(args, release, policy) {
+            Ok(ManagedServiceLineage::Current) => current += 1,
+            Ok(ManagedServiceLineage::Pending) => {}
+            Ok(ManagedServiceLineage::LegacyV1) => contradictions.push(format!(
+                "{}: legacy v1 launch awaits typed retirement",
+                policy.service_id
+            )),
+            Ok(ManagedServiceLineage::Stale(reason)) => {
+                contradictions.push(format!("{}: {reason}", policy.service_id))
+            }
+            Err(error) => contradictions.push(format!("{}: {error:#}", policy.service_id)),
+        }
+    }
+    let health = derive_epiphany_aggregate_runtime_health(EpiphanyAggregateRuntimeHealthInput {
+        daemon_id: daemon_id.to_string(),
+        health_contract: health_contract.to_string(),
+        observed_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        release_authenticated: true,
+        expected_service_count: expected,
+        current_service_count: current,
+        contradictions,
+    });
+    match health.and_then(|mut health| {
+        let witness_sha256 = epiphany_packaged_release_witness_sha256(release)?;
+        health.detail.push_str(&format!(
+            " releaseId={} witnessSha256={} sourceCommit={}",
+            release.release_id, witness_sha256, release.source_commit_sha
+        ));
+        publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &health)
+    }) {
+        Ok(()) => {}
+        Err(error) => eprintln!("Epiphany could not publish aggregate Idunn health: {error:#}"),
+    }
+}
+
+fn managed_service_lineage(
+    args: &Args,
+    release: &EpiphanyPackagedReleaseEntry,
+    policy: &EpiphanyCultMeshManagedServicePolicyEntry,
+) -> Result<ManagedServiceLineage> {
+    let (_, policy_digest) = load_epiphany_cultmesh_managed_service_policy_with_digest(
+        &args.store,
+        args.runtime_id.clone(),
+        &policy.service_id,
+    )?
+    .with_context(|| {
+        format!(
+            "managed service policy disappeared for {}",
+            policy.service_id
+        )
+    })?;
+    if policy.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
+        let Some(launch) = load_latest_workspace_coverage_managed_process_launch(
+            &args.store,
+            args.runtime_id.clone(),
+        )?
+        else {
+            return Ok(ManagedServiceLineage::Pending);
+        };
+        let host = open_default_host_identity()?;
+        let launch = authenticate_workspace_coverage_managed_process_launch(
+            &args.store,
+            args.runtime_id.clone(),
+            &launch.launch_id,
+            host.entry(),
+        )?;
+        if launch.policy_envelope_digest != policy_digest {
+            return Ok(ManagedServiceLineage::Stale(
+                "workspace child launch disagrees with current policy digest".into(),
+            ));
+        }
+        let expected = fs::canonicalize(epiphany_packaged_release_binary_path(
+            release,
+            "workspace-coverage-projector",
+        )?)?;
+        if fs::canonicalize(&launch.process_executable_path)? != expected {
+            return Ok(ManagedServiceLineage::Stale(
+                "workspace child executable is outside current packaged release".into(),
+            ));
+        }
+        let Some(heartbeat) = load_latest_workspace_coverage_provider_heartbeat(
+            &args.store,
+            args.runtime_id.clone(),
+            &launch.launch_id,
+        )?
+        else {
+            return Ok(ManagedServiceLineage::Pending);
+        };
+        let heartbeat = authenticate_workspace_coverage_provider_heartbeat(
+            &args.store,
+            args.runtime_id.clone(),
+            &heartbeat.heartbeat_id,
+            host.entry(),
+        )?;
+        if heartbeat.status != "ready" || !timestamp_is_fresh(&heartbeat.observed_at_utc)? {
+            return Ok(ManagedServiceLineage::Pending);
+        }
+        let identity = ProcessInstanceIdentity {
+            process_id: launch.process_id,
+            creation_token: launch.process_creation_token,
+            created_at_rfc3339: launch.process_created_at_rfc3339,
+            executable_path: PathBuf::from(launch.process_executable_path),
+        };
+        return Ok(
+            if observe_process_instance(&identity) == ProcessInstanceObservation::ExactAlive {
+                ManagedServiceLineage::Current
+            } else {
+                ManagedServiceLineage::Pending
+            },
+        );
+    }
+    let Some(receipt) = load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service(
+        &args.store,
+        args.runtime_id.clone(),
+        &policy.service_id,
+    )?
+    else {
+        return Ok(ManagedServiceLineage::Pending);
+    };
+    if receipt.schema_version == "epiphany.cultmesh.daemon_service_lifecycle_receipt.v1" {
+        return Ok(ManagedServiceLineage::LegacyV1);
+    }
+    if receipt.managed_policy_id != policy.policy_id
+        || receipt.managed_policy_digest != policy_digest
+        || receipt.command != policy.command
+        || receipt.args != policy.args
+        || receipt.cwd != policy.cwd
+    {
+        lifecycle_process_identity(&receipt)?;
+        return Ok(ManagedServiceLineage::Stale(
+            "alive child lineage disagrees with current managed policy".into(),
+        ));
+    }
+    if policy.service_id == SEMANTIC_PROJECTOR_SERVICE_ID {
+        authenticate_epiphany_cultmesh_semantic_projector_launch(
+            &args.store,
+            args.runtime_id.clone(),
+            &receipt.receipt_id,
+        )?;
+        let expected = fs::canonicalize(epiphany_packaged_release_binary_path(
+            release,
+            "semantic-projector",
+        )?)?;
+        if fs::canonicalize(&receipt.command)? != expected {
+            lifecycle_process_identity(&receipt)?;
+            return Ok(ManagedServiceLineage::Stale(
+                "semantic child executable is outside current packaged release".into(),
+            ));
+        }
+        let heartbeat = load_latest_epiphany_cultmesh_daemon_heartbeat(
+            &args.store,
+            args.runtime_id.clone(),
+            &receipt.provider_daemon_id,
+        )?;
+        let launch_completed = receipt
+            .completed_at_utc
+            .as_deref()
+            .context("semantic launch receipt has no spawn completion time")?;
+        if !semantic_heartbeat_is_ready(
+            heartbeat.as_ref(),
+            &receipt.receipt_id,
+            launch_completed,
+            Utc::now(),
+        )? {
+            return Ok(ManagedServiceLineage::Pending);
+        }
+    }
+    let identity = lifecycle_process_identity(&receipt)?;
+    Ok(
+        if observe_process_instance(&identity) == ProcessInstanceObservation::ExactAlive {
+            ManagedServiceLineage::Current
+        } else {
+            ManagedServiceLineage::Pending
+        },
+    )
+}
+
+fn lifecycle_process_identity(
+    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> Result<ProcessInstanceIdentity> {
+    process_identity_from_parts(
+        receipt.process_id,
+        receipt.process_creation_token,
+        receipt.process_created_at_rfc3339.clone(),
+        &receipt.process_executable_path,
+    )
+}
+
+fn process_identity_from_parts(
+    process_id: Option<u32>,
+    creation_token: u64,
+    created_at_rfc3339: Option<String>,
+    executable_path: &str,
+) -> Result<ProcessInstanceIdentity> {
+    if creation_token == 0 || executable_path.trim().is_empty() {
+        anyhow::bail!("launch receipt has no authenticated process-instance identity");
+    }
+    Ok(ProcessInstanceIdentity {
+        process_id: process_id.context("launch receipt has no process id")?,
+        creation_token,
+        created_at_rfc3339,
+        executable_path: PathBuf::from(executable_path),
+    })
+}
+
+fn replacement_process_identity(
+    lineage: &ManagedServiceLineage,
+    receipt: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> Result<Option<ProcessInstanceIdentity>> {
+    replacement_identity_from_parts(
+        lineage,
+        receipt.process_id,
+        receipt.process_creation_token,
+        receipt.process_created_at_rfc3339.clone(),
+        &receipt.process_executable_path,
+    )
+}
+
+fn replacement_identity_from_parts(
+    lineage: &ManagedServiceLineage,
+    process_id: Option<u32>,
+    creation_token: u64,
+    created_at_rfc3339: Option<String>,
+    executable_path: &str,
+) -> Result<Option<ProcessInstanceIdentity>> {
+    match lineage {
+        ManagedServiceLineage::Stale(_) => process_identity_from_parts(
+            process_id,
+            creation_token,
+            created_at_rfc3339,
+            executable_path,
+        )
+        .map(Some),
+        ManagedServiceLineage::Current
+        | ManagedServiceLineage::Pending
+        | ManagedServiceLineage::LegacyV1 => Ok(None),
+    }
+}
+
+fn timestamp_is_fresh(value: &str) -> Result<bool> {
+    timestamp_is_fresh_at(value, Utc::now())
+}
+
+fn semantic_heartbeat_is_ready(
+    heartbeat: Option<&epiphany_core::EpiphanyCultMeshDaemonHeartbeatEventEntry>,
+    lifecycle_receipt_id: &str,
+    launch_completed_at: &str,
+    now: DateTime<Utc>,
+) -> Result<bool> {
+    let Some(heartbeat) = heartbeat else {
+        return Ok(false);
+    };
+    Ok(heartbeat.status == "ready"
+        && heartbeat.startup_lifecycle_receipt_id == lifecycle_receipt_id
+        && DateTime::parse_from_rfc3339(&heartbeat.heartbeat_at)?
+            > DateTime::parse_from_rfc3339(launch_completed_at)?
+        && timestamp_is_fresh_at(&heartbeat.heartbeat_at, now)?)
+}
+
+fn timestamp_is_fresh_at(value: &str, now: DateTime<Utc>) -> Result<bool> {
+    let observed = DateTime::parse_from_rfc3339(value)?.with_timezone(&Utc);
+    let age = now.signed_duration_since(observed);
+    Ok(age >= Duration::zero() && age <= Duration::seconds(AGGREGATE_HEARTBEAT_FRESH_SECONDS))
 }
 
 fn service_plan(args: Args) -> Result<()> {
@@ -988,6 +1299,25 @@ fn service_launch_internal(
     let mut child = command
         .spawn()
         .with_context(|| format!("failed to launch service {}", command_path.display()))?;
+    let generic_process_identity = if coverage_launch.is_none() {
+        let identity = match capture_process_instance(child.id()) {
+            Ok(identity) => identity,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error)
+                    .context("failed to capture exact managed-service process identity");
+            }
+        };
+        if identity.executable_path != command_path.canonicalize()? {
+            let _ = child.kill();
+            let _ = child.wait();
+            anyhow::bail!("spawned managed-service executable disagrees with launch command");
+        }
+        Some(identity)
+    } else {
+        None
+    };
     if let Some((
         policy,
         policy_digest,
@@ -1133,6 +1463,11 @@ fn service_launch_internal(
             .as_ref()
             .map(|path| path.display().to_string()),
     );
+    if let Some(identity) = generic_process_identity {
+        receipt.process_creation_token = identity.creation_token;
+        receipt.process_created_at_rfc3339 = identity.created_at_rfc3339;
+        receipt.process_executable_path = identity.executable_path.display().to_string();
+    }
     if let Some((policy_id, policy_digest, receipt_id, executable_sha256, executor_id)) =
         reserved_launch
     {
@@ -1275,6 +1610,50 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
         }))?
     );
     Ok(())
+}
+
+fn retire_legacy_lifecycle_receipt(
+    args: &Args,
+    legacy: &EpiphanyCultMeshDaemonServiceLifecycleReceiptEntry,
+) -> Result<bool> {
+    let process_id = legacy
+        .process_id
+        .context("legacy launch receipt has no process id")?;
+    let observation = observe_process(process_id)?;
+    let mut retirement = service_lifecycle_receipt(
+        args,
+        "retire-legacy-launch",
+        if observation == ProcessObservation::Alive {
+            "operator-action-required"
+        } else {
+            "retired"
+        },
+        legacy.command.clone(),
+        legacy.args.clone(),
+        Some(process_id),
+        None,
+        Utc::now(),
+        Some(Utc::now()),
+        Some(format!("receipt://{}", legacy.receipt_id)),
+    );
+    retirement.notes = vec![
+        format!("Retires read-only v1 lifecycle receipt {}.", legacy.receipt_id),
+        "Legacy PID state never authorizes termination; owner-controlled stop is required before v2 relaunch."
+            .into(),
+    ];
+    if observation == ProcessObservation::Alive {
+        let identity = capture_process_instance(process_id)
+            .context("failed to observe legacy process incarnation for non-killing retirement")?;
+        retirement.process_creation_token = identity.creation_token;
+        retirement.process_created_at_rfc3339 = identity.created_at_rfc3339;
+        retirement.process_executable_path = identity.executable_path.display().to_string();
+    }
+    write_epiphany_cultmesh_daemon_service_lifecycle_receipt(
+        &args.store,
+        args.runtime_id.clone(),
+        retirement,
+    )?;
+    Ok(observation == ProcessObservation::Alive)
 }
 
 fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
@@ -1539,12 +1918,58 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
     .into_iter()
     .filter(|receipt| receipt.service_id == args.service_id)
     .max_by(|left, right| left.started_at_utc.cmp(&right.started_at_utc));
-    let observation = latest
-        .as_ref()
-        .and_then(|receipt| receipt.process_id)
-        .map(observe_process)
-        .transpose()?
-        .unwrap_or(ProcessObservation::Missing);
+    let mut legacy_retirement_released = false;
+    if let Some(receipt) = latest.as_ref()
+        && receipt.schema_version == "epiphany.cultmesh.daemon_service_lifecycle_receipt.v1"
+        && retire_legacy_lifecycle_receipt(&args, receipt)?
+    {
+        return Ok(());
+    }
+    if let Some(receipt) = latest.as_ref()
+        && receipt.action == "retire-legacy-launch"
+        && receipt.status == "operator-action-required"
+    {
+        let identity = lifecycle_process_identity(receipt)?;
+        if matches!(
+            observe_process_instance(&identity),
+            ProcessInstanceObservation::ExactAlive
+                | ProcessInstanceObservation::Inaccessible
+                | ProcessInstanceObservation::Indeterminate { .. }
+        ) {
+            println!(
+                "Legacy managed-service launch {} awaits owner-controlled stop before v2 relaunch.",
+                receipt.receipt_id
+            );
+            return Ok(());
+        }
+        legacy_retirement_released = true;
+    }
+    let mut observation = if legacy_retirement_released {
+        ProcessObservation::Missing
+    } else {
+        latest
+            .as_ref()
+            .and_then(|receipt| receipt.process_id)
+            .map(observe_process)
+            .transpose()?
+            .unwrap_or(ProcessObservation::Missing)
+    };
+    if observation == ProcessObservation::Alive
+        && let Some(release) = pinned_release.as_ref()
+    {
+        let lineage = managed_service_lineage(&args, release, &policy).with_context(|| {
+            format!("failed to authenticate {} child lineage", policy.service_id)
+        })?;
+        if let Some(identity) = replacement_process_identity(
+            &lineage,
+            latest
+                .as_ref()
+                .context("alive managed service has no lifecycle receipt")?,
+        )? {
+            terminate_native_process_instance(&identity)?;
+            observation = ProcessObservation::Missing;
+        }
+    }
     if !policy.enabled || policy.restart_mode == "never" {
         println!(
             "{}",
@@ -1627,6 +2052,25 @@ fn managed_service_reconcile(mut args: Args) -> Result<()> {
         observation.label()
     ));
     service_launch(args)
+}
+
+fn terminate_native_process_instance(identity: &ProcessInstanceIdentity) -> Result<()> {
+    if observe_process_instance(identity) != ProcessInstanceObservation::ExactAlive {
+        anyhow::bail!("stale managed-service process identity drifted before termination");
+    }
+    let process_id = identity.process_id;
+    #[cfg(windows)]
+    let status = Command::new("taskkill")
+        .args(["/PID", &process_id.to_string(), "/T", "/F"])
+        .status()?;
+    #[cfg(not(windows))]
+    let status = Command::new("kill")
+        .args(["-TERM", &process_id.to_string()])
+        .status()?;
+    if !status.success() {
+        anyhow::bail!("failed to terminate stale managed-service process {process_id}");
+    }
+    Ok(())
 }
 
 fn reconcile_workspace_coverage_projector(
@@ -2990,6 +3434,9 @@ fn service_lifecycle_receipt(
         managed_policy_digest: String::new(),
         provider_daemon_id: String::new(),
         startup_correlation_id: String::new(),
+        process_creation_token: 0,
+        process_created_at_rfc3339: None,
+        process_executable_path: String::new(),
     }
 }
 
@@ -3477,6 +3924,99 @@ mod semantic_projector_authority_tests {
             r#"C:\Mind\state.cc "two words""#
         );
     }
+
+    #[test]
+    fn idunn_health_configuration_is_explicit_and_all_or_none() {
+        let endpoint: SocketAddr = "127.0.0.1:17870".parse().unwrap();
+        assert!(validate_idunn_health_options(None, None, None).is_ok());
+        assert!(
+            validate_idunn_health_options(
+                Some(&endpoint),
+                Some("yggdrasil-epiphany"),
+                Some("epiphany.cultnet-rudp-runtime-health"),
+            )
+            .is_ok()
+        );
+        assert!(validate_idunn_health_options(Some(&endpoint), None, None).is_err());
+        assert!(validate_idunn_health_options(None, Some("epiphany"), None).is_err());
+    }
+
+    #[test]
+    fn stale_child_replacement_fails_closed_and_revalidates_process_identity() {
+        assert!(process_identity_from_parts(Some(7), 0, None, "projector").is_err());
+        assert!(process_identity_from_parts(Some(7), 9, None, "").is_err());
+        let identity = process_identity_from_parts(Some(7), 9, None, "projector").unwrap();
+        assert_eq!(identity.process_id, 7);
+        assert!(
+            replacement_identity_from_parts(&ManagedServiceLineage::Pending, Some(7), 0, None, "",)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            replacement_identity_from_parts(
+                &ManagedServiceLineage::LegacyV1,
+                Some(7),
+                0,
+                None,
+                "",
+            )
+            .unwrap()
+            .is_none()
+        );
+        assert!(
+            replacement_identity_from_parts(
+                &ManagedServiceLineage::Stale("policy mismatch".into()),
+                Some(7),
+                0,
+                None,
+                "",
+            )
+            .is_err()
+        );
+
+        let mut live = capture_process_instance(std::process::id()).unwrap();
+        live.creation_token = live.creation_token.saturating_add(1);
+        assert!(matches!(
+            observe_process_instance(&live),
+            ProcessInstanceObservation::Replaced { .. }
+        ));
+    }
+
+    #[test]
+    fn aggregate_heartbeat_freshness_has_a_bounded_authority_window() {
+        let now = DateTime::parse_from_rfc3339("2026-07-16T12:03:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        assert!(timestamp_is_fresh_at("2026-07-16T12:00:00Z", now).unwrap());
+        assert!(!timestamp_is_fresh_at("2026-07-16T11:59:59Z", now).unwrap());
+        assert!(!timestamp_is_fresh_at("2026-07-16T12:03:01Z", now).unwrap());
+
+        let heartbeat = epiphany_core::EpiphanyCultMeshDaemonHeartbeatEventEntry {
+            schema_version: "epiphany.cultmesh.daemon_heartbeat_event.v0".into(),
+            heartbeat_id: "heartbeat".into(),
+            daemon_id: SEMANTIC_PROJECTOR_EXECUTOR_ID.into(),
+            cluster_id: "local".into(),
+            provider_incarnation: "provider".into(),
+            sequence: 1,
+            status: "ready".into(),
+            heartbeat_at: "2026-07-16T12:02:00Z".into(),
+            private_state_exposed: false,
+            startup_lifecycle_receipt_id: "receipt".into(),
+        };
+        assert!(
+            !semantic_heartbeat_is_ready(None, "receipt", "2026-07-16T12:00:00Z", now).unwrap()
+        );
+        assert!(
+            semantic_heartbeat_is_ready(Some(&heartbeat), "receipt", "2026-07-16T12:00:00Z", now,)
+                .unwrap()
+        );
+        let mut alien = heartbeat.clone();
+        alien.startup_lifecycle_receipt_id = "other".into();
+        assert!(
+            !semantic_heartbeat_is_ready(Some(&alien), "receipt", "2026-07-16T12:00:00Z", now,)
+                .unwrap()
+        );
+    }
 }
 
 #[derive(Clone)]
@@ -3525,6 +4065,9 @@ struct Args {
     task_restart_count: u32,
     release_id: Option<String>,
     release_witness_sha256: Option<String>,
+    idunn_rudp_health: Option<SocketAddr>,
+    idunn_daemon: Option<String>,
+    idunn_health_contract: Option<String>,
 }
 
 impl Args {
@@ -3575,6 +4118,9 @@ impl Args {
         let mut fatal_log = None;
         let mut release_id = None;
         let mut release_witness_sha256 = None;
+        let mut idunn_rudp_health = None;
+        let mut idunn_daemon = None;
+        let mut idunn_health_contract = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -3753,6 +4299,24 @@ impl Args {
                             .context("missing --release-witness-sha256 value")?,
                     );
                 }
+                "--idunn-rudp-health" => {
+                    idunn_rudp_health = Some(
+                        values
+                            .next()
+                            .context("missing --idunn-rudp-health value")?
+                            .parse()?,
+                    );
+                }
+                "--idunn-daemon" => {
+                    idunn_daemon = Some(values.next().context("missing --idunn-daemon value")?);
+                }
+                "--idunn-health-contract" => {
+                    idunn_health_contract = Some(
+                        values
+                            .next()
+                            .context("missing --idunn-health-contract value")?,
+                    );
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -3857,6 +4421,11 @@ impl Args {
         if !matches!(restart_mode.as_str(), "always" | "on-failure" | "never") {
             anyhow::bail!("--restart-mode must be always, on-failure, or never");
         }
+        validate_idunn_health_options(
+            idunn_rudp_health.as_ref(),
+            idunn_daemon.as_deref(),
+            idunn_health_contract.as_deref(),
+        )?;
 
         Ok(Self {
             command,
@@ -3903,6 +4472,35 @@ impl Args {
             task_restart_count,
             release_id,
             release_witness_sha256,
+            idunn_rudp_health,
+            idunn_daemon,
+            idunn_health_contract,
         })
     }
+}
+
+fn validate_idunn_health_options(
+    endpoint: Option<&SocketAddr>,
+    daemon_id: Option<&str>,
+    health_contract: Option<&str>,
+) -> Result<()> {
+    let fields = [
+        endpoint.is_some(),
+        daemon_id.is_some(),
+        health_contract.is_some(),
+    ];
+    if fields.into_iter().any(|present| present) && !fields.into_iter().all(|present| present) {
+        anyhow::bail!(
+            "--idunn-rudp-health, --idunn-daemon, and --idunn-health-contract are all-or-none"
+        );
+    }
+    for (label, value) in [
+        ("--idunn-daemon", daemon_id),
+        ("--idunn-health-contract", health_contract),
+    ] {
+        if value.is_some_and(|value| value.trim().is_empty()) {
+            anyhow::bail!("{label} cannot be empty");
+        }
+    }
+    Ok(())
 }

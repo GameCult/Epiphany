@@ -2137,3 +2137,56 @@ two existing live tests remain intentionally ignored. Next: commit/push the
 CultCache submodule and parent changes, package a new witnessed release, deploy
 it, then derive the first live whole-repository projection. Reboot/logon remains
 permission-bound and requires explicit live operator approval.
+
+## Yggdrasil live-deployment authority map (2026-07-16)
+
+Live Epiphany deployment proof belongs on new Yggdrasil, not Starfire. The live
+host already runs Idunn (`idunn-yggdrasil.service`), Bifrost, Odin/Hermodr,
+Qdrant, and GPU-backed Ollama locally. Epiphany is not yet deployable there:
+there is no Epiphany Idunn target, ops manifest/unit, immutable release body, or
+daemon-owned aggregate `idunn.daemon_health.v1` publication.
+
+Two ownership gaps must close before the target is enabled. Epiphany's semantic
+projection health is component sight and cannot stand in for whole-runtime
+health; the managed-service supervisor must join the authenticated packaged
+release with current semantic and workspace-coverage child lineage and publish
+one explicit CultNet/RUDP health contract. Separately, Bifrost's real GitHub
+crossing receipts are not consumed by Idunn: Idunn currently observes
+`origin/main` as desired revision without proving that Bifrost authorized that
+exact commit. The new chain is Bifrost exact repository/ref/SHA authority ->
+Idunn frozen deployment request/artifact -> guarded ops actuator -> immutable
+release and deployed manifest -> daemon-published runtime health. Branch
+movement, actuator environment variables, process liveness, and component
+health are forbidden substitutes.
+
+The intended Ygg body uses `/srv/build/Epiphany` as Idunn's mutable upstream
+clone, immutable application releases below `/srv/epiphany/app/releases`, an
+immutable deployed source Body below `/srv/epiphany/source/releases`, canonical
+state below `/var/lib/gamecult/epiphany`, local Qdrant at `127.0.0.1:6333`, and
+local Ollama at `127.0.0.1:11434`. Actual publication must cross live Bifrost;
+actual deployment must be requested through live Idunn. Manual SSH deployment
+is not acceptable evidence. No host reboot is authorized.
+
+Source implementation now closes the Epiphany-owned half. The managed-service
+supervisor publishes exact `idunn.daemon_health.v1` over CultNet/RUDP only
+after joining the authenticated packaged release with the exact two reserved
+projectors. Semantic and workspace lineage require current policy, the exact
+packaged executable, launch-time process incarnation, correlated ready
+heartbeat, and bounded freshness. Proven stale v2 lineage may be replaced only
+through its persisted process identity; authentication uncertainty cannot kill.
+Legacy v1 lifecycle receipts are read-only and enter a typed non-killing
+retirement path before a v2 launch. Full library verification is 475 passed,
+2 intentional live-endpoint ignores.
+
+The adjacent source bodies are also prepared. Bifrost main commit `3bd250f`
+publishes `bifrost.repository_release_authority.v1`, binds one canonical
+repository/ref/SHA to a completed crossing receipt and exact GitHub proof, and
+forbids simultaneous live authorities for the same ref. Odin's Ygg worktree
+adds a scoped `yggdrasil-epiphany` target, selects the unique live Bifrost
+authority rather than branch head, freezes it through deployment request and
+artifact state, and revalidates at the privileged actuator boundary. The ops
+body builds exact initialized source through a separate builder identity,
+root-seals immutable source/application releases, starts Epiphany against
+Ygg-local Qdrant and Ollama, requires post-candidate Idunn RUDP acceptance, and
+only then publishes the v2 deployment witness. These source bodies are not yet
+live on Ygg; bootstrap and deployment remain the next phase.

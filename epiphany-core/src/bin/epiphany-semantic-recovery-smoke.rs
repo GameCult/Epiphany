@@ -203,6 +203,9 @@ fn run(root: &Path) -> Result<()> {
             managed_policy_digest: policy_digest,
             provider_daemon_id: PROJECTOR.into(),
             startup_correlation_id: receipt_id.clone(),
+            process_creation_token: 1,
+            process_created_at_rfc3339: None,
+            process_executable_path: projector.display().to_string(),
         },
     )?;
     let stdout = child
