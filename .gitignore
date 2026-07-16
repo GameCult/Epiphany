@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
 epiphany-core/target/
-epiphany-core/Cargo.lock
 epiphany-openai-adapter/target/
 epiphany-openai-adapter/Cargo.lock
 epiphany-openai-codex-spine/target/
