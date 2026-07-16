@@ -436,8 +436,11 @@ the canonical locator point id, and payload `pointId` remains the canonical
 locator identity. Empty synchronization, upsert, observation, deletion, and
 query therefore address one claim incarnation only.
 
-Success receipts use schema v1 and bind `claim_id` and `claim_epoch`. Legacy
-receipts decode with empty/zero defaults but cannot become query eligible.
+Success receipts use schema v2 and bind `claim_id`, `claim_epoch`, and the exact
+post-scroll vector-binding root. Legacy receipts decode with empty/zero defaults
+but cannot become query eligible. An authority-authenticated succeeded claim
+with legacy or invalid receipt evidence derives the typed repair posture; claim
+status alone never opens repair.
 Opaque readiness carries the exact successful receipt, and query derives its
 Qdrant filter only from that receipt. Activation is consequently the CultCache
 terminal-success CAS selecting an already-observed physical namespace; a

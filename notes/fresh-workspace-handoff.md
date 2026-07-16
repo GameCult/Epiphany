@@ -1260,8 +1260,11 @@ receipts; they merely share one survival body.
 
 Every pulse reloads both canonical inputs. It stores no open-obligation queue
 and allows at most one global action, rotating fairly between actionable
-partitions. Ready, foreign-running, succeeded, and stale inputs never execute.
-Pending and failed inputs acquire exact Idunn authority before using the one
+partitions. Ready, foreign-running, and stale inputs never execute. A succeeded
+claim is not itself terminal evidence: valid receipt-v2 health derives Ready,
+while an exact authority-authenticated succeeded claim whose receipt is legacy
+or invalid derives Repair and acquires the typed Idunn repair path. Pending and
+failed inputs acquire exact Idunn execute authority before using the one
 crate-private executor. A running claim owned by the current provider
 incarnation resumes directly without minting a second grant; a foreign running
 claim remains pressure until exact recovery. Overlapping pulses return busy,
@@ -2026,6 +2029,34 @@ IgnoreNew recurrence refusal while the foreground task is running.
 The installed sibling-generation gate is closed for the current boot. Next:
 build Mind's whole-repository observed-readiness join. Reboot/logon remains
 permission-bound.
+
+## Semantic receipt-v2 live migration wound (2026-07-16)
+
+The first readiness release exposed an honest migration failure. Receipt v2
+correctly made the old v1 Mind/Modeling receipts ineligible, but pulse
+classification returned `Succeeded` from claim status before deriving receipt
+health. Both partitions therefore stayed idle and packaged queries fell back to
+canonical BM25. `Succeeded` is removed as a pulse state. Valid v2 terminal
+evidence derives `Ready`; a same-obligation succeeded predecessor with missing,
+legacy, or invalid receipt evidence derives `Repair`.
+
+Repair is not opened by claim shape alone. Classification and acquisition share
+one predicate that authenticates the consumed executor grant or recovery
+authorization plus the exact succeeded attempt/claim binding. The repair grant
+advances the epoch. A failed repair becomes a failed current claim and retries
+through the ordinary execute path at the next epoch. Tests cover forged
+authority refusal, v1 repair acquisition, failed repair, execute retry, v2
+terminal success, final Ready, and empty-v2 Ready/nonqueryable stability. Soul
+approved; the full library suite is 466 passed, 2 intentionally ignored.
+
+Operational evidence before the fix: release
+`sha256-6f9ab4848207a110e7e3836f41e6a74c0f463369ad4b04ce2d0d3831a6b262ae`
+from commit `360dcb43` launched witnessed Idunn PID `29476` and direct child
+projector PID `22840`, but both packaged semantic queries fell back because the
+v1 receipts had no migration path. The next action is to commit this repair,
+package/deploy a successor witnessed release, observe v2 semantic ranking, then
+derive the first live whole-repository readiness projection. Reboot/logon still
+requires explicit live operator approval.
 
 ## Mind whole-repository readiness join (2026-07-16)
 

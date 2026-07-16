@@ -6,10 +6,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub enum MemorySemanticProjectorPulseClassification {
     Pending,
     Failed,
+    Repair,
     Ready,
     Running,
     RunningOwned { claim_id: String },
-    Succeeded,
     Stale,
 }
 
@@ -17,11 +17,8 @@ impl MemorySemanticProjectorPulseClassification {
     fn automatic_purpose(&self) -> Option<&'static str> {
         match self {
             Self::Pending | Self::Failed => Some("execute"),
-            Self::Ready
-            | Self::Running
-            | Self::RunningOwned { .. }
-            | Self::Succeeded
-            | Self::Stale => None,
+            Self::Repair => Some("repair"),
+            Self::Ready | Self::Running | Self::RunningOwned { .. } | Self::Stale => None,
         }
     }
 }
@@ -288,7 +285,7 @@ mod tests {
             Vec<std::result::Result<MemorySemanticProjectorPulseClassification, &'static str>>,
         >,
         acquire_result: Mutex<Option<Option<String>>>,
-        acquisitions: Mutex<Vec<String>>,
+        acquisitions: Mutex<Vec<(String, String)>>,
         executions: Mutex<Vec<String>>,
         execute_barriers: Option<(Arc<Barrier>, Arc<Barrier>)>,
     }
@@ -322,8 +319,10 @@ mod tests {
             input: &MemorySemanticProjectionInput,
             purpose: &str,
         ) -> Result<Option<String>> {
-            assert_eq!(purpose, "execute");
-            self.acquisitions.lock().unwrap().push(scope_key(input));
+            self.acquisitions
+                .lock()
+                .unwrap()
+                .push((scope_key(input), purpose.to_string()));
             Ok(self.acquire_result.lock().unwrap().take().unwrap_or(None))
         }
 
@@ -338,11 +337,10 @@ mod tests {
     }
 
     #[test]
-    fn decision_table_never_runs_ready_running_succeeded_or_stale() {
+    fn decision_table_never_runs_ready_running_or_stale() {
         for classification in [
             MemorySemanticProjectorPulseClassification::Ready,
             MemorySemanticProjectorPulseClassification::Running,
-            MemorySemanticProjectorPulseClassification::Succeeded,
             MemorySemanticProjectorPulseClassification::Stale,
         ] {
             let pulser = MemorySemanticProjectorPulser::new(MockPort::new(vec![classification]));
@@ -351,6 +349,19 @@ mod tests {
             assert!(pulser.port.acquisitions.lock().unwrap().is_empty());
             assert!(pulser.port.executions.lock().unwrap().is_empty());
         }
+    }
+
+    #[test]
+    fn repair_classification_acquires_the_typed_repair_path() {
+        let pulser = MemorySemanticProjectorPulser::new(MockPort::new(vec![
+            MemorySemanticProjectorPulseClassification::Repair,
+        ]));
+        let outcome = pulser.pulse(&[input("modeling")], None);
+        assert_eq!(outcome.status, MemorySemanticProjectorPulseStatus::Executed);
+        assert_eq!(
+            pulser.port.acquisitions.lock().unwrap().as_slice(),
+            &[("swarm-a:modeling".to_string(), "repair".to_string())]
+        );
     }
 
     #[test]

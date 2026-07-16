@@ -2,8 +2,8 @@ use super::{
     MEMORY_SEMANTIC_PROJECTION_ATTEMPT_SCHEMA_VERSION, MemorySemanticIndexReceipt,
     MemorySemanticProjectionAttempt, MemorySemanticProjectionObligation,
     MemorySemanticProjectionSourceHead, bind_memory_semantic_index_receipt,
-    memory_semantic_projection_terminal_success,
-    validate_memory_semantic_projection_attempt, validate_memory_semantic_projection_obligation,
+    memory_semantic_projection_terminal_success, validate_memory_semantic_projection_attempt,
+    validate_memory_semantic_projection_obligation,
 };
 use anyhow::{Result, anyhow};
 use cultcache_rs::{
@@ -413,7 +413,7 @@ mod authority_tests {
         ));
         assert_eq!(
             classify_memory_semantic_projection_for_pulse(&store, &input)?,
-            crate::MemorySemanticProjectorPulseClassification::Succeeded
+            crate::MemorySemanticProjectorPulseClassification::Ready
         );
         assert!(
             idunn_acquire_memory_semantic_projection(
@@ -426,6 +426,87 @@ mod authority_tests {
                 "2026-07-15T04:03:00Z",
             )
             .is_err()
+        );
+        let mut legacy = readiness.receipt;
+        legacy.schema_version = "gamecult.epiphany.memory_semantic_index_receipt.v1".into();
+        legacy.observed_vector_binding_root_sha256.clear();
+        let mut cache = semantic_projector_cache(&store)?;
+        cache.put(&legacy.receipt_id, &legacy)?;
+        assert_eq!(
+            classify_memory_semantic_projection_for_pulse(&store, &input)?,
+            crate::MemorySemanticProjectorPulseClassification::Repair
+        );
+        let scope_id = projection_scope_id(&obligation.swarm_id, &obligation.partition)?;
+        cache.pull_all_backing_stores()?;
+        let current = cache
+            .get::<MemorySemanticProjectionClaim>(&scope_id)?
+            .expect("succeeded predecessor");
+        let mut forged = current.clone();
+        forged.authority_id = "missing-consumed-authority".into();
+        cache.put(&scope_id, &forged)?;
+        assert!(classify_memory_semantic_projection_for_pulse(&store, &input).is_err());
+        assert!(
+            idunn_acquire_memory_semantic_projection(
+                &store,
+                &input,
+                "executor-b",
+                "executor-incarnation-b",
+                "repair",
+                "idunn-b",
+                "2026-07-15T04:03:00Z",
+            )
+            .is_err()
+        );
+        cache.put(&scope_id, &current)?;
+        let repair = idunn_acquire_memory_semantic_projection(
+            &store,
+            &input,
+            "executor-b",
+            "executor-incarnation-b",
+            "repair",
+            "idunn-b",
+            "2026-07-15T04:03:00Z",
+        )?;
+        assert_eq!(repair.claim.epoch, acquisition.claim.epoch + 1);
+        fail_memory_semantic_projection_claim(
+            &store,
+            &repair.claim.claim_id,
+            "2026-07-15T04:04:00Z",
+            "transient embedding failure",
+        )?;
+        assert_eq!(
+            classify_memory_semantic_projection_for_pulse(&store, &input)?,
+            crate::MemorySemanticProjectorPulseClassification::Failed
+        );
+        let retry = idunn_acquire_memory_semantic_projection(
+            &store,
+            &input,
+            "executor-c",
+            "executor-incarnation-c",
+            "execute",
+            "idunn-c",
+            "2026-07-15T04:05:00Z",
+        )?;
+        assert_eq!(retry.claim.epoch, repair.claim.epoch + 1);
+        let migrated = MemorySemanticIndexReceipt {
+            schema_version: crate::MEMORY_SEMANTIC_INDEX_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "empty-receipt-v2".into(),
+            indexed_at: "2026-07-15T04:06:00Z".into(),
+            claim_id: retry.claim.claim_id.clone(),
+            claim_epoch: retry.claim.epoch,
+            observed_vector_binding_root_sha256: format!("{:x}", Sha256::digest([])),
+            ..legacy
+        };
+        succeed_memory_semantic_projection_claim(
+            &store,
+            &retry.claim.claim_id,
+            &input.authority,
+            migrated,
+            "2026-07-15T04:06:01Z",
+        )?;
+        assert_eq!(
+            classify_memory_semantic_projection_for_pulse(&store, &input)?,
+            crate::MemorySemanticProjectorPulseClassification::Ready
         );
         Ok(())
     }
@@ -1384,7 +1465,8 @@ pub(crate) fn classify_memory_semantic_projection_for_pulse(
         }
     }
     let scope_id = projection_scope_id(&input.obligation.swarm_id, &input.obligation.partition)?;
-    if let Some(claim) = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)? {
+    let current_claim = decode_one::<MemorySemanticProjectionClaim>(&envelopes, &scope_id)?;
+    if let Some(claim) = &current_claim {
         validate_memory_semantic_projection_claim(&claim)?;
         if claim.scope_id != scope_id {
             return Err(anyhow!("semantic projector pulse claim key disagrees"));
@@ -1392,9 +1474,6 @@ pub(crate) fn classify_memory_semantic_projection_for_pulse(
         if claim.obligation_id == input.obligation.obligation_id {
             match claim.status.as_str() {
                 "running" => return Ok(super::MemorySemanticProjectorPulseClassification::Running),
-                "succeeded" => {
-                    return Ok(super::MemorySemanticProjectorPulseClassification::Succeeded);
-                }
                 _ => {}
             }
         }
@@ -1405,12 +1484,27 @@ pub(crate) fn classify_memory_semantic_projection_for_pulse(
         &decode_all::<MemorySemanticProjectionAttempt>(&envelopes)?,
         &decode_all::<MemorySemanticIndexReceipt>(&envelopes)?,
     )?;
+    let succeeded_predecessor = current_claim
+        .as_ref()
+        .map(|claim| {
+            authenticated_succeeded_predecessor(&envelopes, claim, &input.obligation.obligation_id)
+        })
+        .transpose()?
+        .unwrap_or(false);
     Ok(match health.status {
         super::MemorySemanticProjectionHealthStatus::Pending => {
-            super::MemorySemanticProjectorPulseClassification::Pending
+            if succeeded_predecessor {
+                super::MemorySemanticProjectorPulseClassification::Repair
+            } else {
+                super::MemorySemanticProjectorPulseClassification::Pending
+            }
         }
         super::MemorySemanticProjectionHealthStatus::Failed => {
-            super::MemorySemanticProjectorPulseClassification::Failed
+            if succeeded_predecessor {
+                super::MemorySemanticProjectorPulseClassification::Repair
+            } else {
+                super::MemorySemanticProjectorPulseClassification::Failed
+            }
         }
         super::MemorySemanticProjectionHealthStatus::Ready => {
             super::MemorySemanticProjectorPulseClassification::Ready
@@ -1498,7 +1592,7 @@ pub(crate) fn idunn_acquire_memory_semantic_projection(
         let attempt = decode_one::<MemorySemanticProjectionAttempt>(&opening, &claim.attempt_id)?
             .ok_or_else(|| anyhow!("semantic projector scope attempt disappeared"))?;
         validate_memory_semantic_projection_attempt(&attempt)?;
-        if attempt.obligation_id != claim.obligation_id || attempt.status != claim.status {
+        if !attempt_authenticates_claim(&attempt, claim) || attempt.status != claim.status {
             return Err(anyhow!(
                 "semantic projector scope claim and attempt disagree"
             ));
@@ -1512,19 +1606,18 @@ pub(crate) fn idunn_acquire_memory_semantic_projection(
             "acquisition before predecessor",
         )?;
     }
+    let succeeded_predecessor = current
+        .as_ref()
+        .map(|claim| {
+            authenticated_succeeded_predecessor(&opening, claim, &obligation.obligation_id)
+        })
+        .transpose()?
+        .unwrap_or(false);
     match purpose {
-        "execute"
-            if current.as_ref().is_some_and(|claim| {
-                claim.status == "succeeded" && claim.obligation_id == obligation.obligation_id
-            }) =>
-        {
+        "execute" if succeeded_predecessor => {
             return Err(anyhow!("execute grant cannot authorize succeeded repair"));
         }
-        "repair"
-            if !current.as_ref().is_some_and(|claim| {
-                claim.status == "succeeded" && claim.obligation_id == obligation.obligation_id
-            }) =>
-        {
+        "repair" if !succeeded_predecessor => {
             return Err(anyhow!("repair grant requires exact succeeded claim"));
         }
         _ => {}
@@ -2405,6 +2498,26 @@ fn attempt_authenticates_claim(
             }
             _ => false,
         }
+}
+
+fn authenticated_succeeded_predecessor(
+    envelopes: &[CultCacheEnvelope],
+    claim: &MemorySemanticProjectionClaim,
+    obligation_id: &str,
+) -> Result<bool> {
+    if claim.status != "succeeded" || claim.obligation_id != obligation_id {
+        return Ok(false);
+    }
+    authenticate_claim_authority_from_envelopes(envelopes, claim)?;
+    let attempt = decode_one::<MemorySemanticProjectionAttempt>(envelopes, &claim.attempt_id)?
+        .ok_or_else(|| anyhow!("succeeded semantic predecessor lost its exact attempt"))?;
+    validate_memory_semantic_projection_attempt(&attempt)?;
+    if attempt.status != "succeeded" || !attempt_authenticates_claim(&attempt, claim) {
+        return Err(anyhow!(
+            "succeeded semantic predecessor is not authenticated by its exact attempt"
+        ));
+    }
+    Ok(true)
 }
 
 fn terminal_or_recovery_cas(
