@@ -23,6 +23,10 @@ name = "epiphany-workspace-coverage-recovery-smoke"
 path = "src/bin/epiphany-workspace-coverage-recovery-smoke.rs"
 required-features = ["workspace-coverage-recovery-smoke"]
 
+[[bin]]
+name = "epiphany-release"
+path = "src/bin/epiphany-release.rs"
+
 [dependencies]
 anyhow = "1"
 bm25 = "2.3.2"

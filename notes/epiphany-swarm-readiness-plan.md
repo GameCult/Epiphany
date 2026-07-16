@@ -59,23 +59,31 @@ VoidBot's ordinary spine is not the rotten part. Its durable lessons are:
 
 ## Current Mechanism
 
-Epiphany currently has the right ingredients, but not yet the final live swarm
-shape:
+Epiphany owns its state, organ scheduler, workers, process policy, and local
+operator surfaces in native Rust and typed CultCache/CultMesh documents. Codex
+survives only as the retained OpenAI subscription-auth/model-transport bridge;
+it no longer owns Epiphany routes, prompts, scheduling, or state mutation.
 
-- `tools/epiphany_local_run.ps1` can build and smoke the compatibility shell.
-- `epiphany-runtime-spine` owns typed runtime identity/session/job/result/event
-  documents and advertises CultNet contracts.
-- heartbeat state owns role dossiers, initiative, heat, active-turn freeze,
-  sleep, rumination, appraisals, and derived reactions.
-- role memory accepts reviewed `selfPatch` petitions into typed Ghostlight-like
-  dossiers.
-- coordinator/CRRC/role/status surfaces exist, but the practical local runner
-  still goes through Codex app-server JSON-RPC for operator reads/actions.
-- Persona, Discord, Rider, Unity, Void memory, and repo birth bridges are typed
-  surfaces or artifacts, but they are not yet an integrated live swarm loop.
+- Runtime spine, Mind gateway, Substrate Gate, Eyes, Hands, Soul, Modeling,
+  Continuity, heartbeat, and Persona operations have typed intent/review/receipt
+  families.
+- One heartbeat scheduler owns initiative, heat, active-turn freeze,
+  completion-gated cooldown, stale-turn recovery, sleep, and rumination.
+- The local CultMesh swarm brake is typed and enforced at runner/action edges.
+- Persona public speech has parent-side repetition/saturation eligibility and
+  Bifrost/Heimdall crossing gates.
+- Memory has reviewed revise/retire/crystallize/prune/merge operations; Qdrant
+  remains rebuildable semantic sight rather than canonical Mind.
+- Idunn owns managed projector lifecycle and exact abandoned-claim recovery.
+  Task Scheduler owns only current-user after-login Idunn presence.
+- Mind and Modeling semantic query admission reauthenticate canonical CultCache
+  authority at query time against the Yggdrasil-hosted Qdrant/Ollama substrate.
 
-The machine is pointed toward live use. It is not cleared for unattended swarm
-operation.
+The installed host is operational after login, but its mutable release directory
+does not yet prove that supervisor, projectors, and query gate are one source
+generation. Whole-repository readiness also lacks its Mind-owned race-bounded
+join. Those are the remaining non-permission architecture gates. A real reboot/
+logon survival proof remains a separate operator-authorized boundary.
 
 ## Invariants
 
@@ -96,66 +104,27 @@ operation.
 - No broad live scheduler until the local runner can show the typed surfaces
   that explain what it would do and why.
 
-## Readiness Gate
+## Readiness Evidence Matrix
 
-Before live fire, Epiphany needs these gates closed:
+This matrix is the live gate. A green row names its authority and proof; it is
+not permission for another row to borrow the result.
 
-1. **Operator Run Path**
-   - Keep `tools/epiphany_local_run.ps1` as the human entrypoint for now.
-   - It must keep printing a concise verdict.
-   - It must keep artifacts operator-safe by default.
-   - It must make Codex app-server dependency obvious as compatibility, not
-     architecture.
+| Gate | Owner | Current evidence | State |
+| --- | --- | --- | --- |
+| Typed brake and initiative physiology | heartbeat/CultMesh | brake, completion cooldown, and stale-turn recovery tests and receipts | closed |
+| Reviewed Mind and organ-state mutation | Mind gateway and organ services | typed review/commit/lifecycle families; no whole-state model write path | closed |
+| Public speech/crossing eligibility | Persona + Bifrost/Heimdall | speech-audit receipts and fail-closed identity/capability checks | closed |
+| Branch-local autonomous action | Substrate Gate + Hands + Soul + Mind | scoped grants and patch/command/commit/verdict/admission chains | closed |
+| Semantic projection/query recovery | canonical admission + projector + query gate + Idunn | live Mind/Modeling semantic ranking and GUID-scoped exact process-recovery smokes | closed |
+| Atomic installed sibling generation | release packager + Idunn | no immutable commit-addressed package witness yet; mutable sibling directory can mix builds | open |
+| Whole-repository observed readiness | Mind | required Body R1/R2 + admitted model + live semantic + live workspace-coverage join does not yet exist | open |
+| Current host package | release deployment | installed supervisor/projectors predate current recovery repairs | open |
+| After-login recurrence | Task Scheduler + Idunn + ops tunnel | task recurrence and exact child recovery observed on current boot | closed for current boot |
+| Reboot/logon survival | Task Scheduler + Idunn + ops tunnel | requires fresh post-boot lineage and query proof | permission-bound |
 
-2. **Typed Swarm Brake**
-   - Add an Epiphany-owned pause document for swarm/heartbeat/live Persona
-     operation.
-   - Runners must fail closed when the document is missing, malformed, or
-     paused for a teardown reason, according to the surface being protected.
-   - The brake must be inspectable through Aquarium/status.
-
-3. **Initiative Scheduler Boundary**
-   - Keep one heartbeat scheduler for lanes/Personas/system organs.
-   - Heat is a multiplier on recovery pressure, not a time machine.
-   - Active-turn freeze and completion-gated cooldown are hard invariants.
-   - Stale active-turn recovery must write typed receipts.
-
-4. **Memory Lifecycle**
-   - Keep role-local memory writes as reviewed `selfPatch` operations.
-   - Add explicit lifecycle operations where missing: revise, retire,
-     crystallize, prune short-term residue, and merge incubation support.
-   - Sleep/maintenance may propose lifecycle operations; it must not silently
-     rewrite role identity.
-
-5. **Public Persona Safety**
-   - Persona speech eligibility must be parent-side state policy, not prompt hope.
-   - Track recent outputs, repeated topics, repeated openings, target/channel
-     saturation, and action kind.
-   - Work-shaped asks route to coordinator/Bifrost-style governance; banter
-     does not secretly become work dispatch.
-
-6. **CultNet Operator Surface**
-   - Move the local status/coordinator loop toward native CultNet snapshots,
-     intents, and receipts.
-   - Codex JSON-RPC may remain as the compatibility projection while the wall is
-     being evacuated.
-   - The next run path should consume typed documents first and only use
-     app-server JSON-RPC where no native route exists yet.
-
-7. **Audit And Review**
-   - Every automatic or semi-automatic action must produce a typed receipt.
-   - Semantic findings remain review-gated.
-   - Operator artifacts must seal direct thought, raw transcripts, and long
-     prompt-shaped notes by default.
-
-8. **Autonomous Branch Work**
-   - A repo swarm must own a git branch/worktree as its sacrificial workbench.
-   - Hands may edit, run checks, and commit autonomously inside that branch when
-     Substrate Gate, Hands, Soul, and Mind receipts support the work.
-   - Bifrost gates PR/upstream publication and credit; it does not gate every
-     local branch edit.
-   - Cross-body collaboration must travel through Odin/Eve/CultMesh/Bifrost
-     contracts instead of direct workspace rummaging.
+`providerStatus`, heartbeats, Qdrant collection existence, task state, watcher
+silence, legacy retrieval Ready, Eve/Gjallar rows, and empty dirty-path lists are
+never substitutes for the Mind readiness join or query admission.
 
 ## Ranked Next Cuts
 
@@ -195,16 +164,16 @@ Rebuild:
 
 ## Immediate Work Queue
 
-0. Land the repo-swarm MVP contract and make repo initialization create a
-   branch-local autonomous workbench by default.
-1. Add typed swarm pause/brake state and status projection.
-2. Add stale active-turn recovery receipts to heartbeat state if the current
-   heartbeat store cannot prove recovery cleanly.
-3. Add a Persona output audit surface before increasing public speech cadence.
-4. Add memory lifecycle operations that match VoidBot's useful pattern without
-   porting its TypeScript state shape wholesale.
-5. Move one local-run read path from Codex JSON-RPC compatibility to CultNet
-   snapshot/receipt consumption.
+1. Build and authenticate one immutable, commit-addressed sibling release. Task
+   installation and Idunn must consume that witness and reject mixed binaries.
+2. Implement Mind's race-bounded `RepositoryReadinessProjection`, including a
+   live workspace-coverage Qdrant evidence reader; stored `Current` is not enough.
+3. Deploy the witnessed release, replace the stale running reconciler/projector,
+   and repeat exact recurrence plus Mind/Modeling query admission proofs.
+4. With explicit live operator approval, reboot and prove the fresh Task
+   Scheduler -> Idunn -> exactly-one-projector lineage plus tunnel and query
+   admission. Do not silently widen after-login authority into boot service
+   authority.
 
 The correct posture is patient pressure. We are not rushing to live fire. We are
 aiming the barrel, checking the chamber, and making sure the thing does not try

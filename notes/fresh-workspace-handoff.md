@@ -1964,3 +1964,32 @@ projection test passed before the recovery smoke.
 Next: audit deployability against the swarm readiness plan and live host state.
 Do not conflate code-complete physiology with the permission-bound reboot/logon
 proof; no reboot without explicit live operator approval.
+
+## Fresh deployability audit (2026-07-16)
+
+The host is operational after current-user login, not yet deployable as one
+proven artifact generation. `GameCult-Yggdrasil-Tunnel` and
+`Epiphany-Idunn-Managed-Service-Reconciler` are enabled/running; the Yggdrasil
+Qdrant tunnel and Ollama endpoint are live; packaged Mind and Modeling queries
+return semantic ranking. Local retired Qdrant remains stopped. This is real
+current-boot physiology.
+
+Four non-permission wounds remain. Installed supervisor/projector binaries
+predate recovery commit `34802407`; Task Scheduler pins one mutable supervisor
+path while Idunn discovers siblings by filename/existence, so mixed generations
+are possible; Mind has no race-bounded whole-repository readiness join; and the
+old readiness plan described already-landed June work as future work. The plan
+now contains the live evidence matrix. Packaging must become an immutable typed
+commit-addressed release witness consumed by Task Scheduler and Idunn. Mind
+readiness must join fresh Body R1/R2, exact Body-grounded RepoModel admission,
+live Modeling semantic eligibility, and live workspace-coverage Qdrant evidence.
+Stored coverage `Current` is not sufficient.
+
+The constant `queryAdmission=false` and supervisor fields naming an external
+readiness authority are removed from sight-only projector/health/status
+projections. Those surfaces never evaluated query admission and therefore have
+no opinion. Query-time reauthentication remains the semantic admission owner.
+
+After the witnessed release is deployed, prove exact current-boot recurrence
+and Mind/Modeling query ranking. A reboot/logon proof remains the sole
+permission-bound host gate; do not reboot without explicit live approval.

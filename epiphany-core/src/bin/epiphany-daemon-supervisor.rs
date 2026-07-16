@@ -29,6 +29,7 @@ use epiphany_core::load_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::load_epiphany_cultmesh_managed_service_policy_with_digest;
 use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
+use epiphany_core::load_epiphany_packaged_release;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_heartbeat;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
 use epiphany_core::migrate_memory_semantic_projection_attempts_v0;
@@ -47,6 +48,7 @@ use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
 use epiphany_core::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
+use epiphany_core::{EpiphanyPackagedReleaseEntry, authenticate_epiphany_packaged_release};
 use epiphany_core::{
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION, WorkspaceCoverageManagedProcessLaunchEntry,
     WorkspaceCoverageProcessBootstrap, authenticate_workspace_coverage_provider_heartbeat,
@@ -59,6 +61,9 @@ use epiphany_core::{
     sign_workspace_coverage_launch, workspace_coverage_host_identity_record_digest,
     write_workspace_coverage_managed_process_launch, write_workspace_coverage_process_bootstrap,
     write_workspace_coverage_process_termination_observation,
+};
+use epiphany_core::{
+    epiphany_packaged_release_binary_path, epiphany_packaged_release_witness_sha256,
 };
 use rand_core::{OsRng, RngCore};
 use serde_json::Value;
@@ -200,9 +205,40 @@ fn managed_service_task_name(args: &Args) -> String {
         .unwrap_or_else(|| "Epiphany-Idunn-Managed-Service-Reconciler".to_string())
 }
 
+fn pinned_packaged_release(
+    args: &Args,
+    require_digest: bool,
+) -> Result<(EpiphanyPackagedReleaseEntry, String)> {
+    let release_id = args
+        .release_id
+        .as_deref()
+        .context("managed-service deployment requires --release-id")?;
+    let witness = load_epiphany_packaged_release(&args.store, &args.runtime_id, release_id)?
+        .context("pinned packaged release is absent")?;
+    let digest = match args.release_witness_sha256.as_deref() {
+        Some(expected) => expected.to_string(),
+        None if require_digest => {
+            anyhow::bail!("managed-service runtime requires --release-witness-sha256")
+        }
+        None => epiphany_packaged_release_witness_sha256(&witness)?,
+    };
+    let authenticated =
+        authenticate_epiphany_packaged_release(&args.store, &args.runtime_id, release_id, &digest)?;
+    Ok((authenticated, digest))
+}
+
 fn managed_service_task_action(args: &Args) -> Result<(PathBuf, PathBuf, Vec<String>)> {
-    let command = fs::canonicalize(service_command_path(args)?)
-        .context("managed-service task command must be an existing absolute executable")?;
+    if args.service_command.is_some() {
+        anyhow::bail!(
+            "managed-service task command comes from --release-id; --service-command is forbidden"
+        );
+    }
+    let (release, witness_digest) = pinned_packaged_release(args, false)?;
+    let command = fs::canonicalize(epiphany_packaged_release_binary_path(
+        &release,
+        "supervisor",
+    )?)
+    .context("witnessed managed-service supervisor is absent")?;
     let cwd = fs::canonicalize(
         args.cwd
             .clone()
@@ -220,6 +256,10 @@ fn managed_service_task_action(args: &Args) -> Result<(PathBuf, PathBuf, Vec<Str
         args.runtime_id.clone(),
         "--loop-interval-seconds".to_string(),
         args.loop_interval_seconds.to_string(),
+        "--release-id".to_string(),
+        release.release_id.clone(),
+        "--release-witness-sha256".to_string(),
+        witness_digest,
         "--fatal-log".to_string(),
         absolutize_from(
             &cwd,
@@ -593,8 +633,6 @@ fn semantic_projector_service_status(args: Args) -> Result<()> {
             "providerIncarnation": heartbeat.provider_incarnation,
             "heartbeatStatus": heartbeat.status,
             "startupCorrelationMatches": correlation_matches,
-            "readinessAuthority": "semantic-query-admission",
-            "semanticReadiness": "not-asserted-by-this-status",
             "privateStateExposed": false,
             "authoritative": false,
         }))?
@@ -736,8 +774,17 @@ fn serve(args: Args) -> Result<()> {
 }
 
 fn managed_service_serve(args: Args) -> Result<()> {
+    let (release, _) = pinned_packaged_release(&args, true)?;
+    let expected_supervisor = fs::canonicalize(epiphany_packaged_release_binary_path(
+        &release,
+        "supervisor",
+    )?)?;
+    if fs::canonicalize(env::current_exe()?)? != expected_supervisor {
+        anyhow::bail!("managed-service reconciler executable is not the pinned release supervisor");
+    }
     let mut iteration = 0_u64;
     loop {
+        pinned_packaged_release(&args, true)?;
         iteration = iteration.saturating_add(1);
         let policies =
             load_epiphany_cultmesh_managed_service_policies(&args.store, args.runtime_id.clone())?;
@@ -1260,7 +1307,7 @@ fn semantic_projector_service_policy(mut args: Args) -> Result<()> {
         "managed-service-policy-{SEMANTIC_PROJECTOR_SERVICE_ID}"
     ));
     args.restart_mode = "always".to_string();
-    args.service_command = Some(semantic_projector_command_path()?);
+    args.service_command = Some(packaged_role_command_path(&args, "semantic-projector")?);
     args.service_args = semantic_projector_service_args(
         agent_store,
         runtime_store,
@@ -1300,7 +1347,10 @@ fn workspace_coverage_projector_service_policy(mut args: Args) -> Result<()> {
         "managed-service-policy-{WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID}"
     ));
     args.restart_mode = "always".to_string();
-    args.service_command = Some(workspace_coverage_projector_command_path()?);
+    args.service_command = Some(packaged_role_command_path(
+        &args,
+        "workspace-coverage-projector",
+    )?);
     args.service_args = workspace_coverage_projector_service_args(
         runtime_store,
         &args.store,
@@ -1318,22 +1368,28 @@ fn workspace_coverage_projector_service_policy(mut args: Args) -> Result<()> {
     write_managed_service_policy(args)
 }
 
-fn workspace_coverage_projector_command_path() -> Result<PathBuf> {
-    let binary = if cfg!(windows) {
-        "epiphany-workspace-coverage-projector.exe"
-    } else {
-        "epiphany-workspace-coverage-projector"
-    };
-    let path = env::current_exe()
-        .map(|path| path.with_file_name(binary))
-        .context("failed to derive packaged workspace coverage projector executable")?;
-    if !path.is_file() {
-        anyhow::bail!(
-            "packaged workspace coverage projector executable is missing at {}; build both supervisor and projector together",
-            path.display()
-        );
+fn packaged_role_command_path(args: &Args, role: &str) -> Result<PathBuf> {
+    #[cfg(feature = "workspace-coverage-recovery-smoke")]
+    if args.release_id.is_none()
+        && std::env::var_os("EPIPHANY_WORKSPACE_COVERAGE_SMOKE_DIAGNOSTICS").is_some()
+    {
+        let file_name = match role {
+            "semantic-projector" if cfg!(windows) => "epiphany-memory-semantic-projector.exe",
+            "semantic-projector" => "epiphany-memory-semantic-projector",
+            "workspace-coverage-projector" if cfg!(windows) => {
+                "epiphany-workspace-coverage-projector.exe"
+            }
+            "workspace-coverage-projector" => "epiphany-workspace-coverage-projector",
+            _ => anyhow::bail!("unknown smoke-only packaged role {role}"),
+        };
+        let path = env::current_exe()?.with_file_name(file_name);
+        if !path.is_file() {
+            anyhow::bail!("smoke-only sibling is absent: {}", path.display());
+        }
+        return Ok(path);
     }
-    Ok(path)
+    let (release, _) = pinned_packaged_release(args, true)?;
+    epiphany_packaged_release_binary_path(&release, role)
 }
 
 fn workspace_coverage_projector_service_args(
@@ -1362,24 +1418,6 @@ fn workspace_coverage_projector_service_args(
         "--ollama-model".to_string(),
         ollama_model.to_string(),
     ]
-}
-
-fn semantic_projector_command_path() -> Result<PathBuf> {
-    let binary = if cfg!(windows) {
-        "epiphany-memory-semantic-projector.exe"
-    } else {
-        "epiphany-memory-semantic-projector"
-    };
-    let path = env::current_exe()
-        .map(|path| path.with_file_name(binary))
-        .context("failed to derive packaged semantic projector executable")?;
-    if !path.is_file() {
-        anyhow::bail!(
-            "packaged semantic projector executable is missing at {}; build both supervisor and projector together",
-            path.display()
-        );
-    }
-    Ok(path)
 }
 
 fn semantic_projector_service_args(
@@ -1465,12 +1503,32 @@ fn managed_service_read(args: Args) -> Result<()> {
 }
 
 fn managed_service_reconcile(mut args: Args) -> Result<()> {
+    let pinned_release = if args.release_id.is_some() {
+        Some(pinned_packaged_release(&args, true)?.0)
+    } else {
+        None
+    };
     let policy = load_epiphany_cultmesh_managed_service_policy(
         &args.store,
         args.runtime_id.clone(),
         &args.service_id,
     )?
     .with_context(|| format!("managed service policy missing for {}", args.service_id))?;
+    if let Some(release) = &pinned_release {
+        let expected_role = match policy.service_id.as_str() {
+            SEMANTIC_PROJECTOR_SERVICE_ID => Some("semantic-projector"),
+            WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID => Some("workspace-coverage-projector"),
+            _ => None,
+        };
+        if let Some(role) = expected_role
+            && fs::canonicalize(&policy.command)?
+                != fs::canonicalize(epiphany_packaged_release_binary_path(release, role)?)?
+        {
+            anyhow::bail!(
+                "reserved managed-service policy command is outside pinned release role {role}"
+            );
+        }
+    }
     if policy.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID {
         return reconcile_workspace_coverage_projector(args, policy);
     }
@@ -3315,7 +3373,7 @@ mod semantic_projector_authority_tests {
         let specialized_end = specialized_tail.find("\nfn ").unwrap();
         let specialized = &specialized_tail[..specialized_end];
         assert!(specialized.contains("args.service_command.is_some()"));
-        assert!(specialized.contains("semantic_projector_command_path()"));
+        assert!(specialized.contains("packaged_role_command_path(&args, \"semantic-projector\")"));
         assert!(specialized.contains("write_managed_service_policy(args)"));
 
         let legacy_cli = include_str!("epiphany-memory-semantic.rs");
@@ -3367,6 +3425,9 @@ mod semantic_projector_authority_tests {
         let body = &tail[..end];
         for required in [
             "managed-service-serve",
+            "--release-id",
+            "--release-witness-sha256",
+            "pinned_packaged_release",
             "New-ScheduledTaskTrigger -AtLogOn",
             "LogonType Interactive",
             "RunLevel Limited",
@@ -3385,6 +3446,7 @@ mod semantic_projector_authority_tests {
             );
         }
         assert!(!body.contains("sc.exe"));
+        assert!(body.contains("--service-command is forbidden"));
         assert!(source.contains("let mut task_restart_count = 999_u32"));
         assert!(source.contains("task_readback_has_drift"));
         assert!(source.contains("\"install-drift\""));
@@ -3461,6 +3523,8 @@ struct Args {
     task_logon_delay_seconds: u64,
     task_restart_interval_seconds: u64,
     task_restart_count: u32,
+    release_id: Option<String>,
+    release_witness_sha256: Option<String>,
 }
 
 impl Args {
@@ -3509,6 +3573,8 @@ impl Args {
         let mut task_restart_interval_seconds = 60_u64;
         let mut task_restart_count = 999_u32;
         let mut fatal_log = None;
+        let mut release_id = None;
+        let mut release_witness_sha256 = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -3677,6 +3743,16 @@ impl Args {
                         values.next().context("missing --fatal-log value")?,
                     ));
                 }
+                "--release-id" => {
+                    release_id = Some(values.next().context("missing --release-id value")?);
+                }
+                "--release-witness-sha256" => {
+                    release_witness_sha256 = Some(
+                        values
+                            .next()
+                            .context("missing --release-witness-sha256 value")?,
+                    );
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -3825,6 +3901,8 @@ impl Args {
             task_logon_delay_seconds,
             task_restart_interval_seconds,
             task_restart_count,
+            release_id,
+            release_witness_sha256,
         })
     }
 }

@@ -291,7 +291,6 @@ fn run_cli() -> Result<()> {
                     "privateStateExposed": false,
                     "authoritative": false,
                     "authority": "sight-only",
-                    "queryAdmission": false,
                     "rows": report_rows,
                     "tuiRows": tui_rows,
                 }))?
@@ -2218,7 +2217,7 @@ fn semantic_projection_health_tui_row(
     row: &EpiphanyCultMeshSemanticProjectionHealthEntry,
 ) -> String {
     format!(
-        "SEMANTIC-HEALTH swarm={} partition={} generation={} status=observed-{} documents={} dimensions={} provider={} incarnation={} authority=sight-only query-admission=false private=false",
+        "SEMANTIC-HEALTH swarm={} partition={} generation={} status=observed-{} documents={} dimensions={} provider={} incarnation={} authority=sight-only private=false",
         row.swarm_id,
         row.partition,
         row.source_generation,
@@ -2253,7 +2252,6 @@ fn semantic_projection_health_report_row(
         "authoritative": row.authoritative,
         "nonAuthoritative": !row.authoritative,
         "authority": "sight-only",
-        "queryAdmission": false,
         "queryEligibleDisplayOnly": row.query_eligible_display_only,
         "privateStateExposed": row.private_state_exposed,
     })

@@ -21,12 +21,25 @@ embedding work over WireGuard, but moving only the projector to Yggdrasil would
 split local store authority. Do not install a second projector on Yggdrasil or
 one process per partition.
 
-## Build
+## Package one source generation
 
 ```powershell
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
-cargo build --release --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-memory-semantic-projector --bin epiphany-memory-semantic --bin epiphany-daemon-supervisor
+cargo build --release --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-release
+& "$env:CARGO_TARGET_DIR\release\epiphany-release.exe" package `
+  --repo . `
+  --destination .\.epiphany-run\releases `
+  --store .\.epiphany-run\cultmesh\local-verse.ccmp `
+  --runtime-id epiphany-local
 ```
+
+The packager refuses dirty tracked source and owns a fresh isolated Cargo release
+build of the supervisor, semantic projector, workspace-coverage projector, and
+semantic query gate. It copies exactly those four siblings into an immutable
+commit-addressed directory, verifies every byte, then atomically publishes a
+typed CultCache release witness and current head. Keep the returned `releaseId`,
+`witnessSha256`, and `packageRoot`; Task Scheduler and Idunn pin them. A mutable
+`target\release` directory is build output, not deployment authority.
 
 ## Transport configuration
 
@@ -65,10 +78,15 @@ REST/gRPC ports locally as `16333`/`16334`; do not restart the retired node.
 ## Publish the typed service policy
 
 ```powershell
-$supervisor = '.\target\release\epiphany-daemon-supervisor.exe'
+$releaseRoot = '<packageRoot returned by epiphany-release>'
+$releaseId = '<releaseId>'
+$releaseDigest = '<witnessSha256>'
+$supervisor = Join-Path $releaseRoot 'epiphany-daemon-supervisor.exe'
 & $supervisor semantic-projector-service-policy `
   --store .\.epiphany-run\cultmesh\local-verse.ccmp `
   --runtime-id epiphany-local `
+  --release-id $releaseId `
+  --release-witness-sha256 $releaseDigest `
   --agent-store .\state\agents.msgpack `
   --runtime-store .\state\runtime-spine.msgpack `
   --qdrant-url http://127.0.0.1:16333 `
@@ -80,8 +98,8 @@ $supervisor = '.\target\release\epiphany-daemon-supervisor.exe'
 This command writes the fixed
 `epiphany-memory-semantic-projector-service` managed-service policy with
 `restartMode=always`. Its generated child command contains both canonical
-stores. The projector executable is derived as the packaged sibling of the
-running supervisor and must already exist. Caller-supplied executable paths,
+stores. The projector executable is resolved from the authenticated
+`semantic-projector` role in the pinned release witness. Caller-supplied executable paths,
 service IDs, restart modes, arbitrary child arguments, and finite iteration
 limits do not own this service shape. The generic managed-service writer
 refuses the reserved service id.
@@ -100,6 +118,25 @@ binding to the current reserved policy before constructing its service body or
 publishing a pulse or heartbeat. A launch receipt proves process creation; it
 does not claim semantic readiness. The first heartbeat comes later, after the
 projector holds the OS singleton and validates both canonical inputs.
+
+## Install the pinned after-login reconciler
+
+```powershell
+& $supervisor managed-service-task-install `
+  --store .\.epiphany-run\cultmesh\local-verse.ccmp `
+  --runtime-id epiphany-local `
+  --release-id $releaseId `
+  --cwd . `
+  --loop-interval-seconds 60
+```
+
+Task installation resolves the supervisor path and witness digest from the
+typed release. The scheduled action pins both `--release-id` and
+`--release-witness-sha256`; `managed-service-serve` authenticates the complete
+four-sibling set and its own path before reconciliation, then revalidates the
+set on every pulse. Reserved projector policies must name the exact witnessed
+role paths. A task pointing at the right supervisor with a missing/wrong witness
+argument, or a release directory with one changed sibling, is drift/failure.
 
 ## Recovery
 
@@ -142,7 +179,7 @@ curl.exe -fsS http://127.0.0.1:16333/collections
 Get-CimInstance Win32_Process |
   Where-Object { $_.CommandLine -match 'managed-service-serve|memory-semantic-projector' } |
   Select-Object ProcessId, ParentProcessId, CreationDate, CommandLine
-C:\Users\Meta\.cargo-target-codex\release\epiphany-daemon-supervisor.exe `
+& $supervisor `
   semantic-projector-service-status `
   --store .\.epiphany-run\cultmesh\local-verse.ccmp `
   --runtime-id epiphany-local
@@ -181,7 +218,7 @@ BM25, which is a failed deployment proof rather than semantic readiness:
 ```powershell
 $env:EPIPHANY_QDRANT_URL='http://127.0.0.1:16333'
 $env:EPIPHANY_OLLAMA_BASE_URL='http://10.77.0.1:11435'
-$semantic='C:\Users\Meta\.cargo-target-codex\release\epiphany-memory-semantic.exe'
+$semantic=Join-Path $releaseRoot 'epiphany-memory-semantic.exe'
 & $semantic context --agent-store .\state\agents.msgpack --partition mind `
   --text 'current Epiphany doctrine and memory' --query-id reboot-proof-mind --budget 8
 & $semantic context --runtime-store .\state\runtime-spine.msgpack --partition modeling `

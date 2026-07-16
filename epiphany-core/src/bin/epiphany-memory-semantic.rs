@@ -254,7 +254,6 @@ fn print_semantic_health(
         "authoritative": health.authoritative,
         "nonAuthoritative": !health.authoritative,
         "authority": "sight-only",
-        "queryAdmission": false,
         "queryEligibleDisplayOnly": health.query_eligible_display_only,
         "privateStateExposed": health.private_state_exposed,
     }))

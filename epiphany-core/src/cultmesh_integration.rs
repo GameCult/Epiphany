@@ -5,6 +5,7 @@ use crate::default_hands_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
+use crate::packaged_release::{EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead};
 use crate::workspace_coverage_process_documents::{
     WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
@@ -2650,6 +2651,8 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     WorkspaceCoverageProcessEvidenceHead => WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION,
     WorkspaceCoverageProviderHeartbeatEntry => WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
     WorkspaceCoverageProcessTerminationObservationEntry => WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
+    EpiphanyPackagedReleaseEntry => crate::packaged_release::EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION,
+    EpiphanyPackagedReleaseHead => crate::packaged_release::EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnDeploymentReceiptEntry => EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnAftercareAuditReceiptEntry => EPIPHANY_CULTMESH_IDUNN_AFTERCARE_AUDIT_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshSwarmBrakeEntry => EPIPHANY_CULTMESH_SWARM_BRAKE_SCHEMA_VERSION,

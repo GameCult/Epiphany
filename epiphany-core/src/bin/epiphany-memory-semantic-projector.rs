@@ -123,8 +123,7 @@ fn main() -> Result<()> {
                 "healthPublicationFaults": health_publication_faults,
                 "selectedScopeId": outcome.selected_scope_id,
                 "privateStateExposed": false,
-                "authoritative": false,
-                "queryAdmission": false
+                "authoritative": false
             }))?
         );
         if args.max_iterations != 0 && sequence >= args.max_iterations {

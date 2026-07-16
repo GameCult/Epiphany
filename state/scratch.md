@@ -186,3 +186,13 @@ replacement could not resume its own recovered running claim, so exact v3 owner
 resumption is allowed while all foreign incarnations remain contended.
 
 Next: full deployability audit. Reboot/logon proof still requires permission.
+
+## Deployability audit cut (2026-07-16)
+
+Operational after login, not artifact-clean. Yggdrasil Qdrant/Ollama and both
+packaged semantic query gates pass. Installed siblings predate `34802407` and
+are mutable/mixable. Build one immutable commit-addressed release witness before
+replacement. Mind still needs the R1/model+admission/live-semantic/live-coverage/
+R2 repository-readiness join. The readiness plan's June queue was stale and is
+now an evidence matrix. Sight surfaces no longer say `queryAdmission=false`;
+they never owned that decision. Final reboot/logon proof needs live approval.

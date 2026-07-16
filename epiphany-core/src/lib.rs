@@ -19,6 +19,7 @@ mod host_identity;
 mod memory_graph;
 mod mind_gateway;
 mod organ_dependencies;
+mod packaged_release;
 mod persona_turn;
 mod process_observation;
 mod promotion;
@@ -792,6 +793,16 @@ pub use organ_dependencies::evaluate_receipt_proof_profiles;
 pub use organ_dependencies::receipt_proof_evaluation_errors;
 pub use organ_dependencies::render_organ_dependencies;
 pub use organ_dependencies::render_organ_dependency;
+pub use packaged_release::{
+    EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION, EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION,
+    EpiphanyPackagedReleaseBinary, EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead,
+    PackageReleaseRequest, authenticate_epiphany_packaged_release,
+    epiphany_packaged_release_binary_path, epiphany_packaged_release_witness_sha256,
+    load_epiphany_packaged_release, load_epiphany_packaged_release_head,
+    package_and_publish_epiphany_release, publish_epiphany_packaged_release,
+    required_packaged_release_binaries, validate_epiphany_packaged_release,
+    verify_epiphany_packaged_release_files,
+};
 pub use persona_turn::PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION;
 pub use persona_turn::PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION;
 pub use persona_turn::PERSONA_TURN_PROMPT_SCHEMA_VERSION;
