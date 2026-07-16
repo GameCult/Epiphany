@@ -1,9 +1,11 @@
 use anyhow::{Result, bail};
 use chrono::Utc;
 use epiphany_core::{
+    EpiphanyMemoryDomain, EpiphanyMemoryGraphSnapshot, EpiphanyMemoryLifecycle,
+    EpiphanyMemoryNode, EpiphanyMemoryNodeKind, EpiphanyMemoryProfile, MEMORY_GRAPH_SCHEMA_VERSION,
     ObserveOutcome, RuntimeSpineInitOptions, bind_repository_body,
     admit_legacy_agent_memory_generation, bind_runtime_to_agent_memory_swarm,
-    ensure_agent_memory_swarm_identity,
+    ensure_agent_memory_swarm_identity, ensure_runtime_repo_model,
     initialize_runtime_spine, load_repository_body_status, observe_repository_body,
 };
 use std::path::PathBuf;
@@ -35,6 +37,45 @@ fn main() -> Result<()> {
             admit_legacy_agent_memory_generation(&agent_store)?;
             bind_runtime_to_agent_memory_swarm(&runtime_store, &agent_store, &at)?;
             let binding = bind_repository_body(&repo, &store, &runtime_store, workspace_id)?;
+            let bootstrap = EpiphanyMemoryGraphSnapshot {
+                schema_version: Some(MEMORY_GRAPH_SCHEMA_VERSION.to_string()),
+                graph_id: format!("{}-repo-model", binding.runtime_id),
+                domains: vec![EpiphanyMemoryDomain {
+                    id: "repository-body".to_string(),
+                    profile: EpiphanyMemoryProfile::RepoArchitecture,
+                    title: "Deployed repository Body".to_string(),
+                    description: Some(
+                        "Cold-start substrate binding; live Modeling owns architectural expansion."
+                            .to_string(),
+                    ),
+                    lifecycle: EpiphanyMemoryLifecycle::Accepted,
+                }],
+                nodes: vec![EpiphanyMemoryNode {
+                    id: "claim-deployed-repository-body".to_string(),
+                    domain_id: "repository-body".to_string(),
+                    profile: EpiphanyMemoryProfile::RepoArchitecture,
+                    kind: EpiphanyMemoryNodeKind::RuntimeContract,
+                    title: "Runtime is bound to the deployed repository Body".to_string(),
+                    claim: format!(
+                        "Runtime {} models workspace {} at its authenticated Git Body.",
+                        binding.runtime_id, binding.workspace_id
+                    ),
+                    question: "What architecture does live Modeling admit from this Body?"
+                        .to_string(),
+                    action_implication:
+                        "Expand only through Body-grounded Modeling admission.".to_string(),
+                    source_hashes: vec![binding.source_identity_sha256.clone()],
+                    lifecycle: EpiphanyMemoryLifecycle::Accepted,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+            ensure_runtime_repo_model(
+                &runtime_store,
+                runtime_store.with_extension("absent-legacy-repo-model"),
+                &bootstrap,
+                &at,
+            )?;
             println!(
                 "bootstrapped workspace={} swarm={} runtime={} scope={} root={}",
                 binding.workspace_id,
