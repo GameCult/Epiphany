@@ -890,8 +890,8 @@ the indexed content. Receipt/head constructors and writers remain projector-
 private. Live query eligibility re-observes Qdrant; a stored receipt proves only
 that one exact observation completed.
 
-The crate-private execution path now exists but remains deliberately
-production-unreachable. It validates plan-sealed text hashes and vector
+The execution path is reachable only through the reserved packaged workspace-
+coverage projector managed by Idunn. It validates plan-sealed text hashes and vector
 dimensions, creates or authenticates one exact managed claim/epoch Qdrant
 collection, writes no empty upsert, whole-scrolls typed payloads, rejects cyclic
 pagination plus duplicate/extra/missing/substituted points, and terminal-CASes
@@ -899,17 +899,15 @@ the receipt/head against the exact current Body authority, immutable plan,
 running claim/attempt, and prior coverage head acquired at start. A CAS loser
 cannot mint a receipt; failure can terminalize after Body advance.
 
-The service fork is resolved in favor of a dedicated workspace-coverage
-projector. Before it becomes reachable, claims must bind an executor
-incarnation and startup lifecycle receipt authenticated by the reserved managed
-service. The pulse needs an exact `Current` result to avoid endless reprojection
-and a sealed text-rematerialization path rather than caller-supplied workspace
-bytes. Abandoned-claim recovery may use only a newer latest managed launch and
-its correlated ready heartbeat to fence the old incarnation in one Body-store
-CAS. Time, Qdrant state, generic policy, process guesses, and caller strings are
-not abandonment authority. If Body advanced, recovery terminalizes the stale
-claim and lets normal acquisition derive a new plan; it never resurrects stale
-work.
+The dedicated workspace-coverage projector binds claims to an authenticated
+executor incarnation and reserved managed-process launch. Its pulse has an exact
+`Current` result and rematerializes text through the authenticated historical
+Body session rather than caller-supplied bytes. Abandoned-claim recovery admits
+only immutable host-signed termination, one causally linked replacement launch,
+and that replacement's latest signed ready heartbeat before one Body-store CAS.
+Time, Qdrant state, generic policy, process guesses, and caller strings are not
+abandonment authority. If Body advanced, recovery terminalizes the stale claim
+and lets normal acquisition derive a new plan; it never resurrects stale work.
 
 ### Dedicated service and exact semantic proof
 
@@ -931,13 +929,15 @@ success. Body history derives retirement candidates for terminal non-current
 claim collections; current and running collections are preserved, and Qdrant
 deletion requires exact managed metadata.
 
-Recovery is deliberately not present. A newer launch and ready heartbeat prove
-a successor exists, not that the old writer died. Honest recovery first needs a
-supervisor-owned termination observation bound to host+boot incarnation,
-process-instance identity, exact old launch/PID/executable/policy, and the old
-launch-correlated heartbeat/provider incarnation. The existing process observer
-collapses access failure/PID reuse too aggressively and cannot issue that proof.
-Timeouts remain inadmissible.
+Recovery is present through Idunn's reserved reconciliation path. Launch,
+heartbeat, and termination serialize through one per-launch process-evidence
+head. Host-signed termination binds host+boot incarnation, exact native process
+identity, executable, policy, and launch; it may seal death before heartbeat one
+without turning timeout or PID absence into authority. One termination admits
+one causal replacement slot. Recovery then requires the replacement's latest
+signed ready heartbeat and commits failed history, epoch+1 successor, and an
+immutable evidence-digest receipt in one Body CAS. PID reuse, access failure,
+indeterminate observation, stale ready replay, and timeout remain inadmissible.
 
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

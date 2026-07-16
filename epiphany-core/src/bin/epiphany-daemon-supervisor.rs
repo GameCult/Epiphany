@@ -1788,6 +1788,7 @@ fn reconcile_workspace_coverage_projector(
             "claimEpoch": recovered.claim_epoch,
             "replacementLaunchId": replacement.launch_id,
             "recoveryReceiptId": recovered.recovery_receipt_id,
+            "recoveryReceiptDigest": recovered.recovery_receipt_digest,
             "restarted": true,
             "privateStateExposed": false,
         }))?

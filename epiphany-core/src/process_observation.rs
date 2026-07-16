@@ -99,6 +99,27 @@ mod platform {
         QueryFullProcessImageNameW, WaitForSingleObject,
     };
 
+    #[repr(C)]
+    struct SystemTimeOfDayInformation {
+        boot_time: i64,
+        current_time: i64,
+        time_zone_bias: i64,
+        current_time_zone_id: u32,
+        reserved: u32,
+        boot_time_bias: u64,
+        sleep_time_bias: u64,
+    }
+
+    #[link(name = "ntdll")]
+    unsafe extern "system" {
+        fn NtQuerySystemInformation(
+            system_information_class: u32,
+            system_information: *mut core::ffi::c_void,
+            system_information_length: u32,
+            return_length: *mut u32,
+        ) -> i32;
+    }
+
     const WINDOWS_TO_UNIX_100NS: u64 = 116_444_736_000_000_000;
     const SYNCHRONIZE_ACCESS: u32 = 0x0010_0000;
 
@@ -267,12 +288,25 @@ mod platform {
     }
 
     pub(super) fn boot_identity() -> Option<String> {
-        capture(4).ok().map(|identity| {
-            format!(
-                "windows-system-process-filetime:{}",
-                identity.creation_token
+        let mut information = SystemTimeOfDayInformation {
+            boot_time: 0,
+            current_time: 0,
+            time_zone_bias: 0,
+            current_time_zone_id: 0,
+            reserved: 0,
+            boot_time_bias: 0,
+            sleep_time_bias: 0,
+        };
+        let status = unsafe {
+            NtQuerySystemInformation(
+                3,
+                (&mut information as *mut SystemTimeOfDayInformation).cast(),
+                std::mem::size_of::<SystemTimeOfDayInformation>() as u32,
+                std::ptr::null_mut(),
             )
-        })
+        };
+        (status >= 0 && information.boot_time > 0)
+            .then(|| format!("windows-kernel-boot-filetime:{}", information.boot_time))
     }
 
     pub(super) fn is_missing_error(error: &anyhow::Error) -> bool {
@@ -386,6 +420,13 @@ mod tests {
     #[test]
     fn rejects_zero_pid() {
         assert!(capture_process_instance(0).is_err());
+    }
+
+    #[test]
+    fn native_boot_identity_is_available_and_stable() {
+        let first = native_boot_identity().expect("native boot identity unavailable");
+        let second = native_boot_identity().expect("native boot identity disappeared");
+        assert_eq!(first, second);
     }
 
     #[test]

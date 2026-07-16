@@ -166,3 +166,23 @@ seals it. Termination v1 can carry no heartbeat when the exact signed launch and
 native host/boot/process proof already establish death. A late heartbeat cannot
 resurrect the launch. Six focused process tests, supervisor/projector suites,
 and all-target check pass. Next: real GUID-scoped recovery smoke.
+
+## Live workspace coverage recovery passed (2026-07-16)
+
+Proof: `C:\Users\Meta\AppData\Local\Temp\epiphany-workspace-coverage-a577f820-b0e2-4733-b628-529ee3bdb143\proof.json`.
+Initial epoch 1 owner was killed; Idunn produced exact termination, unique causal
+replacement, signed readiness, epoch 2 Body authority, and reconstructable
+receipt `2b44f28f-7c0f-4ad2-aefe-d7c8222e8642`. The replacement was killed only
+after exact launch-incarnation revalidation and only the two cryptographically
+derived fixture collections were eligible for deletion. Operator orchestration
+restored `voidbot-qdrant` to stopped. Before emitting success the smoke verified
+both owned collections absent. The proof binds the executed binary hash, exact
+embedded smoke-source hash, source head, and tracked-source diff digest; it
+proves fresh-store reopen authentication, not an OS process restart.
+
+The run found and cut two last-minute lies: PID 4 was not a normal-user Windows
+boot oracle, so boot identity now comes from native kernel boot time; and the
+replacement could not resume its own recovered running claim, so exact v3 owner
+resumption is allowed while all foreign incarnations remain contended.
+
+Next: full deployability audit. Reboot/logon proof still requires permission.

@@ -71,6 +71,7 @@ pub(crate) struct WorkspaceCoverageObservedBinding {
 pub struct WorkspaceCoverageRecoveryTarget {
     pub claim_id: String,
     pub claim_epoch: u64,
+    pub plan_id: String,
     pub managed_process_launch_id: String,
 }
 
@@ -884,6 +885,28 @@ pub(crate) fn acquire_workspace_coverage_projection(
             let prior_attempt: WorkspaceCoverageProjectionAttempt = decode(prior_attempt_env)?;
             validate_claim_attempt_link(&prior, &prior_attempt)?;
             if prior.status == "running" {
+                if prior.schema_version == CLAIM_SCHEMA_V3
+                    && prior_attempt.schema_version == ATTEMPT_SCHEMA_V3
+                    && prior.executor_id == executor_id
+                    && prior.executor_incarnation == executor_incarnation
+                    && prior.managed_process_launch_id == managed_process_launch_id
+                    && prior.plan_id == plan.plan_id
+                    && prior.obligation_id == obligation.obligation_id
+                    && prior.body_observation_id == basis.observation_id
+                    && prior.body_generation == basis.generation
+                    && prior.manifest_root_sha256 == basis.manifest_root_sha256
+                {
+                    return Ok(WorkspaceCoverageAcquireResult::Acquired(
+                        WorkspaceCoverageAcquisition {
+                            body_store,
+                            obligation,
+                            plan,
+                            claim: prior,
+                            attempt: prior_attempt,
+                            prior_head: find(&opening, HEAD_TYPE, HEAD_KEY).cloned(),
+                        },
+                    ));
+                }
                 return Ok(WorkspaceCoverageAcquireResult::Contended);
             }
             prior
@@ -990,6 +1013,7 @@ pub fn current_workspace_coverage_recovery_target(
     Ok(Some(WorkspaceCoverageRecoveryTarget {
         claim_id: claim.claim_id,
         claim_epoch: claim.claim_epoch,
+        plan_id: claim.plan_id,
         managed_process_launch_id: claim.managed_process_launch_id,
     }))
 }

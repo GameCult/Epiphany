@@ -11,11 +11,17 @@ path = "src/lib.rs"
 
 [features]
 semantic-recovery-smoke = []
+workspace-coverage-recovery-smoke = []
 
 [[bin]]
 name = "epiphany-semantic-recovery-smoke"
 path = "src/bin/epiphany-semantic-recovery-smoke.rs"
 required-features = ["semantic-recovery-smoke"]
+
+[[bin]]
+name = "epiphany-workspace-coverage-recovery-smoke"
+path = "src/bin/epiphany-workspace-coverage-recovery-smoke.rs"
+required-features = ["workspace-coverage-recovery-smoke"]
 
 [dependencies]
 anyhow = "1"

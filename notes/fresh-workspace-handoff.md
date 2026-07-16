@@ -1925,3 +1925,42 @@ Next: create/run a GUID-scoped live smoke through real packaged supervisor and
 projector binaries, local Qdrant/Ollama, exact child kill, causal replacement,
 epoch+1 recovery, and restart-time receipt authentication. Restore the prior
 Qdrant container state afterward. Reboot/logon remains permission-bound.
+
+## Live packaged workspace coverage recovery proof (2026-07-16)
+
+Feature-gated binary `epiphany-workspace-coverage-recovery-smoke` constructs
+GUID-scoped repo/runtime/Body/Verse state, uses the real packaged supervisor and
+projector siblings, warms local Ollama, derives its exact fenced Qdrant collection names, launches
+through specialized bootstrap, catches the epoch 1 claim, kills the exact child,
+runs Idunn reconciliation, verifies epoch 2 authority and fresh-store-reopen
+recovery receipt authentication, kills the replacement, and removes only its
+exact owned collections. Process cleanup revalidates the signed launch's native
+incarnation before issuing any kill.
+
+Passed proof:
+`C:\Users\Meta\AppData\Local\Temp\epiphany-workspace-coverage-a577f820-b0e2-4733-b628-529ee3bdb143\proof.json`
+
+Receipt: `2b44f28f-7c0f-4ad2-aefe-d7c8222e8642`. The proof binds executable
+SHA-256 `d262b7f49d45f15c31589bdfb591988cabcfa9ba65564d3e61493dc00b072093`,
+the exact embedded smoke-source digest, source head, and dirty tracked-source
+diff digest. It verifies both owned collections absent before emitting success.
+Operator orchestration restored the
+local Qdrant container to its prior stopped state; that is not a harness claim.
+
+The live rite exposed two real defects and did not pass until both were cut.
+Windows boot identity no longer opens privileged PID 4; it queries native
+kernel boot time and a focused test proves availability/stability under the
+current normal user. Recovery no longer deadlocks its successor: the exact v3
+replacement incarnation may resume its own running claim, while a wrong
+incarnation remains contended. The harness uses file-backed supervisor output
+because Windows grandchildren can retain captured pipe handles, and it has
+exact-incarnation process cleanup and exact-owned-collection cleanup guards.
+
+Verification: five native process-observation tests, six process/recovery tests,
+fourteen supervisor tests, fifteen projector tests plus one ignored live test,
+and feature-enabled all-target check pass. The separate live Qdrant/Ollama
+projection test passed before the recovery smoke.
+
+Next: audit deployability against the swarm readiness plan and live host state.
+Do not conflate code-complete physiology with the permission-bound reboot/logon
+proof; no reboot without explicit live operator approval.

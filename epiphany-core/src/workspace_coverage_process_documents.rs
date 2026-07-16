@@ -2281,6 +2281,26 @@ mod tests {
             recovered.executor_incarnation,
             replacement.provider_incarnation_id
         );
+        match crate::workspace_coverage_projector::acquire_workspace_coverage_projection(
+            &prepared,
+            EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID,
+            &replacement.provider_incarnation_id,
+            &replacement.launch_id,
+        )? {
+            crate::workspace_coverage_projector::WorkspaceCoverageAcquireResult::Acquired(
+                resumed,
+            ) => assert_eq!(resumed.claim.claim_id, recovered.claim_id),
+            _ => bail!("exact replacement incarnation did not resume its recovered claim"),
+        }
+        assert!(matches!(
+            crate::workspace_coverage_projector::acquire_workspace_coverage_projection(
+                &prepared,
+                EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID,
+                "wrong-incarnation",
+                &replacement.launch_id,
+            )?,
+            crate::workspace_coverage_projector::WorkspaceCoverageAcquireResult::Contended
+        ));
         let opening = SingleFileMessagePackBackingStore::new(&body_store).pull_all()?;
         let old_history: crate::workspace_coverage_projector::WorkspaceCoverageProjectionClaim =
             rmp_serde::from_slice(

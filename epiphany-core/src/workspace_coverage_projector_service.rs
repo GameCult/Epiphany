@@ -244,16 +244,22 @@ impl WorkspaceCoverageProjectorServiceBody {
     pub fn pulse(&mut self) -> WorkspaceCoverageProjectorServicePulse {
         match self.pulse_inner() {
             Ok(pulse) => pulse,
-            Err(_error) => WorkspaceCoverageProjectorServicePulse {
-                status: WorkspaceCoverageProjectorPulseStatus::Refused,
-                body_observation_id: None,
-                body_generation: None,
-                plan_id: None,
-                receipt_id: None,
-                // Managed stdout is an operator-safe projection. Raw backend
-                // bodies and filesystem paths remain private to the process.
-                fault: Some("workspace_coverage_pulse_refused".into()),
-            },
+            Err(_error) => {
+                #[cfg(feature = "workspace-coverage-recovery-smoke")]
+                if std::env::var_os("EPIPHANY_WORKSPACE_COVERAGE_SMOKE_DIAGNOSTICS").is_some() {
+                    eprintln!("workspace coverage smoke diagnostic: {_error:#}");
+                }
+                WorkspaceCoverageProjectorServicePulse {
+                    status: WorkspaceCoverageProjectorPulseStatus::Refused,
+                    body_observation_id: None,
+                    body_generation: None,
+                    plan_id: None,
+                    receipt_id: None,
+                    // Managed stdout is an operator-safe projection. Raw backend
+                    // bodies and filesystem paths remain private to the process.
+                    fault: Some("workspace_coverage_pulse_refused".into()),
+                }
+            }
         }
     }
 
