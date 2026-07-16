@@ -10,7 +10,6 @@ use crate::ensure_runtime_repo_model;
 use crate::load_epiphany_cultmesh_cluster_topology;
 use crate::load_epiphany_cultmesh_status;
 use crate::load_latest_epiphany_cultmesh_work_loop_telemetry;
-use crate::load_memory_graph_snapshot;
 use crate::memory_graph_from_epiphany_graphs;
 use crate::plan_memory_graph_context_cut;
 use crate::query_epiphany_local_verse_context;
@@ -254,13 +253,12 @@ pub fn append_modeling_repo_model_shape_context(
     mut context: String,
     runtime_store_path: &Path,
 ) -> Result<String, String> {
-    let graph_store = memory_graph_store_path(runtime_store_path);
-    let snapshot = load_memory_graph_snapshot(&graph_store)
+    let snapshot = crate::runtime_current_repo_model(runtime_store_path)
         .map_err(|error| format!("failed to load canonical RepoModel shape: {error}"))?
         .ok_or_else(|| {
             format!(
-                "canonical RepoModel is missing from {} after launch-context assembly",
-                graph_store.display()
+                "canonical RepoModel is missing from runtime spine {} after launch-context assembly",
+                runtime_store_path.display()
             )
         })?;
     context.push_str("\n\n<canonical_repo_model_shape>\n");
