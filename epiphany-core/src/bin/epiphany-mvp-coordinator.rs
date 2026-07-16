@@ -371,12 +371,37 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     steps.push(step);
                     break;
                 }
-                let accepted = accept_role(
+                let accepted = match accept_role(
                     &runtime_store,
                     &thread_id,
                     role_id,
                     revision.and_then(|value| u64::try_from(value).ok()),
-                )?;
+                ) {
+                    Ok(accepted) => accepted,
+                    Err(error) if args.supersede_failed_results => {
+                        let superseded = supersede_role_result(
+                            &runtime_store,
+                            &thread_id,
+                            role_id,
+                            revision,
+                            &result,
+                        )?;
+                        push_event(
+                            &mut step,
+                            json!({
+                                "type": "roleAdmissionRejected",
+                                "roleId": role_id,
+                                "error": format!("{error:#}"),
+                                "superseded": status_cli::sanitize_for_operator(superseded),
+                            }),
+                        );
+                        final_status = collect_coordinator_status(&runtime_store, &thread_id)?;
+                        append_operator_step_jsonl(&steps_path, &step)?;
+                        steps.push(step);
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                };
                 if let Some(memory) = maybe_apply_role_self_patch(&accepted, &agent_memory_dir)? {
                     let mut accepted_with_memory = accepted.clone();
                     accepted_with_memory["selfMemoryApply"] = memory;
