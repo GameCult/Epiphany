@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use chrono::Utc;
 use epiphany_core::{
     ObserveOutcome, RuntimeSpineInitOptions, bind_repository_body,
     bind_runtime_to_agent_memory_swarm, ensure_agent_memory_swarm_identity,
@@ -12,6 +13,35 @@ fn main() -> Result<()> {
         return usage();
     };
     match command {
+        "bootstrap" => {
+            let repo = PathBuf::from(required(&args, "--repo")?);
+            let store = PathBuf::from(required(&args, "--store")?);
+            let runtime_store = PathBuf::from(required(&args, "--runtime-store")?);
+            let agent_store = PathBuf::from(required(&args, "--agent-store")?);
+            let workspace_id = required(&args, "--workspace-id")?;
+            let runtime_id = required(&args, "--runtime-id")?;
+            let swarm_id = required(&args, "--swarm-id")?;
+            let at = Utc::now().to_rfc3339();
+            initialize_runtime_spine(
+                &runtime_store,
+                RuntimeSpineInitOptions {
+                    runtime_id: runtime_id.to_string(),
+                    display_name: format!("Epiphany {runtime_id}"),
+                    created_at: at.clone(),
+                },
+            )?;
+            ensure_agent_memory_swarm_identity(&agent_store, swarm_id)?;
+            bind_runtime_to_agent_memory_swarm(&runtime_store, &agent_store, &at)?;
+            let binding = bind_repository_body(&repo, &store, &runtime_store, workspace_id)?;
+            println!(
+                "bootstrapped workspace={} swarm={} runtime={} scope={} root={}",
+                binding.workspace_id,
+                binding.swarm_id,
+                binding.runtime_id,
+                binding.scope,
+                binding.git_top_level
+            );
+        }
         "bind" => {
             let binding = bind_repository_body(
                 &PathBuf::from(required(&args, "--repo")?),
@@ -80,7 +110,7 @@ fn required<'a>(args: &'a [String], name: &str) -> Result<&'a str> {
 }
 fn usage<T>() -> Result<T> {
     bail!(
-        "usage: epiphany-repository-body bind --repo PATH --store PATH --runtime-store PATH --workspace-id ID | observe --repo PATH --store PATH --runtime-store PATH | status --store PATH | smoke"
+        "usage: epiphany-repository-body bootstrap --repo PATH --store PATH --runtime-store PATH --agent-store PATH --workspace-id ID --runtime-id ID --swarm-id ID | bind --repo PATH --store PATH --runtime-store PATH --workspace-id ID | observe --repo PATH --store PATH --runtime-store PATH | status --store PATH | smoke"
     )
 }
 fn smoke() -> Result<()> {
