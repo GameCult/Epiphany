@@ -14,6 +14,10 @@ use crate::workspace_coverage_process_documents::{
     WorkspaceCoverageManagedProcessLaunchEntry, WorkspaceCoverageProcessEvidenceHead,
     WorkspaceCoverageProcessTerminationObservationEntry, WorkspaceCoverageProviderHeartbeatEntry,
 };
+use crate::workspace_coverage_projection_progress::{
+    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
+    WorkspaceCoverageProjectionProgressEntry,
+};
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -2657,6 +2661,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     WorkspaceCoverageProcessEvidenceHead => WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION,
     WorkspaceCoverageProviderHeartbeatEntry => WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
     WorkspaceCoverageProcessTerminationObservationEntry => WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
+    WorkspaceCoverageProjectionProgressEntry => WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
     EpiphanyPackagedReleaseEntry => crate::packaged_release::EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION,
     EpiphanyPackagedReleaseHead => crate::packaged_release::EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnDeploymentReceiptEntry => EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION,
