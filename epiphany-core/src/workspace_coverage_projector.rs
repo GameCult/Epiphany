@@ -46,7 +46,7 @@ pub(crate) const ATTEMPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_proj
 /// Physiological durability cadence, deliberately distinct from Qdrant's
 /// transport ceiling. On the deployment baseline this bounds checkpoint loss
 /// to a few minutes while retaining waited, exact batch writes.
-const WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS: usize = 8;
+const WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS: usize = 1;
 pub(crate) const CLAIM_KEY: &str = "workspace-coverage-projector-current";
 const CLAIM_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v1";
 const ATTEMPT_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v1";
@@ -2861,15 +2861,8 @@ mod tests {
     fn sealed_batch_ranges_preserve_plan_order_and_own_checkpoint_cadence() {
         let total = WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS * 2 + 3;
         let ranges = sealed_batch_ranges(total);
-        assert_eq!(
-            ranges,
-            vec![
-                0..WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS,
-                WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS
-                    ..WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS * 2,
-                WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS * 2..total,
-            ]
-        );
+        assert_eq!(WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS, 1);
+        assert_eq!(ranges.len(), total);
         assert!(
             ranges
                 .iter()
