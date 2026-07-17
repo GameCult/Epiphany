@@ -2,15 +2,16 @@ use crate::repository_body_observer::RepositoryBodyReadSession;
 use crate::semantic_backend::{OllamaConfig, OllamaEmbedder, QdrantBackend, QdrantConfig};
 use crate::workspace_coverage_projector::{
     WorkspaceCoverageAcquireResult, WorkspaceCoverageCurrentState,
-    acquire_workspace_coverage_projection, classify_current_workspace_coverage,
-    execute_workspace_coverage_projection, prepare_workspace_coverage_projection,
-    retire_workspace_coverage_collections,
+    WorkspaceCoverageProjectionExecutionAuthority, acquire_workspace_coverage_projection,
+    classify_current_workspace_coverage, execute_workspace_coverage_projection,
+    prepare_workspace_coverage_projection, retire_workspace_coverage_collections,
 };
 use crate::{
-    EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID, load_current_runtime_repository_body_basis,
-    runtime_repository_body_store_binding,
+    EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID, HostIncarnationIdentityEntry,
+    load_current_runtime_repository_body_basis, runtime_repository_body_store_binding,
 };
 use anyhow::{Context, Result, anyhow, bail};
+use ed25519_dalek::SigningKey;
 use sha2::{Digest, Sha256};
 #[cfg(windows)]
 use std::ffi::OsStr;
@@ -172,6 +173,16 @@ pub struct WorkspaceCoverageProjectorServiceBody {
     managed_process_launch_id: String,
     embedder: OllamaEmbedder,
     qdrant: QdrantBackend,
+    execution_authority: Option<WorkspaceCoverageProjectorExecutionAuthority>,
+    operation_timeout_ms: u64,
+}
+
+#[derive(Clone)]
+struct WorkspaceCoverageProjectorExecutionAuthority {
+    local_verse_store: PathBuf,
+    runtime_id: String,
+    trusted_host: HostIncarnationIdentityEntry,
+    provider_signing_key: SigningKey,
 }
 
 impl WorkspaceCoverageProjectorServiceBody {
@@ -212,6 +223,7 @@ impl WorkspaceCoverageProjectorServiceBody {
         let body_store = PathBuf::from(route.body_store_path);
         let singleton =
             acquire_workspace_coverage_projector_singleton(&runtime_store, &body_store)?;
+        let operation_timeout_ms = config.qdrant_timeout_ms;
         let qdrant = QdrantBackend::new(QdrantConfig {
             url: config.qdrant_url,
             api_key: config.qdrant_api_key,
@@ -230,7 +242,34 @@ impl WorkspaceCoverageProjectorServiceBody {
             managed_process_launch_id,
             embedder,
             qdrant,
+            execution_authority: None,
+            operation_timeout_ms,
         })
+    }
+
+    pub fn install_execution_authority(
+        &mut self,
+        local_verse_store: impl AsRef<Path>,
+        runtime_id: impl Into<String>,
+        trusted_host: HostIncarnationIdentityEntry,
+        provider_signing_key: SigningKey,
+    ) -> Result<()> {
+        let runtime_id = runtime_id.into();
+        if runtime_id.trim().is_empty() {
+            bail!("workspace coverage execution authority requires its runtime id");
+        }
+        let bound = runtime_repository_body_store_binding(&self.runtime_store)?
+            .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+        if bound.runtime_id != runtime_id {
+            bail!("workspace coverage execution authority runtime disagrees with Body route");
+        }
+        self.execution_authority = Some(WorkspaceCoverageProjectorExecutionAuthority {
+            local_verse_store: local_verse_store.as_ref().to_path_buf(),
+            runtime_id,
+            trusted_host,
+            provider_signing_key,
+        });
+        Ok(())
     }
 
     pub fn provider_incarnation(&self) -> &str {
@@ -329,11 +368,21 @@ impl WorkspaceCoverageProjectorServiceBody {
                 })
             }
             WorkspaceCoverageAcquireResult::Acquired(acquisition) => {
+                let authority = self.execution_authority.as_ref().ok_or_else(|| {
+                    anyhow!("workspace coverage projector has no installed execution authority")
+                })?;
                 let receipt = execute_workspace_coverage_projection(
                     &acquisition,
                     &prepared,
                     &self.embedder,
                     &mut self.qdrant,
+                    &WorkspaceCoverageProjectionExecutionAuthority {
+                        local_verse_store: &authority.local_verse_store,
+                        runtime_id: &authority.runtime_id,
+                        trusted_host: &authority.trusted_host,
+                        provider_signing_key: &authority.provider_signing_key,
+                        operation_timeout_ms: self.operation_timeout_ms,
+                    },
                 )?;
                 Ok(WorkspaceCoverageProjectorServicePulse {
                     status: WorkspaceCoverageProjectorPulseStatus::Executed,

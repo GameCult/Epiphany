@@ -471,6 +471,151 @@ pub(crate) fn load_authenticated_current_checkpoint(
     }))
 }
 
+pub(crate) fn load_authenticated_checkpoint_chain(
+    body_store: impl AsRef<Path>,
+    local_verse_store: impl AsRef<Path>,
+    trusted_host: &HostIncarnationIdentityEntry,
+    claim_id: &str,
+    claim_epoch: u64,
+) -> Result<Vec<WorkspaceCoverageProjectionBatchCheckpointAdmission>> {
+    let Some(current) = load_authenticated_current_checkpoint(
+        body_store.as_ref(),
+        local_verse_store.as_ref(),
+        trusted_host,
+        claim_id,
+        claim_epoch,
+    )? else {
+        return Ok(Vec::new());
+    };
+    let opening = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
+    let head_env = find(
+        &opening,
+        HEAD_TYPE,
+        &checkpoint_head_key(claim_id, claim_epoch),
+    )?;
+    let head: WorkspaceCoverageProjectionBatchCheckpointHeadEntry = decode(head_env)?;
+    if head.checkpoint_id != current.checkpoint.checkpoint_id
+        || head.checkpoint_envelope_digest != current.checkpoint_envelope_digest
+    {
+        bail!("checkpoint head changed while reconstructing authenticated chain");
+    }
+    let binding_env = find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
+    let body_head_env = find(&opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
+    let observation_env = find(
+        &opening,
+        BODY_OBSERVATION_TYPE,
+        &current.checkpoint.body_observation_id,
+    )?;
+    let manifest_env = find(
+        &opening,
+        BODY_MANIFEST_TYPE,
+        &current.checkpoint.manifest_root_sha256,
+    )?;
+    let obligation_env = find(&opening, OBLIGATION_TYPE, &current.checkpoint.obligation_id)?;
+    let plan_env = find(&opening, PLAN_TYPE, &current.checkpoint.plan_id)?;
+    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)?;
+    let attempt_env = find(&opening, ATTEMPT_TYPE, &current.checkpoint.attempt_id)?;
+    let binding: RepositoryBodyBinding = decode(binding_env)?;
+    let body_head: RepositoryBodyHead = decode(body_head_env)?;
+    let observation: RepositoryBodyObservation = decode(observation_env)?;
+    let manifest: RepositoryBodyManifest = decode(manifest_env)?;
+    let obligation: WorkspaceCoverageObligation = decode(obligation_env)?;
+    let plan: WorkspaceCoverageProjectionPlan = decode(plan_env)?;
+    let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
+    let attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
+    validate_projection_claim(&claim)?;
+    validate_projection_attempt(&attempt)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+    validate_current_projection_binding(&current.checkpoint, CurrentProjectionBinding {
+        claim_status: &claim.status, claim_id: &claim.claim_id, claim_epoch: claim.claim_epoch,
+        attempt_status: &attempt.status, attempt_id: &attempt.attempt_id,
+        claim_plan_id: &claim.plan_id, attempt_plan_id: &attempt.plan_id, plan_id: &plan.plan_id,
+        claim_obligation_id: &claim.obligation_id, obligation_id: &obligation.obligation_id,
+        plan_obligation_id: &plan.obligation_id,
+        claim_body_observation_id: &claim.body_observation_id,
+        obligation_body_observation_id: &obligation.body_observation_id,
+        claim_body_generation: claim.body_generation,
+        obligation_body_generation: obligation.body_generation,
+        claim_manifest_root: &claim.manifest_root_sha256,
+        obligation_manifest_root: &obligation.manifest_root_sha256,
+    })?;
+    validate_workspace_coverage_projection_plan(&obligation, &plan)?;
+    exact_obligation_body_authority(&opening, &obligation)?;
+    let (launch, launch_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            local_verse_store,
+            current.checkpoint.runtime_id.clone(),
+            &current.checkpoint.managed_process_launch_id,
+            trusted_host,
+        )?;
+
+    let mut reversed = Vec::new();
+    let mut next_id = Some(head.checkpoint_id.clone());
+    let mut next_digest = Some(head.checkpoint_envelope_digest.clone());
+    let mut seen_checkpoints = std::collections::HashSet::new();
+    while let (Some(id), Some(expected_digest)) = (next_id.take(), next_digest.take()) {
+        if !seen_checkpoints.insert(id.clone()) {
+            bail!("checkpoint predecessor chain contains a cycle or duplicate event");
+        }
+        let event_env = find(
+            &opening,
+            WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_TYPE,
+            &checkpoint_key(claim_id, &id),
+        )?;
+        if envelope_digest(event_env) != expected_digest {
+            bail!("checkpoint predecessor digest disagrees with exact event envelope");
+        }
+        let event: WorkspaceCoverageProjectionBatchCheckpointEntry = decode(event_env)?;
+        validate_shape(&event, true)?;
+        authenticate_signature(&event)?;
+        validate_launch(&event, &launch, &launch_digest)?;
+        validate_authority(
+            &event, &binding, binding_env, &body_head, body_head_env, &observation,
+            observation_env, &manifest, manifest_env, &obligation, obligation_env, &plan,
+            plan_env, &claim, claim_env, &attempt, attempt_env,
+        )?;
+        validate_batch_against_plan(&event, &obligation, &plan)?;
+        next_id = event.predecessor_checkpoint_id.clone();
+        next_digest = event.predecessor_checkpoint_envelope_digest.clone();
+        reversed.push(WorkspaceCoverageProjectionBatchCheckpointAdmission {
+            checkpoint: event,
+            checkpoint_envelope_digest: expected_digest,
+        });
+    }
+    reversed.reverse();
+    validate_reconstructed_chain(&reversed, &head)?;
+    Ok(reversed)
+}
+
+fn validate_reconstructed_chain(
+    chain: &[WorkspaceCoverageProjectionBatchCheckpointAdmission],
+    head: &WorkspaceCoverageProjectionBatchCheckpointHeadEntry,
+) -> Result<()> {
+    let mut prior: Option<&WorkspaceCoverageProjectionBatchCheckpointEntry> = None;
+    let mut seen_points = std::collections::HashSet::new();
+    for admission in chain {
+        let event = &admission.checkpoint;
+        let expected_sequence = match prior {
+            Some(p) => p.sequence.checked_add(1).ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?,
+            None => 1,
+        };
+        if event.sequence != expected_sequence
+            || event.first_plan_ordinal != prior.map_or(0, |p| p.cumulative_point_count)
+            || event.batch_ordinal != event.sequence - 1
+            || event.point_ids.iter().any(|id| !seen_points.insert(id.clone()))
+        {
+            bail!("checkpoint chain is noncontiguous or overlaps prior sealed points");
+        }
+        prior = Some(event);
+    }
+    if prior.map(|p| p.sequence) != Some(head.sequence)
+        || prior.map(|p| p.cumulative_point_count) != Some(head.cumulative_point_count)
+    {
+        bail!("checkpoint chain does not reconstruct the authenticated current head");
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy)]
 struct CurrentProjectionBinding<'a> {
     claim_status: &'a str,
@@ -1311,6 +1456,50 @@ mod tests {
             }
             assert!(validate_current_head_event_identity(&event, &stale).is_err(), "{mutation}");
         }
+    }
+    #[test]
+    fn reconstructed_chain_rejects_corrupted_earlier_batch_and_overlap() {
+        let k = SigningKey::from_bytes(&[7; 32]);
+        let first = sample(&k);
+        let mut second = first.clone();
+        second.checkpoint_id = uuid::Uuid::new_v4().to_string();
+        second.sequence = 2;
+        second.batch_ordinal = 1;
+        second.first_plan_ordinal = 1;
+        second.cumulative_point_count = 2;
+        second.point_ids = vec!["point-2".into()];
+        second.point_bindings[0].point_id = "point-2".into();
+        second.vector_bindings[0].point_id = "point-2".into();
+        second.predecessor_checkpoint_id = Some(first.checkpoint_id.clone());
+        second.predecessor_checkpoint_envelope_digest = Some(format!("sha256-{}", "8".repeat(64)));
+        let chain = vec![
+            WorkspaceCoverageProjectionBatchCheckpointAdmission {
+                checkpoint: first.clone(),
+                checkpoint_envelope_digest: format!("sha256-{}", "8".repeat(64)),
+            },
+            WorkspaceCoverageProjectionBatchCheckpointAdmission {
+                checkpoint: second.clone(),
+                checkpoint_envelope_digest: format!("sha256-{}", "9".repeat(64)),
+            },
+        ];
+        let head = WorkspaceCoverageProjectionBatchCheckpointHeadEntry {
+            schema_version: HEAD_SCHEMA.into(),
+            claim_id: second.claim_id.clone(),
+            claim_epoch: second.claim_epoch,
+            checkpoint_id: second.checkpoint_id.clone(),
+            checkpoint_envelope_digest: chain[1].checkpoint_envelope_digest.clone(),
+            sequence: 2,
+            cumulative_point_count: 2,
+            total_point_count: 2,
+            collection_name: second.collection_name.clone(),
+        };
+        validate_reconstructed_chain(&chain, &head).unwrap();
+        let mut corrupt = chain.clone();
+        corrupt[0].checkpoint.sequence = 2;
+        assert!(validate_reconstructed_chain(&corrupt, &head).is_err());
+        let mut overlap = chain.clone();
+        overlap[1].checkpoint.point_ids[0] = overlap[0].checkpoint.point_ids[0].clone();
+        assert!(validate_reconstructed_chain(&overlap, &head).is_err());
     }
     #[test]
     fn current_body_projection_rejects_historical_or_terminal_checkpoint_authority() {

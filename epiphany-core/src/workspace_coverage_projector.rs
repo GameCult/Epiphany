@@ -1,6 +1,17 @@
 use crate::repository_body_observer::RepositoryBodyReadSession;
 use crate::semantic_backend::{
-    CollectionCompatibility, OllamaEmbedder, QdrantBackend, SemanticPoint, SemanticStoredPoint,
+    CollectionCompatibility, OllamaEmbedder, QDRANT_POINT_BATCH_MAX, QdrantBackend, SemanticPoint,
+    SemanticStoredPoint,
+};
+use crate::workspace_coverage_projection_batch_checkpoint::{
+    ObservedWorkspaceCoverageBatchInput, WorkspaceCoverageProjectionBatchCheckpointAdmission,
+    admit_observed_workspace_coverage_batch, load_authenticated_checkpoint_chain,
+};
+use crate::workspace_coverage_projection_progress::{
+    authenticate_workspace_coverage_projection_progress,
+    load_latest_workspace_coverage_projection_progress,
+    publish_workspace_coverage_progress_for_checkpoint,
+    publish_workspace_coverage_progress_genesis, reconcile_workspace_coverage_checkpoint_progress,
 };
 use crate::{
     BODY_BINDING_KEY, BODY_BINDING_TYPE, BODY_HEAD_KEY, BODY_HEAD_TYPE, BODY_MANIFEST_TYPE,
@@ -25,6 +36,7 @@ use anyhow::{Result, anyhow, bail};
 use cultcache_rs::{
     CacheBackingStore, CultCacheEnvelope, DatabaseEntry, SingleFileMessagePackBackingStore,
 };
+use ed25519_dalek::SigningKey;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -51,11 +63,20 @@ const HEAD_KEY: &str = "current";
 pub(crate) const OBLIGATION_TYPE: &str = "gamecult.epiphany.workspace_coverage_obligation";
 pub(crate) const PLAN_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_plan";
 
+#[cfg(test)]
 #[derive(Clone, Debug)]
 struct WorkspaceCoverageProjectionInput {
     pub point_id: String,
     pub text: String,
     pub vector: Vec<f32>,
+}
+
+pub(crate) struct WorkspaceCoverageProjectionExecutionAuthority<'a> {
+    pub local_verse_store: &'a Path,
+    pub runtime_id: &'a str,
+    pub trusted_host: &'a HostIncarnationIdentityEntry,
+    pub provider_signing_key: &'a SigningKey,
+    pub operation_timeout_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,11 +112,16 @@ pub(crate) trait WorkspaceCoverageProjectionPort {
         collection: &str,
         compatibility: &CollectionCompatibility,
     ) -> Result<()>;
-    fn upsert(
+    fn upsert_waited_batch(
         &mut self,
         collection: &str,
         points: &[SemanticPoint<WorkspaceCoveragePointPayload>],
     ) -> Result<()>;
+    fn observe_exact_ids(
+        &mut self,
+        collection: &str,
+        point_ids: &[String],
+    ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>>;
     fn observe_all(
         &mut self,
         collection: &str,
@@ -150,12 +176,19 @@ impl WorkspaceCoverageProjectionPort for QdrantBackend {
     ) -> Result<()> {
         QdrantBackend::ensure_exact_collection(self, name, expected)
     }
-    fn upsert(
+    fn upsert_waited_batch(
         &mut self,
         name: &str,
         points: &[SemanticPoint<WorkspaceCoveragePointPayload>],
     ) -> Result<()> {
-        self.upsert_points(name, points)
+        self.upsert_point_batch_waited(name, points).map(|_| ())
+    }
+    fn observe_exact_ids(
+        &mut self,
+        name: &str,
+        point_ids: &[String],
+    ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>> {
+        self.retrieve_points_by_ids(name, point_ids)
     }
     fn observe_all(
         &mut self,
@@ -303,7 +336,9 @@ pub(crate) fn validate_projection_claim(claim: &WorkspaceCoverageProjectionClaim
     Ok(())
 }
 
-pub(crate) fn validate_projection_attempt(attempt: &WorkspaceCoverageProjectionAttempt) -> Result<()> {
+pub(crate) fn validate_projection_attempt(
+    attempt: &WorkspaceCoverageProjectionAttempt,
+) -> Result<()> {
     if !matches!(
         attempt.schema_version.as_str(),
         ATTEMPT_SCHEMA | ATTEMPT_SCHEMA_V2 | ATTEMPT_SCHEMA_V3
@@ -1605,6 +1640,7 @@ pub(crate) fn execute_workspace_coverage_projection(
     prepared: &PreparedWorkspaceCoverageProjection,
     embedder: &OllamaEmbedder,
     port: &mut impl WorkspaceCoverageProjectionPort,
+    authority: &WorkspaceCoverageProjectionExecutionAuthority<'_>,
 ) -> Result<WorkspaceCoverageReceipt> {
     let result = (|| {
         if prepared.body_store != acquisition.body_store
@@ -1613,30 +1649,247 @@ pub(crate) fn execute_workspace_coverage_projection(
         {
             bail!("execution refuses a prepared projection other than the acquired projection");
         }
-        let texts = prepared
-            .points
+        execute_batched_and_commit(acquisition, prepared, embedder, port, authority)
+    })();
+    terminalize_execution_result(acquisition, result)
+}
+
+fn execute_batched_and_commit(
+    acquisition: &WorkspaceCoverageAcquisition,
+    prepared: &PreparedWorkspaceCoverageProjection,
+    embedder: &OllamaEmbedder,
+    port: &mut impl WorkspaceCoverageProjectionPort,
+    authority: &WorkspaceCoverageProjectionExecutionAuthority<'_>,
+) -> Result<WorkspaceCoverageReceipt> {
+    if authority.operation_timeout_ms == 0 {
+        bail!("workspace coverage execution authority requires a positive operation timeout");
+    }
+    let planned = &acquisition.plan.planned_points;
+    if prepared.points.len() != planned.len() {
+        bail!("prepared projection does not equal the sealed plan point count");
+    }
+    for (ordinal, (prepared_point, planned_point)) in
+        prepared.points.iter().zip(planned).enumerate()
+    {
+        if prepared_point.point_id != planned_point.point_id
+            || format!("{:x}", Sha256::digest(prepared_point.text.as_bytes()))
+                != planned_point.chunk_sha256
+        {
+            bail!("prepared projection disagrees with sealed plan ordinal {ordinal}");
+        }
+    }
+    let collection_name = workspace_coverage_execution_collection(
+        &acquisition.plan.plan_id,
+        &acquisition.claim.claim_id,
+        acquisition.claim.claim_epoch,
+    )?;
+    port.ensure_exact_collection(
+        &collection_name,
+        &collection_compatibility(&acquisition.plan),
+    )?;
+
+    let checkpoint_chain = load_authenticated_checkpoint_chain(
+        &acquisition.body_store,
+        authority.local_verse_store,
+        authority.trusted_host,
+        &acquisition.claim.claim_id,
+        acquisition.claim.claim_epoch,
+    )?;
+    let mut next_ordinal = if let Some(current) = checkpoint_chain.last() {
+        reconcile_workspace_coverage_checkpoint_progress(
+            &acquisition.body_store,
+            authority.local_verse_store,
+            authority.runtime_id,
+            authority.trusted_host,
+            authority.provider_signing_key,
+            &acquisition.claim.claim_id,
+            acquisition.claim.claim_epoch,
+        )?;
+        for checkpoint in &checkpoint_chain {
+            authenticate_checkpoint_readback(&collection_name, &checkpoint.checkpoint, port)?;
+        }
+        current.checkpoint.cumulative_point_count as usize
+    } else {
+        if let Some(existing) = load_latest_workspace_coverage_projection_progress(
+            authority.local_verse_store,
+            authority.runtime_id,
+            &acquisition.claim.managed_process_launch_id,
+            &acquisition.claim.claim_id,
+        )? {
+            let existing = authenticate_workspace_coverage_projection_progress(
+                authority.local_verse_store,
+                authority.runtime_id,
+                &existing.progress_id,
+                authority.trusted_host,
+            )?;
+            if existing.sequence != 1
+                || existing.completed_units != 0
+                || existing.checkpoint_id.is_some()
+                || existing.plan_id != acquisition.plan.plan_id
+                || existing.attempt_id != acquisition.attempt.attempt_id
+            {
+                bail!("checkpoint-free restart found progress other than exact genesis");
+            }
+        } else {
+            publish_workspace_coverage_progress_genesis(
+                &acquisition.body_store,
+                authority.local_verse_store,
+                authority.runtime_id,
+                authority.trusted_host,
+                authority.provider_signing_key,
+                authority.operation_timeout_ms,
+            )?;
+        }
+        0
+    };
+
+    while next_ordinal < planned.len() {
+        let end = (next_ordinal + QDRANT_POINT_BATCH_MAX).min(planned.len());
+        let texts = prepared.points[next_ordinal..end]
             .iter()
             .map(|point| point.text.clone())
             .collect::<Vec<_>>();
-        let vectors = if texts.is_empty() {
-            Vec::new()
-        } else {
-            embedder.embed_documents(&texts)?
-        };
-        let inputs = prepared
-            .points
+        let vectors = embedder.embed_documents(&texts)?;
+        if vectors.len() != texts.len() {
+            bail!("embedding provider omitted sealed batch vectors");
+        }
+        let mut points = Vec::with_capacity(end - next_ordinal);
+        let mut expected_point_bindings = Vec::with_capacity(end - next_ordinal);
+        let mut expected_vector_bindings = Vec::with_capacity(end - next_ordinal);
+        for ((prepared_point, expected), vector) in prepared.points[next_ordinal..end]
             .iter()
-            .cloned()
+            .zip(&planned[next_ordinal..end])
             .zip(vectors)
-            .map(|(point, vector)| WorkspaceCoverageProjectionInput {
-                point_id: point.point_id,
-                text: point.text,
+        {
+            if vector.len() != acquisition.plan.vector_dimensions as usize
+                || vector.iter().any(|value| !value.is_finite())
+            {
+                bail!("embedding provider returned an invalid sealed batch vector");
+            }
+            let payload = payload_for(&acquisition.obligation, &acquisition.plan, expected);
+            expected_point_bindings.push(WorkspaceCoveragePointBinding {
+                point_id: expected.point_id.clone(),
+                payload_sha256: digest(&payload)?,
+            });
+            expected_vector_bindings.push(WorkspaceCoverageVectorBinding {
+                point_id: expected.point_id.clone(),
+                vector_sha256: digest(&vector)?,
+            });
+            points.push(SemanticPoint {
+                id: prepared_point.point_id.clone(),
                 vector,
-            })
-            .collect();
-        execute_and_commit(acquisition, inputs, port)
-    })();
-    terminalize_execution_result(acquisition, result)
+                payload,
+            });
+        }
+        port.upsert_waited_batch(&collection_name, &points)?;
+        let ids = points
+            .iter()
+            .map(|point| point.id.clone())
+            .collect::<Vec<_>>();
+        let observed = port.observe_exact_ids(&collection_name, &ids)?;
+        authenticate_batch_readback(
+            &observed,
+            &expected_point_bindings,
+            &expected_vector_bindings,
+            acquisition.plan.vector_dimensions,
+        )?;
+        let checkpoint = admit_observed_workspace_coverage_batch(
+            &acquisition.body_store,
+            authority.local_verse_store,
+            authority.runtime_id,
+            authority.trusted_host,
+            authority.provider_signing_key,
+            ObservedWorkspaceCoverageBatchInput {
+                claim_id: acquisition.claim.claim_id.clone(),
+                attempt_id: acquisition.attempt.attempt_id.clone(),
+                plan_id: acquisition.plan.plan_id.clone(),
+                first_plan_ordinal: next_ordinal as u64,
+                point_bindings: expected_point_bindings,
+                vector_bindings: expected_vector_bindings,
+            },
+        )?;
+        publish_workspace_coverage_progress_for_checkpoint(
+            authority.local_verse_store,
+            authority.runtime_id,
+            authority.provider_signing_key,
+            &checkpoint,
+        )?;
+        next_ordinal = end;
+    }
+
+    let final_chain = load_authenticated_checkpoint_chain(
+        &acquisition.body_store,
+        authority.local_verse_store,
+        authority.trusted_host,
+        &acquisition.claim.claim_id,
+        acquisition.claim.claim_epoch,
+    )?;
+    let observed = observe_final_projection_against_authenticated_checkpoint_chain(
+        &acquisition.obligation,
+        &acquisition.plan,
+        &collection_name,
+        port.observe_all(&collection_name)?,
+        &final_chain,
+    )?;
+    commit_workspace_coverage_success(acquisition, observed)
+}
+
+fn authenticate_checkpoint_readback(
+    collection_name: &str,
+    checkpoint: &crate::workspace_coverage_projection_batch_checkpoint::WorkspaceCoverageProjectionBatchCheckpointEntry,
+    port: &mut impl WorkspaceCoverageProjectionPort,
+) -> Result<()> {
+    if checkpoint.collection_name != collection_name {
+        bail!("checkpoint collection disagrees with the sealed execution collection");
+    }
+    let observed = port.observe_exact_ids(collection_name, &checkpoint.point_ids)?;
+    authenticate_batch_readback(
+        &observed,
+        &checkpoint.point_bindings,
+        &checkpoint.vector_bindings,
+        checkpoint.vector_dimensions,
+    )
+}
+
+fn authenticate_batch_readback(
+    observed: &[SemanticStoredPoint<WorkspaceCoveragePointPayload>],
+    expected_points: &[WorkspaceCoveragePointBinding],
+    expected_vectors: &[WorkspaceCoverageVectorBinding],
+    vector_dimensions: u32,
+) -> Result<()> {
+    if observed.len() != expected_points.len() || observed.len() != expected_vectors.len() {
+        bail!("exact batch readback count disagrees with submitted bindings");
+    }
+    for ((point, expected_point), expected_vector) in
+        observed.iter().zip(expected_points).zip(expected_vectors)
+    {
+        let payload = point
+            .payload
+            .as_ref()
+            .ok_or_else(|| anyhow!("exact batch readback omitted payload"))?;
+        let vector = point
+            .vector
+            .as_ref()
+            .ok_or_else(|| anyhow!("exact batch readback omitted vector"))?;
+        if point.id != expected_point.point_id
+            || point.id != expected_vector.point_id
+            || digest(payload)? != expected_point.payload_sha256
+            || vector.len() != vector_dimensions as usize
+            || vector.iter().any(|value| !value.is_finite())
+            || digest(vector)? != expected_vector.vector_sha256
+        {
+            bail!("exact batch readback disagrees with submitted payload/vector bindings");
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn sealed_batch_ranges(point_count: usize) -> Vec<std::ops::Range<usize>> {
+    (0..point_count)
+        .step_by(QDRANT_POINT_BATCH_MAX)
+        .map(|start| start..(start + QDRANT_POINT_BATCH_MAX).min(point_count))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1667,6 +1920,7 @@ fn terminalize_execution_result(
     }
 }
 
+#[cfg(test)]
 fn execute_and_commit(
     acquisition: &WorkspaceCoverageAcquisition,
     mut inputs: Vec<WorkspaceCoverageProjectionInput>,
@@ -1706,7 +1960,7 @@ fn execute_and_commit(
     let compatibility = collection_compatibility(&acquisition.plan);
     port.ensure_exact_collection(&collection_name, &compatibility)?;
     if !points.is_empty() {
-        port.upsert(&collection_name, &points)?;
+        port.upsert_waited_batch(&collection_name, &points)?;
     }
     let observed = observe_exact_bindings(
         acquisition,
@@ -1717,6 +1971,7 @@ fn execute_and_commit(
     commit_workspace_coverage_success(acquisition, observed)
 }
 
+#[cfg(test)]
 fn observe_exact_bindings(
     acquisition: &WorkspaceCoverageAcquisition,
     collection_name: &str,
@@ -1731,6 +1986,95 @@ fn observe_exact_bindings(
         Some(submitted_vector_bindings),
     )?;
     Ok(binding)
+}
+
+pub(crate) fn observe_final_projection_against_authenticated_checkpoint_chain(
+    obligation: &WorkspaceCoverageObligation,
+    plan: &WorkspaceCoverageProjectionPlan,
+    collection_name: &str,
+    observed: Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>,
+    chain: &[WorkspaceCoverageProjectionBatchCheckpointAdmission],
+) -> Result<WorkspaceCoverageObservedBinding> {
+    let mut expected_points = Vec::new();
+    let mut expected_vectors = Vec::new();
+    let mut expected_ordinal = 0_u64;
+    for admission in chain {
+        let checkpoint = &admission.checkpoint;
+        if checkpoint.obligation_id != obligation.obligation_id
+            || checkpoint.plan_id != plan.plan_id
+            || checkpoint.first_plan_ordinal != expected_ordinal
+            || checkpoint.point_bindings.len() != checkpoint.vector_bindings.len()
+        {
+            bail!("authenticated checkpoint chain disagrees with final sealed projection");
+        }
+        expected_points.extend(checkpoint.point_bindings.iter().cloned());
+        expected_vectors.extend(checkpoint.vector_bindings.iter().cloned());
+        expected_ordinal = checkpoint.cumulative_point_count;
+    }
+    if expected_ordinal != plan.expected_point_count
+        || expected_points.len() as u64 != plan.expected_point_count
+        || expected_vectors.len() != expected_points.len()
+    {
+        bail!("authenticated checkpoint chain does not cover the complete sealed plan");
+    }
+    for ((planned, point), vector) in plan
+        .planned_points
+        .iter()
+        .zip(&expected_points)
+        .zip(&expected_vectors)
+    {
+        if point.point_id != planned.point_id
+            || vector.point_id != planned.point_id
+            || point.payload_sha256 != digest(&payload_for(obligation, plan, planned))?
+        {
+            bail!("authenticated checkpoint chain order or payload binding is invalid");
+        }
+    }
+    let ordered = authenticate_final_observation_against_checkpoint_bindings(
+        observed,
+        &expected_points,
+        &expected_vectors,
+    )?;
+    observe_sealed_bindings(obligation, plan, collection_name, ordered, Some(&expected_vectors))
+}
+
+fn authenticate_final_observation_against_checkpoint_bindings(
+    observed: Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>,
+    expected_points: &[WorkspaceCoveragePointBinding],
+    expected_vectors: &[WorkspaceCoverageVectorBinding],
+) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>> {
+    let mut observed_by_id = std::collections::HashMap::with_capacity(observed.len());
+    for point in observed {
+        let point_id = point.id.clone();
+        if observed_by_id.insert(point_id.clone(), point).is_some() {
+            bail!("final Qdrant observation duplicated checkpointed point {point_id}");
+        }
+    }
+    if observed_by_id.len() != expected_points.len() {
+        bail!("final Qdrant observation cardinality disagrees with authenticated checkpoint chain");
+    }
+    let mut ordered = Vec::with_capacity(expected_points.len());
+    for (point, vector) in expected_points.iter().zip(expected_vectors) {
+        let observed = observed_by_id
+            .remove(&point.point_id)
+            .ok_or_else(|| anyhow!("final Qdrant observation omitted a checkpointed point"))?;
+        let payload = observed
+            .payload
+            .as_ref()
+            .ok_or_else(|| anyhow!("final Qdrant observation omitted checkpointed payload"))?;
+        let observed_vector = observed
+            .vector
+            .as_ref()
+            .ok_or_else(|| anyhow!("final Qdrant observation omitted checkpointed vector"))?;
+        if digest(payload)? != point.payload_sha256 || digest(observed_vector)? != vector.vector_sha256 {
+            bail!("final Qdrant payload/vector disagrees with authenticated checkpoint evidence");
+        }
+        ordered.push(observed);
+    }
+    if !observed_by_id.is_empty() {
+        bail!("final Qdrant observation contains uncheckpointed points");
+    }
+    Ok(ordered)
 }
 
 fn observe_sealed_bindings(
@@ -2141,21 +2485,41 @@ mod tests {
             self.collection_compatibility = Some(compatibility.clone());
             Ok(())
         }
-        fn upsert(
+        fn upsert_waited_batch(
             &mut self,
             _: &str,
             points: &[SemanticPoint<WorkspaceCoveragePointPayload>],
         ) -> Result<()> {
             self.upsert_calls += 1;
-            self.points = points
-                .iter()
-                .map(|point| SemanticStoredPoint {
+            for point in points {
+                let stored = SemanticStoredPoint {
                     id: point.id.clone(),
                     payload: Some(point.payload.clone()),
                     vector: Some(point.vector.clone()),
-                })
-                .collect();
+                };
+                if let Some(existing) = self.points.iter_mut().find(|item| item.id == point.id) {
+                    *existing = stored;
+                } else {
+                    self.points.push(stored);
+                }
+            }
             Ok(())
+        }
+        fn observe_exact_ids(
+            &mut self,
+            _: &str,
+            point_ids: &[String],
+        ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>> {
+            point_ids
+                .iter()
+                .map(|id| {
+                    self.points
+                        .iter()
+                        .find(|point| &point.id == id)
+                        .cloned()
+                        .ok_or_else(|| anyhow!("requested exact point is absent"))
+                })
+                .collect()
         }
         fn observe_all(
             &mut self,
@@ -2206,6 +2570,124 @@ mod tests {
         ) -> Result<Vec<SemanticStoredPoint<WorkspaceCoveragePointPayload>>> {
             WorkspaceCoverageProjectionPort::observe_all(self, collection)
         }
+    }
+
+    #[test]
+    fn sealed_batch_ranges_preserve_plan_order_and_never_exceed_qdrant_bound() {
+        let ranges = sealed_batch_ranges(QDRANT_POINT_BATCH_MAX * 2 + 3);
+        assert_eq!(
+            ranges,
+            vec![
+                0..QDRANT_POINT_BATCH_MAX,
+                QDRANT_POINT_BATCH_MAX..QDRANT_POINT_BATCH_MAX * 2,
+                QDRANT_POINT_BATCH_MAX * 2..QDRANT_POINT_BATCH_MAX * 2 + 3,
+            ]
+        );
+        assert!(
+            ranges
+                .iter()
+                .all(|range| range.len() <= QDRANT_POINT_BATCH_MAX)
+        );
+        assert_eq!(
+            ranges.into_iter().flatten().collect::<Vec<_>>(),
+            (0..QDRANT_POINT_BATCH_MAX * 2 + 3).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn exact_batch_readback_rejects_vector_substitution() -> Result<()> {
+        let (repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let planned = acquisition
+            .plan
+            .planned_points
+            .first()
+            .ok_or_else(|| anyhow!("fixture produced no planned points"))?;
+        let payload = payload_for(&acquisition.obligation, &acquisition.plan, planned);
+        let expected_vector = vec![0.25_f32; 3];
+        let point_bindings = vec![WorkspaceCoveragePointBinding {
+            point_id: planned.point_id.clone(),
+            payload_sha256: digest(&payload)?,
+        }];
+        let vector_bindings = vec![WorkspaceCoverageVectorBinding {
+            point_id: planned.point_id.clone(),
+            vector_sha256: digest(&expected_vector)?,
+        }];
+        let observed = vec![SemanticStoredPoint {
+            id: planned.point_id.clone(),
+            payload: Some(payload),
+            vector: Some(vec![0.5_f32; 3]),
+        }];
+        assert!(
+            authenticate_batch_readback(&observed, &point_bindings, &vector_bindings, 3).is_err()
+        );
+        drop(repo);
+        Ok(())
+    }
+
+    #[test]
+    fn final_checkpoint_proof_rejects_mutated_or_missing_earlier_point() -> Result<()> {
+        let (repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let planned = acquisition
+            .plan
+            .planned_points
+            .first()
+            .ok_or_else(|| anyhow!("fixture produced no planned points"))?;
+        let payload = payload_for(&acquisition.obligation, &acquisition.plan, planned);
+        let vector = vec![0.25_f32; 3];
+        let point_bindings = vec![WorkspaceCoveragePointBinding {
+            point_id: planned.point_id.clone(),
+            payload_sha256: digest(&payload)?,
+        }];
+        let vector_bindings = vec![WorkspaceCoverageVectorBinding {
+            point_id: planned.point_id.clone(),
+            vector_sha256: digest(&vector)?,
+        }];
+        let observed = vec![SemanticStoredPoint {
+            id: planned.point_id.clone(),
+            payload: Some(payload),
+            vector: Some(vector),
+        }];
+        authenticate_final_observation_against_checkpoint_bindings(
+            observed.clone(),
+            &point_bindings,
+            &vector_bindings,
+        )?;
+        let mut mutated = observed.clone();
+        mutated[0].vector.as_mut().unwrap()[0] += 1.0;
+        assert!(authenticate_final_observation_against_checkpoint_bindings(
+            mutated,
+            &point_bindings,
+            &vector_bindings,
+        )
+        .is_err());
+        assert!(authenticate_final_observation_against_checkpoint_bindings(
+            Vec::new(),
+            &point_bindings,
+            &vector_bindings,
+        )
+        .is_err());
+        let mut duplicated = observed.clone();
+        duplicated.push(observed[0].clone());
+        assert!(authenticate_final_observation_against_checkpoint_bindings(
+            duplicated,
+            &point_bindings,
+            &vector_bindings,
+        )
+        .is_err());
+        let mut substituted_duplicate = observed[0].clone();
+        substituted_duplicate.vector.as_mut().unwrap()[0] += 1.0;
+        let mut duplicated = observed.clone();
+        duplicated.push(substituted_duplicate);
+        assert!(authenticate_final_observation_against_checkpoint_bindings(
+            duplicated,
+            &point_bindings,
+            &vector_bindings,
+        )
+        .is_err());
+        drop(repo);
+        Ok(())
     }
 
     struct AdvancingEvidencePort {
@@ -3063,84 +3545,6 @@ mod tests {
                 .any(|entry| decode::<WorkspaceCoverageReceipt>(entry)
                     .is_ok_and(|receipt| receipt.claim_id == acquisition_c.claim.claim_id))
         );
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires live local Qdrant and Ollama"]
-    fn live_qdrant_ollama_projection_proves_vectors_and_currentness() -> Result<()> {
-        let (_repo, _state, runtime, basis) = coverage_fixture()?;
-        let ollama_url = std::env::var("EPIPHANY_OLLAMA_BASE_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:11434".into());
-        let qdrant_url =
-            std::env::var("EPIPHANY_QDRANT_URL").unwrap_or_else(|_| "http://127.0.0.1:6333".into());
-        let model = std::env::var("EPIPHANY_OLLAMA_MODEL")
-            .unwrap_or_else(|_| "qwen3-embedding:0.6b".into());
-        let embedder = OllamaEmbedder::new(crate::semantic_backend::OllamaConfig {
-            base_url: ollama_url,
-            model,
-            timeout_ms: 30_000,
-            query_instruction: String::new(),
-        })?;
-        let model_identity = embedder.model_artifact()?.canonical_identity();
-        let dimensions = embedder.embedding_dimensions()?;
-        let body = RepositoryBodyReadSession::open(&runtime, &basis)?;
-        let prepared = prepare_workspace_coverage_projection(
-            &body,
-            "gamecult-ollama-embedding",
-            &model_identity,
-            dimensions,
-        )?;
-        let acquisition = match acquire_workspace_coverage_projection(
-            &prepared,
-            "epiphany-workspace-coverage-projector",
-            &uuid::Uuid::new_v4().to_string(),
-            &uuid::Uuid::new_v4().to_string(),
-        )? {
-            WorkspaceCoverageAcquireResult::Acquired(value) => value,
-            _ => bail!("isolated live smoke did not acquire its projection"),
-        };
-        let compatibility = CollectionCompatibility {
-            managed_by: "epiphany-workspace-coverage-projector".into(),
-            corpus_kind: "repository_body_workspace_coverage".into(),
-            schema_version: 0,
-            projection_version: acquisition.plan.plan_id.clone(),
-            embedding_provider_id: acquisition.plan.embedding_provider_id.clone(),
-            embedding_model: acquisition.plan.embedding_model.clone(),
-            vector_size: acquisition.plan.vector_dimensions as usize,
-        };
-        let mut qdrant = QdrantBackend::new(crate::semantic_backend::QdrantConfig {
-            url: qdrant_url,
-            api_key: None,
-            timeout_ms: 30_000,
-        })?;
-        let result =
-            execute_workspace_coverage_projection(&acquisition, &prepared, &embedder, &mut qdrant);
-        let collection = workspace_coverage_execution_collection(
-            &acquisition.plan.plan_id,
-            &acquisition.claim.claim_id,
-            acquisition.claim.claim_epoch,
-        )?;
-        let receipt = match result {
-            Ok(receipt) => receipt,
-            Err(error) => {
-                let _ = qdrant.retire_exact_collection(&collection, &compatibility);
-                return Err(error);
-            }
-        };
-        assert_eq!(receipt.collection_name, collection);
-        assert!(matches!(
-            classify_current_workspace_coverage(
-                &runtime,
-                &basis,
-                "gamecult-ollama-embedding",
-                &model_identity,
-                dimensions,
-            )?,
-            WorkspaceCoverageCurrentState::Current(_)
-        ));
-        qdrant.retire_exact_collection(&collection, &compatibility)?;
-        assert!(!qdrant.collection_exists(&collection)?);
         Ok(())
     }
 }

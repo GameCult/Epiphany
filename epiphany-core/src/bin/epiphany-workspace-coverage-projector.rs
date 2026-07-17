@@ -15,6 +15,7 @@ use serde_json::json;
 use std::env;
 use std::io;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -43,53 +44,45 @@ fn main() -> Result<()> {
         &launch.provider_incarnation_id,
         &launch.launch_id,
     )?;
+    let trusted_host = open_default_host_identity()?;
+    projector.install_execution_authority(
+        &args.local_verse_store,
+        &args.runtime_id,
+        trusted_host.entry().clone(),
+        provider_key.clone(),
+    )?;
 
-    let mut sequence = 0_u64;
+    let first_heartbeat = publish_heartbeat(&args, &launch, &launch_digest, &provider_key, 1)?;
+    let latest_heartbeat = Arc::new(Mutex::new(HeartbeatProjection {
+        heartbeat_id: first_heartbeat.heartbeat_id,
+        provider_status: first_heartbeat.status,
+    }));
+    spawn_heartbeat_nerve(
+        &args,
+        &launch,
+        &launch_digest,
+        &provider_key,
+        Arc::clone(&latest_heartbeat),
+    )?;
+
+    let mut pulse_sequence = 0_u64;
     loop {
-        sequence = sequence
+        pulse_sequence = pulse_sequence
             .checked_add(1)
-            .ok_or_else(|| anyhow!("workspace coverage heartbeat sequence exhausted"))?;
+            .ok_or_else(|| anyhow!("workspace coverage pulse sequence exhausted"))?;
         let pulse = projector.pulse();
-        // Contention describes canonical claim ownership, not provider health.
-        // Publishing it as degraded would make a live successor unable to
-        // establish the ready heartbeat required to fence an abandoned owner.
-        let degraded = matches!(pulse.status, WorkspaceCoverageProjectorPulseStatus::Refused);
-        let mut heartbeat = WorkspaceCoverageProviderHeartbeatEntry {
-            schema_version: WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION.to_string(),
-            heartbeat_id: Uuid::new_v4().to_string(),
-            launch_id: launch.launch_id.clone(),
-            launch_envelope_digest: launch_digest.clone(),
-            service_id: launch.service_id.clone(),
-            provider_daemon_id: launch.provider_daemon_id.clone(),
-            runtime_id: launch.runtime_id.clone(),
-            host_identity_id: launch.host_identity_id.clone(),
-            host_identity_record_digest: launch.host_identity_record_digest.clone(),
-            boot_identity: launch.boot_identity.clone(),
-            process_id: launch.process_id,
-            process_creation_token: launch.process_creation_token,
-            process_executable_path: launch.process_executable_path.clone(),
-            provider_incarnation_id: launch.provider_incarnation_id.clone(),
-            provider_public_key: launch.provider_public_key.clone(),
-            sequence,
-            status: if degraded { "degraded" } else { "ready" }.to_string(),
-            observed_at_utc: chrono::Utc::now().to_rfc3339(),
-            provider_signature: Vec::new(),
-            signature_algorithm: "ed25519".to_string(),
-        };
-        sign_workspace_coverage_heartbeat(&mut heartbeat, &provider_key)?;
-        let heartbeat = write_workspace_coverage_provider_heartbeat(
-            &args.local_verse_store,
-            args.runtime_id.clone(),
-            heartbeat,
-        )?;
+        let heartbeat = latest_heartbeat
+            .lock()
+            .map_err(|_| anyhow!("workspace coverage heartbeat projection lock poisoned"))?
+            .clone();
         println!(
             "{}",
             serde_json::to_string(&json!({
                 "schemaVersion": "epiphany.workspace_coverage_projector_pulse.v0",
-                "pulseSequence": sequence,
+                "pulseSequence": pulse_sequence,
                 "providerIncarnation": projector.provider_incarnation(),
                 "heartbeatId": heartbeat.heartbeat_id,
-                "providerStatus": heartbeat.status,
+                "providerStatus": heartbeat.provider_status,
                 "pulseStatus": pulse_status(pulse.status),
                 "bodyObservationId": pulse.body_observation_id,
                 "bodyGeneration": pulse.body_generation,
@@ -102,6 +95,134 @@ fn main() -> Result<()> {
         );
         thread::sleep(Duration::from_secs(args.interval_seconds));
     }
+}
+
+#[derive(Clone)]
+struct HeartbeatProjection {
+    heartbeat_id: String,
+    provider_status: String,
+}
+
+fn spawn_heartbeat_nerve(
+    args: &Args,
+    launch: &WorkspaceCoverageManagedProcessLaunchEntry,
+    launch_digest: &str,
+    provider_key: &SigningKey,
+    latest: Arc<Mutex<HeartbeatProjection>>,
+) -> Result<()> {
+    let local_verse_store = args.local_verse_store.clone();
+    let runtime_id = args.runtime_id.clone();
+    let interval = Duration::from_secs(args.heartbeat_interval_seconds);
+    let launch = launch.clone();
+    let launch_digest = launch_digest.to_string();
+    let provider_key = provider_key.clone();
+    thread::Builder::new()
+        .name("workspace-coverage-heartbeat".into())
+        .spawn(move || {
+            let mut sequence = 1_u64;
+            loop {
+                thread::sleep(interval);
+                sequence = match sequence.checked_add(1) {
+                    Some(sequence) => sequence,
+                    None => {
+                        fatal_heartbeat_nerve("workspace coverage heartbeat sequence exhausted");
+                    }
+                };
+                let heartbeat = match publish_heartbeat_to(
+                    &local_verse_store,
+                    &runtime_id,
+                    &launch,
+                    &launch_digest,
+                    &provider_key,
+                    sequence,
+                ) {
+                    Ok(heartbeat) => heartbeat,
+                    Err(error) => {
+                        fatal_heartbeat_nerve(&format!(
+                            "workspace coverage heartbeat publication failed: {error:#}"
+                        ));
+                    }
+                };
+                match latest.lock() {
+                    Ok(mut projection) => {
+                        projection.heartbeat_id = heartbeat.heartbeat_id;
+                        projection.provider_status = heartbeat.status;
+                    }
+                    Err(_) => {
+                        fatal_heartbeat_nerve(
+                            "workspace coverage heartbeat projection lock poisoned",
+                        );
+                    }
+                }
+            }
+        })
+        .context("failed to start workspace coverage heartbeat nerve")?;
+    Ok(())
+}
+
+fn fatal_heartbeat_nerve(message: &str) -> ! {
+    eprintln!("{message}");
+    // This exact process owns both projection and its authenticated liveness
+    // publisher. Continuing after the nerve dies would leave an unfenced
+    // actuator relying on an external repair loop to notice the corpse.
+    std::process::exit(1)
+}
+
+fn publish_heartbeat(
+    args: &Args,
+    launch: &WorkspaceCoverageManagedProcessLaunchEntry,
+    launch_digest: &str,
+    provider_key: &SigningKey,
+    sequence: u64,
+) -> Result<WorkspaceCoverageProviderHeartbeatEntry> {
+    publish_heartbeat_to(
+        &args.local_verse_store,
+        &args.runtime_id,
+        launch,
+        launch_digest,
+        provider_key,
+        sequence,
+    )
+}
+
+fn publish_heartbeat_to(
+    local_verse_store: &PathBuf,
+    runtime_id: &str,
+    launch: &WorkspaceCoverageManagedProcessLaunchEntry,
+    launch_digest: &str,
+    provider_key: &SigningKey,
+    sequence: u64,
+) -> Result<WorkspaceCoverageProviderHeartbeatEntry> {
+    let mut heartbeat = WorkspaceCoverageProviderHeartbeatEntry {
+        schema_version: WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION.to_string(),
+        heartbeat_id: Uuid::new_v4().to_string(),
+        launch_id: launch.launch_id.clone(),
+        launch_envelope_digest: launch_digest.to_string(),
+        service_id: launch.service_id.clone(),
+        provider_daemon_id: launch.provider_daemon_id.clone(),
+        runtime_id: launch.runtime_id.clone(),
+        host_identity_id: launch.host_identity_id.clone(),
+        host_identity_record_digest: launch.host_identity_record_digest.clone(),
+        boot_identity: launch.boot_identity.clone(),
+        process_id: launch.process_id,
+        process_creation_token: launch.process_creation_token,
+        process_executable_path: launch.process_executable_path.clone(),
+        provider_incarnation_id: launch.provider_incarnation_id.clone(),
+        provider_public_key: launch.provider_public_key.clone(),
+        sequence,
+        // Heartbeat proves only that this exact provider process remains able
+        // to publish. Projection faults and progress belong to separate state.
+        status: "ready".to_string(),
+        observed_at_utc: chrono::Utc::now().to_rfc3339(),
+        provider_signature: Vec::new(),
+        signature_algorithm: "ed25519".to_string(),
+    };
+    sign_workspace_coverage_heartbeat(&mut heartbeat, provider_key)?;
+    write_workspace_coverage_provider_heartbeat(
+        local_verse_store,
+        runtime_id.to_string(),
+        heartbeat,
+    )
 }
 
 fn authenticate_managed_launch(
@@ -168,6 +289,7 @@ struct Args {
     local_verse_store: PathBuf,
     runtime_id: String,
     interval_seconds: u64,
+    heartbeat_interval_seconds: u64,
     managed_process_launch_id: String,
     qdrant_url: String,
     ollama_base_url: String,
@@ -185,6 +307,7 @@ impl Args {
         let mut local_verse_store = None;
         let mut runtime_id = None;
         let mut interval_seconds = None;
+        let mut heartbeat_interval_seconds = None;
         let mut qdrant_url = None;
         let mut ollama_base_url = None;
         let mut ollama_model = None;
@@ -199,6 +322,9 @@ impl Args {
                 "--local-verse-store" => local_verse_store = Some(PathBuf::from(value()?)),
                 "--runtime-id" => runtime_id = Some(value()?),
                 "--interval-seconds" => interval_seconds = Some(value()?.parse::<u64>()?),
+                "--heartbeat-interval-seconds" => {
+                    heartbeat_interval_seconds = Some(value()?.parse::<u64>()?)
+                }
                 "--qdrant-url" => qdrant_url = Some(value()?),
                 "--ollama-base-url" => ollama_base_url = Some(value()?),
                 "--ollama-model" => ollama_model = Some(value()?),
@@ -208,6 +334,11 @@ impl Args {
         let interval_seconds = interval_seconds.context("missing --interval-seconds")?;
         if interval_seconds == 0 {
             return Err(anyhow!("--interval-seconds must be positive"));
+        }
+        let heartbeat_interval_seconds =
+            heartbeat_interval_seconds.context("missing --heartbeat-interval-seconds")?;
+        if heartbeat_interval_seconds == 0 {
+            return Err(anyhow!("--heartbeat-interval-seconds must be positive"));
         }
         let managed_process_launch_id =
             env::var("EPIPHANY_WORKSPACE_COVERAGE_LAUNCH_ID").unwrap_or_default();
@@ -221,6 +352,7 @@ impl Args {
             local_verse_store: local_verse_store.context("missing --local-verse-store")?,
             runtime_id: runtime_id.context("missing --runtime-id")?,
             interval_seconds,
+            heartbeat_interval_seconds,
             managed_process_launch_id,
             qdrant_url: required_nonempty(qdrant_url, "--qdrant-url")?,
             ollama_base_url: required_nonempty(ollama_base_url, "--ollama-base-url")?,
