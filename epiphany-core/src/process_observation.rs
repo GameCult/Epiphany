@@ -321,6 +321,7 @@ mod platform {
 #[cfg(target_os = "linux")]
 mod platform {
     use super::*;
+    use chrono::{DateTime, SecondsFormat, Utc};
 
     fn stat(process_id: u32) -> Result<(u64, char)> {
         let raw = std::fs::read_to_string(format!("/proc/{process_id}/stat"))
@@ -338,6 +339,26 @@ mod platform {
         Ok((starttime, state))
     }
 
+    fn created_at_rfc3339(starttime: u64) -> Result<String> {
+        let ticks_per_second = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
+        if ticks_per_second <= 0 {
+            bail!("operating system returned an invalid process clock frequency");
+        }
+        let boot_seconds = std::fs::read_to_string("/proc/stat")?
+            .lines()
+            .find_map(|line| line.strip_prefix("btime "))
+            .context("proc stat has no boot time")?
+            .parse::<i64>()?;
+        let ticks_per_second = ticks_per_second as u64;
+        let seconds = boot_seconds
+            .checked_add((starttime / ticks_per_second) as i64)
+            .context("process creation time overflow")?;
+        let nanos = ((starttime % ticks_per_second) * 1_000_000_000 / ticks_per_second) as u32;
+        let created = DateTime::<Utc>::from_timestamp(seconds, nanos)
+            .context("process creation time is out of range")?;
+        Ok(created.to_rfc3339_opts(SecondsFormat::Nanos, true))
+    }
+
     pub(super) fn capture(process_id: u32) -> Result<ProcessInstanceIdentity> {
         let (creation_token, _) = stat(process_id)?;
         if creation_token == 0 {
@@ -348,7 +369,7 @@ mod platform {
         Ok(ProcessInstanceIdentity {
             process_id,
             creation_token,
-            created_at_rfc3339: None,
+            created_at_rfc3339: Some(created_at_rfc3339(creation_token)?),
             executable_path,
         })
     }
@@ -433,6 +454,7 @@ mod tests {
     fn live_current_process_has_stable_exact_identity() {
         let identity = capture_process_instance(std::process::id()).unwrap();
         assert_ne!(identity.creation_token, 0);
+        assert!(identity.created_at_rfc3339.is_some());
         assert!(identity.executable_path.is_absolute());
         assert_eq!(
             observe_process_instance(&identity),
