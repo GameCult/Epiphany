@@ -2288,3 +2288,35 @@ vectors, so Qdrant's inherited Modeling collection remained at 22 points and
 the hour of partial work was discarded. This is the live falsification of the
 current execution/deployment contract. Do not reinterpret it as an Ollama or
 GPU failure and do not repair it by lengthening the total wall timeout.
+
+## Live projector checkpoint integration landed (2026-07-17)
+
+Epiphany main commit `7362e54b` replaces the production monolithic workspace
+executor. The live path now processes sealed plan-order batches of at most 128
+points, performs a waited Qdrant upsert, reads those exact IDs back with payload
+and vector, admits a provider-signed Body checkpoint, and publishes progress
+only from that admitted checkpoint. Restart authenticates the complete
+genesis-to-head checkpoint chain against current Body, claim, attempt, plan,
+launch, and host authority; it re-observes every checkpointed batch before
+resuming at the next ordinal.
+
+Terminal receipt/head proof remains separate. It reconstructs independent
+payload/vector expectations from the authenticated full checkpoint chain,
+requires complete contiguous plan coverage, and rejects cycles, gaps,
+overlaps, duplicate checkpoint or Qdrant rows, missing/extra points, and any
+payload/vector substitution during the final whole scroll. The previous
+circular final-vector comparison was found by Soul and cut before commit.
+
+The provider heartbeat is now an independent signed 10-second nerve and keeps
+publishing while projection blocks. Heartbeat publication, sequence, or local
+projection-lock failure terminates the whole provider process; a projector may
+not continue acting after losing its liveness organ. Pulse refusal remains an
+operator projection and no longer contaminates heartbeat status.
+
+Focused proof: 10 checkpoint tests, 17 projector tests, 3 service tests, the
+reserved supervisor-argument test, and production checks for both projector and
+supervisor binaries pass. The old all-at-once executor survives only under
+`cfg(test)` for legacy pre-embedded invariant tests; it is absent from the
+deployed body. The next authority cut is Idunn and aggregate health: consume the
+exact provider progress document with a no-advance lease, never a generic job
+progress noun or total projection wall clock.
