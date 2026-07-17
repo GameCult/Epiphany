@@ -57,10 +57,11 @@ const ATTEMPT_SCHEMA_V3: &str = "gamecult.epiphany.workspace_coverage_projection
 const RECOVERY_TYPE: &str = "gamecult.epiphany.workspace_coverage_recovery_receipt";
 const RECOVERY_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_recovery_receipt.v0";
 pub(crate) const PROJECTION_SCHEMA: &str = "gamecult.epiphany.workspace_bytes_projection.v0";
-pub(crate) const CHUNKER_ID: &str = "utf8_lines_96_overlap_8_v0";
+pub(crate) const CHUNKER_ID: &str = "utf8_lines_96_overlap_8_max_12288_bytes_v1";
 pub const WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const CHUNK_LINES: usize = 96;
 const CHUNK_OVERLAP_LINES: usize = 8;
+const CHUNK_MAX_BYTES: usize = 12 * 1024;
 const RECEIPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_receipt";
 const HEAD_TYPE: &str = "gamecult.epiphany.workspace_coverage_head";
 const HEAD_KEY: &str = "current";
@@ -2621,16 +2622,23 @@ fn chunk_descriptors(
         }
     }
     let mut result = Vec::new();
-    let mut start_line = 0usize;
+    let mut start = 0usize;
     let mut chunk_index = 0u32;
-    while start_line < line_starts.len() {
+    while start < bytes.len() {
+        let start_line = line_starts.partition_point(|line_start| *line_start <= start) - 1;
         let end_line = (start_line + CHUNK_LINES).min(line_starts.len());
-        let start = line_starts[start_line];
-        let end = if end_line == line_starts.len() {
+        let line_bounded_end = if end_line == line_starts.len() {
             bytes.len()
         } else {
             line_starts[end_line]
         };
+        let mut end = line_bounded_end.min(start.saturating_add(CHUNK_MAX_BYTES));
+        while end > start && !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        if end == start {
+            bail!("named text chunker could not advance at a UTF-8 boundary");
+        }
         result.push(WorkspaceCoverageChunkDescriptor {
             body_path: path.into(),
             source_raw_sha256: raw_sha256.into(),
@@ -2640,10 +2648,19 @@ fn chunk_descriptors(
             byte_end: end as u64,
             chunk_sha256: format!("{:x}", Sha256::digest(&bytes[start..end])),
         });
-        if end_line == line_starts.len() {
+        if end == bytes.len() {
             break;
         }
-        start_line = end_line - CHUNK_OVERLAP_LINES;
+        start = if end == line_bounded_end {
+            let overlap_start = line_starts[end_line - CHUNK_OVERLAP_LINES];
+            if overlap_start > start {
+                overlap_start
+            } else {
+                end
+            }
+        } else {
+            end
+        };
         chunk_index = chunk_index
             .checked_add(1)
             .ok_or_else(|| anyhow!("chunk index exhausted"))?;
@@ -3555,6 +3572,27 @@ mod tests {
         assert_eq!(chunks[0].chunk_index, 0);
         assert_eq!(chunks[1].chunk_index, 1);
         assert!(chunk_descriptors("binary", &"22".repeat(32), &[0xff, 0xfe]).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn named_chunker_bounds_pathological_long_lines_by_utf8_bytes() -> Result<()> {
+        let text = format!("{}λ{}\n", "a".repeat(CHUNK_MAX_BYTES), "b".repeat(CHUNK_MAX_BYTES));
+        let chunks = chunk_descriptors("minified", &"33".repeat(32), text.as_bytes())?;
+        assert!(chunks.len() >= 3);
+        assert!(chunks.iter().all(|chunk| {
+            let start = chunk.byte_start as usize;
+            let end = chunk.byte_end as usize;
+            end > start
+                && end - start <= CHUNK_MAX_BYTES
+                && text.is_char_boundary(start)
+                && text.is_char_boundary(end)
+        }));
+        assert_eq!(chunks.first().unwrap().byte_start, 0);
+        assert_eq!(chunks.last().unwrap().byte_end, text.len() as u64);
+        for pair in chunks.windows(2) {
+            assert!(pair[1].byte_start <= pair[0].byte_end);
+        }
         Ok(())
     }
 
