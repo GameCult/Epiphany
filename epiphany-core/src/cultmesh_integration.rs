@@ -4873,7 +4873,7 @@ pub(crate) fn validate_workspace_coverage_projector_managed_service_policy(
         || policy.owner_daemon_id != "epiphany-daemon-supervisor"
         || !policy.enabled
         || policy.restart_mode != "always"
-        || policy.args.len() != 15
+        || policy.args.len() != 17
         || policy.args[0] != "serve"
         || policy.args[1] != "--runtime-store"
         || policy.args[2].trim().is_empty()
@@ -4887,12 +4887,18 @@ pub(crate) fn validate_workspace_coverage_projector_managed_service_policy(
             .ok()
             .filter(|value| *value > 0)
             .is_none()
-        || policy.args[9] != "--qdrant-url"
-        || policy.args[10].trim().is_empty()
-        || policy.args[11] != "--ollama-base-url"
+        || policy.args[9] != "--heartbeat-interval-seconds"
+        || policy.args[10]
+            .parse::<u64>()
+            .ok()
+            .filter(|value| *value > 0)
+            .is_none()
+        || policy.args[11] != "--qdrant-url"
         || policy.args[12].trim().is_empty()
-        || policy.args[13] != "--ollama-model"
+        || policy.args[13] != "--ollama-base-url"
         || policy.args[14].trim().is_empty()
+        || policy.args[15] != "--ollama-model"
+        || policy.args[16].trim().is_empty()
     {
         return Err(anyhow!(
             "reserved workspace coverage projector policy must bind one packaged process to its authenticated runtime Body route"
@@ -8313,6 +8319,8 @@ mod tests {
                 "local",
                 "--interval-seconds",
                 "60",
+                "--heartbeat-interval-seconds",
+                "10",
                 "--qdrant-url",
                 "http://127.0.0.1:6333",
                 "--ollama-base-url",
