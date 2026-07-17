@@ -9,7 +9,9 @@ use crate::{
 };
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::DateTime;
-use cultcache_rs::{DatabaseEntry, SingleFileMessagePackBackingStore};
+use cultcache_rs::{
+    CacheBackingStore, CultCacheEnvelope, DatabaseEntry, SingleFileMessagePackBackingStore,
+};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -635,12 +637,19 @@ pub fn write_workspace_coverage_provider_heartbeat(
     let launch: WorkspaceCoverageManagedProcessLaunchEntry =
         rmp_serde::from_slice(&launch_envelope.payload)?;
     authenticate_heartbeat_against_launch(&entry, &launch, &envelope_digest(&launch_envelope))?;
-    let identity_key = heartbeat_key(&entry.heartbeat_id);
-    if let Some(existing) = node.get::<WorkspaceCoverageProviderHeartbeatEntry>(&identity_key)? {
+    let latest_key = heartbeat_latest_key(&entry.launch_id);
+    let latest = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&latest_key)?;
+    if let Some(existing) = latest.as_ref() {
+        let existing: WorkspaceCoverageProviderHeartbeatEntry =
+            rmp_serde::from_slice(&existing.payload)?;
         if existing == entry {
             return Ok(existing);
         }
-        bail!("workspace coverage heartbeat identity collision");
+        if existing.heartbeat_id == entry.heartbeat_id {
+            bail!("workspace coverage heartbeat identity collision");
+        }
     }
     let evidence_head_key = process_evidence_head_key(&entry.launch_id);
     let evidence_head_envelope = node
@@ -670,12 +679,7 @@ pub fn write_workspace_coverage_provider_heartbeat(
         node.cache()
             .prepare_entry(&evidence_head_key, &next_evidence_head)?
             .0,
-        node.cache().prepare_entry(&identity_key, &entry)?.0,
     ];
-    let latest_key = heartbeat_latest_key(&entry.launch_id);
-    let latest = node
-        .cache()
-        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&latest_key)?;
     match latest.as_ref() {
         Some(envelope) => {
             let prior: WorkspaceCoverageProviderHeartbeatEntry =
@@ -751,7 +755,12 @@ pub fn load_workspace_coverage_provider_heartbeat(
     heartbeat_id: &str,
 ) -> Result<Option<WorkspaceCoverageProviderHeartbeatEntry>> {
     require_nonempty("heartbeat id", heartbeat_id)?;
-    open_epiphany_cultmesh_node(store_path, runtime_id)?.get(&heartbeat_key(heartbeat_id))
+    let runtime_id = runtime_id.into();
+    let Some(envelope) = latest_heartbeat_envelope_by_id(store_path, &runtime_id, heartbeat_id)?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(rmp_serde::from_slice(&envelope.payload)?))
 }
 
 pub fn load_latest_workspace_coverage_provider_heartbeat(
@@ -865,9 +874,7 @@ pub(crate) fn authenticate_workspace_coverage_provider_heartbeat_with_envelope_d
         heartbeat_id,
         host_identity,
     )?;
-    let envelope = open_epiphany_cultmesh_node(store_path, runtime_id)?
-        .cache()
-        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&heartbeat_key(heartbeat_id))?
+    let envelope = latest_heartbeat_envelope_by_id(store_path, &runtime_id, heartbeat_id)?
         .ok_or_else(|| anyhow!("workspace coverage heartbeat envelope disappeared"))?;
     Ok((heartbeat, envelope_digest(&envelope)))
 }
@@ -1535,11 +1542,39 @@ fn validate_absolute_path(value: &str) -> Result<()> {
 fn launch_key(id: &str) -> String {
     format!("epiphany-local/workspace-coverage/managed-process-launch/{id}")
 }
-fn heartbeat_key(id: &str) -> String {
-    format!("epiphany-local/workspace-coverage/provider-heartbeat/{id}")
-}
 fn heartbeat_latest_key(launch_id: &str) -> String {
     format!("{WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY}{launch_id}")
+}
+
+fn latest_heartbeat_envelope_by_id(
+    store_path: impl AsRef<Path>,
+    runtime_id: &str,
+    heartbeat_id: &str,
+) -> Result<Option<CultCacheEnvelope>> {
+    // Open the typed node first so schema-catalog corruption is still refused;
+    // then select only launch-latest heartbeat projections. Historical unique
+    // heartbeat events are intentionally not authority.
+    let _ = open_epiphany_cultmesh_node(store_path.as_ref(), runtime_id.to_string())?;
+    let mut matches = Vec::new();
+    for envelope in SingleFileMessagePackBackingStore::new(store_path.as_ref()).pull_all()? {
+        if envelope.r#type != WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE
+            || !envelope
+                .key
+                .starts_with(WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY)
+        {
+            continue;
+        }
+        let heartbeat: WorkspaceCoverageProviderHeartbeatEntry =
+            rmp_serde::from_slice(&envelope.payload)?;
+        validate_heartbeat_shape(&heartbeat)?;
+        if heartbeat.runtime_id == runtime_id && heartbeat.heartbeat_id == heartbeat_id {
+            matches.push(envelope);
+        }
+    }
+    if matches.len() > 1 {
+        bail!("workspace coverage heartbeat identity is duplicated across latest projections");
+    }
+    Ok(matches.pop())
 }
 fn termination_key(launch_id: &str) -> String {
     format!("epiphany-local/workspace-coverage/process-termination/{launch_id}")
@@ -1642,6 +1677,8 @@ mod tests {
                 "local",
                 "--interval-seconds",
                 "30",
+                "--heartbeat-interval-seconds",
+                "10",
                 "--qdrant-url",
                 "http://127.0.0.1:6333",
                 "--ollama-base-url",
@@ -1812,13 +1849,40 @@ mod tests {
             load_latest_workspace_coverage_provider_heartbeat(&store, "local", &launch.launch_id)?,
             Some(first.clone())
         );
+        let mut second = heartbeat(&launch, envelope_digest(&launch_envelope), &provider, 2)?;
+        second.observed_at_utc = (DateTime::parse_from_rfc3339(&first.observed_at_utc)?
+            + chrono::Duration::seconds(1))
+        .to_rfc3339();
+        sign_workspace_coverage_heartbeat(&mut second, &provider)?;
+        write_workspace_coverage_provider_heartbeat(&store, "local", second.clone())?;
+        assert_eq!(
+            load_workspace_coverage_provider_heartbeat(
+                &store,
+                "local",
+                &second.heartbeat_id
+            )?,
+            Some(second)
+        );
+        assert!(
+            load_workspace_coverage_provider_heartbeat(&store, "local", &first.heartbeat_id)?
+                .is_none()
+        );
+        assert_eq!(
+            SingleFileMessagePackBackingStore::new(&store)
+                .pull_all()?
+                .into_iter()
+                .filter(|entry| entry.r#type == WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE)
+                .count(),
+            1,
+            "heartbeat authority is one latest projection, not an append-only event log"
+        );
 
         let mut forged = first.clone();
         forged.heartbeat_id = Uuid::new_v4().to_string();
         forged.status = "degraded".to_string();
         assert!(write_workspace_coverage_provider_heartbeat(&store, "local", forged).is_err());
 
-        let gap = heartbeat(&launch, envelope_digest(&launch_envelope), &provider, 3)?;
+        let gap = heartbeat(&launch, envelope_digest(&launch_envelope), &provider, 4)?;
         assert!(write_workspace_coverage_provider_heartbeat(&store, "local", gap).is_err());
 
         let mut collision = launch.clone();
