@@ -2134,9 +2134,7 @@ fn authenticate_batch_readback(
 fn sealed_batch_ranges(point_count: usize) -> Vec<std::ops::Range<usize>> {
     (0..point_count)
         .step_by(WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS)
-        .map(|start| {
-            start..(start + WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS).min(point_count)
-        })
+        .map(|start| start..(start + WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS).min(point_count))
         .collect()
 }
 
@@ -2863,12 +2861,9 @@ mod tests {
         let ranges = sealed_batch_ranges(total);
         assert_eq!(WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS, 1);
         assert_eq!(ranges.len(), total);
-        assert!(
-            ranges
-                .iter()
-                .all(|range| range.len() <= WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS
-                    && range.len() <= QDRANT_POINT_BATCH_MAX)
-        );
+        assert!(ranges.iter().all(|range| range.len()
+            <= WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS
+            && range.len() <= QDRANT_POINT_BATCH_MAX));
         assert_eq!(
             ranges.into_iter().flatten().collect::<Vec<_>>(),
             (0..total).collect::<Vec<_>>()
@@ -2891,7 +2886,10 @@ mod tests {
         ));
         let mut changed = second.clone();
         changed.vector_sha256 = "33".repeat(32);
-        assert!(!same_vector_binding_set(&[first.clone(), changed], &[first, second]));
+        assert!(!same_vector_binding_set(
+            &[first.clone(), changed],
+            &[first, second]
+        ));
     }
 
     #[test]
@@ -3570,7 +3568,11 @@ mod tests {
 
     #[test]
     fn named_chunker_bounds_pathological_long_lines_by_utf8_bytes() -> Result<()> {
-        let text = format!("{}λ{}\n", "a".repeat(CHUNK_MAX_BYTES), "b".repeat(CHUNK_MAX_BYTES));
+        let text = format!(
+            "{}λ{}\n",
+            "a".repeat(CHUNK_MAX_BYTES),
+            "b".repeat(CHUNK_MAX_BYTES)
+        );
         let chunks = chunk_descriptors("minified", &"33".repeat(32), text.as_bytes())?;
         assert!(chunks.len() >= 3);
         assert!(chunks.iter().all(|chunk| {

@@ -15,8 +15,7 @@ use crate::workspace_coverage_process_documents::{
     WorkspaceCoverageProcessTerminationObservationEntry, WorkspaceCoverageProviderHeartbeatEntry,
 };
 use crate::workspace_coverage_projection_progress::{
-    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
-    WorkspaceCoverageProjectionProgressEntry,
+    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION, WorkspaceCoverageProjectionProgressEntry,
 };
 use anyhow::Context;
 use anyhow::Result;

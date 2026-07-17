@@ -46,6 +46,7 @@ mod workspace_coverage_projection_batch_checkpoint;
 mod workspace_coverage_projection_progress;
 mod workspace_coverage_projector;
 mod workspace_coverage_projector_service;
+mod workspace_coverage_store_binding;
 #[allow(dead_code)]
 mod workspace_retrieval_coverage;
 
@@ -216,7 +217,9 @@ pub use cultcache_rs::CacheBackingStore;
 pub use cultcache_rs::CultCache;
 pub use cultcache_rs::CultCacheEnvelope;
 pub use cultcache_rs::DatabaseEntry;
+pub use cultcache_rs::OwnedRedbMessagePackBackingStore;
 pub use cultcache_rs::PushAllOptions;
+pub use cultcache_rs::RedbMessagePackBackingStore;
 pub use cultcache_rs::SingleFileMessagePackBackingStore;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_SCHEMA_VERSION;
@@ -1235,4 +1238,5 @@ pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServiceBody;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServicePulse;
+pub use workspace_coverage_store_binding::*;
 pub use workspace_retrieval_coverage::*;

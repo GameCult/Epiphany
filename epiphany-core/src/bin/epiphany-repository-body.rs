@@ -2,12 +2,11 @@ use anyhow::{Result, bail};
 use chrono::Utc;
 use epiphany_core::{
     EpiphanyMemoryAnchor, EpiphanyMemoryDomain, EpiphanyMemoryGraphSnapshot,
-    EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind,
-    EpiphanyMemoryProfile, MEMORY_GRAPH_SCHEMA_VERSION,
-    ObserveOutcome, RuntimeSpineInitOptions, bind_repository_body,
-    admit_legacy_agent_memory_generation, bind_runtime_to_agent_memory_swarm,
-    ensure_agent_memory_swarm_identity, ensure_runtime_repo_model,
-    initialize_runtime_spine, load_repository_body_status, observe_repository_body,
+    EpiphanyMemoryLifecycle, EpiphanyMemoryNode, EpiphanyMemoryNodeKind, EpiphanyMemoryProfile,
+    MEMORY_GRAPH_SCHEMA_VERSION, ObserveOutcome, RuntimeSpineInitOptions,
+    admit_legacy_agent_memory_generation, bind_repository_body, bind_runtime_to_agent_memory_swarm,
+    ensure_agent_memory_swarm_identity, ensure_runtime_repo_model, initialize_runtime_spine,
+    load_repository_body_status, observe_repository_body,
 };
 use std::path::PathBuf;
 
@@ -64,16 +63,15 @@ fn main() -> Result<()> {
                     ),
                     question: "What architecture does live Modeling admit from this Body?"
                         .to_string(),
-                    action_implication:
-                        "Expand only through Body-grounded Modeling admission.".to_string(),
+                    action_implication: "Expand only through Body-grounded Modeling admission."
+                        .to_string(),
                     anchors: vec![EpiphanyMemoryAnchor {
                         id: "anchor-deployed-repository-body".to_string(),
                         kind: "repository_body_binding".to_string(),
                         target: binding.git_top_level.clone(),
                         source_hash: Some(binding.source_identity_sha256.clone()),
                         note: Some(
-                            "Cold-start anchor to the authenticated deployed Git Body."
-                                .to_string(),
+                            "Cold-start anchor to the authenticated deployed Git Body.".to_string(),
                         ),
                         ..Default::default()
                     }],

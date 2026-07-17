@@ -1,22 +1,22 @@
 use crate::workspace_coverage_process_documents::authenticate_workspace_coverage_managed_process_launch_with_envelope_digest;
 use crate::workspace_coverage_projector::{
+    ATTEMPT_TYPE, CLAIM_KEY, CLAIM_TYPE, OBLIGATION_TYPE, PLAN_TYPE,
+    WorkspaceCoverageProjectionAttempt, WorkspaceCoverageProjectionClaim,
     exact_obligation_body_authority, payload_for, validate_claim_attempt_link,
-    validate_projection_attempt, validate_projection_claim, WorkspaceCoverageProjectionAttempt,
-    WorkspaceCoverageProjectionClaim, ATTEMPT_TYPE, CLAIM_KEY, CLAIM_TYPE, OBLIGATION_TYPE,
-    PLAN_TYPE,
+    validate_projection_attempt, validate_projection_claim,
 };
 use crate::workspace_retrieval_coverage::{
-    workspace_coverage_execution_collection, WorkspaceCoverageObligation,
-    WorkspaceCoverageProjectionPlan,
+    WorkspaceCoverageObligation, WorkspaceCoverageProjectionPlan,
+    workspace_coverage_execution_collection,
 };
 use crate::{
-    validate_workspace_coverage_projection_plan, HostIncarnationIdentityEntry,
-    RepositoryBodyBinding, RepositoryBodyHead, RepositoryBodyManifest, RepositoryBodyObservation,
-    WorkspaceCoverageManagedProcessLaunchEntry, WorkspaceCoveragePointBinding,
-    WorkspaceCoverageVectorBinding, BODY_BINDING_KEY, BODY_BINDING_TYPE, BODY_HEAD_KEY,
-    BODY_HEAD_TYPE, BODY_MANIFEST_TYPE, BODY_OBSERVATION_TYPE,
+    BODY_BINDING_KEY, BODY_BINDING_TYPE, BODY_HEAD_KEY, BODY_HEAD_TYPE, BODY_MANIFEST_TYPE,
+    BODY_OBSERVATION_TYPE, HostIncarnationIdentityEntry, RepositoryBodyBinding, RepositoryBodyHead,
+    RepositoryBodyManifest, RepositoryBodyObservation, WorkspaceCoverageManagedProcessLaunchEntry,
+    WorkspaceCoveragePointBinding, WorkspaceCoverageVectorBinding,
+    validate_workspace_coverage_projection_plan,
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use chrono::DateTime;
 use cultcache_rs::{
     CacheBackingStore, CultCacheEnvelope, DatabaseEntry, SingleFileMessagePackBackingStore,
@@ -256,12 +256,20 @@ pub(crate) fn admit_observed_workspace_coverage_batch(
             &claim.claim_id,
         )?
         .ok_or_else(|| anyhow!("current checkpoint exists without canonical progress genesis"))?;
-        if progress.sequence != current.checkpoint.sequence.checked_add(1).ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?
+        if progress.sequence
+            != current
+                .checkpoint
+                .sequence
+                .checked_add(1)
+                .ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?
             || progress.checkpoint_id.as_deref() != Some(current.checkpoint.checkpoint_id.as_str())
-            || progress.checkpoint_binding_sha256.as_deref() != Some(current.checkpoint_envelope_digest.as_str())
+            || progress.checkpoint_binding_sha256.as_deref()
+                != Some(current.checkpoint_envelope_digest.as_str())
             || progress.completed_units != current.checkpoint.cumulative_point_count
         {
-            bail!("current checkpoint is ahead of progress; reconcile before admitting a new batch");
+            bail!(
+                "current checkpoint is ahead of progress; reconcile before admitting a new batch"
+            );
         }
     }
     let head_key = checkpoint_head_key(&claim.claim_id, claim.claim_epoch);
@@ -484,7 +492,8 @@ pub(crate) fn load_authenticated_checkpoint_chain(
         trusted_host,
         claim_id,
         claim_epoch,
-    )? else {
+    )?
+    else {
         return Ok(Vec::new());
     };
     let opening = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
@@ -526,19 +535,28 @@ pub(crate) fn load_authenticated_checkpoint_chain(
     validate_projection_claim(&claim)?;
     validate_projection_attempt(&attempt)?;
     validate_claim_attempt_link(&claim, &attempt)?;
-    validate_current_projection_binding(&current.checkpoint, CurrentProjectionBinding {
-        claim_status: &claim.status, claim_id: &claim.claim_id, claim_epoch: claim.claim_epoch,
-        attempt_status: &attempt.status, attempt_id: &attempt.attempt_id,
-        claim_plan_id: &claim.plan_id, attempt_plan_id: &attempt.plan_id, plan_id: &plan.plan_id,
-        claim_obligation_id: &claim.obligation_id, obligation_id: &obligation.obligation_id,
-        plan_obligation_id: &plan.obligation_id,
-        claim_body_observation_id: &claim.body_observation_id,
-        obligation_body_observation_id: &obligation.body_observation_id,
-        claim_body_generation: claim.body_generation,
-        obligation_body_generation: obligation.body_generation,
-        claim_manifest_root: &claim.manifest_root_sha256,
-        obligation_manifest_root: &obligation.manifest_root_sha256,
-    })?;
+    validate_current_projection_binding(
+        &current.checkpoint,
+        CurrentProjectionBinding {
+            claim_status: &claim.status,
+            claim_id: &claim.claim_id,
+            claim_epoch: claim.claim_epoch,
+            attempt_status: &attempt.status,
+            attempt_id: &attempt.attempt_id,
+            claim_plan_id: &claim.plan_id,
+            attempt_plan_id: &attempt.plan_id,
+            plan_id: &plan.plan_id,
+            claim_obligation_id: &claim.obligation_id,
+            obligation_id: &obligation.obligation_id,
+            plan_obligation_id: &plan.obligation_id,
+            claim_body_observation_id: &claim.body_observation_id,
+            obligation_body_observation_id: &obligation.body_observation_id,
+            claim_body_generation: claim.body_generation,
+            obligation_body_generation: obligation.body_generation,
+            claim_manifest_root: &claim.manifest_root_sha256,
+            obligation_manifest_root: &obligation.manifest_root_sha256,
+        },
+    )?;
     validate_workspace_coverage_projection_plan(&obligation, &plan)?;
     exact_obligation_body_authority(&opening, &obligation)?;
     let (launch, launch_digest) =
@@ -570,9 +588,23 @@ pub(crate) fn load_authenticated_checkpoint_chain(
         authenticate_signature(&event)?;
         validate_launch(&event, &launch, &launch_digest)?;
         validate_authority(
-            &event, &binding, binding_env, &body_head, body_head_env, &observation,
-            observation_env, &manifest, manifest_env, &obligation, obligation_env, &plan,
-            plan_env, &claim, claim_env, &attempt, attempt_env,
+            &event,
+            &binding,
+            binding_env,
+            &body_head,
+            body_head_env,
+            &observation,
+            observation_env,
+            &manifest,
+            manifest_env,
+            &obligation,
+            obligation_env,
+            &plan,
+            plan_env,
+            &claim,
+            claim_env,
+            &attempt,
+            attempt_env,
         )?;
         validate_batch_against_plan(&event, &obligation, &plan)?;
         next_id = event.predecessor_checkpoint_id.clone();
@@ -596,13 +628,19 @@ fn validate_reconstructed_chain(
     for admission in chain {
         let event = &admission.checkpoint;
         let expected_sequence = match prior {
-            Some(p) => p.sequence.checked_add(1).ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?,
+            Some(p) => p
+                .sequence
+                .checked_add(1)
+                .ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?,
             None => 1,
         };
         if event.sequence != expected_sequence
             || event.first_plan_ordinal != prior.map_or(0, |p| p.cumulative_point_count)
             || event.batch_ordinal != event.sequence - 1
-            || event.point_ids.iter().any(|id| !seen_points.insert(id.clone()))
+            || event
+                .point_ids
+                .iter()
+                .any(|id| !seen_points.insert(id.clone()))
         {
             bail!("checkpoint chain is noncontiguous or overlaps prior sealed points");
         }
@@ -691,7 +729,11 @@ fn validate_observed_batch_input(observed: &ObservedWorkspaceCoverageBatchInput)
     {
         bail!("observed workspace coverage batch has invalid bounded cardinality");
     }
-    for (point, vector) in observed.point_bindings.iter().zip(&observed.vector_bindings) {
+    for (point, vector) in observed
+        .point_bindings
+        .iter()
+        .zip(&observed.vector_bindings)
+    {
         if point.point_id.trim().is_empty()
             || point.point_id != vector.point_id
             || !canonical_sha256(&point.payload_sha256)
@@ -1454,7 +1496,10 @@ mod tests {
                 "checkpoint" => stale.checkpoint_id.push('x'),
                 _ => stale.collection_name.push('x'),
             }
-            assert!(validate_current_head_event_identity(&event, &stale).is_err(), "{mutation}");
+            assert!(
+                validate_current_head_event_identity(&event, &stale).is_err(),
+                "{mutation}"
+            );
         }
     }
     #[test]
@@ -1544,7 +1589,10 @@ mod tests {
                 "changed-obligation" => stale.obligation_id = "replacement-obligation",
                 _ => stale.obligation_manifest_root = "replacement-manifest",
             }
-            assert!(validate_current_projection_binding(&event, stale).is_err(), "{mutation}");
+            assert!(
+                validate_current_projection_binding(&event, stale).is_err(),
+                "{mutation}"
+            );
         }
     }
     #[test]

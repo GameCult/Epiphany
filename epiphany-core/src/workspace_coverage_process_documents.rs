@@ -1856,11 +1856,7 @@ mod tests {
         sign_workspace_coverage_heartbeat(&mut second, &provider)?;
         write_workspace_coverage_provider_heartbeat(&store, "local", second.clone())?;
         assert_eq!(
-            load_workspace_coverage_provider_heartbeat(
-                &store,
-                "local",
-                &second.heartbeat_id
-            )?,
+            load_workspace_coverage_provider_heartbeat(&store, "local", &second.heartbeat_id)?,
             Some(second)
         );
         assert!(

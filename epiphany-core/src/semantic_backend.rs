@@ -879,7 +879,7 @@ mod tests {
             .build()?;
         let server = runtime.block_on(MockServer::start());
         runtime.block_on(
-                Mock::given(method("POST"))
+            Mock::given(method("POST"))
                 .and(path("/collections/c/points"))
                 .and(query_param("timeout", "5"))
                 .and(body_json(json!({
