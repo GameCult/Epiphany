@@ -1973,14 +1973,42 @@ fn authenticate_batch_readback(
             .vector
             .as_ref()
             .ok_or_else(|| anyhow!("exact batch readback omitted vector"))?;
-        if point.id != expected_point.point_id
-            || point.id != expected_vector.point_id
-            || digest(payload)? != expected_point.payload_sha256
-            || vector.len() != vector_dimensions as usize
-            || vector.iter().any(|value| !value.is_finite())
-            || digest(vector)? != expected_vector.vector_sha256
-        {
-            bail!("exact batch readback disagrees with submitted payload/vector bindings");
+        if point.id != expected_point.point_id || point.id != expected_vector.point_id {
+            bail!(
+                "exact batch readback point identity disagrees with submitted bindings: observed={}, payload_binding={}, vector_binding={}",
+                point.id,
+                expected_point.point_id,
+                expected_vector.point_id
+            );
+        }
+        let observed_payload_sha256 = digest(payload)?;
+        if observed_payload_sha256 != expected_point.payload_sha256 {
+            bail!(
+                "exact batch readback payload digest disagrees for point {}: observed={}, expected={}",
+                point.id,
+                observed_payload_sha256,
+                expected_point.payload_sha256
+            );
+        }
+        if vector.len() != vector_dimensions as usize {
+            bail!(
+                "exact batch readback vector dimensions disagree for point {}: observed={}, expected={}",
+                point.id,
+                vector.len(),
+                vector_dimensions
+            );
+        }
+        if vector.iter().any(|value| !value.is_finite()) {
+            bail!("exact batch readback vector is non-finite for point {}", point.id);
+        }
+        let observed_vector_sha256 = digest(vector)?;
+        if observed_vector_sha256 != expected_vector.vector_sha256 {
+            bail!(
+                "exact batch readback vector digest disagrees for point {}: observed={}, expected={}",
+                point.id,
+                observed_vector_sha256,
+                expected_vector.vector_sha256
+            );
         }
     }
     Ok(())
