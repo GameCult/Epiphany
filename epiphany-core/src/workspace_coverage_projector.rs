@@ -1952,15 +1952,15 @@ fn authenticate_submitted_cosine_batch_readback(
         bail!("exact cosine batch readback count disagrees with submitted bindings");
     }
     let mut observed = observed.iter().collect::<Vec<_>>();
-    let mut expected_points = expected_points.iter().collect::<Vec<_>>();
+    let mut sorted_expected_points = expected_points.iter().collect::<Vec<_>>();
     let mut submitted = submitted.iter().collect::<Vec<_>>();
     observed.sort_by(|left, right| left.id.cmp(&right.id));
-    expected_points.sort_by(|left, right| left.point_id.cmp(&right.point_id));
+    sorted_expected_points.sort_by(|left, right| left.point_id.cmp(&right.point_id));
     submitted.sort_by(|left, right| left.id.cmp(&right.id));
-    let mut stored = Vec::with_capacity(observed.len());
+    let mut stored_by_id = std::collections::HashMap::with_capacity(observed.len());
     for ((point, expected_point), submitted) in observed
         .into_iter()
-        .zip(expected_points)
+        .zip(sorted_expected_points)
         .zip(submitted)
     {
         if point.id != expected_point.point_id || point.id != submitted.id {
@@ -1971,20 +1971,40 @@ fn authenticate_submitted_cosine_batch_readback(
             .as_ref()
             .ok_or_else(|| anyhow!("exact cosine batch readback omitted payload"))?;
         if digest(payload)? != expected_point.payload_sha256 {
-            bail!("exact cosine batch readback payload digest disagrees for point {}", point.id);
+            bail!(
+                "exact cosine batch readback payload digest disagrees for point {}",
+                point.id
+            );
         }
         let vector = point
             .vector
             .as_ref()
             .ok_or_else(|| anyhow!("exact cosine batch readback omitted vector"))?;
         authenticate_cosine_storage_vector(&submitted.vector, vector, vector_dimensions)
-            .with_context(|| format!("Qdrant cosine transformation disagrees for point {}", point.id))?;
-        stored.push(WorkspaceCoverageVectorBinding {
-            point_id: point.id.clone(),
-            vector_sha256: digest(vector)?,
-        });
+            .with_context(|| {
+                format!(
+                    "Qdrant cosine transformation disagrees for point {}",
+                    point.id
+                )
+            })?;
+        if stored_by_id
+            .insert(point.id.clone(), digest(vector)?)
+            .is_some()
+        {
+            bail!("exact cosine batch readback duplicated a submitted point");
+        }
     }
-    Ok(stored)
+    expected_points
+        .iter()
+        .map(|point| {
+            Ok(WorkspaceCoverageVectorBinding {
+                point_id: point.point_id.clone(),
+                vector_sha256: stored_by_id.remove(&point.point_id).ok_or_else(|| {
+                    anyhow!("exact cosine batch readback omitted a submitted point")
+                })?,
+            })
+        })
+        .collect()
 }
 
 fn authenticate_cosine_storage_vector(
@@ -1995,7 +2015,11 @@ fn authenticate_cosine_storage_vector(
     if submitted.len() != vector_dimensions as usize || observed.len() != submitted.len() {
         bail!("cosine vector dimensions disagree");
     }
-    if submitted.iter().chain(observed).any(|value| !value.is_finite()) {
+    if submitted
+        .iter()
+        .chain(observed)
+        .any(|value| !value.is_finite())
+    {
         bail!("cosine vector contains a non-finite component");
     }
     let submitted_norm = submitted
@@ -2083,7 +2107,10 @@ fn authenticate_batch_readback(
             );
         }
         if vector.iter().any(|value| !value.is_finite()) {
-            bail!("exact batch readback vector is non-finite for point {}", point.id);
+            bail!(
+                "exact batch readback vector is non-finite for point {}",
+                point.id
+            );
         }
         let observed_vector_sha256 = digest(vector)?;
         if observed_vector_sha256 != expected_vector.vector_sha256 {
@@ -2911,22 +2938,47 @@ mod tests {
             .first()
             .ok_or_else(|| anyhow!("fixture produced no planned points"))?;
         let payload = payload_for(&acquisition.obligation, &acquisition.plan, planned);
+        let mut payload_second = payload.clone();
+        payload_second.chunk_index += 1;
+        let second_id = "00000000-0000-0000-0000-000000000001".to_string();
         let submitted_vector = vec![3.0_f32, 4.0, 0.0];
         let stored_vector = vec![0.6_f32, 0.8, 0.0];
-        let submitted = vec![SemanticPoint {
-            id: planned.point_id.clone(),
-            vector: submitted_vector.clone(),
-            payload: payload.clone(),
-        }];
-        let observed = vec![SemanticStoredPoint {
-            id: planned.point_id.clone(),
-            payload: Some(payload.clone()),
-            vector: Some(stored_vector.clone()),
-        }];
-        let point_bindings = vec![WorkspaceCoveragePointBinding {
-            point_id: planned.point_id.clone(),
-            payload_sha256: digest(&payload)?,
-        }];
+        let submitted_second = vec![0.0_f32, 0.0, 5.0];
+        let stored_second = vec![0.0_f32, 0.0, 1.0];
+        let submitted = vec![
+            SemanticPoint {
+                id: planned.point_id.clone(),
+                vector: submitted_vector.clone(),
+                payload: payload.clone(),
+            },
+            SemanticPoint {
+                id: second_id.clone(),
+                vector: submitted_second,
+                payload: payload_second.clone(),
+            },
+        ];
+        let observed = vec![
+            SemanticStoredPoint {
+                id: second_id.clone(),
+                payload: Some(payload_second.clone()),
+                vector: Some(stored_second.clone()),
+            },
+            SemanticStoredPoint {
+                id: planned.point_id.clone(),
+                payload: Some(payload.clone()),
+                vector: Some(stored_vector.clone()),
+            },
+        ];
+        let point_bindings = vec![
+            WorkspaceCoveragePointBinding {
+                point_id: planned.point_id.clone(),
+                payload_sha256: digest(&payload)?,
+            },
+            WorkspaceCoveragePointBinding {
+                point_id: second_id.clone(),
+                payload_sha256: digest(&payload_second)?,
+            },
+        ];
 
         let bindings = authenticate_submitted_cosine_batch_readback(
             &observed,
@@ -2934,19 +2986,21 @@ mod tests {
             &submitted,
             3,
         )?;
+        assert_eq!(
+            bindings
+                .iter()
+                .map(|binding| &binding.point_id)
+                .collect::<Vec<_>>(),
+            vec![&planned.point_id, &second_id]
+        );
         assert_eq!(bindings[0].vector_sha256, digest(&stored_vector)?);
         assert_ne!(bindings[0].vector_sha256, digest(&submitted_vector)?);
 
         let mut changed = observed;
-        changed[0].vector = Some(vec![0.8, 0.6, 0.0]);
+        changed[1].vector = Some(vec![0.8, 0.6, 0.0]);
         assert!(
-            authenticate_submitted_cosine_batch_readback(
-                &changed,
-                &point_bindings,
-                &submitted,
-                3,
-            )
-            .is_err()
+            authenticate_submitted_cosine_batch_readback(&changed, &point_bindings, &submitted, 3,)
+                .is_err()
         );
         drop(repo);
         Ok(())
