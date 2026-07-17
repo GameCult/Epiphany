@@ -15,7 +15,9 @@ pub const EPIPHANY_SIGNED_RUNTIME_HEALTH_SCHEMA_VERSION: &str =
     "epiphany.idunn_signed_runtime_health.v0";
 pub const EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT: &str = "epiphany.cultnet-rudp-runtime-health";
 pub const CULTNET_RUDP_PROTOCOL_ID: &str = "cultnet.transport.rudp.v0";
-const IDUNN_HEALTH_RUDP_CONNECTION_ID: u32 = 0x4944_554e;
+// Shared Idunn daemon-health RUDP contract. This must match the Idunn ingress
+// constant; a private Epiphany connection id cannot complete the handshake.
+const IDUNN_HEALTH_RUDP_CONNECTION_ID: u32 = 0x1d0d_0001;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IdunnDaemonHealthDocument {
@@ -497,5 +499,10 @@ mod tests {
             publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &health,)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn rudp_publisher_uses_the_idunn_daemon_health_connection_contract() {
+        assert_eq!(IDUNN_HEALTH_RUDP_CONNECTION_ID, 0x1d0d_0001);
     }
 }
