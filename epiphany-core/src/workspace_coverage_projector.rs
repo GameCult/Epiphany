@@ -1951,8 +1951,19 @@ fn authenticate_batch_readback(
     if observed.len() != expected_points.len() || observed.len() != expected_vectors.len() {
         bail!("exact batch readback count disagrees with submitted bindings");
     }
-    for ((point, expected_point), expected_vector) in
-        observed.iter().zip(expected_points).zip(expected_vectors)
+    // Qdrant's retrieve response is a set; it does not promise to preserve the
+    // request order. Authenticate the exact set by point identity instead of
+    // letting transport ordering impersonate a payload/vector substitution.
+    let mut observed = observed.iter().collect::<Vec<_>>();
+    let mut expected_points = expected_points.iter().collect::<Vec<_>>();
+    let mut expected_vectors = expected_vectors.iter().collect::<Vec<_>>();
+    observed.sort_by(|left, right| left.id.cmp(&right.id));
+    expected_points.sort_by(|left, right| left.point_id.cmp(&right.point_id));
+    expected_vectors.sort_by(|left, right| left.point_id.cmp(&right.point_id));
+    for ((point, expected_point), expected_vector) in observed
+        .into_iter()
+        .zip(expected_points)
+        .zip(expected_vectors)
     {
         let payload = point
             .payload
@@ -2720,6 +2731,60 @@ mod tests {
         assert!(
             authenticate_batch_readback(&observed, &point_bindings, &vector_bindings, 3).is_err()
         );
+        drop(repo);
+        Ok(())
+    }
+
+    #[test]
+    fn exact_batch_readback_authenticates_qdrant_set_independent_of_response_order() -> Result<()> {
+        let (repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let planned = acquisition
+            .plan
+            .planned_points
+            .first()
+            .ok_or_else(|| anyhow!("fixture produced no planned points"))?;
+        let payload_a = payload_for(&acquisition.obligation, &acquisition.plan, planned);
+        let mut payload_b = payload_a.clone();
+        payload_b.chunk_index += 1;
+        let point_a = planned.point_id.clone();
+        let point_b = uuid::Uuid::new_v4().to_string();
+        let vector_a = vec![0.25_f32; 3];
+        let vector_b = vec![0.5_f32; 3];
+        let expected_points = vec![
+            WorkspaceCoveragePointBinding {
+                point_id: point_a.clone(),
+                payload_sha256: digest(&payload_a)?,
+            },
+            WorkspaceCoveragePointBinding {
+                point_id: point_b.clone(),
+                payload_sha256: digest(&payload_b)?,
+            },
+        ];
+        let expected_vectors = vec![
+            WorkspaceCoverageVectorBinding {
+                point_id: point_a.clone(),
+                vector_sha256: digest(&vector_a)?,
+            },
+            WorkspaceCoverageVectorBinding {
+                point_id: point_b.clone(),
+                vector_sha256: digest(&vector_b)?,
+            },
+        ];
+        let reversed = vec![
+            SemanticStoredPoint {
+                id: point_b,
+                payload: Some(payload_b),
+                vector: Some(vector_b),
+            },
+            SemanticStoredPoint {
+                id: point_a,
+                payload: Some(payload_a),
+                vector: Some(vector_a),
+            },
+        ];
+
+        authenticate_batch_readback(&reversed, &expected_points, &expected_vectors, 3)?;
         drop(repo);
         Ok(())
     }
