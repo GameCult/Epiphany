@@ -905,22 +905,71 @@ publish the receipt/head. Until then coverage remains absent.
 
 ### Projector authority map
 
-Coverage state belongs in the Repository Body CultCache store. That is the only
-existing lock domain able to CAS the exact Body head and its immutable evidence
-with coverage obligation, plan, claim, attempt, receipt, and head. The runtime
-store remains only the immutable route to that Body store. Qdrant mutation stays
-outside the transaction; a lost terminal CAS leaves disposable orphan vectors,
-not counterfeit readiness.
+Repository Body owns observed substrate only: its binding, immutable
+observations/manifests, and current Body head. Projection activity must not
+rewrite `body.cc`. Live Yggdrasil candidate `c94fa580` falsified the old shared-
+store ownership by attributably rewriting `body.cc` while projection ran; it
+remains rejected.
 
-The sealed execution path is acquire against the exact current Body chain,
+Commit `261c7bc8` adds the pinned transactional store foundation. The runtime
+record `epiphany.runtime.workspace_coverage_store_binding.v0` selects one
+canonical store path and file identity while sealing the exact repository Body
+route/envelope and Body-binding hash. The store-local
+`gamecult.epiphany.workspace_coverage_store_binding.v0` repeats runtime, swarm,
+workspace, file identity, Body-binding hash, repository source identity,
+projection scope, and backend. `open_workspace_coverage_authority` validates
+both bindings and returns the owned transactional store together with exact
+read-only Body authority. A naked path is never sufficient.
+
+The workspace-coverage store owns obligation, plan, immutable claim/attempt and
+recovery history, current-claim authority, checkpoint events/head, progress
+events/latest, terminal receipt, coverage head, and retirement history. Qdrant
+is disposable derived state. This ownership is the target, not yet the live
+implementation: commit `261c7bc8` provides bindings and transactional keyed
+storage, but existing projector writers still persist projection records in
+Body or local Verse.
+
+Inputs are the exact pinned Body route/binding and current observation basis,
+sealed policy/plan/model identity, authenticated managed launch and provider
+incarnation, exact Idunn recovery evidence, and waited Qdrant readback. Outputs
+are the typed lifecycle/proof records above. Current claim, progress, coverage,
+warming, active, readiness, and query eligibility are derived joins; none may
+be manufactured by a path, heartbeat, Qdrant count, or stale head.
+
+Forbidden writers are explicit: Body observer/bootstrap never writes projection
+state; projector/checkpoint/recovery never writes Body; local Verse retains
+managed process lifecycle but not coverage progress; Idunn, deploy scripts,
+health, heartbeat, Qdrant, Eve, and swarm overview cannot advance coverage
+authority.
+
+The shared execution path resolves the runtime coverage binding, opens exact
+Body read authority, then acquires against the exact current Body chain,
 verify every included live file against its historical length and SHA-256,
 derive deterministic chunks and UUIDv5 point descriptors, embed and write into
 a claim/epoch-fenced plan collection, scroll the whole collection with typed
-payloads, then terminal-CAS success against the still-current Body head. Plans
+payloads, then terminal-CAS success in the coverage store after reopening and
+reauthenticating the still-current Body head. Plans
 must seal an ID-to-payload binding root; equal counts or equal IDs do not prove
 the indexed content. Receipt/head constructors and writers remain projector-
 private. Live query eligibility re-observes Qdrant; a stored receipt proves only
 that one exact observation completed.
+
+Each waited batch/readback must transactionally admit its checkpoint event/head
+and derived progress event/latest together in the coverage store. Cross-store
+atomicity is not invented: Body is authenticated before the coverage CAS and
+reopened afterward; if it moved, the projection evidence remains historical and
+cannot become current. Claim authority is scoped to Body generation so an old
+running claim cannot block new Body work. Same-Body abandoned-owner recovery
+remains possible only through exact Idunn predecessor termination and
+replacement authority.
+
+Migration/cut line: quiesce projection, create and bind the coverage store,
+copy projection envelopes from Body and progress envelopes from Verse while
+preserving exact envelopes/digests, validate every chain, activate the runtime
+binding as the single authority switch, then CAS-remove legacy records. After
+activation legacy residue is inert. Missing binding, divergent sources, or
+partial migration fail closed. No dual-read or fallback path survives. Every
+bootstrap/deploy path must create the bound store before service start.
 
 The execution path is reachable only through the reserved packaged workspace-
 coverage projector managed by Idunn. It validates plan-sealed text hashes and vector

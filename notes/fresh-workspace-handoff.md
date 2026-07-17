@@ -1,5 +1,56 @@
 # Fresh Workspace Handoff
 
+## Workspace coverage storage cut is founded, not migrated — 2026-07-17
+
+Live Yggdrasil evidence rejects `c94fa580` as a deployment candidate. During
+that candidate, `body.cc` was rewritten by workspace-projection activity rather
+than repository observation. The rewrite is attributable to the surviving
+coverage writers sharing the Body store; it is not evidence that the Body
+observer changed repository substrate. Body owns observed substrate only:
+binding, immutable observations/manifests, and the current Body head.
+
+Commit `261c7bc8` lands the replacement foundation. A runtime-side immutable
+`epiphany.runtime.workspace_coverage_store_binding.v0` route and store-local
+`gamecult.epiphany.workspace_coverage_store_binding.v0` bind a separate
+transactional `workspace-coverage` store to runtime, swarm, workspace,
+canonical path and file identity, exact repository Body route/envelope,
+Body-binding hash, and repository source identity. Transactional keyed
+CultCache admission is pinned beneath it. This is routing and storage
+foundation, not completion: obligation, plan, claim, attempt, recovery,
+checkpoint, progress, terminal receipt, coverage head, and retirement writers
+have not yet been migrated from Body/local Verse.
+
+Authority map:
+
+- Owner: the workspace-coverage store owns projection lifecycle and proof;
+  repository Body owns observations only.
+- Inputs: the exact pinned Body route/binding and current observation basis,
+  sealed inclusion/projection/model plan, authenticated launch/provider
+  incarnation, Idunn recovery authority, and waited Qdrant readback.
+- Outputs: immutable obligation/plan and claim/attempt/recovery history,
+  checkpoint/progress events and heads, terminal receipt/coverage head, and
+  retirement history.
+- Derived state: current claim, progress, coverage, warming, active, and query
+  eligibility are joins over those records plus freshly revalidated Body and
+  Qdrant; no store path or old head is truth by itself.
+- Forbidden writers: Body observer/bootstrap cannot write projection state;
+  projector/checkpoint/recovery cannot write Body; local Verse, Idunn,
+  heartbeat, health, deploy scripts, Qdrant, and presentation cannot advance
+  coverage heads.
+- Shared path: prepare, acquire, each waited batch/readback, resume/recovery,
+  final whole-scroll, health, and readiness resolve the same runtime binding,
+  reopen exact Body read authority, and transact only through the pinned
+  coverage store. Checkpoint and progress must admit atomically.
+- Cut line: migrate every projection envelope and bootstrap the binding, switch
+  authority once, then remove Body/Verse writers and readers. Preserve exact
+  signed envelope identities where predecessor digests depend on them. There
+  is no dual-read or missing-binding fallback.
+
+Next: perform that writer/bootstrap migration, prove Body bytes remain unchanged
+through projection, and only then build a new live Yggdrasil candidate. Keep
+`c94fa580` rejected; do not lengthen a timeout or reinterpret its rewrite as an
+observer fault.
+
 ## Signed Yggdrasil deployment admission cut complete locally — 2026-07-17
 
 The failed GPU pressure run was a pipeline-contract failure, not a CUDA
