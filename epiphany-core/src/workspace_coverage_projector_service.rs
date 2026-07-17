@@ -1,33 +1,22 @@
 use crate::repository_body_observer::RepositoryBodyReadSession;
 use crate::semantic_backend::{OllamaConfig, OllamaEmbedder, QdrantBackend, QdrantConfig};
+use crate::workspace_coverage_process_documents::publish_workspace_coverage_terminal_sight;
 use crate::workspace_coverage_projector::{
     WorkspaceCoverageAcquireResult, WorkspaceCoverageCurrentState,
     WorkspaceCoverageProjectionExecutionAuthority, acquire_workspace_coverage_projection,
-    classify_current_workspace_coverage, execute_workspace_coverage_projection,
-    prepare_workspace_coverage_projection, retire_workspace_coverage_collections,
+    classify_current_workspace_coverage, compact_workspace_coverage_history,
+    execute_workspace_coverage_projection, prepare_workspace_coverage_projection,
+    retire_workspace_coverage_collections,
 };
 use crate::{
     EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID, HostIncarnationIdentityEntry,
-    load_current_runtime_repository_body_basis, runtime_repository_body_store_binding,
+    WorkspaceCoverageAuthority, load_current_runtime_repository_body_basis,
+    open_workspace_coverage_authority, runtime_repository_body_store_binding,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use ed25519_dalek::SigningKey;
-use sha2::{Digest, Sha256};
-#[cfg(windows)]
-use std::ffi::OsStr;
-#[cfg(unix)]
-use std::fs::File;
-#[cfg(unix)]
-use std::os::fd::AsRawFd;
-#[cfg(windows)]
-use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
-
-#[cfg(windows)]
-use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE};
-#[cfg(windows)]
-use windows_sys::Win32::System::Threading::{CreateMutexW, ReleaseMutex};
 
 const EMBEDDING_PROVIDER_ID: &str = "gamecult-ollama-embedding";
 
@@ -89,85 +78,8 @@ pub struct WorkspaceCoverageProjectorServicePulse {
     pub fault: Option<String>,
 }
 
-struct WorkspaceCoverageProjectorSingletonGuard {
-    #[cfg(windows)]
-    handle: HANDLE,
-    #[cfg(unix)]
-    file: File,
-}
-
-impl Drop for WorkspaceCoverageProjectorSingletonGuard {
-    fn drop(&mut self) {
-        #[cfg(windows)]
-        unsafe {
-            let _ = ReleaseMutex(self.handle);
-            CloseHandle(self.handle);
-        }
-        #[cfg(unix)]
-        unsafe {
-            let _ = libc::flock(self.file.as_raw_fd(), libc::LOCK_UN);
-        }
-    }
-}
-
-fn acquire_workspace_coverage_projector_singleton(
-    runtime_store: &Path,
-    body_store: &Path,
-) -> Result<WorkspaceCoverageProjectorSingletonGuard> {
-    let identity = format!(
-        "{:x}",
-        Sha256::digest(
-            format!(
-                "{}|{}",
-                runtime_store.to_string_lossy().to_lowercase(),
-                body_store.to_string_lossy().to_lowercase()
-            )
-            .as_bytes()
-        )
-    );
-    #[cfg(windows)]
-    {
-        let name = OsStr::new(&format!(
-            "Global\\EpiphanyWorkspaceCoverageProjector-{identity}"
-        ))
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect::<Vec<_>>();
-        let handle = unsafe { CreateMutexW(std::ptr::null_mut(), 1, name.as_ptr()) };
-        if handle.is_null() {
-            return Err(anyhow!(
-                "workspace coverage projector singleton mutex creation failed: {}",
-                unsafe { GetLastError() }
-            ));
-        }
-        if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
-            unsafe { CloseHandle(handle) };
-            bail!("workspace coverage projector owner already exists for this runtime Body route");
-        }
-        return Ok(WorkspaceCoverageProjectorSingletonGuard { handle });
-    }
-    #[cfg(unix)]
-    {
-        let path =
-            std::env::temp_dir().join(format!("epiphany-workspace-coverage-{identity}.lock"));
-        let file = File::options()
-            .create(true)
-            .read(true)
-            .write(true)
-            .open(path)?;
-        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-            bail!("workspace coverage projector owner already exists for this runtime Body route");
-        }
-        return Ok(WorkspaceCoverageProjectorSingletonGuard { file });
-    }
-    #[allow(unreachable_code)]
-    Err(anyhow!(
-        "workspace coverage projector singleton is unsupported on this platform"
-    ))
-}
-
 pub struct WorkspaceCoverageProjectorServiceBody {
-    _singleton: WorkspaceCoverageProjectorSingletonGuard,
+    coverage_authority: WorkspaceCoverageAuthority,
     runtime_store: PathBuf,
     executor_incarnation: String,
     managed_process_launch_id: String,
@@ -220,9 +132,7 @@ impl WorkspaceCoverageProjectorServiceBody {
                 "workspace coverage projector runtime Body route disagrees with authenticated runtime id"
             );
         }
-        let body_store = PathBuf::from(route.body_store_path);
-        let singleton =
-            acquire_workspace_coverage_projector_singleton(&runtime_store, &body_store)?;
+        let coverage_authority = open_workspace_coverage_authority(&runtime_store)?;
         let operation_timeout_ms = config.qdrant_timeout_ms;
         let qdrant = QdrantBackend::new(QdrantConfig {
             url: config.qdrant_url,
@@ -236,7 +146,7 @@ impl WorkspaceCoverageProjectorServiceBody {
             query_instruction: String::new(),
         })?;
         Ok(Self {
-            _singleton: singleton,
+            coverage_authority,
             runtime_store,
             executor_incarnation,
             managed_process_launch_id,
@@ -304,12 +214,11 @@ impl WorkspaceCoverageProjectorServiceBody {
     }
 
     fn pulse_inner(&mut self) -> Result<WorkspaceCoverageProjectorServicePulse> {
-        let route = runtime_repository_body_store_binding(&self.runtime_store)?
-            .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
         // Retirement is derived from typed Body history and is deliberately
         // performed before the idle fast path. Qdrant never nominates its own
         // garbage and incompatible same-name collections stop the pulse.
-        retire_workspace_coverage_collections(&route.body_store_path, &mut self.qdrant)?;
+        retire_workspace_coverage_collections(&self.coverage_authority, &mut self.qdrant)?;
+        let _ = compact_workspace_coverage_history(&self.runtime_store, &self.coverage_authority)?;
         let basis = load_current_runtime_repository_body_basis(&self.runtime_store)?;
         // Tags are mutable. Re-resolve the installed artifact every pulse so a
         // same-dimensional model replacement cannot reuse an older index.
@@ -318,12 +227,26 @@ impl WorkspaceCoverageProjectorServiceBody {
         if let WorkspaceCoverageCurrentState::Current(receipt) =
             classify_current_workspace_coverage(
                 &self.runtime_store,
+                &self.coverage_authority.store,
                 &basis,
                 EMBEDDING_PROVIDER_ID,
                 &embedding_model_identity,
                 dimensions,
             )?
         {
+            let authority = self.execution_authority.as_ref().ok_or_else(|| {
+                anyhow!("workspace coverage projector has no installed execution authority")
+            })?;
+            publish_workspace_coverage_terminal_sight(
+                &authority.local_verse_store,
+                &self.runtime_store,
+                &self.coverage_authority,
+                &authority.runtime_id,
+                &self.managed_process_launch_id,
+                &authority.trusted_host,
+                &authority.provider_signing_key,
+                chrono::Utc::now(),
+            )?;
             return Ok(WorkspaceCoverageProjectorServicePulse {
                 status: WorkspaceCoverageProjectorPulseStatus::Idle,
                 body_observation_id: Some(basis.observation_id),
@@ -343,6 +266,7 @@ impl WorkspaceCoverageProjectorServiceBody {
         let plan_id = prepared.plan.plan_id.clone();
         match acquire_workspace_coverage_projection(
             &prepared,
+            &self.coverage_authority.store,
             EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID,
             &self.executor_incarnation,
             &self.managed_process_launch_id,
@@ -358,6 +282,19 @@ impl WorkspaceCoverageProjectorServiceBody {
                 })
             }
             WorkspaceCoverageAcquireResult::Current(receipt) => {
+                let authority = self.execution_authority.as_ref().ok_or_else(|| {
+                    anyhow!("workspace coverage projector has no installed execution authority")
+                })?;
+                publish_workspace_coverage_terminal_sight(
+                    &authority.local_verse_store,
+                    &self.runtime_store,
+                    &self.coverage_authority,
+                    &authority.runtime_id,
+                    &self.managed_process_launch_id,
+                    &authority.trusted_host,
+                    &authority.provider_signing_key,
+                    chrono::Utc::now(),
+                )?;
                 Ok(WorkspaceCoverageProjectorServicePulse {
                     status: WorkspaceCoverageProjectorPulseStatus::Idle,
                     body_observation_id: Some(basis.observation_id),
@@ -377,6 +314,8 @@ impl WorkspaceCoverageProjectorServiceBody {
                     &self.embedder,
                     &mut self.qdrant,
                     &WorkspaceCoverageProjectionExecutionAuthority {
+                        coverage_authority: &self.coverage_authority,
+                        runtime_store: &self.runtime_store,
                         local_verse_store: &authority.local_verse_store,
                         runtime_id: &authority.runtime_id,
                         trusted_host: &authority.trusted_host,
@@ -447,18 +386,59 @@ mod tests {
     }
 
     #[test]
-    fn singleton_is_host_wide_for_one_canonical_runtime_body_pair() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let runtime = temp.path().join("runtime.ccmp");
-        let body = temp.path().join("body.ccmp");
-        std::fs::write(&runtime, [])?;
-        std::fs::write(&body, [])?;
-        let runtime = runtime.canonicalize()?;
-        let body = body.canonicalize()?;
-        let first = acquire_workspace_coverage_projector_singleton(&runtime, &body)?;
-        assert!(acquire_workspace_coverage_projector_singleton(&runtime, &body).is_err());
+    fn live_service_exclusively_owns_the_bound_coverage_store() -> Result<()> {
+        let state = tempfile::tempdir()?;
+        let repo = tempfile::tempdir()?;
+        let initialized = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(repo.path())
+            .output()?;
+        if !initialized.status.success() {
+            bail!("singleton fixture failed to initialize repository");
+        }
+        let runtime = state.path().join("runtime.cc");
+        let agents = state.path().join("agents.cc");
+        let body = state.path().join("body.cc");
+        let coverage = std::fs::canonicalize(state.path())?.join("workspace-coverage.cc");
+        crate::initialize_runtime_spine(
+            &runtime,
+            crate::RuntimeSpineInitOptions {
+                runtime_id: "singleton-runtime".into(),
+                display_name: "singleton test".into(),
+                created_at: "2026-07-17T00:00:00Z".into(),
+            },
+        )?;
+        crate::ensure_agent_memory_swarm_identity(&agents, "singleton-swarm")?;
+        crate::bind_runtime_to_agent_memory_swarm(&runtime, &agents, "2026-07-17T00:00:01Z")?;
+        crate::bind_repository_body(repo.path(), &body, &runtime, "singleton-workspace")?;
+        crate::bind_runtime_workspace_coverage_store(&runtime, &coverage, "2026-07-17T00:00:02Z")?;
+        let launch_id = "019bff10-7426-7a1c-9ce4-33f91660a3a7";
+        let first = WorkspaceCoverageProjectorServiceBody::new(
+            &runtime,
+            "singleton-runtime",
+            config(),
+            "first-incarnation",
+            launch_id,
+        )?;
+        assert!(
+            WorkspaceCoverageProjectorServiceBody::new(
+                &runtime,
+                "singleton-runtime",
+                config(),
+                "second-incarnation",
+                launch_id,
+            )
+            .is_err(),
+            "a second live projector must not acquire the same owned store"
+        );
         drop(first);
-        assert!(acquire_workspace_coverage_projector_singleton(&runtime, &body).is_ok());
+        WorkspaceCoverageProjectorServiceBody::new(
+            &runtime,
+            "singleton-runtime",
+            config(),
+            "replacement-incarnation",
+            launch_id,
+        )?;
         Ok(())
     }
 }

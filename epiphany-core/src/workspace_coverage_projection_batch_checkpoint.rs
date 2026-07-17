@@ -1,9 +1,9 @@
 use crate::workspace_coverage_process_documents::authenticate_workspace_coverage_managed_process_launch_with_envelope_digest;
 use crate::workspace_coverage_projector::{
-    ATTEMPT_TYPE, CLAIM_KEY, CLAIM_TYPE, OBLIGATION_TYPE, PLAN_TYPE,
-    WorkspaceCoverageProjectionAttempt, WorkspaceCoverageProjectionClaim,
-    exact_obligation_body_authority, payload_for, validate_claim_attempt_link,
-    validate_projection_attempt, validate_projection_claim,
+    ATTEMPT_TYPE, CLAIM_TYPE, OBLIGATION_TYPE, PLAN_TYPE, WorkspaceCoverageProjectionAttempt,
+    WorkspaceCoverageProjectionClaim, exact_obligation_body_authority, payload_for,
+    validate_claim_attempt_link, validate_projection_attempt, validate_projection_claim,
+    workspace_coverage_claim_key,
 };
 use crate::workspace_retrieval_coverage::{
     WorkspaceCoverageObligation, WorkspaceCoverageProjectionPlan,
@@ -19,7 +19,8 @@ use crate::{
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::DateTime;
 use cultcache_rs::{
-    CacheBackingStore, CultCacheEnvelope, DatabaseEntry, SingleFileMessagePackBackingStore,
+    CacheBackingStore, CultCacheEnvelope, DatabaseEntry, OwnedRedbMessagePackBackingStore,
+    SingleFileMessagePackBackingStore,
 };
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::Serialize;
@@ -31,7 +32,9 @@ pub const WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_TYPE: &str =
 pub const WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_SCHEMA_VERSION: &str =
     "gamecult.epiphany.workspace_coverage_projection_batch_checkpoint.v0";
 pub const WORKSPACE_COVERAGE_BATCH_CHECKPOINT_MAX_POINTS: usize = 128;
-const HEAD_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_batch_checkpoint_head";
+pub(crate) const WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_HEAD_TYPE: &str =
+    "gamecult.epiphany.workspace_coverage_projection_batch_checkpoint_head";
+const HEAD_TYPE: &str = WORKSPACE_COVERAGE_PROJECTION_BATCH_CHECKPOINT_HEAD_TYPE;
 const HEAD_SCHEMA: &str =
     "gamecult.epiphany.workspace_coverage_projection_batch_checkpoint_head.v0";
 const OBSERVATION_METHOD: &str = "provider-attested-qdrant-readback-v0";
@@ -184,7 +187,8 @@ pub(crate) struct ObservedWorkspaceCoverageBatchInput {
 }
 
 pub(crate) fn admit_observed_workspace_coverage_batch(
-    body_store: impl AsRef<Path>,
+    body_store: &Path,
+    coverage_store: &OwnedRedbMessagePackBackingStore,
     local_verse_store: impl AsRef<Path>,
     runtime_id: &str,
     trusted_host: &HostIncarnationIdentityEntry,
@@ -192,9 +196,9 @@ pub(crate) fn admit_observed_workspace_coverage_batch(
     observed: ObservedWorkspaceCoverageBatchInput,
 ) -> Result<WorkspaceCoverageProjectionBatchCheckpointAdmission> {
     validate_observed_batch_input(&observed)?;
-    let body_store = body_store.as_ref();
-    let opening = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
-    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)?;
+    let opening = coverage_store.pull_all()?;
+    let body_opening = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
+    let claim_env = find_current_claim(&opening, &body_opening)?;
     let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
     let attempt_env = find(&opening, ATTEMPT_TYPE, &claim.attempt_id)?;
     let attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
@@ -211,7 +215,7 @@ pub(crate) fn admit_observed_workspace_coverage_batch(
     let obligation: WorkspaceCoverageObligation = decode(obligation_env)?;
     let plan: WorkspaceCoverageProjectionPlan = decode(plan_env)?;
     validate_workspace_coverage_projection_plan(&obligation, &plan)?;
-    let authority = exact_obligation_body_authority(&opening, &obligation)?;
+    let authority = exact_obligation_body_authority(&body_opening, &obligation)?;
     let binding_env = find(&authority, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
     let body_head_env = find(&authority, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
     let observation_env = find(
@@ -241,36 +245,6 @@ pub(crate) fn admit_observed_workspace_coverage_batch(
             != launch.provider_public_key.as_slice()
     {
         bail!("observed batch signer/launch disagrees with claim executor");
-    }
-    if let Some(current) = load_authenticated_current_checkpoint(
-        body_store,
-        local_verse_store.as_ref(),
-        trusted_host,
-        &claim.claim_id,
-        claim.claim_epoch,
-    )? {
-        let progress = crate::workspace_coverage_projection_progress::load_latest_workspace_coverage_projection_progress(
-            local_verse_store.as_ref(),
-            runtime_id,
-            &claim.managed_process_launch_id,
-            &claim.claim_id,
-        )?
-        .ok_or_else(|| anyhow!("current checkpoint exists without canonical progress genesis"))?;
-        if progress.sequence
-            != current
-                .checkpoint
-                .sequence
-                .checked_add(1)
-                .ok_or_else(|| anyhow!("checkpoint sequence exhausted"))?
-            || progress.checkpoint_id.as_deref() != Some(current.checkpoint.checkpoint_id.as_str())
-            || progress.checkpoint_binding_sha256.as_deref()
-                != Some(current.checkpoint_envelope_digest.as_str())
-            || progress.completed_units != current.checkpoint.cumulative_point_count
-        {
-            bail!(
-                "current checkpoint is ahead of progress; reconcile before admitting a new batch"
-            );
-        }
     }
     let head_key = checkpoint_head_key(&claim.claim_id, claim.claim_epoch);
     let prior: Option<WorkspaceCoverageProjectionBatchCheckpointHeadEntry> = opening
@@ -353,20 +327,23 @@ pub(crate) fn admit_observed_workspace_coverage_batch(
     sign_workspace_coverage_projection_batch_checkpoint(&mut entry, provider_signing_key)?;
     admit_workspace_coverage_projection_batch_checkpoint(
         body_store,
+        coverage_store,
         local_verse_store,
         trusted_host,
+        provider_signing_key,
         entry,
     )
 }
 
 pub(crate) fn load_authenticated_current_checkpoint(
-    body_store: impl AsRef<Path>,
+    body_store: &Path,
+    coverage_store: &OwnedRedbMessagePackBackingStore,
     local_verse_store: impl AsRef<Path>,
     trusted_host: &HostIncarnationIdentityEntry,
     claim_id: &str,
     claim_epoch: u64,
 ) -> Result<Option<WorkspaceCoverageProjectionBatchCheckpointAdmission>> {
-    let opening = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
+    let opening = coverage_store.pull_all()?;
     let head_key = checkpoint_head_key(claim_id, claim_epoch);
     let Some(head_env) = opening
         .iter()
@@ -402,21 +379,26 @@ pub(crate) fn load_authenticated_current_checkpoint(
         )?;
     validate_launch(&checkpoint, &launch, &launch_digest)?;
     validate_current_head_event_identity(&checkpoint, &head)?;
-    let binding_env = find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
-    let body_head_env = find(&opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
+    let body_opening = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
+    let binding_env = find(&body_opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
+    let body_head_env = find(&body_opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
     let observation_env = find(
-        &opening,
+        &body_opening,
         BODY_OBSERVATION_TYPE,
         &checkpoint.body_observation_id,
     )?;
     let manifest_env = find(
-        &opening,
+        &body_opening,
         BODY_MANIFEST_TYPE,
         &checkpoint.manifest_root_sha256,
     )?;
     let obligation_env = find(&opening, OBLIGATION_TYPE, &checkpoint.obligation_id)?;
     let plan_env = find(&opening, PLAN_TYPE, &checkpoint.plan_id)?;
-    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)?;
+    let claim_env = find(
+        &opening,
+        CLAIM_TYPE,
+        &workspace_coverage_claim_key(&checkpoint.body_observation_id, checkpoint.body_generation),
+    )?;
     let attempt_env = find(&opening, ATTEMPT_TYPE, &checkpoint.attempt_id)?;
     let binding: RepositoryBodyBinding = decode(binding_env)?;
     let body_head: RepositoryBodyHead = decode(body_head_env)?;
@@ -452,7 +434,7 @@ pub(crate) fn load_authenticated_current_checkpoint(
         },
     )?;
     validate_workspace_coverage_projection_plan(&obligation, &plan)?;
-    exact_obligation_body_authority(&opening, &obligation)?;
+    let body_authority = exact_obligation_body_authority(&body_opening, &obligation)?;
     validate_authority(
         &checkpoint,
         &binding,
@@ -473,21 +455,34 @@ pub(crate) fn load_authenticated_current_checkpoint(
         attempt_env,
     )?;
     validate_batch_against_plan(&checkpoint, &obligation, &plan)?;
-    Ok(Some(WorkspaceCoverageProjectionBatchCheckpointAdmission {
+    let admission = WorkspaceCoverageProjectionBatchCheckpointAdmission {
         checkpoint,
         checkpoint_envelope_digest: head.checkpoint_envelope_digest,
-    }))
+    };
+    let closing_body = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
+    for expected in body_authority {
+        if closing_body
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            != Some(&expected)
+        {
+            bail!("Repository Body changed while loading current workspace checkpoint");
+        }
+    }
+    Ok(Some(admission))
 }
 
 pub(crate) fn load_authenticated_checkpoint_chain(
-    body_store: impl AsRef<Path>,
+    body_store: &Path,
+    coverage_store: &OwnedRedbMessagePackBackingStore,
     local_verse_store: impl AsRef<Path>,
     trusted_host: &HostIncarnationIdentityEntry,
     claim_id: &str,
     claim_epoch: u64,
 ) -> Result<Vec<WorkspaceCoverageProjectionBatchCheckpointAdmission>> {
     let Some(current) = load_authenticated_current_checkpoint(
-        body_store.as_ref(),
+        body_store,
+        coverage_store,
         local_verse_store.as_ref(),
         trusted_host,
         claim_id,
@@ -496,7 +491,7 @@ pub(crate) fn load_authenticated_checkpoint_chain(
     else {
         return Ok(Vec::new());
     };
-    let opening = SingleFileMessagePackBackingStore::new(body_store.as_ref()).pull_all()?;
+    let opening = coverage_store.pull_all()?;
     let head_env = find(
         &opening,
         HEAD_TYPE,
@@ -508,21 +503,29 @@ pub(crate) fn load_authenticated_checkpoint_chain(
     {
         bail!("checkpoint head changed while reconstructing authenticated chain");
     }
-    let binding_env = find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
-    let body_head_env = find(&opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
+    let body_opening = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
+    let binding_env = find(&body_opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
+    let body_head_env = find(&body_opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
     let observation_env = find(
-        &opening,
+        &body_opening,
         BODY_OBSERVATION_TYPE,
         &current.checkpoint.body_observation_id,
     )?;
     let manifest_env = find(
-        &opening,
+        &body_opening,
         BODY_MANIFEST_TYPE,
         &current.checkpoint.manifest_root_sha256,
     )?;
     let obligation_env = find(&opening, OBLIGATION_TYPE, &current.checkpoint.obligation_id)?;
     let plan_env = find(&opening, PLAN_TYPE, &current.checkpoint.plan_id)?;
-    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)?;
+    let claim_env = find(
+        &opening,
+        CLAIM_TYPE,
+        &workspace_coverage_claim_key(
+            &current.checkpoint.body_observation_id,
+            current.checkpoint.body_generation,
+        ),
+    )?;
     let attempt_env = find(&opening, ATTEMPT_TYPE, &current.checkpoint.attempt_id)?;
     let binding: RepositoryBodyBinding = decode(binding_env)?;
     let body_head: RepositoryBodyHead = decode(body_head_env)?;
@@ -558,7 +561,7 @@ pub(crate) fn load_authenticated_checkpoint_chain(
         },
     )?;
     validate_workspace_coverage_projection_plan(&obligation, &plan)?;
-    exact_obligation_body_authority(&opening, &obligation)?;
+    let body_authority = exact_obligation_body_authority(&body_opening, &obligation)?;
     let (launch, launch_digest) =
         authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
             local_verse_store,
@@ -616,6 +619,16 @@ pub(crate) fn load_authenticated_checkpoint_chain(
     }
     reversed.reverse();
     validate_reconstructed_chain(&reversed, &head)?;
+    let closing_body = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
+    for expected in body_authority {
+        if closing_body
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            != Some(&expected)
+        {
+            bail!("Repository Body changed while reconstructing workspace checkpoint chain");
+        }
+    }
     Ok(reversed)
 }
 
@@ -759,9 +772,11 @@ pub(crate) fn sign_workspace_coverage_projection_batch_checkpoint(
 }
 
 pub(crate) fn admit_workspace_coverage_projection_batch_checkpoint(
-    body_store: impl AsRef<Path>,
+    body_store: &Path,
+    coverage_store: &OwnedRedbMessagePackBackingStore,
     local_verse_store: impl AsRef<Path>,
     trusted_host: &HostIncarnationIdentityEntry,
+    provider_signing_key: &SigningKey,
     entry: WorkspaceCoverageProjectionBatchCheckpointEntry,
 ) -> Result<WorkspaceCoverageProjectionBatchCheckpointAdmission> {
     validate_shape(&entry, true)?;
@@ -774,15 +789,27 @@ pub(crate) fn admit_workspace_coverage_projection_batch_checkpoint(
             trusted_host,
         )?;
     validate_launch(&entry, &launch, &launch_envelope_digest)?;
-    let backing = SingleFileMessagePackBackingStore::new(body_store.as_ref());
-    let opening = backing.pull_all()?;
-    let binding_env = find(&opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
-    let head_env = find(&opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
-    let observation_env = find(&opening, BODY_OBSERVATION_TYPE, &entry.body_observation_id)?;
-    let manifest_env = find(&opening, BODY_MANIFEST_TYPE, &entry.manifest_root_sha256)?;
+    let opening = coverage_store.pull_all()?;
+    let body_opening = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
+    let binding_env = find(&body_opening, BODY_BINDING_TYPE, BODY_BINDING_KEY)?;
+    let head_env = find(&body_opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?;
+    let observation_env = find(
+        &body_opening,
+        BODY_OBSERVATION_TYPE,
+        &entry.body_observation_id,
+    )?;
+    let manifest_env = find(
+        &body_opening,
+        BODY_MANIFEST_TYPE,
+        &entry.manifest_root_sha256,
+    )?;
     let obligation_env = find(&opening, OBLIGATION_TYPE, &entry.obligation_id)?;
     let plan_env = find(&opening, PLAN_TYPE, &entry.plan_id)?;
-    let claim_env = find(&opening, CLAIM_TYPE, CLAIM_KEY)?;
+    let claim_env = find(
+        &opening,
+        CLAIM_TYPE,
+        &workspace_coverage_claim_key(&entry.body_observation_id, entry.body_generation),
+    )?;
     let attempt_env = find(&opening, ATTEMPT_TYPE, &entry.attempt_id)?;
     let binding: RepositoryBodyBinding = decode(binding_env)?;
     let body_head: RepositoryBodyHead = decode(head_env)?;
@@ -796,7 +823,7 @@ pub(crate) fn admit_workspace_coverage_projection_batch_checkpoint(
     validate_projection_attempt(&attempt)?;
     validate_claim_attempt_link(&claim, &attempt)?;
     validate_workspace_coverage_projection_plan(&obligation, &plan)?;
-    exact_obligation_body_authority(&opening, &obligation)?;
+    let body_authority = exact_obligation_body_authority(&body_opening, &obligation)?;
     validate_authority(
         &entry,
         &binding,
@@ -872,10 +899,6 @@ pub(crate) fn admit_workspace_coverage_projection_batch_checkpoint(
         collection_name: entry.collection_name.clone(),
     };
     let authority = vec![
-        binding_env.clone(),
-        head_env.clone(),
-        observation_env.clone(),
-        manifest_env.clone(),
         obligation_env.clone(),
         plan_env.clone(),
         claim_env.clone(),
@@ -892,13 +915,36 @@ pub(crate) fn admit_workspace_coverage_projection_batch_checkpoint(
     }
     replacements.push(event_env);
     replacements.push(envelope(HEAD_TYPE, &head_key, &next_head)?);
-    if !backing.compare_and_swap_batch(&expected, replacements)? {
-        bail!("workspace coverage checkpoint lost exact Body/plan/claim/head compare-and-swap");
-    }
-    Ok(WorkspaceCoverageProjectionBatchCheckpointAdmission {
+    let admission = WorkspaceCoverageProjectionBatchCheckpointAdmission {
         checkpoint: entry,
         checkpoint_envelope_digest: next_head.checkpoint_envelope_digest,
-    })
+    };
+    let (progress_expected, progress_replacements, progress) =
+        crate::workspace_coverage_projection_progress::prepare_workspace_coverage_progress_for_checkpoint(
+            coverage_store,
+            provider_signing_key,
+            &admission,
+        )?;
+    expected.extend(progress_expected);
+    replacements.extend(progress_replacements);
+    if !coverage_store.compare_and_swap_batch(&expected, replacements)? {
+        bail!("workspace coverage checkpoint lost exact coverage authority compare-and-swap");
+    }
+    let closing_body = SingleFileMessagePackBackingStore::new(body_store).pull_all()?;
+    for expected in body_authority {
+        if closing_body
+            .iter()
+            .find(|row| row.r#type == expected.r#type && row.key == expected.key)
+            != Some(&expected)
+        {
+            bail!("Repository Body changed during workspace coverage checkpoint admission");
+        }
+    }
+    debug_assert_eq!(
+        progress.completed_units,
+        admission.checkpoint.cumulative_point_count
+    );
+    Ok(admission)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1234,6 +1280,17 @@ fn find<'a>(v: &'a [CultCacheEnvelope], t: &str, k: &str) -> Result<&'a CultCach
     v.iter()
         .find(|e| e.r#type == t && e.key == k)
         .ok_or_else(|| anyhow!("missing authority envelope {t}/{k}"))
+}
+fn find_current_claim<'a>(
+    coverage_opening: &'a [CultCacheEnvelope],
+    body_opening: &[CultCacheEnvelope],
+) -> Result<&'a CultCacheEnvelope> {
+    let head: RepositoryBodyHead = decode(find(body_opening, BODY_HEAD_TYPE, BODY_HEAD_KEY)?)?;
+    find(
+        coverage_opening,
+        CLAIM_TYPE,
+        &workspace_coverage_claim_key(&head.observation_id, head.generation),
+    )
 }
 fn decode<T: serde::de::DeserializeOwned>(e: &CultCacheEnvelope) -> Result<T> {
     Ok(rmp_serde::from_slice(&e.payload)?)

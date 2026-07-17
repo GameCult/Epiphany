@@ -7,12 +7,15 @@ use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
 use crate::packaged_release::{EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead};
 use crate::workspace_coverage_process_documents::{
+    WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION, WorkspaceCoverageAdvancementSightEntry,
     WorkspaceCoverageManagedProcessLaunchEntry, WorkspaceCoverageProcessEvidenceHead,
     WorkspaceCoverageProcessTerminationObservationEntry, WorkspaceCoverageProviderHeartbeatEntry,
+    WorkspaceCoverageTerminalSightEntry,
 };
 use crate::workspace_coverage_projection_progress::{
     WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION, WorkspaceCoverageProjectionProgressEntry,
@@ -2661,6 +2664,8 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     WorkspaceCoverageProviderHeartbeatEntry => WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
     WorkspaceCoverageProcessTerminationObservationEntry => WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
     WorkspaceCoverageProjectionProgressEntry => WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
+    WorkspaceCoverageAdvancementSightEntry => WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_SCHEMA_VERSION,
+    WorkspaceCoverageTerminalSightEntry => WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION,
     EpiphanyPackagedReleaseEntry => crate::packaged_release::EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION,
     EpiphanyPackagedReleaseHead => crate::packaged_release::EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION,
     EpiphanyCultMeshIdunnDeploymentReceiptEntry => EPIPHANY_CULTMESH_IDUNN_DEPLOYMENT_RECEIPT_SCHEMA_VERSION,

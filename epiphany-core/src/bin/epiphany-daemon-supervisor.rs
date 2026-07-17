@@ -70,8 +70,8 @@ use epiphany_core::{
     write_workspace_coverage_process_termination_observation,
 };
 use epiphany_core::{
-    authenticate_current_workspace_coverage_advancement,
-    authenticate_current_workspace_coverage_terminal_authority,
+    authenticate_current_workspace_coverage_advancement_sight,
+    authenticate_current_workspace_coverage_terminal_sight,
 };
 use epiphany_core::{
     epiphany_packaged_release_binary_path, epiphany_packaged_release_witness_sha256,
@@ -898,7 +898,21 @@ fn publish_managed_service_iteration_health(
                         continue;
                     }
                 };
-                match authenticate_current_workspace_coverage_terminal_authority(runtime_store) {
+                let host = match open_default_host_identity() {
+                    Ok(host) => host,
+                    Err(error) => {
+                        contradictions.push(format!(
+                            "workspace health cannot authenticate host: {error:#}"
+                        ));
+                        continue;
+                    }
+                };
+                match authenticate_current_workspace_coverage_terminal_sight(
+                    runtime_store,
+                    &args.store,
+                    &args.runtime_id,
+                    host.entry(),
+                ) {
                     Ok(Some(authority)) => {
                         terminal_current += 1;
                         workspace_evidence = Some(format!(
@@ -910,15 +924,6 @@ fn publish_managed_service_iteration_health(
                         ));
                     }
                     Ok(None) => {
-                        let host = match open_default_host_identity() {
-                            Ok(host) => host,
-                            Err(error) => {
-                                contradictions.push(format!(
-                                    "workspace health cannot authenticate host: {error:#}"
-                                ));
-                                continue;
-                            }
-                        };
                         let launch = match load_latest_workspace_coverage_managed_process_launch(
                             &args.store,
                             args.runtime_id.clone(),
@@ -932,26 +937,30 @@ fn publish_managed_service_iteration_health(
                                 continue;
                             }
                         };
-                        match authenticate_current_workspace_coverage_advancement(
+                        match authenticate_current_workspace_coverage_advancement_sight(
                             runtime_store,
                             &args.store,
                             &args.runtime_id,
                             &launch.launch_id,
                             host.entry(),
-                            Utc::now(),
-                            Duration::seconds(WORKSPACE_PROGRESS_NO_ADVANCE_LEASE_SECONDS),
                         ) {
                             Ok(Some(authority)) => {
-                                warming += 1;
-                                workspace_evidence = Some(format!(
-                                    "workspaceProgressId={} workspaceCheckpointId={} workspacePlanId={} workspaceCompletedUnits={} workspaceTotalUnits={} workspaceLastAdvancedAt={}",
-                                    authority.progress_id,
-                                    authority.checkpoint_id,
-                                    authority.plan_id,
-                                    authority.completed_units,
-                                    authority.total_units,
-                                    authority.last_advanced_at_utc
-                                ));
+                                let advanced =
+                                    DateTime::parse_from_rfc3339(&authority.last_advanced_at_utc)
+                                        .map(|time| time.with_timezone(&Utc));
+                                match advanced {
+                                    Ok(advanced) if Utc::now().signed_duration_since(advanced) >= Duration::zero()
+                                        && Utc::now().signed_duration_since(advanced) <= Duration::seconds(WORKSPACE_PROGRESS_NO_ADVANCE_LEASE_SECONDS) => {
+                                            warming += 1;
+                                            workspace_evidence = Some(format!(
+                                                "workspaceProgressId={} workspaceCheckpointId={} workspacePlanId={} workspaceCompletedUnits={} workspaceTotalUnits={} workspaceLastAdvancedAt={}",
+                                                authority.progress_id, authority.checkpoint_id, authority.plan_id,
+                                                authority.completed_units, authority.total_units, authority.last_advanced_at_utc
+                                            ));
+                                        }
+                                    Ok(_) => contradictions.push("workspace advancement sight exceeded the supervisor no-advance lease".into()),
+                                    Err(error) => contradictions.push(format!("workspace advancement sight time is invalid: {error:#}")),
+                                }
                             }
                             Ok(None) => {}
                             Err(error) => contradictions.push(format!(
@@ -4030,6 +4039,30 @@ mod semantic_projector_authority_tests {
         assert!(source.contains("managed-service-scheduler.fatal.log"));
         assert!(source.contains("Resolve-TaskSid"));
         assert!(source.contains("WindowsIdentity]::GetCurrent().User.Value"));
+    }
+
+    #[test]
+    fn workspace_health_reads_signed_sight_and_never_opens_owned_coverage_store() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source
+            .find("fn publish_managed_service_iteration_health")
+            .unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn ").unwrap();
+        let body = &tail[..end];
+        let terminal = body
+            .find("authenticate_current_workspace_coverage_terminal_sight")
+            .unwrap();
+        let advancement = body
+            .find("authenticate_current_workspace_coverage_advancement_sight")
+            .unwrap();
+        assert!(
+            terminal < advancement,
+            "terminal sight must be preferred before warming sight"
+        );
+        assert!(!body.contains("open_workspace_coverage_authority"));
+        assert!(!body.contains("authenticate_current_workspace_coverage_terminal_authority"));
+        assert!(!body.contains("authenticate_current_workspace_coverage_advancement("));
     }
 
     #[test]

@@ -1196,12 +1196,17 @@ pub use workspace_coverage_process_bootstrap::{
     write_workspace_coverage_process_bootstrap,
 };
 pub use workspace_coverage_process_documents::{
+    WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_SCHEMA_VERSION, WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_TYPE,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_LATEST_KEY, WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_TYPE, WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_TERMINATION_TYPE, WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY,
     WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE, WorkspaceCoverageManagedProcessLaunchEntry,
+    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE, WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_TERMINAL_SIGHT_TYPE, WorkspaceCoverageAdvancementSightEntry,
+    WorkspaceCoverageManagedProcessLaunchEntry,
     WorkspaceCoverageProcessTerminationObservationEntry, WorkspaceCoverageProviderHeartbeatEntry,
+    WorkspaceCoverageTerminalSightEntry, authenticate_current_workspace_coverage_advancement_sight,
+    authenticate_current_workspace_coverage_terminal_sight,
     authenticate_workspace_coverage_managed_process_launch,
     authenticate_workspace_coverage_process_termination_observation,
     authenticate_workspace_coverage_provider_heartbeat,
