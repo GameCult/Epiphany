@@ -43,6 +43,10 @@ use std::path::{Path, PathBuf};
 
 pub(crate) const CLAIM_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_claim";
 pub(crate) const ATTEMPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_attempt";
+/// Physiological durability cadence, deliberately distinct from Qdrant's
+/// transport ceiling. On the deployment baseline this bounds checkpoint loss
+/// to a few minutes while retaining waited, exact batch writes.
+const WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS: usize = 8;
 pub(crate) const CLAIM_KEY: &str = "workspace-coverage-projector-current";
 const CLAIM_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v1";
 const ATTEMPT_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v1";
@@ -1835,7 +1839,7 @@ fn execute_batched_and_commit(
     };
 
     while next_ordinal < planned.len() {
-        let end = (next_ordinal + QDRANT_POINT_BATCH_MAX).min(planned.len());
+        let end = (next_ordinal + WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS).min(planned.len());
         let texts = prepared.points[next_ordinal..end]
             .iter()
             .map(|point| point.text.clone())
@@ -2128,8 +2132,10 @@ fn authenticate_batch_readback(
 #[cfg(test)]
 fn sealed_batch_ranges(point_count: usize) -> Vec<std::ops::Range<usize>> {
     (0..point_count)
-        .step_by(QDRANT_POINT_BATCH_MAX)
-        .map(|start| start..(start + QDRANT_POINT_BATCH_MAX).min(point_count))
+        .step_by(WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS)
+        .map(|start| {
+            start..(start + WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS).min(point_count)
+        })
         .collect()
 }
 
@@ -2367,8 +2373,10 @@ fn observe_sealed_bindings(
         bail!("observed workspace point bindings do not equal the sealed plan");
     }
     vector_bindings.sort_by(|left, right| left.point_id.cmp(&right.point_id));
-    if expected_vector_bindings.is_some_and(|expected| vector_bindings != expected) {
-        bail!("observed workspace vectors do not equal the submitted vectors");
+    if let Some(expected) = expected_vector_bindings {
+        if !same_vector_binding_set(&vector_bindings, expected) {
+            bail!("observed workspace vectors do not equal authenticated stored-vector evidence");
+        }
     }
     // Payload hashes bind the exact obligation as well as the sealed plan.
     // Recompute one expected payload per point rather than trusting Qdrant's
@@ -2394,6 +2402,17 @@ fn observe_sealed_bindings(
         point_binding_set_sha256: digest(&bindings)?,
         vector_binding_set_sha256: digest(&vector_bindings)?,
     })
+}
+
+fn same_vector_binding_set(
+    observed: &[WorkspaceCoverageVectorBinding],
+    expected: &[WorkspaceCoverageVectorBinding],
+) -> bool {
+    let mut observed = observed.to_vec();
+    let mut expected = expected.to_vec();
+    observed.sort_by(|left, right| left.point_id.cmp(&right.point_id));
+    expected.sort_by(|left, right| left.point_id.cmp(&right.point_id));
+    observed == expected
 }
 
 fn commit_workspace_coverage_success(
@@ -2822,25 +2841,47 @@ mod tests {
     }
 
     #[test]
-    fn sealed_batch_ranges_preserve_plan_order_and_never_exceed_qdrant_bound() {
-        let ranges = sealed_batch_ranges(QDRANT_POINT_BATCH_MAX * 2 + 3);
+    fn sealed_batch_ranges_preserve_plan_order_and_own_checkpoint_cadence() {
+        let total = WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS * 2 + 3;
+        let ranges = sealed_batch_ranges(total);
         assert_eq!(
             ranges,
             vec![
-                0..QDRANT_POINT_BATCH_MAX,
-                QDRANT_POINT_BATCH_MAX..QDRANT_POINT_BATCH_MAX * 2,
-                QDRANT_POINT_BATCH_MAX * 2..QDRANT_POINT_BATCH_MAX * 2 + 3,
+                0..WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS,
+                WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS
+                    ..WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS * 2,
+                WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS * 2..total,
             ]
         );
         assert!(
             ranges
                 .iter()
-                .all(|range| range.len() <= QDRANT_POINT_BATCH_MAX)
+                .all(|range| range.len() <= WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS
+                    && range.len() <= QDRANT_POINT_BATCH_MAX)
         );
         assert_eq!(
             ranges.into_iter().flatten().collect::<Vec<_>>(),
-            (0..QDRANT_POINT_BATCH_MAX * 2 + 3).collect::<Vec<_>>()
+            (0..total).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn stored_vector_evidence_comparison_is_order_independent_but_digest_exact() {
+        let first = WorkspaceCoverageVectorBinding {
+            point_id: "b".into(),
+            vector_sha256: "11".repeat(32),
+        };
+        let second = WorkspaceCoverageVectorBinding {
+            point_id: "a".into(),
+            vector_sha256: "22".repeat(32),
+        };
+        assert!(same_vector_binding_set(
+            &[first.clone(), second.clone()],
+            &[second.clone(), first.clone()]
+        ));
+        let mut changed = second.clone();
+        changed.vector_sha256 = "33".repeat(32);
+        assert!(!same_vector_binding_set(&[first.clone(), changed], &[first, second]));
     }
 
     #[test]
