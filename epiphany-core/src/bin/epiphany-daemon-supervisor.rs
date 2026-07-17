@@ -51,7 +51,7 @@ use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
 use epiphany_core::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
 use epiphany_core::{
     EpiphanyAggregateRuntimeHealthInput, derive_epiphany_aggregate_runtime_health,
-    publish_idunn_daemon_health_rudp,
+    publish_idunn_daemon_health_rudp, sign_epiphany_runtime_health,
 };
 use epiphany_core::{EpiphanyPackagedReleaseEntry, authenticate_epiphany_packaged_release};
 use epiphany_core::{
@@ -68,6 +68,10 @@ use epiphany_core::{
     sign_workspace_coverage_launch, workspace_coverage_host_identity_record_digest,
     write_workspace_coverage_managed_process_launch, write_workspace_coverage_process_bootstrap,
     write_workspace_coverage_process_termination_observation,
+};
+use epiphany_core::{
+    authenticate_current_workspace_coverage_advancement,
+    authenticate_current_workspace_coverage_terminal_authority,
 };
 use epiphany_core::{
     epiphany_packaged_release_binary_path, epiphany_packaged_release_witness_sha256,
@@ -94,6 +98,7 @@ const WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID: &str =
     "epiphany-workspace-coverage-projector-service";
 const WORKSPACE_COVERAGE_PROJECTOR_EXECUTOR_ID: &str = "epiphany-workspace-coverage-projector";
 const AGGREGATE_HEARTBEAT_FRESH_SECONDS: i64 = 180;
+const WORKSPACE_PROGRESS_NO_ADVANCE_LEASE_SECONDS: i64 = 300;
 
 enum ManagedServiceLineage {
     Current,
@@ -798,10 +803,15 @@ fn managed_service_serve(args: Args) -> Result<()> {
     if fs::canonicalize(env::current_exe()?)? != expected_supervisor {
         anyhow::bail!("managed-service reconciler executable is not the pinned release supervisor");
     }
+    let health_signer = open_default_host_identity()?;
+    let health_publisher_incarnation = Uuid::new_v4().to_string();
+    let health_publisher_process = capture_process_instance(std::process::id())?;
     let mut iteration = 0_u64;
     loop {
-        pinned_packaged_release(&args, true)?;
-        iteration = iteration.saturating_add(1);
+        let (release, release_witness_sha256) = pinned_packaged_release(&args, true)?;
+        iteration = iteration
+            .checked_add(1)
+            .context("aggregate runtime health sequence exhausted")?;
         let policies =
             load_epiphany_cultmesh_managed_service_policies(&args.store, args.runtime_id.clone())?;
         for policy in &policies {
@@ -809,7 +819,16 @@ fn managed_service_serve(args: Args) -> Result<()> {
             service_args.service_id = policy.service_id.clone();
             managed_service_reconcile(service_args)?;
         }
-        publish_managed_service_iteration_health(&args, &release, &policies);
+        publish_managed_service_iteration_health(
+            &args,
+            &release,
+            &release_witness_sha256,
+            &policies,
+            &health_publisher_incarnation,
+            iteration,
+            &health_publisher_process,
+            &health_signer,
+        );
         println!(
             "{}",
             serde_json::to_string_pretty(&json!({
@@ -834,7 +853,12 @@ fn managed_service_serve(args: Args) -> Result<()> {
 fn publish_managed_service_iteration_health(
     args: &Args,
     release: &EpiphanyPackagedReleaseEntry,
+    authenticated_release_witness_sha256: &str,
     policies: &[EpiphanyCultMeshManagedServicePolicyEntry],
+    publisher_incarnation_id: &str,
+    publisher_sequence: u64,
+    publisher_process: &ProcessInstanceIdentity,
+    health_signer: &epiphany_core::HostIdentitySigner,
 ) {
     let (Some(endpoint), Some(daemon_id), Some(health_contract)) = (
         args.idunn_rudp_health,
@@ -848,7 +872,9 @@ fn publish_managed_service_iteration_health(
         WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
     ];
     let expected = required.len();
-    let mut current = 0_usize;
+    let mut terminal_current = 0_usize;
+    let mut warming = 0_usize;
+    let mut workspace_evidence = None;
     let mut contradictions = Vec::new();
     for service_id in required {
         let Some(policy) = policies
@@ -861,7 +887,84 @@ fn publish_managed_service_iteration_health(
             continue;
         }
         match managed_service_lineage(args, release, policy) {
-            Ok(ManagedServiceLineage::Current) => current += 1,
+            Ok(ManagedServiceLineage::Current)
+                if policy.service_id == WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID =>
+            {
+                let runtime_store = match args.runtime_store.as_deref() {
+                    Some(store) => store,
+                    None => {
+                        contradictions
+                            .push("workspace health lacks the bound runtime store".to_string());
+                        continue;
+                    }
+                };
+                match authenticate_current_workspace_coverage_terminal_authority(runtime_store) {
+                    Ok(Some(authority)) => {
+                        terminal_current += 1;
+                        workspace_evidence = Some(format!(
+                            "workspaceTerminalReceiptId={} workspacePlanId={} workspaceBodyObservationId={} workspaceBodyGeneration={}",
+                            authority.receipt_id,
+                            authority.plan_id,
+                            authority.body_observation_id,
+                            authority.body_generation
+                        ));
+                    }
+                    Ok(None) => {
+                        let host = match open_default_host_identity() {
+                            Ok(host) => host,
+                            Err(error) => {
+                                contradictions.push(format!(
+                                    "workspace health cannot authenticate host: {error:#}"
+                                ));
+                                continue;
+                            }
+                        };
+                        let launch = match load_latest_workspace_coverage_managed_process_launch(
+                            &args.store,
+                            args.runtime_id.clone(),
+                        ) {
+                            Ok(Some(launch)) => launch,
+                            Ok(None) => continue,
+                            Err(error) => {
+                                contradictions.push(format!(
+                                    "workspace health cannot load launch: {error:#}"
+                                ));
+                                continue;
+                            }
+                        };
+                        match authenticate_current_workspace_coverage_advancement(
+                            runtime_store,
+                            &args.store,
+                            &args.runtime_id,
+                            &launch.launch_id,
+                            host.entry(),
+                            Utc::now(),
+                            Duration::seconds(WORKSPACE_PROGRESS_NO_ADVANCE_LEASE_SECONDS),
+                        ) {
+                            Ok(Some(authority)) => {
+                                warming += 1;
+                                workspace_evidence = Some(format!(
+                                    "workspaceProgressId={} workspaceCheckpointId={} workspacePlanId={} workspaceCompletedUnits={} workspaceTotalUnits={} workspaceLastAdvancedAt={}",
+                                    authority.progress_id,
+                                    authority.checkpoint_id,
+                                    authority.plan_id,
+                                    authority.completed_units,
+                                    authority.total_units,
+                                    authority.last_advanced_at_utc
+                                ));
+                            }
+                            Ok(None) => {}
+                            Err(error) => contradictions.push(format!(
+                                "workspace advancement authority is invalid: {error:#}"
+                            )),
+                        }
+                    }
+                    Err(error) => contradictions.push(format!(
+                        "workspace terminal authority is invalid: {error:#}"
+                    )),
+                }
+            }
+            Ok(ManagedServiceLineage::Current) => terminal_current += 1,
             Ok(ManagedServiceLineage::Pending) => {}
             Ok(ManagedServiceLineage::LegacyV1) => contradictions.push(format!(
                 "{}: legacy v1 launch awaits typed retirement",
@@ -879,16 +982,38 @@ fn publish_managed_service_iteration_health(
         observed_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
         release_authenticated: true,
         expected_service_count: expected,
-        current_service_count: current,
+        terminal_current_service_count: terminal_current,
+        warming_service_count: warming,
         contradictions,
     });
     match health.and_then(|mut health| {
         let witness_sha256 = epiphany_packaged_release_witness_sha256(release)?;
+        if witness_sha256 != authenticated_release_witness_sha256 {
+            anyhow::bail!("aggregate health release witness changed after authentication");
+        }
         health.detail.push_str(&format!(
             " releaseId={} witnessSha256={} sourceCommit={}",
             release.release_id, witness_sha256, release.source_commit_sha
         ));
-        publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &health)
+        if let Some(evidence) = &workspace_evidence {
+            health.detail.push(' ');
+            health.detail.push_str(evidence);
+        }
+        let signed = sign_epiphany_runtime_health(
+            health,
+            "epiphany-daemon-supervisor",
+            &release.release_id,
+            &witness_sha256,
+            &release.source_commit_sha,
+            args.idunn_deployment_request_id
+                .as_deref()
+                .context("aggregate health requires --idunn-deployment-request-id")?,
+            publisher_incarnation_id,
+            publisher_sequence,
+            publisher_process,
+            health_signer,
+        )?;
+        publish_idunn_daemon_health_rudp(endpoint, "epiphany-daemon-supervisor", &signed)
     }) {
         Ok(()) => {}
         Err(error) => eprintln!("Epiphany could not publish aggregate Idunn health: {error:#}"),
@@ -3932,17 +4057,18 @@ mod semantic_projector_authority_tests {
     #[test]
     fn idunn_health_configuration_is_explicit_and_all_or_none() {
         let endpoint: SocketAddr = "127.0.0.1:17870".parse().unwrap();
-        assert!(validate_idunn_health_options(None, None, None).is_ok());
+        assert!(validate_idunn_health_options(None, None, None, None).is_ok());
         assert!(
             validate_idunn_health_options(
                 Some(&endpoint),
                 Some("yggdrasil-epiphany"),
                 Some("epiphany.cultnet-rudp-runtime-health"),
+                Some("deploy-request-test"),
             )
             .is_ok()
         );
-        assert!(validate_idunn_health_options(Some(&endpoint), None, None).is_err());
-        assert!(validate_idunn_health_options(None, Some("epiphany"), None).is_err());
+        assert!(validate_idunn_health_options(Some(&endpoint), None, None, None).is_err());
+        assert!(validate_idunn_health_options(None, Some("epiphany"), None, None).is_err());
     }
 
     #[test]
@@ -4072,6 +4198,7 @@ struct Args {
     idunn_rudp_health: Option<SocketAddr>,
     idunn_daemon: Option<String>,
     idunn_health_contract: Option<String>,
+    idunn_deployment_request_id: Option<String>,
 }
 
 impl Args {
@@ -4125,6 +4252,7 @@ impl Args {
         let mut idunn_rudp_health = None;
         let mut idunn_daemon = None;
         let mut idunn_health_contract = None;
+        let mut idunn_deployment_request_id = None;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -4321,6 +4449,13 @@ impl Args {
                             .context("missing --idunn-health-contract value")?,
                     );
                 }
+                "--idunn-deployment-request-id" => {
+                    idunn_deployment_request_id = Some(
+                        values
+                            .next()
+                            .context("missing --idunn-deployment-request-id value")?,
+                    );
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -4429,6 +4564,7 @@ impl Args {
             idunn_rudp_health.as_ref(),
             idunn_daemon.as_deref(),
             idunn_health_contract.as_deref(),
+            idunn_deployment_request_id.as_deref(),
         )?;
 
         Ok(Self {
@@ -4479,6 +4615,7 @@ impl Args {
             idunn_rudp_health,
             idunn_daemon,
             idunn_health_contract,
+            idunn_deployment_request_id,
         })
     }
 }
@@ -4487,20 +4624,23 @@ fn validate_idunn_health_options(
     endpoint: Option<&SocketAddr>,
     daemon_id: Option<&str>,
     health_contract: Option<&str>,
+    deployment_request_id: Option<&str>,
 ) -> Result<()> {
     let fields = [
         endpoint.is_some(),
         daemon_id.is_some(),
         health_contract.is_some(),
+        deployment_request_id.is_some(),
     ];
     if fields.into_iter().any(|present| present) && !fields.into_iter().all(|present| present) {
         anyhow::bail!(
-            "--idunn-rudp-health, --idunn-daemon, and --idunn-health-contract are all-or-none"
+            "--idunn-rudp-health, --idunn-daemon, --idunn-health-contract, and --idunn-deployment-request-id are all-or-none"
         );
     }
     for (label, value) in [
         ("--idunn-daemon", daemon_id),
         ("--idunn-health-contract", health_contract),
+        ("--idunn-deployment-request-id", deployment_request_id),
     ] {
         if value.is_some_and(|value| value.trim().is_empty()) {
             anyhow::bail!("{label} cannot be empty");

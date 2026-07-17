@@ -1,5 +1,47 @@
 # Fresh Workspace Handoff
 
+## Signed Yggdrasil deployment admission cut complete locally — 2026-07-17
+
+The failed GPU pressure run was a pipeline-contract failure, not a CUDA
+failure. The GTX 1080 previously sustained near-full duty, but the monolithic
+workspace projection published no durable Qdrant progress before the shell
+deadline. The replacement executor now checkpoints bounded batches, resumes
+from authenticated checkpoints after restart, and exposes checkpoint-derived
+progress independently of its heartbeat. Aggregate health is `warming` only
+while exact managed-process lineage, fresh signed heartbeat, and authenticated
+checkpoint advancement remain inside the 300-second no-advance lease. Only the
+terminal current receipt/head can produce `active`; the deploy shell has no
+projection wall-clock verdict.
+
+The cross-repo deployment authority cut is implemented and Soul passes it.
+Epiphany signs runtime health with exact release id, witness, source commit,
+deployment request id, process incarnation, and sequence. Idunn verifies the
+pinned public-only host anchor and persists generic health as observation only.
+Promotion reads `idunn.signed_health_admission.v1`, requires it to match the
+current health observation, expire within 180 seconds, and join the exact
+monotonic `idunn.current_deployment_request.v1` head plus its Bifrost-authorized
+`idunn.deployment_request.v2`. Health/admission and request/head transitions use
+cross-process CultCache compare-exchange over exact prior envelopes. CultCache
+now writes a synced unique temporary file and atomically replaces the live
+store without a delete gap. Concurrent N+1/N+2 admission proof finishes at
+N+2; equal-second request IDs no longer decide authority lexicographically.
+
+First trust enrollment refuses any pre-existing app-owned private identity when
+no root anchor exists. One `enroll-trust-anchor` process creates the signer and
+exports its public anchor; root then pins only that public document as
+`root:idunn 0640`. Later deployments must byte-match it. The deploy actuator
+uses Idunn's typed verifier with the exact request/release tuple; journal prose,
+generic health, and `warming` cannot promote.
+
+Local proof: Epiphany runtime-health 8, workspace-progress 13,
+workspace-projector 22, host-identity 3, supervisor 17; Odin core 15 and Idunn
+45 all pass. Gamecult shell syntax passes under Git Bash. Final hostile Soul
+audit reports no P0/P1. Next: commit/push all three repos, deploy updated Odin/
+Idunn to Yggdrasil first, then Bifrost-authorize and Idunn-deploy the exact
+Epiphany commit. Verify live signed warming, batchwise Qdrant growth, GPU duty,
+terminal exact-request active admission, and restart resume. No reboot is
+authorized.
+
 ## Live Body-grounded admission rite — 2026-07-16
 
 Thread `readiness-grounding-20260716` now has a typed, immutable user objective

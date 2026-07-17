@@ -52,8 +52,8 @@ const CLAIM_SCHEMA_V3: &str = "gamecult.epiphany.workspace_coverage_projection_c
 const ATTEMPT_SCHEMA_V3: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v3";
 const RECOVERY_TYPE: &str = "gamecult.epiphany.workspace_coverage_recovery_receipt";
 const RECOVERY_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_recovery_receipt.v0";
-const PROJECTION_SCHEMA: &str = "gamecult.epiphany.workspace_bytes_projection.v0";
-const CHUNKER_ID: &str = "utf8_lines_96_overlap_8_v0";
+pub(crate) const PROJECTION_SCHEMA: &str = "gamecult.epiphany.workspace_bytes_projection.v0";
+pub(crate) const CHUNKER_ID: &str = "utf8_lines_96_overlap_8_v0";
 pub const WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const CHUNK_LINES: usize = 96;
 const CHUNK_OVERLAP_LINES: usize = 8;
@@ -686,6 +686,97 @@ pub(crate) enum WorkspaceCoverageAcquireResult {
 pub(crate) enum WorkspaceCoverageCurrentState {
     Current(WorkspaceCoverageReceipt),
     NeedsPreparation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceCoverageTerminalAuthority {
+    pub body_observation_id: String,
+    pub body_generation: u64,
+    pub plan_id: String,
+    pub claim_id: String,
+    pub claim_epoch: u64,
+    pub managed_process_launch_id: String,
+    pub receipt_id: String,
+}
+
+/// Reads the provider-owned terminal authority used by deployment health.
+/// This deliberately does not re-read Qdrant: terminal receipt admission
+/// already performed the whole-collection readback. Mind readiness owns the
+/// stronger live query-evidence join.
+pub fn authenticate_current_workspace_coverage_terminal_authority(
+    runtime_store: &Path,
+) -> Result<Option<WorkspaceCoverageTerminalAuthority>> {
+    let basis = crate::load_current_runtime_repository_body_basis(runtime_store)?;
+    let route = runtime_repository_body_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let opening = SingleFileMessagePackBackingStore::new(&route.body_store_path).pull_all()?;
+    exact_body_authority(&opening, &basis)?;
+    let Some(head_env) = find(&opening, HEAD_TYPE, HEAD_KEY) else {
+        return Ok(None);
+    };
+    let head: WorkspaceCoverageHead = decode(head_env)?;
+    let obligation: WorkspaceCoverageObligation = decode(
+        find(&opening, OBLIGATION_TYPE, &head.obligation_id)
+            .ok_or_else(|| anyhow!("current workspace coverage head names a missing obligation"))?,
+    )?;
+    let plan: WorkspaceCoverageProjectionPlan = decode(
+        find(&opening, PLAN_TYPE, &head.plan_id)
+            .ok_or_else(|| anyhow!("current workspace coverage head names a missing plan"))?,
+    )?;
+    let receipt: WorkspaceCoverageReceipt = decode(
+        find(&opening, RECEIPT_TYPE, &head.receipt_id)
+            .ok_or_else(|| anyhow!("current workspace coverage head names a missing receipt"))?,
+    )?;
+    let claim: WorkspaceCoverageProjectionClaim = decode(
+        find(&opening, CLAIM_TYPE, CLAIM_KEY)
+            .ok_or_else(|| anyhow!("current workspace coverage lost its projection claim"))?,
+    )?;
+    let attempt: WorkspaceCoverageProjectionAttempt = decode(
+        find(&opening, ATTEMPT_TYPE, &claim.attempt_id)
+            .ok_or_else(|| anyhow!("current workspace coverage lost its projection attempt"))?,
+    )?;
+    validate_workspace_coverage_head(&obligation, &plan, &receipt, &head)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+    let policy =
+        WorkspaceCoveragePolicy::bounded_regular_files_v0(WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES)?;
+    let policy_sha256 = format!(
+        "{:x}",
+        Sha256::digest(rmp_serde::to_vec_named(&policy).map_err(|error| anyhow!(error))?)
+    );
+    let exact = head.workspace_id == basis.workspace_id
+        && head.body_observation_id == basis.observation_id
+        && head.body_generation == basis.generation
+        && head.manifest_root_sha256 == basis.manifest_root_sha256
+        && obligation.runtime_id == basis.runtime_id
+        && obligation.workspace_id == basis.workspace_id
+        && obligation.swarm_id == basis.swarm_id
+        && obligation.body_binding_sha256 == basis.body_binding_sha256
+        && obligation.body_observation_id == basis.observation_id
+        && obligation.body_generation == basis.generation
+        && obligation.manifest_root_sha256 == basis.manifest_root_sha256
+        && obligation.policy_id == policy.policy_id
+        && obligation.policy_sha256 == policy_sha256
+        && plan.projection_schema_version == PROJECTION_SCHEMA
+        && plan.chunker_id == CHUNKER_ID
+        && claim.status == "succeeded"
+        && attempt.status == "succeeded"
+        && claim.claim_id == receipt.claim_id
+        && claim.claim_epoch == receipt.claim_epoch
+        && claim.plan_id == plan.plan_id
+        && claim.obligation_id == obligation.obligation_id;
+    if !exact {
+        return Ok(None);
+    }
+    exact_obligation_body_authority(&opening, &obligation)?;
+    Ok(Some(WorkspaceCoverageTerminalAuthority {
+        body_observation_id: basis.observation_id,
+        body_generation: basis.generation,
+        plan_id: plan.plan_id,
+        claim_id: claim.claim_id,
+        claim_epoch: claim.claim_epoch,
+        managed_process_launch_id: claim.managed_process_launch_id,
+        receipt_id: receipt.receipt_id,
+    }))
 }
 
 fn collection_compatibility(plan: &WorkspaceCoverageProjectionPlan) -> CollectionCompatibility {
@@ -2035,7 +2126,13 @@ pub(crate) fn observe_final_projection_against_authenticated_checkpoint_chain(
         &expected_points,
         &expected_vectors,
     )?;
-    observe_sealed_bindings(obligation, plan, collection_name, ordered, Some(&expected_vectors))
+    observe_sealed_bindings(
+        obligation,
+        plan,
+        collection_name,
+        ordered,
+        Some(&expected_vectors),
+    )
 }
 
 fn authenticate_final_observation_against_checkpoint_bindings(
@@ -2066,7 +2163,9 @@ fn authenticate_final_observation_against_checkpoint_bindings(
             .vector
             .as_ref()
             .ok_or_else(|| anyhow!("final Qdrant observation omitted checkpointed vector"))?;
-        if digest(payload)? != point.payload_sha256 || digest(observed_vector)? != vector.vector_sha256 {
+        if digest(payload)? != point.payload_sha256
+            || digest(observed_vector)? != vector.vector_sha256
+        {
             bail!("final Qdrant payload/vector disagrees with authenticated checkpoint evidence");
         }
         ordered.push(observed);
@@ -2656,36 +2755,44 @@ mod tests {
         )?;
         let mut mutated = observed.clone();
         mutated[0].vector.as_mut().unwrap()[0] += 1.0;
-        assert!(authenticate_final_observation_against_checkpoint_bindings(
-            mutated,
-            &point_bindings,
-            &vector_bindings,
-        )
-        .is_err());
-        assert!(authenticate_final_observation_against_checkpoint_bindings(
-            Vec::new(),
-            &point_bindings,
-            &vector_bindings,
-        )
-        .is_err());
+        assert!(
+            authenticate_final_observation_against_checkpoint_bindings(
+                mutated,
+                &point_bindings,
+                &vector_bindings,
+            )
+            .is_err()
+        );
+        assert!(
+            authenticate_final_observation_against_checkpoint_bindings(
+                Vec::new(),
+                &point_bindings,
+                &vector_bindings,
+            )
+            .is_err()
+        );
         let mut duplicated = observed.clone();
         duplicated.push(observed[0].clone());
-        assert!(authenticate_final_observation_against_checkpoint_bindings(
-            duplicated,
-            &point_bindings,
-            &vector_bindings,
-        )
-        .is_err());
+        assert!(
+            authenticate_final_observation_against_checkpoint_bindings(
+                duplicated,
+                &point_bindings,
+                &vector_bindings,
+            )
+            .is_err()
+        );
         let mut substituted_duplicate = observed[0].clone();
         substituted_duplicate.vector.as_mut().unwrap()[0] += 1.0;
         let mut duplicated = observed.clone();
         duplicated.push(substituted_duplicate);
-        assert!(authenticate_final_observation_against_checkpoint_bindings(
-            duplicated,
-            &point_bindings,
-            &vector_bindings,
-        )
-        .is_err());
+        assert!(
+            authenticate_final_observation_against_checkpoint_bindings(
+                duplicated,
+                &point_bindings,
+                &vector_bindings,
+            )
+            .is_err()
+        );
         drop(repo);
         Ok(())
     }
@@ -2973,6 +3080,10 @@ mod tests {
         let inputs = projection_inputs(&acquisition, repo.path())?;
         let mut projection = FakeProjectionPort::new(Hostility::Honest);
         execute_preembedded_workspace_coverage_projection(&acquisition, inputs, &mut projection)?;
+        let terminal = authenticate_current_workspace_coverage_terminal_authority(&runtime)?
+            .expect("succeeded current receipt/head must own terminal health");
+        assert_eq!(terminal.claim_id, acquisition.claim.claim_id);
+        assert_eq!(terminal.plan_id, acquisition.plan.plan_id);
         assert!(matches!(
             classify_current_workspace_coverage(&runtime, &basis, "provider", "model", 3)?,
             WorkspaceCoverageCurrentState::Current(_)
@@ -3042,6 +3153,23 @@ mod tests {
                 .is_err()
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_health_refuses_a_receipt_for_an_older_body() -> Result<()> {
+        let (repo, _state, runtime, basis) = coverage_fixture()?;
+        let (_, acquisition) = acquire_test(&runtime, &basis, "provider", "model", 3)?;
+        let inputs = projection_inputs(&acquisition, repo.path())?;
+        execute_preembedded_workspace_coverage_projection(
+            &acquisition,
+            inputs,
+            &mut FakeProjectionPort::new(Hostility::Honest),
+        )?;
+        assert!(authenticate_current_workspace_coverage_terminal_authority(&runtime)?.is_some());
+        std::fs::write(repo.path().join("source.rs"), "pub fn changed() {}\n")?;
+        crate::observe_runtime_repository_body_basis(&runtime)?;
+        assert!(authenticate_current_workspace_coverage_terminal_authority(&runtime)?.is_none());
         Ok(())
     }
 

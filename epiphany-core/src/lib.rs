@@ -50,12 +50,6 @@ mod workspace_coverage_projector_service;
 mod workspace_retrieval_coverage;
 
 pub use agent_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
-pub use idunn_runtime_health::{
-    CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,
-    EpiphanyAggregateRuntimeHealthInput, IDUNN_DAEMON_HEALTH_SCHEMA_VERSION,
-    IDUNN_DAEMON_HEALTH_TYPE, IdunnDaemonHealthDocument,
-    derive_epiphany_aggregate_runtime_health, publish_idunn_daemon_health_rudp,
-};
 pub use agent_launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 pub use agent_launch::EPIPHANY_MIND_OWNER_ROLE;
 pub use agent_launch::EPIPHANY_MIND_ROLE_BINDING_ID;
@@ -671,11 +665,20 @@ pub use heartbeat_state::write_heartbeat_cognition_entry;
 pub use heartbeat_state::write_heartbeat_stale_turn_repair_receipt;
 pub use heartbeat_state::write_heartbeat_state_entry;
 pub use host_identity::{
-    HOST_IDENTITY_KEY, HOST_IDENTITY_SCHEMA_VERSION, HOST_IDENTITY_TYPE, HostIdentitySignature,
-    HostIdentitySigner, HostIncarnationIdentityEntry, LINUX_HOST_IDENTITY_ASSURANCE,
+    HOST_IDENTITY_KEY, HOST_IDENTITY_SCHEMA_VERSION, HOST_IDENTITY_TRUST_ANCHOR_KEY,
+    HOST_IDENTITY_TRUST_ANCHOR_TYPE, HOST_IDENTITY_TYPE, HostIdentitySignature, HostIdentitySigner,
+    HostIdentityTrustAnchorEntry, HostIncarnationIdentityEntry, LINUX_HOST_IDENTITY_ASSURANCE,
     WINDOWS_HOST_IDENTITY_ASSURANCE, default_host_identity_store_path,
-    enroll_default_host_identity, enroll_host_identity_at, open_default_host_identity,
-    open_host_identity_at, verify_host_identity_signature,
+    enroll_default_host_identity, enroll_host_identity_at, export_host_identity_trust_anchor,
+    open_default_host_identity, open_host_identity_at, verify_host_identity_signature,
+};
+pub use idunn_runtime_health::{
+    CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,
+    EPIPHANY_SIGNED_RUNTIME_HEALTH_SCHEMA_VERSION, EPIPHANY_SIGNED_RUNTIME_HEALTH_TYPE,
+    EpiphanyAggregateRuntimeHealthInput, EpiphanySignedRuntimeHealthDocument,
+    IDUNN_DAEMON_HEALTH_SCHEMA_VERSION, IDUNN_DAEMON_HEALTH_TYPE, IdunnDaemonHealthDocument,
+    derive_epiphany_aggregate_runtime_health, publish_idunn_daemon_health_rudp,
+    sign_epiphany_runtime_health,
 };
 pub use memory_graph::EpiphanyMemoryEdgeKind;
 pub use memory_graph::EpiphanyMemoryEmbeddingManifest;
@@ -1215,15 +1218,18 @@ pub use workspace_coverage_process_documents::{
 };
 pub use workspace_coverage_projection_progress::{
     WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_TYPE, WorkspaceCoverageProjectionProgressEntry,
+    WORKSPACE_COVERAGE_PROJECTION_PROGRESS_TYPE, WorkspaceCoverageAdvancingAuthority,
+    WorkspaceCoverageProjectionProgressEntry, authenticate_current_workspace_coverage_advancement,
     authenticate_workspace_coverage_projection_progress,
     load_latest_workspace_coverage_projection_progress,
     load_workspace_coverage_projection_progress,
 };
 pub use workspace_coverage_projector::{
     WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES, WorkspaceCoverageRecoveryOutcome,
-    WorkspaceCoverageRecoveryTarget, authenticate_workspace_coverage_recovery_receipt,
-    current_workspace_coverage_recovery_target, recover_workspace_coverage_projection,
+    WorkspaceCoverageRecoveryTarget, WorkspaceCoverageTerminalAuthority,
+    authenticate_current_workspace_coverage_terminal_authority,
+    authenticate_workspace_coverage_recovery_receipt, current_workspace_coverage_recovery_target,
+    recover_workspace_coverage_projection,
 };
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;

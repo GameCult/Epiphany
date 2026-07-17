@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 pub const HOST_IDENTITY_TYPE: &str = "epiphany.host_incarnation_identity.v0";
 pub const HOST_IDENTITY_SCHEMA_VERSION: &str = "epiphany.host_incarnation_identity.v0";
 pub const HOST_IDENTITY_KEY: &str = "host-incarnation";
+pub const HOST_IDENTITY_TRUST_ANCHOR_TYPE: &str = "epiphany.host_identity_trust_anchor.v0";
+pub const HOST_IDENTITY_TRUST_ANCHOR_KEY: &str = "host-incarnation-public";
 pub const WINDOWS_HOST_IDENTITY_ASSURANCE: &str = "os_user_installation_bound_best_effort";
 pub const LINUX_HOST_IDENTITY_ASSURANCE: &str = "os_installation_file_bound_cloneable_baseline";
 
@@ -48,6 +50,26 @@ pub struct HostIncarnationIdentityEntry {
 pub struct HostIdentitySignature {
     pub identity_id: String,
     pub signature: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.host_identity_trust_anchor.v0",
+    schema = "HostIdentityTrustAnchorEntry"
+)]
+pub struct HostIdentityTrustAnchorEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub identity_id: String,
+    #[cultcache(key = 2)]
+    pub public_key: Vec<u8>,
+    #[cultcache(key = 3)]
+    pub assurance: String,
+    #[cultcache(key = 4)]
+    pub identity_created_at: String,
+    #[cultcache(key = 5)]
+    pub source_identity_record_sha256: String,
 }
 
 /// A deliberately narrow signing handle. The private seed is never exposed by
@@ -107,6 +129,40 @@ pub fn enroll_default_host_identity() -> Result<HostIdentitySigner> {
 
 pub fn open_default_host_identity() -> Result<HostIdentitySigner> {
     open_host_identity_at(&default_host_identity_store_path()?)
+}
+
+pub fn export_host_identity_trust_anchor(
+    signer: &HostIdentitySigner,
+    output: &Path,
+) -> Result<HostIdentityTrustAnchorEntry> {
+    let entry = signer.entry();
+    let anchor = HostIdentityTrustAnchorEntry {
+        schema_version: HOST_IDENTITY_TRUST_ANCHOR_TYPE.into(),
+        identity_id: entry.identity_id.clone(),
+        public_key: entry.public_key.clone(),
+        assurance: entry.assurance.clone(),
+        identity_created_at: entry.created_at.clone(),
+        source_identity_record_sha256: format!(
+            "sha256-{:x}",
+            Sha256::digest(rmp_serde::to_vec(entry)?)
+        ),
+    };
+    prepare_parent(output)?;
+    let envelope = CultCacheEnvelope {
+        key: HOST_IDENTITY_TRUST_ANCHOR_KEY.into(),
+        r#type: HOST_IDENTITY_TRUST_ANCHOR_TYPE.into(),
+        payload: rmp_serde::to_vec(&anchor)?,
+        stored_at: entry.created_at.clone(),
+        schema_id: Some(HOST_IDENTITY_TRUST_ANCHOR_TYPE.into()),
+    };
+    let mut backing = SingleFileMessagePackBackingStore::new(output);
+    let existing = backing.pull_all()?;
+    match existing.as_slice() {
+        [] => backing.push(&envelope)?,
+        [current] if current == &envelope => {}
+        _ => bail!("host identity trust anchor output already contains different state"),
+    }
+    Ok(anchor)
 }
 
 /// Performs one immutable enrollment. Existing state is never reused by this
@@ -462,6 +518,35 @@ mod tests {
         assert!(open_host_identity_at(&store).is_err());
         assert!(enroll_host_identity_at(&store).is_err());
         assert_eq!(std::fs::read(&store)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn exported_trust_anchor_is_public_only_and_immutable() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let identity_store = temp.path().join("host-identity.ccmp");
+        let anchor_store = temp.path().join("host-identity-public.ccmp");
+        let signer = enroll_host_identity_at(&identity_store)?;
+        let anchor = export_host_identity_trust_anchor(&signer, &anchor_store)?;
+        assert_eq!(anchor.identity_id, signer.entry().identity_id);
+        assert_eq!(anchor.public_key, signer.entry().public_key);
+
+        let envelopes = SingleFileMessagePackBackingStore::new(&anchor_store).pull_all()?;
+        assert_eq!(envelopes.len(), 1);
+        assert_eq!(envelopes[0].r#type, HOST_IDENTITY_TRUST_ANCHOR_TYPE);
+        assert_eq!(envelopes[0].key, HOST_IDENTITY_TRUST_ANCHOR_KEY);
+        let decoded: HostIdentityTrustAnchorEntry = rmp_serde::from_slice(&envelopes[0].payload)?;
+        assert_eq!(decoded, anchor);
+        assert!(
+            !envelopes[0]
+                .payload
+                .windows(signer.entry().protected_private_seed.len())
+                .any(|window| window == signer.entry().protected_private_seed.as_slice())
+        );
+
+        let before = std::fs::read(&anchor_store)?;
+        export_host_identity_trust_anchor(&signer, &anchor_store)?;
+        assert_eq!(std::fs::read(&anchor_store)?, before);
         Ok(())
     }
 }

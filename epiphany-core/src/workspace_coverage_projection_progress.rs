@@ -1,29 +1,32 @@
 use crate::workspace_coverage_process_documents::authenticate_workspace_coverage_managed_process_launch_with_envelope_digest;
 use crate::workspace_coverage_projection_batch_checkpoint::{
-    load_authenticated_current_checkpoint, WorkspaceCoverageProjectionBatchCheckpointAdmission,
+    WorkspaceCoverageProjectionBatchCheckpointAdmission, load_authenticated_current_checkpoint,
 };
 use crate::workspace_coverage_projector::{
+    ATTEMPT_TYPE, CHUNKER_ID, CLAIM_KEY, CLAIM_TYPE, OBLIGATION_TYPE, PLAN_TYPE, PROJECTION_SCHEMA,
+    WorkspaceCoverageProjectionAttempt, WorkspaceCoverageProjectionClaim,
     exact_obligation_body_authority, validate_claim_attempt_link, validate_projection_attempt,
-    validate_projection_claim, WorkspaceCoverageProjectionAttempt,
-    WorkspaceCoverageProjectionClaim, ATTEMPT_TYPE, CLAIM_KEY, CLAIM_TYPE, OBLIGATION_TYPE,
-    PLAN_TYPE,
+    validate_projection_claim,
 };
 use crate::workspace_retrieval_coverage::{
-    validate_workspace_coverage_projection_plan, WorkspaceCoverageObligation,
-    WorkspaceCoverageProjectionPlan,
+    WorkspaceCoverageObligation, WorkspaceCoverageProjectionPlan,
+    validate_workspace_coverage_projection_plan,
 };
 use crate::{
+    HostIncarnationIdentityEntry, WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES,
+    WorkspaceCoverageManagedProcessLaunchEntry, WorkspaceCoveragePolicy,
     authenticate_workspace_coverage_managed_process_launch,
     load_workspace_coverage_managed_process_launch_with_digest, open_epiphany_cultmesh_node,
-    HostIncarnationIdentityEntry, WorkspaceCoverageManagedProcessLaunchEntry,
+    runtime_repository_body_store_binding,
 };
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use chrono::DateTime;
 use cultcache_rs::{
     CacheBackingStore, CultCacheEnvelope, DatabaseEntry, SingleFileMessagePackBackingStore,
 };
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::Serialize;
+use sha2::Digest;
 use std::path::Path;
 
 pub const WORKSPACE_COVERAGE_PROJECTION_PROGRESS_TYPE: &str =
@@ -101,6 +104,19 @@ pub struct WorkspaceCoverageProjectionProgressEntry {
     pub provider_signature: Vec<u8>,
     #[cultcache(key = 28)]
     pub signature_algorithm: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceCoverageAdvancingAuthority {
+    pub progress_id: String,
+    pub checkpoint_id: String,
+    pub checkpoint_binding_sha256: String,
+    pub claim_id: String,
+    pub claim_epoch: u64,
+    pub plan_id: String,
+    pub completed_units: u64,
+    pub total_units: u64,
+    pub last_advanced_at_utc: String,
 }
 
 #[derive(Serialize)]
@@ -321,7 +337,9 @@ pub(crate) fn publish_workspace_coverage_progress_for_checkpoint(
     if checkpoint_progress_alignment(&prior, admission)? == CheckpointProgressAlignment::Current {
         return Ok(prior);
     }
-    if prior.sequence != checkpoint.sequence || checkpoint.cumulative_point_count <= prior.completed_units {
+    if prior.sequence != checkpoint.sequence
+        || checkpoint.cumulative_point_count <= prior.completed_units
+    {
         bail!("checkpoint progress does not durably advance completed units");
     }
     let now = chrono::Utc::now().to_rfc3339();
@@ -418,7 +436,8 @@ pub(crate) fn reconcile_workspace_coverage_checkpoint_progress(
         trusted_host,
         claim_id,
         claim_epoch,
-    )? else {
+    )?
+    else {
         return Ok(None);
     };
     if admission.checkpoint.runtime_id != runtime_id {
@@ -530,6 +549,130 @@ pub fn authenticate_workspace_coverage_projection_progress(
     .ok_or_else(|| anyhow!("workspace coverage progress launch is absent"))?;
     authenticate_against_launch(&entry, &launch, &digest)?;
     Ok(entry)
+}
+
+/// Authenticates durable, current, nonterminal workspace advancement.
+/// Provider telemetry timeouts and heartbeat timestamps are intentionally not
+/// consulted here. The supervisor separately joins this evidence to the exact
+/// live managed process and applies its own no-advance lease.
+pub fn authenticate_current_workspace_coverage_advancement(
+    runtime_store: impl AsRef<Path>,
+    local_verse_store: impl AsRef<Path>,
+    runtime_id: &str,
+    launch_id: &str,
+    host: &HostIncarnationIdentityEntry,
+    observed_at: chrono::DateTime<chrono::Utc>,
+    no_advance_lease: chrono::Duration,
+) -> Result<Option<WorkspaceCoverageAdvancingAuthority>> {
+    if no_advance_lease <= chrono::Duration::zero() {
+        bail!("workspace coverage no-advance lease must be positive");
+    }
+    let route = runtime_repository_body_store_binding(runtime_store.as_ref())?
+        .ok_or_else(|| anyhow!("runtime has no repository Body-store binding"))?;
+    let opening = SingleFileMessagePackBackingStore::new(&route.body_store_path).pull_all()?;
+    let claim: WorkspaceCoverageProjectionClaim =
+        decode(find_authority(&opening, CLAIM_TYPE, CLAIM_KEY)?)?;
+    validate_projection_claim(&claim)?;
+    let attempt: WorkspaceCoverageProjectionAttempt =
+        decode(find_authority(&opening, ATTEMPT_TYPE, &claim.attempt_id)?)?;
+    validate_projection_attempt(&attempt)?;
+    validate_claim_attempt_link(&claim, &attempt)?;
+    if claim.status != "running" || attempt.status != "running" {
+        return Ok(None);
+    }
+    let obligation: WorkspaceCoverageObligation = decode(find_authority(
+        &opening,
+        OBLIGATION_TYPE,
+        &claim.obligation_id,
+    )?)?;
+    let plan: WorkspaceCoverageProjectionPlan =
+        decode(find_authority(&opening, PLAN_TYPE, &claim.plan_id)?)?;
+    validate_workspace_coverage_projection_plan(&obligation, &plan)?;
+    exact_obligation_body_authority(&opening, &obligation)?;
+    let policy =
+        WorkspaceCoveragePolicy::bounded_regular_files_v0(WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES)?;
+    let policy_sha256 = format!(
+        "{:x}",
+        sha2::Sha256::digest(rmp_serde::to_vec_named(&policy).map_err(|error| anyhow!(error))?)
+    );
+    if obligation.policy_id != policy.policy_id
+        || obligation.policy_sha256 != policy_sha256
+        || plan.projection_schema_version != PROJECTION_SCHEMA
+        || plan.chunker_id != CHUNKER_ID
+    {
+        return Ok(None);
+    }
+
+    let Some(latest) = load_latest_workspace_coverage_projection_progress(
+        local_verse_store.as_ref(),
+        runtime_id,
+        launch_id,
+        &claim.claim_id,
+    )?
+    else {
+        return Ok(None);
+    };
+    let progress = authenticate_workspace_coverage_projection_progress(
+        local_verse_store.as_ref(),
+        runtime_id,
+        &latest.progress_id,
+        host,
+    )?;
+    if progress.status != "warming"
+        || progress.completed_units == 0
+        || progress.launch_id != launch_id
+        || progress.claim_id != claim.claim_id
+        || progress.claim_epoch != claim.claim_epoch
+        || progress.attempt_id != attempt.attempt_id
+        || progress.plan_id != plan.plan_id
+        || progress.body_observation_id != obligation.body_observation_id
+        || progress.body_generation != obligation.body_generation
+    {
+        return Ok(None);
+    }
+    let Some(checkpoint) = load_authenticated_current_checkpoint(
+        &route.body_store_path,
+        local_verse_store.as_ref(),
+        host,
+        &claim.claim_id,
+        claim.claim_epoch,
+    )?
+    else {
+        return Ok(None);
+    };
+    if checkpoint_progress_alignment(&progress, &checkpoint)?
+        != CheckpointProgressAlignment::Current
+    {
+        return Ok(None);
+    }
+    if !progress_is_within_no_advance_lease(
+        &progress.last_advanced_at_utc,
+        observed_at,
+        no_advance_lease,
+    )? {
+        return Ok(None);
+    }
+    Ok(Some(WorkspaceCoverageAdvancingAuthority {
+        progress_id: progress.progress_id,
+        checkpoint_id: checkpoint.checkpoint.checkpoint_id,
+        checkpoint_binding_sha256: checkpoint.checkpoint_envelope_digest,
+        claim_id: claim.claim_id,
+        claim_epoch: claim.claim_epoch,
+        plan_id: plan.plan_id,
+        completed_units: progress.completed_units,
+        total_units: progress.total_units,
+        last_advanced_at_utc: progress.last_advanced_at_utc,
+    }))
+}
+
+fn progress_is_within_no_advance_lease(
+    last_advanced_at_utc: &str,
+    observed_at: chrono::DateTime<chrono::Utc>,
+    no_advance_lease: chrono::Duration,
+) -> Result<bool> {
+    let advanced = DateTime::parse_from_rfc3339(last_advanced_at_utc)?.with_timezone(&chrono::Utc);
+    let age = observed_at.signed_duration_since(advanced);
+    Ok(age >= chrono::Duration::zero() && age <= no_advance_lease)
 }
 
 fn authenticate_against_launch(
@@ -781,6 +924,9 @@ fn find_authority<'a>(
         .find(|entry| entry.r#type == ty && entry.key == key)
         .ok_or_else(|| anyhow!("workspace coverage progress authority {ty}/{key} is absent"))
 }
+fn decode<T: serde::de::DeserializeOwned>(entry: &CultCacheEnvelope) -> Result<T> {
+    rmp_serde::from_slice(&entry.payload).context("decoding workspace coverage progress authority")
+}
 fn progress_key(id: &str) -> String {
     format!("epiphany-local/workspace-coverage/projection-progress/event/{id}")
 }
@@ -888,7 +1034,14 @@ mod tests {
         let k = SigningKey::from_bytes(&[7; 32]);
         let genesis = entry(&k);
         assert_eq!(
-            checkpoint_progress_binding_alignment(&genesis, 1, "checkpoint", &format!("sha256-{}", "b".repeat(64)), 1).unwrap(),
+            checkpoint_progress_binding_alignment(
+                &genesis,
+                1,
+                "checkpoint",
+                &format!("sha256-{}", "b".repeat(64)),
+                1
+            )
+            .unwrap(),
             CheckpointProgressAlignment::NeedsReconciliation
         );
         let current = advance(&genesis, &k);
@@ -899,14 +1052,26 @@ mod tests {
             CheckpointProgressAlignment::Current
         );
         assert_eq!(
-            checkpoint_progress_binding_alignment(&current, 2, "next-checkpoint", &digest, 2).unwrap(),
+            checkpoint_progress_binding_alignment(&current, 2, "next-checkpoint", &digest, 2)
+                .unwrap(),
             CheckpointProgressAlignment::NeedsReconciliation
         );
         let mut skipped = current.clone();
         skipped.sequence = 3;
         assert!(checkpoint_progress_binding_alignment(&skipped, 1, &id, &digest, 1).is_err());
-        assert!(checkpoint_progress_binding_alignment(&current, 1, "stale-head", &digest, 1).is_err());
-        assert!(checkpoint_progress_binding_alignment(&current, 1, &id, &format!("sha256-{}", "c".repeat(64)), 1).is_err());
+        assert!(
+            checkpoint_progress_binding_alignment(&current, 1, "stale-head", &digest, 1).is_err()
+        );
+        assert!(
+            checkpoint_progress_binding_alignment(
+                &current,
+                1,
+                &id,
+                &format!("sha256-{}", "c".repeat(64)),
+                1
+            )
+            .is_err()
+        );
     }
     #[test]
     fn provider_timeout_observation_is_not_progress_authority() {
@@ -1030,5 +1195,16 @@ mod tests {
         let mut next = advance(&prior, &k);
         next.provider_signature[0] ^= 1;
         assert!(validate_transition(&prior, &next).is_err());
+    }
+
+    #[test]
+    fn no_advance_lease_uses_durable_advancement_time_only() {
+        let now = chrono::DateTime::parse_from_rfc3339("2026-07-16T10:05:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let lease = chrono::Duration::seconds(300);
+        assert!(progress_is_within_no_advance_lease("2026-07-16T10:00:00Z", now, lease).unwrap());
+        assert!(!progress_is_within_no_advance_lease("2026-07-16T09:59:59Z", now, lease).unwrap());
+        assert!(!progress_is_within_no_advance_lease("2026-07-16T10:05:01Z", now, lease).unwrap());
     }
 }
