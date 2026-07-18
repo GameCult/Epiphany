@@ -8,13 +8,16 @@ use crate::default_substrate_gate_cultnet_contracts;
 use crate::packaged_release::{EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead};
 use crate::workspace_coverage_process_documents::{
     WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_CLAIM_SIGHT_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_EVIDENCE_HEAD_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION, WorkspaceCoverageAdvancementSightEntry,
-    WorkspaceCoverageManagedProcessLaunchEntry, WorkspaceCoverageProcessEvidenceHead,
-    WorkspaceCoverageProcessTerminationObservationEntry, WorkspaceCoverageProviderHeartbeatEntry,
+    WorkspaceCoverageClaimSightEntry, WorkspaceCoverageManagedProcessLaunchEntry,
+    WorkspaceCoverageProcessEvidenceHead, WorkspaceCoverageProcessTerminationObservationEntry,
+    WorkspaceCoverageProviderHeartbeatEntry, WorkspaceCoverageRecoveryDirectiveEntry,
     WorkspaceCoverageTerminalSightEntry,
 };
 use crate::workspace_coverage_projection_progress::{
@@ -2665,6 +2668,8 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     WorkspaceCoverageProcessTerminationObservationEntry => WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
     WorkspaceCoverageProjectionProgressEntry => WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
     WorkspaceCoverageAdvancementSightEntry => WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_SCHEMA_VERSION,
+    WorkspaceCoverageClaimSightEntry => WORKSPACE_COVERAGE_CLAIM_SIGHT_SCHEMA_VERSION,
+    WorkspaceCoverageRecoveryDirectiveEntry => WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_SCHEMA_VERSION,
     WorkspaceCoverageTerminalSightEntry => WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION,
     EpiphanyPackagedReleaseEntry => crate::packaged_release::EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION,
     EpiphanyPackagedReleaseHead => crate::packaged_release::EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION,

@@ -46,6 +46,10 @@ const COVERAGE_ADVANCEMENT_SIGHT_DOMAIN: &[u8] =
     b"epiphany.workspace-coverage.advancement-sight.signature.v0\0";
 const COVERAGE_TERMINAL_SIGHT_DOMAIN: &[u8] =
     b"epiphany.workspace-coverage.terminal-sight.signature.v0\0";
+const COVERAGE_CLAIM_SIGHT_DOMAIN: &[u8] =
+    b"epiphany.workspace-coverage.claim-sight.signature.v0\0";
+const HOST_RECOVERY_DIRECTIVE_PURPOSE: &str =
+    "epiphany.workspace-coverage.host-recovery-directive.v0";
 
 pub const WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_TYPE: &str =
     "epiphany.workspace_coverage.advancement_sight";
@@ -55,6 +59,135 @@ pub const WORKSPACE_COVERAGE_TERMINAL_SIGHT_TYPE: &str =
     "epiphany.workspace_coverage.terminal_sight";
 pub const WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION: &str =
     "epiphany.workspace_coverage.terminal_sight.v0";
+pub const WORKSPACE_COVERAGE_CLAIM_SIGHT_TYPE: &str = "epiphany.workspace_coverage.claim_sight";
+pub const WORKSPACE_COVERAGE_CLAIM_SIGHT_SCHEMA_VERSION: &str =
+    "epiphany.workspace_coverage.claim_sight.v0";
+pub const WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_TYPE: &str =
+    "epiphany.workspace_coverage.recovery_directive";
+pub const WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_SCHEMA_VERSION: &str =
+    "epiphany.workspace_coverage.recovery_directive.v0";
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.workspace_coverage.claim_sight",
+    schema = "WorkspaceCoverageClaimSightEntry"
+)]
+pub struct WorkspaceCoverageClaimSightEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub workspace_id: String,
+    #[cultcache(key = 3)]
+    pub launch_id: String,
+    #[cultcache(key = 4)]
+    pub launch_envelope_digest: String,
+    #[cultcache(key = 5)]
+    pub provider_incarnation_id: String,
+    #[cultcache(key = 6)]
+    pub provider_public_key: Vec<u8>,
+    #[cultcache(key = 7)]
+    pub coverage_store_binding_id: String,
+    #[cultcache(key = 8)]
+    pub coverage_store_binding_envelope_digest: String,
+    #[cultcache(key = 9)]
+    pub coverage_store_file_identity: String,
+    #[cultcache(key = 10)]
+    pub runtime_coverage_route_envelope_digest: String,
+    #[cultcache(key = 11)]
+    pub body_binding_sha256: String,
+    #[cultcache(key = 12)]
+    pub body_observation_id: String,
+    #[cultcache(key = 13)]
+    pub body_generation: u64,
+    #[cultcache(key = 14)]
+    pub manifest_root_sha256: String,
+    #[cultcache(key = 15)]
+    pub claim_id: String,
+    #[cultcache(key = 16)]
+    pub claim_epoch: u64,
+    #[cultcache(key = 17)]
+    pub plan_id: String,
+    #[cultcache(key = 18)]
+    pub attempt_id: String,
+    #[cultcache(key = 19)]
+    pub attempt_envelope_digest: String,
+    #[cultcache(key = 20)]
+    pub recovery_receipt_id: Option<String>,
+    #[cultcache(key = 21)]
+    pub recovery_receipt_digest: Option<String>,
+    #[cultcache(key = 22)]
+    pub observed_at_utc: String,
+    #[cultcache(key = 23)]
+    pub provider_signature: Vec<u8>,
+    #[cultcache(key = 24)]
+    pub signature_algorithm: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.workspace_coverage.recovery_directive",
+    schema = "WorkspaceCoverageRecoveryDirectiveEntry"
+)]
+pub struct WorkspaceCoverageRecoveryDirectiveEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub directive_id: String,
+    #[cultcache(key = 2)]
+    pub runtime_id: String,
+    #[cultcache(key = 3)]
+    pub old_claim_id: String,
+    #[cultcache(key = 4)]
+    pub old_launch_id: String,
+    #[cultcache(key = 5)]
+    pub replacement_launch_id: String,
+    #[cultcache(key = 6)]
+    pub replacement_ready_heartbeat_id: String,
+    #[cultcache(key = 7)]
+    pub termination_id: String,
+    #[cultcache(key = 8)]
+    pub claim_sight_envelope_digest: String,
+    #[cultcache(key = 9)]
+    pub old_claim_epoch: u64,
+    #[cultcache(key = 10)]
+    pub old_plan_id: String,
+    #[cultcache(key = 11)]
+    pub termination_envelope_digest: String,
+    #[cultcache(key = 12)]
+    pub replacement_launch_envelope_digest: String,
+    #[cultcache(key = 13)]
+    pub replacement_ready_heartbeat_envelope_digest: String,
+    #[cultcache(key = 14)]
+    pub workspace_id: String,
+    #[cultcache(key = 15)]
+    pub body_binding_sha256: String,
+    #[cultcache(key = 16)]
+    pub body_observation_id: String,
+    #[cultcache(key = 17)]
+    pub body_generation: u64,
+    #[cultcache(key = 18)]
+    pub manifest_root_sha256: String,
+    #[cultcache(key = 19)]
+    pub coverage_store_binding_id: String,
+    #[cultcache(key = 20)]
+    pub coverage_store_binding_envelope_digest: String,
+    #[cultcache(key = 21)]
+    pub coverage_store_file_identity: String,
+    #[cultcache(key = 22)]
+    pub runtime_coverage_route_envelope_digest: String,
+    #[cultcache(key = 23)]
+    pub issued_at_utc: String,
+    #[cultcache(key = 24)]
+    pub host_identity_id: String,
+    #[cultcache(key = 25)]
+    pub host_identity_record_digest: String,
+    #[cultcache(key = 26)]
+    pub host_signature: Vec<u8>,
+    #[cultcache(key = 27)]
+    pub signature_algorithm: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
@@ -781,6 +914,7 @@ pub fn write_workspace_coverage_provider_heartbeat(
         rmp_serde::from_slice(&launch_envelope.payload)?;
     authenticate_heartbeat_against_launch(&entry, &launch, &envelope_digest(&launch_envelope))?;
     let latest_key = heartbeat_latest_key(&entry.launch_id);
+    let evidence_key = heartbeat_evidence_key(&entry.launch_id, &entry.heartbeat_id);
     let latest = node
         .cache()
         .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&latest_key)?;
@@ -823,6 +957,13 @@ pub fn write_workspace_coverage_provider_heartbeat(
             .prepare_entry(&evidence_head_key, &next_evidence_head)?
             .0,
     ];
+    if node
+        .cache()
+        .get_envelope::<WorkspaceCoverageProviderHeartbeatEntry>(&evidence_key)?
+        .is_some()
+    {
+        bail!("workspace coverage heartbeat immutable evidence identity collision");
+    }
     match latest.as_ref() {
         Some(envelope) => {
             let prior: WorkspaceCoverageProviderHeartbeatEntry =
@@ -850,6 +991,7 @@ pub fn write_workspace_coverage_provider_heartbeat(
         None => {}
     }
     replacements.push(node.cache().prepare_entry(&latest_key, &entry)?.0);
+    replacements.push(node.cache().prepare_entry(&evidence_key, &entry)?.0);
     if !SingleFileMessagePackBackingStore::new(store_path)
         .compare_and_swap_batch(&expected, replacements)?
     {
@@ -1667,6 +1809,510 @@ fn require_nonempty(name: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+fn claim_sight_key(runtime_id: &str, body_generation: u64, body_observation_id: &str) -> String {
+    format!(
+        "epiphany-local/workspace-coverage/claim-sight/{runtime_id}/{body_generation}/{body_observation_id}"
+    )
+}
+
+fn validate_claim_sight_shape(
+    entry: &WorkspaceCoverageClaimSightEntry,
+    signed: bool,
+) -> Result<()> {
+    if entry.schema_version != WORKSPACE_COVERAGE_CLAIM_SIGHT_SCHEMA_VERSION
+        || entry.claim_epoch == 0
+        || entry.signature_algorithm != "ed25519"
+        || entry.provider_public_key.len() != 32
+        || signed != (entry.provider_signature.len() == 64)
+    {
+        bail!("workspace coverage claim sight violates its reserved schema or signature shape");
+    }
+    for (name, value) in [
+        ("runtime id", entry.runtime_id.as_str()),
+        ("workspace id", entry.workspace_id.as_str()),
+        ("launch id", entry.launch_id.as_str()),
+        ("claim id", entry.claim_id.as_str()),
+        ("attempt id", entry.attempt_id.as_str()),
+        ("plan id", entry.plan_id.as_str()),
+        ("Body observation id", entry.body_observation_id.as_str()),
+    ] {
+        require_nonempty(name, value)?;
+    }
+    uuid::Uuid::parse_str(&entry.launch_id).context("claim sight launch id must be UUID")?;
+    uuid::Uuid::parse_str(&entry.claim_id).context("claim sight claim id must be UUID")?;
+    uuid::Uuid::parse_str(&entry.attempt_id).context("claim sight attempt id must be UUID")?;
+    DateTime::parse_from_rfc3339(&entry.observed_at_utc)
+        .context("claim sight observation time must be RFC3339")?;
+    Ok(())
+}
+
+pub(crate) fn publish_workspace_coverage_claim_sight(
+    local_verse_store: &Path,
+    runtime_store: &Path,
+    coverage: &crate::WorkspaceCoverageAuthority,
+    acquisition: &crate::workspace_coverage_projector::WorkspaceCoverageAcquisition,
+    runtime_id: &str,
+    launch_id: &str,
+    trusted_host: &HostIncarnationIdentityEntry,
+    provider: &SigningKey,
+    observed_at: chrono::DateTime<chrono::Utc>,
+) -> Result<WorkspaceCoverageClaimSightEntry> {
+    if acquisition.claim.status != "running"
+        || acquisition.claim.managed_process_launch_id != launch_id
+        || acquisition.claim.attempt_id != acquisition.attempt.attempt_id
+    {
+        bail!("claim sight requires the projector's exact running claim and attempt");
+    }
+    let opening = coverage.store.pull_all()?;
+    let attempt_env = opening
+        .iter()
+        .find(|env| {
+            env.r#type == "gamecult.epiphany.workspace_coverage_projection_attempt"
+                && env.key == acquisition.attempt.attempt_id
+        })
+        .ok_or_else(|| anyhow!("claim sight attempt envelope is absent"))?;
+    let (launch, launch_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            local_verse_store,
+            runtime_id,
+            launch_id,
+            trusted_host,
+        )?;
+    if launch.provider_public_key.as_slice() != provider.verifying_key().to_bytes()
+        || launch.provider_incarnation_id != acquisition.claim.executor_incarnation
+    {
+        bail!("claim sight provider disagrees with its authenticated launch");
+    }
+    let basis = crate::load_current_runtime_repository_body_basis(runtime_store)?;
+    let mut entry = WorkspaceCoverageClaimSightEntry {
+        schema_version: WORKSPACE_COVERAGE_CLAIM_SIGHT_SCHEMA_VERSION.into(),
+        runtime_id: runtime_id.into(),
+        workspace_id: basis.workspace_id,
+        launch_id: launch_id.into(),
+        launch_envelope_digest: launch_digest,
+        provider_incarnation_id: launch.provider_incarnation_id,
+        provider_public_key: launch.provider_public_key,
+        coverage_store_binding_id: coverage.store_binding.binding_id.clone(),
+        coverage_store_binding_envelope_digest: coverage.store_binding_envelope_sha256.clone(),
+        coverage_store_file_identity: coverage.store_binding.store_file_identity.clone(),
+        runtime_coverage_route_envelope_digest: coverage
+            .runtime_coverage_route_envelope_sha256
+            .clone(),
+        body_binding_sha256: basis.body_binding_sha256,
+        body_observation_id: acquisition.claim.body_observation_id.clone(),
+        body_generation: acquisition.claim.body_generation,
+        manifest_root_sha256: acquisition.claim.manifest_root_sha256.clone(),
+        claim_id: acquisition.claim.claim_id.clone(),
+        claim_epoch: acquisition.claim.claim_epoch,
+        plan_id: acquisition.claim.plan_id.clone(),
+        attempt_id: acquisition.attempt.attempt_id.clone(),
+        attempt_envelope_digest: envelope_digest(attempt_env),
+        recovery_receipt_id: acquisition.claim.recovery_receipt_id.clone(),
+        recovery_receipt_digest: acquisition.claim.recovery_receipt_digest.clone(),
+        observed_at_utc: observed_at.to_rfc3339(),
+        provider_signature: Vec::new(),
+        signature_algorithm: "ed25519".into(),
+    };
+    validate_workspace_coverage_sight_closing_authority(
+        runtime_store,
+        coverage,
+        &entry.workspace_id,
+        &entry.body_binding_sha256,
+        &entry.body_observation_id,
+        entry.body_generation,
+        &entry.manifest_root_sha256,
+    )?;
+    validate_claim_sight_shape(&entry, false)?;
+    entry.provider_signature = provider
+        .sign(&signed_sight_statement(
+            COVERAGE_CLAIM_SIGHT_DOMAIN,
+            &entry,
+        )?)
+        .to_bytes()
+        .to_vec();
+    validate_claim_sight_shape(&entry, true)?;
+    let backing = SingleFileMessagePackBackingStore::new(local_verse_store);
+    let node = open_epiphany_cultmesh_node(local_verse_store, runtime_id.to_string())?;
+    let key = claim_sight_key(
+        runtime_id,
+        entry.body_generation,
+        &entry.body_observation_id,
+    );
+    let opening = backing.pull_all()?;
+    if let Some(prior_env) = opening
+        .iter()
+        .find(|env| env.r#type == WORKSPACE_COVERAGE_CLAIM_SIGHT_TYPE && env.key == key)
+    {
+        let prior: WorkspaceCoverageClaimSightEntry = rmp_serde::from_slice(&prior_env.payload)?;
+        authenticate_workspace_coverage_claim_sight_entry(&prior)?;
+        if entry.claim_epoch < prior.claim_epoch
+            || (entry.claim_epoch == prior.claim_epoch && entry.claim_id != prior.claim_id)
+        {
+            bail!("workspace coverage claim sight cannot regress or fork its epoch");
+        }
+    }
+    replace_latest_sight(
+        node.cache(),
+        &backing,
+        WORKSPACE_COVERAGE_CLAIM_SIGHT_TYPE,
+        &key,
+        &entry,
+        &opening,
+    )?;
+    Ok(entry)
+}
+
+fn authenticate_workspace_coverage_claim_sight_entry(
+    entry: &WorkspaceCoverageClaimSightEntry,
+) -> Result<()> {
+    validate_claim_sight_shape(entry, true)?;
+    let key: [u8; 32] = entry
+        .provider_public_key
+        .clone()
+        .try_into()
+        .map_err(|_| anyhow!("claim sight provider key length is invalid"))?;
+    let signature = Signature::from_slice(&entry.provider_signature)?;
+    let mut unsigned = entry.clone();
+    unsigned.provider_signature.clear();
+    VerifyingKey::from_bytes(&key)?
+        .verify(
+            &signed_sight_statement(COVERAGE_CLAIM_SIGHT_DOMAIN, &unsigned)?,
+            &signature,
+        )
+        .map_err(|_| anyhow!("workspace coverage claim sight signature verification failed"))?;
+    Ok(())
+}
+
+pub fn authenticate_current_workspace_coverage_claim_sight(
+    local_verse_store: impl AsRef<Path>,
+    runtime_store: impl AsRef<Path>,
+    runtime_id: &str,
+    trusted_host: &HostIncarnationIdentityEntry,
+) -> Result<Option<WorkspaceCoverageClaimSightEntry>> {
+    let runtime_store = runtime_store.as_ref();
+    let basis = crate::load_current_runtime_repository_body_basis(runtime_store)?;
+    let route = crate::runtime_workspace_coverage_store_binding(runtime_store)?
+        .ok_or_else(|| anyhow!("runtime has no workspace coverage route"))?;
+    let runtime_opening = SingleFileMessagePackBackingStore::new(runtime_store).pull_all()?;
+    let route_env = runtime_opening
+        .iter()
+        .find(|env| {
+            env.r#type == crate::RUNTIME_WORKSPACE_COVERAGE_STORE_BINDING_TYPE
+                && env.key == crate::RUNTIME_WORKSPACE_COVERAGE_STORE_BINDING_KEY
+        })
+        .ok_or_else(|| anyhow!("runtime workspace coverage route envelope is absent"))?;
+    let node = open_epiphany_cultmesh_node(local_verse_store.as_ref(), runtime_id.to_string())?;
+    let Some(env) = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageClaimSightEntry>(&claim_sight_key(
+            runtime_id,
+            basis.generation,
+            &basis.observation_id,
+        ))?
+    else {
+        return Ok(None);
+    };
+    if env.r#type != WORKSPACE_COVERAGE_CLAIM_SIGHT_TYPE {
+        bail!("claim sight key has alien type");
+    }
+    let entry: WorkspaceCoverageClaimSightEntry = rmp_serde::from_slice(&env.payload)?;
+    authenticate_workspace_coverage_claim_sight_entry(&entry)?;
+    let (launch, digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            local_verse_store.as_ref(),
+            runtime_id,
+            &entry.launch_id,
+            trusted_host,
+        )?;
+    if entry.runtime_id != runtime_id
+        || entry.launch_envelope_digest != digest
+        || entry.provider_incarnation_id != launch.provider_incarnation_id
+        || entry.provider_public_key != launch.provider_public_key
+        || entry.workspace_id != basis.workspace_id
+        || entry.body_binding_sha256 != basis.body_binding_sha256
+        || entry.body_observation_id != basis.observation_id
+        || entry.body_generation != basis.generation
+        || entry.manifest_root_sha256 != basis.manifest_root_sha256
+        || entry.coverage_store_binding_id != route.binding_id
+        || entry.coverage_store_file_identity != route.store_file_identity
+        || entry.runtime_coverage_route_envelope_digest
+            != format!("{:x}", Sha256::digest(rmp_serde::to_vec_named(route_env)?))
+    {
+        bail!("claim sight disagrees with authenticated launch");
+    }
+    Ok(Some(entry))
+}
+
+fn recovery_directive_key(runtime_id: &str, replacement_launch_id: &str) -> String {
+    format!(
+        "epiphany-local/workspace-coverage/recovery-directive/{runtime_id}/{replacement_launch_id}"
+    )
+}
+
+fn recovery_directive_statement(
+    entry: &WorkspaceCoverageRecoveryDirectiveEntry,
+) -> Result<Vec<u8>> {
+    let mut unsigned = entry.clone();
+    unsigned.host_signature.clear();
+    Ok(rmp_serde::to_vec_named(&unsigned)?)
+}
+
+pub fn write_workspace_coverage_recovery_directive(
+    local_verse_store: impl AsRef<Path>,
+    runtime_store: impl AsRef<Path>,
+    runtime_id: &str,
+    claim_sight: &WorkspaceCoverageClaimSightEntry,
+    replacement_launch_id: &str,
+    replacement_ready_heartbeat_id: &str,
+    host: &HostIdentitySigner,
+) -> Result<WorkspaceCoverageRecoveryDirectiveEntry> {
+    let local_verse_store = local_verse_store.as_ref();
+    let runtime_store = runtime_store.as_ref();
+    let authenticated = authenticate_current_workspace_coverage_claim_sight(
+        local_verse_store,
+        runtime_store,
+        runtime_id,
+        host.entry(),
+    )?
+    .ok_or_else(|| anyhow!("workspace coverage recovery claim sight is absent"))?;
+    if &authenticated != claim_sight {
+        bail!("workspace coverage recovery claim sight moved");
+    }
+    let node = open_epiphany_cultmesh_node(local_verse_store, runtime_id.to_string())?;
+    let directive_key = recovery_directive_key(runtime_id, replacement_launch_id);
+    if node
+        .cache()
+        .get_envelope::<WorkspaceCoverageRecoveryDirectiveEntry>(&directive_key)?
+        .is_some()
+    {
+        let existing = authenticate_workspace_coverage_recovery_directive(
+            local_verse_store,
+            runtime_store,
+            runtime_id,
+            replacement_launch_id,
+            host.entry(),
+        )?
+        .ok_or_else(|| anyhow!("existing recovery directive belongs to a stale Body"))?;
+        if existing.old_claim_id != claim_sight.claim_id
+            || existing.old_claim_epoch != claim_sight.claim_epoch
+            || existing.old_plan_id != claim_sight.plan_id
+            || existing.old_launch_id != claim_sight.launch_id
+            || existing.workspace_id != claim_sight.workspace_id
+            || existing.body_binding_sha256 != claim_sight.body_binding_sha256
+            || existing.body_observation_id != claim_sight.body_observation_id
+            || existing.body_generation != claim_sight.body_generation
+            || existing.manifest_root_sha256 != claim_sight.manifest_root_sha256
+            || existing.coverage_store_binding_id != claim_sight.coverage_store_binding_id
+            || existing.coverage_store_binding_envelope_digest
+                != claim_sight.coverage_store_binding_envelope_digest
+            || existing.coverage_store_file_identity != claim_sight.coverage_store_file_identity
+            || existing.runtime_coverage_route_envelope_digest
+                != claim_sight.runtime_coverage_route_envelope_digest
+        {
+            bail!(
+                "recovery directive replacement identity already belongs to another claim lineage"
+            );
+        }
+        return Ok(existing);
+    }
+    let claim_env = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageClaimSightEntry>(&claim_sight_key(
+            runtime_id,
+            claim_sight.body_generation,
+            &claim_sight.body_observation_id,
+        ))?
+        .ok_or_else(|| anyhow!("workspace coverage recovery claim sight envelope is absent"))?;
+    let (termination, termination_digest) =
+        authenticate_workspace_coverage_termination_with_envelope_digest(
+            local_verse_store,
+            runtime_id.to_string(),
+            &claim_sight.launch_id,
+            host.entry(),
+        )?;
+    let (replacement, replacement_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            local_verse_store,
+            runtime_id,
+            replacement_launch_id,
+            host.entry(),
+        )?;
+    let (ready, ready_digest) =
+        authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
+            local_verse_store,
+            runtime_id,
+            replacement_ready_heartbeat_id,
+            host.entry(),
+        )?;
+    if replacement.replaces_launch_id.as_deref() != Some(claim_sight.launch_id.as_str())
+        || replacement.replaces_termination_id.as_deref()
+            != Some(termination.termination_id.as_str())
+        || ready.launch_id != replacement.launch_id
+        || ready.status != "ready"
+    {
+        bail!("workspace coverage recovery directive evidence is not an exact ready replacement");
+    }
+    let mut entry = WorkspaceCoverageRecoveryDirectiveEntry {
+        schema_version: WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_SCHEMA_VERSION.into(),
+        directive_id: uuid::Uuid::new_v4().to_string(),
+        runtime_id: runtime_id.into(),
+        old_claim_id: claim_sight.claim_id.clone(),
+        old_launch_id: claim_sight.launch_id.clone(),
+        replacement_launch_id: replacement.launch_id,
+        replacement_ready_heartbeat_id: ready.heartbeat_id,
+        termination_id: termination.termination_id,
+        claim_sight_envelope_digest: envelope_digest(&claim_env),
+        old_claim_epoch: claim_sight.claim_epoch,
+        old_plan_id: claim_sight.plan_id.clone(),
+        termination_envelope_digest: termination_digest,
+        replacement_launch_envelope_digest: replacement_digest,
+        replacement_ready_heartbeat_envelope_digest: ready_digest,
+        workspace_id: claim_sight.workspace_id.clone(),
+        body_binding_sha256: claim_sight.body_binding_sha256.clone(),
+        body_observation_id: claim_sight.body_observation_id.clone(),
+        body_generation: claim_sight.body_generation,
+        manifest_root_sha256: claim_sight.manifest_root_sha256.clone(),
+        coverage_store_binding_id: claim_sight.coverage_store_binding_id.clone(),
+        coverage_store_binding_envelope_digest: claim_sight
+            .coverage_store_binding_envelope_digest
+            .clone(),
+        coverage_store_file_identity: claim_sight.coverage_store_file_identity.clone(),
+        runtime_coverage_route_envelope_digest: claim_sight
+            .runtime_coverage_route_envelope_digest
+            .clone(),
+        issued_at_utc: chrono::Utc::now().to_rfc3339(),
+        host_identity_id: host.entry().identity_id.clone(),
+        host_identity_record_digest: workspace_coverage_host_identity_record_digest(host.entry())?,
+        host_signature: Vec::new(),
+        signature_algorithm: "ed25519".into(),
+    };
+    entry.host_signature = host
+        .sign(
+            HOST_RECOVERY_DIRECTIVE_PURPOSE,
+            &recovery_directive_statement(&entry)?,
+        )?
+        .signature;
+    let backing = SingleFileMessagePackBackingStore::new(local_verse_store);
+    let opening = backing.pull_all()?;
+    replace_latest_sight(
+        node.cache(),
+        &backing,
+        WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_TYPE,
+        &directive_key,
+        &entry,
+        &opening,
+    )?;
+    Ok(entry)
+}
+
+pub fn authenticate_workspace_coverage_recovery_directive(
+    local_verse_store: impl AsRef<Path>,
+    runtime_store: impl AsRef<Path>,
+    runtime_id: &str,
+    replacement_launch_id: &str,
+    trusted_host: &HostIncarnationIdentityEntry,
+) -> Result<Option<WorkspaceCoverageRecoveryDirectiveEntry>> {
+    let node = open_epiphany_cultmesh_node(local_verse_store.as_ref(), runtime_id.to_string())?;
+    let Some(env) = node
+        .cache()
+        .get_envelope::<WorkspaceCoverageRecoveryDirectiveEntry>(&recovery_directive_key(
+            runtime_id,
+            replacement_launch_id,
+        ))?
+    else {
+        return Ok(None);
+    };
+    let entry: WorkspaceCoverageRecoveryDirectiveEntry = rmp_serde::from_slice(&env.payload)?;
+    if entry.schema_version != WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_SCHEMA_VERSION
+        || entry.runtime_id != runtime_id
+        || entry.replacement_launch_id != replacement_launch_id
+        || entry.host_identity_id != trusted_host.identity_id
+        || entry.host_identity_record_digest
+            != workspace_coverage_host_identity_record_digest(trusted_host)?
+        || entry.signature_algorithm != "ed25519"
+    {
+        bail!("workspace coverage recovery directive identity is invalid");
+    }
+    verify_host_identity_signature(
+        trusted_host,
+        HOST_RECOVERY_DIRECTIVE_PURPOSE,
+        &recovery_directive_statement(&entry)?,
+        &HostIdentitySignature {
+            identity_id: entry.host_identity_id.clone(),
+            signature: entry.host_signature.clone(),
+        },
+    )?;
+    let basis = crate::load_current_runtime_repository_body_basis(runtime_store.as_ref())?;
+    if entry.body_observation_id != basis.observation_id
+        || entry.body_generation != basis.generation
+        || entry.manifest_root_sha256 != basis.manifest_root_sha256
+        || entry.body_binding_sha256 != basis.body_binding_sha256
+        || entry.workspace_id != basis.workspace_id
+    {
+        // A directive is authority only for its exact Body generation. Keeping
+        // the immutable document is useful evidence; treating it as current
+        // pressure after Body advances would strand the replacement process.
+        return Ok(None);
+    }
+    let claim_node =
+        open_epiphany_cultmesh_node(local_verse_store.as_ref(), runtime_id.to_string())?;
+    let claim_env = claim_node
+        .cache()
+        .get_envelope::<WorkspaceCoverageClaimSightEntry>(&claim_sight_key(
+            runtime_id,
+            basis.generation,
+            &basis.observation_id,
+        ))?
+        .ok_or_else(|| anyhow!("recovery directive claim sight is absent"))?;
+    let claim: WorkspaceCoverageClaimSightEntry = rmp_serde::from_slice(&claim_env.payload)?;
+    authenticate_workspace_coverage_claim_sight_entry(&claim)?;
+    let (termination, termination_digest) =
+        authenticate_workspace_coverage_termination_with_envelope_digest(
+            local_verse_store.as_ref(),
+            runtime_id.to_string(),
+            &entry.old_launch_id,
+            trusted_host,
+        )?;
+    let (_, replacement_digest) =
+        authenticate_workspace_coverage_managed_process_launch_with_envelope_digest(
+            local_verse_store.as_ref(),
+            runtime_id,
+            &entry.replacement_launch_id,
+            trusted_host,
+        )?;
+    let (_, ready_digest) =
+        authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
+            local_verse_store.as_ref(),
+            runtime_id,
+            &entry.replacement_ready_heartbeat_id,
+            trusted_host,
+        )?;
+    if entry.claim_sight_envelope_digest != envelope_digest(&claim_env)
+        || entry.old_claim_id != claim.claim_id
+        || entry.old_claim_epoch != claim.claim_epoch
+        || entry.old_plan_id != claim.plan_id
+        || entry.old_launch_id != claim.launch_id
+        || entry.termination_id != termination.termination_id
+        || entry.termination_envelope_digest != termination_digest
+        || entry.replacement_launch_envelope_digest != replacement_digest
+        || entry.replacement_ready_heartbeat_envelope_digest != ready_digest
+        || entry.workspace_id != claim.workspace_id
+        || entry.body_binding_sha256 != claim.body_binding_sha256
+        || entry.body_observation_id != claim.body_observation_id
+        || entry.body_generation != claim.body_generation
+        || entry.manifest_root_sha256 != claim.manifest_root_sha256
+        || entry.coverage_store_binding_id != claim.coverage_store_binding_id
+        || entry.coverage_store_binding_envelope_digest
+            != claim.coverage_store_binding_envelope_digest
+        || entry.coverage_store_file_identity != claim.coverage_store_file_identity
+        || entry.runtime_coverage_route_envelope_digest
+            != claim.runtime_coverage_route_envelope_digest
+    {
+        bail!("workspace coverage recovery directive evidence moved or was substituted");
+    }
+    Ok(Some(entry))
+}
+
 fn advancement_sight_key(launch_id: &str, claim_id: &str) -> String {
     format!("epiphany-local/workspace-coverage/advancement-sight/{launch_id}/{claim_id}")
 }
@@ -2466,36 +3112,41 @@ fn launch_key(id: &str) -> String {
 fn heartbeat_latest_key(launch_id: &str) -> String {
     format!("{WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY}{launch_id}")
 }
+fn heartbeat_evidence_key(launch_id: &str, heartbeat_id: &str) -> String {
+    format!("epiphany-local/workspace-coverage/provider-heartbeat/{launch_id}/{heartbeat_id}")
+}
 
 fn latest_heartbeat_envelope_by_id(
     store_path: impl AsRef<Path>,
     runtime_id: &str,
     heartbeat_id: &str,
 ) -> Result<Option<CultCacheEnvelope>> {
-    // Open the typed node first so schema-catalog corruption is still refused;
-    // then select only launch-latest heartbeat projections. Historical unique
-    // heartbeat events are intentionally not authority.
-    let _ = open_epiphany_cultmesh_node(store_path.as_ref(), runtime_id.to_string())?;
-    let mut matches = Vec::new();
-    for envelope in SingleFileMessagePackBackingStore::new(store_path.as_ref()).pull_all()? {
-        if envelope.r#type != WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE
-            || !envelope
+    let _node = open_epiphany_cultmesh_node(store_path.as_ref(), runtime_id.to_string())?;
+    let opening = SingleFileMessagePackBackingStore::new(store_path.as_ref()).pull_all()?;
+    let matches = opening
+        .iter()
+        .filter(|envelope| {
+            envelope.r#type == WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE
+                && rmp_serde::from_slice::<WorkspaceCoverageProviderHeartbeatEntry>(
+                    &envelope.payload,
+                )
+                .is_ok_and(|heartbeat| {
+                    heartbeat.runtime_id == runtime_id && heartbeat.heartbeat_id == heartbeat_id
+                })
+        })
+        .collect::<Vec<_>>();
+    let immutable = matches
+        .into_iter()
+        .filter(|envelope| {
+            !envelope
                 .key
                 .starts_with(WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY)
-        {
-            continue;
-        }
-        let heartbeat: WorkspaceCoverageProviderHeartbeatEntry =
-            rmp_serde::from_slice(&envelope.payload)?;
-        validate_heartbeat_shape(&heartbeat)?;
-        if heartbeat.runtime_id == runtime_id && heartbeat.heartbeat_id == heartbeat_id {
-            matches.push(envelope);
-        }
+        })
+        .collect::<Vec<_>>();
+    if immutable.len() != 1 {
+        bail!("workspace coverage heartbeat immutable evidence is absent or duplicated");
     }
-    if matches.len() > 1 {
-        bail!("workspace coverage heartbeat identity is duplicated across latest projections");
-    }
-    Ok(matches.pop())
+    Ok(Some(immutable[0].clone()))
 }
 fn termination_key(launch_id: &str) -> String {
     format!("epiphany-local/workspace-coverage/process-termination/{launch_id}")
@@ -2708,6 +3359,7 @@ mod tests {
         std::path::PathBuf,
         HostIdentitySigner,
         WorkspaceCoverageManagedProcessLaunchEntry,
+        SigningKey,
     )> {
         let store = root.join("verse.ccmp");
         let host = enroll_host_identity_at(&root.join("host.ccmp"))?;
@@ -2734,7 +3386,7 @@ mod tests {
             .context("test launch envelope absent")?;
         let pulse = heartbeat(&launch, envelope_digest(&launch_envelope), &provider, 1)?;
         write_workspace_coverage_provider_heartbeat(&store, "local", pulse)?;
-        Ok((store, host, launch))
+        Ok((store, host, launch, provider))
     }
 
     fn advancement_sight(
@@ -3061,9 +3713,9 @@ mod tests {
             load_workspace_coverage_provider_heartbeat(&store, "local", &second.heartbeat_id)?,
             Some(second)
         );
-        assert!(
-            load_workspace_coverage_provider_heartbeat(&store, "local", &first.heartbeat_id)?
-                .is_none()
+        assert_eq!(
+            load_workspace_coverage_provider_heartbeat(&store, "local", &first.heartbeat_id)?,
+            Some(first.clone())
         );
         assert_eq!(
             SingleFileMessagePackBackingStore::new(&store)
@@ -3071,8 +3723,8 @@ mod tests {
                 .into_iter()
                 .filter(|entry| entry.r#type == WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE)
                 .count(),
-            1,
-            "heartbeat authority is one latest projection, not an append-only event log"
+            3,
+            "latest is a derived head over immutable heartbeat evidence"
         );
 
         let mut forged = first.clone();
@@ -3144,7 +3796,7 @@ mod tests {
         ];
         for (expected_outcome, process) in cases {
             let temp = tempfile::tempdir()?;
-            let (store, host, launch) = persisted_chain(temp.path())?;
+            let (store, host, launch, _provider) = persisted_chain(temp.path())?;
             let source = FakeObservation {
                 boot: Some(launch.boot_identity.clone()),
                 process,
@@ -3199,7 +3851,7 @@ mod tests {
         }
 
         let temp = tempfile::tempdir()?;
-        let (store, host, launch) = persisted_chain(temp.path())?;
+        let (store, host, launch, _provider) = persisted_chain(temp.path())?;
         let source = FakeObservation {
             boot: Some("proved-new-boot".to_string()),
             process: ProcessInstanceObservation::ExactAlive,
@@ -3240,7 +3892,7 @@ mod tests {
         ];
         for source in cases {
             let temp = tempfile::tempdir()?;
-            let (store, host, launch) = persisted_chain(temp.path())?;
+            let (store, host, launch, _provider) = persisted_chain(temp.path())?;
             assert!(
                 write_workspace_coverage_process_termination_observation_with_source(
                     &store,
@@ -3320,7 +3972,7 @@ mod tests {
     #[test]
     fn body_recovery_is_one_exact_evidence_fenced_transaction() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let (verse, host, old_launch) = persisted_chain(temp.path())?;
+        let (verse, host, old_launch, old_provider) = persisted_chain(temp.path())?;
 
         let repo = temp.path().join("repo");
         std::fs::create_dir_all(&repo)?;
@@ -3375,6 +4027,26 @@ mod tests {
                 ) => value,
                 _ => bail!("fixture did not acquire old claim"),
             };
+        publish_workspace_coverage_claim_sight(
+            &verse,
+            &runtime,
+            &coverage,
+            &acquired,
+            "local",
+            &old_launch.launch_id,
+            host.entry(),
+            &old_provider,
+            chrono::Utc::now(),
+        )?;
+        assert!(
+            authenticate_current_workspace_coverage_claim_sight(
+                &verse,
+                &runtime,
+                "local",
+                host.entry(),
+            )?
+            .is_some()
+        );
 
         let source = FakeObservation {
             boot: Some(old_launch.boot_identity.clone()),
@@ -3437,7 +4109,8 @@ mod tests {
         )?;
         write_workspace_coverage_provider_heartbeat(&verse, "local", out_of_order_ready.clone())?;
         assert!(
-            crate::workspace_coverage_projector::recover_workspace_coverage_projection(
+            crate::workspace_coverage_projector::recover_workspace_coverage_projection_with_authority(
+                &crate::open_workspace_coverage_authority(&runtime)?,
                 &runtime,
                 &verse,
                 "local",
@@ -3516,7 +4189,8 @@ mod tests {
         sign_workspace_coverage_heartbeat(&mut degraded, &replacement_provider)?;
         write_workspace_coverage_provider_heartbeat(&verse, "local", degraded.clone())?;
         assert!(
-            crate::workspace_coverage_projector::recover_workspace_coverage_projection(
+            crate::workspace_coverage_projector::recover_workspace_coverage_projection_with_authority(
+                &crate::open_workspace_coverage_authority(&runtime)?,
                 &runtime,
                 &verse,
                 "local",
@@ -3538,8 +4212,62 @@ mod tests {
             3,
         )?;
         write_workspace_coverage_provider_heartbeat(&verse, "local", ready.clone())?;
+        let later_ready = heartbeat(
+            &replacement,
+            envelope_digest(&replacement_envelope),
+            &replacement_provider,
+            4,
+        )?;
+        write_workspace_coverage_provider_heartbeat(&verse, "local", later_ready)?;
+        let directive = write_workspace_coverage_recovery_directive(
+            &verse,
+            &runtime,
+            "local",
+            &authenticate_current_workspace_coverage_claim_sight(
+                &verse,
+                &runtime,
+                "local",
+                host.entry(),
+            )?
+            .context("current claim sight missing before recovery directive")?,
+            &replacement.launch_id,
+            &ready.heartbeat_id,
+            &host,
+        )?;
+        assert!(
+            authenticate_workspace_coverage_recovery_directive(
+                &verse,
+                &runtime,
+                "local",
+                &replacement.launch_id,
+                host.entry(),
+            )?
+            .is_some()
+        );
+        let mut conflicting_lineage = authenticate_current_workspace_coverage_claim_sight(
+            &verse,
+            &runtime,
+            "local",
+            host.entry(),
+        )?
+        .context("claim sight missing for conflict check")?;
+        conflicting_lineage.claim_id = uuid::Uuid::new_v4().to_string();
+        assert!(
+            write_workspace_coverage_recovery_directive(
+                &verse,
+                &runtime,
+                "local",
+                &conflicting_lineage,
+                &replacement.launch_id,
+                &ready.heartbeat_id,
+                &host,
+            )
+            .is_err(),
+            "a replacement directive must refuse conflicting claim lineage"
+        );
 
-        let recovered = crate::workspace_coverage_projector::recover_workspace_coverage_projection(
+        let recovered = crate::workspace_coverage_projector::recover_workspace_coverage_projection_with_authority(
+            &crate::open_workspace_coverage_authority(&runtime)?,
             &runtime,
             &verse,
             "local",
@@ -3555,19 +4283,63 @@ mod tests {
             recovered.executor_incarnation,
             replacement.provider_incarnation_id
         );
-        let coverage = crate::open_workspace_coverage_authority(&runtime)?;
-        match crate::workspace_coverage_projector::acquire_workspace_coverage_projection(
-            &prepared,
-            &coverage.store,
-            EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID,
-            &replacement.provider_incarnation_id,
+        let reissued = write_workspace_coverage_recovery_directive(
+            &verse,
+            &runtime,
+            "local",
+            &authenticate_current_workspace_coverage_claim_sight(
+                &verse,
+                &runtime,
+                "local",
+                host.entry(),
+            )?
+            .context("old claim sight must survive the CAS-to-sight crash boundary")?,
             &replacement.launch_id,
-        )? {
-            crate::workspace_coverage_projector::WorkspaceCoverageAcquireResult::Acquired(
-                resumed,
-            ) => assert_eq!(resumed.claim.claim_id, recovered.claim_id),
-            _ => bail!("exact replacement incarnation did not resume its recovered claim"),
-        }
+            &ready.heartbeat_id,
+            &host,
+        )?;
+        assert_eq!(
+            reissued, directive,
+            "directive reissue must be byte-identical"
+        );
+        let coverage = crate::open_workspace_coverage_authority(&runtime)?;
+        let resumed =
+            match crate::workspace_coverage_projector::acquire_workspace_coverage_projection(
+                &prepared,
+                &coverage.store,
+                EPIPHANY_WORKSPACE_COVERAGE_PROJECTOR_DAEMON_ID,
+                &replacement.provider_incarnation_id,
+                &replacement.launch_id,
+            )? {
+                crate::workspace_coverage_projector::WorkspaceCoverageAcquireResult::Acquired(
+                    resumed,
+                ) => resumed,
+                _ => bail!("exact replacement incarnation did not resume its recovered claim"),
+            };
+        assert_eq!(resumed.claim.claim_id, recovered.claim_id);
+        publish_workspace_coverage_claim_sight(
+            &verse,
+            &runtime,
+            &coverage,
+            &resumed,
+            "local",
+            &replacement.launch_id,
+            host.entry(),
+            &replacement_provider,
+            chrono::Utc::now(),
+        )?;
+        assert_eq!(
+            authenticate_current_workspace_coverage_claim_sight(
+                &verse,
+                &runtime,
+                "local",
+                host.entry(),
+            )?
+            .context("successor sight missing after recovery resume")?
+            .claim_id,
+            recovered.claim_id,
+        );
+        drop(resumed);
         assert!(matches!(
             crate::workspace_coverage_projector::acquire_workspace_coverage_projection(
                 &prepared,
@@ -3611,8 +4383,9 @@ mod tests {
             old_history.recovery_receipt_digest.as_deref(),
             Some(recovery_digest)
         );
-        assert!(
-            crate::workspace_coverage_projector::recover_workspace_coverage_projection(
+        let replayed =
+            crate::workspace_coverage_projector::recover_workspace_coverage_projection_with_authority(
+                &crate::open_workspace_coverage_authority(&runtime)?,
                 &runtime,
                 &verse,
                 "local",
@@ -3621,9 +4394,38 @@ mod tests {
                 &replacement.launch_id,
                 &ready.heartbeat_id,
                 &old_claim_id,
-            )
-            .is_err(),
-            "moved claim/attempt must refuse replay"
+            )?;
+        assert_eq!(
+            replayed, recovered,
+            "exact crash-boundary replay must be idempotent"
+        );
+        std::fs::write(repo.join("after-recovery.rs"), "fn newer_body() {}\n")?;
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()?;
+        let newer_basis = crate::observe_runtime_repository_body_basis(&runtime)?;
+        assert!(newer_basis.generation > basis.generation);
+        assert!(
+            authenticate_current_workspace_coverage_claim_sight(
+                &verse,
+                &runtime,
+                "local",
+                host.entry(),
+            )?
+            .is_none(),
+            "a prior-Body claim sight must not become the current recovery target"
+        );
+        assert!(
+            authenticate_workspace_coverage_recovery_directive(
+                &verse,
+                &runtime,
+                "local",
+                &directive.replacement_launch_id,
+                host.entry(),
+            )?
+            .is_none(),
+            "a prior-Body directive must become inert after Body advances"
         );
         Ok(())
     }

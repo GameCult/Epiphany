@@ -108,14 +108,6 @@ pub(crate) struct WorkspaceCoverageObservedBinding {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WorkspaceCoverageRecoveryTarget {
-    pub claim_id: String,
-    pub claim_epoch: u64,
-    pub plan_id: String,
-    pub managed_process_launch_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkspaceCoverageRecoveryOutcome {
     pub claim_id: String,
     pub claim_epoch: u64,
@@ -2107,34 +2099,8 @@ pub(crate) fn acquire_workspace_coverage_projection(
 /// Atomically transfers a projection lease only after CultMesh proves the old
 /// process dead and the replacement process ready. This does not launch either
 /// process; the supervisor must establish the evidence ordering first.
-pub fn current_workspace_coverage_recovery_target(
-    runtime_store: impl AsRef<Path>,
-) -> Result<Option<WorkspaceCoverageRecoveryTarget>> {
-    let runtime_store = runtime_store.as_ref();
-    let body_basis = observe_runtime_repository_body_basis(runtime_store)?;
-    let coverage = crate::open_workspace_coverage_authority(runtime_store)?;
-    let opening = coverage.store.pull_all()?;
-    let claim_key = workspace_coverage_claim_key(&body_basis.observation_id, body_basis.generation);
-    let Some(claim_env) = find(&opening, CLAIM_TYPE, &claim_key) else {
-        return Ok(None);
-    };
-    let claim: WorkspaceCoverageProjectionClaim = decode(claim_env)?;
-    let attempt_env = find(&opening, ATTEMPT_TYPE, &claim.attempt_id)
-        .ok_or_else(|| anyhow!("workspace coverage current attempt is absent"))?;
-    let attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
-    validate_claim_attempt_link(&claim, &attempt)?;
-    if claim.status != "running" {
-        return Ok(None);
-    }
-    Ok(Some(WorkspaceCoverageRecoveryTarget {
-        claim_id: claim.claim_id,
-        claim_epoch: claim.claim_epoch,
-        plan_id: claim.plan_id,
-        managed_process_launch_id: claim.managed_process_launch_id,
-    }))
-}
-
-pub fn recover_workspace_coverage_projection(
+pub(crate) fn recover_workspace_coverage_projection_with_authority(
+    coverage: &crate::WorkspaceCoverageAuthority,
     runtime_store: impl AsRef<Path>,
     cultmesh_store: impl AsRef<Path>,
     runtime_id: &str,
@@ -2185,6 +2151,14 @@ pub fn recover_workspace_coverage_projection(
         &replacement_launch.launch_id,
     )?
     .ok_or_else(|| anyhow!("workspace coverage recovery replacement has no current heartbeat"))?;
+    let (latest, _) = authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
+        cultmesh_store,
+        runtime_id,
+        &latest.heartbeat_id,
+        host,
+    )?;
+    let ready_at = chrono::DateTime::parse_from_rfc3339(&ready.observed_at_utc)?;
+    let latest_at = chrono::DateTime::parse_from_rfc3339(&latest.observed_at_utc)?;
     if old_launch.launch_id == replacement_launch.launch_id
         || replacement_launch.replaces_launch_id.as_deref() != Some(old_launch.launch_id.as_str())
         || replacement_launch.replaces_termination_id.as_deref()
@@ -2194,9 +2168,14 @@ pub fn recover_workspace_coverage_projection(
             .as_deref()
             != Some(termination_digest.as_str())
         || ready.launch_id != replacement_launch.launch_id
-        || latest.heartbeat_id != ready.heartbeat_id
         || ready.status != "ready"
         || ready.sequence == 0
+        || latest.launch_id != ready.launch_id
+        || latest.provider_incarnation_id != ready.provider_incarnation_id
+        || latest.provider_public_key != ready.provider_public_key
+        || latest.status != "ready"
+        || latest.sequence < ready.sequence
+        || latest_at < ready_at
     {
         bail!("workspace coverage recovery replacement is not exact and ready");
     }
@@ -2212,7 +2191,6 @@ pub fn recover_workspace_coverage_projection(
     RepositoryBodyReadSession::open(runtime_store, &body_basis)?;
     let body_opening = SingleFileMessagePackBackingStore::new(&body_store).pull_all()?;
     let body_authority = exact_body_authority(&body_opening, &body_basis)?;
-    let coverage = crate::open_workspace_coverage_authority(runtime_store)?;
     let opening = coverage.store.pull_all()?;
     let claim_key = workspace_coverage_claim_key(&body_basis.observation_id, body_basis.generation);
     let claim_env = find(&opening, CLAIM_TYPE, &claim_key)
@@ -2222,6 +2200,47 @@ pub fn recover_workspace_coverage_projection(
         .ok_or_else(|| anyhow!("workspace coverage recovery running attempt is absent"))?;
     let old_attempt: WorkspaceCoverageProjectionAttempt = decode(attempt_env)?;
     validate_claim_attempt_link(&old_claim, &old_attempt)?;
+    // The coverage CAS may have committed before the successor projector could
+    // publish its claim sight. Replaying the exact host directive must observe
+    // that committed transfer, not attempt a second transfer or strand recovery.
+    if old_claim.claim_id != expected_old_claim_id
+        && let (Some(recovery_id), Some(expected_digest)) = (
+            old_claim.recovery_receipt_id.as_deref(),
+            old_claim.recovery_receipt_digest.as_deref(),
+        )
+    {
+        let receipt_env = find(&opening, RECOVERY_TYPE, recovery_id)
+            .ok_or_else(|| anyhow!("recovered successor receipt is absent"))?;
+        let receipt: WorkspaceCoverageRecoveryReceipt = decode(receipt_env)?;
+        validate_recovery_receipt(&receipt)?;
+        let receipt_digest = cultcache_envelope_digest(receipt_env);
+        if receipt_digest != expected_digest
+            || receipt.old_claim_id != expected_old_claim_id
+            || receipt.termination_id != termination.termination_id
+            || receipt.termination_envelope_digest != termination_digest.as_str()
+            || receipt.replacement_launch_id != replacement_launch.launch_id
+            || receipt.replacement_launch_envelope_digest != replacement_launch_digest.as_str()
+            || receipt.ready_heartbeat_id != ready.heartbeat_id
+            || receipt.ready_heartbeat_envelope_digest != ready_digest.as_str()
+            || receipt.new_claim_id != old_claim.claim_id
+            || receipt.new_attempt_id != old_attempt.attempt_id
+            || receipt.new_claim_epoch != old_claim.claim_epoch
+            || old_claim.managed_process_launch_id != replacement_launch.launch_id
+            || old_claim.executor_incarnation != replacement_launch.provider_incarnation_id
+            || old_claim.status != "running"
+            || old_attempt.status != "running"
+        {
+            bail!("workspace coverage recovered successor disagrees with exact directive evidence");
+        }
+        return Ok(WorkspaceCoverageRecoveryOutcome {
+            claim_id: old_claim.claim_id,
+            claim_epoch: old_claim.claim_epoch,
+            managed_process_launch_id: old_claim.managed_process_launch_id,
+            executor_incarnation: old_claim.executor_incarnation,
+            recovery_receipt_id: recovery_id.to_string(),
+            recovery_receipt_digest: receipt_digest,
+        });
+    }
     if old_claim.schema_version != CLAIM_SCHEMA
         || old_attempt.schema_version != ATTEMPT_SCHEMA
         || old_claim.status != "running"
@@ -5157,7 +5176,6 @@ mod tests {
             .is_none()
         );
         drop(authority);
-        assert!(current_workspace_coverage_recovery_target(&runtime)?.is_none());
         Ok(())
     }
 

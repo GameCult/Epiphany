@@ -1,6 +1,10 @@
 use crate::repository_body_observer::RepositoryBodyReadSession;
 use crate::semantic_backend::{OllamaConfig, OllamaEmbedder, QdrantBackend, QdrantConfig};
-use crate::workspace_coverage_process_documents::publish_workspace_coverage_terminal_sight;
+use crate::workspace_coverage_process_documents::{
+    authenticate_current_workspace_coverage_claim_sight,
+    authenticate_workspace_coverage_recovery_directive, publish_workspace_coverage_claim_sight,
+    publish_workspace_coverage_terminal_sight,
+};
 use crate::workspace_coverage_projector::{
     WorkspaceCoverageAcquireResult, WorkspaceCoverageCurrentState,
     WorkspaceCoverageProjectionExecutionAuthority, acquire_workspace_coverage_projection,
@@ -214,6 +218,53 @@ impl WorkspaceCoverageProjectorServiceBody {
     }
 
     fn pulse_inner(&mut self) -> Result<WorkspaceCoverageProjectorServicePulse> {
+        let authority = self.execution_authority.as_ref().ok_or_else(|| {
+            anyhow!("workspace coverage projector has no installed execution authority")
+        })?;
+        let has_successor_sight = authenticate_current_workspace_coverage_claim_sight(
+            &authority.local_verse_store,
+            &self.runtime_store,
+            &authority.runtime_id,
+            &authority.trusted_host,
+        )?
+        .is_some_and(|sight| {
+            sight.launch_id == self.managed_process_launch_id && sight.recovery_receipt_id.is_some()
+        });
+        if !has_successor_sight
+            && let Some(directive) = authenticate_workspace_coverage_recovery_directive(
+                &authority.local_verse_store,
+                &self.runtime_store,
+                &authority.runtime_id,
+                &self.managed_process_launch_id,
+                &authority.trusted_host,
+            )?
+        {
+            let basis = load_current_runtime_repository_body_basis(&self.runtime_store)?;
+            if directive.workspace_id != basis.workspace_id
+                || directive.body_binding_sha256 != basis.body_binding_sha256
+                || directive.body_observation_id != basis.observation_id
+                || directive.body_generation != basis.generation
+                || directive.manifest_root_sha256 != basis.manifest_root_sha256
+                || directive.coverage_store_binding_id
+                    != self.coverage_authority.store_binding.binding_id
+                || directive.coverage_store_binding_envelope_digest
+                    != self.coverage_authority.store_binding_envelope_sha256
+                || directive.coverage_store_file_identity
+                    != self.coverage_authority.store_binding.store_file_identity
+                || directive.runtime_coverage_route_envelope_digest
+                    != self
+                        .coverage_authority
+                        .runtime_coverage_route_envelope_sha256
+            {
+                bail!("workspace coverage recovery directive disagrees with held authority");
+            }
+            crate::workspace_coverage_projector::recover_workspace_coverage_projection_with_authority(
+                &self.coverage_authority, &self.runtime_store, &authority.local_verse_store,
+                &authority.runtime_id, &authority.trusted_host, &directive.old_launch_id,
+                &directive.replacement_launch_id, &directive.replacement_ready_heartbeat_id,
+                &directive.old_claim_id,
+            )?;
+        }
         // Retirement is derived from typed Body history and is deliberately
         // performed before the idle fast path. Qdrant never nominates its own
         // garbage and incompatible same-name collections stop the pulse.
@@ -308,6 +359,20 @@ impl WorkspaceCoverageProjectorServiceBody {
                 let authority = self.execution_authority.as_ref().ok_or_else(|| {
                     anyhow!("workspace coverage projector has no installed execution authority")
                 })?;
+                // Publish the exact provider-signed lease before the first backend
+                // operation. Recovery sight must exist even when the projector dies
+                // before it can mint a progress checkpoint.
+                publish_workspace_coverage_claim_sight(
+                    &authority.local_verse_store,
+                    &self.runtime_store,
+                    &self.coverage_authority,
+                    &acquisition,
+                    &authority.runtime_id,
+                    &self.managed_process_launch_id,
+                    &authority.trusted_host,
+                    &authority.provider_signing_key,
+                    chrono::Utc::now(),
+                )?;
                 let receipt = execute_workspace_coverage_projection(
                     &acquisition,
                     &prepared,
@@ -440,5 +505,19 @@ mod tests {
             launch_id,
         )?;
         Ok(())
+    }
+
+    #[test]
+    fn acquired_claim_is_visible_before_any_projection_backend_work() {
+        let source = include_str!("workspace_coverage_projector_service.rs");
+        let acquired = source
+            .find("WorkspaceCoverageAcquireResult::Acquired(acquisition)")
+            .unwrap();
+        let body = &source[acquired..source.find("#[cfg(test)]").unwrap()];
+        let sight = body
+            .find("publish_workspace_coverage_claim_sight(")
+            .unwrap();
+        let execution = body.find("execute_workspace_coverage_projection(").unwrap();
+        assert!(sight < execution, "claim sight must precede backend work");
     }
 }

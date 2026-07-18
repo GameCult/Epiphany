@@ -1197,15 +1197,20 @@ pub use workspace_coverage_process_bootstrap::{
 };
 pub use workspace_coverage_process_documents::{
     WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_SCHEMA_VERSION, WORKSPACE_COVERAGE_ADVANCEMENT_SIGHT_TYPE,
+    WORKSPACE_COVERAGE_CLAIM_SIGHT_SCHEMA_VERSION, WORKSPACE_COVERAGE_CLAIM_SIGHT_TYPE,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_LATEST_KEY, WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_TYPE, WORKSPACE_COVERAGE_PROCESS_TERMINATION_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_PROCESS_TERMINATION_TYPE, WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_LATEST_KEY,
     WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_SCHEMA_VERSION,
-    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE, WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_PROVIDER_HEARTBEAT_TYPE,
+    WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_SCHEMA_VERSION,
+    WORKSPACE_COVERAGE_RECOVERY_DIRECTIVE_TYPE, WORKSPACE_COVERAGE_TERMINAL_SIGHT_SCHEMA_VERSION,
     WORKSPACE_COVERAGE_TERMINAL_SIGHT_TYPE, WorkspaceCoverageAdvancementSightEntry,
-    WorkspaceCoverageManagedProcessLaunchEntry,
+    WorkspaceCoverageClaimSightEntry, WorkspaceCoverageManagedProcessLaunchEntry,
     WorkspaceCoverageProcessTerminationObservationEntry, WorkspaceCoverageProviderHeartbeatEntry,
-    WorkspaceCoverageTerminalSightEntry, authenticate_current_workspace_coverage_advancement_sight,
+    WorkspaceCoverageRecoveryDirectiveEntry, WorkspaceCoverageTerminalSightEntry,
+    authenticate_current_workspace_coverage_advancement_sight,
+    authenticate_current_workspace_coverage_claim_sight,
     authenticate_current_workspace_coverage_terminal_sight,
     authenticate_workspace_coverage_managed_process_launch,
     authenticate_workspace_coverage_process_termination_observation,
@@ -1222,7 +1227,7 @@ pub use workspace_coverage_process_documents::{
     workspace_coverage_host_identity_record_digest, workspace_coverage_launch_statement,
     workspace_coverage_termination_statement, write_workspace_coverage_managed_process_launch,
     write_workspace_coverage_process_termination_observation,
-    write_workspace_coverage_provider_heartbeat,
+    write_workspace_coverage_provider_heartbeat, write_workspace_coverage_recovery_directive,
 };
 pub use workspace_coverage_projection_progress::{
     WORKSPACE_COVERAGE_PROJECTION_PROGRESS_SCHEMA_VERSION,
@@ -1234,10 +1239,8 @@ pub use workspace_coverage_projection_progress::{
 };
 pub use workspace_coverage_projector::{
     WORKSPACE_COVERAGE_MAXIMUM_FILE_BYTES, WorkspaceCoverageRecoveryOutcome,
-    WorkspaceCoverageRecoveryTarget, WorkspaceCoverageTerminalAuthority,
-    authenticate_current_workspace_coverage_terminal_authority,
-    authenticate_workspace_coverage_recovery_receipt, current_workspace_coverage_recovery_target,
-    recover_workspace_coverage_projection,
+    WorkspaceCoverageTerminalAuthority, authenticate_current_workspace_coverage_terminal_authority,
+    authenticate_workspace_coverage_recovery_receipt,
 };
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorConfig;
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorPulseStatus;

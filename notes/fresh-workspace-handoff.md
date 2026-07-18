@@ -2413,3 +2413,80 @@ supervisor binaries pass. The old all-at-once executor survives only under
 deployed body. The next authority cut is Idunn and aggregate health: consume the
 exact provider progress document with a no-advance lease, never a generic job
 progress noun or total projection wall clock.
+
+## Organizational Epiphany is the product, not a remote-control experiment (2026-07-18)
+
+The Yggdrasil deployment is the first ordinary organizational Epiphany body.
+It must remain awake without continual instruction: Modeling persistently maps
+the bounded domain into typed Mind state, Self extrapolates pressure and
+direction from that map, and Imagination authors inspectable improvement and
+feature proposals. This initiative is advisory until the appropriate adoption
+and consequence authorities act; operator inactivity permits observation,
+modeling, and proposals, not merge, publication, deployment, or scope growth.
+
+The repository Persona is the organization's shared social crossing. Members
+may talk to it, correct it, and provide feedback through ordinary Discord
+conversation. Persona owns discussion and legibility. Conversation produces
+typed feedback pressure for Modeling, Imagination, and Mind review; it does not
+directly mutate canonical Mind, invoke Hands, authorize a release, or command
+Idunn. Authenticated operational capabilities such as brake, objective intake,
+adoption approval, release authorization, and deployment remain distinct typed
+Bifrost routes with explicit receipts. VoidBot observes the room and Bifrost
+routes the typed crossing; do not invent a second Discord bot or grant ordinary
+chat ambient actuator authority.
+
+The July 22 continuity criterion is stronger than remote command. Yggdrasil
+must host the resident scheduler/coordinator, model runtime, tool spine, Persona
+crossing, writable domain worktree, persistent Mind/Modeling state, and local
+credentials. Starfire may be absent through August 5. The offline rehearsal
+must prove conversation/feedback -> persistent domain map -> Imagination
+proposal -> explicit adoption/review -> Hands consequence -> Bifrost exact
+release authority -> Idunn deployment receipt, plus the negative that
+conversation alone cannot cross any later boundary.
+
+The immediate live wound precedes that work. The workspace projector is the
+lifetime owner of `workspace-coverage.cc`, but the supervisor currently opens
+that private store to discover and perform recovery. Replace that transitive
+authority leak with a provider-signed claim sight published immediately after
+acquisition and a host-signed recovery directive consumed by the replacement
+projector. Heartbeat remains liveness only. The supervisor must never open or
+mutate the coverage store; it declares recovery only after authenticating the
+replacement claim sight. Keep Epiphany and Idunn stopped on Yggdrasil until the
+corrected exact release is authorized through Bifrost and deployed through
+Idunn. No host reboot is authorized.
+
+## Workspace-coverage recovery ownership cut complete locally (2026-07-18)
+
+The supervisor no longer opens or mutates `workspace-coverage.cc`, directly or
+through an imported recovery helper. The lifetime projector owner publishes a
+provider-signed claim sight before its first backend operation. Claim sight is
+keyed to the exact current Body observation and generation and binds the exact
+launch, provider key, coverage-store binding/file/route, Body basis, claim,
+attempt envelope, plan, and recovery lineage. A signed sight from an older Body
+is not current recovery authority.
+
+After exact termination and replacement readiness, the supervisor publishes
+one immutable host-signed recovery directive. It binds the authenticated old
+claim sight, termination, replacement launch, readiness heartbeat, Body, and
+coverage route by exact envelope digests. Reconciliation reauthenticates and
+returns the same signed directive byte-for-byte; a later heartbeat cannot
+rewrite it, and conflicting lineage is refused. Provider heartbeats now retain
+immutable per-heartbeat evidence beside the latest pointer because durable
+termination and recovery documents may cite an earlier heartbeat. Causally safe
+bounded retirement remains future work; naive deletion is forbidden.
+
+The replacement projector authenticates the directive and performs the
+recovery CAS through its already-held `WorkspaceCoverageAuthority`. Recovery is
+idempotent across the CAS-to-successor-sight crash window: an exact committed
+successor and receipt are returned on replay, then ordinary acquisition
+republishes successor claim sight. A directive naming readiness heartbeat H
+remains valid when the same launch/provider has advanced normally to ready
+H+1. Heartbeat remains liveness evidence and does not own the lease.
+
+Focused proof passes: eight process-document tests, the exclusive lifetime
+owner test, supervisor authority-order/prohibition test, pre-checkpoint sight,
+stale-Body refusal, H/H+1 consumption, immutable directive reissue, conflicting
+lineage refusal, exact CAS replay, successor sight publication, `cargo check
+--bins`, and `git diff --check`. Soul found no remaining P0/P1/P2. This code is
+ready to commit and push, then cross Bifrost/Idunn as an exact release while the
+host remains braked.

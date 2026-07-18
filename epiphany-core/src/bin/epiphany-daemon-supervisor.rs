@@ -57,17 +57,18 @@ use epiphany_core::{EpiphanyPackagedReleaseEntry, authenticate_epiphany_packaged
 use epiphany_core::{
     ProcessInstanceIdentity, ProcessInstanceObservation,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION, WorkspaceCoverageManagedProcessLaunchEntry,
-    WorkspaceCoverageProcessBootstrap, authenticate_workspace_coverage_managed_process_launch,
+    WorkspaceCoverageProcessBootstrap, authenticate_current_workspace_coverage_claim_sight,
+    authenticate_workspace_coverage_managed_process_launch,
     authenticate_workspace_coverage_provider_heartbeat,
     authenticate_workspace_coverage_termination_with_envelope_digest, capture_process_instance,
-    current_workspace_coverage_recovery_target,
     load_latest_workspace_coverage_managed_process_launch,
     load_latest_workspace_coverage_provider_heartbeat,
     load_workspace_coverage_process_termination_observation, native_boot_identity,
-    observe_process_instance, open_default_host_identity, recover_workspace_coverage_projection,
-    sign_workspace_coverage_launch, workspace_coverage_host_identity_record_digest,
+    observe_process_instance, open_default_host_identity, sign_workspace_coverage_launch,
+    workspace_coverage_host_identity_record_digest,
     write_workspace_coverage_managed_process_launch, write_workspace_coverage_process_bootstrap,
     write_workspace_coverage_process_termination_observation,
+    write_workspace_coverage_recovery_directive,
 };
 use epiphany_core::{
     authenticate_current_workspace_coverage_advancement_sight,
@@ -2226,11 +2227,18 @@ fn reconcile_workspace_coverage_projector(
         );
         return Ok(());
     }
-    let runtime_store = args
-        .runtime_store
-        .clone()
-        .context("workspace coverage reconciliation requires --runtime-store")?;
-    let Some(target) = current_workspace_coverage_recovery_target(&runtime_store)? else {
+    let runtime_store = args.runtime_store.clone().context(
+        "workspace coverage reconciliation requires --runtime-store for Body/route sight",
+    )?;
+    let host = open_default_host_identity()
+        .context("workspace coverage reconciliation requires an enrolled host identity")?;
+    let Some(target) = authenticate_current_workspace_coverage_claim_sight(
+        &args.store,
+        &runtime_store,
+        &args.runtime_id,
+        host.entry(),
+    )?
+    else {
         let latest = load_latest_workspace_coverage_managed_process_launch(
             &args.store,
             args.runtime_id.clone(),
@@ -2315,19 +2323,17 @@ fn reconcile_workspace_coverage_projector(
         }
     };
 
-    let host = open_default_host_identity()
-        .context("workspace coverage reconciliation requires an enrolled host identity")?;
     if load_workspace_coverage_process_termination_observation(
         &args.store,
         args.runtime_id.clone(),
-        &target.managed_process_launch_id,
+        &target.launch_id,
     )?
     .is_none()
     {
         if let Err(error) = write_workspace_coverage_process_termination_observation(
             &args.store,
             args.runtime_id.clone(),
-            &target.managed_process_launch_id,
+            &target.launch_id,
             &host,
         ) {
             println!(
@@ -2349,11 +2355,11 @@ fn reconcile_workspace_coverage_projector(
         authenticate_workspace_coverage_termination_with_envelope_digest(
             &args.store,
             args.runtime_id.clone(),
-            &target.managed_process_launch_id,
+            &target.launch_id,
             host.entry(),
         )?;
     let replacement_evidence = CoverageReplacementEvidence {
-        old_launch_id: target.managed_process_launch_id.clone(),
+        old_launch_id: target.launch_id.clone(),
         termination_id: termination.termination_id.clone(),
         termination_envelope_digest: termination_digest,
     };
@@ -2362,7 +2368,7 @@ fn reconcile_workspace_coverage_projector(
         args.runtime_id.clone(),
     )?
     .filter(|launch| {
-        launch.replaces_launch_id.as_deref() == Some(target.managed_process_launch_id.as_str())
+        launch.replaces_launch_id.as_deref() == Some(target.launch_id.as_str())
             && launch.replaces_termination_id.as_deref()
                 == Some(termination.termination_id.as_str())
     });
@@ -2405,28 +2411,24 @@ fn reconcile_workspace_coverage_projector(
     let Some(ready) = ready else {
         anyhow::bail!("workspace coverage replacement did not publish signed readiness in time");
     };
-    let recovered = recover_workspace_coverage_projection(
-        &runtime_store,
+    let directive = write_workspace_coverage_recovery_directive(
         &args.store,
+        &runtime_store,
         &args.runtime_id,
-        host.entry(),
-        &target.managed_process_launch_id,
+        &target,
         &replacement.launch_id,
         &ready.heartbeat_id,
-        &target.claim_id,
+        &host,
     )?;
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
             "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
-            "status": "recovered",
+            "status": "recovery-directed",
             "serviceId": policy.service_id,
             "oldClaimId": target.claim_id,
-            "newClaimId": recovered.claim_id,
-            "claimEpoch": recovered.claim_epoch,
             "replacementLaunchId": replacement.launch_id,
-            "recoveryReceiptId": recovered.recovery_receipt_id,
-            "recoveryReceiptDigest": recovered.recovery_receipt_digest,
+            "directiveId": directive.directive_id,
             "restarted": true,
             "privateStateExposed": false,
         }))?
@@ -3935,10 +3937,14 @@ mod semantic_projector_authority_tests {
         let readiness = body
             .rfind("load_latest_workspace_coverage_provider_heartbeat")
             .unwrap();
-        let recovery = body.rfind("recover_workspace_coverage_projection").unwrap();
+        let recovery = body
+            .rfind("write_workspace_coverage_recovery_directive")
+            .unwrap();
         assert!(termination < launch && launch < readiness && readiness < recovery);
         assert!(body.contains("write_workspace_coverage_process_termination_observation"));
         assert!(body.contains("status == \"ready\""));
+        assert!(!body.contains("open_workspace_coverage_authority"));
+        assert!(!body.contains("recover_workspace_coverage_projection"));
     }
 
     #[test]
