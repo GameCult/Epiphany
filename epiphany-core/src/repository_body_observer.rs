@@ -796,8 +796,10 @@ struct RawTreeScan {
 
 fn scan_tree(repo: &Path, has_head: bool, binding: &RepositoryBodyBinding) -> Result<RawTreeScan> {
     let temp = std::env::temp_dir().join(format!("epiphany-body-index-{}", Uuid::new_v4()));
-    std::fs::create_dir(&temp)?;
+    create_private_scan_directory(&temp)?;
     let index = temp.join("index");
+    let object_directory = temp.join("objects");
+    std::fs::create_dir(&object_directory)?;
     struct Remove(PathBuf);
     impl Drop for Remove {
         fn drop(&mut self) {
@@ -806,7 +808,17 @@ fn scan_tree(repo: &Path, has_head: bool, binding: &RepositoryBodyBinding) -> Re
     }
     let _remove = Remove(temp);
     let index_text = index.to_string_lossy().into_owned();
-    let env = [("GIT_INDEX_FILE", index_text.as_str())];
+    let object_directory_text = object_directory.to_string_lossy().into_owned();
+    let body_object_directory = repository_object_directory(repo)?;
+    let body_object_directory_text = encode_git_path_list_entry(&body_object_directory);
+    let env = [
+        ("GIT_INDEX_FILE", index_text.as_str()),
+        ("GIT_OBJECT_DIRECTORY", object_directory_text.as_str()),
+        (
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            body_object_directory_text.as_str(),
+        ),
+    ];
     if has_head {
         git(repo, &env, &["read-tree", "HEAD"])?;
     } else {
@@ -825,6 +837,44 @@ fn scan_tree(repo: &Path, has_head: bool, binding: &RepositoryBodyBinding) -> Re
         tree_oid,
         manifest_root_sha256,
         entries,
+    })
+}
+
+#[cfg(unix)]
+fn create_private_scan_directory(path: &Path) -> Result<()> {
+    use std::os::unix::fs::DirBuilderExt;
+    let mut builder = std::fs::DirBuilder::new();
+    builder.mode(0o700).create(path)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn create_private_scan_directory(path: &Path) -> Result<()> {
+    std::fs::create_dir(path)?;
+    Ok(())
+}
+
+fn encode_git_path_list_entry(path: &Path) -> String {
+    let escaped = path
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    format!("\"{escaped}\"")
+}
+
+fn repository_object_directory(repo: &Path) -> Result<PathBuf> {
+    let raw = git(repo, &[], &["rev-parse", "--git-path", "objects"])?;
+    let path = PathBuf::from(raw.trim());
+    let path = if path.is_absolute() {
+        path
+    } else {
+        repo.join(path)
+    };
+    std::fs::canonicalize(&path).with_context(|| {
+        format!(
+            "failed to canonicalize repository object directory {}",
+            path.display()
+        )
     })
 }
 
@@ -1930,6 +1980,26 @@ mod tests {
         };
         assert_ne!(first.tree_oid, second.tree_oid);
         Ok(())
+    }
+    #[test]
+    fn observation_does_not_write_repository_objects() -> Result<()> {
+        let d = repo()?;
+        let state = tempfile::tempdir()?;
+        write(&d.path().join("untracked.txt"), "body bytes")?;
+        let before = git(d.path(), &[], &["count-objects", "-v"])?;
+        let (store, runtime) = bound(d.path(), state.path(), "w", "r", "s")?;
+        assert!(matches!(
+            observe_repository_body(d.path(), &store, &runtime)?,
+            ObserveOutcome::Created(_)
+        ));
+        let after = git(d.path(), &[], &["count-objects", "-v"])?;
+        assert_eq!(before, after);
+        Ok(())
+    }
+    #[test]
+    fn alternate_object_path_is_one_quoted_git_path_list_entry() {
+        let encoded = encode_git_path_list_entry(Path::new("/tmp/body:objects\\quoted\"name"));
+        assert_eq!(encoded, "\"/tmp/body:objects\\\\quoted\\\"name\"");
     }
     #[test]
     fn sanitized_git_refuses_ambient_repository_and_config_authority() -> Result<()> {
