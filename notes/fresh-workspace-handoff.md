@@ -2736,12 +2736,29 @@ permits daemon supervision, leases, health, liveness, and read-only sight while
 blocking cognition launches, cognitive-work scheduling, Hands consequences,
 publication, and deployment actuation.
 
-The d4 deployment authority is revoked. It produced no final witness and must
-not be described as deployed. Any successor begins braked and earns deployment
-truth only through exact signed aggregate health and Idunn's final witness.
+Exact candidate `9165862cce09739a62b20c0c7728ccceb71cfc2f` crossed Bifrost and
+built immutable release
+`sha256-39eed3817a10325b39b7f223fb2919c5959c88443ef82d9cc1497f6af631f365`
+with witness
+`sha256-9ad9cfe17fcabffb84fb392cbd5ecc1e8823482a338b38ced52e1020532e80c6`.
+It was not deployed. Startup exposed three faults, so all candidate services
+and the Idunn transaction were terminated through rollback. There is no
+deployment witness or active-release pointer. The immutable package and stable
+compiler cache remain reusable evidence only.
 
-Next action: select and package a successor, cross Bifrost and Idunn while
-braked, and verify the typed brake, exact
+The successor source cuts those faults at their owners. Heartbeat reads only
+its typed identities from the mixed heartbeat/readiness store and writes exact
+owner entries with CAS, preserving foreign readiness. CultCache now provides a
+typed in-memory envelope load primitive for this shared-store view. Cold Self
+without thread state emits no direction request yet instead of failing. A
+`heartbeat.scheduler` brake blocks cognitive scheduling but does not block
+daemon lifecycle physiology; explicit daemon lifecycle surfaces still do.
+Focused proofs pass and the full core library reports 570 passed, zero failed,
+one ignored.
+
+Next action: commit and push the successor and CultCache dependency, revoke the
+failed exact candidate authority, then cross the successor through Bifrost and
+Idunn while braked. Verify the typed brake, exact
 release/witness bindings, all three service owners, signed Idunn health, local
 Qdrant/Ollama routes, and final deployment witness. Then run the Starfire-offline
 rehearsal before 2026-07-22: organization feedback -> persistent Modeling map ->

@@ -101,9 +101,10 @@ pub fn commit_request(
     let identity = cache
         .get::<crate::EpiphanyRuntimeIdentity>(crate::RUNTIME_IDENTITY_KEY)?
         .ok_or_else(|| anyhow!("model direction consideration requires runtime identity"))?;
-    let thread = cache
-        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
-        .ok_or_else(|| anyhow!("model direction consideration requires thread state"))?;
+    let Some(thread) = cache.get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+    else {
+        return Ok(None);
+    };
     let model = crate::runtime_current_repo_model(runtime_store)?
         .ok_or_else(|| anyhow!("model direction consideration requires admitted Modeling map"))?;
     let model_hash = crate::memory_graph_model_hash(&model)?;
@@ -251,6 +252,7 @@ pub fn render_prompt(request: &AdmittedModelDirectionConsiderationRequest) -> St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     fn request() -> AdmittedModelDirectionConsiderationRequest {
         AdmittedModelDirectionConsiderationRequest {
@@ -321,5 +323,35 @@ mod tests {
             summary: "Ask Modeling to assess a bounded proposal.".into(),
         });
         assert!(validate_result(&request, &proposed).is_ok());
+    }
+
+    #[test]
+    fn cold_runtime_without_thread_has_no_direction_request_yet() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime.ccmp");
+        let mut cache = crate::runtime_spine_cache(&store)?;
+        cache.put(
+            crate::RUNTIME_IDENTITY_KEY,
+            &crate::EpiphanyRuntimeIdentity {
+                schema_version: crate::RUNTIME_SPINE_SCHEMA_VERSION.into(),
+                runtime_id: "runtime-cold".into(),
+                display_name: "Cold runtime".into(),
+                runtime_kind: "resident".into(),
+                created_at: "2026-07-18T00:00:00Z".into(),
+                updated_at: "2026-07-18T00:00:00Z".into(),
+                supported_document_types: Vec::new(),
+                metadata: BTreeMap::new(),
+            },
+        )?;
+
+        assert!(commit_request(&store, "2026-07-18T00:01:00Z")?.is_none());
+        let mut reloaded = crate::runtime_spine_cache(&store)?;
+        reloaded.pull_all_backing_stores()?;
+        assert!(
+            reloaded
+                .get_all::<AdmittedModelDirectionConsiderationRequest>()?
+                .is_empty()
+        );
+        Ok(())
     }
 }

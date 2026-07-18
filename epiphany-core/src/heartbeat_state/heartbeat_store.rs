@@ -18,8 +18,9 @@ use super::participant_kind;
 use anyhow::Result;
 use anyhow::anyhow;
 use cultcache_rs::SingleFileMessagePackBackingStore;
-use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
+use cultcache_rs::{CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry};
 use serde_json::Value;
+use std::collections::HashSet;
 use std::path::Path;
 
 pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
@@ -27,8 +28,7 @@ pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> 
     cache.register_entry_type::<EpiphanyHeartbeatStateEntry>()?;
     cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
     cache.register_entry_type::<EpiphanyHeartbeatStaleTurnRepairReceipt>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
-    cache.pull_all_backing_stores()?;
+    import_owned_heartbeat_envelopes(&mut cache, store_path.as_ref(), false)?;
     Ok(cache)
 }
 
@@ -37,9 +37,75 @@ fn legacy_heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCach
     cache.register_entry_type::<LegacyHeartbeatStateWithCognition>()?;
     cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
     cache.register_entry_type::<EpiphanyHeartbeatStaleTurnRepairReceipt>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
-    cache.pull_all_backing_stores()?;
+    import_owned_heartbeat_envelopes(&mut cache, store_path.as_ref(), true)?;
     Ok(cache)
+}
+
+fn import_owned_heartbeat_envelopes(
+    cache: &mut CultCache,
+    store_path: &Path,
+    legacy: bool,
+) -> Result<()> {
+    let state_type = if legacy {
+        <LegacyHeartbeatStateWithCognition as DatabaseEntry>::TYPE
+    } else {
+        <EpiphanyHeartbeatStateEntry as DatabaseEntry>::TYPE
+    };
+    let mut identities = HashSet::new();
+    for envelope in SingleFileMessagePackBackingStore::new(store_path).pull_all()? {
+        let owned = (envelope.r#type == state_type && envelope.key == HEARTBEAT_STATE_KEY)
+            || (envelope.r#type == <EpiphanyHeartbeatCognitionEntry as DatabaseEntry>::TYPE
+                && envelope.key == HEARTBEAT_COGNITION_KEY)
+            || envelope.r#type == <EpiphanyHeartbeatStaleTurnRepairReceipt as DatabaseEntry>::TYPE;
+        if !owned {
+            continue;
+        }
+        if !identities.insert((envelope.r#type.clone(), envelope.key.clone())) {
+            return Err(anyhow!(
+                "heartbeat store contains duplicate owner entry type {:?} key {:?}",
+                envelope.r#type,
+                envelope.key
+            ));
+        }
+        if envelope.r#type == state_type {
+            if legacy {
+                // The legacy and current state documents intentionally share a
+                // polymorphic identity. A current payload is not legacy cargo.
+                let _ = cache.load_envelope::<LegacyHeartbeatStateWithCognition>(envelope);
+            } else {
+                cache.load_envelope::<EpiphanyHeartbeatStateEntry>(envelope)?;
+            }
+        } else if envelope.r#type == <EpiphanyHeartbeatCognitionEntry as DatabaseEntry>::TYPE {
+            cache.load_envelope::<EpiphanyHeartbeatCognitionEntry>(envelope)?;
+        } else {
+            cache.load_envelope::<EpiphanyHeartbeatStaleTurnRepairReceipt>(envelope)?;
+        }
+    }
+    Ok(())
+}
+
+fn commit_owned_entry<T: DatabaseEntry>(
+    store_path: &Path,
+    cache: &CultCache,
+    key: &str,
+    value: &T,
+) -> Result<T> {
+    let expected = cache
+        .snapshot_envelopes()
+        .into_iter()
+        .find(|entry| entry.r#type == T::TYPE && entry.key == key);
+    let (replacement, written) = cache.prepare_entry(key, value)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path);
+    let committed = match expected {
+        Some(expected) => backing.compare_and_swap_entry(&expected, replacement)?,
+        None => backing.insert_entry_if_absent(replacement)?,
+    };
+    if !committed {
+        return Err(anyhow!(
+            "heartbeat owner entry lost exact atomic compare-and-swap"
+        ));
+    }
+    Ok(written)
 }
 
 pub fn load_heartbeat_state_entry(
@@ -54,8 +120,9 @@ pub fn write_heartbeat_state_entry(
     state: &EpiphanyHeartbeatStateEntry,
 ) -> Result<EpiphanyHeartbeatStateEntry> {
     validate_heartbeat_state(state)?;
-    let mut cache = heartbeat_state_cache(store_path)?;
-    cache.put(HEARTBEAT_STATE_KEY, state)
+    let store_path = store_path.as_ref();
+    let cache = heartbeat_state_cache(store_path)?;
+    commit_owned_entry(store_path, &cache, HEARTBEAT_STATE_KEY, state)
 }
 
 pub fn load_heartbeat_state_transaction(
@@ -119,8 +186,9 @@ pub fn write_heartbeat_cognition_entry(
     cognition: &EpiphanyHeartbeatCognitionEntry,
 ) -> Result<EpiphanyHeartbeatCognitionEntry> {
     validate_heartbeat_cognition(cognition)?;
-    let mut cache = heartbeat_state_cache(store_path)?;
-    cache.put(HEARTBEAT_COGNITION_KEY, cognition)
+    let store_path = store_path.as_ref();
+    let cache = heartbeat_state_cache(store_path)?;
+    commit_owned_entry(store_path, &cache, HEARTBEAT_COGNITION_KEY, cognition)
 }
 
 pub fn write_heartbeat_stale_turn_repair_receipt(
@@ -128,9 +196,27 @@ pub fn write_heartbeat_stale_turn_repair_receipt(
     receipt: &EpiphanyHeartbeatStaleTurnRepairReceipt,
 ) -> Result<EpiphanyHeartbeatStaleTurnRepairReceipt> {
     validate_heartbeat_stale_turn_repair_receipt(receipt)?;
-    let mut cache = heartbeat_state_cache(store_path)?;
-    let written = cache.put(receipt.receipt_id.clone(), receipt)?;
-    cache.put(HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY, &written)?;
+    let store_path = store_path.as_ref();
+    let cache = heartbeat_state_cache(store_path)?;
+    let written = receipt.clone();
+    let (receipt_entry, _) = cache.prepare_entry(&receipt.receipt_id, receipt)?;
+    let (latest_entry, _) = cache.prepare_entry(HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY, receipt)?;
+    let expected = cache
+        .snapshot_envelopes()
+        .into_iter()
+        .filter(|entry| {
+            entry.r#type == <EpiphanyHeartbeatStaleTurnRepairReceipt as DatabaseEntry>::TYPE
+                && (entry.key == receipt.receipt_id
+                    || entry.key == HEARTBEAT_STALE_TURN_REPAIR_LATEST_KEY)
+        })
+        .collect::<Vec<_>>();
+    if !SingleFileMessagePackBackingStore::new(store_path)
+        .compare_and_swap_batch(&expected, vec![receipt_entry, latest_entry])?
+    {
+        return Err(anyhow!(
+            "heartbeat stale-turn receipt lost exact atomic compare-and-swap"
+        ));
+    }
     Ok(written)
 }
 
@@ -333,6 +419,13 @@ mod tests {
     use crate::heartbeat_state::default_heartbeat_state;
     use pretty_assertions::assert_eq;
 
+    #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+    #[cultcache(type = "test.foreign.readiness", schema = "ForeignReadiness")]
+    struct ForeignReadiness {
+        #[cultcache(key = 0)]
+        status: String,
+    }
+
     #[test]
     fn round_trips_state_and_cognition_documents() -> Result<()> {
         let temp = tempfile::tempdir()?;
@@ -371,6 +464,33 @@ mod tests {
             HEARTBEAT_COGNITION_SCHEMA_VERSION
         );
         assert_eq!(loaded_cognition.latest_run_id.as_deref(), Some("run-1"));
+        Ok(())
+    }
+
+    #[test]
+    fn heartbeat_owner_reads_and_writes_preserve_foreign_shared_store_rows() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("heartbeats.msgpack");
+        let mut foreign_cache = CultCache::new();
+        foreign_cache.register_entry_type::<ForeignReadiness>()?;
+        let (foreign, _) = foreign_cache.prepare_entry(
+            "provider-readiness",
+            &ForeignReadiness {
+                status: "ready".into(),
+            },
+        )?;
+        let mut backing = SingleFileMessagePackBackingStore::new(&store_path);
+        backing.push(&foreign)?;
+
+        assert!(load_heartbeat_state_entry(&store_path)?.is_none());
+        write_heartbeat_state_entry(&store_path, &default_heartbeat_state(1.0))?;
+
+        let rows = backing.pull_all()?;
+        assert!(rows.contains(&foreign));
+        assert!(rows.iter().any(|row| {
+            row.r#type == <EpiphanyHeartbeatStateEntry as DatabaseEntry>::TYPE
+                && row.key == HEARTBEAT_STATE_KEY
+        }));
         Ok(())
     }
 }

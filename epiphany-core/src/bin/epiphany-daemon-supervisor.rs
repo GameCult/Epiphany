@@ -4020,10 +4020,7 @@ fn assert_swarm_brake_allows_service_lifecycle_entry(
     let scope_matches = matches!(brake.scope.as_str(), "swarm" | "all");
     let surface_matches = brake.protected_surfaces.is_empty()
         || brake.protected_surfaces.iter().any(|surface| {
-            surface == "heartbeat.scheduler"
-                || surface == "daemon.lifecycle_poke"
-                || surface == "daemon.*"
-                || surface == "*"
+            surface == "daemon.lifecycle_poke" || surface == "daemon.*" || surface == "*"
         });
     if scope_matches && surface_matches {
         anyhow::bail!(
@@ -4096,6 +4093,44 @@ mod provider_status_ownership_tests {
         assert!(!source.contains(&provider_writer));
         assert!(!source.contains(&heartbeat_assignment));
         assert!(!source.contains(&action_assignment));
+    }
+}
+
+#[cfg(test)]
+mod service_lifecycle_brake_authority_tests {
+    use super::*;
+
+    fn brake(protected_surfaces: &[&str]) -> EpiphanyCultMeshSwarmBrakeEntry {
+        EpiphanyCultMeshSwarmBrakeEntry {
+            schema_version: "epiphany.cultmesh.swarm_brake.v0".into(),
+            brake_id: "brake-test".into(),
+            status: "engaged".into(),
+            scope: "all".into(),
+            reason: "sleep".into(),
+            operator_agent_id: "operator".into(),
+            affected_clusters: vec!["local".into()],
+            protected_surfaces: protected_surfaces.iter().map(|v| (*v).into()).collect(),
+            created_at_utc: "2026-07-18T00:00:00Z".into(),
+            expires_at_utc: None,
+            private_state_exposed: false,
+            notes: Vec::new(),
+            runtime_id: "runtime".into(),
+        }
+    }
+
+    #[test]
+    fn cognitive_scheduler_brake_does_not_claim_service_physiology() {
+        let cognitive = brake(&[
+            "heartbeat.scheduler",
+            "coordinator.run",
+            "persona.public_speech",
+            "daemon.tool_invocation",
+        ]);
+        assert!(assert_swarm_brake_allows_service_lifecycle_entry(Some(&cognitive)).is_ok());
+        for surface in ["daemon.lifecycle_poke", "daemon.*", "*"] {
+            let lifecycle = brake(&[surface]);
+            assert!(assert_swarm_brake_allows_service_lifecycle_entry(Some(&lifecycle)).is_err());
+        }
     }
 }
 
