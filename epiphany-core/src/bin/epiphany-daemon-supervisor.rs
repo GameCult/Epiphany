@@ -47,7 +47,6 @@ use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_scheduler_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_service_lifecycle_receipt;
-use epiphany_core::write_epiphany_cultmesh_managed_service_policy;
 use epiphany_core::write_epiphany_cultmesh_semantic_projector_service_policy;
 use epiphany_core::write_epiphany_cultmesh_workspace_coverage_projector_service_policy;
 use epiphany_core::{
@@ -1792,11 +1791,9 @@ fn write_managed_service_policy(args: Args) -> Result<()> {
             policy,
         )?
     } else {
-        write_epiphany_cultmesh_managed_service_policy(
-            &args.store,
-            args.runtime_id.clone(),
-            policy,
-        )?
+        anyhow::bail!(
+            "generic managed-service policy writing is retired; use an owning specialized policy command"
+        );
     };
     println!(
         "{}",

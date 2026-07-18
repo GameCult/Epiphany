@@ -2679,3 +2679,42 @@ readiness window performs zero directive/termination/launch writes, while
 ExactAlive-to-ExactAlive performs exactly one directive write. Commit and push
 this cut next; do not replace the live release until its current projection has
 landed terminal proof or a real failure requires recovery.
+
+## Current organizational Yggdrasil deployment (2026-07-18)
+
+This section supersedes earlier live-PID and release-progress instructions.
+Release `0601e280480cccc28209fbf0630e921f3ef9056d`, projector PID `145165`, and
+their Qdrant counts are historical evidence only. The old deployment transaction
+was terminated through its rollback boundary, its release authority was revoked,
+and its missing final witness must not be reinterpreted as admission.
+
+The ordinary organizational feedback path is live on Yggdrasil. VoidBot runs as
+its host service identity with portable observer-group access and writes atomic
+typed observations through the exact Idunn-admitted CultLib runtime. Bifrost is
+healthy, bound to six organization channels, and publishes daemon-owned RUDP
+health accepted by Idunn. A labeled bound fixture became an immutable admission
+receipt with `grantsWorkAuthority=false` and `grantsAdoptionAuthority=false`; an
+unbound fixture was refused. Conversation remains feedback pressure only.
+
+Idunn and Bifrost deployment authority were repaired from the coherent Odin
+schema branch. Idunn now kills timed-out Unix command process groups, treats an
+absent deployment witness as first-deployment state while refusing corrupt
+witnesses, and rehydrates its preserved typed store. Bifrost's release runtime
+uses pinned commits and publishes an exact deployed-revision witness. VoidBot
+`7c6f0e9e77ef9d2361c9b7a8368f9fdb0b754458` is deployed and witnessed.
+
+Epiphany `37df884c6411da10196e59b741a538f792deeee5` is authorized through Bifrost
+and is being deployed only through Idunn. The canonical writable Body is
+`/var/lib/gamecult/epiphany/workspace`; immutable release provenance is not a
+substitute. The actuator now writes an engaged typed `scope=all` swarm brake
+before starting any Epiphany service. Releasing that brake is a separate
+operator action. Until Idunn admits exact signed aggregate health and publishes
+`/srv/epiphany/deploy/deployment.env`, the candidate is not deployed.
+
+Next action: finish that braked deployment and verify the typed brake, exact
+release/witness bindings, all three service owners, signed Idunn health, local
+Qdrant/Ollama routes, and final deployment witness. Then run the Starfire-offline
+rehearsal before 2026-07-22: organization feedback -> persistent Modeling map ->
+bounded Imagination proposal -> explicit review/adoption -> Hands consequence ->
+Bifrost release -> Idunn deployment, plus replay/tamper refusal and the negative
+chat-only path. No host reboot is authorized.

@@ -4092,6 +4092,7 @@ pub fn load_epiphany_cultmesh_daemon_service_lifecycle_receipts(
         .collect())
 }
 
+#[cfg(test)]
 pub fn write_epiphany_cultmesh_managed_service_policy(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
