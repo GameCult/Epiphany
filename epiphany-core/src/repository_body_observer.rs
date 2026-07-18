@@ -829,7 +829,7 @@ fn scan_tree(repo: &Path, has_head: bool, binding: &RepositoryBodyBinding) -> Re
 }
 
 fn git(repo: &Path, envs: &[(&str, &str)], args: &[&str]) -> Result<String> {
-    let mut command = sanitized_git_command();
+    let mut command = repository_git_command(repo)?;
     command.arg("-C").arg(repo).args(args);
     for (key, value) in envs {
         command.env(key, value);
@@ -840,7 +840,7 @@ fn git(repo: &Path, envs: &[(&str, &str)], args: &[&str]) -> Result<String> {
     output_text(output, args)
 }
 fn git_bytes(repo: &Path, envs: &[(&str, &str)], args: &[&str]) -> Result<Vec<u8>> {
-    let mut command = sanitized_git_command();
+    let mut command = repository_git_command(repo)?;
     command.arg("-C").arg(repo).args(args);
     for (key, value) in envs {
         command.env(key, value);
@@ -1033,6 +1033,25 @@ fn sanitized_git_command() -> Command {
     sanitize_git_command(&mut command);
     command
 }
+fn repository_git_command(repo: &Path) -> Result<Command> {
+    let canonical = std::fs::canonicalize(repo)
+        .with_context(|| format!("failed to canonicalize Git repository {}", repo.display()))?;
+    let mut command = sanitized_git_command();
+    command
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", null_git_config_path())
+        .arg("-c")
+        .arg(format!("safe.directory={}", canonical.to_string_lossy()));
+    Ok(command)
+}
+#[cfg(windows)]
+fn null_git_config_path() -> &'static str {
+    "NUL"
+}
+#[cfg(not(windows))]
+fn null_git_config_path() -> &'static str {
+    "/dev/null"
+}
 fn sanitize_git_command(command: &mut Command) {
     for key in [
         "GIT_DIR",
@@ -1045,6 +1064,7 @@ fn sanitize_git_command(command: &mut Command) {
         "GIT_REPLACE_REF_BASE",
         "GIT_GRAFT_FILE",
         "GIT_SHALLOW_FILE",
+        "GIT_CONFIG",
         "GIT_CONFIG_PARAMETERS",
         "GIT_CONFIG_COUNT",
     ] {
@@ -1072,7 +1092,7 @@ fn output_text(output: Output, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8(output.stdout)?.trim_end().into())
 }
 fn resolve_head(repo: &Path) -> Result<Option<String>> {
-    let direct = sanitized_git_command()
+    let direct = repository_git_command(repo)?
         .arg("-C")
         .arg(repo)
         .args(["rev-parse", "--verify", "HEAD"])
@@ -1085,7 +1105,7 @@ fn resolve_head(repo: &Path) -> Result<Option<String>> {
         }
         return Ok(Some(oid));
     }
-    let symbolic = sanitized_git_command()
+    let symbolic = repository_git_command(repo)?
         .arg("-C")
         .arg(repo)
         .args(["symbolic-ref", "-q", "HEAD"])
@@ -1094,7 +1114,7 @@ fn resolve_head(repo: &Path) -> Result<Option<String>> {
         bail!("repository HEAD is missing or corrupt, not a proven unborn symbolic ref");
     }
     let reference = String::from_utf8(symbolic.stdout)?.trim().to_string();
-    let exists = sanitized_git_command()
+    let exists = repository_git_command(repo)?
         .arg("-C")
         .arg(repo)
         .args(["show-ref", "--verify", "--quiet", &reference])
@@ -1108,7 +1128,7 @@ fn resolve_head(repo: &Path) -> Result<Option<String>> {
     Ok(None)
 }
 fn git_bool(repo: &Path, key: &str, default: bool) -> Result<bool> {
-    let output = sanitized_git_command()
+    let output = repository_git_command(repo)?
         .arg("-C")
         .arg(repo)
         .args(["config", "--bool", "--get", key])
@@ -1915,11 +1935,14 @@ mod tests {
     fn sanitized_git_refuses_ambient_repository_and_config_authority() -> Result<()> {
         let expected = repo()?;
         let hostile = repo()?;
+        let hostile_config = tempfile::NamedTempFile::new()?;
+        write(hostile_config.path(), "[core]\n\tsparseCheckout = true\n")?;
         run(expected.path(), &["config", "core.sparseCheckout", "false"])?;
         let mut command = Command::new("git");
         command
             .env("GIT_DIR", hostile.path().join(".git"))
             .env("GIT_WORK_TREE", hostile.path())
+            .env("GIT_CONFIG", hostile_config.path())
             .env("GIT_CONFIG_COUNT", "1")
             .env("GIT_CONFIG_KEY_0", "core.sparseCheckout")
             .env("GIT_CONFIG_VALUE_0", "true");
@@ -1936,6 +1959,7 @@ mod tests {
         );
         let mut config = Command::new("git");
         config
+            .env("GIT_CONFIG", hostile_config.path())
             .env("GIT_CONFIG_COUNT", "1")
             .env("GIT_CONFIG_KEY_0", "core.sparseCheckout")
             .env("GIT_CONFIG_VALUE_0", "true");
@@ -1952,6 +1976,49 @@ mod tests {
             )?,
             "false"
         );
+        Ok(())
+    }
+    #[test]
+    fn repository_git_command_trusts_only_the_exact_canonical_body() -> Result<()> {
+        let expected = repo()?;
+        let canonical = std::fs::canonicalize(expected.path())?;
+        let mut command = repository_git_command(expected.path())?;
+        let args = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            vec![
+                "-c".to_string(),
+                format!("safe.directory={}", canonical.to_string_lossy())
+            ]
+        );
+        let env = command
+            .get_envs()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.map(|value| value.to_string_lossy().into_owned()),
+                )
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(env.get("GIT_CONFIG_NOSYSTEM"), Some(&Some("1".to_string())));
+        assert_eq!(
+            env.get("GIT_CONFIG_GLOBAL"),
+            Some(&Some(null_git_config_path().to_string()))
+        );
+        let output = command
+            .arg("-C")
+            .arg(expected.path())
+            .args(["config", "--show-origin", "--get-all", "safe.directory"])
+            .output()?;
+        let configured = output_text(
+            output,
+            &["config", "--show-origin", "--get-all", "safe.directory"],
+        )?;
+        assert!(configured.contains(&canonical.to_string_lossy().to_string()));
+        assert!(!configured.lines().any(|line| line.ends_with("\t*")));
         Ok(())
     }
     #[cfg(windows)]
