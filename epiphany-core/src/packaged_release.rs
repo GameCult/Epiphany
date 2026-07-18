@@ -96,6 +96,10 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         ("host-identity", file_name("epiphany-host-identity")),
         ("swarm", file_name("epiphany-swarm")),
         ("heartbeat", file_name("epiphany-heartbeat-store")),
+        (
+            "persona-feedback-ingress",
+            file_name("epiphany-persona-feedback-ingress"),
+        ),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
         ("model-runtime", file_name("epiphany-model-runtime")),
         (
@@ -341,6 +345,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         "host-identity" => Ok(("epiphany-core", "epiphany-host-identity")),
         "swarm" => Ok(("epiphany-core", "epiphany-swarm")),
         "heartbeat" => Ok(("epiphany-core", "epiphany-heartbeat-store")),
+        "persona-feedback-ingress" => Ok(("epiphany-core", "epiphany-persona-feedback-ingress")),
         "coordinator" => Ok(("epiphany-core", "epiphany-mvp-coordinator")),
         "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
         "tool-codex-mcp-spine" => Ok((

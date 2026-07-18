@@ -1005,6 +1005,8 @@ mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         crate::put_runtime_role_worker_result(store, &result)?;
         crate::commit_repo_model_admission(
@@ -1248,6 +1250,7 @@ mod tests {
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
+                imagination_consideration_request_id: None,
                 created_at: "2026-06-02T00:00:00Z".to_string(),
             },
         )?;
@@ -1546,6 +1549,7 @@ mod tests {
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
+                imagination_consideration_request_id: None,
                 created_at: "2026-06-12T00:00:06Z".to_string(),
             },
         )?;
@@ -1581,6 +1585,8 @@ mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         crate::put_runtime_role_worker_result(&runtime_store, &verification_result)?;
         crate::put_soul_verdict_receipt(

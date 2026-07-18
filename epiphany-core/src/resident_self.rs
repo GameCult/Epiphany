@@ -47,6 +47,7 @@ impl ResidentSelfPressure {
                 "operator-objective"
                     | "body-map-drift"
                     | "persona-feedback"
+                    | "imagination-consideration"
                     | "imagination-proposal"
             )
             || self.pressure_id.trim().is_empty()
@@ -767,7 +768,7 @@ fn enqueue_resident_self_pressure_idempotent(
 pub fn ingest_resident_self_domain_pressure(
     resident_store: &Path,
     runtime_store: &Path,
-    local_verse_store: &Path,
+    persona_feedback_store: &Path,
     runtime_id: &str,
     now_millis: u64,
 ) -> Result<usize> {
@@ -782,48 +783,31 @@ pub fn ingest_resident_self_domain_pressure(
             created_at_millis: now_millis, status: "pending".into(), consumed_by_grant_id: None, private_state_exposed: false,
         })?);
     }
-    if let Some(feedback) =
-        crate::load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
-            local_verse_store,
-            runtime_id.to_string(),
-        )?
-    {
+    for feedback in crate::admitted_persona_feedback(persona_feedback_store, runtime_id)? {
+        if feedback.target_runtime_id != runtime_id {
+            return Err(anyhow!(
+                "admitted Persona feedback escaped its target runtime"
+            ));
+        }
+        let request = crate::commit_imagination_consideration_request(
+            runtime_store,
+            persona_feedback_store,
+            &feedback.feedback_id,
+            &feedback.target_repository,
+            &feedback.target_persona_id,
+            "resident-feedback-consideration-v0",
+            &chrono::DateTime::<chrono::Utc>::from_timestamp_millis(now_millis as i64)
+                .ok_or_else(|| anyhow!("resident consideration timestamp is out of range"))?
+                .to_rfc3339(),
+        )?;
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(
             resident_store,
             &ResidentSelfPressure {
                 schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: format!("persona-feedback-{}", feedback.feedback_id),
-                kind: "persona-feedback".into(),
-                provenance_ref: format!(
-                    "cultmesh://collaboration-feedback/{}",
-                    feedback.feedback_id
-                ),
-                objective: format!(
-                    "Let Imagination consider organizational Persona feedback: {}",
-                    feedback.feedback_summary
-                ),
-                created_at_millis: now_millis,
-                status: "pending".into(),
-                consumed_by_grant_id: None,
-                private_state_exposed: false,
-            },
-        )?);
-    }
-    if let Some(proposal) = crate::load_latest_epiphany_cultmesh_imagination_consensus_receipt(
-        local_verse_store,
-        runtime_id.to_string(),
-    )? {
-        inserted += usize::from(enqueue_resident_self_pressure_idempotent(
-            resident_store,
-            &ResidentSelfPressure {
-                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: format!("imagination-proposal-{}", proposal.receipt_id),
-                kind: "imagination-proposal".into(),
-                provenance_ref: format!("cultmesh://imagination-consensus/{}", proposal.receipt_id),
-                objective: format!(
-                    "Review Imagination consensus packet {} as proposal pressure; do not adopt, implement, release, or deploy it automatically.",
-                    proposal.consensus_packet_ref
-                ),
+                pressure_id: format!("imagination-consideration-{}", request.request_id),
+                kind: "imagination-consideration".into(),
+                provenance_ref: format!("cultcache://imagination-consideration/{}", request.request_id),
+                objective: "Launch the exact typed Imagination consideration request; do not adopt, act, release, or deploy.".into(),
                 created_at_millis: now_millis,
                 status: "pending".into(),
                 consumed_by_grant_id: None,
@@ -851,7 +835,7 @@ pub fn heartbeat_issue_resident_self_grant(
     let mut pending = cache
         .get_all::<ResidentSelfPressure>()?
         .into_iter()
-        .filter(|pressure| pressure.status == "pending")
+        .filter(|pressure| pressure.status == "pending" && pressure.kind != "persona-feedback")
         .collect::<Vec<_>>();
     pending.sort_by(|a, b| {
         a.created_at_millis
@@ -905,7 +889,13 @@ pub fn pending_resident_self_pressure(path: &Path) -> Result<bool> {
     Ok(state_cache(path)?
         .get_all::<ResidentSelfPressure>()?
         .iter()
-        .any(|pressure| pressure.status == "pending"))
+        .any(|pressure| pressure.status == "pending" && pressure.kind != "persona-feedback"))
+}
+
+pub fn resident_self_pressures(path: &Path) -> Result<Vec<ResidentSelfPressure>> {
+    let mut pressure = state_cache(path)?.get_all::<ResidentSelfPressure>()?;
+    pressure.sort_by(|left, right| left.pressure_id.cmp(&right.pressure_id));
+    Ok(pressure)
 }
 
 pub fn pending_resident_self_grant(path: &Path) -> Result<Option<ResidentSelfHeartbeatGrant>> {
@@ -970,6 +960,24 @@ pub fn prepare_resident_self_launch(
         objective: grant.objective.clone(),
     };
     let mut argv = coordinator_argv(policy, &turn_id, &wake);
+    if grant.pressure_kind == "imagination-consideration" {
+        let request_id = grant
+            .provenance_ref
+            .strip_prefix("cultcache://imagination-consideration/")
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| anyhow!("consideration grant lost exact request provenance"))?;
+        let objective = argv.pop();
+        let flag = argv.pop();
+        if objective.is_none() || flag.as_deref() != Some("--objective") {
+            return Err(anyhow!(
+                "consideration launch could not remove objective carrier"
+            ));
+        }
+        argv.extend([
+            "--imagination-consideration-request-id".into(),
+            request_id.into(),
+        ]);
+    }
     let executable = std::fs::read(&policy.coordinator_bin)
         .with_context(|| format!("failed to hash {}", policy.coordinator_bin.display()))?;
     let argv_digest = digest_parts(argv.iter().map(String::as_bytes));
@@ -1645,10 +1653,10 @@ mod tests {
             &resident_store,
             &ResidentSelfPressure {
                 schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-                pressure_id: "persona-pressure-1".into(),
-                kind: "persona-feedback".into(),
-                provenance_ref: "cultmesh://persona/feedback/1".into(),
-                objective: "Consider bounded feedback.".into(),
+                pressure_id: "body-map-pressure-1".into(),
+                kind: "body-map-drift".into(),
+                provenance_ref: "cultcache://repo-model/1".into(),
+                objective: "Inspect admitted Body-map drift.".into(),
                 created_at_millis: 1,
                 status: "pending".into(),
                 consumed_by_grant_id: None,
@@ -1674,7 +1682,7 @@ mod tests {
         assert_eq!(result["event"]["turnStatus"], "running");
         let grant = pending_resident_self_grant(&resident_store)?.expect("heartbeat grant");
         assert_eq!(grant.heartbeat_schedule_id, "heartbeat-self-1");
-        assert_eq!(grant.pressure_kind, "persona-feedback");
+        assert_eq!(grant.pressure_kind, "body-map-drift");
         let ack = ResidentSelfTerminalAck {
             schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
             ack_id: "ack-heartbeat-self-1".into(),
@@ -1792,6 +1800,34 @@ mod tests {
                 .grant_id,
             exact
         );
+        Ok(())
+    }
+
+    #[test]
+    fn persona_feedback_remains_persisted_pressure_and_never_becomes_a_grant_objective()
+    -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let resident = temp.path().join("resident.cc");
+        enqueue_resident_self_pressure(
+            &resident,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "persona-feedback-admission-1".into(),
+                kind: "persona-feedback".into(),
+                provenance_ref: "cultmesh://bifrost/persona-feedback-admission/admission-1".into(),
+                objective: "Untrusted social prose must not become a coordinator objective.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        assert!(!pending_resident_self_pressure(&resident)?);
+        assert!(heartbeat_issue_resident_self_grant(&resident, "schedule", "action", 2)?.is_none());
+        let pressure = resident_self_pressures(&resident)?;
+        assert_eq!(pressure.len(), 1);
+        assert_eq!(pressure[0].status, "pending");
+        assert_eq!(pressure[0].consumed_by_grant_id, None);
         Ok(())
     }
 

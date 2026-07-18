@@ -89,6 +89,7 @@ struct Args {
     supersede_failed_results: bool,
     auto_tools: bool,
     proposal_modeling_request_id: Option<String>,
+    imagination_consideration_request_id: Option<String>,
     resident_binding: BTreeMap<String, String>,
     resident_state_store: Option<PathBuf>,
     resident_preparation_id: Option<String>,
@@ -126,6 +127,7 @@ impl Args {
             supersede_failed_results: false,
             auto_tools: true,
             proposal_modeling_request_id: None,
+            imagination_consideration_request_id: None,
             resident_binding: BTreeMap::new(),
             resident_state_store: None,
             resident_preparation_id: None,
@@ -153,6 +155,12 @@ impl Args {
                 "--proposal-modeling-request-id" => {
                     parsed.proposal_modeling_request_id =
                         Some(take_string(&mut args, "--proposal-modeling-request-id")?);
+                }
+                "--imagination-consideration-request-id" => {
+                    parsed.imagination_consideration_request_id = Some(take_string(
+                        &mut args,
+                        "--imagination-consideration-request-id",
+                    )?);
                 }
                 flag @ ("--resident-grant-id"
                 | "--resident-launch-digest"
@@ -341,6 +349,62 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "threadId": thread_id,
             "revision": intake.state.revision,
             "changed": intake.changed,
+        }));
+    }
+    if let Some(request_id) = args.imagination_consideration_request_id.as_deref() {
+        if args.objective.is_some() {
+            return Err(anyhow!(
+                "typed consideration cannot share operator objective intake"
+            ));
+        }
+        let service = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store);
+        let state = service
+            .state()?
+            .ok_or_else(|| anyhow!("consideration launch requires coordinator state"))?;
+        let request = epiphany_core::build_epiphany_imagination_consideration_launch_request(
+            &thread_id,
+            Some(state.revision),
+            Some(args.max_runtime_seconds),
+            &state,
+            request_id.to_string(),
+        )
+        .map_err(anyhow::Error::msg)?;
+        let launched = service.launch_job(
+            &thread_id,
+            &state,
+            &request,
+            format!("epiphany-resident-consideration-launch-{}", Uuid::new_v4()),
+            Uuid::new_v4().to_string(),
+            now(),
+        )?;
+        let worker_job_id = launched.backend_job_id.clone();
+        let operator_launch = json!({
+            "bindingId": launched.binding_id,
+            "launcherJobId": launched.launcher_job_id,
+            "backendJobId": launched.backend_job_id,
+            "stateRevision": launched.epiphany_state.revision,
+        });
+        let worker_run = launch_worker_runtime_detached(
+            &model_runtime_bin,
+            &tool_adapter_bin,
+            &args.model_provider,
+            &runtime_store,
+            &codex_home,
+            &cwd,
+            &worker_job_id,
+            "imagination",
+            0,
+            &artifact_dir,
+            args.max_runtime_seconds,
+            args.auto_tools,
+        )?;
+        startup_events.push(json!({
+            "type": "imaginationConsiderationLaunch",
+            "requestId": request_id,
+            "runtimeJobId": worker_job_id,
+            "launch": status_cli::sanitize_for_operator(operator_launch),
+            "worker": worker_run,
+            "authority": "proposal-only"
         }));
     }
 

@@ -143,6 +143,7 @@ pub use worker_launch::EpiphanyReorientLaunchRequestInput;
 pub use worker_launch::EpiphanyReorientWorkerLaunchDocument;
 pub use worker_launch::EpiphanyRoleWorkerLaunchDocument;
 pub use worker_launch::EpiphanyWorkerLaunchDocument;
+pub use worker_launch::ImaginationConsiderationContextProjection;
 pub use worker_launch::REORIENT_WORKER_OUTPUT_CONTRACT_ID;
 pub use worker_launch::REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT;
 pub use worker_launch::REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION;

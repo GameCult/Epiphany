@@ -82,30 +82,6 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         );
     }
 
-    if let Some(intent) = input.local_verse.latest_eve_connection_intent.as_ref() {
-        lines.push("## Eve Collaboration".to_string());
-        lines.push(format!(
-            "- Intent `{}`: {} -> {} via {}; feedback_route={}; private_state_requested={}",
-            intent.intent_id,
-            intent.source_cluster_id,
-            intent.target_cluster_id,
-            intent.target_eve_surface_id,
-            intent.feedback_route,
-            intent.private_state_requested
-        ));
-        if let Some(receipt) = input
-            .local_verse
-            .latest_eve_connection_receipt
-            .as_ref()
-            .filter(|receipt| receipt.intent_id == intent.intent_id)
-        {
-            lines.push(format!(
-                "- Receipt `{}`: status={}, private_state_exposed={}",
-                receipt.receipt_id, receipt.status, receipt.private_state_exposed
-            ));
-        }
-    }
-
     if !input.local_verse.daemon_tool_capabilities.is_empty() {
         lines.push("## Daemon Tool Directory".to_string());
         for capability in input.local_verse.daemon_tool_capabilities.iter().take(10) {

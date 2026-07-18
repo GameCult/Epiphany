@@ -127,18 +127,6 @@ pub const EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION: &str =
 pub const EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE: &str = "epiphany.cultmesh.odin_advertisement";
 pub const EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.odin_advertisement.v0";
-pub const EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE: &str =
-    "epiphany.cultmesh.eve_connection_intent";
-pub const EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.eve_connection_intent.v0";
-pub const EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY: &str =
-    "epiphany-local/eve-connection-intent/latest";
-pub const EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_TYPE: &str =
-    "epiphany.cultmesh.eve_connection_receipt";
-pub const EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.eve_connection_receipt.v0";
-pub const EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY: &str =
-    "epiphany-local/eve-connection-receipt/latest";
 pub const EPIPHANY_CULTMESH_EVE_SURFACE_STATE_TYPE: &str = "gamecult.eve.surface_state";
 pub const EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION: &str =
     "gamecult.eve.surface_state.v0";
@@ -282,18 +270,6 @@ pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION: &str =
     "gamecult.bifrost.metrics_receipt.v0";
 pub const EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_ARRIVAL_LATEST_KEY: &str =
     "gamecult-local/bifrost/metrics-receipt/latest";
-pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE: &str =
-    "gamecult.bifrost.collaboration_feedback";
-pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION: &str =
-    "gamecult.bifrost.collaboration_feedback.v0";
-pub const EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY: &str =
-    "gamecult-local/bifrost/collaboration-feedback/latest";
-pub const EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_TYPE: &str =
-    "gamecult.imagination.consensus_discovery_receipt";
-pub const EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION: &str =
-    "gamecult.imagination.consensus_discovery_receipt.v0";
-pub const EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY: &str =
-    "gamecult-local/imagination/consensus-discovery-receipt/latest";
 pub const EPIPHANY_CULTMESH_INTERNAL_VERSE_ID: &str = "epiphany-internal";
 pub const EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID: &str = "gamecult-local";
 pub const EPIPHANY_CULTMESH_GLOBAL_VERSE_ID: &str = "epiphany-global";
@@ -1122,66 +1098,6 @@ pub struct EpiphanyCultMeshOdinAdvertisementEntry {
     #[cultcache(key = 11)]
     pub private_state_exposed: bool,
     #[cultcache(key = 12)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.eve_connection_intent",
-    schema = "EpiphanyCultMeshEveConnectionIntentEntry"
-)]
-pub struct EpiphanyCultMeshEveConnectionIntentEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub intent_id: String,
-    #[cultcache(key = 2)]
-    pub source_cluster_id: String,
-    #[cultcache(key = 3)]
-    pub target_advertisement_id: String,
-    #[cultcache(key = 4)]
-    pub target_cluster_id: String,
-    #[cultcache(key = 5)]
-    pub target_eve_surface_id: String,
-    #[cultcache(key = 6)]
-    pub collaboration_topic: String,
-    #[cultcache(key = 7)]
-    pub requested_action: String,
-    #[cultcache(key = 8)]
-    pub feedback_route: String,
-    #[cultcache(key = 9)]
-    pub requested_document_types: Vec<String>,
-    #[cultcache(key = 10)]
-    pub private_state_requested: bool,
-    #[cultcache(key = 11)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.cultmesh.eve_connection_receipt",
-    schema = "EpiphanyCultMeshEveConnectionReceiptEntry"
-)]
-pub struct EpiphanyCultMeshEveConnectionReceiptEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub intent_id: String,
-    #[cultcache(key = 3)]
-    pub source_cluster_id: String,
-    #[cultcache(key = 4)]
-    pub target_cluster_id: String,
-    #[cultcache(key = 5)]
-    pub target_eve_surface_id: String,
-    #[cultcache(key = 6)]
-    pub status: String,
-    #[cultcache(key = 7)]
-    pub feedback_route: String,
-    #[cultcache(key = 8)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 9)]
     pub notes: Vec<String>,
 }
 
@@ -2475,72 +2391,6 @@ pub struct EpiphanyCultMeshBifrostMetricsReceiptEntry {
     pub review_event_count: Option<u64>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "gamecult.bifrost.collaboration_feedback",
-    schema = "EpiphanyCultMeshBifrostCollaborationFeedbackEntry"
-)]
-pub struct EpiphanyCultMeshBifrostCollaborationFeedbackEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub feedback_id: String,
-    #[cultcache(key = 2)]
-    pub source_persona_id: String,
-    #[cultcache(key = 3)]
-    pub source_cluster_id: String,
-    #[cultcache(key = 4)]
-    pub public_room_id: String,
-    #[cultcache(key = 5)]
-    pub eve_connection_receipt_id: String,
-    #[cultcache(key = 6)]
-    pub collaboration_topic: String,
-    #[cultcache(key = 7)]
-    pub feedback_summary: String,
-    #[cultcache(key = 8)]
-    pub public_discussion_refs: Vec<String>,
-    #[cultcache(key = 9)]
-    pub requested_consensus_route: String,
-    #[cultcache(key = 10)]
-    pub candidate_action_refs: Vec<String>,
-    #[cultcache(key = 11)]
-    pub private_state_included: bool,
-    #[cultcache(key = 12)]
-    pub notes: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
-#[cultcache(
-    type = "gamecult.imagination.consensus_discovery_receipt",
-    schema = "EpiphanyCultMeshImaginationConsensusReceiptEntry"
-)]
-pub struct EpiphanyCultMeshImaginationConsensusReceiptEntry {
-    #[cultcache(key = 0)]
-    pub schema_version: String,
-    #[cultcache(key = 1)]
-    pub receipt_id: String,
-    #[cultcache(key = 2)]
-    pub feedback_id: String,
-    #[cultcache(key = 3)]
-    pub source_persona_id: String,
-    #[cultcache(key = 4)]
-    pub consensus_route: String,
-    #[cultcache(key = 5)]
-    pub status: String,
-    #[cultcache(key = 6)]
-    pub imagination_agent_ids: Vec<String>,
-    #[cultcache(key = 7)]
-    pub consensus_packet_ref: String,
-    #[cultcache(key = 8)]
-    pub adoption_gate: String,
-    #[cultcache(key = 9)]
-    pub public_feedback_refs: Vec<String>,
-    #[cultcache(key = 10)]
-    pub private_state_exposed: bool,
-    #[cultcache(key = 11)]
-    pub notes: Vec<String>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyLocalVerseContext {
@@ -2582,10 +2432,6 @@ pub struct EpiphanyLocalVerseContext {
         Option<EpiphanyCultMeshBifrostGithubPublicationReceiptEntry>,
     pub arrival_latest_bifrost_public_proof_publication_receipt:
         Option<EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry>,
-    pub arrival_latest_bifrost_collaboration_feedback:
-        Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>,
-    pub latest_imagination_consensus_receipt:
-        Option<EpiphanyCultMeshImaginationConsensusReceiptEntry>,
     pub latest_operator_snapshot: Option<EpiphanyCultMeshOperatorSnapshotEntry>,
     pub latest_operator_run_intent: Option<EpiphanyCultMeshOperatorRunIntentEntry>,
     pub latest_operator_run_receipt: Option<EpiphanyCultMeshOperatorRunReceiptEntry>,
@@ -2596,8 +2442,6 @@ pub struct EpiphanyLocalVerseContext {
     pub latest_agent_state_soa_summary: Option<EpiphanyCultMeshAgentStateSoaSummaryEntry>,
     pub latest_repo_work_overview: Option<EpiphanyCultMeshRepoWorkOverviewEntry>,
     pub latest_repo_work_map_entry: Option<EpiphanyCultMeshRepoWorkMapEntry>,
-    pub latest_eve_connection_intent: Option<EpiphanyCultMeshEveConnectionIntentEntry>,
-    pub latest_eve_connection_receipt: Option<EpiphanyCultMeshEveConnectionReceiptEntry>,
     pub contract_summaries: Vec<EpiphanyLocalVerseContractSummary>,
 }
 
@@ -2653,8 +2497,6 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshClusterTopologyEntry => EPIPHANY_CULTMESH_CLUSTER_TOPOLOGY_SCHEMA_VERSION,
     EpiphanyCultMeshOdinAdvertisementEntry => EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_SCHEMA_VERSION,
-    EpiphanyCultMeshEveConnectionIntentEntry => EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION,
-    EpiphanyCultMeshEveConnectionReceiptEntry => EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshEveSurfaceStateEntry => EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonStatusEntry => EPIPHANY_CULTMESH_DAEMON_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshDaemonHeartbeatEventEntry => EPIPHANY_CULTMESH_DAEMON_HEARTBEAT_EVENT_SCHEMA_VERSION,
@@ -2696,8 +2538,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshBifrostPublicProofPublicationReceiptEntry => EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry => EPIPHANY_CULTMESH_BIFROST_ARTIFACT_ACCEPTANCE_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshBifrostMetricsReceiptEntry => EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_SCHEMA_VERSION,
-    EpiphanyCultMeshBifrostCollaborationFeedbackEntry => EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION,
-    EpiphanyCultMeshImaginationConsensusReceiptEntry => EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION,
+    crate::persona_feedback_admission::LocalAdmittedPersonaFeedback => crate::persona_feedback_admission::LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION,
     EpiphanyCultMeshSemanticProjectionHealthEntry => EPIPHANY_CULTMESH_SEMANTIC_PROJECTION_HEALTH_SCHEMA_VERSION,
 });
 
@@ -3788,115 +3629,6 @@ fn latest_role_review_event_json(summary_json: &Value) -> Option<&Value> {
                 )
             })
     })
-}
-
-pub fn epiphany_cultmesh_eve_connection_intent_from_advertisement(
-    intent_id: impl Into<String>,
-    source_cluster_id: impl Into<String>,
-    target: &EpiphanyCultMeshOdinAdvertisementEntry,
-    collaboration_topic: impl Into<String>,
-    requested_action: impl Into<String>,
-) -> EpiphanyCultMeshEveConnectionIntentEntry {
-    EpiphanyCultMeshEveConnectionIntentEntry {
-        schema_version: EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION.to_string(),
-        intent_id: intent_id.into(),
-        source_cluster_id: source_cluster_id.into(),
-        target_advertisement_id: target.advertisement_id.clone(),
-        target_cluster_id: target.cluster_id.clone(),
-        target_eve_surface_id: target.eve_surface_id.clone(),
-        collaboration_topic: collaboration_topic.into(),
-        requested_action: requested_action.into(),
-        feedback_route: "imagination.consensus_discovery".to_string(),
-        requested_document_types: vec![
-            EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string(),
-            EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string(),
-        ],
-        private_state_requested: false,
-        notes: vec![
-            "Eve connection intent is a collaboration request over advertised metadata, not a private Verse read.".to_string(),
-            "Persona or peer feedback from this request routes to Imagination consensus discovery before adoption.".to_string(),
-            "Mind and Substrate Gate still review durable state mutation and repo access.".to_string(),
-        ],
-    }
-}
-
-#[cfg(test)]
-pub fn epiphany_cultmesh_eve_connection_receipt_for_intent(
-    receipt_id: impl Into<String>,
-    intent: &EpiphanyCultMeshEveConnectionIntentEntry,
-    status: impl Into<String>,
-) -> EpiphanyCultMeshEveConnectionReceiptEntry {
-    EpiphanyCultMeshEveConnectionReceiptEntry {
-        schema_version: EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION.to_string(),
-        receipt_id: receipt_id.into(),
-        intent_id: intent.intent_id.clone(),
-        source_cluster_id: intent.source_cluster_id.clone(),
-        target_cluster_id: intent.target_cluster_id.clone(),
-        target_eve_surface_id: intent.target_eve_surface_id.clone(),
-        status: status.into(),
-        feedback_route: intent.feedback_route.clone(),
-        private_state_exposed: false,
-        notes: vec![
-            "Receipt records an Eve collaboration request over CultMesh; it does not grant private state authority.".to_string(),
-            "Feedback remains routed through Imagination consensus discovery and later Mind/Bifrost review gates.".to_string(),
-        ],
-    }
-}
-
-pub fn write_epiphany_cultmesh_eve_connection_intent(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    intent: EpiphanyCultMeshEveConnectionIntentEntry,
-) -> Result<EpiphanyCultMeshEveConnectionIntentEntry> {
-    if intent.private_state_requested {
-        return Err(anyhow!(
-            "Eve connection intents must not request private Verse state"
-        ));
-    }
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let intent_key = epiphany_cultmesh_eve_connection_intent_key(&intent.intent_id);
-    let written = node.put(intent_key.as_str(), &intent)?;
-    node.put(EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY, &written)?;
-    node.flush()?;
-    Ok(written)
-}
-
-#[cfg(test)]
-pub fn write_epiphany_cultmesh_eve_connection_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    receipt: EpiphanyCultMeshEveConnectionReceiptEntry,
-) -> Result<EpiphanyCultMeshEveConnectionReceiptEntry> {
-    if receipt.private_state_exposed {
-        return Err(anyhow!(
-            "Eve connection receipts must not expose private state"
-        ));
-    }
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let receipt_key = epiphany_cultmesh_eve_connection_receipt_key(&receipt.receipt_id);
-    let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(
-        EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY,
-        &written,
-    )?;
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_latest_epiphany_cultmesh_eve_connection_intent(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshEveConnectionIntentEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY)
-}
-
-pub fn load_latest_epiphany_cultmesh_eve_connection_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshEveConnectionReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY)
 }
 
 pub fn epiphany_cultmesh_daemon_poke_intent_from_status(
@@ -5658,118 +5390,6 @@ pub fn load_arrival_latest_epiphany_cultmesh_bifrost_metrics_receipt(
     node.get(EPIPHANY_CULTMESH_BIFROST_METRICS_RECEIPT_ARRIVAL_LATEST_KEY)
 }
 
-pub fn epiphany_cultmesh_bifrost_collaboration_feedback(
-    feedback_id: impl Into<String>,
-    source_persona_id: impl Into<String>,
-    source_cluster_id: impl Into<String>,
-    public_room_id: impl Into<String>,
-    eve_connection_receipt_id: impl Into<String>,
-    collaboration_topic: impl Into<String>,
-    feedback_summary: impl Into<String>,
-    public_discussion_refs: Vec<String>,
-    candidate_action_refs: Vec<String>,
-) -> EpiphanyCultMeshBifrostCollaborationFeedbackEntry {
-    EpiphanyCultMeshBifrostCollaborationFeedbackEntry {
-        schema_version: EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION
-            .to_string(),
-        feedback_id: feedback_id.into(),
-        source_persona_id: source_persona_id.into(),
-        source_cluster_id: source_cluster_id.into(),
-        public_room_id: public_room_id.into(),
-        eve_connection_receipt_id: eve_connection_receipt_id.into(),
-        collaboration_topic: collaboration_topic.into(),
-        feedback_summary: feedback_summary.into(),
-        public_discussion_refs,
-        requested_consensus_route: "imagination.consensus_discovery".to_string(),
-        candidate_action_refs,
-        private_state_included: false,
-        notes: vec![
-            "Public Persona collaboration feedback is Bifrost-local witness, not implementation authority.".to_string(),
-            "Feedback routes to Imagination consensus discovery before any adoption or work item can be blessed.".to_string(),
-            "Private worker, operator, or agent-thought state must stay sealed outside this packet.".to_string(),
-        ],
-    }
-}
-
-#[cfg(test)]
-pub fn epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
-    receipt_id: impl Into<String>,
-    feedback: &EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
-    status: impl Into<String>,
-    imagination_agent_ids: Vec<String>,
-    consensus_packet_ref: impl Into<String>,
-) -> EpiphanyCultMeshImaginationConsensusReceiptEntry {
-    EpiphanyCultMeshImaginationConsensusReceiptEntry {
-        schema_version: EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION
-            .to_string(),
-        receipt_id: receipt_id.into(),
-        feedback_id: feedback.feedback_id.clone(),
-        source_persona_id: feedback.source_persona_id.clone(),
-        consensus_route: feedback.requested_consensus_route.clone(),
-        status: status.into(),
-        imagination_agent_ids,
-        consensus_packet_ref: consensus_packet_ref.into(),
-        adoption_gate: "mind.review_then_bifrost_adoption".to_string(),
-        public_feedback_refs: feedback.public_discussion_refs.clone(),
-        private_state_exposed: false,
-        notes: vec![
-            "Imagination consensus receipt records that public feedback entered future-shape analysis, not that work was adopted.".to_string(),
-            "Mind and Bifrost remain the adoption gates before durable state or body changes.".to_string(),
-        ],
-    }
-}
-
-pub fn write_epiphany_cultmesh_bifrost_collaboration_feedback(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    feedback: EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
-) -> Result<EpiphanyCultMeshBifrostCollaborationFeedbackEntry> {
-    validate_bifrost_collaboration_feedback(&feedback)?;
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let feedback_key = epiphany_cultmesh_bifrost_collaboration_feedback_key(&feedback.feedback_id);
-    let written = node.put(feedback_key.as_str(), &feedback)?;
-    node.put(
-        EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY,
-        &written,
-    )?;
-    node.flush()?;
-    Ok(written)
-}
-
-#[cfg(test)]
-pub fn write_epiphany_cultmesh_imagination_consensus_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-    receipt: EpiphanyCultMeshImaginationConsensusReceiptEntry,
-) -> Result<EpiphanyCultMeshImaginationConsensusReceiptEntry> {
-    validate_imagination_consensus_receipt(&receipt)?;
-    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    let receipt_key = epiphany_cultmesh_imagination_consensus_receipt_key(&receipt.receipt_id);
-    let written = node.put(receipt_key.as_str(), &receipt)?;
-    node.put(
-        EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY,
-        &written,
-    )?;
-    node.flush()?;
-    Ok(written)
-}
-
-pub fn load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshBifrostCollaborationFeedbackEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY)
-}
-
-pub fn load_latest_epiphany_cultmesh_imagination_consensus_receipt(
-    store_path: impl AsRef<Path>,
-    runtime_id: impl Into<String>,
-) -> Result<Option<EpiphanyCultMeshImaginationConsensusReceiptEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY)
-}
-
 fn validate_bifrost_body_change_publication_intent(
     intent: &EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry,
 ) -> Result<()> {
@@ -6091,79 +5711,6 @@ fn validate_bifrost_metrics_receipt(
     if receipt.review_event_count.unwrap_or_default() == 0 {
         return Err(anyhow!(
             "Bifrost metrics receipts require review event count"
-        ));
-    }
-    Ok(())
-}
-
-fn validate_bifrost_collaboration_feedback(
-    feedback: &EpiphanyCultMeshBifrostCollaborationFeedbackEntry,
-) -> Result<()> {
-    if feedback.private_state_included {
-        return Err(anyhow!(
-            "Bifrost collaboration feedback must not include private state"
-        ));
-    }
-    if feedback.source_persona_id.trim().is_empty() {
-        return Err(anyhow!(
-            "Bifrost collaboration feedback requires a Persona source"
-        ));
-    }
-    if feedback.public_room_id.trim().is_empty() || feedback.public_discussion_refs.is_empty() {
-        return Err(anyhow!(
-            "Bifrost collaboration feedback requires public discussion references"
-        ));
-    }
-    if feedback.eve_connection_receipt_id.trim().is_empty() {
-        return Err(anyhow!(
-            "Bifrost collaboration feedback requires an Eve connection receipt"
-        ));
-    }
-    if feedback.feedback_summary.trim().is_empty() {
-        return Err(anyhow!(
-            "Bifrost collaboration feedback requires a feedback summary"
-        ));
-    }
-    if feedback.requested_consensus_route != "imagination.consensus_discovery" {
-        return Err(anyhow!(
-            "Bifrost collaboration feedback must route to Imagination consensus discovery"
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-fn validate_imagination_consensus_receipt(
-    receipt: &EpiphanyCultMeshImaginationConsensusReceiptEntry,
-) -> Result<()> {
-    if receipt.private_state_exposed {
-        return Err(anyhow!(
-            "Imagination consensus receipts must not expose private state"
-        ));
-    }
-    if receipt.feedback_id.trim().is_empty() {
-        return Err(anyhow!(
-            "Imagination consensus receipts require a feedback id"
-        ));
-    }
-    if receipt.consensus_route != "imagination.consensus_discovery" {
-        return Err(anyhow!(
-            "Imagination consensus receipts must use the consensus discovery route"
-        ));
-    }
-    if receipt.imagination_agent_ids.is_empty() {
-        return Err(anyhow!(
-            "Imagination consensus receipts require Imagination agent ids"
-        ));
-    }
-    if receipt.consensus_packet_ref.trim().is_empty() {
-        return Err(anyhow!(
-            "Imagination consensus receipts require a consensus packet reference"
-        ));
-    }
-    if receipt.adoption_gate.trim().is_empty() {
-        return Err(anyhow!(
-            "Imagination consensus receipts require an adoption gate"
         ));
     }
     Ok(())
@@ -6717,10 +6264,6 @@ pub fn query_epiphany_local_verse_context(
             .get(EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)?,
         arrival_latest_bifrost_public_proof_publication_receipt: node
             .get(EPIPHANY_CULTMESH_BIFROST_PUBLIC_PROOF_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY)?,
-        arrival_latest_bifrost_collaboration_feedback: node
-            .get(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY)?,
-        latest_imagination_consensus_receipt: node
-            .get(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY)?,
         latest_operator_snapshot: node.get(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY)?,
         latest_operator_run_intent: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY)?,
         latest_operator_run_receipt: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)?,
@@ -6738,10 +6281,6 @@ pub fn query_epiphany_local_verse_context(
             .get(EPIPHANY_CULTMESH_AGENT_STATE_SOA_SUMMARY_LATEST_KEY)?,
         latest_repo_work_overview: node.get(EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_LATEST_KEY)?,
         latest_repo_work_map_entry: node.get(EPIPHANY_CULTMESH_REPO_WORK_MAP_ENTRY_LATEST_KEY)?,
-        latest_eve_connection_intent: node
-            .get(EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY)?,
-        latest_eve_connection_receipt: node
-            .get(EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY)?,
         contract_summaries,
     })
 }
@@ -6924,15 +6463,6 @@ fn epiphany_cultmesh_weksa_lowering_receipt_key(receipt_id: &str) -> String {
     format!("epiphany-local/weksa-lowering-receipt/{receipt_id}")
 }
 
-fn epiphany_cultmesh_eve_connection_intent_key(intent_id: &str) -> String {
-    format!("epiphany-local/eve-connection-intent/{intent_id}")
-}
-
-#[cfg(test)]
-fn epiphany_cultmesh_eve_connection_receipt_key(receipt_id: &str) -> String {
-    format!("epiphany-local/eve-connection-receipt/{receipt_id}")
-}
-
 fn epiphany_cultmesh_daemon_tool_invocation_intent_key(intent_id: &str) -> String {
     format!("epiphany-local/daemon-tool-invocation-intent/{intent_id}")
 }
@@ -7027,15 +6557,6 @@ fn epiphany_cultmesh_bifrost_artifact_acceptance_receipt_key(receipt_id: &str) -
 #[cfg(test)]
 fn epiphany_cultmesh_bifrost_metrics_receipt_key(receipt_id: &str) -> String {
     format!("gamecult-local/bifrost/metrics-receipt/{receipt_id}")
-}
-
-fn epiphany_cultmesh_bifrost_collaboration_feedback_key(feedback_id: &str) -> String {
-    format!("gamecult-local/bifrost/collaboration-feedback/{feedback_id}")
-}
-
-#[cfg(test)]
-fn epiphany_cultmesh_imagination_consensus_receipt_key(receipt_id: &str) -> String {
-    format!("gamecult-local/imagination/consensus-discovery-receipt/{receipt_id}")
 }
 
 fn pointer_text(value: &Value, pointer: &str, fallback: &str) -> String {
@@ -7290,17 +6811,9 @@ fn epiphany_cultmesh_eve_surface_templates() -> Vec<EpiphanyCultMeshEveSurfaceSt
         .map(|cluster| {
             let mut exposed_document_types = vec![
                 EPIPHANY_CULTMESH_ODIN_ADVERTISEMENT_TYPE.to_string(),
-                EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE.to_string(),
-                EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_TYPE.to_string(),
                 EPIPHANY_CULTMESH_DAEMON_TOOL_CAPABILITY_TYPE.to_string(),
                 EPIPHANY_CULTMESH_REPO_WORK_OVERVIEW_TYPE.to_string(),
             ];
-            if cluster.public_persona_discussion_allowed {
-                exposed_document_types
-                    .push(EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string());
-                exposed_document_types
-                    .push(EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_TYPE.to_string());
-            }
             if cluster.role_id == "hands" {
                 exposed_document_types.push(
                     EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_INTENT_TYPE.to_string(),
@@ -7323,12 +6836,11 @@ fn epiphany_cultmesh_eve_surface_templates() -> Vec<EpiphanyCultMeshEveSurfaceSt
                     format!("body {}", cluster.body_domain),
                     format!("daemon {}", cluster.daemon_id),
                     format!("private {}", cluster.private_verse_id),
-                    "connect via CultMesh Eve intent; private Verse payloads are sealed".to_string(),
+                    "presentation surface only; private Verse payloads are sealed".to_string(),
                 ],
                 exposed_document_types,
                 supported_actions: vec![
                     "inspectCompactSurface".to_string(),
-                    "submitEveConnectionIntent".to_string(),
                     "watchTypedReceipts".to_string(),
                 ],
                 private_state_exposed: false,
@@ -7715,14 +7227,6 @@ fn epiphany_cultmesh_daemon_tool_capability_templates()
             "epiphany.cultmesh.tool_status_receipt",
             "none",
         ));
-        capabilities.push(epiphany_cultmesh_daemon_tool_capability(
-            &cluster,
-            "eve-connect",
-            "submitEveConnectionIntent",
-            EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE,
-            EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_TYPE,
-            "imagination.consensus_discovery",
-        ));
     }
     capabilities.push(epiphany_cultmesh_daemon_tool_capability(
         &epiphany_cultmesh_cluster_topology()
@@ -8068,34 +7572,6 @@ pub fn epiphany_cultmesh_bifrost_contracts() -> Vec<EpiphanyCultMeshBifrostContr
                 "Body changes require justification, changed-path scope, verifier evidence, authorship, review, and credit metadata before GitHub publication.".to_string(),
                 "Bifrost is the credit and publication-routing authority; GitHub is a publication substrate, not the governance source.".to_string(),
                 "Epiphany clusters may prepare intents, but Bifrost receipts bless public publication and ledger attribution.".to_string(),
-            ],
-        },
-        EpiphanyCultMeshBifrostContractEntry {
-            schema_version: EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION.to_string(),
-            contract_id: "gamecult.bifrost.collaboration.feedback".to_string(),
-            verse_id: EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string(),
-            document_type: EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string(),
-            payload_schema_version:
-                EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION.to_string(),
-            authority: "imaginationConsensus".to_string(),
-            operations: vec![
-                "recordPublicFeedback".to_string(),
-                "routeToImaginationConsensus".to_string(),
-                "refusePrivateState".to_string(),
-                "snapshot".to_string(),
-            ],
-            intent_document_types: vec![
-                EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE.to_string(),
-            ],
-            receipt_document_types: vec![
-                EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_TYPE.to_string(),
-            ],
-            notes: vec![
-                format!(
-                    "CultMesh advertises this Bifrost contract as {EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE}."
-                ),
-                "Persona public collaboration feedback routes to Imagination for consensus discovery before it becomes work.".to_string(),
-                "Public Persona discussion is thought weather until reviewed local adoption and Bifrost/GameCult receipts bind it to implementation.".to_string(),
             ],
         },
         EpiphanyCultMeshBifrostContractEntry {
@@ -10609,75 +10085,6 @@ mod tests {
     }
 
     #[test]
-    fn eve_connection_intent_and_receipt_route_feedback_without_private_state() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-eve-connection.ccmp");
-        write_legacy_provider_fixture(&store, "epiphany-test", "epiphany-daemon-persona")?;
-
-        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let persona = node.get_required::<EpiphanyCultMeshOdinAdvertisementEntry>(
-            "odin.advertisement.epiphany.cluster.persona",
-        )?;
-        let intent = epiphany_cultmesh_eve_connection_intent_from_advertisement(
-            "eve-intent-test",
-            "epiphany.cluster.self",
-            &persona,
-            "Coordinate public Persona collaboration feedback.",
-            "requestDiscussion",
-        );
-        let receipt = epiphany_cultmesh_eve_connection_receipt_for_intent(
-            "eve-receipt-test",
-            &intent,
-            "accepted-for-consensus-discovery",
-        );
-
-        write_epiphany_cultmesh_eve_connection_intent(&store, "epiphany-test", intent.clone())?;
-        write_epiphany_cultmesh_eve_connection_receipt(&store, "epiphany-test", receipt.clone())?;
-
-        assert_eq!(
-            load_latest_epiphany_cultmesh_eve_connection_intent(&store, "epiphany-test")?,
-            Some(intent.clone())
-        );
-        assert_eq!(
-            load_latest_epiphany_cultmesh_eve_connection_receipt(&store, "epiphany-test")?,
-            Some(receipt.clone())
-        );
-        assert_eq!(intent.feedback_route, "imagination.consensus_discovery");
-        assert!(!intent.private_state_requested);
-        assert!(!receipt.private_state_exposed);
-        assert_eq!(receipt.status, "accepted-for-consensus-discovery");
-        Ok(())
-    }
-
-    #[test]
-    fn eve_connection_refuses_private_state_requests() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-eve-private-refusal.ccmp");
-        let target = epiphany_cultmesh_odin_advertisement_templates()
-            .into_iter()
-            .find(|advertisement| advertisement.cluster_id == "epiphany.cluster.persona")
-            .expect("persona advertisement exists");
-        let mut intent = epiphany_cultmesh_eve_connection_intent_from_advertisement(
-            "eve-intent-private-test",
-            "epiphany.cluster.self",
-            &target,
-            "Attempt forbidden private state read.",
-            "requestPrivateState",
-        );
-        intent.private_state_requested = true;
-
-        let error = write_epiphany_cultmesh_eve_connection_intent(&store, "epiphany-test", intent)
-            .expect_err("private state requests must be refused");
-
-        assert!(
-            error
-                .to_string()
-                .contains("must not request private Verse state")
-        );
-        Ok(())
-    }
-
-    #[test]
     fn daemon_tool_capabilities_make_every_local_tool_available_to_all_agents() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-daemon-tools.ccmp");
@@ -11266,140 +10673,6 @@ mod tests {
     }
 
     #[test]
-    fn collaboration_feedback_routes_to_imagination_consensus() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp
-            .path()
-            .join("epiphany-bifrost-collaboration-feedback.ccmp");
-        let feedback = epiphany_cultmesh_bifrost_collaboration_feedback(
-            "collaboration-feedback-test",
-            "epiphany.Persona",
-            "epiphany.persona",
-            "epiphany-global/collaboration",
-            "eve-receipt-test",
-            "Persona asks for cross-body collaboration over Eve.",
-            "Public Persona discussion should be compared by Imagination before adoption.",
-            vec!["https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm".to_string()],
-            vec!["candidate-action:compare-daemon-surfaces".to_string()],
-        );
-        let consensus = epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
-            "imagination-consensus-test",
-            &feedback,
-            "queued-for-consensus-discovery",
-            vec!["epiphany.Imagination".to_string()],
-            "gamecult-local/imagination/consensus-packets/test",
-        );
-
-        write_epiphany_cultmesh_bifrost_collaboration_feedback(
-            &store,
-            "epiphany-test",
-            feedback.clone(),
-        )?;
-        write_epiphany_cultmesh_imagination_consensus_receipt(
-            &store,
-            "epiphany-test",
-            consensus.clone(),
-        )?;
-
-        assert_eq!(
-            load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
-                &store,
-                "epiphany-test"
-            )?,
-            Some(feedback)
-        );
-        assert_eq!(
-            load_latest_epiphany_cultmesh_imagination_consensus_receipt(&store, "epiphany-test")?,
-            Some(consensus)
-        );
-        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
-        assert_eq!(
-            context
-                .arrival_latest_bifrost_collaboration_feedback
-                .as_ref()
-                .map(|feedback| feedback.requested_consensus_route.as_str()),
-            Some("imagination.consensus_discovery")
-        );
-        assert_eq!(
-            context
-                .latest_imagination_consensus_receipt
-                .as_ref()
-                .map(|receipt| receipt.adoption_gate.as_str()),
-            Some("mind.review_then_bifrost_adoption")
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn collaboration_feedback_refuses_private_state_and_unanchored_public_claims() -> Result<()> {
-        let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-feedback-refusal.ccmp");
-        let mut private = epiphany_cultmesh_bifrost_collaboration_feedback(
-            "collaboration-feedback-private-test",
-            "epiphany.Persona",
-            "epiphany.persona",
-            "epiphany-global/collaboration",
-            "eve-receipt-test",
-            "Attempt invalid feedback.",
-            "This should not publish private state.",
-            vec!["https://gamecult.org/public-thread".to_string()],
-            Vec::new(),
-        );
-        private.private_state_included = true;
-        let error = write_epiphany_cultmesh_bifrost_collaboration_feedback(
-            &store,
-            "epiphany-test",
-            private,
-        )
-        .expect_err("private collaboration feedback must be refused");
-        assert!(error.to_string().contains("private state"));
-
-        let unanchored = epiphany_cultmesh_bifrost_collaboration_feedback(
-            "collaboration-feedback-unanchored-test",
-            "epiphany.Persona",
-            "epiphany.persona",
-            "epiphany-global/collaboration",
-            "eve-receipt-test",
-            "Attempt invalid feedback.",
-            "Public collaboration feedback must cite public discussion.",
-            Vec::new(),
-            Vec::new(),
-        );
-        let error = write_epiphany_cultmesh_bifrost_collaboration_feedback(
-            &store,
-            "epiphany-test",
-            unanchored,
-        )
-        .expect_err("unanchored collaboration feedback must be refused");
-        assert!(error.to_string().contains("public discussion"));
-
-        let feedback = epiphany_cultmesh_bifrost_collaboration_feedback(
-            "collaboration-feedback-test",
-            "epiphany.Persona",
-            "epiphany.persona",
-            "epiphany-global/collaboration",
-            "eve-receipt-test",
-            "Attempt invalid consensus.",
-            "Consensus receipts must keep private state sealed.",
-            vec!["https://gamecult.org/public-thread".to_string()],
-            Vec::new(),
-        );
-        let mut receipt = epiphany_cultmesh_imagination_consensus_receipt_for_feedback(
-            "imagination-consensus-private-test",
-            &feedback,
-            "queued-for-consensus-discovery",
-            vec!["epiphany.Imagination".to_string()],
-            "gamecult-local/imagination/consensus-packets/test",
-        );
-        receipt.private_state_exposed = true;
-        let error =
-            write_epiphany_cultmesh_imagination_consensus_receipt(&store, "epiphany-test", receipt)
-                .expect_err("private consensus receipts must be refused");
-        assert!(error.to_string().contains("private state"));
-        Ok(())
-    }
-
-    #[test]
     fn local_verse_bootstrap_does_not_publish_provider_owned_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-local-verse.ccmp");
@@ -11465,7 +10738,6 @@ mod tests {
         assert_eq!(
             retired,
             vec![
-                "epiphany.cluster.hands.tool.eve-connect".to_string(),
                 "epiphany.cluster.hands.tool.repo-action".to_string(),
                 "epiphany.cluster.hands.tool.status".to_string(),
                 "eve://epiphany/hands".to_string(),

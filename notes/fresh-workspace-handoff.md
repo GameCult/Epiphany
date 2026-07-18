@@ -1,5 +1,40 @@
 # Fresh Workspace Handoff
 
+## Organizational product posture and current release blockers — 2026-07-18
+
+This is not a special dogfood experiment. Epiphany's normal organizational
+product is a resident swarm that persistently models its authorized domain,
+derives bounded direction from that map, autonomously imagines improvements and
+features, and exposes a repository Persona through which the organization can
+converse and provide attributed feedback. Instructions are optional pressure;
+they are not the only source of useful work. Feedback is likewise pressure, not
+Mind adoption, Hands authority, Bifrost release authority, or Idunn deployment
+authority.
+
+The signed VoidBot -> Bifrost -> Epiphany feedback path and the resident
+Self -> Imagination proposal-only path are implemented locally. The four
+structural release blockers identified in the first Soul audit are now closed
+in source and local proof:
+
+- admitted feedback now lives in a dedicated `persona-feedback.cc` store, not
+  shared local Verse; classification is exact and Imagination has no direct
+  Persona-reply route;
+- Eve connection/consensus intent and receipt authority, writers, projections,
+  tool claims, tests, and smoke binaries are deleted;
+- Bifrost sidecar release is exact-authority/digest bound, Node is digest-pinned,
+  Idunn alone invokes deployment, and daemon-owned typed RUDP health feeds the
+  existing Idunn supervisor target;
+- `scripts/smoke-persona-feedback-org-path.ps1` passed the real VoidBot writer ->
+  Bifrost sign -> Rust ingress -> resident consideration -> coordinator launch ->
+  proposal validation path for public, organization, and private feedback while
+  Mind, release, local Verse, and public stores remained byte-identical.
+
+Live Yggdrasil deployment and the Starfire-offline Discord rehearsal remain
+pending; source proof is not deployment proof.
+
+Do not describe this as an experiment-only capability after these blockers are
+closed. The bounded autonomous loop is the product.
+
 ## Workspace coverage storage cut is founded, not migrated — 2026-07-17
 
 Live Yggdrasil evidence rejects `c94fa580` as a deployment candidate. During

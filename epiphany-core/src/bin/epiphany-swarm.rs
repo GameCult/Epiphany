@@ -7,10 +7,11 @@ use epiphany_core::{
     ResidentSelfState, acknowledge_resident_self_launch, authenticate_resident_self_policy,
     cancel_resident_self_turn, capture_process_instance, complete_resident_self_turn,
     coordinator_run_receipts, derive_resident_cognition_readiness, enqueue_resident_self_pressure,
-    ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
-    load_resident_self_state, observe_process_instance, prepare_resident_self_launch,
-    publish_resident_provider_readiness, resident_self_child_claim,
+    import_bifrost_persona_feedback_deliveries, ingest_resident_self_domain_pressure,
+    load_epiphany_cultmesh_swarm_brake, load_resident_self_state, observe_process_instance,
+    prepare_resident_self_launch, publish_resident_provider_readiness, resident_self_child_claim,
     resident_self_local_provider_status, terminate_process_instance,
+    validate_bifrost_persona_feedback_source, validate_persona_feedback_store_separation,
     validate_resident_self_store_separation,
 };
 use serde_json::json;
@@ -26,11 +27,30 @@ fn main() -> Result<()> {
     authenticate_resident_self_policy(&mut args.policy)?;
     args.policy.validate()?;
     validate_resident_self_store_separation(&args.state_store, &args.policy)?;
+    validate_persona_feedback_store_separation(
+        &args.persona_feedback_source_store,
+        &args.persona_feedback_store,
+        &[
+            &args.bifrost_feedback_trust_anchor,
+            &args.state_store,
+            &args.policy.runtime_store,
+            &args.policy.local_verse_store,
+            &args.policy.agent_memory_store,
+            &args.policy.release_store,
+        ],
+    )?;
     if args.heartbeat_store == args.state_store {
         return Err(anyhow!(
             "heartbeat and resident Self stores must be physically separate"
         ));
     }
+    validate_bifrost_persona_feedback_source(
+        &args.persona_feedback_source_store,
+        &args.bifrost_feedback_trust_anchor,
+        &args.policy.release_runtime_id,
+        &args.feedback_target_repository,
+        &args.feedback_target_persona,
+    )?;
     if matches!(args.command, CommandKind::Status) {
         let now = Utc::now().timestamp_millis().max(0) as u64;
         let projection = derive_resident_cognition_readiness(ResidentReadinessRequest {
@@ -106,10 +126,18 @@ fn cycle(
     ports: &mut NativePorts,
 ) -> Result<ResidentSelfOutcome> {
     let now = Utc::now().timestamp_millis().max(0) as u64;
+    import_bifrost_persona_feedback_deliveries(
+        &args.persona_feedback_source_store,
+        &args.persona_feedback_store,
+        &args.bifrost_feedback_trust_anchor,
+        &args.policy.release_runtime_id,
+        &args.feedback_target_repository,
+        &args.feedback_target_persona,
+    )?;
     ingest_resident_self_domain_pressure(
         &args.state_store,
         &args.policy.runtime_store,
-        &args.policy.local_verse_store,
+        &args.persona_feedback_store,
         &args.policy.release_runtime_id,
         now,
     )?;
@@ -278,6 +306,11 @@ struct Args {
     state_store: PathBuf,
     heartbeat_store: PathBuf,
     provider_freshness_seconds: u64,
+    persona_feedback_source_store: PathBuf,
+    persona_feedback_store: PathBuf,
+    bifrost_feedback_trust_anchor: PathBuf,
+    feedback_target_repository: String,
+    feedback_target_persona: String,
     policy: ResidentSelfPolicy,
     pressure: Option<ResidentSelfPressure>,
 }
@@ -372,6 +405,17 @@ impl Args {
             state_store: path("--state-store")?,
             heartbeat_store: path("--heartbeat-store")?,
             provider_freshness_seconds: u64v("--provider-freshness-seconds", 180)?,
+            persona_feedback_source_store: path("--persona-feedback-source-store")?,
+            persona_feedback_store: path("--persona-feedback-store")?,
+            bifrost_feedback_trust_anchor: path("--bifrost-feedback-trust-anchor")?,
+            feedback_target_repository: value
+                .get("--feedback-target-repository")
+                .cloned()
+                .ok_or_else(|| anyhow!("missing --feedback-target-repository"))?,
+            feedback_target_persona: value
+                .get("--feedback-target-persona")
+                .cloned()
+                .ok_or_else(|| anyhow!("missing --feedback-target-persona"))?,
             policy,
             pressure,
         })

@@ -266,6 +266,31 @@ pub fn verify_host_identity_signature(
         .map_err(|_| anyhow!("host identity signature verification failed"))
 }
 
+pub fn verify_host_identity_trust_anchor_signature(
+    anchor: &HostIdentityTrustAnchorEntry,
+    purpose: &str,
+    payload: &[u8],
+    proof: &HostIdentitySignature,
+) -> Result<()> {
+    if anchor.schema_version != HOST_IDENTITY_TRUST_ANCHOR_TYPE
+        || anchor.public_key.len() != 32
+        || identity_id(&anchor.public_key) != anchor.identity_id
+        || proof.identity_id != anchor.identity_id
+    {
+        bail!("host identity trust anchor or signature identity is invalid");
+    }
+    let public_key: [u8; 32] = anchor
+        .public_key
+        .as_slice()
+        .try_into()
+        .map_err(|_| anyhow!("host identity trust anchor public key has invalid length"))?;
+    let signature = Signature::from_slice(&proof.signature)
+        .map_err(|_| anyhow!("host identity signature has invalid length"))?;
+    VerifyingKey::from_bytes(&public_key)?
+        .verify(&signing_message(purpose, payload)?, &signature)
+        .map_err(|_| anyhow!("host identity signature verification failed"))
+}
+
 fn validate_entry(entry: &HostIncarnationIdentityEntry) -> Result<()> {
     if entry.schema_version != HOST_IDENTITY_SCHEMA_VERSION
         || entry.public_key.len() != 32

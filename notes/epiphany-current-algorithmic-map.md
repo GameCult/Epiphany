@@ -74,15 +74,6 @@
 - Forbidden writers: `invoke-tool` cannot accept or synthesize receipt id/status, result reference, or result summary; it no longer executes local readback functions and labels them daemon results.
 - Negative proof: request intent persists, latest provider receipt remains absent, and response-shaped CLI fields are refused.
 
-## Eve connection request path (2026-07-12)
-
-- Owner: the consumer owns `eve_connection_intent`; the advertised provider cluster owns `eve_connection_receipt`.
-- Input: persisted Odin advertisement, requesting cluster, reason, and requested action.
-- Output: one pending intent naming target advertisement, cluster, Eve surface, and feedback route.
-- Forbidden writers: `connect-eve` cannot accept or synthesize provider receipt id/status and cannot return provider-owned queue projection as a connection result.
-- Dependent invariant: collaboration feedback may cite only a persisted provider receipt; a consumer request is not acceptance.
-- Negative proof: provider receipt remains absent after request, response-shaped fields fail, and feedback without provider acceptance fails.
-
 ## Daemon lifecycle request and heartbeat paths (updated 2026-07-15)
 
 - Owners: Self/operator requests intervention; Idunn owns poke intent, command-attempt receipt, restart policy, and backoff; `epiphany-cluster-daemon` alone owns its provider heartbeat/status envelope.
@@ -104,16 +95,19 @@
 - Cut line: `publish_epiphany_cultmesh_provider_state` and the heartbeat call to it are deleted. The seven centrally synthesized surfaces and their tool claims are no longer live state.
 - Re-admission invariant: provider discovery returns only after an owning provider emits a provenance-bearing typed contract whose origin can be verified; actions additionally require a real dispatcher and receipt path.
 
-## Persona feedback and Imagination consensus boundary (2026-07-12)
+## Persona feedback and typed Imagination consideration boundary (updated 2026-07-18)
 
-- Eve connection requests remain pending until a real target provider daemon or authenticated ingest boundary supplies the typed response. The former generic `epiphany-eve-provider` CLI is deleted because caller-supplied provider identity and status did not constitute provider participation; local response construction/writing is test-only.
+- Eve is presentation only. Epiphany has no Eve connection intent or receipt
+  document, writer, reader, prompt projection, query action, receipt-directory
+  row, or tool claim. Presentation connectivity cannot admit feedback or become
+  cognition authority.
 - Daemon-tool invocation requests likewise remain pending until the advertised host daemon or authenticated ingest boundary supplies the typed response. Local response construction/writing/validation is test-only; aggregate smoke and receipt-directory projection prove intent-present/receipt-missing instead of manufacturing host acceptance.
 - Idunn deployment and aftercare outcomes have no local production writer. The synthetic deployment-config family smoke and its green aggregate MVP-gate handoff are deleted; config audit/runbook remain pre-deployment surfaces, while typed Idunn readers await genuine daemon-authored ingest.
 - Bifrost artifact-acceptance and metrics requests remain open until actual Bifrost/Maintainer receipts are ingested. The stale response-closing request-family smokes, accounting bundle, wrapper mode, and aggregate green gate are deleted.
 - Repo-work readiness reports are sight only. The generic readiness-review approval command and writer are deleted because one caller supplied four unresolved reviewer labels. `repo.readiness_review_request` now assigns routing to Self, lists Maintainer/Soul/Mind/Bifrost as independent required reviewers, and names no readiness-approval owner; typed review readers await genuine multi-organ/provider evidence.
 - Interpreter Brief is preparation cargo authored by Imagination from accepted public pressure. It requests Mind interpretation and remains `interpretation_admitted=false`; it is not Mind-owned state until a genuine Mind path supplies and admits interpretation evidence.
 - Repo collaboration policy/topic files are proposals, not live social or renderer contracts. Imagination authors them, Persona owns discussion, Persona/Mind review policy, Mind admits repo policy, Bifrost owns publication, and requested public-room/Eve-surface identifiers remain unpublished until provider receipts exist. Epiphany does not own downstream Eve/TUI/GUI composition.
-- The deterministic `repo.tool_capabilities` and `repo.eve_surface` safe families are deleted. Expected tool ids and invented surface/row/lowering catalogs cannot substitute for host advertisements or provider-published composition graphs. Live paths are typed tool requests/host receipts, Odin discovery, Eve connection receipts, and provider-owned publication.
+- The deterministic `repo.tool_capabilities` and `repo.eve_surface` safe families are deleted. Expected tool ids and invented surface/row/lowering catalogs cannot substitute for host advertisements or provider-published composition graphs. Live paths are typed tool requests/host receipts, Odin discovery, authenticated Bifrost feedback delivery, and provider-owned publication.
 - `repo.body_manifest` is deleted. An unconsumed `epiphany.toml` that invents Body/Verse/Eve identity and capability hints is not observed runtime state or admitted birth configuration. Runtime state, repo birth receipts, and provider advertisements own those facts.
 - Doctrine update requests split authority: Imagination authors, Self routes, Maintainer reviews, Soul verifies, Mind admits doctrine state, and Hands mutates `AGENTS.md` under receipts. There is no Maintainer/Mind composite owner or OR gate.
 - Closure has no substring authority. Worklog, planning/checklist notes, managed/status sections, and task cards are explicitly presentation-only; closure relies on committed target/path/blob evidence instead of treating formatting text as Soul truth.
@@ -123,11 +117,22 @@
 - Metrics requests split Self routing, Bifrost accounting custody, and Maintainer review-load evidence. Spend/review receipts are observations and grant no spend or ledger authority.
 - `repo.planning_brief` is deleted. It contained no candidate work-item records and let copied global catalog/schema/closure constants self-attest as per-item planning and readiness evidence. The live preparation chain is consensus draft -> interpretation request -> objective draft -> Mind adoption.
 - There is no aggregate repo-swarm MVP gate. The former smoke manually aggregated fixture summaries into green rows and `demoReady=true`; it and its wrapper are deleted. Whole-organism readiness requires a live-fire path whose claimed consequences are observed at their owning boundaries.
-- Persona owner: `collaboration-feedback` writes public, bounded feedback only after that provider receipt exists.
-- Imagination owner: consensus participant selection, packet reference, receipt status/id, and adoption gate.
-- Persona output: `pending-imagination` with null consensus fields and `responseOwner=Imagination`.
-- Forbidden writers: Persona cannot pass or synthesize Imagination response fields.
-- Negative proof: the full consumer-request/provider-accept/Persona-feedback chain persists no consensus receipt until Imagination answers.
+- Bifrost owns authenticated Persona-feedback admission. Its signed packet is
+  feedback-only pressure, not an Eve connection, Persona command, objective, or
+  work proposal.
+- Self owns an immutable Imagination consideration request binding one admitted
+  feedback packet digest to one exact admitted Modeling revision/hash/receipt
+  and one fixed question enum. Feedback prose is transported only as quoted
+  evidence.
+- Imagination owns a proposal-only consideration candidate with `suggest`,
+  `hold`, or terminal `no_fit` disposition. The candidate has no state patch,
+  model patch, frontier candidate, Hands route, release, or deployment mouth.
+- A separate Self review request is required before a suggestion may enter
+  Modeling review. It grants proposal-review authority only; it does not mutate
+  the map or adopt work.
+- Eve and Persona render or discuss derived results. They do not own admission,
+  cognition, result completion, or adoption. The former Eve-dependent feedback
+  and synthetic consensus-receipt shapes are obsolete.
 
 ## Public-proof submission boundary (2026-07-12)
 
@@ -185,7 +190,7 @@
   standalone smoke accepts no path arguments and writes only beneath
   `.epiphany-smoke`.
 - Bifrost publication/GitHub/public-proof/artifact/metrics response constructors
-  and Imagination consensus response construction are test-only. Production
+  are test-only. Production
   retains typed schemas and readers for provider-authored ingest, but no local
   shipped binary owns or writes those response documents.
 - Bulk seven-daemon `ready` construction/writing is also test-only. Production
@@ -1025,8 +1030,11 @@ indeterminate observation, stale ready replay, and timeout remain inadmissible.
 Resident wake scheduling has one owner. The standard heartbeat consumes one
 pending typed pressure and atomically emits one single-consumption Self grant;
 `epiphany-swarm` does not invent work from an idle loop. Accepted pressure is
-bounded to operator objective, Body-map drift, Persona feedback, and
-Imagination proposal documents. Those documents request attention only. They
+bounded to operator objective, Body-map drift, and reviewable Imagination
+proposal documents. Persona feedback remains persisted pressure and cannot
+become a resident grant or coordinator objective; it enters Imagination only
+through the separate typed consideration carrier. Those documents request
+attention only. They
 cannot adopt Mind state, authorize Hands, publish a release, or deploy it.
 
 Resident Self owns the grant-to-coordinator process transaction. Its inputs are
@@ -1100,8 +1108,10 @@ readiness, and crosses admission only through Idunn.
 
 ```text
 domain Body -> persistent Modeling map -> Self pressure -> Imagination proposal
-     ^                 ^                       |                 |
-     |                 +-- Persona feedback --+                 v
+     ^                 ^                                         |
+     |                 +-- Self proposal-review request ----------+
+     |                            ^                                v
+     |  signed feedback -> Self consideration -> Imagination candidate
      |                                                   Mind review/adoption
      |                                                           |
      +---------------- Hands consequence <- explicit route -------+

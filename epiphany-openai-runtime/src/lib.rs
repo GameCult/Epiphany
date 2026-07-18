@@ -1331,6 +1331,8 @@ fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<
                 .with_context(|| format!("unknown role launch id {:?}", document.role_id))?;
             if document.frontier_planning_context.is_some() {
                 epiphany_core::epiphany_frontier_planning_output_schema()
+            } else if document.imagination_consideration_context.is_some() {
+                epiphany_core::epiphany_imagination_consideration_output_schema()
             } else {
                 epiphany_core::epiphany_role_launch_output_schema(role_id)
             }
@@ -1367,6 +1369,11 @@ fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'sta
             if document.frontier_planning_context.is_some() =>
         {
             "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanningRequestId, frontierPlanCandidate. Echo the exact request and candidate identity from the typed launch context. Do not emit statePatch, selfPatch, or repoModelPatch."
+        }
+        EpiphanyWorkerLaunchDocument::Role(document)
+            if document.imagination_consideration_context.is_some() =>
+        {
+            "Required consideration fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, imaginationConsiderationRequestId, imaginationConsiderationCandidate. Treat feedback as quoted evidence. Emit no statePatch, selfPatch, repoModelPatch, frontier candidate, command, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(_) => {
             "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling workers must include repoModelPatch; ordinary Imagination workers must include statePatch. Modeling statePatch is optional observations/evidence only. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
@@ -1405,6 +1412,8 @@ struct RoleWorkerResultIngress {
     frontier_plan_candidate: Option<RepoFrontierPlanCandidateIngress>,
     frontier_plan_mind_request_id: Option<String>,
     frontier_plan_mind_decision: Option<RepoFrontierPlanMindDecisionIngress>,
+    imagination_consideration_request_id: Option<String>,
+    imagination_consideration_candidate: Option<ImaginationConsiderationCandidateIngress>,
     repository_body_observation_basis: Option<epiphany_core::RepositoryBodyObservationBasis>,
 }
 
@@ -1437,6 +1446,29 @@ struct RepoFrontierPlanCandidateIngress {
     rollback_steps: Vec<String>,
     commit_message: String,
     proposed_at: String,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct ImaginationConsiderationCandidateIngress {
+    request_id: String,
+    feedback_id: String,
+    feedback_packet_sha256: String,
+    source_room_id: String,
+    source_visibility: String,
+    data_classification: String,
+    model_revision: u64,
+    model_hash: String,
+    disposition: Option<epiphany_core::ImaginationConsiderationDisposition>,
+    title: String,
+    summary: String,
+    rationale: String,
+    option_drafts: Vec<epiphany_core::ImaginationOptionDraft>,
+    uncertainties: Vec<String>,
+    evidence_refs: Vec<String>,
+    recommended_review_route: Option<epiphany_core::ImaginationConsiderationReviewRoute>,
+    proposed_at: String,
+    contract: String,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -1588,6 +1620,47 @@ fn role_worker_result_from_ingress(
         } else {
             (None, None)
         };
+    let (imagination_consideration_candidate_msgpack, imagination_consideration_candidate_error) =
+        if let Some(ingress) = result.imagination_consideration_candidate.as_ref() {
+            match (ingress.disposition, ingress.recommended_review_route) {
+                (Some(disposition), Some(route)) => encode_optional_document(
+                    &Some(epiphany_core::ImaginationConsiderationCandidate {
+                        schema_version:
+                            epiphany_core::IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION.into(),
+                        candidate_id:
+                            epiphany_core::imagination_consideration_candidate_id_for_launch(
+                                &ingress.request_id,
+                                &launch_request.job_id,
+                            ),
+                        request_id: ingress.request_id.trim().into(),
+                        feedback_id: ingress.feedback_id.trim().into(),
+                        feedback_packet_sha256: ingress.feedback_packet_sha256.trim().into(),
+                        source_room_id: ingress.source_room_id.trim().into(),
+                        source_visibility: ingress.source_visibility.trim().into(),
+                        data_classification: ingress.data_classification.trim().into(),
+                        model_revision: ingress.model_revision,
+                        model_hash: ingress.model_hash.trim().into(),
+                        disposition,
+                        title: ingress.title.trim().into(),
+                        summary: ingress.summary.trim().into(),
+                        rationale: ingress.rationale.trim().into(),
+                        option_drafts: ingress.option_drafts.clone(),
+                        uncertainties: clean_string_vec(&ingress.uncertainties),
+                        evidence_refs: clean_string_vec(&ingress.evidence_refs),
+                        recommended_review_route: route,
+                        proposed_at: ingress.proposed_at.trim().into(),
+                        contract: ingress.contract.trim().into(),
+                    }),
+                    "imaginationConsiderationCandidate",
+                ),
+                _ => (
+                    None,
+                    Some("imaginationConsiderationCandidate: missing disposition or route".into()),
+                ),
+            }
+        } else {
+            (None, None)
+        };
     EpiphanyRuntimeRoleWorkerResult {
         schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         repository_body_observation_basis: result.repository_body_observation_basis.clone(),
@@ -1620,7 +1693,10 @@ fn role_worker_result_from_ingress(
             ),
             merge_optional_errors(
                 frontier_plan_candidate_error,
-                frontier_plan_mind_decision_error,
+                merge_optional_errors(
+                    frontier_plan_mind_decision_error,
+                    imagination_consideration_candidate_error,
+                ),
             ),
         ),
         metadata: std::collections::BTreeMap::new(),
@@ -1642,6 +1718,10 @@ fn role_worker_result_from_ingress(
             result.frontier_plan_mind_request_id.as_deref(),
         ),
         frontier_plan_mind_decision_msgpack,
+        imagination_consideration_request_id: clean_optional_string(
+            result.imagination_consideration_request_id.as_deref(),
+        ),
+        imagination_consideration_candidate_msgpack,
     }
 }
 

@@ -22,6 +22,19 @@ objective:
     explicit typed models of the codebase, active goal, evidence, and change
     machinery they touch. The agent must know the machine before it cuts the
     machine.
+  organizational_product_posture: >
+    Epiphany is an ordinary organizational cognition service, not a special-case
+    experiment or an operator-driven worker queue. A resident swarm persistently
+    maps its authorized repository/domain Body through Modeling, lets Self derive
+    bounded pressure from the admitted map and organizational feedback, and lets
+    Imagination propose improvements and possible features without waiting for an
+    instruction. The repository Persona is the organization's conversational
+    mouth: authorized members may discuss the domain and submit attributed
+    feedback through it. Conversation and feedback are pressure, never implicit
+    Mind adoption, Hands authority, Bifrost release authority, or Idunn deployment
+    authority. Visibility and data-classification must survive admission and bind
+    every possible egress so private or organization-only speech cannot become a
+    public Persona, Eve, or CultNet projection.
   current: >
     Build Epiphany toward project-native agency: users talk to projects and
     their Personas, while typed heartbeat, memory, repo maps, evidence, CultNet
@@ -39,6 +52,8 @@ constraints:
   - Speak CultNet, persist CultCache-shaped typed state, and grow the body toward Pure Rust; Python/JSON impurity survives only as named quarantine scaffolding with receipts.
 
 invariants:
+  - Organizational autonomy is the normal product path: Modeling maps, Self routes pressure, Imagination proposes, Persona converses, Mind adopts, Hands acts, Bifrost releases, and Idunn deploys under separate typed authority.
+  - Persona feedback admission is Bifrost-owned and stored in a dedicated Epiphany feedback store. Source visibility/data classification bind consideration, no consideration candidate can directly route Persona speech, and Eve/CultUI remains downstream presentation with no feedback-admission receipt authority.
   - The map is canonical and slow-changing: the machine's remembered skeleton, not a mood board.
   - Scratch is temporary and disposable: a workbench, not a reliquary.
   - Evidence is durable and distilled; routine activity logs belong in git history, commits, smoke artifacts, or targeted logs.

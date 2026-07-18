@@ -704,6 +704,52 @@ pub fn epiphany_frontier_plan_mind_output_schema() -> serde_json::Value {
     })
 }
 
+pub fn epiphany_imagination_consideration_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "roleId": {"type": "string", "const": "imagination"},
+            "verdict": {"type": "string", "minLength": 1},
+            "summary": {"type": "string", "minLength": 1},
+            "nextSafeMove": {"type": "string", "minLength": 1},
+            "filesInspected": {"type": "array", "items": {"type": "string"}},
+            "imaginationConsiderationRequestId": {"type": "string", "minLength": 1},
+            "imaginationConsiderationCandidate": {
+                "type": "object",
+                "required": ["request_id", "feedback_id", "feedback_packet_sha256", "model_revision", "model_hash",
+                    "source_room_id", "source_visibility", "data_classification",
+                    "disposition", "title", "summary", "rationale", "option_drafts", "uncertainties", "evidence_refs",
+                    "recommended_review_route", "proposed_at", "contract"],
+                "properties": {
+                    "request_id": {"type": "string", "minLength": 1},
+                    "feedback_id": {"type": "string", "minLength": 1},
+                    "feedback_packet_sha256": {"type": "string", "minLength": 1},
+                    "model_revision": {"type": "integer", "minimum": 0},
+                    "model_hash": {"type": "string", "minLength": 1},
+                    "disposition": {"type": "string", "enum": ["suggest", "hold", "no_fit"]},
+                    "title": {"type": "string", "minLength": 1}, "summary": {"type": "string", "minLength": 1},
+                    "rationale": {"type": "string", "minLength": 1},
+                    "option_drafts": {"type": "array", "items": {"type": "object", "required": ["title", "summary"],
+                        "properties": {"title": {"type": "string", "minLength": 1}, "summary": {"type": "string", "minLength": 1}},
+                        "additionalProperties": false}},
+                    "uncertainties": {"type": "array", "items": {"type": "string"}},
+                    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                    "source_room_id": {"type": "string", "minLength": 1},
+                    "source_visibility": {"type": "string", "minLength": 1},
+                    "data_classification": {"type": "string", "minLength": 1},
+                    "recommended_review_route": {"type": "string", "enum": ["modeling_review", "hold", "silence"]},
+                    "proposed_at": {"type": "string", "minLength": 1},
+                    "contract": {"const": "epiphany.imagination_consideration_candidate.v0"}
+                },
+                "additionalProperties": false
+            }
+        },
+        "required": ["roleId", "verdict", "summary", "nextSafeMove", "filesInspected",
+            "imaginationConsiderationRequestId", "imaginationConsiderationCandidate"],
+        "additionalProperties": false
+    })
+}
+
 pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
@@ -872,6 +918,7 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         claim_repair_context: None,
         frontier_planning_context: None,
         frontier_plan_mind_context: None,
+        imagination_consideration_context: None,
         active_subgoal_id: state.active_subgoal_id.clone(),
         active_subgoals: state
             .subgoals
@@ -917,6 +964,7 @@ pub fn build_epiphany_frontier_plan_mind_launch_request(
         claim_repair_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_mind_request_id: Some(mind_request_id),
+        imagination_consideration_request_id: None,
     })
 }
 
@@ -968,6 +1016,7 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         claim_repair_context: None,
         frontier_planning_context: None,
         frontier_plan_mind_context: None,
+        imagination_consideration_context: None,
         active_subgoal_id: state.active_subgoal_id.clone(),
         active_subgoals: state
             .subgoals
@@ -1012,7 +1061,35 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
         claim_repair_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_mind_request_id: None,
+        imagination_consideration_request_id: None,
     })
+}
+
+pub fn build_epiphany_imagination_consideration_launch_request(
+    thread_id: &str,
+    expected_revision: Option<u64>,
+    max_runtime_seconds: Option<u64>,
+    state: &EpiphanyThreadState,
+    request_id: String,
+) -> Result<EpiphanyJobLaunchRequest, String> {
+    let mut launch = build_epiphany_role_launch_request_with_dynamic_context(
+        thread_id,
+        EpiphanyRoleResultRoleId::Imagination,
+        expected_revision,
+        max_runtime_seconds,
+        state,
+        None,
+    )?;
+    launch.scope = "role-scoped organizational feedback consideration".into();
+    launch.authority_scope = "epiphany.imagination.consideration.proposal_only".into();
+    launch.instruction = "Await coordinator-owned typed consideration context.".into();
+    launch.organ_launch_contract = default_launch_organ_contract(
+        &launch.authority_scope,
+        launch.launch_document.document_kind(),
+        &launch.output_contract_id,
+    );
+    launch.imagination_consideration_request_id = Some(request_id);
+    Ok(launch)
 }
 
 fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> String {
@@ -1118,6 +1195,7 @@ pub fn build_epiphany_job_launch_request(
         claim_repair_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_mind_request_id: None,
+        imagination_consideration_request_id: None,
     }
 }
 
@@ -1396,6 +1474,30 @@ mod tests {
         assert!(schema["properties"].get("statePatch").is_none());
         assert!(schema["properties"].get("selfPatch").is_none());
         assert!(schema["properties"].get("repoModelPatch").is_none());
+        assert_eq!(schema["additionalProperties"], false);
+    }
+
+    #[test]
+    fn consideration_schema_has_only_proposal_candidate_cargo() {
+        let schema = epiphany_imagination_consideration_output_schema();
+        assert!(
+            schema["properties"]
+                .get("imaginationConsiderationRequestId")
+                .is_some()
+        );
+        assert!(
+            schema["properties"]
+                .get("imaginationConsiderationCandidate")
+                .is_some()
+        );
+        for forbidden in [
+            "statePatch",
+            "selfPatch",
+            "repoModelPatch",
+            "frontierPlanCandidate",
+        ] {
+            assert!(schema["properties"].get(forbidden).is_none());
+        }
         assert_eq!(schema["additionalProperties"], false);
     }
 

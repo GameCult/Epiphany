@@ -18,10 +18,12 @@ mod hands_gateway;
 mod heartbeat_state;
 mod host_identity;
 mod idunn_runtime_health;
+mod imagination_consideration;
 mod memory_graph;
 mod mind_gateway;
 mod organ_dependencies;
 mod packaged_release;
+mod persona_feedback_admission;
 mod persona_turn;
 mod process_observation;
 mod promotion;
@@ -72,6 +74,7 @@ pub use agent_launch::EpiphanyRolePromptConfig;
 pub use agent_launch::EpiphanySharedPromptConfig;
 pub use agent_launch::EpiphanySpecialistPromptConfig;
 pub use agent_launch::build_epiphany_frontier_plan_mind_launch_request;
+pub use agent_launch::build_epiphany_imagination_consideration_launch_request;
 pub use agent_launch::build_epiphany_job_launch_request;
 pub use agent_launch::build_epiphany_reorient_launch_instruction;
 pub use agent_launch::build_epiphany_reorient_launch_request;
@@ -81,6 +84,7 @@ pub use agent_launch::build_epiphany_role_launch_request_with_dynamic_context;
 pub use agent_launch::epiphany_agent_prompt_with_memory;
 pub use agent_launch::epiphany_frontier_plan_mind_output_schema;
 pub use agent_launch::epiphany_frontier_planning_output_schema;
+pub use agent_launch::epiphany_imagination_consideration_output_schema;
 pub use agent_launch::epiphany_reorient_launch_output_schema;
 pub use agent_launch::epiphany_role_binding_id;
 pub use agent_launch::epiphany_role_label;
@@ -235,9 +239,6 @@ pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_BODY_CHANGE_PUBLICATION_RECEIPT_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_ARRIVAL_LATEST_KEY;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_COLLABORATION_FEEDBACK_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_CONTRACT_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_CONTRACT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_BIFROST_GITHUB_PUBLICATION_RECEIPT_ARRIVAL_LATEST_KEY;
@@ -277,12 +278,6 @@ pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_INTENT_TY
 pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_LATEST_KEY;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_DAEMON_TOOL_INVOCATION_RECEIPT_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_LATEST_KEY;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_CONNECTION_INTENT_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_LATEST_KEY;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_CONNECTION_RECEIPT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_SURFACE_STATE_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_EVE_SURFACE_STATE_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION;
@@ -296,9 +291,6 @@ pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_ACTION_GATE_SCHEMA_VERSION
 pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_ACTION_GATE_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_HANDS_CONTRACT_TYPE;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_LATEST_KEY;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_SCHEMA_VERSION;
-pub use cultmesh_integration::EPIPHANY_CULTMESH_IMAGINATION_CONSENSUS_RECEIPT_TYPE;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_INTERNAL_TIER;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
 pub use cultmesh_integration::EPIPHANY_CULTMESH_LOCAL_AREA_TIER;
@@ -360,7 +352,6 @@ pub use cultmesh_integration::EpiphanyCultMeshAgentStateSoaSummaryEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostArtifactAcceptanceReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostBodyChangePublicationIntentEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostBodyChangePublicationReceiptEntry;
-pub use cultmesh_integration::EpiphanyCultMeshBifrostCollaborationFeedbackEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostGithubPublicationReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshBifrostMetricsReceiptEntry;
@@ -379,8 +370,6 @@ pub use cultmesh_integration::EpiphanyCultMeshDaemonToolCapabilityEntry;
 pub use cultmesh_integration::EpiphanyCultMeshDaemonToolInvocationIntentEntry;
 pub use cultmesh_integration::EpiphanyCultMeshDaemonToolInvocationReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshDocuments;
-pub use cultmesh_integration::EpiphanyCultMeshEveConnectionIntentEntry;
-pub use cultmesh_integration::EpiphanyCultMeshEveConnectionReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshEveSurfaceStateEntry;
 pub use cultmesh_integration::EpiphanyCultMeshEyesContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshGlobalRoomPolicyEntry;
@@ -388,7 +377,6 @@ pub use cultmesh_integration::EpiphanyCultMeshHandsActionGateEntry;
 pub use cultmesh_integration::EpiphanyCultMeshHandsContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshIdunnAftercareAuditReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshIdunnDeploymentReceiptEntry;
-pub use cultmesh_integration::EpiphanyCultMeshImaginationConsensusReceiptEntry;
 pub use cultmesh_integration::EpiphanyCultMeshManagedServicePolicyEntry;
 pub use cultmesh_integration::EpiphanyCultMeshMindContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshOdinAdvertisementEntry;
@@ -423,7 +411,6 @@ pub use cultmesh_integration::epiphany_cultmesh_bifrost_artifact_acceptance_rece
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_body_change_publication_intent;
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_body_change_publication_receipt_for_intent;
-pub use cultmesh_integration::epiphany_cultmesh_bifrost_collaboration_feedback;
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_contracts;
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_bifrost_github_publication_receipt_for_publication;
@@ -442,15 +429,11 @@ pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_from_stat
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
 #[cfg(test)]
 pub use cultmesh_integration::epiphany_cultmesh_daemon_tool_invocation_receipt_for_intent;
-pub use cultmesh_integration::epiphany_cultmesh_eve_connection_intent_from_advertisement;
-#[cfg(test)]
-pub use cultmesh_integration::epiphany_cultmesh_eve_connection_receipt_for_intent;
 pub use cultmesh_integration::epiphany_cultmesh_eyes_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_global_room_policies;
 pub use cultmesh_integration::epiphany_cultmesh_hands_action_gate_from_summary_json;
 pub use cultmesh_integration::epiphany_cultmesh_hands_contracts;
 #[cfg(test)]
-pub use cultmesh_integration::epiphany_cultmesh_imagination_consensus_receipt_for_feedback;
 pub use cultmesh_integration::epiphany_cultmesh_mind_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_operator_snapshot_from_status_json;
 pub use cultmesh_integration::epiphany_cultmesh_role_review_event_from_summary_json;
@@ -463,7 +446,6 @@ pub use cultmesh_integration::idunn_recover_memory_semantic_projection_from_cult
 pub use cultmesh_integration::load_arrival_latest_epiphany_cultmesh_bifrost_artifact_acceptance_receipt;
 pub use cultmesh_integration::load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
 pub use cultmesh_integration::load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_receipt;
-pub use cultmesh_integration::load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
 pub use cultmesh_integration::load_arrival_latest_epiphany_cultmesh_bifrost_github_publication_receipt;
 pub use cultmesh_integration::load_arrival_latest_epiphany_cultmesh_bifrost_metrics_receipt;
 pub use cultmesh_integration::load_arrival_latest_epiphany_cultmesh_bifrost_public_proof_publication_receipt;
@@ -503,12 +485,9 @@ pub use cultmesh_integration::load_latest_epiphany_cultmesh_daemon_service_lifec
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt_for_service;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_daemon_tool_invocation_receipt;
-pub use cultmesh_integration::load_latest_epiphany_cultmesh_eve_connection_intent;
-pub use cultmesh_integration::load_latest_epiphany_cultmesh_eve_connection_receipt;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_hands_action_gate;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
-pub use cultmesh_integration::load_latest_epiphany_cultmesh_imagination_consensus_receipt;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_operator_run_intent;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_operator_run_receipt;
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_operator_snapshot;
@@ -532,7 +511,6 @@ pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_artifact_acceptanc
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_body_change_publication_receipt;
-pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_collaboration_feedback;
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_contracts;
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_bifrost_github_publication_receipt;
@@ -554,15 +532,11 @@ pub use cultmesh_integration::write_epiphany_cultmesh_daemon_statuses;
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_intent;
 #[cfg(test)]
 pub use cultmesh_integration::write_epiphany_cultmesh_daemon_tool_invocation_receipt;
-pub use cultmesh_integration::write_epiphany_cultmesh_eve_connection_intent;
-#[cfg(test)]
-pub use cultmesh_integration::write_epiphany_cultmesh_eve_connection_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_eyes_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_global_room_policies;
 pub use cultmesh_integration::write_epiphany_cultmesh_hands_action_gate;
 pub use cultmesh_integration::write_epiphany_cultmesh_hands_contracts;
 #[cfg(test)]
-pub use cultmesh_integration::write_epiphany_cultmesh_imagination_consensus_receipt;
 pub use cultmesh_integration::write_epiphany_cultmesh_managed_service_policy;
 pub use cultmesh_integration::write_epiphany_cultmesh_mind_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_operator_run_intent;
@@ -679,6 +653,7 @@ pub use host_identity::{
     WINDOWS_HOST_IDENTITY_ASSURANCE, default_host_identity_store_path,
     enroll_default_host_identity, enroll_host_identity_at, export_host_identity_trust_anchor,
     open_default_host_identity, open_host_identity_at, verify_host_identity_signature,
+    verify_host_identity_trust_anchor_signature,
 };
 pub use idunn_runtime_health::{
     CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,
@@ -687,6 +662,23 @@ pub use idunn_runtime_health::{
     IDUNN_DAEMON_HEALTH_SCHEMA_VERSION, IDUNN_DAEMON_HEALTH_TYPE, IdunnDaemonHealthDocument,
     derive_epiphany_aggregate_runtime_health, publish_idunn_daemon_health_rudp,
     sign_epiphany_runtime_health,
+};
+pub use imagination_consideration::{
+    CANDIDATE_CONTRACT as IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT,
+    CANDIDATE_SCHEMA as IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION,
+    ImaginationConsiderationCandidate, ImaginationConsiderationDisposition,
+    ImaginationConsiderationLaunchBinding, ImaginationConsiderationQuestion,
+    ImaginationConsiderationRequest, ImaginationConsiderationReviewRequest,
+    ImaginationConsiderationReviewRoute, ImaginationOptionDraft,
+    LAUNCH_BINDING_SCHEMA as IMAGINATION_CONSIDERATION_LAUNCH_BINDING_SCHEMA_VERSION,
+    QuotedPersonaFeedbackEvidence, REQUEST_CONTRACT as IMAGINATION_CONSIDERATION_REQUEST_CONTRACT,
+    REQUEST_SCHEMA as IMAGINATION_CONSIDERATION_REQUEST_SCHEMA_VERSION,
+    candidate_id_for_launch as imagination_consideration_candidate_id_for_launch,
+    commit_request as commit_imagination_consideration_request,
+    render_consideration_prompt as render_imagination_consideration_prompt,
+    request_candidate_modeling_review as request_imagination_consideration_modeling_review,
+    validate_candidate as validate_imagination_consideration_candidate,
+    validate_current_request as validate_current_imagination_consideration_request,
 };
 pub use memory_graph::EpiphanyMemoryEdgeKind;
 pub use memory_graph::EpiphanyMemoryEmbeddingManifest;
@@ -832,6 +824,15 @@ pub use packaged_release::{
     package_and_publish_epiphany_release, publish_epiphany_packaged_release,
     required_packaged_release_binaries, validate_epiphany_packaged_release,
     verify_epiphany_packaged_release_files,
+};
+pub use persona_feedback_admission::{
+    BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION, BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE,
+    BifrostPersonaFeedbackAdmission, LOCAL_PERSONA_FEEDBACK_SCHEMA_VERSION,
+    LocalAdmittedPersonaFeedback, PersonaFeedbackPacket, admit_bifrost_persona_feedback,
+    admitted_persona_feedback, import_bifrost_persona_feedback_deliveries,
+    persona_feedback_admission_signing_payload, persona_feedback_admission_signing_purpose,
+    persona_feedback_packet_sha256, validate_bifrost_persona_feedback_source,
+    validate_persona_feedback_store_separation,
 };
 pub use persona_turn::PERSONA_INTERPRETER_PROMPT_SCHEMA_VERSION;
 pub use persona_turn::PERSONA_PROJECTOR_PROMPT_SCHEMA_VERSION;
@@ -1131,6 +1132,7 @@ pub use surfaces::EpiphanySceneSubgoal;
 pub use surfaces::EpiphanyTokenUsageSnapshot;
 pub use surfaces::EpiphanyViewLens;
 pub use surfaces::EpiphanyWorkerLaunchDocument;
+pub use surfaces::ImaginationConsiderationContextProjection;
 pub use surfaces::REORIENT_WORKER_OUTPUT_CONTRACT_ID;
 pub use surfaces::REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT;
 pub use surfaces::REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION;

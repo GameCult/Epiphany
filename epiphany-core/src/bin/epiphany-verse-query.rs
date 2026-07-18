@@ -32,15 +32,12 @@ use epiphany_core::default_epiphany_cultmesh_swarm_brake;
 use epiphany_core::epiphany_cluster_service_execution_audit_report;
 use epiphany_core::epiphany_cultmesh_agent_state_soa_summary_from_entry;
 use epiphany_core::epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::epiphany_cultmesh_daemon_tool_invocation_intent_from_capability;
-use epiphany_core::epiphany_cultmesh_eve_connection_intent_from_advertisement;
 use epiphany_core::epiphany_service_execution_audit_report;
 use epiphany_core::load_agent_state_soa_entry;
 use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::load_epiphany_cultmesh_cluster_topology;
 use epiphany_core::load_epiphany_cultmesh_daemon_liveness;
 use epiphany_core::load_epiphany_cultmesh_daemon_restart_policy_directory;
@@ -58,8 +55,6 @@ use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_latest_epiphany_cultmesh_agent_state_soa_summary;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_service_lifecycle_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_daemon_tool_invocation_intent;
-use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_intent;
-use epiphany_core::load_latest_epiphany_cultmesh_eve_connection_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_aftercare_audit_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_idunn_deployment_receipt;
 use epiphany_core::load_latest_epiphany_cultmesh_repo_work_map_entry;
@@ -73,13 +68,11 @@ use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_epiphany_cultmesh_agent_state_soa_summary;
 use epiphany_core::write_epiphany_cultmesh_bifrost_body_change_publication_intent;
-use epiphany_core::write_epiphany_cultmesh_bifrost_collaboration_feedback;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_intent;
 use epiphany_core::write_epiphany_cultmesh_daemon_poke_receipt;
 use epiphany_core::write_epiphany_cultmesh_daemon_restart_policy;
 use epiphany_core::write_epiphany_cultmesh_daemon_status;
 use epiphany_core::write_epiphany_cultmesh_daemon_tool_invocation_intent;
-use epiphany_core::write_epiphany_cultmesh_eve_connection_intent;
 use epiphany_core::write_epiphany_cultmesh_swarm_brake;
 use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
 use serde::Serialize;
@@ -96,8 +89,6 @@ const DIRECT_MANAGED_SERVICE_SIGHT_COMMAND: &str = "epiphany-verse-query managed
 const WRAPPER_SWARM_ONLINE_RUNBOOK_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode swarm-online-runbook";
 const WRAPPER_POKE_NON_READY_COMMAND: &str = "tools/epiphany_local_run.ps1 -Mode swarm-poke-down";
-const WRAPPER_COLLABORATION_FEEDBACK_COMMAND: &str =
-    "tools/epiphany_local_run.ps1 -Mode collaboration-feedback";
 const WRAPPER_BIFROST_PUBLICATION_COMMAND: &str =
     "tools/epiphany_local_run.ps1 -Mode bifrost-publication";
 const WRAPPER_RECEIPT_DIRECTORY_COMMAND: &str =
@@ -1024,215 +1015,8 @@ fn run_cli() -> Result<()> {
             anyhow::bail!("historical-only: canonical frontier workflow required")
         }
         "collaboration-feedback" | "persona-feedback" => {
-            if args.receipt_id.is_some()
-                || args.receipt_status.is_some()
-                || args.imagination_agent_ids.is_some()
-                || args.consensus_packet_ref.is_some()
-            {
-                anyhow::bail!(
-                    "collaboration-feedback accepts Persona feedback fields only; Imagination owns consensus receipt, participants, packet, status, and adoption gate"
-                );
-            }
-
-            require_query_bootstrap(&args)?;
-
-            let feedback_id = args
-                .feedback_id
-                .clone()
-                .unwrap_or_else(|| "collaboration-feedback".to_string());
-            let source_persona_id = args
-                .source_persona_id
-                .clone()
-                .unwrap_or_else(|| "epiphany.Persona".to_string());
-            let source_cluster_id = args
-                .source_cluster_id
-                .clone()
-                .unwrap_or_else(|| "epiphany.cluster.persona".to_string());
-            let public_room_id = args
-                .public_room_id
-                .clone()
-                .unwrap_or_else(|| "epiphany-global/collaboration".to_string());
-            let eve_connection_receipt_id = args
-                .eve_connection_receipt_id
-                .clone()
-                .context("collaboration-feedback requires --eve-connection-receipt-id")?;
-            let provider_connection_receipt =
-                load_latest_epiphany_cultmesh_eve_connection_receipt(
-                    &args.store,
-                    args.runtime_id.clone(),
-                )?
-                .filter(|receipt| receipt.receipt_id == eve_connection_receipt_id)
-                .with_context(|| {
-                    format!(
-                        "collaboration-feedback requires a persisted Eve provider receipt {eve_connection_receipt_id:?}; a consumer intent is not acceptance"
-                    )
-                })?;
-            if provider_connection_receipt.status.trim().is_empty() {
-                anyhow::bail!("persisted Eve provider receipt has no status");
-            }
-            let collaboration_topic = args
-                .collaboration_topic
-                .clone()
-                .context("collaboration-feedback requires --collaboration-topic")?;
-            let feedback_summary = args
-                .feedback_summary
-                .clone()
-                .context("collaboration-feedback requires --feedback-summary")?;
-            let public_discussion_refs = required_list(
-                &args.public_discussion_refs,
-                "collaboration-feedback requires --public-discussion-ref",
-            )?;
-            let candidate_action_refs = args.candidate_action_refs.clone().unwrap_or_default();
-            let feedback = epiphany_cultmesh_bifrost_collaboration_feedback(
-                feedback_id,
-                source_persona_id,
-                source_cluster_id,
-                public_room_id,
-                eve_connection_receipt_id,
-                collaboration_topic,
-                feedback_summary,
-                public_discussion_refs,
-                candidate_action_refs,
-            );
-            let written_feedback = write_epiphany_cultmesh_bifrost_collaboration_feedback(
-                &args.store,
-                args.runtime_id.clone(),
-                feedback.clone(),
-            )?;
-            let arrival_latest_feedback =
-                load_arrival_latest_epiphany_cultmesh_bifrost_collaboration_feedback(
-                    &args.store,
-                    args.runtime_id.clone(),
-                )?;
-            if arrival_latest_feedback
-                .as_ref()
-                .map(|feedback| feedback.feedback_id.as_str())
-                != Some(written_feedback.feedback_id.as_str())
-            {
-                anyhow::bail!("local Verse query lost collaboration feedback after write");
-            }
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({
-                    "status": "pending-imagination",
-                    "store": args.store,
-                    "runtimeId": args.runtime_id,
-                    "feedbackId": written_feedback.feedback_id,
-                    "consensusReceiptId": null,
-                    "requestedConsensusRoute": written_feedback.requested_consensus_route,
-                    "consensusPacketRef": null,
-                    "adoptionGate": null,
-                    "responseOwner": "Imagination",
-                    "commands": {
-                        "bifrostPublication": DIRECT_BIFROST_PUBLICATION_COMMAND,
-                        "wrapperBifrostPublication": WRAPPER_BIFROST_PUBLICATION_COMMAND,
-                        "wrapperCollaborationFeedback": WRAPPER_COLLABORATION_FEEDBACK_COMMAND
-                    },
-                    "publicDiscussionRefs": written_feedback.public_discussion_refs,
-                    "candidateActionRefs": written_feedback.candidate_action_refs,
-                    "tuiRows": [format!("FEEDBACK | {} | owner={} | status=pending-imagination | route={} | publicRefs={} | candidateActions={} | private=false", written_feedback.collaboration_topic, written_feedback.source_persona_id, written_feedback.requested_consensus_route, written_feedback.public_discussion_refs.len(), written_feedback.candidate_action_refs.len())],
-                    "privateStateIncluded": written_feedback.private_state_included,
-                    "privateStateExposed": false,
-                }))?
-            );
-        }
-        "connect-eve" | "eve-connection" => {
-            if args.receipt_id.is_some() || args.receipt_status.is_some() {
-                anyhow::bail!(
-                    "connect-eve accepts consumer intent fields only; the advertised Eve provider owns connection receipt id and status"
-                );
-            }
-
-            require_query_bootstrap(&args)?;
-
-            let directory =
-                load_epiphany_cultmesh_eve_surface_directory(&args.store, args.runtime_id.clone())?;
-            let (_target_cluster, target, _target_surface) = if let Some(advertisement_id) =
-                args.advertisement_id.as_deref()
-            {
-                directory
-                    .into_iter()
-                    .find(|(_cluster, advertisement, _surface)| {
-                        advertisement.advertisement_id == advertisement_id
-                    })
-                    .with_context(|| {
-                        format!("connect-eve unavailable: no provenance-bearing Odin advertisement {advertisement_id:?}")
-                    })?
-            } else {
-                let target_cluster_id = args
-                    .target_cluster_id
-                    .as_deref()
-                    .context("connect-eve requires --advertisement-id or --target-cluster-id")?;
-                directory
-                        .into_iter()
-                        .find(|(_cluster, advertisement, _surface)| {
-                            advertisement.cluster_id == target_cluster_id
-                        })
-                        .with_context(|| {
-                            format!(
-                                "connect-eve unavailable: no provenance-bearing Odin advertisement for cluster {target_cluster_id:?}"
-                            )
-                        })?
-            };
-            let intent_id = args
-                .intent_id
-                .clone()
-                .unwrap_or_else(|| "eve-connection-intent".to_string());
-            let requesting_cluster_id = args
-                .source_cluster_id
-                .clone()
-                .unwrap_or_else(|| "epiphany.cluster.self".to_string());
-            let reason = args.reason.clone().unwrap_or_else(|| {
-                format!(
-                    "Request compact Eve collaboration with {} through Odin advertisement {}.",
-                    target.cluster_id, target.advertisement_id
-                )
-            });
-            let requested_action = args
-                .requested_action
-                .clone()
-                .unwrap_or_else(|| "requestDiscussion".to_string());
-            let intent = epiphany_cultmesh_eve_connection_intent_from_advertisement(
-                intent_id,
-                requesting_cluster_id,
-                &target,
-                reason,
-                requested_action,
-            );
-            let written_intent = write_epiphany_cultmesh_eve_connection_intent(
-                &args.store,
-                args.runtime_id.clone(),
-                intent.clone(),
-            )?;
-            let latest_intent = load_latest_epiphany_cultmesh_eve_connection_intent(
-                &args.store,
-                args.runtime_id.clone(),
-            )?;
-            if latest_intent
-                .as_ref()
-                .map(|intent| intent.intent_id.as_str())
-                != Some(written_intent.intent_id.as_str())
-            {
-                anyhow::bail!("local Verse query lost Eve connection intent after write");
-            }
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({
-                    "status": "pending-provider",
-                    "store": args.store,
-                    "runtimeId": args.runtime_id,
-                    "intentId": written_intent.intent_id,
-                    "receiptId": null,
-                    "receiptStatus": null,
-                    "responseOwner": written_intent.target_cluster_id,
-                    "targetAdvertisementId": written_intent.target_advertisement_id,
-                    "targetClusterId": written_intent.target_cluster_id,
-                    "targetEveSurfaceId": written_intent.target_eve_surface_id,
-                    "requestedAction": written_intent.requested_action,
-                    "feedbackRoute": written_intent.feedback_route,
-                    "privateStateRequested": written_intent.private_state_requested,
-                    "privateStateExposed": false,
-                }))?
+            anyhow::bail!(
+                "collaboration-feedback cannot author Bifrost admission locally; submit feedback to Bifrost and ingest its authenticated, target-bound admission receipt"
             );
         }
         "smoke" => {
@@ -1717,27 +1501,7 @@ fn run_cli() -> Result<()> {
                 args.runtime_id.clone(),
                 bifrost_intent.clone(),
             )?;
-            let feedback = epiphany_cultmesh_bifrost_collaboration_feedback(
-                "collaboration-feedback-smoke",
-                "epiphany.Persona",
-                "epiphany.persona",
-                "epiphany-global/collaboration",
-                "eve-receipt-smoke",
-                "Persona requests cross-body collaboration over an advertised Eve surface.",
-                "Persona discussion asks Imagination to compare collaboration options before work adoption.",
-                vec![
-                    "https://gamecult.org/Blog/purge-the-heretek-from-our-daemonic-swarm"
-                        .to_string(),
-                ],
-                vec!["candidate-action:open-collaboration-thread".to_string()],
-            );
-            write_epiphany_cultmesh_bifrost_collaboration_feedback(
-                &args.store,
-                args.runtime_id.clone(),
-                feedback,
-            )?;
-            if !WRAPPER_COLLABORATION_FEEDBACK_COMMAND.contains("-Mode collaboration-feedback")
-                || !WRAPPER_BIFROST_PUBLICATION_COMMAND.contains("-Mode bifrost-publication")
+            if !WRAPPER_BIFROST_PUBLICATION_COMMAND.contains("-Mode bifrost-publication")
                 || !DIRECT_BIFROST_PUBLICATION_COMMAND.contains("bifrost-publication")
                 || !DIRECT_BIFROST_PUBLICATION_COMMAND.contains("--changed-path <path>")
             {
@@ -1869,10 +1633,6 @@ fn run_cli() -> Result<()> {
                 || context
                     .arrival_latest_bifrost_github_publication_receipt
                     .is_some()
-                || context
-                    .arrival_latest_bifrost_collaboration_feedback
-                    .is_none()
-                || context.latest_imagination_consensus_receipt.is_some()
                 || context.latest_work_loop_summary.is_none()
                 || context.latest_agent_state_soa_summary.is_none()
             {
@@ -1947,12 +1707,6 @@ fn run_cli() -> Result<()> {
                 || receipt_directory.artifact_missing_count != 0
                 || !receipt_directory.rows.iter().any(|row| {
                     row.family == "daemon-tool"
-                        && !row.present
-                        && row.latest_id == "missing"
-                        && row.follow_up_command == "none"
-                })
-                || !receipt_directory.rows.iter().any(|row| {
-                    row.family == "eve-connection"
                         && !row.present
                         && row.latest_id == "missing"
                         && row.follow_up_command == "none"
@@ -2184,8 +1938,6 @@ fn run_cli() -> Result<()> {
                     "daemonStatuses": context.daemon_statuses.len(),
                     "swarmBrake": context.swarm_brake.as_ref().map(|brake| brake.status.clone()),
                     "daemonTools": context.daemon_tool_capabilities.len(),
-                    "latestEveIntent": context.latest_eve_connection_intent.as_ref().map(|intent| intent.intent_id.clone()),
-                    "latestEveReceipt": context.latest_eve_connection_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "latestToolInvocationIntent": context.latest_daemon_tool_invocation_intent.as_ref().map(|intent| intent.intent_id.clone()),
                     "latestToolInvocationReceipt": context.latest_daemon_tool_invocation_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "latestDaemonPokeIntent": context.latest_daemon_poke_intent.as_ref().map(|intent| intent.intent_id.clone()),
@@ -2193,8 +1945,6 @@ fn run_cli() -> Result<()> {
                     "arrivalLatestBifrostPublicationIntent": context.arrival_latest_bifrost_body_change_publication_intent.as_ref().map(|intent| intent.intent_id.clone()),
                     "arrivalLatestBifrostPublicationReceipt": context.arrival_latest_bifrost_body_change_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "arrivalLatestBifrostGithubReceipt": context.arrival_latest_bifrost_github_publication_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
-                    "arrivalLatestBifrostCollaborationFeedback": context.arrival_latest_bifrost_collaboration_feedback.as_ref().map(|feedback| feedback.feedback_id.clone()),
-                    "latestImaginationConsensusReceipt": context.latest_imagination_consensus_receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
                     "latestWorkLoopTelemetry": context.latest_work_loop_summary.as_ref().map(|summary| summary.telemetry_id.clone()),
                     "latestAgentStateSoaSummary": context.latest_agent_state_soa_summary.as_ref().map(|summary| summary.summary_id.clone()),
                     "latestRepoWorkOverview": latest_repo_work_overview.as_ref().map(|overview| overview.overview_id.clone()),
@@ -6023,46 +5773,6 @@ fn receipt_directory_report(
         &mut rows,
         &mut tui_rows,
         ReceiptDirectoryRow {
-            family: "eve-connection".to_string(),
-            owner: context
-                .latest_eve_connection_receipt
-                .as_ref()
-                .map(|receipt| receipt.target_cluster_id.clone())
-                .unwrap_or_else(|| "target-provider".to_string()),
-            document_kind: "epiphany.cultmesh.eve_connection_receipt.v0".to_string(),
-            latest_id: context
-                .latest_eve_connection_receipt
-                .as_ref()
-                .map(|receipt| receipt.receipt_id.clone())
-                .unwrap_or_else(|| "missing".to_string()),
-            status: context
-                .latest_eve_connection_receipt
-                .as_ref()
-                .map(|receipt| receipt.status.clone())
-                .unwrap_or_else(|| "missing".to_string()),
-            route: context
-                .latest_eve_connection_receipt
-                .as_ref()
-                .map(|receipt| receipt.target_eve_surface_id.clone())
-                .unwrap_or_else(|| "none".to_string()),
-            service_id: "none".to_string(),
-            service_route: "none".to_string(),
-            follow_up_command: "none".to_string(),
-            artifact_ref: "none".to_string(),
-            artifact_status: "none".to_string(),
-            artifact_sha256: "none".to_string(),
-            present: context.latest_eve_connection_receipt.is_some(),
-            private_state_exposed: context
-                .latest_eve_connection_receipt
-                .as_ref()
-                .map(|receipt| receipt.private_state_exposed)
-                .unwrap_or(false),
-        },
-    );
-    push_receipt_directory_row(
-        &mut rows,
-        &mut tui_rows,
-        ReceiptDirectoryRow {
             family: "bifrost-publication".to_string(),
             owner: "Bifrost".to_string(),
             document_kind: "gamecult.bifrost.github_publication_receipt.v0".to_string(),
@@ -6148,42 +5858,6 @@ fn receipt_directory_report(
                 .is_some(),
             private_state_exposed: context
                 .arrival_latest_bifrost_public_proof_publication_receipt
-                .as_ref()
-                .map(|receipt| receipt.private_state_exposed)
-                .unwrap_or(false),
-        },
-    );
-    push_receipt_directory_row(
-        &mut rows,
-        &mut tui_rows,
-        ReceiptDirectoryRow {
-            family: "imagination-consensus".to_string(),
-            owner: "Imagination".to_string(),
-            document_kind: "epiphany.cultmesh.imagination_consensus_receipt.v0".to_string(),
-            latest_id: context
-                .latest_imagination_consensus_receipt
-                .as_ref()
-                .map(|receipt| receipt.receipt_id.clone())
-                .unwrap_or_else(|| "missing".to_string()),
-            status: context
-                .latest_imagination_consensus_receipt
-                .as_ref()
-                .map(|receipt| receipt.status.clone())
-                .unwrap_or_else(|| "missing".to_string()),
-            route: context
-                .latest_imagination_consensus_receipt
-                .as_ref()
-                .map(|receipt| receipt.adoption_gate.clone())
-                .unwrap_or_else(|| "none".to_string()),
-            service_id: "none".to_string(),
-            service_route: "none".to_string(),
-            follow_up_command: WRAPPER_COLLABORATION_FEEDBACK_COMMAND.to_string(),
-            artifact_ref: "none".to_string(),
-            artifact_status: "none".to_string(),
-            artifact_sha256: "none".to_string(),
-            present: context.latest_imagination_consensus_receipt.is_some(),
-            private_state_exposed: context
-                .latest_imagination_consensus_receipt
                 .as_ref()
                 .map(|receipt| receipt.private_state_exposed)
                 .unwrap_or(false),
@@ -7325,19 +6999,7 @@ struct Args {
     source_cluster_id: Option<String>,
     source_agent_id: Option<String>,
     body_domain: Option<String>,
-    feedback_id: Option<String>,
-    source_persona_id: Option<String>,
     public_room_id: Option<String>,
-    eve_connection_receipt_id: Option<String>,
-    collaboration_topic: Option<String>,
-    feedback_summary: Option<String>,
-    public_discussion_refs: Option<Vec<String>>,
-    candidate_action_refs: Option<Vec<String>>,
-    imagination_agent_ids: Option<Vec<String>>,
-    consensus_packet_ref: Option<String>,
-    advertisement_id: Option<String>,
-    target_cluster_id: Option<String>,
-    requested_action: Option<String>,
     affected_clusters: Option<Vec<String>>,
     protected_surfaces: Option<Vec<String>>,
 }
@@ -7383,19 +7045,7 @@ impl Args {
         let mut source_cluster_id = None;
         let mut source_agent_id = None;
         let mut body_domain = None;
-        let mut feedback_id = None;
-        let mut source_persona_id = None;
         let mut public_room_id = None;
-        let mut eve_connection_receipt_id = None;
-        let mut collaboration_topic = None;
-        let mut feedback_summary = None;
-        let mut public_discussion_refs = Vec::new();
-        let mut candidate_action_refs = Vec::new();
-        let mut imagination_agent_ids = Vec::new();
-        let mut consensus_packet_ref = None;
-        let mut advertisement_id = None;
-        let mut target_cluster_id = None;
-        let mut requested_action = None;
         let mut affected_clusters = Vec::new();
         let mut protected_surfaces = Vec::new();
 
@@ -7560,76 +7210,8 @@ impl Args {
                 "--body-domain" => {
                     body_domain = Some(values.next().context("missing --body-domain value")?);
                 }
-                "--feedback-id" => {
-                    feedback_id = Some(values.next().context("missing --feedback-id value")?);
-                }
-                "--source-persona-id" => {
-                    source_persona_id =
-                        Some(values.next().context("missing --source-persona-id value")?);
-                }
                 "--public-room-id" => {
                     public_room_id = Some(values.next().context("missing --public-room-id value")?);
-                }
-                "--eve-connection-receipt-id" => {
-                    eve_connection_receipt_id = Some(
-                        values
-                            .next()
-                            .context("missing --eve-connection-receipt-id value")?,
-                    );
-                }
-                "--collaboration-topic" => {
-                    collaboration_topic = Some(
-                        values
-                            .next()
-                            .context("missing --collaboration-topic value")?,
-                    );
-                }
-                "--feedback-summary" => {
-                    feedback_summary =
-                        Some(values.next().context("missing --feedback-summary value")?);
-                }
-                "--public-discussion-ref" | "--public-discussion-refs" => {
-                    extend_list(
-                        &mut public_discussion_refs,
-                        values
-                            .next()
-                            .context("missing --public-discussion-ref value")?,
-                    );
-                }
-                "--candidate-action-ref" | "--candidate-action-refs" => {
-                    extend_list(
-                        &mut candidate_action_refs,
-                        values
-                            .next()
-                            .context("missing --candidate-action-ref value")?,
-                    );
-                }
-                "--imagination-agent-id" | "--imagination-agent-ids" => {
-                    extend_list(
-                        &mut imagination_agent_ids,
-                        values
-                            .next()
-                            .context("missing --imagination-agent-id value")?,
-                    );
-                }
-                "--consensus-packet-ref" => {
-                    consensus_packet_ref = Some(
-                        values
-                            .next()
-                            .context("missing --consensus-packet-ref value")?,
-                    );
-                }
-                "--advertisement-id" => {
-                    advertisement_id =
-                        Some(values.next().context("missing --advertisement-id value")?);
-                }
-                "--target-cluster-id" => {
-                    target_cluster_id =
-                        Some(values.next().context("missing --target-cluster-id value")?);
-                }
-                "--requested-action" => {
-                    requested_action =
-                        Some(values.next().context("missing --requested-action value")?);
                 }
                 _ => anyhow::bail!("unknown argument {arg:?}"),
             }
@@ -7681,19 +7263,7 @@ impl Args {
             source_cluster_id,
             source_agent_id,
             body_domain,
-            feedback_id,
-            source_persona_id,
             public_room_id,
-            eve_connection_receipt_id,
-            collaboration_topic,
-            feedback_summary,
-            public_discussion_refs: some_if_not_empty(public_discussion_refs),
-            candidate_action_refs: some_if_not_empty(candidate_action_refs),
-            imagination_agent_ids: some_if_not_empty(imagination_agent_ids),
-            consensus_packet_ref,
-            advertisement_id,
-            target_cluster_id,
-            requested_action,
             affected_clusters: some_if_not_empty(affected_clusters),
             protected_surfaces: some_if_not_empty(protected_surfaces),
         })

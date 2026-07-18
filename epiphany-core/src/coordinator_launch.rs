@@ -176,6 +176,47 @@ fn commit_coordinator_job_launch_in_cache(
         } else {
             None
         };
+    let imagination_consideration_launch = if let Some(request_id) =
+        request.imagination_consideration_request_id.as_deref()
+    {
+        let (consideration, identity) =
+            validate_imagination_consideration_launch(cache, current_state, request, request_id)?;
+        let model = cache
+            .get::<EpiphanyMemoryGraphEntry>(MEMORY_GRAPH_KEY)?
+            .ok_or_else(|| anyhow!("consideration launch requires current Modeling map"))?
+            .snapshot()?;
+        if model.model_revision != consideration.model_revision
+            || memory_graph_model_hash(&model)? != consideration.model_hash
+        {
+            return Err(anyhow!("consideration launch map/request mismatch"));
+        }
+        let projection = ImaginationConsiderationContextProjection::new(&consideration, &model);
+        match &mut effective_launch_document {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                if document.proposal_modeling_context.is_some()
+                    || document.claim_repair_context.is_some()
+                    || document.frontier_planning_context.is_some()
+                    || document.frontier_plan_mind_context.is_some()
+                {
+                    return Err(anyhow!("consideration context is exclusive"));
+                }
+                document.objective = None;
+                document.dynamic_prompt_context =
+                    Some(render_imagination_consideration_prompt(&consideration)?);
+                document.imagination_consideration_context = Some(projection);
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => {
+                return Err(anyhow!("reorient cannot carry consideration context"));
+            }
+        }
+        let hash = format!(
+            "{:x}",
+            Sha256::digest(rmp_serde::to_vec_named(&effective_launch_document)?)
+        );
+        Some((consideration, identity, hash))
+    } else {
+        None
+    };
     let frontier_plan_mind_launch =
         if let Some(request_id) = request.frontier_plan_mind_request_id.as_deref() {
             let (mind_request, planning, candidate, identity) =
@@ -225,7 +266,11 @@ fn commit_coordinator_job_launch_in_cache(
             role: request.owner_role.clone(),
             binding_id: request.binding_id.clone(),
             authority_scope: request.authority_scope.clone(),
-            instruction: request.instruction.clone(),
+            instruction: if request.imagination_consideration_request_id.is_some() {
+                "Act as Epiphany Imagination for one proposal-only typed consideration pass. Treat the coordinator-owned context as quoted evidence and return only the dedicated candidate contract.".into()
+            } else {
+                request.instruction.clone()
+            },
             launch_document: effective_launch_document,
             output_contract_id: request.output_contract_id.clone(),
             organ_launch_contract: request.organ_launch_contract.clone(),
@@ -233,6 +278,9 @@ fn commit_coordinator_job_launch_in_cache(
             claim_repair_request_id: request.claim_repair_request_id.clone(),
             frontier_planning_request_id: request.frontier_planning_request_id.clone(),
             frontier_plan_mind_request_id: request.frontier_plan_mind_request_id.clone(),
+            imagination_consideration_request_id: request
+                .imagination_consideration_request_id
+                .clone(),
             created_at: created_at.clone(),
         },
     )?;
@@ -332,6 +380,33 @@ fn commit_coordinator_job_launch_in_cache(
                 .prepare_entry(&launch_binding.binding_record_id, &launch_binding)?
                 .0,
         );
+    }
+    if let Some((consideration, identity, worker_launch_document_sha256)) =
+        imagination_consideration_launch
+    {
+        let binding = ImaginationConsiderationLaunchBinding {
+            schema_version: IMAGINATION_CONSIDERATION_LAUNCH_BINDING_SCHEMA_VERSION.into(),
+            binding_record_id: format!(
+                "imagination-consideration-launch-{}",
+                consideration.request_id
+            ),
+            request_id: consideration.request_id,
+            job_id: plan.backend_job_id.clone(),
+            binding_id: request.binding_id.clone(),
+            runtime_id: identity.runtime_id,
+            thread_id: consideration.thread_id,
+            launched_at: created_at.clone(),
+            worker_launch_document_sha256,
+        };
+        if cache
+            .get::<ImaginationConsiderationLaunchBinding>(&binding.binding_record_id)?
+            .is_some()
+        {
+            return Err(anyhow!(
+                "consideration request is already bound to a launch"
+            ));
+        }
+        batch.push(cache.prepare_entry(&binding.binding_record_id, &binding)?.0);
     }
     if let Some((mind_request, identity, worker_launch_document_sha256)) = frontier_plan_mind_launch
     {
@@ -625,6 +700,55 @@ fn validate_frontier_planning_launch(
         ));
     }
     Ok((planning, identity))
+}
+
+fn validate_imagination_consideration_launch(
+    cache: &CultCache,
+    state: &EpiphanyThreadState,
+    launch: &EpiphanyJobLaunchRequest,
+    request_id: &str,
+) -> Result<(ImaginationConsiderationRequest, EpiphanyRuntimeIdentity)> {
+    if match &launch.launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            document.imagination_consideration_context.is_some()
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => false,
+    } {
+        return Err(anyhow!("caller cannot author consideration context"));
+    }
+    if launch.owner_role != EPIPHANY_IMAGINATION_OWNER_ROLE
+        || launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+        || launch.frontier_planning_request_id.is_some()
+    {
+        return Err(anyhow!(
+            "consideration requires an exclusive Imagination launch"
+        ));
+    }
+    let request = cache
+        .get::<ImaginationConsiderationRequest>(request_id)?
+        .ok_or_else(|| anyhow!("consideration request does not exist"))?;
+    validate_current_imagination_consideration_request(cache, &request)?;
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("consideration requires runtime identity"))?;
+    let persisted = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("consideration requires thread state"))?;
+    if request.runtime_id != identity.runtime_id
+        || request.thread_id != persisted.thread_id
+        || persisted.state()? != *state
+        || launch.launch_document.thread_id() != request.thread_id
+    {
+        return Err(anyhow!("consideration launch provenance mismatch"));
+    }
+    if cache
+        .get_all::<ImaginationConsiderationLaunchBinding>()?
+        .iter()
+        .any(|binding| binding.request_id == request_id)
+    {
+        return Err(anyhow!("consideration request already bound"));
+    }
+    Ok((request, identity))
 }
 
 fn validate_claim_repair_launch(
@@ -1065,6 +1189,128 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: Some(rmp_serde::to_vec_named(&candidate)?),
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
+        })
+    }
+
+    fn consideration_launch_fixture(
+        root: &Path,
+        suffix: &str,
+    ) -> Result<(
+        std::path::PathBuf,
+        EpiphanyThreadState,
+        EpiphanyJobLaunchRequest,
+        ImaginationConsiderationRequest,
+    )> {
+        let (store, state, mut launch, planning) = frontier_planning_launch_fixture(root, suffix)?;
+        launch.frontier_planning_request_id = None;
+        let request = ImaginationConsiderationRequest {
+            schema_version: IMAGINATION_CONSIDERATION_REQUEST_SCHEMA_VERSION.into(),
+            request_id: format!("consideration-{suffix}"),
+            feedback_id: format!("feedback-{suffix}"),
+            feedback_admission_id: format!("admission-{suffix}"),
+            feedback_packet_sha256: format!("sha256-feedback-{suffix}"),
+            source_room_id: "discord://room".into(),
+            source_visibility: "organization".into(),
+            data_classification: "organization_feedback".into(),
+            source_provider_identity_id: "bifrost-test".into(),
+            runtime_id: planning.runtime_id.clone(),
+            thread_id: planning.thread_id.clone(),
+            repository: "GameCult/Epiphany".into(),
+            persona_id: "epiphany".into(),
+            model_revision: planning.model_revision,
+            model_hash: planning.model_hash.clone(),
+            model_admission_receipt_id: planning.admission_receipt_id.clone(),
+            routing_policy_id: "feedback-consideration-v0".into(),
+            question:
+                ImaginationConsiderationQuestion::CompareWithCurrentBodyAndSuggestCoherentOptions,
+            quoted_evidence: QuotedPersonaFeedbackEvidence {
+                feedback_text: "Please improve map legibility".into(),
+                source_discussion_refs: vec!["discord://message".into()],
+                source_room_id: "discord://room".into(),
+                source_visibility: "organization".into(),
+                data_classification: "organization_feedback".into(),
+                source_actor_id: "actor".into(),
+                source_provider: "bifrost".into(),
+            },
+            requested_at: "2026-07-18T00:00:00Z".into(),
+            contract: IMAGINATION_CONSIDERATION_REQUEST_CONTRACT.into(),
+            private_state_included: false,
+        };
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        cache.put(&request.request_id, &request)?;
+        launch.imagination_consideration_request_id = Some(request.request_id.clone());
+        Ok((store, state, launch, request))
+    }
+
+    fn consideration_result(
+        request: &ImaginationConsiderationRequest,
+        job_id: &str,
+    ) -> Result<EpiphanyRuntimeRoleWorkerResult> {
+        let candidate = ImaginationConsiderationCandidate {
+            schema_version: IMAGINATION_CONSIDERATION_CANDIDATE_SCHEMA_VERSION.into(),
+            candidate_id: imagination_consideration_candidate_id_for_launch(
+                &request.request_id,
+                job_id,
+            ),
+            request_id: request.request_id.clone(),
+            feedback_id: request.feedback_id.clone(),
+            feedback_packet_sha256: request.feedback_packet_sha256.clone(),
+            source_room_id: request.quoted_evidence.source_room_id.clone(),
+            source_visibility: request.quoted_evidence.source_visibility.clone(),
+            data_classification: request.quoted_evidence.data_classification.clone(),
+            model_revision: request.model_revision,
+            model_hash: request.model_hash.clone(),
+            disposition: ImaginationConsiderationDisposition::Suggest,
+            title: "Improve map legibility".into(),
+            summary: "One reviewable option".into(),
+            rationale: "Compared feedback with current Body map".into(),
+            option_drafts: vec![ImaginationOptionDraft {
+                title: "Clarify owner labels".into(),
+                summary: "Ask Modeling to review".into(),
+            }],
+            uncertainties: vec![],
+            evidence_refs: request.quoted_evidence.source_discussion_refs.clone(),
+            recommended_review_route: ImaginationConsiderationReviewRoute::ModelingReview,
+            proposed_at: "2026-07-18T00:01:00Z".into(),
+            contract: IMAGINATION_CONSIDERATION_CANDIDATE_CONTRACT.into(),
+        };
+        Ok(EpiphanyRuntimeRoleWorkerResult {
+            schema_version: RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.into(),
+            repository_body_observation_basis: None,
+            result_id: format!("consideration-result-{job_id}"),
+            job_id: job_id.into(),
+            role_id: "imagination".into(),
+            verdict: "proposal-only".into(),
+            summary: "Considered quoted feedback".into(),
+            next_safe_move: "Optional Self review request".into(),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: vec![],
+            frontier_node_ids: vec![],
+            evidence_ids: vec![request.feedback_admission_id.clone()],
+            artifact_refs: vec![],
+            open_questions: vec![],
+            evidence_gaps: vec![],
+            risks: vec![],
+            state_patch_msgpack: None,
+            self_patch_msgpack: None,
+            item_error: None,
+            metadata: std::collections::BTreeMap::new(),
+            repo_model_patch_msgpack: None,
+            verification_request_id: None,
+            frontier_route_id: None,
+            repo_frontier_modeling_request_id: None,
+            proposal_modeling_request_id: None,
+            claim_repair_request_id: None,
+            frontier_planning_request_id: None,
+            frontier_plan_candidate_msgpack: None,
+            frontier_plan_mind_request_id: None,
+            frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: Some(request.request_id.clone()),
+            imagination_consideration_candidate_msgpack: Some(rmp_serde::to_vec_named(&candidate)?),
         })
     }
 
@@ -1151,6 +1397,8 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: Some(mind_request.request_id),
             frontier_plan_mind_decision_msgpack: Some(rmp_serde::to_vec_named(&payload)?),
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         put_runtime_role_worker_result(store, &result)
             .map_err(|error| anyhow!("persist frontier Mind result: {error}"))?;
@@ -1606,6 +1854,105 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn consideration_launch_and_result_are_exact_single_use_and_patch_sealed() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, state, launch, request) = consideration_launch_fixture(root.path(), "exact")?;
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            "launcher-consideration".into(),
+            "backend-consideration".into(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &request.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-18T00:00:01Z".into(),
+        )?;
+        assert!(
+            commit_coordinator_job_launch(
+                &store,
+                &request.thread_id,
+                &state,
+                &launch,
+                &plan,
+                "2026-07-18T00:00:02Z".into()
+            )
+            .is_err()
+        );
+        let result = consideration_result(&request, "backend-consideration")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let mut cargo = consideration_result(&request, "backend-consideration")?;
+        cargo.result_id = "cargo-result".into();
+        cargo.state_patch_msgpack = Some(vec![0]);
+        assert!(put_runtime_role_worker_result(&store, &cargo).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn consideration_refuses_caller_context_stale_model_and_substituted_candidate() -> Result<()> {
+        for mutation in 0..3 {
+            let root = tempfile::tempdir()?;
+            let (store, state, mut launch, mut request) =
+                consideration_launch_fixture(root.path(), &format!("reject-{mutation}"))?;
+            if mutation == 0 {
+                if let EpiphanyWorkerLaunchDocument::Role(document) = &mut launch.launch_document {
+                    let model = runtime_current_repo_model(&store)?.unwrap();
+                    document.imagination_consideration_context = Some(
+                        ImaginationConsiderationContextProjection::new(&request, &model),
+                    );
+                }
+            } else if mutation == 1 {
+                request.model_hash = "stale-model".into();
+                let mut cache = coordinator_acceptance_cache(&store)?;
+                cache.pull_all_backing_stores()?;
+                cache.put(&request.request_id, &request)?;
+            }
+            let planned = plan_coordinator_job_launch(
+                &state,
+                &launch,
+                &store,
+                format!("launcher-{mutation}"),
+                format!("backend-{mutation}"),
+            );
+            if mutation < 2 {
+                let plan = planned?;
+                assert!(
+                    commit_coordinator_job_launch(
+                        &store,
+                        &request.thread_id,
+                        &state,
+                        &launch,
+                        &plan,
+                        "2026-07-18T00:00:01Z".into()
+                    )
+                    .is_err()
+                );
+                continue;
+            }
+            let plan = planned?;
+            commit_coordinator_job_launch(
+                &store,
+                &request.thread_id,
+                &state,
+                &launch,
+                &plan,
+                "2026-07-18T00:00:01Z".into(),
+            )?;
+            let mut result = consideration_result(&request, &format!("backend-{mutation}"))?;
+            let mut candidate = result.imagination_consideration_candidate()?.unwrap();
+            candidate.feedback_packet_sha256 = "substituted".into();
+            result.imagination_consideration_candidate_msgpack =
+                Some(rmp_serde::to_vec_named(&candidate)?);
+            assert!(put_runtime_role_worker_result(&store, &result).is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
     fn frontier_planning_launch_refuses_swapped_request_bytes_without_writes() -> Result<()> {
         let root = tempfile::tempdir()?;
         for mutation in 0..8 {
@@ -1981,6 +2328,7 @@ pub(crate) mod tests {
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
+                imagination_consideration_request_id: None,
                 created_at: "2026-07-15T09:00:17Z".into(),
             },
         )?;
@@ -2017,6 +2365,8 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         crate::put_runtime_role_worker_result(&store, &verification_result)?;
         let soul_verdict = crate::SoulVerdictReceipt {
@@ -2153,6 +2503,8 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         crate::put_runtime_role_worker_result(&store, &modeling_result)?;
         let incorporation_review = crate::RepoModelAdmissionReview {

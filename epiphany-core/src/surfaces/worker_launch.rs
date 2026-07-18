@@ -42,6 +42,10 @@ pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_SCHEMA_VERSION: &str =
     "epiphany.worker.repo_frontier_plan_mind_context.v0";
 pub const REPO_FRONTIER_PLAN_MIND_CONTEXT_CONTRACT: &str =
     "epiphany.repo_frontier_plan_mind_context.v0";
+pub const IMAGINATION_CONSIDERATION_CONTEXT_SCHEMA_VERSION: &str =
+    "epiphany.worker.imagination_consideration_context.v0";
+pub const IMAGINATION_CONSIDERATION_CONTEXT_CONTRACT: &str =
+    "epiphany.imagination_consideration_context.v0";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "documentKind")]
@@ -102,6 +106,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub frontier_planning_context: Option<RepoFrontierPlanningContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontier_plan_mind_context: Option<RepoFrontierPlanMindContextProjection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub imagination_consideration_context: Option<ImaginationConsiderationContextProjection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_subgoal_id: Option<String>,
     #[serde(default)]
@@ -311,6 +317,29 @@ impl RepoFrontierPlanningContextProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImaginationConsiderationContextProjection {
+    pub schema_version: String,
+    pub contract: String,
+    pub request: crate::ImaginationConsiderationRequest,
+    pub model: crate::EpiphanyMemoryGraphSnapshot,
+}
+
+impl ImaginationConsiderationContextProjection {
+    pub(crate) fn new(
+        request: &crate::ImaginationConsiderationRequest,
+        model: &crate::EpiphanyMemoryGraphSnapshot,
+    ) -> Self {
+        Self {
+            schema_version: IMAGINATION_CONSIDERATION_CONTEXT_SCHEMA_VERSION.into(),
+            contract: IMAGINATION_CONSIDERATION_CONTEXT_CONTRACT.into(),
+            request: request.clone(),
+            model: model.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RepoFrontierPlanMindContextProjection {
     pub schema_version: String,
     pub contract: String,
@@ -379,6 +408,7 @@ pub fn build_reorient_job_launch_request(
         claim_repair_request_id: None,
         frontier_planning_request_id: None,
         frontier_plan_mind_request_id: None,
+        imagination_consideration_request_id: None,
     }
 }
 

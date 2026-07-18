@@ -340,6 +340,8 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub frontier_planning_request_id: Option<String>,
     #[cultcache(key = 14, default)]
     pub frontier_plan_mind_request_id: Option<String>,
+    #[cultcache(key = 15, default)]
+    pub imagination_consideration_request_id: Option<String>,
 }
 
 impl EpiphanyRuntimeWorkerLaunchRequest {
@@ -438,6 +440,10 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub frontier_plan_mind_decision_msgpack: Option<Vec<u8>>,
     #[cultcache(key = 30, default)]
     pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
+    #[cultcache(key = 31, default)]
+    pub imagination_consideration_request_id: Option<String>,
+    #[cultcache(key = 32, default)]
+    pub imagination_consideration_candidate_msgpack: Option<Vec<u8>>,
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
@@ -470,6 +476,15 @@ impl EpiphanyRuntimeRoleWorkerResult {
         decode_optional_msgpack(
             self.frontier_plan_mind_decision_msgpack.as_deref(),
             "role worker frontierPlanMindDecision",
+        )
+    }
+
+    pub fn imagination_consideration_candidate(
+        &self,
+    ) -> Result<Option<crate::ImaginationConsiderationCandidate>> {
+        decode_optional_msgpack(
+            self.imagination_consideration_candidate_msgpack.as_deref(),
+            "role worker imaginationConsiderationCandidate",
         )
     }
 }
@@ -748,6 +763,7 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub claim_repair_request_id: Option<String>,
     pub frontier_planning_request_id: Option<String>,
     pub frontier_plan_mind_request_id: Option<String>,
+    pub imagination_consideration_request_id: Option<String>,
     pub created_at: String,
 }
 
@@ -799,6 +815,7 @@ pub struct EpiphanyJobLaunchRequest {
     pub claim_repair_request_id: Option<String>,
     pub frontier_planning_request_id: Option<String>,
     pub frontier_plan_mind_request_id: Option<String>,
+    pub imagination_consideration_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -865,6 +882,10 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<RepoFrontierProposalModelingLaunchBinding>()?;
     cache.register_entry_type::<RepoFrontierPlanningRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanningLaunchBinding>()?;
+    cache.register_entry_type::<crate::ImaginationConsiderationRequest>()?;
+    cache.register_entry_type::<crate::ImaginationConsiderationLaunchBinding>()?;
+    cache.register_entry_type::<crate::ImaginationConsiderationCandidate>()?;
+    cache.register_entry_type::<crate::ImaginationConsiderationReviewRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanCandidate>()?;
     cache.register_entry_type::<RepoFrontierPlanDecisionReceipt>()?;
     cache.register_entry_type::<RepoFrontierPlanMindRequest>()?;
@@ -1284,6 +1305,12 @@ pub fn open_runtime_spine_heartbeat_job(
         options.frontier_planning_request_id.as_deref(),
         &options.launch_document,
     )?;
+    validate_imagination_consideration_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.imagination_consideration_request_id.as_deref(),
+        &options.launch_document,
+    )?;
     validate_non_empty(&options.binding_id, "binding id")?;
     validate_non_empty(&options.authority_scope, "authority scope")?;
     validate_non_empty(&options.instruction, "instruction")?;
@@ -1371,6 +1398,7 @@ pub fn open_runtime_spine_heartbeat_job(
         claim_repair_request_id: options.claim_repair_request_id,
         frontier_planning_request_id: options.frontier_planning_request_id,
         frontier_plan_mind_request_id: options.frontier_plan_mind_request_id,
+        imagination_consideration_request_id: options.imagination_consideration_request_id,
     };
     cache.put(&job_id, &request)?;
     Ok(job)
@@ -1403,6 +1431,12 @@ pub fn prepare_runtime_spine_heartbeat_job(
         &options.role,
         &options.binding_id,
         options.frontier_planning_request_id.as_deref(),
+        &options.launch_document,
+    )?;
+    validate_imagination_consideration_launch_carrier(
+        &options.role,
+        &options.binding_id,
+        options.imagination_consideration_request_id.as_deref(),
         &options.launch_document,
     )?;
     validate_non_empty(&options.binding_id, "binding id")?;
@@ -1518,6 +1552,7 @@ pub fn prepare_runtime_spine_heartbeat_job(
         claim_repair_request_id: options.claim_repair_request_id,
         frontier_planning_request_id: options.frontier_planning_request_id,
         frontier_plan_mind_request_id: options.frontier_plan_mind_request_id,
+        imagination_consideration_request_id: options.imagination_consideration_request_id,
     };
     let envelopes = vec![
         cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
@@ -1655,6 +1690,39 @@ fn validate_frontier_planning_launch_carrier(
         .ok_or_else(|| anyhow!("frontier planning request requires its typed context"))?;
     if projection.request_id != request_id {
         return Err(anyhow!("frontier planning context/request mismatch"));
+    }
+    Ok(())
+}
+
+fn validate_imagination_consideration_launch_carrier(
+    role: &str,
+    binding_id: &str,
+    request_id: Option<&str>,
+    launch_document: &EpiphanyWorkerLaunchDocument,
+) -> Result<()> {
+    let projection = match launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => {
+            document.imagination_consideration_context.as_ref()
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+    };
+    let Some(request_id) = request_id else {
+        if projection.is_some() {
+            return Err(anyhow!(
+                "consideration context requires its typed request id"
+            ));
+        }
+        return Ok(());
+    };
+    validate_non_empty(request_id, "imagination consideration request id")?;
+    if role != EPIPHANY_IMAGINATION_OWNER_ROLE || binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+    {
+        return Err(anyhow!(
+            "consideration may only be transported by Imagination"
+        ));
+    }
+    if projection.map(|p| p.request.request_id.as_str()) != Some(request_id) {
+        return Err(anyhow!("consideration context/request mismatch"));
     }
     Ok(())
 }
@@ -1938,6 +2006,91 @@ pub fn put_runtime_role_worker_result(
         {
             return Err(anyhow!(
                 "frontier planning result does not exactly bind request, launch, runtime, thread, and candidate"
+            ));
+        }
+    }
+    let has_consideration_echo = result.imagination_consideration_request_id.is_some();
+    let has_consideration_candidate = result.imagination_consideration_candidate_msgpack.is_some();
+    if has_consideration_echo != has_consideration_candidate {
+        return Err(anyhow!(
+            "consideration result requires request echo and candidate"
+        ));
+    }
+    if has_consideration_echo {
+        if !result.role_id.eq_ignore_ascii_case("imagination")
+            || result.item_error.is_some()
+            || result.state_patch_msgpack.is_some()
+            || result.self_patch_msgpack.is_some()
+            || result.repo_model_patch_msgpack.is_some()
+            || result.verification_request_id.is_some()
+            || result.frontier_route_id.is_some()
+            || result.repo_frontier_modeling_request_id.is_some()
+            || result.proposal_modeling_request_id.is_some()
+            || result.claim_repair_request_id.is_some()
+            || result.frontier_planning_request_id.is_some()
+            || result.frontier_plan_candidate_msgpack.is_some()
+            || result.frontier_plan_mind_request_id.is_some()
+            || result.frontier_plan_mind_decision_msgpack.is_some()
+        {
+            return Err(anyhow!(
+                "consideration result carries foreign authority cargo"
+            ));
+        }
+        let request_id = result
+            .imagination_consideration_request_id
+            .as_deref()
+            .unwrap();
+        let request = cache
+            .get::<crate::ImaginationConsiderationRequest>(request_id)?
+            .ok_or_else(|| anyhow!("consideration result request disappeared"))?;
+        crate::validate_current_imagination_consideration_request(&cache, &request)?;
+        let candidate = result
+            .imagination_consideration_candidate()?
+            .ok_or_else(|| anyhow!("consideration candidate disappeared"))?;
+        crate::validate_imagination_consideration_candidate(&request, &candidate)?;
+        if candidate.candidate_id
+            != crate::imagination_consideration_candidate_id_for_launch(request_id, &result.job_id)
+        {
+            return Err(anyhow!(
+                "consideration candidate identity was not assigned by exact launch"
+            ));
+        }
+        let bindings = cache
+            .get_all::<crate::ImaginationConsiderationLaunchBinding>()?
+            .into_iter()
+            .filter(|binding| binding.request_id == request_id)
+            .collect::<Vec<_>>();
+        if bindings.len() != 1 {
+            return Err(anyhow!("consideration result requires one launch binding"));
+        }
+        let binding = &bindings[0];
+        let worker = cache
+            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+            .ok_or_else(|| anyhow!("consideration result requires worker launch"))?;
+        let document = worker.launch_document()?;
+        let projection = match &document {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                document.imagination_consideration_context.as_ref()
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+        };
+        let launch_hash = format!("{:x}", Sha256::digest(&worker.launch_document_msgpack));
+        if binding.job_id != result.job_id
+            || binding.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+            || binding.runtime_id != request.runtime_id
+            || binding.thread_id != request.thread_id
+            || binding.worker_launch_document_sha256 != launch_hash
+            || worker.role != EPIPHANY_IMAGINATION_OWNER_ROLE
+            || worker.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+            || worker.imagination_consideration_request_id.as_deref() != Some(request_id)
+            || projection.map(|projection| &projection.request) != Some(&request)
+            || projection
+                .map(|projection| crate::memory_graph_model_hash(&projection.model))
+                .transpose()?
+                != Some(request.model_hash.clone())
+        {
+            return Err(anyhow!(
+                "consideration result substituted request, launch, or context"
             ));
         }
     }
@@ -7862,6 +8015,7 @@ pub(crate) mod tests {
                 claim_repair_context: None,
                 frontier_planning_context: None,
                 frontier_plan_mind_context: None,
+                imagination_consideration_context: None,
                 active_subgoal_id: None,
                 active_subgoals: Vec::new(),
                 active_graph_node_ids: Vec::new(),
@@ -7896,6 +8050,7 @@ pub(crate) mod tests {
             claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
         };
         let mut cache = runtime_spine_cache(store)?;
         cache.put(job_id, &request)?;
@@ -8070,6 +8225,8 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -8304,6 +8461,8 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
@@ -9398,6 +9557,8 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         put_test_non_modeling_worker_launch(&store, &verification_result.job_id, "verification")?;
         put_runtime_role_worker_result(&store, &verification_result)?;
@@ -9561,6 +9722,8 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -9901,6 +10064,8 @@ pub(crate) mod tests {
             frontier_plan_candidate_msgpack: None,
             frontier_plan_mind_request_id: None,
             frontier_plan_mind_decision_msgpack: None,
+            imagination_consideration_request_id: None,
+            imagination_consideration_candidate_msgpack: None,
         };
         put_test_non_modeling_worker_launch(&fixture.store, &adjacent.job_id, "verification")?;
         put_runtime_role_worker_result(&fixture.store, &adjacent)?;
@@ -11162,6 +11327,7 @@ pub(crate) mod tests {
                         claim_repair_context: None,
                         frontier_planning_context: None,
                         frontier_plan_mind_context: None,
+                        imagination_consideration_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["node-model".to_string()],
@@ -11187,6 +11353,7 @@ pub(crate) mod tests {
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
+                imagination_consideration_request_id: None,
                 created_at: "2026-05-06T00:02:00Z".to_string(),
             },
         )?;
@@ -11249,6 +11416,7 @@ pub(crate) mod tests {
                         claim_repair_context: None,
                         frontier_planning_context: None,
                         frontier_plan_mind_context: None,
+                        imagination_consideration_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["runtime-spine".to_string()],
@@ -11338,6 +11506,7 @@ pub(crate) mod tests {
                         claim_repair_context: None,
                         frontier_planning_context: None,
                         frontier_plan_mind_context: None,
+                        imagination_consideration_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
