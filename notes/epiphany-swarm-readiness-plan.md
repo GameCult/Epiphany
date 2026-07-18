@@ -9,8 +9,22 @@ elsewhere, and VoidBot has kindly provided the scorch marks.
 
 ## Objective
 
-Get Epiphany ready for cautious live operation over the next few days without
-building architectural Jenga:
+Get Epiphany ready for ordinary resident operation inside an organization
+without building architectural Jenga. This is the product, not a special
+dogfood or supervised experiment: the swarm learns its authorized domain,
+maintains that model, derives bounded pressure from it, proposes improvements,
+and receives organization-wide conversation and feedback through its Persona
+even when nobody is feeding it a task queue.
+
+The useful autonomous loop is:
+
+`Body observation -> persistent Modeling map -> Self direction -> Imagination proposal`
+
+Persona conversation and attributed organizational feedback can add pressure to
+that loop. They do not replace the map, become Mind truth, invoke Hands, authorize
+a release, or deploy one. Those authorities remain separately gated.
+
+The operating constraints are:
 
 - typed CultCache documents remain the state authority
 - CultNet is the native wire for Epiphany-owned subsystems
@@ -94,6 +108,11 @@ included in the next witnessed release before it can produce live host evidence.
 - One explicit brake for swarm operation.
 - Autonomous branch-local work inside the swarm's owned Body is allowed and is
   the desired operating mode.
+- Persistent domain observation, map maintenance, bounded rumination, and
+  proposal generation continue without operator instruction.
+- The repository Persona is the organization's conversational surface. Any
+  admitted member may provide attributed feedback through the configured
+  crossing; conversation alone grants no implementation or publication authority.
 - Upstream publication is Bifrost territory, not implicit branch-local
   authority.
 - No lane receives a new heartbeat while its previous turn is running.
@@ -117,6 +136,9 @@ not permission for another row to borrow the result.
 | Reviewed Mind and organ-state mutation | Mind gateway and organ services | typed review/commit/lifecycle families; no whole-state model write path | closed |
 | Public speech/crossing eligibility | Persona + Bifrost/Heimdall | speech-audit receipts and fail-closed identity/capability checks | closed |
 | Branch-local autonomous action | Substrate Gate + Hands + Soul + Mind | scoped grants and patch/command/commit/verdict/admission chains | closed |
+| Persistent domain stewardship | Modeling + Body observer + semantic projector | source-bound RepoModel admission, freshness joins, persistent CultCache state, rebuildable Qdrant projection | closed in source; live resident proof pending |
+| Autonomous improvement proposals | Self + Imagination + Mind | domain pressure becomes a bounded proposal-only consideration; adoption remains a separate Mind decision | closed in source; live resident proof pending |
+| Organization-wide Persona feedback | Persona + VoidBot + Bifrost + Self | attributed Discord observation, exact classification/signature/delivery, dedicated feedback store, proposal-only consideration | closed in source; live Discord proof pending |
 | Semantic projection/query recovery | canonical admission + projector + query gate + Idunn | live Mind/Modeling semantic ranking and GUID-scoped exact process-recovery smokes | closed |
 | Atomic installed sibling generation | release packager + Idunn | release `sha256-c94109f94ee42c1257089830f399cb87cd5ad672772c274194371995ce4df923` binds commit `dd80f4a5`, four exact binaries, task args, policy role paths, and recurrence receipts | closed |
 | Whole-repository observed readiness | Mind | typed source join, hostile raw-orchestration tests, live semantic/coverage rereaders, and full-snapshot CultCache append fence | closed in source; not yet witnessed/deployed |
@@ -166,16 +188,26 @@ Rebuild:
 
 ## Immediate Work Queue
 
-1. Package the current source, including semantic receipt v2 and Mind's
-   `RepositoryReadinessProjection`, into a new immutable witnessed release.
-2. Deploy that witness and derive one live whole-repository observation through
-   the production join; a prior stored projection must not substitute.
-3. Repeat exact current-boot recurrence plus Mind/Modeling query admission and
-   whole-repository observation proofs from the new release.
-4. With explicit live operator approval, reboot and prove the fresh Task
-   Scheduler -> Idunn -> exactly-one-projector lineage plus tunnel and query
-   admission. Do not silently widen after-login authority into boot service
-   authority.
+1. Let the currently authorized Yggdrasil projection finish without interrupting
+   its sole store owner, then allow Idunn to admit or reject that exact release
+   from terminal typed evidence.
+2. Restart the already-installed corrected Yggdrasil Idunn only after that
+   deployment child exits. Let Idunn discover and deploy the exact-authorized
+   Bifrost Persona-feedback sidecar; do not invoke the deployment manifest as a
+   parallel authority.
+3. Bind the configured GameCult Discord rooms to the Epiphany Persona as
+   organization feedback sources and prove attributed observation, exact
+   classification, signed delivery, and dedicated-store admission.
+4. Package and Bifrost-authorize the current Epiphany generation, then let Idunn
+   deploy the resident supervisor, heartbeat, and swarm services with the brake
+   engaged, writable Body, persistent Mind/Modeling state, and witnessed child
+   binaries.
+5. Before 2026-07-22, run a Starfire-offline rehearsal proving two independent
+   causes of useful cognition: autonomous map-derived improvement proposals and
+   organization-originated Persona feedback. Prove separately that neither path
+   can adopt Mind state, invoke Hands, release, or deploy without its owning gate.
+6. Reboot survival remains a separate operator-authorized proof. Do not widen
+   service authority merely because the organizational loop is otherwise ready.
 
 The correct posture is patient pressure. We are not rushing to live fire. We are
 aiming the barrel, checking the chamber, and making sure the thing does not try
