@@ -10915,19 +10915,23 @@ mod tests {
     }
 
     #[test]
-    fn bifrost_contracts_route_body_changes_before_github_publication() -> Result<()> {
+    fn bifrost_contracts_expose_publication_without_feedback_admission_substitution() -> Result<()>
+    {
         let temp = tempfile::tempdir()?;
         let store = temp.path().join("epiphany-bifrost-contracts.ccmp");
         let written = write_epiphany_cultmesh_bifrost_contracts(&store, "epiphany-test")?;
-        assert_eq!(written.len(), 3);
+        assert_eq!(written.len(), 2);
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let publication = node.get_required::<EpiphanyCultMeshBifrostContractEntry>(
             "gamecult.bifrost.body_change.publication",
         )?;
-        let feedback = node.get_required::<EpiphanyCultMeshBifrostContractEntry>(
-            "gamecult.bifrost.collaboration.feedback",
-        )?;
+        assert!(
+            node.get::<EpiphanyCultMeshBifrostContractEntry>(
+                "gamecult.bifrost.collaboration.feedback",
+            )?
+            .is_none()
+        );
         let public_proof = node.get_required::<EpiphanyCultMeshBifrostContractEntry>(
             "gamecult.bifrost.public_proof.publication",
         )?;
@@ -10951,13 +10955,6 @@ mod tests {
                 .notes
                 .iter()
                 .any(|note| note.contains("GitHub publication"))
-        );
-        assert_eq!(feedback.authority, "imaginationConsensus");
-        assert!(
-            feedback
-                .notes
-                .iter()
-                .any(|note| note.contains("thought weather"))
         );
         assert_eq!(public_proof.authority, "bifrost");
         assert_eq!(
@@ -11278,7 +11275,7 @@ mod tests {
                     line.contains("\"gamecult-local/bifrost/") && line.contains("/latest\"")
                 })
                 .count(),
-            7
+            6
         );
     }
 }

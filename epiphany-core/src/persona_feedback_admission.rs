@@ -370,11 +370,26 @@ fn validated_bifrost_persona_feedback_deliveries(
     let anchor_bytes = std::fs::read(trust_anchor_path)?;
     let anchor: HostIdentityTrustAnchorEntry = rmp_serde::from_slice(&anchor_bytes)
         .map_err(|error| anyhow!("Bifrost Persona feedback trust anchor is malformed: {error}"))?;
-    let mut source = CultCache::new();
-    source.register_entry_type::<BifrostPersonaFeedbackAdmission>()?;
-    source.add_generic_backing_store(SingleFileMessagePackBackingStore::new(source_store));
-    source.pull_all_backing_stores()?;
-    let mut deliveries = source.get_all::<BifrostPersonaFeedbackAdmission>()?;
+    // Bifrost owns this store and replaces its complete snapshot atomically.
+    // Epiphany is a read-only consumer; taking CultCache's ordinary shared
+    // lock would require write authority merely to create/open the sibling
+    // lock file. Decode the provider snapshot without acquiring ownership of
+    // its directory, and reject any foreign document family.
+    let envelopes =
+        SingleFileMessagePackBackingStore::new(source_store).pull_all_read_only_snapshot()?;
+    let mut deliveries = envelopes
+        .into_iter()
+        .map(|entry| {
+            if entry.r#type != <BifrostPersonaFeedbackAdmission as DatabaseEntry>::TYPE {
+                bail!(
+                    "Bifrost Persona feedback source contains foreign document type {:?}",
+                    entry.r#type
+                );
+            }
+            rmp_serde::from_slice::<BifrostPersonaFeedbackAdmission>(&entry.payload)
+                .map_err(Into::into)
+        })
+        .collect::<Result<Vec<_>>>()?;
     deliveries.sort_by(|left, right| left.admission_id.cmp(&right.admission_id));
     let mut identities = std::collections::BTreeMap::new();
     for delivery in &deliveries {
@@ -551,6 +566,13 @@ mod tests {
         source.register_entry_type::<BifrostPersonaFeedbackAdmission>()?;
         source.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&source_store));
         source.put(&delivery.admission_id, &delivery)?;
+        let source_lock = source_store.with_file_name(format!(
+            "{}.lock",
+            source_store.file_name().unwrap().to_string_lossy()
+        ));
+        if source_lock.exists() {
+            std::fs::remove_file(&source_lock)?;
+        }
 
         let mut local =
             crate::open_epiphany_cultmesh_node(&feedback_store, "epiphany-yggdrasil".to_string())?;
@@ -575,6 +597,10 @@ mod tests {
             "epiphany",
         )?;
         assert_eq!(imported.len(), 1);
+        assert!(
+            !source_lock.exists(),
+            "read-only provider snapshot must not create a sibling lock"
+        );
         assert_eq!(
             admitted_persona_feedback(&feedback_store, "epiphany-yggdrasil")?.len(),
             1

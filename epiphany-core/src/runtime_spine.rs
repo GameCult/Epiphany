@@ -342,6 +342,8 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub frontier_plan_mind_request_id: Option<String>,
     #[cultcache(key = 15, default)]
     pub imagination_consideration_request_id: Option<String>,
+    #[cultcache(key = 16, default)]
+    pub admitted_model_direction_consideration_request_id: Option<String>,
 }
 
 impl EpiphanyRuntimeWorkerLaunchRequest {
@@ -444,6 +446,10 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub imagination_consideration_request_id: Option<String>,
     #[cultcache(key = 32, default)]
     pub imagination_consideration_candidate_msgpack: Option<Vec<u8>>,
+    #[cultcache(key = 33, default)]
+    pub admitted_model_direction_consideration_request_id: Option<String>,
+    #[cultcache(key = 34, default)]
+    pub admitted_model_direction_consideration_result_msgpack: Option<Vec<u8>>,
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
@@ -485,6 +491,16 @@ impl EpiphanyRuntimeRoleWorkerResult {
         decode_optional_msgpack(
             self.imagination_consideration_candidate_msgpack.as_deref(),
             "role worker imaginationConsiderationCandidate",
+        )
+    }
+
+    pub fn admitted_model_direction_consideration_result(
+        &self,
+    ) -> Result<Option<crate::AdmittedModelDirectionConsiderationResult>> {
+        decode_optional_msgpack(
+            self.admitted_model_direction_consideration_result_msgpack
+                .as_deref(),
+            "role worker admittedModelDirectionConsiderationResult",
         )
     }
 }
@@ -764,6 +780,7 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub frontier_planning_request_id: Option<String>,
     pub frontier_plan_mind_request_id: Option<String>,
     pub imagination_consideration_request_id: Option<String>,
+    pub admitted_model_direction_consideration_request_id: Option<String>,
     pub created_at: String,
 }
 
@@ -816,6 +833,7 @@ pub struct EpiphanyJobLaunchRequest {
     pub frontier_planning_request_id: Option<String>,
     pub frontier_plan_mind_request_id: Option<String>,
     pub imagination_consideration_request_id: Option<String>,
+    pub admitted_model_direction_consideration_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -885,6 +903,8 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<crate::ImaginationConsiderationRequest>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationLaunchBinding>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationCandidate>()?;
+    cache.register_entry_type::<crate::AdmittedModelDirectionConsiderationRequest>()?;
+    cache.register_entry_type::<crate::AdmittedModelDirectionConsiderationResult>()?;
     cache.register_entry_type::<crate::ImaginationConsiderationReviewRequest>()?;
     cache.register_entry_type::<RepoFrontierPlanCandidate>()?;
     cache.register_entry_type::<RepoFrontierPlanDecisionReceipt>()?;
@@ -1399,6 +1419,8 @@ pub fn open_runtime_spine_heartbeat_job(
         frontier_planning_request_id: options.frontier_planning_request_id,
         frontier_plan_mind_request_id: options.frontier_plan_mind_request_id,
         imagination_consideration_request_id: options.imagination_consideration_request_id,
+        admitted_model_direction_consideration_request_id: options
+            .admitted_model_direction_consideration_request_id,
     };
     cache.put(&job_id, &request)?;
     Ok(job)
@@ -1553,6 +1575,8 @@ pub fn prepare_runtime_spine_heartbeat_job(
         frontier_planning_request_id: options.frontier_planning_request_id,
         frontier_plan_mind_request_id: options.frontier_plan_mind_request_id,
         imagination_consideration_request_id: options.imagination_consideration_request_id,
+        admitted_model_direction_consideration_request_id: options
+            .admitted_model_direction_consideration_request_id,
     };
     let envelopes = vec![
         cache.prepare_entry(RUNTIME_IDENTITY_KEY, &identity)?.0,
@@ -2006,6 +2030,75 @@ pub fn put_runtime_role_worker_result(
         {
             return Err(anyhow!(
                 "frontier planning result does not exactly bind request, launch, runtime, thread, and candidate"
+            ));
+        }
+    }
+    let has_model_direction_echo = result
+        .admitted_model_direction_consideration_request_id
+        .is_some();
+    let has_model_direction_result = result
+        .admitted_model_direction_consideration_result_msgpack
+        .is_some();
+    if has_model_direction_echo != has_model_direction_result {
+        return Err(anyhow!(
+            "model direction result requires exact request echo and result"
+        ));
+    }
+    if has_model_direction_echo {
+        if !result.role_id.eq_ignore_ascii_case("imagination")
+            || result.item_error.is_some()
+            || result.state_patch_msgpack.is_some()
+            || result.self_patch_msgpack.is_some()
+            || result.repo_model_patch_msgpack.is_some()
+            || result.imagination_consideration_request_id.is_some()
+            || result.imagination_consideration_candidate_msgpack.is_some()
+        {
+            return Err(anyhow!(
+                "model direction result carries foreign authority cargo"
+            ));
+        }
+        let request_id = result
+            .admitted_model_direction_consideration_request_id
+            .as_deref()
+            .unwrap();
+        let request = cache
+            .get::<crate::AdmittedModelDirectionConsiderationRequest>(request_id)?
+            .ok_or_else(|| anyhow!("model direction result request disappeared"))?;
+        crate::validate_current_admitted_model_direction_consideration_request(&cache, &request)?;
+        let direction_result = result
+            .admitted_model_direction_consideration_result()?
+            .ok_or_else(|| anyhow!("model direction result disappeared"))?;
+        crate::validate_admitted_model_direction_consideration_result(&request, &direction_result)?;
+        if direction_result.result_id
+            != crate::admitted_model_direction_consideration_result_id_for_launch(
+                request_id,
+                &result.job_id,
+            )
+        {
+            return Err(anyhow!(
+                "model direction result identity was not assigned by exact launch"
+            ));
+        }
+        let worker = cache
+            .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
+            .ok_or_else(|| anyhow!("model direction result requires worker launch"))?;
+        let document = worker.launch_document()?;
+        let projection = match &document {
+            EpiphanyWorkerLaunchDocument::Role(document) => document
+                .admitted_model_direction_consideration_context
+                .as_ref(),
+            EpiphanyWorkerLaunchDocument::Reorient(_) => None,
+        };
+        if worker.role != EPIPHANY_IMAGINATION_OWNER_ROLE
+            || worker.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+            || worker
+                .admitted_model_direction_consideration_request_id
+                .as_deref()
+                != Some(request_id)
+            || projection.map(|projection| &projection.request) != Some(&request)
+        {
+            return Err(anyhow!(
+                "model direction result does not exactly bind request and launch"
             ));
         }
     }
@@ -8016,6 +8109,7 @@ pub(crate) mod tests {
                 frontier_planning_context: None,
                 frontier_plan_mind_context: None,
                 imagination_consideration_context: None,
+                admitted_model_direction_consideration_context: None,
                 active_subgoal_id: None,
                 active_subgoals: Vec::new(),
                 active_graph_node_ids: Vec::new(),
@@ -8051,6 +8145,7 @@ pub(crate) mod tests {
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
         };
         let mut cache = runtime_spine_cache(store)?;
         cache.put(job_id, &request)?;
@@ -8227,6 +8322,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -8463,6 +8560,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
@@ -9559,6 +9658,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         };
         put_test_non_modeling_worker_launch(&store, &verification_result.job_id, "verification")?;
         put_runtime_role_worker_result(&store, &verification_result)?;
@@ -9724,6 +9825,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         };
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
@@ -10066,6 +10169,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         };
         put_test_non_modeling_worker_launch(&fixture.store, &adjacent.job_id, "verification")?;
         put_runtime_role_worker_result(&fixture.store, &adjacent)?;
@@ -11328,6 +11433,7 @@ pub(crate) mod tests {
                         frontier_planning_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
+                        admitted_model_direction_consideration_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["node-model".to_string()],
@@ -11354,6 +11460,7 @@ pub(crate) mod tests {
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
+                admitted_model_direction_consideration_request_id: None,
                 created_at: "2026-05-06T00:02:00Z".to_string(),
             },
         )?;
@@ -11417,6 +11524,7 @@ pub(crate) mod tests {
                         frontier_planning_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
+                        admitted_model_direction_consideration_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["runtime-spine".to_string()],
@@ -11507,6 +11615,7 @@ pub(crate) mod tests {
                         frontier_planning_context: None,
                         frontier_plan_mind_context: None,
                         imagination_consideration_context: None,
+                        admitted_model_direction_consideration_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),

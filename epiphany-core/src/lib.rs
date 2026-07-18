@@ -54,6 +54,19 @@ mod workspace_coverage_store_binding;
 #[allow(dead_code)]
 mod workspace_retrieval_coverage;
 
+pub use admitted_model_direction_consideration::{
+    AdmittedModelDirectionConsiderationRequest, AdmittedModelDirectionConsiderationResult,
+    AdmittedModelDirectionDisposition,
+    REQUEST_CONTRACT as ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_CONTRACT,
+    REQUEST_SCHEMA as ADMITTED_MODEL_DIRECTION_CONSIDERATION_REQUEST_SCHEMA_VERSION,
+    RESULT_CONTRACT as ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_CONTRACT,
+    RESULT_SCHEMA as ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION,
+    commit_request as commit_admitted_model_direction_consideration_request,
+    render_prompt as render_admitted_model_direction_consideration_prompt,
+    result_id_for_launch as admitted_model_direction_consideration_result_id_for_launch,
+    validate_current_request as validate_current_admitted_model_direction_consideration_request,
+    validate_result as validate_admitted_model_direction_consideration_result,
+};
 pub use agent_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
 pub use agent_launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 pub use agent_launch::EPIPHANY_MIND_OWNER_ROLE;
@@ -73,6 +86,7 @@ pub use agent_launch::EpiphanyReorientationPromptConfig;
 pub use agent_launch::EpiphanyRolePromptConfig;
 pub use agent_launch::EpiphanySharedPromptConfig;
 pub use agent_launch::EpiphanySpecialistPromptConfig;
+pub use agent_launch::build_epiphany_admitted_model_direction_consideration_launch_request;
 pub use agent_launch::build_epiphany_frontier_plan_mind_launch_request;
 pub use agent_launch::build_epiphany_imagination_consideration_launch_request;
 pub use agent_launch::build_epiphany_job_launch_request;
@@ -81,6 +95,7 @@ pub use agent_launch::build_epiphany_reorient_launch_request;
 pub use agent_launch::build_epiphany_reorient_launch_request_with_dynamic_context;
 pub use agent_launch::build_epiphany_role_launch_request;
 pub use agent_launch::build_epiphany_role_launch_request_with_dynamic_context;
+pub use agent_launch::epiphany_admitted_model_direction_consideration_output_schema;
 pub use agent_launch::epiphany_agent_prompt_with_memory;
 pub use agent_launch::epiphany_frontier_plan_mind_output_schema;
 pub use agent_launch::epiphany_frontier_planning_output_schema;
@@ -817,13 +832,14 @@ pub use organ_dependencies::render_organ_dependencies;
 pub use organ_dependencies::render_organ_dependency;
 pub use packaged_release::{
     EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION, EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION,
-    EpiphanyPackagedReleaseBinary, EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead,
-    PackageReleaseRequest, authenticate_epiphany_packaged_release,
-    epiphany_packaged_release_binary_path, epiphany_packaged_release_witness_sha256,
-    load_epiphany_packaged_release, load_epiphany_packaged_release_head,
-    package_and_publish_epiphany_release, publish_epiphany_packaged_release,
+    EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE, EpiphanyPackagedReleaseBinary,
+    EpiphanyPackagedReleaseEntry, EpiphanyPackagedReleaseHead, PackageReleaseRequest,
+    authenticate_epiphany_packaged_release, epiphany_packaged_release_binary_path,
+    epiphany_packaged_release_witness_sha256, inspect_epiphany_packaged_release_witness,
+    load_epiphany_packaged_release, load_epiphany_packaged_release_head, package_epiphany_release,
+    publish_epiphany_packaged_release, read_epiphany_packaged_release_witness,
     required_packaged_release_binaries, validate_epiphany_packaged_release,
-    verify_epiphany_packaged_release_files,
+    verify_epiphany_packaged_release_files, write_epiphany_packaged_release_witness,
 };
 pub use persona_feedback_admission::{
     BIFROST_PERSONA_FEEDBACK_ADMISSION_SCHEMA_VERSION, BIFROST_PERSONA_FEEDBACK_DELIVERY_TYPE,
@@ -1036,6 +1052,7 @@ pub use substrate_gate::default_substrate_gate_cultnet_contracts;
 pub use substrate_gate::substrate_gate_coordinator_implementation_grant;
 pub use substrate_gate::substrate_gate_repo_access_grant_for_launch;
 pub use substrate_gate::substrate_gate_repo_work_planning_grant;
+pub use surfaces::AdmittedModelDirectionConsiderationContextProjection;
 pub use surfaces::EpiphanyAcceptanceBundle;
 pub use surfaces::EpiphanyContext;
 pub use surfaces::EpiphanyContextMissing;
@@ -1261,3 +1278,4 @@ pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServiceB
 pub use workspace_coverage_projector_service::WorkspaceCoverageProjectorServicePulse;
 pub use workspace_coverage_store_binding::*;
 pub use workspace_retrieval_coverage::*;
+mod admitted_model_direction_consideration;

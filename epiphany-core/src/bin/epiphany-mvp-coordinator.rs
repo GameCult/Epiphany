@@ -90,6 +90,7 @@ struct Args {
     auto_tools: bool,
     proposal_modeling_request_id: Option<String>,
     imagination_consideration_request_id: Option<String>,
+    admitted_model_direction_consideration_request_id: Option<String>,
     resident_binding: BTreeMap<String, String>,
     resident_state_store: Option<PathBuf>,
     resident_preparation_id: Option<String>,
@@ -128,6 +129,7 @@ impl Args {
             auto_tools: true,
             proposal_modeling_request_id: None,
             imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
             resident_binding: BTreeMap::new(),
             resident_state_store: None,
             resident_preparation_id: None,
@@ -160,6 +162,12 @@ impl Args {
                     parsed.imagination_consideration_request_id = Some(take_string(
                         &mut args,
                         "--imagination-consideration-request-id",
+                    )?);
+                }
+                "--admitted-model-direction-consideration-request-id" => {
+                    parsed.admitted_model_direction_consideration_request_id = Some(take_string(
+                        &mut args,
+                        "--admitted-model-direction-consideration-request-id",
                     )?);
                 }
                 flag @ ("--resident-grant-id"
@@ -403,6 +411,63 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "requestId": request_id,
             "runtimeJobId": worker_job_id,
             "launch": status_cli::sanitize_for_operator(operator_launch),
+            "worker": worker_run,
+            "authority": "proposal-only"
+        }));
+    }
+
+    if let Some(request_id) = args
+        .admitted_model_direction_consideration_request_id
+        .as_deref()
+    {
+        if args.objective.is_some() || args.imagination_consideration_request_id.is_some() {
+            return Err(anyhow!(
+                "typed model direction consideration requires exclusive objective-free intake"
+            ));
+        }
+        let service = epiphany_core::EpiphanyCoordinatorService::new(&runtime_store);
+        let state = service
+            .state()?
+            .ok_or_else(|| anyhow!("model direction launch requires coordinator state"))?;
+        let request =
+            epiphany_core::build_epiphany_admitted_model_direction_consideration_launch_request(
+                &thread_id,
+                Some(state.revision),
+                Some(args.max_runtime_seconds),
+                &state,
+                request_id.to_string(),
+            )
+            .map_err(anyhow::Error::msg)?;
+        let launched = service.launch_job(
+            &thread_id,
+            &state,
+            &request,
+            format!(
+                "epiphany-resident-model-direction-launch-{}",
+                Uuid::new_v4()
+            ),
+            Uuid::new_v4().to_string(),
+            now(),
+        )?;
+        let worker_job_id = launched.backend_job_id.clone();
+        let worker_run = launch_worker_runtime_detached(
+            &model_runtime_bin,
+            &tool_adapter_bin,
+            &args.model_provider,
+            &runtime_store,
+            &codex_home,
+            &cwd,
+            &worker_job_id,
+            "imagination",
+            0,
+            &artifact_dir,
+            args.max_runtime_seconds,
+            args.auto_tools,
+        )?;
+        startup_events.push(json!({
+            "type": "admittedModelDirectionConsiderationLaunch",
+            "requestId": request_id,
+            "runtimeJobId": worker_job_id,
             "worker": worker_run,
             "authority": "proposal-only"
         }));

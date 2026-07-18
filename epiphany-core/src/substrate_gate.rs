@@ -255,6 +255,7 @@ mod tests {
                     frontier_planning_context: None,
                     frontier_plan_mind_context: None,
                     imagination_consideration_context: None,
+                    admitted_model_direction_consideration_context: None,
                     active_subgoal_id: None,
                     active_subgoals: Vec::new(),
                     active_graph_node_ids: Vec::new(),
@@ -282,6 +283,7 @@ mod tests {
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,
             imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
         };
         let grant = substrate_gate_repo_access_grant_for_launch(
             "grant-1".to_string(),

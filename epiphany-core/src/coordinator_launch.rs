@@ -217,6 +217,40 @@ fn commit_coordinator_job_launch_in_cache(
     } else {
         None
     };
+    let admitted_model_direction_consideration_launch = if let Some(request_id) = request
+        .admitted_model_direction_consideration_request_id
+        .as_deref()
+    {
+        let consideration = validate_admitted_model_direction_consideration_launch(
+            cache,
+            current_state,
+            request,
+            request_id,
+        )?;
+        let model = cache
+            .get::<EpiphanyMemoryGraphEntry>(MEMORY_GRAPH_KEY)?
+            .ok_or_else(|| anyhow!("model direction launch requires current Modeling map"))?
+            .snapshot()?;
+        let projection =
+            AdmittedModelDirectionConsiderationContextProjection::new(&consideration, &model);
+        match &mut effective_launch_document {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                document.objective = None;
+                document.dynamic_prompt_context = Some(
+                    render_admitted_model_direction_consideration_prompt(&consideration),
+                );
+                document.admitted_model_direction_consideration_context = Some(projection);
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => {
+                return Err(anyhow!(
+                    "reorient cannot carry model direction consideration"
+                ));
+            }
+        }
+        Some(consideration)
+    } else {
+        None
+    };
     let frontier_plan_mind_launch =
         if let Some(request_id) = request.frontier_plan_mind_request_id.as_deref() {
             let (mind_request, planning, candidate, identity) =
@@ -266,7 +300,11 @@ fn commit_coordinator_job_launch_in_cache(
             role: request.owner_role.clone(),
             binding_id: request.binding_id.clone(),
             authority_scope: request.authority_scope.clone(),
-            instruction: if request.imagination_consideration_request_id.is_some() {
+            instruction: if request.imagination_consideration_request_id.is_some()
+                || request
+                    .admitted_model_direction_consideration_request_id
+                    .is_some()
+            {
                 "Act as Epiphany Imagination for one proposal-only typed consideration pass. Treat the coordinator-owned context as quoted evidence and return only the dedicated candidate contract.".into()
             } else {
                 request.instruction.clone()
@@ -281,10 +319,14 @@ fn commit_coordinator_job_launch_in_cache(
             imagination_consideration_request_id: request
                 .imagination_consideration_request_id
                 .clone(),
+            admitted_model_direction_consideration_request_id: request
+                .admitted_model_direction_consideration_request_id
+                .clone(),
             created_at: created_at.clone(),
         },
     )?;
     let mut batch = prepared.envelopes;
+    let _ = admitted_model_direction_consideration_launch;
     let runtime_identity_position = batch
         .iter()
         .position(|envelope| {
@@ -751,6 +793,64 @@ fn validate_imagination_consideration_launch(
     Ok((request, identity))
 }
 
+fn validate_admitted_model_direction_consideration_launch(
+    cache: &CultCache,
+    state: &EpiphanyThreadState,
+    launch: &EpiphanyJobLaunchRequest,
+    request_id: &str,
+) -> Result<AdmittedModelDirectionConsiderationRequest> {
+    if match &launch.launch_document {
+        EpiphanyWorkerLaunchDocument::Role(document) => document
+            .admitted_model_direction_consideration_context
+            .is_some(),
+        EpiphanyWorkerLaunchDocument::Reorient(_) => false,
+    } {
+        return Err(anyhow!("caller cannot author model direction context"));
+    }
+    if launch.owner_role != EPIPHANY_IMAGINATION_OWNER_ROLE
+        || launch.binding_id != EPIPHANY_IMAGINATION_ROLE_BINDING_ID
+        || launch.imagination_consideration_request_id.is_some()
+        || launch.frontier_planning_request_id.is_some()
+        || launch.frontier_plan_mind_request_id.is_some()
+        || launch.claim_repair_request_id.is_some()
+        || launch.proposal_modeling_request_id.is_some()
+    {
+        return Err(anyhow!(
+            "model direction consideration requires an exclusive Imagination launch"
+        ));
+    }
+    let request = cache
+        .get::<AdmittedModelDirectionConsiderationRequest>(request_id)?
+        .ok_or_else(|| anyhow!("model direction consideration request does not exist"))?;
+    validate_current_admitted_model_direction_consideration_request(cache, &request)?;
+    let identity = cache
+        .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
+        .ok_or_else(|| anyhow!("model direction consideration requires runtime identity"))?;
+    let persisted = cache
+        .get::<crate::EpiphanyThreadStateEntry>(crate::THREAD_STATE_KEY)?
+        .ok_or_else(|| anyhow!("model direction consideration requires thread state"))?;
+    if request.runtime_id != identity.runtime_id
+        || request.thread_id != persisted.thread_id
+        || persisted.state()? != *state
+        || launch.launch_document.thread_id() != request.thread_id
+    {
+        return Err(anyhow!("model direction consideration provenance mismatch"));
+    }
+    if cache
+        .get_all::<EpiphanyRuntimeWorkerLaunchRequest>()?
+        .iter()
+        .any(|worker| {
+            worker
+                .admitted_model_direction_consideration_request_id
+                .as_deref()
+                == Some(request_id)
+        })
+    {
+        return Err(anyhow!("model direction consideration already bound"));
+    }
+    Ok(request)
+}
+
 fn validate_claim_repair_launch(
     cache: &CultCache,
     state: &EpiphanyThreadState,
@@ -1191,6 +1291,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         })
     }
 
@@ -1311,6 +1413,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: Some(request.request_id.clone()),
             imagination_consideration_candidate_msgpack: Some(rmp_serde::to_vec_named(&candidate)?),
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         })
     }
 
@@ -1399,6 +1503,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: Some(rmp_serde::to_vec_named(&payload)?),
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         };
         put_runtime_role_worker_result(store, &result)
             .map_err(|error| anyhow!("persist frontier Mind result: {error}"))?;
@@ -2329,6 +2435,7 @@ pub(crate) mod tests {
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
                 imagination_consideration_request_id: None,
+                admitted_model_direction_consideration_request_id: None,
                 created_at: "2026-07-15T09:00:17Z".into(),
             },
         )?;
@@ -2367,6 +2474,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         };
         crate::put_runtime_role_worker_result(&store, &verification_result)?;
         let soul_verdict = crate::SoulVerdictReceipt {
@@ -2505,6 +2614,8 @@ pub(crate) mod tests {
             frontier_plan_mind_decision_msgpack: None,
             imagination_consideration_request_id: None,
             imagination_consideration_candidate_msgpack: None,
+            admitted_model_direction_consideration_request_id: None,
+            admitted_model_direction_consideration_result_msgpack: None,
         };
         crate::put_runtime_role_worker_result(&store, &modeling_result)?;
         let incorporation_review = crate::RepoModelAdmissionReview {

@@ -457,7 +457,6 @@ fn run_cli() -> Result<()> {
                     "coordinator.run".to_string(),
                     "persona.public_speech".to_string(),
                     "daemon.tool_invocation".to_string(),
-                    "daemon.lifecycle_poke".to_string(),
                 ]
             });
             let mut brake = if status == "released" {
@@ -7316,6 +7315,55 @@ mod lifecycle_projection_tests {
             "2026-07-15T10:00:00Z",
             "2026-07-15T10:01:00Z",
         ));
+    }
+
+    #[test]
+    fn deployment_brake_allows_lifecycle_sight_poke_but_blocks_cognitive_and_action_surfaces() {
+        let brake = EpiphanyCultMeshSwarmBrakeEntry {
+            schema_version: "epiphany.cultmesh.swarm_brake.v0".into(),
+            brake_id: "sleep-mode".into(),
+            status: "engaged".into(),
+            scope: "swarm".into(),
+            reason: "deployment sleep mode".into(),
+            operator_agent_id: "operator".into(),
+            affected_clusters: vec!["swarm".into()],
+            protected_surfaces: vec![
+                "heartbeat.scheduler".into(),
+                "coordinator.run".into(),
+                "persona.public_speech".into(),
+                "daemon.tool_invocation".into(),
+            ],
+            created_at_utc: "2026-07-18T00:00:00Z".into(),
+            expires_at_utc: None,
+            notes: Vec::new(),
+            runtime_id: "epiphany-yggdrasil".into(),
+            private_state_exposed: false,
+        };
+        assert!(
+            assert_swarm_brake_allows_surface_entry(
+                Some(&brake),
+                "daemon.lifecycle_poke",
+                "cluster",
+                "daemon",
+            )
+            .is_ok()
+        );
+        for protected in [
+            "heartbeat.scheduler",
+            "coordinator.run",
+            "persona.public_speech",
+            "daemon.tool_invocation",
+        ] {
+            assert!(
+                assert_swarm_brake_allows_surface_entry(
+                    Some(&brake),
+                    protected,
+                    "cluster",
+                    "daemon",
+                )
+                .is_err()
+            );
+        }
     }
 
     fn managed_service_row(

@@ -2711,7 +2711,37 @@ before starting any Epiphany service. Releasing that brake is a separate
 operator action. Until Idunn admits exact signed aggregate health and publishes
 `/srv/epiphany/deploy/deployment.env`, the candidate is not deployed.
 
-Next action: finish that braked deployment and verify the typed brake, exact
+## Resident organizational product and authority correction (2026-07-18)
+
+Epiphany's resident organizational behavior is the product posture, not a
+special dogfood mode. A swarm may continuously map its authorized domain and,
+from the current admitted model, ask Imagination for bounded proposals without
+waiting for a chat instruction. Organization feedback through the repository
+Persona is additional attributed pressure, not the ignition key and never
+adoption or action authority.
+
+The old `body-map-drift` pressure was a false measurement: it hashed only the
+current RepoModel and compared it to no Body or prior model. It is replaced in
+`epiphany-core/src/resident_self.rs` by
+`admitted-model-direction-consideration`, bound to the exact current admitted
+model revision/hash and unique admission receipt and emitted only while no
+terminal direction consideration exists. Imagination remains proposal-only.
+
+Package construction and application-owned state publication are separate;
+Bifrost owns release crossing and Idunn owns deployment. Verifier/status reads
+consume immutable provider snapshots without acquiring writer locks. Resident
+readiness joins separately owned release, runtime/Verse, provider, Mind, and
+brake facts and grants no cognition or action authority. An engaged brake still
+permits daemon supervision, leases, health, liveness, and read-only sight while
+blocking cognition launches, cognitive-work scheduling, Hands consequences,
+publication, and deployment actuation.
+
+The d4 deployment authority is revoked. It produced no final witness and must
+not be described as deployed. Any successor begins braked and earns deployment
+truth only through exact signed aggregate health and Idunn's final witness.
+
+Next action: select and package a successor, cross Bifrost and Idunn while
+braked, and verify the typed brake, exact
 release/witness bindings, all three service owners, signed Idunn health, local
 Qdrant/Ollama routes, and final deployment witness. Then run the Starfire-offline
 rehearsal before 2026-07-22: organization feedback -> persistent Modeling map ->

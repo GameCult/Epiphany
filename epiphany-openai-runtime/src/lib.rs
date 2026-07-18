@@ -1331,6 +1331,11 @@ fn worker_output_schema_json(document: &EpiphanyWorkerLaunchDocument) -> Result<
                 .with_context(|| format!("unknown role launch id {:?}", document.role_id))?;
             if document.frontier_planning_context.is_some() {
                 epiphany_core::epiphany_frontier_planning_output_schema()
+            } else if document
+                .admitted_model_direction_consideration_context
+                .is_some()
+            {
+                epiphany_core::epiphany_admitted_model_direction_consideration_output_schema()
             } else if document.imagination_consideration_context.is_some() {
                 epiphany_core::epiphany_imagination_consideration_output_schema()
             } else {
@@ -1369,6 +1374,13 @@ fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'sta
             if document.frontier_planning_context.is_some() =>
         {
             "Required frontier-planning result fields: roleId, verdict, summary, nextSafeMove, filesInspected, frontierPlanningRequestId, frontierPlanCandidate. Echo the exact request and candidate identity from the typed launch context. Do not emit statePatch, selfPatch, or repoModelPatch."
+        }
+        EpiphanyWorkerLaunchDocument::Role(document)
+            if document
+                .admitted_model_direction_consideration_context
+                .is_some() =>
+        {
+            "Required model-direction fields: roleId=imagination, verdict, summary, nextSafeMove, filesInspected, admittedModelDirectionConsiderationRequestId, admittedModelDirectionConsiderationResult. Echo the exact typed request, runtime, thread, model, and receipt identities. Emit proposal-only terminal consideration; no patches, commands, release, or deployment cargo."
         }
         EpiphanyWorkerLaunchDocument::Role(document)
             if document.imagination_consideration_context.is_some() =>
@@ -1414,6 +1426,9 @@ struct RoleWorkerResultIngress {
     frontier_plan_mind_decision: Option<RepoFrontierPlanMindDecisionIngress>,
     imagination_consideration_request_id: Option<String>,
     imagination_consideration_candidate: Option<ImaginationConsiderationCandidateIngress>,
+    admitted_model_direction_consideration_request_id: Option<String>,
+    admitted_model_direction_consideration_result:
+        Option<AdmittedModelDirectionConsiderationResultIngress>,
     repository_body_observation_basis: Option<epiphany_core::RepositoryBodyObservationBasis>,
 }
 
@@ -1469,6 +1484,26 @@ struct ImaginationConsiderationCandidateIngress {
     recommended_review_route: Option<epiphany_core::ImaginationConsiderationReviewRoute>,
     proposed_at: String,
     contract: String,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(default)]
+struct AdmittedModelDirectionConsiderationResultIngress {
+    request_id: String,
+    runtime_id: String,
+    thread_id: String,
+    model_revision: u64,
+    model_hash: String,
+    model_admission_receipt_id: String,
+    disposition: Option<epiphany_core::AdmittedModelDirectionDisposition>,
+    summary: String,
+    option_drafts: Vec<epiphany_core::ImaginationOptionDraft>,
+    uncertainties: Vec<String>,
+    evidence_refs: Vec<String>,
+    proposed_at: String,
+    contract: String,
+    proposal_only: bool,
+    terminal: bool,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -1661,6 +1696,51 @@ fn role_worker_result_from_ingress(
         } else {
             (None, None)
         };
+    let (
+        admitted_model_direction_consideration_result_msgpack,
+        admitted_model_direction_consideration_result_error,
+    ) = if let Some(ingress) = result
+        .admitted_model_direction_consideration_result
+        .as_ref()
+    {
+        if let Some(disposition) = ingress.disposition {
+            encode_optional_document(
+                &Some(epiphany_core::AdmittedModelDirectionConsiderationResult {
+                    schema_version:
+                        epiphany_core::ADMITTED_MODEL_DIRECTION_CONSIDERATION_RESULT_SCHEMA_VERSION
+                            .into(),
+                    result_id:
+                        epiphany_core::admitted_model_direction_consideration_result_id_for_launch(
+                            &ingress.request_id,
+                            &launch_request.job_id,
+                        ),
+                    request_id: ingress.request_id.trim().into(),
+                    runtime_id: ingress.runtime_id.trim().into(),
+                    thread_id: ingress.thread_id.trim().into(),
+                    model_revision: ingress.model_revision,
+                    model_hash: ingress.model_hash.trim().into(),
+                    model_admission_receipt_id: ingress.model_admission_receipt_id.trim().into(),
+                    disposition,
+                    summary: ingress.summary.trim().into(),
+                    option_drafts: ingress.option_drafts.clone(),
+                    uncertainties: clean_string_vec(&ingress.uncertainties),
+                    evidence_refs: clean_string_vec(&ingress.evidence_refs),
+                    proposed_at: ingress.proposed_at.trim().into(),
+                    contract: ingress.contract.trim().into(),
+                    proposal_only: ingress.proposal_only,
+                    terminal: ingress.terminal,
+                }),
+                "admittedModelDirectionConsiderationResult",
+            )
+        } else {
+            (
+                None,
+                Some("admittedModelDirectionConsiderationResult: missing disposition".into()),
+            )
+        }
+    } else {
+        (None, None)
+    };
     EpiphanyRuntimeRoleWorkerResult {
         schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         repository_body_observation_basis: result.repository_body_observation_basis.clone(),
@@ -1695,7 +1775,10 @@ fn role_worker_result_from_ingress(
                 frontier_plan_candidate_error,
                 merge_optional_errors(
                     frontier_plan_mind_decision_error,
-                    imagination_consideration_candidate_error,
+                    merge_optional_errors(
+                        imagination_consideration_candidate_error,
+                        admitted_model_direction_consideration_result_error,
+                    ),
                 ),
             ),
         ),
@@ -1722,6 +1805,12 @@ fn role_worker_result_from_ingress(
             result.imagination_consideration_request_id.as_deref(),
         ),
         imagination_consideration_candidate_msgpack,
+        admitted_model_direction_consideration_request_id: clean_optional_string(
+            result
+                .admitted_model_direction_consideration_request_id
+                .as_deref(),
+        ),
+        admitted_model_direction_consideration_result_msgpack,
     }
 }
 
@@ -1887,6 +1976,8 @@ mod tests {
             claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -1952,6 +2043,8 @@ mod tests {
             claim_repair_request_id: None,
             frontier_planning_request_id: Some("planning-request-1".into()),
             frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2006,6 +2099,8 @@ mod tests {
             claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: Some("mind-request-1".into()),
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
         };
         let result = role_worker_result_from_ingress(
             &launch,
@@ -2221,6 +2316,8 @@ mod tests {
                         claim_repair_context: None,
                         frontier_planning_context: None,
                         frontier_plan_mind_context: None,
+                        imagination_consideration_context: None,
+                        admitted_model_direction_consideration_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -2246,6 +2343,8 @@ mod tests {
             claim_repair_request_id: None,
             frontier_planning_request_id: None,
             frontier_plan_mind_request_id: None,
+            imagination_consideration_request_id: None,
+            admitted_model_direction_consideration_request_id: None,
                 created_at: now(),
             },
         )?;
@@ -2383,6 +2482,8 @@ mod tests {
                         claim_repair_context: None,
                         frontier_planning_context: None,
                         frontier_plan_mind_context: None,
+                        imagination_consideration_context: None,
+                        admitted_model_direction_consideration_context: None,
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -2408,6 +2509,8 @@ mod tests {
                 claim_repair_request_id: None,
                 frontier_planning_request_id: None,
                 frontier_plan_mind_request_id: None,
+                imagination_consideration_request_id: None,
+                admitted_model_direction_consideration_request_id: None,
                 created_at: now(),
             },
         )?;

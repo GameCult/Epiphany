@@ -12,6 +12,7 @@ pub const EPIPHANY_PACKAGED_RELEASE_SCHEMA_VERSION: &str = "epiphany.packaged_re
 pub const EPIPHANY_PACKAGED_RELEASE_HEAD_SCHEMA_VERSION: &str = "epiphany.packaged_release_head.v0";
 const RELEASE_KEY_PREFIX: &str = "epiphany-local/packaged-release/by-id/";
 const RELEASE_HEAD_KEY: &str = "epiphany-local/packaged-release/current";
+pub const EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE: &str = "release-witness.ccmp";
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct EpiphanyPackagedReleaseBinary {
@@ -73,7 +74,7 @@ pub struct EpiphanyPackagedReleaseHead {
 pub struct PackageReleaseRequest<'a> {
     pub repo: &'a Path,
     pub destination: &'a Path,
-    pub store: &'a Path,
+    pub build_cache_root: &'a Path,
     pub runtime_id: &'a str,
     pub target_triple: &'a str,
 }
@@ -82,6 +83,7 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
     let file_name = |name: &str| target_binary_file_name(target_triple, name);
     vec![
         ("supervisor", file_name("epiphany-daemon-supervisor")),
+        ("release-publisher", file_name("epiphany-release")),
         (
             "semantic-projector",
             file_name("epiphany-memory-semantic-projector"),
@@ -120,19 +122,29 @@ fn target_binary_file_name(target_triple: &str, binary: &str) -> String {
     }
 }
 
-pub fn package_and_publish_epiphany_release(
+pub fn package_epiphany_release(
     request: PackageReleaseRequest<'_>,
 ) -> Result<EpiphanyPackagedReleaseEntry> {
     let (source_commit_sha, source_commit_time) = clean_source_commit(request.repo)?;
     require_nonempty("runtime id", request.runtime_id)?;
     require_nonempty("target triple", request.target_triple)?;
     let toolchain = installed_toolchain()?;
-    fs::create_dir_all(request.destination)?;
+    fs::create_dir_all(request.destination).with_context(|| {
+        format!(
+            "failed to create release destination {}",
+            request.destination.display()
+        )
+    })?;
     let destination = canonical_path(request.destination)?;
     let source_root = short_temporary_path("ep-src");
     let source_guard = GitWorktreeGuard::create(request.repo, &source_root, &source_commit_sha)?;
-    let build_root = short_temporary_path("ep-build");
-    let _build_guard = DirectoryCleanup(build_root.clone());
+    let build_root = request.build_cache_root.to_path_buf();
+    fs::create_dir_all(&build_root).with_context(|| {
+        format!(
+            "failed to create stable build cache {}",
+            build_root.display()
+        )
+    })?;
     let built_binaries = build_required_release_siblings(
         &source_guard.path,
         &build_root,
@@ -140,7 +152,8 @@ pub fn package_and_publish_epiphany_release(
         &toolchain.cargo,
     )?;
     let staging = destination.join(format!(".staging-{}", Uuid::new_v4()));
-    fs::create_dir(&staging)?;
+    fs::create_dir(&staging)
+        .with_context(|| format!("failed to create release staging {}", staging.display()))?;
     let result = (|| {
         let mut binaries = Vec::new();
         for (role, file_name) in required_packaged_release_binaries(request.target_triple) {
@@ -151,7 +164,13 @@ pub fn package_and_publish_epiphany_release(
                 bail!("required packaged sibling is absent: {}", source.display());
             }
             let target = staging.join(&file_name);
-            fs::copy(&source, &target)?;
+            fs::copy(&source, &target).with_context(|| {
+                format!(
+                    "failed to copy {} to {}",
+                    source.display(),
+                    target.display()
+                )
+            })?;
             binaries.push(binary_record(role, &file_name, &target)?);
         }
         binaries.sort_by(|left, right| left.role.cmp(&right.role));
@@ -163,7 +182,14 @@ pub fn package_and_publish_epiphany_release(
             &binaries,
         );
         let final_root = destination.join(&source_commit_sha).join(&release_id);
-        fs::create_dir_all(final_root.parent().expect("release root has parent"))?;
+        fs::create_dir_all(final_root.parent().expect("release root has parent")).with_context(
+            || {
+                format!(
+                    "failed to create release commit root for {}",
+                    final_root.display()
+                )
+            },
+        )?;
         for binary in &mut binaries {
             binary.canonical_path = final_root.join(&binary.file_name).display().to_string();
         }
@@ -181,6 +207,10 @@ pub fn package_and_publish_epiphany_release(
             private_state_exposed: false,
         };
         validate_epiphany_packaged_release(&witness)?;
+        write_epiphany_packaged_release_witness(
+            &staging.join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE),
+            &witness,
+        )?;
         if final_root.exists() {
             verify_epiphany_packaged_release_files(&witness)?;
             fs::remove_dir_all(&staging)?;
@@ -189,7 +219,7 @@ pub fn package_and_publish_epiphany_release(
                 .context("failed to atomically publish packaged release directory")?;
             verify_epiphany_packaged_release_files(&witness)?;
         }
-        publish_epiphany_packaged_release(request.store, request.runtime_id, witness)
+        Ok(witness)
     })();
     if staging.exists() {
         let _ = fs::remove_dir_all(staging);
@@ -200,16 +230,6 @@ pub fn package_and_publish_epiphany_release(
 fn short_temporary_path(prefix: &str) -> PathBuf {
     let id = Uuid::new_v4().simple().to_string();
     std::env::temp_dir().join(format!("{prefix}-{}", &id[..12]))
-}
-
-struct DirectoryCleanup(PathBuf);
-
-impl Drop for DirectoryCleanup {
-    fn drop(&mut self) {
-        if self.0.exists() {
-            let _ = fs::remove_dir_all(&self.0);
-        }
-    }
 }
 
 struct GitWorktreeGuard {
@@ -335,6 +355,7 @@ fn release_manifest_target_dir(target_root: &Path, manifest_dir: &str) -> PathBu
 fn required_release_build_target(role: &str) -> Result<(&'static str, &'static str)> {
     match role {
         "supervisor" => Ok(("epiphany-core", "epiphany-daemon-supervisor")),
+        "release-publisher" => Ok(("epiphany-core", "epiphany-release")),
         "semantic-projector" => Ok(("epiphany-core", "epiphany-memory-semantic-projector")),
         "workspace-coverage-projector" => {
             Ok(("epiphany-core", "epiphany-workspace-coverage-projector"))
@@ -423,11 +444,12 @@ pub fn verify_epiphany_packaged_release_files(entry: &EpiphanyPackagedReleaseEnt
     let actual_names = fs::read_dir(&root)?
         .map(|item| Ok(item?.file_name().to_string_lossy().into_owned()))
         .collect::<Result<BTreeSet<_>>>()?;
-    let expected_names = entry
+    let mut expected_names = entry
         .binaries
         .iter()
         .map(|binary| binary.file_name.clone())
         .collect::<BTreeSet<_>>();
+    expected_names.insert(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE.into());
     if actual_names != expected_names {
         bail!("packaged release directory is not the exact witnessed sibling set");
     }
@@ -447,7 +469,61 @@ pub fn verify_epiphany_packaged_release_files(entry: &EpiphanyPackagedReleaseEnt
             );
         }
     }
+    let stored =
+        read_epiphany_packaged_release_witness(&root.join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE))?;
+    if stored != *entry {
+        bail!("packaged release witness artifact disagrees with inspected release");
+    }
     Ok(())
+}
+
+pub fn write_epiphany_packaged_release_witness(
+    path: &Path,
+    entry: &EpiphanyPackagedReleaseEntry,
+) -> Result<()> {
+    validate_epiphany_packaged_release(entry)?;
+    let bytes = rmp_serde::to_vec(entry).context("failed to encode packaged release witness")?;
+    fs::write(path, bytes).with_context(|| {
+        format!(
+            "failed to write packaged release witness {}",
+            path.display()
+        )
+    })
+}
+
+pub fn read_epiphany_packaged_release_witness(path: &Path) -> Result<EpiphanyPackagedReleaseEntry> {
+    let bytes = fs::read(path)
+        .with_context(|| format!("failed to read packaged release witness {}", path.display()))?;
+    let entry = rmp_serde::from_slice(&bytes).with_context(|| {
+        format!(
+            "failed to decode packaged release witness {}",
+            path.display()
+        )
+    })?;
+    validate_epiphany_packaged_release(&entry)?;
+    Ok(entry)
+}
+
+pub fn inspect_epiphany_packaged_release_witness(
+    witness_path: &Path,
+    destination: &Path,
+    runtime_id: &str,
+    source_commit: &str,
+) -> Result<EpiphanyPackagedReleaseEntry> {
+    let entry = read_epiphany_packaged_release_witness(witness_path)?;
+    if entry.runtime_id != runtime_id || entry.source_commit_sha != source_commit {
+        bail!("packaged release witness disagrees with authorized runtime or source commit");
+    }
+    let destination = canonical_path(destination)?;
+    let package_root = canonical_path(&entry.package_root)?;
+    if package_root.parent().and_then(Path::parent) != Some(destination.as_path()) {
+        bail!("packaged release root is outside the canonical destination");
+    }
+    if package_root.join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE) != canonical_path(witness_path)? {
+        bail!("packaged release witness path disagrees with package root");
+    }
+    verify_epiphany_packaged_release_files(&entry)?;
+    Ok(entry)
 }
 
 pub fn publish_epiphany_packaged_release(
@@ -808,6 +884,11 @@ mod tests {
             binaries,
             private_state_exposed: false,
         };
+        write_epiphany_packaged_release_witness(
+            &Path::new(&entry.package_root).join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE),
+            &entry,
+        )
+        .unwrap();
         (dir, entry)
     }
 
@@ -815,6 +896,22 @@ mod tests {
     fn exact_fixture_verifies() {
         let (_d, e) = fixture();
         verify_epiphany_packaged_release_files(&e).unwrap();
+    }
+    #[test]
+    fn witness_reader_refuses_tamper_and_inspector_refuses_wrong_runtime() {
+        let (d, e) = fixture();
+        let witness = Path::new(&e.package_root).join(EPIPHANY_PACKAGED_RELEASE_WITNESS_FILE);
+        assert!(
+            inspect_epiphany_packaged_release_witness(
+                &witness,
+                d.path(),
+                "alien-runtime",
+                &e.source_commit_sha,
+            )
+            .is_err()
+        );
+        fs::write(&witness, b"hostile witness").unwrap();
+        assert!(read_epiphany_packaged_release_witness(&witness).is_err());
     }
     #[test]
     fn one_byte_replacement_is_rejected() {

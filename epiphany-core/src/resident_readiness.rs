@@ -5,7 +5,10 @@ use crate::{
     observe_process_instance, validate_resident_self_store_separation,
 };
 use anyhow::{Result, anyhow, bail};
-use cultcache_rs::{CultCache, DatabaseEntry, SingleFileMessagePackBackingStore};
+use cultcache_rs::{
+    CacheBackingStore, CultCache, CultCacheEnvelope, DatabaseEntry,
+    SingleFileMessagePackBackingStore,
+};
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -80,12 +83,23 @@ impl ResidentProviderReadiness {
     }
 }
 
-fn cache(path: &Path) -> Result<CultCache> {
-    let mut cache = CultCache::new();
-    cache.register_entry_type::<ResidentProviderReadiness>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path));
-    cache.pull_all_backing_stores()?;
-    Ok(cache)
+fn readiness_snapshot(
+    path: &Path,
+) -> Result<(Option<CultCacheEnvelope>, Option<ResidentProviderReadiness>)> {
+    let entries = SingleFileMessagePackBackingStore::new(path).pull_all()?;
+    let mut matching = entries.into_iter().filter(|entry| {
+        entry.r#type == <ResidentProviderReadiness as DatabaseEntry>::TYPE
+            && entry.key == PROVIDER_READINESS_KEY
+    });
+    let Some(envelope) = matching.next() else {
+        return Ok((None, None));
+    };
+    if matching.next().is_some() {
+        bail!("resident provider readiness store contains duplicate owner state");
+    }
+    let readiness: ResidentProviderReadiness = rmp_serde::from_slice(&envelope.payload)?;
+    readiness.validate()?;
+    Ok((Some(envelope), Some(readiness)))
 }
 
 pub fn publish_resident_provider_readiness(
@@ -93,12 +107,7 @@ pub fn publish_resident_provider_readiness(
     mut readiness: ResidentProviderReadiness,
 ) -> Result<ResidentProviderReadiness> {
     readiness.validate()?;
-    let cache = cache(store)?;
-    let expected = cache.snapshot_envelopes().into_iter().find(|entry| {
-        entry.r#type == <ResidentProviderReadiness as DatabaseEntry>::TYPE
-            && entry.key == PROVIDER_READINESS_KEY
-    });
-    let previous = cache.get::<ResidentProviderReadiness>(PROVIDER_READINESS_KEY)?;
+    let (expected, previous) = readiness_snapshot(store)?;
     readiness.publisher_sequence = previous
         .as_ref()
         .map_or(1, |value| value.publisher_sequence.saturating_add(1));
@@ -110,7 +119,9 @@ pub fn publish_resident_provider_readiness(
             bail!("resident provider readiness time moved backwards");
         }
     }
-    let (replacement, _) = cache.prepare_entry(PROVIDER_READINESS_KEY, &readiness)?;
+    let mut preparation = CultCache::new();
+    preparation.register_entry_type::<ResidentProviderReadiness>()?;
+    let (replacement, _) = preparation.prepare_entry(PROVIDER_READINESS_KEY, &readiness)?;
     let backing = SingleFileMessagePackBackingStore::new(store);
     let committed = match expected {
         Some(expected) => backing.compare_and_swap_entry(&expected, replacement)?,
@@ -123,11 +134,7 @@ pub fn publish_resident_provider_readiness(
 }
 
 pub fn load_resident_provider_readiness(store: &Path) -> Result<Option<ResidentProviderReadiness>> {
-    let value = cache(store)?.get::<ResidentProviderReadiness>(PROVIDER_READINESS_KEY)?;
-    if let Some(value) = value.as_ref() {
-        value.validate()?;
-    }
-    Ok(value)
+    Ok(readiness_snapshot(store)?.1)
 }
 
 pub fn heartbeat_local_provider_status(
@@ -647,6 +654,46 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("private state")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn readiness_cas_preserves_foreign_owner_rows_and_refuses_duplicate_owner_state() -> Result<()>
+    {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("mixed.cc");
+        let mut mixed = CultCache::new();
+        mixed.register_entry_type::<crate::EpiphanyCultMeshStatusEntry>()?;
+        mixed.add_generic_backing_store(SingleFileMessagePackBackingStore::new(&store));
+        let foreign = crate::EpiphanyCultMeshStatusEntry {
+            schema_version: crate::EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.into(),
+            runtime_id: "ygg".into(),
+            verse_id: "gamecult-local".into(),
+            app_id: "foreign-owner".into(),
+            note: "must survive readiness CAS".into(),
+            verse_tier: "local".into(),
+        };
+        mixed.put("foreign/status", &foreign)?;
+        publish_resident_provider_readiness(&store, provider())?;
+        let entries = SingleFileMessagePackBackingStore::new(&store).pull_all()?;
+        assert!(entries.iter().any(|entry| {
+            entry.r#type == <crate::EpiphanyCultMeshStatusEntry as DatabaseEntry>::TYPE
+                && entry.key == "foreign/status"
+        }));
+
+        let mut preparation = CultCache::new();
+        preparation.register_entry_type::<ResidentProviderReadiness>()?;
+        let (first, _) = preparation.prepare_entry(PROVIDER_READINESS_KEY, &provider())?;
+        let mut second_value = provider();
+        second_value.publisher_sequence = 2;
+        let (second, _) = preparation.prepare_entry(PROVIDER_READINESS_KEY, &second_value)?;
+        fs::write(&store, rmp_serde::to_vec(&vec![first, second])?)?;
+        assert!(
+            load_resident_provider_readiness(&store)
+                .unwrap_err()
+                .to_string()
+                .contains("duplicate owner state")
         );
         Ok(())
     }

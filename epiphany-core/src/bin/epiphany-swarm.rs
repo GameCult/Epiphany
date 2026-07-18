@@ -44,13 +44,6 @@ fn main() -> Result<()> {
             "heartbeat and resident Self stores must be physically separate"
         ));
     }
-    validate_bifrost_persona_feedback_source(
-        &args.persona_feedback_source_store,
-        &args.bifrost_feedback_trust_anchor,
-        &args.policy.release_runtime_id,
-        &args.feedback_target_repository,
-        &args.feedback_target_persona,
-    )?;
     if matches!(args.command, CommandKind::Status) {
         let now = Utc::now().timestamp_millis().max(0) as u64;
         let projection = derive_resident_cognition_readiness(ResidentReadinessRequest {
@@ -67,6 +60,21 @@ fn main() -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&projection)?);
         return Ok(());
     }
+    // Status is non-actuating sight. In particular it must not open the
+    // provider-owned delivery store: CultCache read locking can create or
+    // rewrite the sibling lock file, which would let a root-run verifier
+    // poison the service identity's later access. The resident importer owns
+    // source authentication immediately before it can consume deliveries.
+    validate_feedback_source_for_command(&args.command, || {
+        validate_bifrost_persona_feedback_source(
+            &args.persona_feedback_source_store,
+            &args.bifrost_feedback_trust_anchor,
+            &args.policy.release_runtime_id,
+            &args.feedback_target_repository,
+            &args.feedback_target_persona,
+        )
+        .map(|_| ())
+    })?;
     if let Some(pressure) = args.pressure.as_ref() {
         enqueue_resident_self_pressure(&args.state_store, pressure)?;
     }
@@ -95,6 +103,16 @@ fn main() -> Result<()> {
         CommandKind::Status => unreachable!("status returned before actuation setup"),
     }
     Ok(())
+}
+
+fn validate_feedback_source_for_command(
+    command: &CommandKind,
+    validate: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    if matches!(command, CommandKind::Status) {
+        return Ok(());
+    }
+    validate()
 }
 
 fn publish_self_readiness(args: &Args) -> Result<()> {
@@ -287,7 +305,7 @@ fn summary(state: &ResidentSelfState, outcome: &ResidentSelfOutcome) -> serde_js
         "revision": state.revision,
         "activeTurnId": state.active_turn.as_ref().map(|turn| &turn.turn_id),
         "nextEligibleAtMillis": state.next_eligible_at_millis,
-        "wakeAuthority": "standard heartbeat consumes typed operator, Body-map drift, Persona feedback, or Imagination proposal pressure and emits one single-consumption Self grant",
+        "wakeAuthority": "standard heartbeat consumes typed operator, admitted Modeling-map direction consideration, Persona feedback, or Imagination proposal pressure and emits one single-consumption Self grant",
         "preparedRecovery": if state.prepared_launch.is_some() { "fail-closed-awaiting-exact-child-claim-or-witnessed-recovery" } else { "not-required" },
         "authority": "Self may launch one bounded coordinator turn; it cannot directly invoke model/tools, mutate Mind/Hands, review, release, or deploy",
         "privateStateExposed": false
@@ -556,6 +574,23 @@ mod brake_tests {
         assert!(!resident_self_brake_engaged(&store, "epiphany-yggdrasil")?);
         epiphany_core::write_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil", brake)?;
         assert!(resident_self_brake_engaged(&store, "epiphany-yggdrasil")?);
+        Ok(())
+    }
+
+    #[test]
+    fn status_never_opens_or_validates_the_bifrost_provider_store() -> Result<()> {
+        let touched = std::cell::Cell::new(false);
+        validate_feedback_source_for_command(&CommandKind::Status, || {
+            touched.set(true);
+            anyhow::bail!("poison Bifrost store was touched")
+        })?;
+        assert!(!touched.get());
+        assert!(
+            validate_feedback_source_for_command(&CommandKind::Once, || {
+                anyhow::bail!("non-status path authenticates provider source")
+            })
+            .is_err()
+        );
         Ok(())
     }
 }

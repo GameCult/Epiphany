@@ -139,6 +139,7 @@ pub use view::epiphany_view_needs_jobs;
 pub use view::epiphany_view_needs_pressure;
 pub use view::epiphany_view_needs_reorientation_inputs;
 pub use view::epiphany_view_needs_runtime_store;
+pub use worker_launch::AdmittedModelDirectionConsiderationContextProjection;
 pub use worker_launch::EpiphanyReorientLaunchRequestInput;
 pub use worker_launch::EpiphanyReorientWorkerLaunchDocument;
 pub use worker_launch::EpiphanyRoleWorkerLaunchDocument;

@@ -45,7 +45,7 @@ impl ResidentSelfPressure {
             || !matches!(
                 self.kind.as_str(),
                 "operator-objective"
-                    | "body-map-drift"
+                    | "admitted-model-direction-consideration"
                     | "persona-feedback"
                     | "imagination-consideration"
                     | "imagination-proposal"
@@ -773,13 +773,18 @@ pub fn ingest_resident_self_domain_pressure(
     now_millis: u64,
 ) -> Result<usize> {
     let mut inserted = 0;
-    if let Some(model) = crate::runtime_current_repo_model(runtime_store)? {
-        let model_hash = crate::memory_graph_model_hash(&model)?;
+    let requested_at = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(now_millis as i64)
+        .ok_or_else(|| anyhow!("resident consideration timestamp is out of range"))?
+        .to_rfc3339();
+    if let Some(request) =
+        crate::commit_admitted_model_direction_consideration_request(runtime_store, &requested_at)?
+    {
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(resident_store, &ResidentSelfPressure {
             schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
-            pressure_id: format!("body-map-drift-{}", model_hash.trim_start_matches("sha256:")),
-            kind: "body-map-drift".into(), provenance_ref: format!("cultcache://runtime/repo-model/{model_hash}"),
-            objective: "Inspect the admitted persistent Modeling map for new Body direction and suggest coherent improvements without adopting or implementing them.".into(),
+            pressure_id: format!("admitted-model-direction-consideration-{}", request.request_id),
+            kind: "admitted-model-direction-consideration".into(),
+            provenance_ref: format!("cultcache://admitted-model-direction-consideration/{}", request.request_id),
+            objective: "Launch the exact typed admitted model direction consideration request; proposal only.".into(),
             created_at_millis: now_millis, status: "pending".into(), consumed_by_grant_id: None, private_state_exposed: false,
         })?);
     }
@@ -796,9 +801,7 @@ pub fn ingest_resident_self_domain_pressure(
             &feedback.target_repository,
             &feedback.target_persona_id,
             "resident-feedback-consideration-v0",
-            &chrono::DateTime::<chrono::Utc>::from_timestamp_millis(now_millis as i64)
-                .ok_or_else(|| anyhow!("resident consideration timestamp is out of range"))?
-                .to_rfc3339(),
+            &requested_at,
         )?;
         inserted += usize::from(enqueue_resident_self_pressure_idempotent(
             resident_store,
@@ -960,10 +963,24 @@ pub fn prepare_resident_self_launch(
         objective: grant.objective.clone(),
     };
     let mut argv = coordinator_argv(policy, &turn_id, &wake);
-    if grant.pressure_kind == "imagination-consideration" {
+    if matches!(
+        grant.pressure_kind.as_str(),
+        "imagination-consideration" | "admitted-model-direction-consideration"
+    ) {
+        let (prefix, request_flag) = if grant.pressure_kind == "imagination-consideration" {
+            (
+                "cultcache://imagination-consideration/",
+                "--imagination-consideration-request-id",
+            )
+        } else {
+            (
+                "cultcache://admitted-model-direction-consideration/",
+                "--admitted-model-direction-consideration-request-id",
+            )
+        };
         let request_id = grant
             .provenance_ref
-            .strip_prefix("cultcache://imagination-consideration/")
+            .strip_prefix(prefix)
             .filter(|value| !value.trim().is_empty())
             .ok_or_else(|| anyhow!("consideration grant lost exact request provenance"))?;
         let objective = argv.pop();
@@ -973,10 +990,7 @@ pub fn prepare_resident_self_launch(
                 "consideration launch could not remove objective carrier"
             ));
         }
-        argv.extend([
-            "--imagination-consideration-request-id".into(),
-            request_id.into(),
-        ]);
+        argv.extend([request_flag.into(), request_id.into()]);
     }
     let executable = std::fs::read(&policy.coordinator_bin)
         .with_context(|| format!("failed to hash {}", policy.coordinator_bin.display()))?;
@@ -1575,9 +1589,10 @@ mod tests {
         let pressure = ResidentSelfPressure {
             schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
             pressure_id: "pressure-body-1".into(),
-            kind: "body-map-drift".into(),
-            provenance_ref: "cultmesh://body/drift/1".into(),
-            objective: "Model changed Body ownership.".into(),
+            kind: "admitted-model-direction-consideration".into(),
+            provenance_ref: "cultcache://admitted-model-direction-consideration/request-model-1"
+                .into(),
+            objective: "Launch exact typed model direction request.".into(),
             created_at_millis: 1,
             status: "pending".into(),
             consumed_by_grant_id: None,
@@ -1591,6 +1606,12 @@ mod tests {
         );
         let prepared = prepare_resident_self_launch(&store, &policy, 4)?.expect("prepared launch");
         assert_eq!(prepared.grant.grant_id, grant.grant_id);
+        assert!(!prepared.argv.iter().any(|arg| arg == "--objective"));
+        assert!(prepared.argv.windows(2).any(|pair| pair
+            == [
+                "--admitted-model-direction-consideration-request-id",
+                "request-model-1"
+            ]));
         assert!(prepare_resident_self_launch(&store, &policy, 5)?.is_none());
         let process = LaunchedCoordinator {
             process_id: 44,
@@ -1654,9 +1675,9 @@ mod tests {
             &ResidentSelfPressure {
                 schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
                 pressure_id: "body-map-pressure-1".into(),
-                kind: "body-map-drift".into(),
+                kind: "admitted-model-direction-consideration".into(),
                 provenance_ref: "cultcache://repo-model/1".into(),
-                objective: "Inspect admitted Body-map drift.".into(),
+                objective: "Launch exact admitted Modeling-map direction consideration.".into(),
                 created_at_millis: 1,
                 status: "pending".into(),
                 consumed_by_grant_id: None,
@@ -1682,7 +1703,10 @@ mod tests {
         assert_eq!(result["event"]["turnStatus"], "running");
         let grant = pending_resident_self_grant(&resident_store)?.expect("heartbeat grant");
         assert_eq!(grant.heartbeat_schedule_id, "heartbeat-self-1");
-        assert_eq!(grant.pressure_kind, "body-map-drift");
+        assert_eq!(
+            grant.pressure_kind,
+            "admitted-model-direction-consideration"
+        );
         let ack = ResidentSelfTerminalAck {
             schema_version: RESIDENT_SELF_ACK_SCHEMA_VERSION.into(),
             ack_id: "ack-heartbeat-self-1".into(),
@@ -1750,9 +1774,10 @@ mod tests {
             &ResidentSelfPressure {
                 schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
                 pressure_id: "body-pressure-braked".into(),
-                kind: "body-map-drift".into(),
-                provenance_ref: "cultcache://repo-model/hash".into(),
-                objective: "Inspect drift.".into(),
+                kind: "admitted-model-direction-consideration".into(),
+                provenance_ref: "cultcache://admitted-model-direction-consideration/request-braked"
+                    .into(),
+                objective: "Launch exact typed model direction request.".into(),
                 created_at_millis: 1,
                 status: "pending".into(),
                 consumed_by_grant_id: None,
