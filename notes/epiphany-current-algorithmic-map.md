@@ -1067,5 +1067,56 @@ child bootstrap authority, but a future hardening pass should replace parent
 observation trust with an OS-authenticated parent/child launch channel where the
 host supports one; it is not permission to accept PID-only identity.
 
+### Resident deployment and organizational loop
+
+Heartbeat `serve` owns one physiology sequence: reconcile an exact terminal
+acknowledgement; retain pressure under the brake; refuse replacement while a
+coordinator is active; emit one grant when clear and pressured; otherwise run
+bounded void/sleep work. Restart resumes typed state rather than inferring
+completion from exit codes or journals.
+
+`epiphany-swarm status` is a non-actuating join over exact
+runtime/release/witness/source identity, packaged siblings, physical store
+separation, heartbeat and Self freshness/coherence, lease sight,
+runtime-scoped brake, writable workspace, and credential posture. The daemon
+supervisor remains the sole signed Idunn health writer and may aggregate the
+exact heartbeat/Self provider pair. Wrong-release evidence contradicts;
+missing evidence warms; stale or incoherent evidence degrades. Readiness,
+health, systemd, and PID sight cannot write deployment admission.
+
+Yggdrasil separates provenance from Body. `/srv/epiphany/source/current` is
+immutable release source. `/var/lib/gamecult/epiphany/workspace` is the writable
+domain Body carrying repository binding, persistent Modeling map, Mind state,
+and Hands consequences. Service authority is split as follows:
+
+- `epiphany.service`: supervisor/projector and signed aggregate health;
+- `epiphany-heartbeat.service`: heartbeat pressure, state, and grants;
+- `epiphany-swarm.service`: resident-Self state and bounded coordinator turns.
+
+Coordinator, model runtime, and tool spine are witnessed bounded children.
+Deployment authenticates them, preserves coverage checkpoints across retries,
+initializes heartbeat, manages the three units together, waits for typed
+readiness, and crosses admission only through Idunn.
+
+```text
+domain Body -> persistent Modeling map -> Self pressure -> Imagination proposal
+     ^                 ^                       |                 |
+     |                 +-- Persona feedback --+                 v
+     |                                                   Mind review/adoption
+     |                                                           |
+     +---------------- Hands consequence <- explicit route -------+
+                                   |
+                          Bifrost exact release
+                                   |
+                            Idunn deployment
+```
+
+Every arrow is a typed request or receipt. Persona owns conversation;
+Modeling owns the persistent map; Imagination proposes; Mind adopts, refuses,
+or holds; Hands changes the Body only through an explicit route; Bifrost and
+Idunn separately own release and deployment. Operator silence permits bounded
+observation, map maintenance, rumination, and proposals. It grants none of the
+later consequences.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

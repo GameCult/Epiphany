@@ -19,6 +19,7 @@ use epiphany_core::EpiphanyProcessObservation as ProcessObservation;
 use epiphany_core::MemorySemanticProjectionInput;
 use epiphany_core::agent_memory_semantic_projection_input;
 use epiphany_core::authenticate_epiphany_cultmesh_semantic_projector_launch;
+use epiphany_core::authenticate_resident_provider_pair;
 use epiphany_core::epiphany_cultmesh_daemon_poke_intent_from_status;
 use epiphany_core::epiphany_cultmesh_daemon_poke_receipt_for_intent;
 use epiphany_core::idunn_recover_memory_semantic_projection_from_cultmesh;
@@ -922,11 +923,32 @@ fn publish_managed_service_iteration_health(
         SEMANTIC_PROJECTOR_SERVICE_ID,
         WORKSPACE_COVERAGE_PROJECTOR_SERVICE_ID,
     ];
-    let expected = required.len();
+    let mut expected = required.len();
     let mut terminal_current = 0_usize;
     let mut warming = 0_usize;
     let mut workspace_evidence = None;
     let mut contradictions = Vec::new();
+    if let (Some(heartbeat_store), Some(resident_store)) = (
+        args.resident_heartbeat_store.as_deref(),
+        args.resident_self_store.as_deref(),
+    ) {
+        expected += 2;
+        let pair = authenticate_resident_provider_pair(
+            release,
+            authenticated_release_witness_sha256,
+            heartbeat_store,
+            resident_store,
+            Utc::now().timestamp_millis().max(0) as u64,
+            args.resident_provider_stale_seconds.saturating_mul(1000),
+        );
+        terminal_current += pair.terminal_current;
+        warming += pair.warming;
+        contradictions.extend(pair.contradictions);
+    } else if args.resident_heartbeat_store.is_some() || args.resident_self_store.is_some() {
+        expected += 2;
+        contradictions
+            .push("resident health requires both heartbeat and Self provider stores".into());
+    }
     for service_id in required {
         let Some(policy) = policies
             .iter()
@@ -4757,6 +4779,9 @@ struct Args {
     idunn_daemon: Option<String>,
     idunn_health_contract: Option<String>,
     idunn_deployment_request_id: Option<String>,
+    resident_heartbeat_store: Option<PathBuf>,
+    resident_self_store: Option<PathBuf>,
+    resident_provider_stale_seconds: u64,
 }
 
 impl Args {
@@ -4811,6 +4836,9 @@ impl Args {
         let mut idunn_daemon = None;
         let mut idunn_health_contract = None;
         let mut idunn_deployment_request_id = None;
+        let mut resident_heartbeat_store = None;
+        let mut resident_self_store = None;
+        let mut resident_provider_stale_seconds = 180_u64;
 
         while let Some(arg) = values.next() {
             match arg.as_str() {
@@ -5014,6 +5042,29 @@ impl Args {
                             .context("missing --idunn-deployment-request-id value")?,
                     );
                 }
+                "--resident-heartbeat-store" => {
+                    resident_heartbeat_store = Some(PathBuf::from(
+                        values
+                            .next()
+                            .context("missing --resident-heartbeat-store value")?,
+                    ));
+                }
+                "--resident-self-store" => {
+                    resident_self_store = Some(PathBuf::from(
+                        values
+                            .next()
+                            .context("missing --resident-self-store value")?,
+                    ));
+                }
+                "--resident-provider-stale-seconds" => {
+                    resident_provider_stale_seconds = values
+                        .next()
+                        .context("missing --resident-provider-stale-seconds value")?
+                        .parse()?;
+                    if resident_provider_stale_seconds == 0 {
+                        anyhow::bail!("--resident-provider-stale-seconds must be positive");
+                    }
+                }
                 other => anyhow::bail!("unknown argument {other:?}"),
             }
         }
@@ -5174,6 +5225,9 @@ impl Args {
             idunn_daemon,
             idunn_health_contract,
             idunn_deployment_request_id,
+            resident_heartbeat_store,
+            resident_self_store,
+            resident_provider_stale_seconds,
         })
     }
 }

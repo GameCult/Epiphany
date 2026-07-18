@@ -2,13 +2,16 @@ use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
 use epiphany_core::{
     ChildObservation, CoordinatorLaunch, LaunchedCoordinator, ProcessInstanceIdentity,
-    ProcessInstanceObservation, ResidentSelfOutcome, ResidentSelfPolicy, ResidentSelfPorts,
-    ResidentSelfPressure, ResidentSelfState, acknowledge_resident_self_launch,
-    authenticate_resident_self_policy, cancel_resident_self_turn, capture_process_instance,
-    complete_resident_self_turn, coordinator_run_receipts, enqueue_resident_self_pressure,
+    ProcessInstanceObservation, ResidentProviderReadiness, ResidentReadinessRequest,
+    ResidentSelfOutcome, ResidentSelfPolicy, ResidentSelfPorts, ResidentSelfPressure,
+    ResidentSelfState, acknowledge_resident_self_launch, authenticate_resident_self_policy,
+    cancel_resident_self_turn, capture_process_instance, complete_resident_self_turn,
+    coordinator_run_receipts, derive_resident_cognition_readiness, enqueue_resident_self_pressure,
     ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
     load_resident_self_state, observe_process_instance, prepare_resident_self_launch,
-    resident_self_child_claim, terminate_process_instance, validate_resident_self_store_separation,
+    publish_resident_provider_readiness, resident_self_child_claim,
+    resident_self_local_provider_status, terminate_process_instance,
+    validate_resident_self_store_separation,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -23,6 +26,27 @@ fn main() -> Result<()> {
     authenticate_resident_self_policy(&mut args.policy)?;
     args.policy.validate()?;
     validate_resident_self_store_separation(&args.state_store, &args.policy)?;
+    if args.heartbeat_store == args.state_store {
+        return Err(anyhow!(
+            "heartbeat and resident Self stores must be physically separate"
+        ));
+    }
+    if matches!(args.command, CommandKind::Status) {
+        let now = Utc::now().timestamp_millis().max(0) as u64;
+        let projection = derive_resident_cognition_readiness(ResidentReadinessRequest {
+            release_store: &args.policy.release_store,
+            heartbeat_store: &args.heartbeat_store,
+            resident_store: &args.state_store,
+            policy: &args.policy,
+            release_runtime_id: &args.policy.release_runtime_id,
+            release_id: &args.policy.release_id,
+            release_witness_sha256: &args.policy.release_witness_sha256,
+            now_millis: now,
+            freshness_millis: args.provider_freshness_seconds.saturating_mul(1000),
+        });
+        println!("{}", serde_json::to_string_pretty(&projection)?);
+        return Ok(());
+    }
     if let Some(pressure) = args.pressure.as_ref() {
         enqueue_resident_self_pressure(&args.state_store, pressure)?;
     }
@@ -31,6 +55,7 @@ fn main() -> Result<()> {
     match args.command {
         CommandKind::Once => {
             let outcome = cycle(&args, &mut state, &mut ports)?;
+            publish_self_readiness(&args)?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&summary(&state, &outcome))?
@@ -38,6 +63,7 @@ fn main() -> Result<()> {
         }
         CommandKind::Serve => loop {
             let outcome = cycle(&args, &mut state, &mut ports)?;
+            publish_self_readiness(&args)?;
             println!("{}", serde_json::to_string(&summary(&state, &outcome))?);
             let seconds = match outcome {
                 ResidentSelfOutcome::Failed => args.policy.failure_backoff_seconds,
@@ -46,7 +72,31 @@ fn main() -> Result<()> {
             };
             thread::sleep(Duration::from_secs(seconds.max(1)));
         },
+        CommandKind::Status => unreachable!("status returned before actuation setup"),
     }
+    Ok(())
+}
+
+fn publish_self_readiness(args: &Args) -> Result<()> {
+    let process = capture_process_instance(std::process::id())?;
+    publish_resident_provider_readiness(
+        &args.state_store,
+        ResidentProviderReadiness {
+            schema_version: epiphany_core::RESIDENT_PROVIDER_READINESS_SCHEMA_VERSION.into(),
+            provider: "resident-self".into(),
+            runtime_id: args.policy.release_runtime_id.clone(),
+            release_id: args.policy.release_id.clone(),
+            release_witness_sha256: args.policy.release_witness_sha256.clone(),
+            source_commit: args.policy.release_commit.clone(),
+            publisher_sequence: 0,
+            observed_at_millis: Utc::now().timestamp_millis().max(0) as u64,
+            process_id: process.process_id,
+            process_creation_token: process.creation_token,
+            process_executable_path: process.executable_path.display().to_string(),
+            status: resident_self_local_provider_status(&args.state_store, &args.policy).into(),
+            private_state_exposed: false,
+        },
+    )?;
     Ok(())
 }
 
@@ -220,11 +270,14 @@ fn summary(state: &ResidentSelfState, outcome: &ResidentSelfOutcome) -> serde_js
 enum CommandKind {
     Once,
     Serve,
+    Status,
 }
 
 struct Args {
     command: CommandKind,
     state_store: PathBuf,
+    heartbeat_store: PathBuf,
+    provider_freshness_seconds: u64,
     policy: ResidentSelfPolicy,
     pressure: Option<ResidentSelfPressure>,
 }
@@ -235,9 +288,10 @@ impl Args {
         let command = match it.next().as_deref() {
             Some("once") => CommandKind::Once,
             Some("serve") => CommandKind::Serve,
+            Some("status") => CommandKind::Status,
             _ => {
                 return Err(anyhow!(
-                    "usage: epiphany-swarm <once|serve> with exact absolute packaged paths"
+                    "usage: epiphany-swarm <once|serve|status> with exact absolute packaged paths"
                 ));
             }
         };
@@ -277,7 +331,7 @@ impl Args {
             model_provider: value
                 .get("--model-provider")
                 .cloned()
-                .unwrap_or_else(|| "local".into()),
+                .ok_or_else(|| anyhow!("missing --model-provider"))?,
             max_steps: u64v("--max-steps", 4)?,
             turn_timeout_seconds: u64v("--turn-timeout-seconds", 600)?,
             cooldown_seconds: u64v("--cooldown-seconds", 60)?,
@@ -316,6 +370,8 @@ impl Args {
         Ok(Self {
             command,
             state_store: path("--state-store")?,
+            heartbeat_store: path("--heartbeat-store")?,
+            provider_freshness_seconds: u64v("--provider-freshness-seconds", 180)?,
             policy,
             pressure,
         })
@@ -338,11 +394,10 @@ impl<'a> NativePorts<'a> {
 
 impl ResidentSelfPorts for NativePorts<'_> {
     fn brake_engaged(&mut self) -> Result<bool> {
-        Ok(load_epiphany_cultmesh_swarm_brake(
+        resident_self_brake_engaged(
             &self.policy.local_verse_store,
-            "epiphany-resident-self",
-        )?
-        .is_some_and(|brake| brake.status == "engaged"))
+            &self.policy.release_runtime_id,
+        )
     }
 
     fn observe_child(
@@ -428,5 +483,35 @@ impl ResidentSelfPorts for NativePorts<'_> {
                 .then(a.receipt_id.cmp(&b.receipt_id))
         });
         Ok(receipts.last().map(|receipt| receipt.receipt_id.clone()))
+    }
+}
+
+fn resident_self_brake_engaged(
+    local_verse_store: &std::path::Path,
+    runtime_id: &str,
+) -> Result<bool> {
+    Ok(
+        load_epiphany_cultmesh_swarm_brake(local_verse_store, runtime_id)?
+            .is_some_and(|brake| brake.status == "engaged"),
+    )
+}
+
+#[cfg(test)]
+mod brake_tests {
+    use super::*;
+
+    #[test]
+    fn resident_self_uses_exact_release_runtime_brake_namespace() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.cc");
+        let mut brake =
+            epiphany_core::default_epiphany_cultmesh_swarm_brake("2026-07-18T00:00:00Z");
+        brake.status = "engaged".into();
+        brake.reason = "test".into();
+        epiphany_core::write_epiphany_cultmesh_swarm_brake(&store, "wrong-runtime", brake.clone())?;
+        assert!(!resident_self_brake_engaged(&store, "epiphany-yggdrasil")?);
+        epiphany_core::write_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil", brake)?;
+        assert!(resident_self_brake_engaged(&store, "epiphany-yggdrasil")?);
+        Ok(())
     }
 }

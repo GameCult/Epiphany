@@ -95,6 +95,7 @@ pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static 
         ("repository-body", file_name("epiphany-repository-body")),
         ("host-identity", file_name("epiphany-host-identity")),
         ("swarm", file_name("epiphany-swarm")),
+        ("heartbeat", file_name("epiphany-heartbeat-store")),
         ("coordinator", file_name("epiphany-mvp-coordinator")),
         ("model-runtime", file_name("epiphany-model-runtime")),
         (
@@ -339,6 +340,7 @@ fn required_release_build_target(role: &str) -> Result<(&'static str, &'static s
         "repository-body" => Ok(("epiphany-core", "epiphany-repository-body")),
         "host-identity" => Ok(("epiphany-core", "epiphany-host-identity")),
         "swarm" => Ok(("epiphany-core", "epiphany-swarm")),
+        "heartbeat" => Ok(("epiphany-core", "epiphany-heartbeat-store")),
         "coordinator" => Ok(("epiphany-core", "epiphany-mvp-coordinator")),
         "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
         "tool-codex-mcp-spine" => Ok((
@@ -741,6 +743,7 @@ mod tests {
             .collect::<BTreeSet<_>>();
         for role in [
             "swarm",
+            "heartbeat",
             "coordinator",
             "model-runtime",
             "tool-codex-mcp-spine",
@@ -750,6 +753,10 @@ mod tests {
         assert_eq!(
             required_release_build_target("swarm").unwrap(),
             ("epiphany-core", "epiphany-swarm")
+        );
+        assert_eq!(
+            required_release_build_target("heartbeat").unwrap(),
+            ("epiphany-core", "epiphany-heartbeat-store")
         );
         assert_eq!(
             required_release_build_target("coordinator").unwrap(),

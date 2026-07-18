@@ -286,7 +286,7 @@ fn canonical_store_path(path: &Path) -> Result<PathBuf> {
     ))
 }
 
-fn same_existing_file(left: &Path, right: &Path) -> Result<bool> {
+pub fn same_existing_file(left: &Path, right: &Path) -> Result<bool> {
     if !left.exists() || !right.exists() {
         return Ok(false);
     }
@@ -495,6 +495,8 @@ pub fn coordinator_argv(
         policy.tool_adapter_bin.display().to_string(),
         "--model-provider".into(),
         policy.model_provider.clone(),
+        "--runtime-id".into(),
+        policy.release_runtime_id.clone(),
         "--thread-id".into(),
         turn_id.into(),
         "--cwd".into(),
@@ -1328,6 +1330,14 @@ pub fn pending_resident_self_ack_for(
         }))
 }
 
+pub fn pending_resident_self_acks(path: &Path) -> Result<Vec<ResidentSelfTerminalAck>> {
+    Ok(state_cache(path)?
+        .get_all::<ResidentSelfTerminalAck>()?
+        .into_iter()
+        .filter(|ack| ack.consumed_by_heartbeat_at_millis.is_none())
+        .collect())
+}
+
 pub fn heartbeat_consume_resident_self_ack(
     path: &Path,
     ack_id: &str,
@@ -1679,21 +1689,20 @@ mod tests {
             private_state_exposed: false,
         };
         state_cache(&resident_store)?.put(&ack.ack_id, &ack)?;
-        crate::tick_heartbeat_store(
+        let ack_pulse = crate::pulse_resident_self_heartbeat(
             &heartbeat_store,
+            &resident_store,
             &artifacts,
-            crate::HeartbeatTickOptions {
-                target_heartbeat_rate: 1.0,
-                coordinator_action: None,
-                target_role: None,
-                urgency: 0.0,
-                schedule_id: "heartbeat-after-ack".into(),
-                source_scene_ref: "test/resident-self".into(),
-                defer_completion: false,
-                agent_store: None,
-                resident_self_store: Some(resident_store.clone()),
-            },
+            true,
+            "heartbeat-after-ack",
+            "test/resident-self",
+            None,
         )?;
+        assert_eq!(ack_pulse.status, "braked-after-ack-reconciliation");
+        assert_eq!(
+            ack_pulse.acknowledged_terminal_id.as_deref(),
+            Some(ack.ack_id.as_str())
+        );
         let heartbeat = crate::load_heartbeat_state_entry(&heartbeat_store)?.expect("heartbeat");
         assert!(
             heartbeat
@@ -1706,6 +1715,143 @@ mod tests {
             state_cache(&resident_store)?
                 .get::<ResidentSelfTerminalAck>(&ack.ack_id)?
                 .is_some_and(|ack| ack.consumed_by_heartbeat_at_millis.is_some())
+        );
+        let mut crash_gap_ack = ack.clone();
+        crash_gap_ack.consumed_by_heartbeat_at_millis = None;
+        state_cache(&resident_store)?.put(&crash_gap_ack.ack_id, &crash_gap_ack)?;
+        assert_eq!(
+            crate::reconcile_resident_self_heartbeat_ack(&heartbeat_store, &resident_store)?,
+            Some(crash_gap_ack.ack_id.clone())
+        );
+        assert!(
+            state_cache(&resident_store)?
+                .get::<ResidentSelfTerminalAck>(&crash_gap_ack.ack_id)?
+                .is_some_and(|ack| ack.consumed_by_heartbeat_at_millis.is_some())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn heartbeat_daemon_retains_pressure_under_brake_then_grants_once() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let heartbeat = temp.path().join("heartbeat.cc");
+        let resident = temp.path().join("resident.cc");
+        crate::initialize_heartbeat_store(&heartbeat, 1.0)?;
+        enqueue_resident_self_pressure(
+            &resident,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "body-pressure-braked".into(),
+                kind: "body-map-drift".into(),
+                provenance_ref: "cultcache://repo-model/hash".into(),
+                objective: "Inspect drift.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let braked = crate::pulse_resident_self_heartbeat(
+            &heartbeat,
+            &resident,
+            temp.path(),
+            true,
+            "pulse-1",
+            "test",
+            None,
+        )?;
+        assert_eq!(braked.status, "braked-after-ack-reconciliation");
+        assert!(pending_resident_self_pressure(&resident)?);
+        assert!(pending_resident_self_grant(&resident)?.is_none());
+        let granted = crate::pulse_resident_self_heartbeat(
+            &heartbeat,
+            &resident,
+            temp.path(),
+            false,
+            "pulse-2",
+            "test",
+            None,
+        )?;
+        assert_eq!(granted.status, "granted");
+        let exact = pending_resident_self_grant(&resident)?
+            .expect("one grant")
+            .grant_id;
+        let repeat = crate::pulse_resident_self_heartbeat(
+            &heartbeat,
+            &resident,
+            temp.path(),
+            false,
+            "pulse-3",
+            "test",
+            None,
+        )?;
+        assert_eq!(repeat.status, "active-coordinator-turn");
+        assert_eq!(
+            pending_resident_self_grant(&resident)?
+                .expect("same grant")
+                .grant_id,
+            exact
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn heartbeat_restart_recovers_committed_turn_to_one_grant() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let heartbeat = temp.path().join("heartbeat.cc");
+        let resident = temp.path().join("resident.cc");
+        crate::initialize_heartbeat_store(&heartbeat, 1.0)?;
+        let mut state = crate::load_heartbeat_state_entry(&heartbeat)?.expect("heartbeat");
+        let coordinator = state
+            .participants
+            .iter_mut()
+            .find(|participant| participant.role_id == "coordinator")
+            .expect("coordinator");
+        coordinator.pending_turn = Some(crate::HeartbeatPendingTurn {
+            status: "running".into(),
+            schedule_id: "committed-before-crash".into(),
+            action_id: "self-action".into(),
+            ..Default::default()
+        });
+        crate::write_heartbeat_state_entry(&heartbeat, &state)?;
+        enqueue_resident_self_pressure(
+            &resident,
+            &ResidentSelfPressure {
+                schema_version: RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+                pressure_id: "restart-pressure".into(),
+                kind: "imagination-proposal".into(),
+                provenance_ref: "cultmesh://imagination/1".into(),
+                objective: "Review proposal.".into(),
+                created_at_millis: 1,
+                status: "pending".into(),
+                consumed_by_grant_id: None,
+                private_state_exposed: false,
+            },
+        )?;
+        let recovered = crate::pulse_resident_self_heartbeat(
+            &heartbeat,
+            &resident,
+            temp.path(),
+            false,
+            "new-pulse",
+            "test",
+            None,
+        )?;
+        assert_eq!(recovered.status, "recovered-committed-grant");
+        let grant = pending_resident_self_grant(&resident)?.expect("recovered grant");
+        assert_eq!(grant.heartbeat_schedule_id, "committed-before-crash");
+        assert!(
+            crate::pulse_resident_self_heartbeat(
+                &heartbeat,
+                &resident,
+                temp.path(),
+                false,
+                "again",
+                "test",
+                None
+            )?
+            .grant_id
+            .is_none()
         );
         Ok(())
     }

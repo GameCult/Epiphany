@@ -294,6 +294,182 @@ pub fn tick_heartbeat_store(
     }))
 }
 
+pub fn reconcile_resident_self_heartbeat_ack(
+    heartbeat_store: impl AsRef<Path>,
+    resident_store: impl AsRef<Path>,
+) -> Result<Option<String>> {
+    let heartbeat_store = heartbeat_store.as_ref();
+    let resident_store = resident_store.as_ref();
+    if heartbeat_store == resident_store {
+        return Err(anyhow!("heartbeat and resident Self stores must differ"));
+    }
+    let (state, expected) = load_heartbeat_state_transaction(heartbeat_store)?;
+    let Some(mut state) = state else {
+        return Ok(None);
+    };
+    let Some((index, pending)) = state
+        .participants
+        .iter()
+        .enumerate()
+        .find(|(_, participant)| participant.role_id == "coordinator")
+        .and_then(|(index, participant)| {
+            participant
+                .pending_turn
+                .clone()
+                .map(|pending| (index, pending))
+        })
+    else {
+        // Recovery for a crash after heartbeat completion committed but before the
+        // acknowledgement was marked consumed in the separate resident store.
+        let completed = crate::pending_resident_self_acks(resident_store)?
+            .into_iter()
+            .find(|ack| {
+                state.history.iter().any(|event| {
+                    event.selected_role == "coordinator"
+                        && event.schedule_id == ack.heartbeat_schedule_id
+                        && event.action_id == ack.heartbeat_action_id
+                        && event.turn_status.as_deref() == Some("completed")
+                })
+            });
+        if let Some(ack) = completed {
+            crate::heartbeat_consume_resident_self_ack(
+                resident_store,
+                &ack.ack_id,
+                Utc::now().timestamp_millis().max(0) as u64,
+            )?;
+            return Ok(Some(ack.ack_id));
+        }
+        return Ok(None);
+    };
+    let Some(ack) = crate::pending_resident_self_ack_for(
+        resident_store,
+        &pending.schedule_id,
+        &pending.action_id,
+    )?
+    else {
+        return Ok(None);
+    };
+    let completed = complete_pending_turn(&mut state, index)?;
+    let participant = &state.participants[index];
+    state.history.push(HeartbeatHistoryEvent {
+        ts: now_iso(),
+        schedule_id: completed.schedule_id.clone(),
+        selected_role: participant.role_id.clone(),
+        selected_agent_id: participant.agent_id.clone(),
+        action_id: completed.action_id.clone(),
+        action_type: completed.action_type.clone(),
+        arena: participant_arena(participant).to_string(),
+        participant_kind: participant_kind(participant).to_string(),
+        action_scale: completed.action_scale.clone(),
+        coordinator_action: None,
+        target_role: None,
+        work_role: None,
+        scene_clock: Some(state.scene_clock),
+        next_ready_at: Some(participant.next_ready_at),
+        turn_status: Some("completed".into()),
+        cooldown_started_after_completion: Some(true),
+    });
+    trim_history(&mut state);
+    commit_heartbeat_state_transaction(heartbeat_store, expected, &state)?;
+    crate::heartbeat_consume_resident_self_ack(
+        resident_store,
+        &ack.ack_id,
+        Utc::now().timestamp_millis().max(0) as u64,
+    )?;
+    Ok(Some(ack.ack_id))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResidentSelfHeartbeatPulse {
+    pub status: String,
+    pub acknowledged_terminal_id: Option<String>,
+    pub grant_id: Option<String>,
+}
+
+pub fn pulse_resident_self_heartbeat(
+    heartbeat_store: impl AsRef<Path>,
+    resident_store: impl AsRef<Path>,
+    artifact_dir: impl AsRef<Path>,
+    brake_engaged: bool,
+    schedule_id: &str,
+    source_scene_ref: &str,
+    agent_store: Option<std::path::PathBuf>,
+) -> Result<ResidentSelfHeartbeatPulse> {
+    let heartbeat_store = heartbeat_store.as_ref();
+    let resident_store = resident_store.as_ref();
+    let acknowledged_terminal_id =
+        reconcile_resident_self_heartbeat_ack(heartbeat_store, resident_store)?;
+    if brake_engaged {
+        return Ok(ResidentSelfHeartbeatPulse {
+            status: "braked-after-ack-reconciliation".into(),
+            acknowledged_terminal_id,
+            grant_id: None,
+        });
+    }
+    let state = load_heartbeat_state_entry(heartbeat_store)?;
+    let active = state
+        .as_ref()
+        .and_then(|state| {
+            state
+                .participants
+                .iter()
+                .find(|participant| participant.role_id == "coordinator")
+        })
+        .and_then(|participant| participant.pending_turn.as_ref())
+        .filter(|turn| turn.status == "running")
+        .cloned();
+    if let Some(active) = active {
+        if crate::pending_resident_self_pressure(resident_store)? {
+            let grant = crate::heartbeat_issue_resident_self_grant(
+                resident_store,
+                &active.schedule_id,
+                &active.action_id,
+                Utc::now().timestamp_millis().max(0) as u64,
+            )?;
+            return Ok(ResidentSelfHeartbeatPulse {
+                status: "recovered-committed-grant".into(),
+                acknowledged_terminal_id,
+                grant_id: grant.map(|grant| grant.grant_id),
+            });
+        }
+        return Ok(ResidentSelfHeartbeatPulse {
+            status: "active-coordinator-turn".into(),
+            acknowledged_terminal_id,
+            grant_id: None,
+        });
+    }
+    if !crate::pending_resident_self_pressure(resident_store)? {
+        return Ok(ResidentSelfHeartbeatPulse {
+            status: "idle".into(),
+            acknowledged_terminal_id,
+            grant_id: None,
+        });
+    }
+    tick_heartbeat_store(
+        heartbeat_store,
+        artifact_dir,
+        HeartbeatTickOptions {
+            target_heartbeat_rate: 1.0,
+            coordinator_action: None,
+            target_role: None,
+            urgency: 0.0,
+            schedule_id: schedule_id.into(),
+            source_scene_ref: source_scene_ref.into(),
+            defer_completion: true,
+            agent_store,
+            resident_self_store: Some(resident_store.to_path_buf()),
+        },
+    )?;
+    let grant = crate::pending_resident_self_grant(resident_store)?
+        .ok_or_else(|| anyhow!("heartbeat selected resident Self pressure but emitted no grant"))?;
+    Ok(ResidentSelfHeartbeatPulse {
+        status: "granted".into(),
+        acknowledged_terminal_id,
+        grant_id: Some(grant.grant_id),
+    })
+}
+
 pub fn pump_heartbeat_store(
     store_path: impl AsRef<Path>,
     artifact_dir: impl AsRef<Path>,

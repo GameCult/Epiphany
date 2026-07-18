@@ -490,6 +490,7 @@ fn run_cli() -> Result<()> {
                         "Runners should treat engaged brakes as fail-closed launch pressure for the protected surfaces.".to_string(),
                         "The brake carries scope and reason only; it does not expose private worker state.".to_string(),
                     ],
+                    runtime_id: args.runtime_id.clone(),
                 }
             };
             if status == "released" {

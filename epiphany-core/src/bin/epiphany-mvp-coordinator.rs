@@ -92,6 +92,7 @@ struct Args {
     resident_binding: BTreeMap<String, String>,
     resident_state_store: Option<PathBuf>,
     resident_preparation_id: Option<String>,
+    runtime_id: Option<String>,
 }
 
 impl Args {
@@ -128,6 +129,7 @@ impl Args {
             resident_binding: BTreeMap::new(),
             resident_state_store: None,
             resident_preparation_id: None,
+            runtime_id: None,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -173,6 +175,7 @@ impl Args {
                     parsed.resident_preparation_id =
                         Some(take_string(&mut args, "--resident-preparation-id")?)
                 }
+                "--runtime-id" => parsed.runtime_id = Some(take_string(&mut args, "--runtime-id")?),
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
                 "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
                 "--artifact-dir" => parsed.artifact_dir = take_path(&mut args, "--artifact-dir")?,
@@ -214,6 +217,11 @@ impl Args {
                 other => return Err(anyhow!("unknown argument: {other}")),
             }
         }
+        if parsed.runtime_id.as_deref().is_none_or(str::is_empty) {
+            return Err(anyhow!(
+                "coordinator requires exact --runtime-id for local Verse authority"
+            ));
+        }
         Ok(parsed)
     }
 }
@@ -242,7 +250,11 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         }
     }
     let local_verse_store = status_cli::absolute_path(&args.local_verse_store)?;
-    assert_local_verse_brake_released(&local_verse_store, "epiphany-mvp-coordinator")?;
+    assert_local_verse_brake_released(
+        &local_verse_store,
+        args.runtime_id.as_deref().expect("validated runtime id"),
+        "epiphany-mvp-coordinator",
+    )?;
     let cwd = status_cli::absolute_path(&args.cwd)?;
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
     let tool_adapter_bin = resolve_model_runtime_bin(&root, &args.tool_adapter_bin)?;
@@ -796,12 +808,15 @@ fn intake_operator_objective(
     })
 }
 
-fn assert_local_verse_brake_released(local_verse_store: &Path, runner_name: &str) -> Result<()> {
+fn assert_local_verse_brake_released(
+    local_verse_store: &Path,
+    runtime_id: &str,
+    runner_name: &str,
+) -> Result<()> {
     if !local_verse_store.exists() {
         return Ok(());
     }
-    let Some(brake) = load_epiphany_cultmesh_swarm_brake(local_verse_store, "epiphany-local")?
-    else {
+    let Some(brake) = load_epiphany_cultmesh_swarm_brake(local_verse_store, runtime_id)? else {
         return Ok(());
     };
     if brake.status == "engaged" {

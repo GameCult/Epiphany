@@ -12,11 +12,13 @@ use epiphany_core::HeartbeatTickOptions;
 use epiphany_core::VoidRoutineOptions;
 use epiphany_core::apply_agent_self_patch_document;
 use epiphany_core::complete_heartbeat_store;
+use epiphany_core::heartbeat_local_provider_status;
 use epiphany_core::heartbeat_status_projection;
 use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_epiphany_cultmesh_swarm_brake;
 use epiphany_core::load_heartbeat_state_entry;
+use epiphany_core::pulse_resident_self_heartbeat;
 use epiphany_core::pump_heartbeat_store;
 use epiphany_core::queue_heartbeat_pending_mention_store;
 use epiphany_core::recover_stale_heartbeat_store;
@@ -24,6 +26,10 @@ use epiphany_core::run_void_routine_store;
 use epiphany_core::tick_heartbeat_store;
 use epiphany_core::update_heartbeat_heat_store;
 use epiphany_core::validate_agent_memory_store;
+use epiphany_core::{
+    ResidentProviderReadiness, authenticate_epiphany_packaged_release, capture_process_instance,
+    publish_resident_provider_readiness,
+};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -85,6 +91,10 @@ fn main() -> Result<()> {
     let mut now_utc: Option<String> = None;
     let mut interval_seconds = 120_u64;
     let mut max_iterations = 0_u64;
+    let mut release_store: Option<PathBuf> = None;
+    let mut release_runtime_id: Option<String> = None;
+    let mut release_id: Option<String> = None;
+    let mut release_witness_sha256: Option<String> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -166,6 +176,14 @@ fn main() -> Result<()> {
             "--max-iterations" => {
                 max_iterations = next_value(&mut args, "--max-iterations")?.parse()?
             }
+            "--release-store" => release_store = Some(next_path(&mut args, "--release-store")?),
+            "--release-runtime-id" => {
+                release_runtime_id = Some(next_value(&mut args, "--release-runtime-id")?)
+            }
+            "--release-id" => release_id = Some(next_value(&mut args, "--release-id")?),
+            "--release-witness-sha256" => {
+                release_witness_sha256 = Some(next_value(&mut args, "--release-witness-sha256")?)
+            }
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
     }
@@ -197,7 +215,11 @@ fn main() -> Result<()> {
             );
         }
         "tick" => {
-            assert_swarm_brake_allows_heartbeat(&local_verse_store, "tick")?;
+            assert_swarm_brake_allows_heartbeat(
+                &local_verse_store,
+                release_runtime_id.as_deref(),
+                "tick",
+            )?;
             let store_path = store_path.ok_or_else(|| anyhow!("tick requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("tick requires --artifact-dir"))?;
@@ -264,7 +286,11 @@ fn main() -> Result<()> {
             println!("{}", result);
         }
         "pump" => {
-            assert_swarm_brake_allows_heartbeat(&local_verse_store, "pump")?;
+            assert_swarm_brake_allows_heartbeat(
+                &local_verse_store,
+                release_runtime_id.as_deref(),
+                "pump",
+            )?;
             let store_path = store_path.ok_or_else(|| anyhow!("pump requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("pump requires --artifact-dir"))?;
@@ -299,7 +325,11 @@ fn main() -> Result<()> {
             println!("{}", result);
         }
         "heat" => {
-            assert_swarm_brake_allows_heartbeat(&local_verse_store, "heat")?;
+            assert_swarm_brake_allows_heartbeat(
+                &local_verse_store,
+                release_runtime_id.as_deref(),
+                "heat",
+            )?;
             let store_path = store_path.ok_or_else(|| anyhow!("heat requires --store"))?;
             let result = update_heartbeat_heat_store(
                 &store_path,
@@ -317,7 +347,11 @@ fn main() -> Result<()> {
             println!("{}", result);
         }
         "queue-mention" => {
-            assert_swarm_brake_allows_heartbeat(&local_verse_store, "queue-mention")?;
+            assert_swarm_brake_allows_heartbeat(
+                &local_verse_store,
+                release_runtime_id.as_deref(),
+                "queue-mention",
+            )?;
             let store_path = store_path.ok_or_else(|| anyhow!("queue-mention requires --store"))?;
             let target_role_id = role.unwrap_or_else(|| "Persona".to_string());
             let result = queue_heartbeat_pending_mention_store(
@@ -371,7 +405,11 @@ fn main() -> Result<()> {
             }
         }
         "routine" => {
-            assert_swarm_brake_allows_heartbeat(&local_verse_store, "routine")?;
+            assert_swarm_brake_allows_heartbeat(
+                &local_verse_store,
+                release_runtime_id.as_deref(),
+                "routine",
+            )?;
             let store_path = store_path.ok_or_else(|| anyhow!("routine requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("routine requires --artifact-dir"))?;
@@ -404,6 +442,33 @@ fn main() -> Result<()> {
             let store_path = store_path.ok_or_else(|| anyhow!("serve requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("serve requires --artifact-dir"))?;
+            let provider_release = if resident_self_store.is_some() {
+                let release_store = release_store
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("resident heartbeat serve requires --release-store"))?;
+                let runtime_id = release_runtime_id.as_deref().ok_or_else(|| {
+                    anyhow!("resident heartbeat serve requires --release-runtime-id")
+                })?;
+                let release_id = release_id
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("resident heartbeat serve requires --release-id"))?;
+                let witness = release_witness_sha256.as_deref().ok_or_else(|| {
+                    anyhow!("resident heartbeat serve requires --release-witness-sha256")
+                })?;
+                Some(authenticate_epiphany_packaged_release(
+                    release_store,
+                    runtime_id,
+                    release_id,
+                    witness,
+                )?)
+            } else {
+                None
+            };
+            let provider_process = if provider_release.is_some() {
+                Some(capture_process_instance(std::process::id())?)
+            } else {
+                None
+            };
             if let Some(agent_store) = &agent_store {
                 let errors = validate_agent_memory_store(agent_store)?;
                 if !errors.is_empty() {
@@ -427,8 +492,71 @@ fn main() -> Result<()> {
                     break;
                 }
                 let iteration = completed_iterations + 1;
+                if let (Some(release), Some(process)) = (&provider_release, &provider_process) {
+                    publish_resident_provider_readiness(
+                        &store_path,
+                        ResidentProviderReadiness {
+                            schema_version:
+                                epiphany_core::RESIDENT_PROVIDER_READINESS_SCHEMA_VERSION.into(),
+                            provider: "heartbeat".into(),
+                            runtime_id: release.runtime_id.clone(),
+                            release_id: release.release_id.clone(),
+                            release_witness_sha256: release_witness_sha256
+                                .clone()
+                                .expect("authenticated witness"),
+                            source_commit: release.source_commit_sha.clone(),
+                            publisher_sequence: 0,
+                            observed_at_millis: chrono::Utc::now().timestamp_millis().max(0) as u64,
+                            process_id: process.process_id,
+                            process_creation_token: process.creation_token,
+                            process_executable_path: process.executable_path.display().to_string(),
+                            status: heartbeat_local_provider_status(
+                                &store_path,
+                                resident_self_store.as_deref().expect("resident store"),
+                            )
+                            .into(),
+                            private_state_exposed: false,
+                        },
+                    )?;
+                }
                 let iteration_dir = artifact_dir.join(format!("pulse-{iteration:06}"));
-                if let Some(brake) = active_swarm_brake(&local_verse_store)? {
+                let brake = active_swarm_brake(
+                    &local_verse_store,
+                    provider_release
+                        .as_ref()
+                        .map(|release| release.runtime_id.as_str())
+                        .or(release_runtime_id.as_deref()),
+                )?;
+                if let Some(resident_store) = resident_self_store.as_deref() {
+                    let pulse = pulse_resident_self_heartbeat(
+                        &store_path,
+                        resident_store,
+                        &iteration_dir,
+                        brake.is_some(),
+                        &format!("{schedule_id}.serve-{iteration:06}"),
+                        &source_scene_ref,
+                        agent_store.clone(),
+                    )?;
+                    if pulse.status != "idle" {
+                        completed_iterations = iteration;
+                        refused_pulses += u64::from(brake.is_some());
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "schemaVersion":"epiphany.heartbeat.serve_pulse.v0", "status":pulse.status,
+                                "owner":"heartbeat", "iteration":iteration, "artifactDir":iteration_dir,
+                                "acknowledgedTerminalId":pulse.acknowledged_terminal_id, "grantId":pulse.grant_id,
+                                "brakeId":brake.as_ref().map(|value| &value.brake_id), "privateStateExposed":false
+                            })
+                        );
+                        if max_iterations > 0 && completed_iterations >= max_iterations {
+                            break;
+                        }
+                        thread::sleep(Duration::from_secs(interval_seconds));
+                        continue;
+                    }
+                }
+                if let Some(brake) = brake {
                     completed_iterations = iteration;
                     refused_pulses += 1;
                     println!(
@@ -542,9 +670,10 @@ fn usage() -> Result<()> {
 
 fn assert_swarm_brake_allows_heartbeat(
     local_verse_store: &Option<PathBuf>,
+    runtime_id: Option<&str>,
     command: &str,
 ) -> Result<()> {
-    if let Some(brake) = active_swarm_brake(local_verse_store)? {
+    if let Some(brake) = active_swarm_brake(local_verse_store, runtime_id)? {
         anyhow::bail!(
             "epiphany-heartbeat-store {command} refusing to run: local Verse swarm brake engaged; scope={}; protected={}; affected={}; reason={}",
             brake.scope,
@@ -558,6 +687,7 @@ fn assert_swarm_brake_allows_heartbeat(
 
 fn active_swarm_brake(
     local_verse_store: &Option<PathBuf>,
+    runtime_id: Option<&str>,
 ) -> Result<Option<EpiphanyCultMeshSwarmBrakeEntry>> {
     let Some(local_verse_store) = local_verse_store else {
         return Ok(None);
@@ -565,10 +695,39 @@ fn active_swarm_brake(
     if !local_verse_store.exists() {
         return Ok(None);
     }
+    let runtime_id = runtime_id.ok_or_else(|| {
+        anyhow!("heartbeat local Verse brake lookup requires --release-runtime-id")
+    })?;
     Ok(
-        load_epiphany_cultmesh_swarm_brake(local_verse_store, "epiphany-local")?
+        load_epiphany_cultmesh_swarm_brake(local_verse_store, runtime_id)?
             .filter(|brake| brake.status == "engaged"),
     )
+}
+
+#[cfg(test)]
+mod brake_tests {
+    use super::*;
+
+    #[test]
+    fn heartbeat_uses_exact_release_runtime_brake_namespace() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("verse.cc");
+        let store_arg = Some(store.clone());
+        let mut brake =
+            epiphany_core::default_epiphany_cultmesh_swarm_brake("2026-07-18T00:00:00Z");
+        brake.status = "engaged".into();
+        brake.reason = "test".into();
+        let mut legacy_node =
+            epiphany_core::open_epiphany_cultmesh_node(&store, "legacy-writer-runtime")?;
+        legacy_node.put("epiphany-local/swarm-brake", &brake)?;
+        legacy_node.flush()?;
+        assert!(active_swarm_brake(&store_arg, Some("epiphany-yggdrasil"))?.is_some());
+        epiphany_core::write_epiphany_cultmesh_swarm_brake(&store, "wrong-runtime", brake.clone())?;
+        assert!(active_swarm_brake(&store_arg, Some("epiphany-yggdrasil"))?.is_none());
+        epiphany_core::write_epiphany_cultmesh_swarm_brake(&store, "epiphany-yggdrasil", brake)?;
+        assert!(active_swarm_brake(&store_arg, Some("epiphany-yggdrasil"))?.is_some());
+        Ok(())
+    }
 }
 
 fn parse_scene_participant(raw: &str) -> Result<GhostlightSceneParticipantSeed> {

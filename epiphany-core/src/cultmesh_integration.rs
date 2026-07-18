@@ -1821,6 +1821,8 @@ pub struct EpiphanyCultMeshSwarmBrakeEntry {
     pub private_state_exposed: bool,
     #[cultcache(key = 11)]
     pub notes: Vec<String>,
+    #[cultcache(key = 12, default)]
+    pub runtime_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -4505,14 +4507,17 @@ pub fn default_epiphany_cultmesh_swarm_brake(
             "It may stop scheduling and daemon pokes, but it must not expose worker thoughts or private Verse state.".to_string(),
             "Engaged brakes require a scoped reason so silence cannot masquerade as consent.".to_string(),
         ],
+        runtime_id: String::new(),
     }
 }
 
 pub fn write_epiphany_cultmesh_swarm_brake(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
-    brake: EpiphanyCultMeshSwarmBrakeEntry,
+    mut brake: EpiphanyCultMeshSwarmBrakeEntry,
 ) -> Result<EpiphanyCultMeshSwarmBrakeEntry> {
+    let runtime_id = runtime_id.into();
+    brake.runtime_id = runtime_id.clone();
     validate_swarm_brake(&brake)?;
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let written = node.put(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY, &brake)?;
@@ -4524,8 +4529,11 @@ pub fn load_epiphany_cultmesh_swarm_brake(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
 ) -> Result<Option<EpiphanyCultMeshSwarmBrakeEntry>> {
-    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
-    node.get(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)
+    let runtime_id = runtime_id.into();
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
+    Ok(node
+        .get::<EpiphanyCultMeshSwarmBrakeEntry>(EPIPHANY_CULTMESH_SWARM_BRAKE_KEY)?
+        .filter(|brake| brake.runtime_id.is_empty() || brake.runtime_id == runtime_id))
 }
 
 pub fn write_epiphany_cultmesh_persona_speech_audit(
@@ -4657,6 +4665,9 @@ fn validate_swarm_brake(brake: &EpiphanyCultMeshSwarmBrakeEntry) -> Result<()> {
     }
     if brake.brake_id.trim().is_empty() || brake.scope.trim().is_empty() {
         return Err(anyhow!("swarm brake requires brake id and scope"));
+    }
+    if brake.runtime_id.trim().is_empty() {
+        return Err(anyhow!("swarm brake requires its owning runtime id"));
     }
     if brake.created_at_utc.trim().is_empty() {
         return Err(anyhow!("swarm brake requires a creation timestamp"));

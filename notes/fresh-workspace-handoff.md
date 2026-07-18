@@ -2496,6 +2496,56 @@ until Idunn publishes the exact typed deployment witness; resident service
 installation, writable domain custody, credentials, Persona/Discord ingress,
 and the Starfire-offline rehearsal remain required.
 
+## Resident physiology and Ygg service body prepared locally (2026-07-18)
+
+Heartbeat `serve` is now the single resident physiology loop: it reconciles an
+exact terminal acknowledgement first, retains pressure while braked, emits at
+most one grant while clear, never replaces an active coordinator, and performs
+bounded void/sleep work only while idle. Restart resumes the typed chain rather
+than guessing from process or journal sight. Heartbeat is a required witnessed
+release sibling; coordinator and resident Self require the exact authenticated
+runtime and an explicit provider.
+
+`epiphany-swarm status` is non-actuating sight. Its typed resident-readiness
+document binds runtime id, release id, release witness, source commit, packaged
+binaries, physical store separation, heartbeat/Self freshness and coherence,
+active lease sight, runtime-scoped brake, writable workspace, and credential
+posture. The existing daemon supervisor remains the sole signed Idunn health
+writer and may aggregate the exact heartbeat/Self provider pair. Readiness,
+systemd, and PID sight cannot admit deployment.
+
+The matching `gamecult-ops` cut defines three narrow services:
+`epiphany.service` owns supervisor/projector execution and signed aggregate
+health; `epiphany-heartbeat.service` owns heartbeat state and grants; and
+`epiphany-swarm.service` owns resident-Self state and bounded coordinator
+launches. Coordinator, model runtime, and tool spine remain witnessed child
+siblings. Yggdrasil's writable organizational Body is
+`/var/lib/gamecult/epiphany/workspace`; immutable
+`/srv/epiphany/source/current` is release provenance. Bootstrap prepares
+protected stores and service-user credentials. Deployment authenticates the
+sibling set, initializes heartbeat, manages all three units transactionally,
+preserves coverage checkpoints across retries, waits for typed readiness, and
+lets Idunn write `deployment.env` only after admission.
+
+This is ordinary organizational Epiphany. Persistent Modeling maps the bounded
+domain; Self derives bounded attention pressure from map drift; Imagination
+authors inspectable improvements and feature proposals; the organization talks
+to the repository Persona through existing VoidBot/Bifrost Discord ingress.
+Feedback and proposals may request cognition. They cannot adopt Mind state,
+invoke Hands, authorize Bifrost release, or command Idunn. Those are separate
+typed crossings and receipts.
+
+Live source `0601e280480cccc28209fbf0630e921f3ef9056d`, release
+`sha256-f9fbc9c17cfc4038c49f77dd2a238d487b723600127a982dc4ae2ab98b308a77`,
+and projector PID `145165` remain the sole first-projection owner. Its Qdrant
+collection advanced beyond 6,585 points. `deployment.env` and the foreground
+Idunn actuator remain absent, so this is resumable provider evidence, not
+admission. Do not interrupt it. After terminal proof, re-enter the exact release
+through Idunn, then authorize and deploy the coordinated resident generation.
+Before July 22, run Starfire-offline proof of feedback -> persistent map ->
+bounded Imagination proposal -> explicit adoption/review -> Hands -> Bifrost ->
+Idunn, including the negative that conversation alone crosses no later gate.
+
 The immediate live wound precedes that work. The workspace projector is the
 lifetime owner of `workspace-coverage.cc`, but the supervisor currently opens
 that private store to discover and perform recovery. Replace that transitive
