@@ -57,14 +57,16 @@ use epiphany_core::{EpiphanyPackagedReleaseEntry, authenticate_epiphany_packaged
 use epiphany_core::{
     ProcessInstanceIdentity, ProcessInstanceObservation,
     WORKSPACE_COVERAGE_PROCESS_LAUNCH_SCHEMA_VERSION, WorkspaceCoverageManagedProcessLaunchEntry,
-    WorkspaceCoverageProcessBootstrap, authenticate_current_workspace_coverage_claim_sight,
+    WorkspaceCoverageProcessBootstrap, WorkspaceCoverageProcessLifecycleObservation,
+    authenticate_current_workspace_coverage_claim_sight,
     authenticate_workspace_coverage_managed_process_launch,
     authenticate_workspace_coverage_provider_heartbeat,
     authenticate_workspace_coverage_termination_with_envelope_digest, capture_process_instance,
     load_latest_workspace_coverage_managed_process_launch,
     load_latest_workspace_coverage_provider_heartbeat,
     load_workspace_coverage_process_termination_observation, native_boot_identity,
-    observe_process_instance, open_default_host_identity, sign_workspace_coverage_launch,
+    observe_process_instance, observe_workspace_coverage_managed_process,
+    open_default_host_identity, sign_workspace_coverage_launch,
     workspace_coverage_host_identity_record_digest,
     write_workspace_coverage_managed_process_launch, write_workspace_coverage_process_bootstrap,
     write_workspace_coverage_process_termination_observation,
@@ -106,6 +108,54 @@ enum ManagedServiceLineage {
     Pending,
     Stale(String),
     LegacyV1,
+}
+
+enum WorkspaceCoverageRecoveryActuation<T> {
+    Written(T),
+    Degraded(WorkspaceCoverageProcessLifecycleObservation),
+    Terminal(WorkspaceCoverageProcessLifecycleObservation),
+}
+
+fn actuate_workspace_coverage_recovery_if_alive<T>(
+    observation: WorkspaceCoverageProcessLifecycleObservation,
+    write: impl FnOnce() -> Result<T>,
+) -> Result<WorkspaceCoverageRecoveryActuation<T>> {
+    match observation {
+        WorkspaceCoverageProcessLifecycleObservation::ExactAlive => {
+            Ok(WorkspaceCoverageRecoveryActuation::Written(write()?))
+        }
+        WorkspaceCoverageProcessLifecycleObservation::Inaccessible
+        | WorkspaceCoverageProcessLifecycleObservation::Indeterminate { .. } => {
+            Ok(WorkspaceCoverageRecoveryActuation::Degraded(observation))
+        }
+        WorkspaceCoverageProcessLifecycleObservation::BootSuperseded { .. }
+        | WorkspaceCoverageProcessLifecycleObservation::ExactExited { .. }
+        | WorkspaceCoverageProcessLifecycleObservation::Missing
+        | WorkspaceCoverageProcessLifecycleObservation::Replaced { .. } => {
+            Ok(WorkspaceCoverageRecoveryActuation::Terminal(observation))
+        }
+    }
+}
+
+fn report_workspace_coverage_replacement_not_alive(
+    policy: &EpiphanyCultMeshManagedServicePolicyEntry,
+    replacement: &WorkspaceCoverageManagedProcessLaunchEntry,
+    observation: WorkspaceCoverageProcessLifecycleObservation,
+    status: &str,
+) -> Result<()> {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+            "status": status,
+            "serviceId": policy.service_id,
+            "launchId": replacement.launch_id,
+            "observation": format!("{observation:?}"),
+            "restarted": false,
+            "privateStateExposed": false,
+        }))?
+    );
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -2232,117 +2282,255 @@ fn reconcile_workspace_coverage_projector(
     )?;
     let host = open_default_host_identity()
         .context("workspace coverage reconciliation requires an enrolled host identity")?;
-    let Some(target) = authenticate_current_workspace_coverage_claim_sight(
+    let target = match authenticate_current_workspace_coverage_claim_sight(
         &args.store,
         &runtime_store,
         &args.runtime_id,
         host.entry(),
-    )?
-    else {
-        let latest = load_latest_workspace_coverage_managed_process_launch(
-            &args.store,
-            args.runtime_id.clone(),
-        )?;
-        if let Some(latest) = latest {
-            let host = open_default_host_identity()
-                .context("workspace coverage reconciliation requires an enrolled host identity")?;
-            if load_workspace_coverage_process_termination_observation(
-                &args.store,
-                args.runtime_id.clone(),
-                &latest.launch_id,
-            )?
-            .is_none()
-                && let Err(error) = write_workspace_coverage_process_termination_observation(
-                    &args.store,
-                    args.runtime_id.clone(),
-                    &latest.launch_id,
-                    &host,
-                )
-            {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&json!({
-                        "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
-                        "status": "awaiting-first-claim",
-                        "serviceId": policy.service_id,
-                        "launchId": latest.launch_id,
-                        "reason": error.to_string(),
-                        "restarted": false,
-                        "privateStateExposed": false,
-                    }))?
-                );
-                return Ok(());
-            }
+    ) {
+        Ok(target) => target,
+        Err(error) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "observation-refused",
+                    "serviceId": policy.service_id,
+                    "reason": error.to_string(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+    };
+    let latest = match load_latest_workspace_coverage_managed_process_launch(
+        &args.store,
+        args.runtime_id.clone(),
+    ) {
+        Ok(latest) => latest,
+        Err(error) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "observation-refused",
+                    "serviceId": policy.service_id,
+                    "reason": error.to_string(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+    };
+    let Some(latest) = latest else {
+        args.service_command = Some(PathBuf::from(&policy.command));
+        args.service_args = policy.args.clone();
+        args.cwd = policy.cwd.clone().map(PathBuf::from);
+        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact.clone()));
+        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact.clone()));
+        let _ = service_launch_internal(args, None, true)?;
+        return Ok(());
+    };
+    if target
+        .as_ref()
+        .is_some_and(|claim| claim.launch_id != latest.launch_id)
+    {
+        let old_target = target
+            .clone()
+            .context("workspace coverage mismatch lost its authenticated claim target")?;
+        let in_flight = (|| -> Result<_> {
             let (termination, termination_digest) =
                 authenticate_workspace_coverage_termination_with_envelope_digest(
                     &args.store,
                     args.runtime_id.clone(),
-                    &latest.launch_id,
+                    &old_target.launch_id,
                     host.entry(),
                 )?;
-            if load_latest_workspace_coverage_managed_process_launch(
+            let old_launch = authenticate_workspace_coverage_managed_process_launch(
                 &args.store,
                 args.runtime_id.clone(),
-            )?
-            .is_some_and(|candidate| {
-                candidate.replaces_termination_id.as_deref()
-                    == Some(termination.termination_id.as_str())
-            }) {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&json!({
-                        "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
-                        "status": "awaiting-first-claim",
-                        "serviceId": policy.service_id,
-                        "restarted": false,
-                        "privateStateExposed": false,
-                    }))?
+                &old_target.launch_id,
+                host.entry(),
+            )?;
+            let replacement = authenticate_workspace_coverage_managed_process_launch(
+                &args.store,
+                args.runtime_id.clone(),
+                &latest.launch_id,
+                host.entry(),
+            )?;
+            if replacement.replaces_launch_id.as_deref() != Some(old_target.launch_id.as_str())
+                || replacement.replaces_termination_id.as_deref()
+                    != Some(termination.termination_id.as_str())
+                || replacement.replaces_termination_envelope_digest.as_deref()
+                    != Some(termination_digest.as_str())
+                || replacement.policy_id != old_launch.policy_id
+                || replacement.policy_envelope_digest != old_launch.policy_envelope_digest
+                || replacement.command != old_launch.command
+                || replacement.args != old_launch.args
+                || replacement.cwd != old_launch.cwd
+            {
+                anyhow::bail!(
+                    "latest launch is not the exact authenticated in-flight replacement lineage"
                 );
-                return Ok(());
             }
-            args.service_command = Some(PathBuf::from(&policy.command));
-            args.service_args = policy.args;
-            args.cwd = policy.cwd.map(PathBuf::from);
-            args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact));
-            args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact));
-            let replacement = CoverageReplacementEvidence {
-                old_launch_id: latest.launch_id,
-                termination_id: termination.termination_id,
-                termination_envelope_digest: termination_digest,
+            Ok(replacement)
+        })();
+        if let Ok(replacement) = in_flight {
+            let replacement_observation = match observe_workspace_coverage_managed_process(
+                &args.store,
+                args.runtime_id.clone(),
+                &replacement.launch_id,
+                host.entry(),
+            ) {
+                Ok(observation) => observation,
+                Err(error) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json!({
+                            "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                            "status": "observation-refused",
+                            "serviceId": policy.service_id,
+                            "launchId": replacement.launch_id,
+                            "reason": error.to_string(),
+                            "restarted": false,
+                            "privateStateExposed": false,
+                        }))?
+                    );
+                    return Ok(());
+                }
             };
-            let _ = service_launch_internal(args, Some(replacement), true)?;
-            return Ok(());
-        } else {
-            args.service_command = Some(PathBuf::from(&policy.command));
-            args.service_args = policy.args;
-            args.cwd = policy.cwd.map(PathBuf::from);
-            args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact));
-            args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact));
-            let _ = service_launch_internal(args, None, true)?;
+            match replacement_observation {
+                WorkspaceCoverageProcessLifecycleObservation::ExactAlive => {
+                    return finish_workspace_coverage_recovery(
+                        &args,
+                        &policy,
+                        &runtime_store,
+                        host.entry(),
+                        &host,
+                        old_target,
+                        replacement,
+                        false,
+                    );
+                }
+                WorkspaceCoverageProcessLifecycleObservation::Inaccessible
+                | WorkspaceCoverageProcessLifecycleObservation::Indeterminate { .. } => {
+                    return report_workspace_coverage_replacement_not_alive(
+                        &policy,
+                        &replacement,
+                        replacement_observation,
+                        "observation-degraded",
+                    );
+                }
+                WorkspaceCoverageProcessLifecycleObservation::BootSuperseded { .. }
+                | WorkspaceCoverageProcessLifecycleObservation::ExactExited { .. }
+                | WorkspaceCoverageProcessLifecycleObservation::Missing
+                | WorkspaceCoverageProcessLifecycleObservation::Replaced { .. } => {
+                    return report_workspace_coverage_replacement_not_alive(
+                        &policy,
+                        &replacement,
+                        replacement_observation,
+                        "replacement-terminal",
+                    );
+                }
+            }
+        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                "status": "observation-refused",
+                "serviceId": policy.service_id,
+                "launchId": latest.launch_id,
+                "reason": "authenticated claim sight does not name the current managed launch",
+                "restarted": false,
+                "privateStateExposed": false,
+            }))?
+        );
+        return Ok(());
+    }
+    let observation = match observe_workspace_coverage_managed_process(
+        &args.store,
+        args.runtime_id.clone(),
+        &latest.launch_id,
+        host.entry(),
+    ) {
+        Ok(observation) => observation,
+        Err(error) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "observation-refused",
+                    "serviceId": policy.service_id,
+                    "launchId": latest.launch_id,
+                    "reason": error.to_string(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
             return Ok(());
         }
     };
+    match observation {
+        WorkspaceCoverageProcessLifecycleObservation::ExactAlive => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "observed-alive",
+                    "serviceId": policy.service_id,
+                    "launchId": latest.launch_id,
+                    "claimId": target.as_ref().map(|claim| claim.claim_id.as_str()),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+        WorkspaceCoverageProcessLifecycleObservation::Inaccessible
+        | WorkspaceCoverageProcessLifecycleObservation::Indeterminate { .. } => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "observation-degraded",
+                    "serviceId": policy.service_id,
+                    "launchId": latest.launch_id,
+                    "observation": format!("{observation:?}"),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+        WorkspaceCoverageProcessLifecycleObservation::BootSuperseded { .. }
+        | WorkspaceCoverageProcessLifecycleObservation::ExactExited { .. }
+        | WorkspaceCoverageProcessLifecycleObservation::Missing
+        | WorkspaceCoverageProcessLifecycleObservation::Replaced { .. } => {}
+    }
 
     if load_workspace_coverage_process_termination_observation(
         &args.store,
         args.runtime_id.clone(),
-        &target.launch_id,
+        &latest.launch_id,
     )?
     .is_none()
     {
         if let Err(error) = write_workspace_coverage_process_termination_observation(
             &args.store,
             args.runtime_id.clone(),
-            &target.launch_id,
+            &latest.launch_id,
             &host,
         ) {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
-                    "status": "awaiting-exact-termination",
+                    "status": "termination-refused",
                     "serviceId": policy.service_id,
-                    "claimId": target.claim_id,
+                    "claimId": target.as_ref().map(|claim| claim.claim_id.as_str()),
                     "reason": error.to_string(),
                     "restarted": false,
                     "privateStateExposed": false,
@@ -2355,11 +2543,55 @@ fn reconcile_workspace_coverage_projector(
         authenticate_workspace_coverage_termination_with_envelope_digest(
             &args.store,
             args.runtime_id.clone(),
-            &target.launch_id,
+            &latest.launch_id,
             host.entry(),
         )?;
+    // Claim acquisition may race the first reconciliation observation.  The
+    // terminal proof is the cut: authenticate Body sight again after it, and
+    // use only this post-terminal target for replacement/recovery authority.
+    let post_terminal_target = match authenticate_current_workspace_coverage_claim_sight(
+        &args.store,
+        &runtime_store,
+        &args.runtime_id,
+        host.entry(),
+    ) {
+        Ok(target) => target,
+        Err(error) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "recovery-refused",
+                    "serviceId": policy.service_id,
+                    "launchId": latest.launch_id,
+                    "reason": error.to_string(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+    };
+    if post_terminal_target
+        .as_ref()
+        .is_some_and(|claim| claim.launch_id != latest.launch_id)
+    {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                "status": "recovery-refused",
+                "serviceId": policy.service_id,
+                "launchId": latest.launch_id,
+                "reason": "post-terminal claim sight does not name the terminated managed launch",
+                "restarted": false,
+                "privateStateExposed": false,
+            }))?
+        );
+        return Ok(());
+    }
     let replacement_evidence = CoverageReplacementEvidence {
-        old_launch_id: target.launch_id.clone(),
+        old_launch_id: latest.launch_id.clone(),
         termination_id: termination.termination_id.clone(),
         termination_envelope_digest: termination_digest,
     };
@@ -2368,23 +2600,70 @@ fn reconcile_workspace_coverage_projector(
         args.runtime_id.clone(),
     )?
     .filter(|launch| {
-        launch.replaces_launch_id.as_deref() == Some(target.launch_id.as_str())
+        launch.replaces_launch_id.as_deref() == Some(latest.launch_id.as_str())
             && launch.replaces_termination_id.as_deref()
                 == Some(termination.termination_id.as_str())
     });
-    let replacement = if let Some(existing) = existing_replacement {
-        existing
+    let (replacement, launched_now) = if let Some(existing) = existing_replacement {
+        (existing, false)
     } else {
         args.service_command = Some(PathBuf::from(&policy.command));
-        args.service_args = policy.args;
-        args.cwd = policy.cwd.map(PathBuf::from);
-        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact));
-        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact));
-        service_launch_internal(args.clone(), Some(replacement_evidence), false)?
-            .coverage_launch
-            .context("workspace coverage replacement launch returned no specialized identity")?
+        args.service_args = policy.args.clone();
+        args.cwd = policy.cwd.clone().map(PathBuf::from);
+        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact.clone()));
+        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact.clone()));
+        (
+            service_launch_internal(args.clone(), Some(replacement_evidence), false)?
+                .coverage_launch
+                .context(
+                    "workspace coverage replacement launch returned no specialized identity",
+                )?,
+            true,
+        )
     };
 
+    let Some(target) = post_terminal_target else {
+        let status = if launched_now {
+            "replacement-launched-awaiting-claim"
+        } else {
+            "replacement-observed-awaiting-claim"
+        };
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                "status": status,
+                "serviceId": policy.service_id,
+                "replacementLaunchId": replacement.launch_id,
+                "restarted": launched_now,
+                "privateStateExposed": false,
+            }))?
+        );
+        return Ok(());
+    };
+
+    finish_workspace_coverage_recovery(
+        &args,
+        &policy,
+        &runtime_store,
+        host.entry(),
+        &host,
+        target,
+        replacement,
+        launched_now,
+    )
+}
+
+fn finish_workspace_coverage_recovery(
+    args: &Args,
+    policy: &EpiphanyCultMeshManagedServicePolicyEntry,
+    runtime_store: &Path,
+    host_identity: &epiphany_core::HostIncarnationIdentityEntry,
+    host: &epiphany_core::HostIdentitySigner,
+    target: epiphany_core::WorkspaceCoverageClaimSightEntry,
+    replacement: WorkspaceCoverageManagedProcessLaunchEntry,
+    launched_now: bool,
+) -> Result<()> {
     let ready = (0..100).find_map(|_| {
         let observed = load_latest_workspace_coverage_provider_heartbeat(
             &args.store,
@@ -2395,11 +2674,12 @@ fn reconcile_workspace_coverage_projector(
         .flatten();
         if let Some(heartbeat) = observed
             && heartbeat.status == "ready"
+            && timestamp_is_fresh(&heartbeat.observed_at_utc).unwrap_or(false)
             && authenticate_workspace_coverage_provider_heartbeat(
                 &args.store,
                 args.runtime_id.clone(),
                 &heartbeat.heartbeat_id,
-                host.entry(),
+                host_identity,
             )
             .is_ok()
         {
@@ -2411,15 +2691,59 @@ fn reconcile_workspace_coverage_projector(
     let Some(ready) = ready else {
         anyhow::bail!("workspace coverage replacement did not publish signed readiness in time");
     };
-    let directive = write_workspace_coverage_recovery_directive(
+    let actuation_observation = match observe_workspace_coverage_managed_process(
         &args.store,
-        &runtime_store,
-        &args.runtime_id,
-        &target,
+        args.runtime_id.clone(),
         &replacement.launch_id,
-        &ready.heartbeat_id,
-        &host,
-    )?;
+        host_identity,
+    ) {
+        Ok(observation) => observation,
+        Err(error) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "observation-refused",
+                    "serviceId": policy.service_id,
+                    "launchId": replacement.launch_id,
+                    "reason": error.to_string(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+    };
+    let actuation = actuate_workspace_coverage_recovery_if_alive(actuation_observation, || {
+        write_workspace_coverage_recovery_directive(
+            &args.store,
+            runtime_store,
+            &args.runtime_id,
+            &target,
+            &replacement.launch_id,
+            &ready.heartbeat_id,
+            host,
+        )
+    })?;
+    let directive = match actuation {
+        WorkspaceCoverageRecoveryActuation::Written(directive) => directive,
+        WorkspaceCoverageRecoveryActuation::Degraded(observation) => {
+            return report_workspace_coverage_replacement_not_alive(
+                policy,
+                &replacement,
+                observation,
+                "observation-degraded",
+            );
+        }
+        WorkspaceCoverageRecoveryActuation::Terminal(observation) => {
+            return report_workspace_coverage_replacement_not_alive(
+                policy,
+                &replacement,
+                observation,
+                "replacement-terminal",
+            );
+        }
+    };
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
@@ -2429,7 +2753,7 @@ fn reconcile_workspace_coverage_projector(
             "oldClaimId": target.claim_id,
             "replacementLaunchId": replacement.launch_id,
             "directiveId": directive.directive_id,
-            "restarted": true,
+            "restarted": launched_now,
             "privateStateExposed": false,
         }))?
     );
@@ -3930,6 +4254,14 @@ mod semantic_projector_authority_tests {
         let tail = &source[start..];
         let end = tail.find("\nfn service_runbook").unwrap();
         let body = &tail[..end];
+        let observation = body
+            .find("observe_workspace_coverage_managed_process")
+            .unwrap();
+        let alive = body.find("status\": \"observed-alive").unwrap();
+        let degraded = body.find("status\": \"observation-degraded").unwrap();
+        let termination_write = body
+            .find("write_workspace_coverage_process_termination_observation")
+            .unwrap();
         let termination = body
             .rfind("authenticate_workspace_coverage_termination_with_envelope_digest")
             .unwrap();
@@ -3940,11 +4272,198 @@ mod semantic_projector_authority_tests {
         let recovery = body
             .rfind("write_workspace_coverage_recovery_directive")
             .unwrap();
+        assert!(observation < alive && alive < termination_write);
+        assert!(observation < degraded && degraded < termination_write);
+        assert!(termination_write < termination);
         assert!(termination < launch && launch < readiness && readiness < recovery);
         assert!(body.contains("write_workspace_coverage_process_termination_observation"));
         assert!(body.contains("status == \"ready\""));
+        assert!(
+            body.contains("authenticated claim sight does not name the current managed launch")
+        );
+        assert!(!body.contains("awaiting-exact-termination"));
         assert!(!body.contains("open_workspace_coverage_authority"));
         assert!(!body.contains("recover_workspace_coverage_projection"));
+    }
+
+    #[test]
+    fn workspace_coverage_none_to_some_claim_race_uses_post_terminal_sight() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source
+            .find("fn reconcile_workspace_coverage_projector(")
+            .unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn service_runbook").unwrap();
+        let body = &tail[..end];
+        let termination = body
+            .rfind("authenticate_workspace_coverage_termination_with_envelope_digest")
+            .unwrap();
+        let post_auth = body
+            .find("let post_terminal_target = match authenticate_current_workspace_coverage_claim_sight")
+            .unwrap();
+        let replacement_selection = body.find("let existing_replacement =").unwrap();
+        let post_target = body
+            .find("let Some(target) = post_terminal_target")
+            .unwrap();
+        let directive = body
+            .find("write_workspace_coverage_recovery_directive")
+            .unwrap();
+        assert!(termination < post_auth && post_auth < replacement_selection);
+        assert!(replacement_selection < post_target && post_target < directive);
+        assert!(body[post_auth..].contains("&target,"));
+        assert!(
+            body.contains("post-terminal claim sight does not name the terminated managed launch")
+        );
+    }
+
+    #[test]
+    fn workspace_coverage_reused_replacement_reports_observation_not_restart() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source
+            .find("fn reconcile_workspace_coverage_projector(")
+            .unwrap();
+        let tail = &source[start..];
+        let end = tail.find("\nfn service_runbook").unwrap();
+        let body = &tail[..end];
+        assert!(body.contains("(existing, false)"));
+        assert!(body.contains("replacement-observed-awaiting-claim"));
+        assert!(body.matches("\"restarted\": launched_now").count() >= 2);
+    }
+
+    #[test]
+    fn workspace_coverage_launch_to_directive_crash_resumes_exact_replacement() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source
+            .find("fn reconcile_workspace_coverage_projector(")
+            .unwrap();
+        let tail = &source[start..];
+        let end = tail
+            .find("\nfn finish_workspace_coverage_recovery")
+            .unwrap();
+        let body = &tail[..end];
+        let mismatch = body.find("claim.launch_id != latest.launch_id").unwrap();
+        let branch = &body[mismatch..body.find("let observation = match").unwrap()];
+        let termination = branch
+            .find("authenticate_workspace_coverage_termination_with_envelope_digest")
+            .unwrap();
+        let old_launch = branch
+            .find("let old_launch = authenticate_workspace_coverage_managed_process_launch")
+            .unwrap();
+        let replacement = branch
+            .find("let replacement = authenticate_workspace_coverage_managed_process_launch")
+            .unwrap();
+        let lineage = branch
+            .find("replacement.replaces_termination_envelope_digest")
+            .unwrap();
+        let resume = branch
+            .find("return finish_workspace_coverage_recovery")
+            .unwrap();
+        assert!(termination < old_launch && old_launch < replacement);
+        assert!(replacement < lineage && lineage < resume);
+        assert!(
+            branch.contains(
+                "replacement.policy_envelope_digest != old_launch.policy_envelope_digest"
+            )
+        );
+        assert!(!branch.contains("service_launch_internal"));
+
+        let finish = &source[source
+            .find("fn finish_workspace_coverage_recovery")
+            .unwrap()..];
+        assert!(finish.contains("write_workspace_coverage_recovery_directive"));
+        assert!(finish.contains("\"restarted\": launched_now"));
+    }
+
+    #[test]
+    fn workspace_coverage_stale_ready_missing_replacement_cannot_direct_or_mutate() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source
+            .find("fn reconcile_workspace_coverage_projector(")
+            .unwrap();
+        let tail = &source[start..];
+        let end = tail
+            .find("\nfn finish_workspace_coverage_recovery")
+            .unwrap();
+        let body = &tail[..end];
+        let mismatch = body.find("claim.launch_id != latest.launch_id").unwrap();
+        let branch = &body[mismatch..body.find("let observation = match").unwrap()];
+        let replacement_sight = branch
+            .find("let replacement_observation = match observe_workspace_coverage_managed_process")
+            .unwrap();
+        let alive_gate = branch
+            .find("WorkspaceCoverageProcessLifecycleObservation::ExactAlive")
+            .unwrap();
+        let finish_call = branch
+            .find("return finish_workspace_coverage_recovery")
+            .unwrap();
+        assert!(replacement_sight < alive_gate && alive_gate < finish_call);
+        assert!(branch.contains("WorkspaceCoverageProcessLifecycleObservation::Missing"));
+        assert!(branch.contains("\"replacement-terminal\""));
+        assert!(branch.contains("\"observation-degraded\""));
+        assert!(!branch.contains("write_workspace_coverage_process_termination_observation"));
+        assert!(!branch.contains("service_launch_internal"));
+
+        let finish = &source[source
+            .find("fn finish_workspace_coverage_recovery")
+            .unwrap()..];
+        let freshness = finish
+            .find("timestamp_is_fresh(&heartbeat.observed_at_utc)")
+            .unwrap();
+        let directive = finish
+            .find("write_workspace_coverage_recovery_directive")
+            .unwrap();
+        assert!(freshness < directive);
+    }
+
+    #[test]
+    fn workspace_coverage_actuation_reobserves_after_readiness() -> Result<()> {
+        let mut disappeared = std::collections::VecDeque::from([
+            WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
+            WorkspaceCoverageProcessLifecycleObservation::Missing,
+        ]);
+        assert_eq!(
+            disappeared.pop_front(),
+            Some(WorkspaceCoverageProcessLifecycleObservation::ExactAlive)
+        );
+        let mut directive_writes = 0_u8;
+        let termination_writes = 0_u8;
+        let launch_writes = 0_u8;
+        let outcome =
+            actuate_workspace_coverage_recovery_if_alive(disappeared.pop_front().unwrap(), || {
+                directive_writes += 1;
+                Ok(())
+            })?;
+        assert!(matches!(
+            outcome,
+            WorkspaceCoverageRecoveryActuation::Terminal(
+                WorkspaceCoverageProcessLifecycleObservation::Missing
+            )
+        ));
+        assert_eq!(directive_writes, 0);
+        assert_eq!(termination_writes, 0);
+        assert_eq!(launch_writes, 0);
+
+        let mut stayed_alive = std::collections::VecDeque::from([
+            WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
+            WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
+        ]);
+        assert_eq!(
+            stayed_alive.pop_front(),
+            Some(WorkspaceCoverageProcessLifecycleObservation::ExactAlive)
+        );
+        let outcome = actuate_workspace_coverage_recovery_if_alive(
+            stayed_alive.pop_front().unwrap(),
+            || {
+                directive_writes += 1;
+                Ok("directive")
+            },
+        )?;
+        assert!(matches!(
+            outcome,
+            WorkspaceCoverageRecoveryActuation::Written("directive")
+        ));
+        assert_eq!(directive_writes, 1);
+        Ok(())
     }
 
     #[test]

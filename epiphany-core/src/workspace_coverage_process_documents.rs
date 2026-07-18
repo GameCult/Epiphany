@@ -530,6 +530,56 @@ impl WorkspaceCoverageProcessObservationSource for NativeWorkspaceCoverageProces
     }
 }
 
+/// A typed, non-mutating observation of the exact process incarnation named by
+/// a workspace-coverage launch.  Reconciliation must branch on this value;
+/// errors and uncertain observations are never evidence of termination.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum WorkspaceCoverageProcessLifecycleObservation {
+    ExactAlive,
+    BootSuperseded { observed_boot_identity: String },
+    ExactExited { exit_code: Option<u32> },
+    Missing,
+    Replaced { observed: ProcessInstanceIdentity },
+    Inaccessible,
+    Indeterminate { reason: String },
+}
+
+fn observe_workspace_coverage_process_with_source(
+    launch: &WorkspaceCoverageManagedProcessLaunchEntry,
+    source: &dyn WorkspaceCoverageProcessObservationSource,
+) -> WorkspaceCoverageProcessLifecycleObservation {
+    let Some(observed_boot_identity) = source.boot_identity() else {
+        return WorkspaceCoverageProcessLifecycleObservation::Indeterminate {
+            reason: "current boot identity is unavailable".to_string(),
+        };
+    };
+    if observed_boot_identity != launch.boot_identity {
+        return WorkspaceCoverageProcessLifecycleObservation::BootSuperseded {
+            observed_boot_identity,
+        };
+    }
+    match source.observe(&process_identity_from_workspace_coverage_launch(launch)) {
+        ProcessInstanceObservation::ExactAlive => {
+            WorkspaceCoverageProcessLifecycleObservation::ExactAlive
+        }
+        ProcessInstanceObservation::ExactExited { exit_code } => {
+            WorkspaceCoverageProcessLifecycleObservation::ExactExited { exit_code }
+        }
+        ProcessInstanceObservation::Missing => {
+            WorkspaceCoverageProcessLifecycleObservation::Missing
+        }
+        ProcessInstanceObservation::Replaced { observed } => {
+            WorkspaceCoverageProcessLifecycleObservation::Replaced { observed }
+        }
+        ProcessInstanceObservation::Inaccessible => {
+            WorkspaceCoverageProcessLifecycleObservation::Inaccessible
+        }
+        ProcessInstanceObservation::Indeterminate { reason } => {
+            WorkspaceCoverageProcessLifecycleObservation::Indeterminate { reason }
+        }
+    }
+}
+
 #[derive(Serialize)]
 struct LaunchStatement<'a> {
     schema_version: &'a str,
@@ -1146,6 +1196,41 @@ pub(crate) fn authenticate_workspace_coverage_managed_process_launch_with_envelo
     Ok((launch, envelope_digest(&envelope)))
 }
 
+pub fn observe_workspace_coverage_managed_process(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    launch_id: &str,
+    host_identity: &HostIncarnationIdentityEntry,
+) -> Result<WorkspaceCoverageProcessLifecycleObservation> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let launch = authenticate_workspace_coverage_managed_process_launch(
+        store_path,
+        runtime_id.clone(),
+        launch_id,
+        host_identity,
+    )?;
+    let policy_envelope = open_epiphany_cultmesh_node(store_path, runtime_id)?
+        .cache()
+        .get_envelope::<EpiphanyCultMeshManagedServicePolicyEntry>(&managed_policy_key())?
+        .ok_or_else(|| anyhow!("workspace coverage managed policy is absent"))?;
+    let policy: EpiphanyCultMeshManagedServicePolicyEntry =
+        rmp_serde::from_slice(&policy_envelope.payload)?;
+    validate_workspace_coverage_projector_managed_service_policy(&policy)?;
+    if launch.policy_id != policy.policy_id
+        || launch.policy_envelope_digest != envelope_digest(&policy_envelope)
+        || launch.command != policy.command
+        || launch.args != policy.args
+        || launch.cwd != policy.cwd
+    {
+        bail!("workspace coverage observed launch disagrees with current managed policy");
+    }
+    Ok(observe_workspace_coverage_process_with_source(
+        &launch,
+        &NativeWorkspaceCoverageProcessObservationSource,
+    ))
+}
+
 pub(crate) fn authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
@@ -1249,29 +1334,34 @@ fn write_workspace_coverage_process_termination_observation_with_source(
         None
     };
 
-    let observed_boot_identity = source
-        .boot_identity()
-        .ok_or_else(|| anyhow!("current boot identity is unavailable; termination is unproved"))?;
-    let (outcome, exit_code, replacement) = if observed_boot_identity != launch.boot_identity {
-        ("boot_superseded", None, None)
-    } else {
-        match source.observe(&process_identity_from_workspace_coverage_launch(&launch)) {
-            ProcessInstanceObservation::ExactExited { exit_code } => {
-                ("exact_exited", exit_code, None)
-            }
-            ProcessInstanceObservation::Missing => ("process_missing", None, None),
-            ProcessInstanceObservation::Replaced { observed } => {
-                ("process_replaced", None, Some(observed))
-            }
-            ProcessInstanceObservation::ExactAlive => {
-                bail!("exact workspace coverage process instance is still alive")
-            }
-            ProcessInstanceObservation::Inaccessible => {
-                bail!("workspace coverage process observation is inaccessible")
-            }
-            ProcessInstanceObservation::Indeterminate { reason } => {
-                bail!("workspace coverage process termination is indeterminate: {reason}")
-            }
+    let observation = observe_workspace_coverage_process_with_source(&launch, source);
+    let (observed_boot_identity, outcome, exit_code, replacement) = match observation {
+        WorkspaceCoverageProcessLifecycleObservation::BootSuperseded {
+            observed_boot_identity,
+        } => (observed_boot_identity, "boot_superseded", None, None),
+        WorkspaceCoverageProcessLifecycleObservation::ExactExited { exit_code } => (
+            launch.boot_identity.clone(),
+            "exact_exited",
+            exit_code,
+            None,
+        ),
+        WorkspaceCoverageProcessLifecycleObservation::Missing => {
+            (launch.boot_identity.clone(), "process_missing", None, None)
+        }
+        WorkspaceCoverageProcessLifecycleObservation::Replaced { observed } => (
+            launch.boot_identity.clone(),
+            "process_replaced",
+            None,
+            Some(observed),
+        ),
+        WorkspaceCoverageProcessLifecycleObservation::ExactAlive => {
+            bail!("exact workspace coverage process instance is still alive")
+        }
+        WorkspaceCoverageProcessLifecycleObservation::Inaccessible => {
+            bail!("workspace coverage process observation is inaccessible")
+        }
+        WorkspaceCoverageProcessLifecycleObservation::Indeterminate { reason } => {
+            bail!("workspace coverage process termination is indeterminate: {reason}")
         }
     };
     let observed_at_utc = chrono::Utc::now().to_rfc3339();
@@ -3912,6 +4002,86 @@ mod tests {
                 .is_none()
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn typed_process_observation_never_writes_termination_state() -> Result<()> {
+        let cases = vec![
+            (
+                ProcessInstanceObservation::ExactAlive,
+                WorkspaceCoverageProcessLifecycleObservation::ExactAlive,
+            ),
+            (
+                ProcessInstanceObservation::Missing,
+                WorkspaceCoverageProcessLifecycleObservation::Missing,
+            ),
+            (
+                ProcessInstanceObservation::Inaccessible,
+                WorkspaceCoverageProcessLifecycleObservation::Inaccessible,
+            ),
+            (
+                ProcessInstanceObservation::Indeterminate {
+                    reason: "ambiguous kernel sight".into(),
+                },
+                WorkspaceCoverageProcessLifecycleObservation::Indeterminate {
+                    reason: "ambiguous kernel sight".into(),
+                },
+            ),
+        ];
+        for (process, expected) in cases {
+            let temp = tempfile::tempdir()?;
+            let (store, _host, launch, _provider) = persisted_chain(temp.path())?;
+            let observed = observe_workspace_coverage_process_with_source(
+                &launch,
+                &FakeObservation {
+                    boot: Some(launch.boot_identity.clone()),
+                    process,
+                },
+            );
+            assert_eq!(observed, expected);
+            assert!(
+                load_workspace_coverage_process_termination_observation(
+                    &store,
+                    "local",
+                    &launch.launch_id,
+                )?
+                .is_none()
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn public_process_observation_refuses_stale_launch_policy_substitution() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let (store, host, launch, _provider) = persisted_chain(temp.path())?;
+        let mut moved_policy = policy()?;
+        moved_policy.updated_at_utc = "2026-07-17T00:00:01Z".into();
+        write_epiphany_cultmesh_workspace_coverage_projector_service_policy(
+            &store,
+            "local",
+            moved_policy,
+        )?;
+        assert!(
+            observe_workspace_coverage_managed_process(
+                &store,
+                "local",
+                &launch.launch_id,
+                host.entry(),
+            )
+            .expect_err("stale launch must not be observed as current authority")
+            .to_string()
+            .contains("disagrees with current managed policy")
+        );
+        assert!(
+            load_workspace_coverage_process_termination_observation(
+                &store,
+                "local",
+                &launch.launch_id,
+            )?
+            .is_none()
+        );
         Ok(())
     }
 

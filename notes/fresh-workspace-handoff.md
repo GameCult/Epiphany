@@ -2490,3 +2490,45 @@ lineage refusal, exact CAS replay, successor sight publication, `cargo check
 --bins`, and `git diff --check`. Soul found no remaining P0/P1/P2. This code is
 ready to commit and push, then cross Bifrost/Idunn as an exact release while the
 host remains braked.
+
+## Live deployment and reconciliation split follow-up (2026-07-18)
+
+Commit `0601e280480cccc28209fbf0630e921f3ef9056d` is pushed, is the sole current
+Bifrost release authority, and is running through Idunn on Yggdrasil as release
+`sha256-f9fbc9c17cfc4038c49f77dd2a238d487b723600127a982dc4ae2ab98b308a77`.
+The detached deployment request remains in progress and `deployment.env` is
+absent, so terminal admission is not yet proven. Projector PID `145165` has
+remained stable; `body.cc` remained 612,961 bytes; the dedicated coverage store
+remained 79,712,256 bytes while its typed state advanced; and the current Qdrant
+collection advanced from 193 to 1,621 points. GPU samples show the embedding
+model resident and useful intermittent load. Do not interrupt this sole owner
+merely because the first full projection is slow.
+
+Live stdout exposed a remaining conceptual substitution: every healthy claim
+was routed through the termination writer and projected as
+`awaiting-exact-termination`. The writer refused ExactAlive, so private state
+remained safe, but alive, inaccessible, and indeterminate sight were collapsed
+into dishonest recovery pressure. The local uncommitted correction gives the
+supervisor one typed non-mutating process observation before recovery:
+ExactAlive reports `observed-alive`; uncertain sight reports
+`observation-degraded`; authority drift reports `observation-refused`; only
+proven terminal sight reaches termination, replacement, readiness, and
+directive.
+
+The cut also seals the restart timeline. Claim sight is re-read after immutable
+termination to close the pre-first-claim race. A persisted replacement without
+a directive is recognized only through exact old-launch, termination, policy,
+and causal replacement bindings. The supervisor observes that exact replacement
+alive, selects a fresh signed ready heartbeat under the existing 180-second
+lease, then re-observes the process immediately at the directive actuation
+boundary. Terminal or uncertain replacement sight produces no directive,
+termination write, or second launch. Recovery resumption, newly launched
+replacement, and immutable directive replay share the same final gate.
+
+Focused proof passes: ten workspace process-document tests, eight supervisor
+workspace-reconciliation tests, all-bin check, diff check, and final Soul audit
+with no P0/P1/P2. Behavioral injection proves ExactAlive-to-Missing across the
+readiness window performs zero directive/termination/launch writes, while
+ExactAlive-to-ExactAlive performs exactly one directive write. Commit and push
+this cut next; do not replace the live release until its current projection has
+landed terminal proof or a real failure requires recovery.
