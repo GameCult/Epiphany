@@ -1020,5 +1020,52 @@ signed ready heartbeat and commits failed history, epoch+1 successor, and an
 immutable evidence-digest receipt in one Body CAS. PID reuse, access failure,
 indeterminate observation, stale ready replay, and timeout remain inadmissible.
 
+### Resident organizational Self
+
+Resident wake scheduling has one owner. The standard heartbeat consumes one
+pending typed pressure and atomically emits one single-consumption Self grant;
+`epiphany-swarm` does not invent work from an idle loop. Accepted pressure is
+bounded to operator objective, Body-map drift, Persona feedback, and
+Imagination proposal documents. Those documents request attention only. They
+cannot adopt Mind state, authorize Hands, publish a release, or deploy it.
+
+Resident Self owns the grant-to-coordinator process transaction. Its inputs are
+the authenticated packaged-release witness, separate resident/runtime/Verse/
+Mind stores, the heartbeat grant, the swarm brake, and exact process
+observations. It outputs an immutable preparation, child claim, exact active
+turn lease, coordinator terminal receipt binding, and terminal acknowledgement
+back to heartbeat. The active turn and cooldown are derived from that chain;
+PID, exit code, journal output, and an unbound coordinator receipt are sight,
+not completion authority.
+
+Preparation and grant consumption share one CAS. The packaged coordinator must
+claim the preparation before cognition, binding process id, creation token,
+executable path and digest, grant, and launch digest. Resident Self then
+acknowledges exactly that claim. Completion requires the same turn, grant,
+launch digest, release identity, and coordinator receipt. Brake or timeout
+drains the exact process and cannot silently abandon a live lease. A prepared
+launch survives scheduler restart: an unclaimed preparation safely retries the
+same grant and launch contract, while a claimed preparation reattaches only to
+the exact process incarnation recorded by the packaged child before cognition.
+
+Forbidden writers are the old source-tree/Cargo `epiphany-swarm` wrapper,
+`epiphany-work` queue machinery, free-running heartbeat loops, Persona,
+Imagination, Modeling, coordinator artifacts, process exit, systemd, and
+presentation projections. Direct operator objectives and domain-derived
+pressure use the same pressure -> heartbeat grant -> preparation -> child claim
+-> lease -> exact receipt -> terminal acknowledgement path. The cut line removes
+the former `online`, `run`, `run-queue`, and `pulse` authority and packages the
+swarm, coordinator, model runtime, and tool spine as witnessed sibling binaries.
+
+Verification belongs at the typed transition layer: CAS-loss and replay tests,
+store-separation checks, packaged-witness authentication, brake/timeout process
+timeline tests, child-claim-before-cognition proof, exact receipt substitution
+rejection, and negative scans proving no runtime Cargo or historical queue path
+survives. A nonblocking trust seam remains: the parent currently compares its
+post-launch process observation with the child's atomic claim. The claim closes
+child bootstrap authority, but a future hardening pass should replace parent
+observation trust with an OS-authenticated parent/child launch channel where the
+host supports one; it is not permission to accept PID-only identity.
+
 This map must change when ownership changes. Historical scars belong in git,
 evidence, or an explicitly archived note—not in the machine's Modeling state.

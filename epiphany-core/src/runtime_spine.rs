@@ -603,6 +603,22 @@ pub struct EpiphanyCoordinatorRunReceipt {
     pub sealed_artifact_refs: Vec<String>,
     #[cultcache(key = 14, default)]
     pub metadata: BTreeMap<String, String>,
+    #[cultcache(key = 15, default)]
+    pub resident_grant_id: Option<String>,
+    #[cultcache(key = 16, default)]
+    pub resident_launch_digest: Option<String>,
+    #[cultcache(key = 17, default)]
+    pub resident_policy_digest: Option<String>,
+    #[cultcache(key = 18, default)]
+    pub resident_argv_digest: Option<String>,
+    #[cultcache(key = 19, default)]
+    pub resident_objective_digest: Option<String>,
+    #[cultcache(key = 20, default)]
+    pub resident_release_commit: Option<String>,
+    #[cultcache(key = 21, default)]
+    pub resident_release_manifest_digest: Option<String>,
+    #[cultcache(key = 22, default)]
+    pub resident_executable_digest: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -6255,6 +6271,15 @@ pub fn put_coordinator_run_receipt(
     Ok(())
 }
 
+pub fn coordinator_run_receipts(
+    store_path: impl AsRef<Path>,
+) -> Result<Vec<EpiphanyCoordinatorRunReceipt>> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.get_all::<EpiphanyCoordinatorRunReceipt>()
+}
+
 pub fn complete_runtime_job(
     store_path: impl AsRef<Path>,
     options: RuntimeSpineJobResultOptions,
@@ -10454,6 +10479,14 @@ pub(crate) mod tests {
                 artifact_refs: vec!["coordinator-summary.json".to_string()],
                 sealed_artifact_refs: vec!["epiphany-transcript.jsonl".to_string()],
                 metadata: BTreeMap::new(),
+                resident_grant_id: None,
+                resident_launch_digest: None,
+                resident_policy_digest: None,
+                resident_argv_digest: None,
+                resident_objective_digest: None,
+                resident_release_commit: None,
+                resident_release_manifest_digest: None,
+                resident_executable_digest: None,
             },
         )?;
 

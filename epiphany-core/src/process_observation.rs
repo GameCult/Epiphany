@@ -58,6 +58,13 @@ pub fn observe_process_instance(expected: &ProcessInstanceIdentity) -> ProcessIn
     platform::observe(expected)
 }
 
+pub fn terminate_process_instance(expected: &ProcessInstanceIdentity) -> Result<()> {
+    if observe_process_instance(expected) != ProcessInstanceObservation::ExactAlive {
+        bail!("refusing to terminate a process whose exact incarnation is not proven alive");
+    }
+    platform::terminate(expected)
+}
+
 /// Returns a boot-incarnation token only when the platform can prove it.
 pub fn native_boot_identity() -> Option<String> {
     platform::boot_identity()
@@ -96,7 +103,7 @@ mod platform {
     };
     use windows_sys::Win32::System::Threading::{
         GetExitCodeProcess, GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-        QueryFullProcessImageNameW, WaitForSingleObject,
+        PROCESS_TERMINATE, QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
     };
 
     #[repr(C)]
@@ -287,6 +294,28 @@ mod platform {
         }
     }
 
+    pub(super) fn terminate(expected: &ProcessInstanceIdentity) -> Result<()> {
+        let raw = unsafe {
+            OpenProcess(
+                PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
+                0,
+                expected.process_id,
+            )
+        };
+        if raw.is_null() {
+            bail!("failed to open exact process for termination");
+        }
+        let handle = OwnedHandle(raw);
+        if identity_from_handle(expected.process_id, &handle)? != *expected {
+            bail!("process incarnation changed before termination actuator acquired its handle");
+        }
+        let ok = unsafe { TerminateProcess(handle.0, 1) };
+        if ok == 0 {
+            bail!("failed to terminate exact process");
+        }
+        Ok(())
+    }
+
     pub(super) fn boot_identity() -> Option<String> {
         let mut information = SystemTimeOfDayInformation {
             boot_time: 0,
@@ -398,6 +427,42 @@ mod platform {
         }
     }
 
+    pub(super) fn terminate(expected: &ProcessInstanceIdentity) -> Result<()> {
+        #[cfg(target_os = "linux")]
+        {
+            let pidfd = unsafe {
+                libc::syscall(libc::SYS_pidfd_open, expected.process_id as i32, 0) as i32
+            };
+            if pidfd < 0 {
+                return Err(std::io::Error::last_os_error())
+                    .context("pidfd_open exact coordinator");
+            }
+            if observe(expected) != ProcessInstanceObservation::ExactAlive {
+                unsafe { libc::close(pidfd) };
+                bail!("process incarnation changed before pidfd termination");
+            }
+            let result = unsafe {
+                libc::syscall(
+                    libc::SYS_pidfd_send_signal,
+                    pidfd,
+                    libc::SIGTERM,
+                    std::ptr::null::<libc::siginfo_t>(),
+                    0,
+                )
+            };
+            unsafe { libc::close(pidfd) };
+            if result != 0 {
+                return Err(std::io::Error::last_os_error())
+                    .context("pidfd_send_signal exact coordinator");
+            }
+            return Ok(());
+        }
+        #[cfg(not(target_os = "linux"))]
+        bail!(
+            "exact inherited process termination requires a native incarnation handle on this Unix platform"
+        )
+    }
+
     pub(super) fn boot_identity() -> Option<String> {
         std::fs::read_to_string("/proc/sys/kernel/random/boot_id")
             .ok()
@@ -425,6 +490,9 @@ mod platform {
             reason: "native process-instance observation is unsupported on this platform"
                 .to_string(),
         }
+    }
+    pub(super) fn terminate(_: &ProcessInstanceIdentity) -> Result<()> {
+        bail!("exact process termination is unsupported on this platform")
     }
     pub(super) fn boot_identity() -> Option<String> {
         None

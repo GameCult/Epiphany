@@ -50,7 +50,6 @@ fn main() -> Result<()> {
         store: &store,
         runtime_id: &runtime,
         target_triple: &target,
-        toolchain_fingerprint: &rustc,
     })?;
     let witness_sha256 = epiphany_packaged_release_witness_sha256(&witness)?;
     println!(

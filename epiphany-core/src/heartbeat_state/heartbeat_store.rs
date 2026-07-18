@@ -17,8 +17,8 @@ use super::participant_arena;
 use super::participant_kind;
 use anyhow::Result;
 use anyhow::anyhow;
-use cultcache_rs::CultCache;
 use cultcache_rs::SingleFileMessagePackBackingStore;
+use cultcache_rs::{CultCache, CultCacheEnvelope, DatabaseEntry};
 use serde_json::Value;
 use std::path::Path;
 
@@ -56,6 +56,44 @@ pub fn write_heartbeat_state_entry(
     validate_heartbeat_state(state)?;
     let mut cache = heartbeat_state_cache(store_path)?;
     cache.put(HEARTBEAT_STATE_KEY, state)
+}
+
+pub fn load_heartbeat_state_transaction(
+    store_path: impl AsRef<Path>,
+) -> Result<(
+    Option<EpiphanyHeartbeatStateEntry>,
+    Option<CultCacheEnvelope>,
+)> {
+    let cache = heartbeat_state_cache(store_path)?;
+    let envelope = cache.snapshot_envelopes().into_iter().find(|entry| {
+        entry.r#type == <EpiphanyHeartbeatStateEntry as DatabaseEntry>::TYPE
+            && entry.key == HEARTBEAT_STATE_KEY
+    });
+    Ok((
+        cache.get::<EpiphanyHeartbeatStateEntry>(HEARTBEAT_STATE_KEY)?,
+        envelope,
+    ))
+}
+
+pub fn commit_heartbeat_state_transaction(
+    store_path: impl AsRef<Path>,
+    expected: Option<CultCacheEnvelope>,
+    state: &EpiphanyHeartbeatStateEntry,
+) -> Result<()> {
+    validate_heartbeat_state(state)?;
+    let cache = heartbeat_state_cache(store_path.as_ref())?;
+    let (replacement, _) = cache.prepare_entry(HEARTBEAT_STATE_KEY, state)?;
+    let backing = SingleFileMessagePackBackingStore::new(store_path.as_ref());
+    let committed = match expected {
+        Some(expected) => backing.compare_and_swap_entry(&expected, replacement)?,
+        None => backing.insert_entry_if_absent(replacement)?,
+    };
+    if !committed {
+        return Err(anyhow!(
+            "heartbeat state lost exact atomic compare-and-swap"
+        ));
+    }
+    Ok(())
 }
 
 pub fn load_heartbeat_cognition_entry(

@@ -1,979 +1,432 @@
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::anyhow;
+use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
-use serde_json::Value;
+use epiphany_core::{
+    ChildObservation, CoordinatorLaunch, LaunchedCoordinator, ProcessInstanceIdentity,
+    ProcessInstanceObservation, ResidentSelfOutcome, ResidentSelfPolicy, ResidentSelfPorts,
+    ResidentSelfPressure, ResidentSelfState, acknowledge_resident_self_launch,
+    authenticate_resident_self_policy, cancel_resident_self_turn, capture_process_instance,
+    complete_resident_self_turn, coordinator_run_receipts, enqueue_resident_self_pressure,
+    ingest_resident_self_domain_pressure, load_epiphany_cultmesh_swarm_brake,
+    load_resident_self_state, observe_process_instance, prepare_resident_self_launch,
+    resident_self_child_claim, terminate_process_instance, validate_resident_self_store_separation,
+};
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::env;
-use std::fs;
-use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Child, Command};
+use std::thread;
+use std::time::Duration;
 
 fn main() -> Result<()> {
-    let mut args = env::args().skip(1);
-    let Some(command) = args.next() else {
-        print_usage();
-        std::process::exit(2);
-    };
-    let result = match command.as_str() {
-        "online" => run_online(parse_online_args(args)?),
-        "run" | "run-queue" | "pulse" => run_swarm(parse_run_args(args)?),
-        other => Err(anyhow!("unknown epiphany-swarm command {other:?}")),
-    }?;
-    println!("{}", serde_json::to_string_pretty(&result)?);
+    let mut args = Args::parse()?;
+    authenticate_resident_self_policy(&mut args.policy)?;
+    args.policy.validate()?;
+    validate_resident_self_store_separation(&args.state_store, &args.policy)?;
+    if let Some(pressure) = args.pressure.as_ref() {
+        enqueue_resident_self_pressure(&args.state_store, pressure)?;
+    }
+    let mut state = load_resident_self_state(&args.state_store)?;
+    let mut ports = NativePorts::new(&args.policy);
+    match args.command {
+        CommandKind::Once => {
+            let outcome = cycle(&args, &mut state, &mut ports)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&summary(&state, &outcome))?
+            );
+        }
+        CommandKind::Serve => loop {
+            let outcome = cycle(&args, &mut state, &mut ports)?;
+            println!("{}", serde_json::to_string(&summary(&state, &outcome))?);
+            let seconds = match outcome {
+                ResidentSelfOutcome::Failed => args.policy.failure_backoff_seconds,
+                ResidentSelfOutcome::Completed => args.policy.cooldown_seconds,
+                _ => args.policy.idle_sleep_seconds,
+            };
+            thread::sleep(Duration::from_secs(seconds.max(1)));
+        },
+    }
     Ok(())
 }
 
-#[derive(Clone, Debug)]
-struct OnlineArgs {
-    workspace: PathBuf,
-    epiphany_root: PathBuf,
-    local_verse_store: Option<PathBuf>,
-    state_dir: Option<PathBuf>,
-    artifact_dir: Option<PathBuf>,
-    runtime_id: Option<String>,
-    init_receipt: Option<PathBuf>,
-    agent_template_store: Option<PathBuf>,
-}
-
-#[derive(Clone, Debug)]
-struct RunArgs {
-    workspace: PathBuf,
-    epiphany_root: PathBuf,
-    local_verse_store: Option<PathBuf>,
-    artifact_dir: Option<PathBuf>,
-    runtime_id: Option<String>,
-    online_receipt: Option<PathBuf>,
-    until: String,
-    max_iterations: u64,
-    max_items: u64,
-    loop_interval_seconds: u64,
-    cooldown_seconds: u64,
-    active_timeout_seconds: u64,
-    dry_run: bool,
-}
-
-fn parse_online_args(args: impl Iterator<Item = String>) -> Result<OnlineArgs> {
-    let mut workspace = None;
-    let mut epiphany_root = None;
-    let mut local_verse_store = None;
-    let mut state_dir = None;
-    let mut artifact_dir = None;
-    let mut runtime_id = None;
-    let mut init_receipt = None;
-    let mut agent_template_store = None;
-
-    let mut args = args.peekable();
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
-            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
-            "--local-verse-store" | "--store" => {
-                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
-            }
-            "--state-dir" => state_dir = Some(take_path(&mut args, "--state-dir")?),
-            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
-            "--runtime-id" => runtime_id = Some(take_string(&mut args, "--runtime-id")?),
-            "--init-receipt" => init_receipt = Some(take_path(&mut args, "--init-receipt")?),
-            "--agent-template-store" => {
-                agent_template_store = Some(take_path(&mut args, "--agent-template-store")?);
-            }
-            other => return Err(anyhow!("unexpected online argument {other:?}")),
+fn cycle(
+    args: &Args,
+    state: &mut ResidentSelfState,
+    ports: &mut NativePorts,
+) -> Result<ResidentSelfOutcome> {
+    let now = Utc::now().timestamp_millis().max(0) as u64;
+    ingest_resident_self_domain_pressure(
+        &args.state_store,
+        &args.policy.runtime_store,
+        &args.policy.local_verse_store,
+        &args.policy.release_runtime_id,
+        now,
+    )?;
+    *state = load_resident_self_state(&args.state_store)?;
+    if let Some(prepared) = state.prepared_launch.clone() {
+        if let Some(claim) = resident_self_child_claim(&args.state_store, &prepared.preparation_id)?
+        {
+            acknowledge_resident_self_launch(
+                &args.state_store,
+                &prepared.preparation_id,
+                &LaunchedCoordinator {
+                    process_id: claim.process_id,
+                    process_creation_token: claim.process_creation_token,
+                    process_executable_path: claim.executable_path,
+                },
+                claim.claimed_at_millis,
+            )?;
+            *state = load_resident_self_state(&args.state_store)?;
+            return Ok(ResidentSelfOutcome::Running);
         }
-    }
-    Ok(OnlineArgs {
-        workspace: workspace.context("missing --workspace")?,
-        epiphany_root: epiphany_root
-            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
-        local_verse_store,
-        state_dir,
-        artifact_dir,
-        runtime_id,
-        init_receipt,
-        agent_template_store,
-    })
-}
-
-fn parse_run_args(args: impl Iterator<Item = String>) -> Result<RunArgs> {
-    let mut workspace = None;
-    let mut epiphany_root = None;
-    let mut local_verse_store = None;
-    let mut artifact_dir = None;
-    let mut runtime_id = None;
-    let mut online_receipt = None;
-    let mut until = "blocked-or-published".to_string();
-    let mut max_iterations = 8_u64;
-    let mut max_items = 1_u64;
-    let mut loop_interval_seconds = 0_u64;
-    let mut cooldown_seconds = 0_u64;
-    let mut active_timeout_seconds = 900_u64;
-    let mut dry_run = false;
-
-    let mut args = args.peekable();
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "--workspace" => workspace = Some(take_path(&mut args, "--workspace")?),
-            "--epiphany-root" => epiphany_root = Some(take_path(&mut args, "--epiphany-root")?),
-            "--local-verse-store" | "--store" => {
-                local_verse_store = Some(take_path(&mut args, "--local-verse-store")?);
-            }
-            "--artifact-dir" => artifact_dir = Some(take_path(&mut args, "--artifact-dir")?),
-            "--runtime-id" => runtime_id = Some(take_string(&mut args, "--runtime-id")?),
-            "--online-receipt" => online_receipt = Some(take_path(&mut args, "--online-receipt")?),
-            "--until" => until = take_string(&mut args, "--until")?,
-            "--max-iterations" | "--max-pulses" => {
-                max_iterations = take_u64(&mut args, "--max-iterations")?;
-            }
-            "--max-items" => max_items = take_u64(&mut args, "--max-items")?,
-            "--loop-interval-seconds" | "--interval-seconds" => {
-                loop_interval_seconds = take_u64(&mut args, "--loop-interval-seconds")?;
-            }
-            "--cooldown-seconds" => cooldown_seconds = take_u64(&mut args, "--cooldown-seconds")?,
-            "--active-timeout-seconds" => {
-                active_timeout_seconds = take_u64(&mut args, "--active-timeout-seconds")?;
-            }
-            "--dry-run" | "--no-execute" => dry_run = true,
-            other => return Err(anyhow!("unexpected run argument {other:?}")),
+        if ports.brake_engaged()? {
+            return Ok(ResidentSelfOutcome::Braked);
         }
-    }
-    Ok(RunArgs {
-        workspace: workspace.context("missing --workspace")?,
-        epiphany_root: epiphany_root
-            .unwrap_or(env::current_dir().context("failed to resolve current directory")?),
-        local_verse_store,
-        artifact_dir,
-        runtime_id,
-        online_receipt,
-        until,
-        max_iterations,
-        max_items,
-        loop_interval_seconds,
-        cooldown_seconds,
-        active_timeout_seconds,
-        dry_run,
-    })
-}
-
-fn run_online(args: OnlineArgs) -> Result<Value> {
-    let workspace = args
-        .workspace
-        .canonicalize()
-        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
-    ensure_git_repo(&workspace)?;
-    let epiphany_root = args
-        .epiphany_root
-        .canonicalize()
-        .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
-    let manifest_path = epiphany_root.join("epiphany-core").join("Cargo.toml");
-    if !manifest_path.exists() {
-        return Err(anyhow!(
-            "could not find epiphany-core manifest at {}",
-            manifest_path.display()
-        ));
-    }
-    let init_receipt_path = args.init_receipt.unwrap_or_else(|| {
-        workspace
-            .join(".epiphany")
-            .join("repo-init")
-            .join("repo-swarm-init-receipt.json")
-    });
-    let init_receipt = read_json(&init_receipt_path)
-        .with_context(|| format!("repo swarm init receipt is required; run epiphany-repo init first or pass --init-receipt"))?;
-    let state_dir = args.state_dir.unwrap_or_else(|| {
-        path_from_json(&init_receipt, &["stores", "stateDir"])
-            .unwrap_or_else(|| workspace.join(".epiphany").join("state"))
-    });
-    let artifact_dir = args
-        .artifact_dir
-        .unwrap_or_else(|| workspace.join(".epiphany").join("swarm-online"));
-    let local_verse_store = args
-        .local_verse_store
-        .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"));
-    let agent_store = state_dir.join("agents.msgpack");
-    let runtime_id = args.runtime_id.unwrap_or_else(|| {
-        format!(
-            "repo-swarm-{}",
-            workspace
-                .file_name()
-                .and_then(|name| name.to_str())
-                .map(sanitize)
-                .unwrap_or_else(|| "workspace".to_string())
-        )
-    });
-    fs::create_dir_all(&state_dir)
-        .with_context(|| format!("failed to create {}", state_dir.display()))?;
-    fs::create_dir_all(&artifact_dir)
-        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
-    if let Some(parent) = local_verse_store.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-
-    let agent_seed = ensure_agent_store(
-        &agent_store,
-        args.agent_template_store
-            .unwrap_or_else(|| epiphany_root.join("state").join("agents.msgpack")),
-    )?;
-    let soa_refresh = cargo_json(
-        &manifest_path,
-        "epiphany-agent-memory-store",
-        &[
-            "refresh-soa".to_string(),
-            "--store".to_string(),
-            agent_store.display().to_string(),
-        ],
-    )?;
-
-    let seed = verse_json(
-        &manifest_path,
-        "seed-compact",
-        &local_verse_store,
-        &runtime_id,
-        &[],
-    )?;
-    let agent_state = verse_json(
-        &manifest_path,
-        "agent-state",
-        &local_verse_store,
-        &runtime_id,
-        &[
-            "--agent-store".to_string(),
-            agent_store.display().to_string(),
-        ],
-    )?;
-    let agent_state_report = verse_json(
-        &manifest_path,
-        "agent-state-report",
-        &local_verse_store,
-        &runtime_id,
-        &[],
-    )?;
-    let topology = verse_json(
-        &manifest_path,
-        "cluster-topology",
-        &local_verse_store,
-        &runtime_id,
-        &[],
-    )?;
-    let liveness = verse_json(
-        &manifest_path,
-        "swarm-status",
-        &local_verse_store,
-        &runtime_id,
-        &[],
-    )?;
-    let tool_directory = verse_json(
-        &manifest_path,
-        "tool-directory",
-        &local_verse_store,
-        &runtime_id,
-        &[],
-    )?;
-    let overview = verse_json(
-        &manifest_path,
-        "swarm-overview",
-        &local_verse_store,
-        &runtime_id,
-        &[],
-    )?;
-
-    let receipt = json!({
-        "schemaVersion": "epiphany.repo_swarm_online_receipt.v0",
-        "createdAt": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        "workspace": workspace,
-        "runtimeId": runtime_id,
-        "initReceiptPath": init_receipt_path,
-        "localVerseStore": local_verse_store,
-        "stateDir": state_dir,
-        "agentStore": agent_store,
-        "agentSeed": agent_seed,
-        "seed": seed,
-        "soaRefresh": compact_fields(&soa_refresh, &["rowCount", "roleIds", "ok"]),
-        "agentState": compact_fields(&agent_state, &["status", "summaryId", "rowCount", "privateStateExposed"]),
-        "agentStateReport": compact_fields(&agent_state_report, &["status", "agentCount", "roleIds", "privateStateExposed"]),
-        "topology": compact_fields(&topology, &["status", "declaredFacultyCount", "declaredPrivateVerseRouteCount", "declaredDaemonTargetCount", "publicDiscussionClusterCount", "privateStateExposed"]),
-        "liveness": compact_fields(&liveness, &["status", "observedDaemonCount", "nonReadyCount", "privateStateExposed"]),
-        "toolDirectory": summarize_tool_directory(&tool_directory),
-        "overview": compact_fields(&overview, &["status", "observedDaemonCount", "declaredFacultyCount", "declaredPrivateVerseRouteCount", "declaredDaemonTargetCount", "toolCount", "privateStateExposed", "recommendedWrapperMode", "recommendedWrapperCommand"]),
-        "proofBundle": {
-            "repoLocalAgentStateSoa": agent_state_report["summaryId"],
-            "clusterTopology": topology["schemaVersion"],
-            "idunnLiveness": liveness["schemaVersion"],
-            "globalToolDirectory": tool_directory["schemaVersion"],
-            "swarmOverview": overview["schemaVersion"],
-            "privateStateExposed": false
-        },
-        "nextSafeMove": "Accept a Persona or Bifrost work item into typed Imagination/Self action pressure; the next missing command is epiphany-work accept --workspace <repo>."
-    });
-    let receipt_path = artifact_dir.join("repo-swarm-online-receipt.json");
-    write_json(&receipt_path, &receipt)?;
-    Ok(json!({
-        "schemaVersion": "epiphany.repo_swarm_online.v0",
-        "status": overview.get("status").cloned().unwrap_or_else(|| json!("ok")),
-        "workspace": receipt["workspace"],
-        "runtimeId": receipt["runtimeId"],
-        "localVerseStore": receipt["localVerseStore"],
-        "receiptPath": receipt_path,
-        "agentSeed": receipt["agentSeed"],
-        "agentState": receipt["agentState"],
-        "topology": receipt["topology"],
-        "liveness": receipt["liveness"],
-        "toolDirectory": receipt["toolDirectory"],
-        "overview": receipt["overview"],
-        "privateStateExposed": false,
-        "nextSafeMove": receipt["nextSafeMove"],
-    }))
-}
-
-fn run_swarm(args: RunArgs) -> Result<Value> {
-    if args.max_iterations == 0 {
-        return Err(anyhow!(
-            "epiphany-swarm run requires --max-iterations greater than 0"
-        ));
-    }
-    if args.max_items == 0 {
-        return Err(anyhow!(
-            "epiphany-swarm run requires --max-items greater than 0"
-        ));
-    }
-    if args.until != "blocked-or-published" && args.until != "blocked-or-noop" {
-        return Err(anyhow!(
-            "unsupported --until {:?}; supported values are blocked-or-published and blocked-or-noop",
-            args.until
-        ));
-    }
-
-    let workspace = args
-        .workspace
-        .canonicalize()
-        .with_context(|| format!("failed to resolve {}", args.workspace.display()))?;
-    ensure_git_repo(&workspace)?;
-    let epiphany_root = args
-        .epiphany_root
-        .canonicalize()
-        .with_context(|| format!("failed to resolve {}", args.epiphany_root.display()))?;
-    let manifest_path = epiphany_root.join("epiphany-core").join("Cargo.toml");
-    if !manifest_path.exists() {
-        return Err(anyhow!(
-            "could not find epiphany-core manifest at {}",
-            manifest_path.display()
-        ));
-    }
-    let online_receipt_path = args.online_receipt.clone().unwrap_or_else(|| {
-        workspace
-            .join(".epiphany")
-            .join("swarm-online")
-            .join("repo-swarm-online-receipt.json")
-    });
-    let online_receipt = read_json(&online_receipt_path).with_context(
-        || "repo swarm online receipt is required; run epiphany-swarm online first",
-    )?;
-    let local_verse_store = args.local_verse_store.clone().unwrap_or_else(|| {
-        path_from_json(&online_receipt, &["localVerseStore"])
-            .unwrap_or_else(|| workspace.join(".epiphany").join("local-verse.ccmp"))
-    });
-    let runtime_id = args.runtime_id.clone().unwrap_or_else(|| {
-        string_from_json(&online_receipt, &["runtimeId"])
-            .unwrap_or_else(|| "repo-swarm-local".to_string())
-    });
-    let artifact_dir = args
-        .artifact_dir
-        .clone()
-        .unwrap_or_else(|| workspace.join(".epiphany").join("swarm-run"));
-    fs::create_dir_all(&artifact_dir)
-        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
-
-    let started_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let mut iterations = Vec::new();
-    let mut stop_reason = "max-iterations-reached".to_string();
-    for pulse_index in 1..=args.max_iterations {
-        let queue_run = cargo_json(
-            &manifest_path,
-            "epiphany-work",
-            &queue_run_args(
-                &args,
-                &workspace,
-                &epiphany_root,
-                &local_verse_store,
-                &runtime_id,
-            ),
-        )
-        .with_context(|| format!("epiphany-work queue-run pulse {pulse_index} failed"))?;
-        let queue_status = queue_run
-            .get("status")
-            .and_then(Value::as_str)
-            .unwrap_or("unknown")
-            .to_string();
-        let actionable_count = queue_run
-            .get("actionableCount")
-            .and_then(Value::as_u64)
-            .unwrap_or(0);
-        let iteration = json!({
-            "pulse": pulse_index,
-            "queueRunStatus": queue_status,
-            "actionableCount": actionable_count,
-            "queueCount": queue_run["queueCount"],
-            "queueRows": queue_run["queueRows"],
-            "selectedRows": queue_run["selectedRows"],
-            "outputs": queue_run["outputs"],
-            "receiptPath": queue_run["receiptPath"],
-            "privateStateExposed": queue_run["privateStateExposed"]
-        });
-        iterations.push(iteration);
-        if queue_status == "blocked-or-noop" || actionable_count == 0 {
-            stop_reason = "blocked-or-noop".to_string();
-            break;
-        }
-        if queue_status == "would-advance" && args.dry_run {
-            stop_reason = "dry-run-preview-complete".to_string();
-            break;
-        }
-        if pulse_index < args.max_iterations && args.loop_interval_seconds > 0 {
-            std::thread::sleep(std::time::Duration::from_secs(args.loop_interval_seconds));
-        }
-    }
-    let completed_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let status = if stop_reason == "max-iterations-reached" {
-        "paused-at-iteration-limit"
-    } else if stop_reason == "dry-run-preview-complete" {
-        "dry-run-preview"
-    } else {
-        "blocked-or-noop"
-    };
-    let next_safe_move = match stop_reason.as_str() {
-        "blocked-or-noop" => {
-            "Inspect repo-work overview blockers, then route planning, closure, publication, or sync through the owning organ."
-        }
-        "dry-run-preview-complete" => {
-            "Rerun epiphany-swarm run without --dry-run to advance the selected branch-local queue row."
-        }
-        _ => {
-            "Rerun epiphany-swarm run only while repo-work queue rows remain tick-actionable and authority gates stay branch-local."
-        }
-    };
-    let stop_classification = classify_run_stop(
-        &stop_reason,
-        status,
-        args.until.as_str(),
-        args.dry_run,
-        args.max_iterations,
-        &iterations,
-        next_safe_move,
-    );
-    let receipt_path = artifact_dir.join("repo-swarm-run-receipt.json");
-    let receipt = json!({
-        "schemaVersion": "epiphany.repo_swarm_run_receipt.v0",
-        "createdAt": completed_at,
-        "startedAt": started_at,
-        "completedAt": completed_at,
-        "status": status,
-        "stopReason": stop_reason,
-        "stopClassification": stop_classification,
-        "workspace": workspace,
-        "runtimeId": runtime_id,
-        "localVerseStore": local_verse_store,
-        "onlineReceiptPath": online_receipt_path,
-        "until": args.until,
-        "scheduler": {
-            "owner": "Self",
-            "mouth": "epiphany-swarm run",
-            "delegatesQueueSelectionTo": "epiphany-work queue-run",
-            "delegatesActuationTo": "epiphany-work tick",
-            "maxIterations": args.max_iterations,
-            "maxItems": args.max_items,
-            "loopIntervalSeconds": args.loop_interval_seconds,
-            "cooldownSeconds": args.cooldown_seconds,
-            "activeTimeoutSeconds": args.active_timeout_seconds,
-            "dryRun": args.dry_run
-        },
-        "iterations": iterations,
-        "iterationCount": iterations.len(),
-        "authority": {
-            "branchLocalOnly": true,
-            "publicationAuthorized": false,
-            "mergeAuthorized": false,
-            "serviceLifecycleAuthorized": false,
-            "crossRepoMutationAuthorized": false,
-            "privateStateExposed": false
-        },
-        "nextSafeMove": next_safe_move,
-        "privateStateExposed": false
-    });
-    write_json(&receipt_path, &receipt)?;
-    Ok(json!({
-        "schemaVersion": "epiphany.repo_swarm_run.v0",
-        "status": receipt["status"],
-        "stopReason": receipt["stopReason"],
-        "stopClassification": receipt["stopClassification"],
-        "workspace": receipt["workspace"],
-        "runtimeId": receipt["runtimeId"],
-        "localVerseStore": receipt["localVerseStore"],
-        "receiptPath": receipt_path,
-        "iterationCount": receipt["iterationCount"],
-        "iterations": receipt["iterations"],
-        "authority": receipt["authority"],
-        "privateStateExposed": false,
-        "nextSafeMove": receipt["nextSafeMove"],
-    }))
-}
-
-fn classify_run_stop(
-    stop_reason: &str,
-    status: &str,
-    until: &str,
-    dry_run: bool,
-    max_iterations: u64,
-    iterations: &[Value],
-    next_safe_move: &str,
-) -> Value {
-    let final_iteration = iterations.last();
-    let queue_status = final_iteration
-        .and_then(|iteration| iteration.get("queueRunStatus"))
-        .and_then(Value::as_str)
-        .unwrap_or("not-run");
-    let actionable_count = final_iteration
-        .and_then(|iteration| iteration.get("actionableCount"))
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    let queue_count = final_iteration
-        .and_then(|iteration| iteration.get("queueCount"))
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    let selected_row = final_iteration
-        .and_then(|iteration| iteration.get("selectedRows"))
-        .and_then(Value::as_array)
-        .and_then(|rows| rows.first())
-        .or_else(|| {
-            final_iteration
-                .and_then(|iteration| iteration.get("queueRows"))
-                .and_then(Value::as_array)
-                .and_then(|rows| rows.first())
-        });
-    let selected_output = final_iteration
-        .and_then(|iteration| iteration.get("outputs"))
-        .and_then(Value::as_array)
-        .and_then(|outputs| outputs.first());
-    let refreshed_overview = selected_output.and_then(|output| output.get("refreshedOverview"));
-    let selected_gate = selected_output
-        .and_then(|output| non_empty_string(output.get("gateBefore")))
-        .or_else(|| {
-            refreshed_overview.and_then(|overview| non_empty_string(overview.get("currentGate")))
-        })
-        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("gate"))))
-        .unwrap_or_else(|| "none".to_string());
-    let selected_blocker = selected_output
-        .and_then(|output| non_empty_string(output.get("blockerBefore")))
-        .or_else(|| {
-            refreshed_overview.and_then(|overview| non_empty_string(overview.get("blocker")))
-        })
-        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("blocker"))))
-        .unwrap_or_else(|| "none".to_string());
-    let selected_next_safe_move = selected_output
-        .and_then(|output| output.get("tick"))
-        .and_then(|tick| non_empty_string(tick.get("nextSafeMove")))
-        .or_else(|| {
-            refreshed_overview.and_then(|overview| non_empty_string(overview.get("nextSafeMove")))
-        })
-        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("nextSafeMove"))))
-        .unwrap_or_else(|| next_safe_move.to_string());
-    let selected_item = selected_output
-        .and_then(|output| non_empty_string(output.get("item")))
-        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("item"))))
-        .unwrap_or_else(|| "none".to_string());
-    let selected_branch = refreshed_overview
-        .and_then(|overview| non_empty_string(overview.get("branch")))
-        .or_else(|| selected_row.and_then(|row| non_empty_string(row.get("branch"))))
-        .unwrap_or_else(|| "none".to_string());
-
-    let (category, owner, gate, blocker, recommended_command, mutates_state, requires_elevation) =
-        match stop_reason {
-            "dry-run-preview-complete" => (
-                "dry-run-preview",
-                "Self",
-                selected_gate.as_str(),
-                selected_blocker.as_str(),
-                "epiphany-swarm run --workspace <repo> --until blocked-or-published",
-                false,
-                false,
-            ),
-            "max-iterations-reached" => (
-                "iteration-limit",
-                "Self",
-                "self.scheduler-iteration-limit",
-                "max-iterations-reached",
-                "epiphany-swarm run --workspace <repo> --until blocked-or-published",
-                false,
-                false,
-            ),
-            "blocked-or-noop" if queue_count == 0 => (
-                "queue-empty",
-                "Self",
-                "repo.work.overview",
-                "no-repo-work-rows",
-                "none",
-                false,
-                false,
-            ),
-            "blocked-or-noop" if actionable_count == 0 => {
-                let owner = match selected_gate.as_str() {
-                    "awaiting-publication" => "Bifrost",
-                    "awaiting-sync" | "awaiting-upstream-sync" => "Bifrost/GitHub",
-                    "awaiting-closure" => "Soul",
-                    "ready-to-run" | "ready-to-adopt" | "ready-to-execute" => "Self",
-                    _ => "Self",
-                };
-                let recommended = match selected_gate.as_str() {
-                    "awaiting-publication" => {
-                        "submit a Bifrost publication intent through the owning integration"
-                    }
-                    "awaiting-sync" | "awaiting-upstream-sync" => {
-                        "inspect provider-authored publication and upstream Git ancestry evidence"
-                    }
-                    "awaiting-closure" => {
-                        "epiphany-work close --workspace <repo> --execute-receipt <receipt>"
-                    }
-                    _ => "epiphany-work overview --workspace <repo>",
-                };
-                (
-                    "authority-gated",
-                    owner,
-                    selected_gate.as_str(),
-                    selected_blocker.as_str(),
-                    recommended,
-                    false,
-                    false,
-                )
-            }
-            _ => (
-                "unknown",
-                "Self",
-                selected_gate.as_str(),
-                selected_blocker.as_str(),
-                "epiphany-work overview --workspace <repo>",
-                false,
-                false,
-            ),
+        let launch = CoordinatorLaunch {
+            turn_id: format!("resident-self-turn-{}", prepared.grant.grant_id),
+            wake: epiphany_core::ResidentSelfWake::Explicit {
+                objective: prepared.grant.objective.clone(),
+            },
+            argv: prepared.argv.clone(),
         };
+        let process = ports.launch_coordinator(&launch)?;
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while resident_self_child_claim(&args.state_store, &prepared.preparation_id)?.is_none() {
+            if std::time::Instant::now() >= deadline {
+                return Err(anyhow!(
+                    "retried coordinator did not claim prepared authority; preparation remains fail-closed"
+                ));
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+        acknowledge_resident_self_launch(
+            &args.state_store,
+            &prepared.preparation_id,
+            &process,
+            now,
+        )?;
+        *state = load_resident_self_state(&args.state_store)?;
+        return Ok(ResidentSelfOutcome::Launched);
+    }
+    if let Some(lease) = state.active_turn.clone() {
+        let brake_engaged = ports.brake_engaged()?;
+        let timed_out = now.saturating_sub(lease.started_at_millis)
+            > args.policy.turn_timeout_seconds.saturating_mul(1000);
+        if brake_engaged || timed_out {
+            if ports.observe_child(&lease)? == ChildObservation::Running {
+                ports.request_child_stop(&lease)?;
+                return Ok(ResidentSelfOutcome::Draining);
+            }
+        }
+        return match ports.observe_child(&lease)? {
+            ChildObservation::Running => Ok(ResidentSelfOutcome::Running),
+            ChildObservation::Exited(0) => {
+                let receipt = coordinator_run_receipts(&args.policy.runtime_store)?
+                    .into_iter()
+                    .find(|receipt| {
+                        receipt.thread_id == lease.turn_id
+                            && receipt.resident_launch_digest.as_deref()
+                                == Some(&lease.launch_digest)
+                    })
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "coordinator exited zero without its exact resident terminal receipt"
+                        )
+                    })?;
+                complete_resident_self_turn(&args.state_store, &lease, &receipt, now)?;
+                *state = load_resident_self_state(&args.state_store)?;
+                Ok(ResidentSelfOutcome::Completed)
+            }
+            ChildObservation::Exited(code) => {
+                cancel_resident_self_turn(
+                    &args.state_store,
+                    &lease,
+                    if brake_engaged {
+                        "brake-cancelled"
+                    } else if timed_out {
+                        "timed-out"
+                    } else {
+                        "process-failed"
+                    },
+                    &format!("coordinator terminal observation exit={code}"),
+                    now,
+                )?;
+                *state = load_resident_self_state(&args.state_store)?;
+                Ok(ResidentSelfOutcome::Failed)
+            }
+            ChildObservation::Missing => {
+                cancel_resident_self_turn(
+                    &args.state_store,
+                    &lease,
+                    if brake_engaged {
+                        "brake-cancelled"
+                    } else if timed_out {
+                        "timed-out"
+                    } else {
+                        "process-failed"
+                    },
+                    "exact coordinator process is missing",
+                    now,
+                )?;
+                *state = load_resident_self_state(&args.state_store)?;
+                Ok(ResidentSelfOutcome::Failed)
+            }
+        };
+    }
+    if ports.brake_engaged()? {
+        return Ok(ResidentSelfOutcome::Braked);
+    }
+    let Some(prepared) = prepare_resident_self_launch(&args.state_store, &args.policy, now)? else {
+        return Ok(ResidentSelfOutcome::Sleeping);
+    };
+    let launch = CoordinatorLaunch {
+        turn_id: format!("resident-self-turn-{}", prepared.grant.grant_id),
+        wake: epiphany_core::ResidentSelfWake::Explicit {
+            objective: prepared.grant.objective.clone(),
+        },
+        argv: prepared.argv.clone(),
+    };
+    let process = ports.launch_coordinator(&launch)?;
+    let claim_deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while resident_self_child_claim(&args.state_store, &prepared.preparation_id)?.is_none() {
+        if std::time::Instant::now() >= claim_deadline {
+            return Err(anyhow!(
+                "coordinator did not claim prepared authority before bootstrap deadline; preparation remains fail-closed"
+            ));
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    acknowledge_resident_self_launch(&args.state_store, &prepared.preparation_id, &process, now)?;
+    *state = load_resident_self_state(&args.state_store)?;
+    Ok(ResidentSelfOutcome::Launched)
+}
 
+fn summary(state: &ResidentSelfState, outcome: &ResidentSelfOutcome) -> serde_json::Value {
     json!({
-        "schemaVersion": "epiphany.repo_swarm_run_stop_classification.v0",
-        "status": status,
-        "stopReason": stop_reason,
-        "category": category,
-        "owner": owner,
-        "authorityGate": gate,
-        "blocker": blocker,
-        "until": until,
-        "dryRun": dry_run,
-        "maxIterations": max_iterations,
-        "iterationCount": iterations.len(),
-        "queueRunStatus": queue_status,
-        "queueCount": queue_count,
-        "actionableCount": actionable_count,
-        "selectedItem": selected_item,
-        "selectedBranch": selected_branch,
-        "selectedNextSafeMove": selected_next_safe_move,
-        "recommendedCommand": recommended_command,
-        "mutatesState": mutates_state,
-        "requiresElevatedAuthority": requires_elevation,
-        "publicationAuthorized": false,
-        "mergeAuthorized": false,
-        "serviceLifecycleAuthorized": false,
-        "crossRepoMutationAuthorized": false,
+        "schemaVersion": "epiphany.resident_self.operator_projection.v0",
+        "status": format!("{outcome:?}").to_ascii_lowercase(),
+        "revision": state.revision,
+        "activeTurnId": state.active_turn.as_ref().map(|turn| &turn.turn_id),
+        "nextEligibleAtMillis": state.next_eligible_at_millis,
+        "wakeAuthority": "standard heartbeat consumes typed operator, Body-map drift, Persona feedback, or Imagination proposal pressure and emits one single-consumption Self grant",
+        "preparedRecovery": if state.prepared_launch.is_some() { "fail-closed-awaiting-exact-child-claim-or-witnessed-recovery" } else { "not-required" },
+        "authority": "Self may launch one bounded coordinator turn; it cannot directly invoke model/tools, mutate Mind/Hands, review, release, or deploy",
         "privateStateExposed": false
     })
 }
 
-fn non_empty_string(value: Option<&Value>) -> Option<String> {
-    value
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
+#[derive(Clone, Copy)]
+enum CommandKind {
+    Once,
+    Serve,
 }
 
-fn queue_run_args(
-    args: &RunArgs,
-    workspace: &Path,
-    epiphany_root: &Path,
-    local_verse_store: &Path,
-    runtime_id: &str,
-) -> Vec<String> {
-    let mut queue_args = vec![
-        "queue-run".to_string(),
-        "--workspace".to_string(),
-        workspace.display().to_string(),
-        "--epiphany-root".to_string(),
-        epiphany_root.display().to_string(),
-        "--local-verse-store".to_string(),
-        local_verse_store.display().to_string(),
-        "--runtime-id".to_string(),
-        runtime_id.to_string(),
-        "--max-items".to_string(),
-        args.max_items.to_string(),
-        "--cooldown-seconds".to_string(),
-        args.cooldown_seconds.to_string(),
-        "--active-timeout-seconds".to_string(),
-        args.active_timeout_seconds.to_string(),
-    ];
-    if args.dry_run {
-        queue_args.push("--dry-run".to_string());
-    }
-    queue_args
+struct Args {
+    command: CommandKind,
+    state_store: PathBuf,
+    policy: ResidentSelfPolicy,
+    pressure: Option<ResidentSelfPressure>,
 }
 
-fn ensure_agent_store(agent_store: &Path, template_store: PathBuf) -> Result<Value> {
-    if agent_store.exists() {
-        return Ok(json!({
-            "status": "existing",
-            "agentStore": agent_store,
-            "templateStore": Value::Null,
-            "privateStateExposed": false,
-        }));
-    }
-    if !template_store.exists() {
-        return Err(anyhow!(
-            "repo-local agent store is absent and template store {} does not exist",
-            template_store.display()
-        ));
-    }
-    if let Some(parent) = agent_store.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::copy(&template_store, agent_store).with_context(|| {
-        format!(
-            "failed to seed {} from {}",
-            agent_store.display(),
-            template_store.display()
-        )
-    })?;
-    Ok(json!({
-        "status": "seeded-from-template",
-        "agentStore": agent_store,
-        "templateStore": template_store,
-        "scaffold": "repo-local standing faculty bootstrap; birth accept-init may refine this store after review",
-        "privateStateExposed": false,
-    }))
-}
-
-fn verse_json(
-    manifest_path: &Path,
-    command: &str,
-    store: &Path,
-    runtime_id: &str,
-    extra: &[String],
-) -> Result<Value> {
-    let mut args = vec![
-        command.to_string(),
-        "--store".to_string(),
-        store.display().to_string(),
-        "--runtime-id".to_string(),
-        runtime_id.to_string(),
-    ];
-    args.extend(extra.iter().cloned());
-    cargo_json(manifest_path, "epiphany-verse-query", &args)
-        .with_context(|| format!("epiphany-verse-query {command} failed"))
-}
-
-fn cargo_json(manifest_path: &Path, bin_name: &str, args: &[String]) -> Result<Value> {
-    let output = Command::new("cargo")
-        .arg("run")
-        .arg("--quiet")
-        .arg("--manifest-path")
-        .arg(manifest_path)
-        .arg("--bin")
-        .arg(bin_name)
-        .arg("--")
-        .args(args)
-        .output()
-        .with_context(|| format!("failed to spawn cargo run --bin {bin_name}"))?;
-    if !output.status.success() {
-        return Err(anyhow!(
-            "cargo run --bin {bin_name} failed:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-    serde_json::from_slice(&output.stdout)
-        .with_context(|| format!("{bin_name} returned invalid JSON"))
-}
-
-fn compact_fields(value: &Value, fields: &[&str]) -> Value {
-    let mut out = serde_json::Map::new();
-    for field in fields {
-        out.insert(
-            (*field).to_string(),
-            value.get(*field).cloned().unwrap_or(Value::Null),
-        );
-    }
-    Value::Object(out)
-}
-
-fn summarize_tool_directory(value: &Value) -> Value {
-    let tools = value
-        .get("tools")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let all_agents_tool_count = tools
-        .iter()
-        .filter(|tool| {
-            tool.get("availableToAllAgents")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-        })
-        .count();
-    let private_state_exposed = tools.iter().any(|tool| {
-        tool.get("privateStateExposed")
-            .and_then(Value::as_bool)
-            .unwrap_or(true)
-    });
-    json!({
-        "status": value.get("status").cloned().unwrap_or(Value::Null),
-        "toolCount": value.get("toolCount").cloned().unwrap_or_else(|| json!(tools.len())),
-        "allAgentsToolCount": all_agents_tool_count,
-        "privateStateExposed": private_state_exposed,
-    })
-}
-
-fn path_from_json(value: &Value, path: &[&str]) -> Option<PathBuf> {
-    let mut cursor = value;
-    for segment in path {
-        cursor = cursor.get(*segment)?;
-    }
-    cursor.as_str().map(PathBuf::from)
-}
-
-fn string_from_json(value: &Value, path: &[&str]) -> Option<String> {
-    let mut cursor = value;
-    for segment in path {
-        cursor = cursor.get(*segment)?;
-    }
-    cursor.as_str().map(ToString::to_string)
-}
-
-fn read_json(path: &Path) -> Result<Value> {
-    let raw =
-        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    serde_json::from_str(&raw).with_context(|| format!("failed to decode {}", path.display()))
-}
-
-fn write_json(path: &Path, value: &Value) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, serde_json::to_vec_pretty(value)?)
-        .with_context(|| format!("failed to write {}", path.display()))
-}
-
-fn ensure_git_repo(workspace: &Path) -> Result<()> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(workspace)
-        .arg("rev-parse")
-        .arg("--show-toplevel")
-        .output()
-        .with_context(|| format!("failed to run git in {}", workspace.display()))?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(anyhow!("{} is not a git repository", workspace.display()))
-    }
-}
-
-fn take_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
-    Ok(PathBuf::from(take_string(args, name)?))
-}
-
-fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
-    args.next()
-        .ok_or_else(|| anyhow!("missing value for {name}"))
-}
-
-fn take_u64(args: &mut impl Iterator<Item = String>, name: &str) -> Result<u64> {
-    let raw = take_string(args, name)?;
-    raw.parse::<u64>()
-        .with_context(|| format!("invalid integer for {name}: {raw:?}"))
-}
-
-fn sanitize(value: &str) -> String {
-    let sanitized = value
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() {
-                ch.to_ascii_lowercase()
-            } else {
-                '-'
+impl Args {
+    fn parse() -> Result<Self> {
+        let mut it = env::args().skip(1);
+        let command = match it.next().as_deref() {
+            Some("once") => CommandKind::Once,
+            Some("serve") => CommandKind::Serve,
+            _ => {
+                return Err(anyhow!(
+                    "usage: epiphany-swarm <once|serve> with exact absolute packaged paths"
+                ));
             }
+        };
+        let mut value = BTreeMap::new();
+        let mut objective = None;
+        while let Some(flag) = it.next() {
+            let raw = it
+                .next()
+                .ok_or_else(|| anyhow!("missing value for {flag}"))?;
+            if flag == "--objective" {
+                objective = Some(raw);
+            } else {
+                value.insert(flag, raw);
+            }
+        }
+        let path = |name: &str| -> Result<PathBuf> {
+            Ok(PathBuf::from(
+                value.get(name).ok_or_else(|| anyhow!("missing {name}"))?,
+            ))
+        };
+        let u64v = |name: &str, default: u64| -> Result<u64> {
+            value.get(name).map_or(Ok(default), |v| {
+                v.parse().with_context(|| format!("invalid {name}"))
+            })
+        };
+        let release_store = path("--release-store")?;
+        let policy = ResidentSelfPolicy {
+            workspace: path("--workspace")?,
+            coordinator_bin: release_store.clone(),
+            model_runtime_bin: release_store.clone(),
+            tool_adapter_bin: release_store.clone(),
+            runtime_store: path("--runtime-store")?,
+            local_verse_store: path("--local-verse-store")?,
+            agent_memory_store: path("--agent-memory-store")?,
+            artifact_root: path("--artifact-root")?,
+            codex_home: path("--codex-home")?,
+            model_provider: value
+                .get("--model-provider")
+                .cloned()
+                .unwrap_or_else(|| "local".into()),
+            max_steps: u64v("--max-steps", 4)?,
+            turn_timeout_seconds: u64v("--turn-timeout-seconds", 600)?,
+            cooldown_seconds: u64v("--cooldown-seconds", 60)?,
+            idle_sleep_seconds: u64v("--idle-sleep-seconds", 15)?,
+            failure_backoff_seconds: u64v("--failure-backoff-seconds", 60)?,
+            release_commit: String::new(),
+            release_manifest_digest: String::new(),
+            release_store,
+            release_runtime_id: value
+                .get("--release-runtime-id")
+                .cloned()
+                .ok_or_else(|| anyhow!("missing --release-runtime-id"))?,
+            release_id: value
+                .get("--release-id")
+                .cloned()
+                .ok_or_else(|| anyhow!("missing --release-id"))?,
+            release_witness_sha256: value
+                .get("--release-witness-sha256")
+                .cloned()
+                .ok_or_else(|| anyhow!("missing --release-witness-sha256"))?,
+        };
+        let pressure = objective.map(|objective| ResidentSelfPressure {
+            schema_version: epiphany_core::RESIDENT_SELF_PRESSURE_SCHEMA_VERSION.into(),
+            pressure_id: value
+                .get("--pressure-id")
+                .cloned()
+                .unwrap_or_else(|| format!("operator-pressure-{}", Utc::now().timestamp_millis())),
+            kind: "operator-objective".into(),
+            provenance_ref: "cli://epiphany-swarm/operator-objective".into(),
+            objective,
+            created_at_millis: Utc::now().timestamp_millis().max(0) as u64,
+            status: "pending".into(),
+            consumed_by_grant_id: None,
+            private_state_exposed: false,
+        });
+        Ok(Self {
+            command,
+            state_store: path("--state-store")?,
+            policy,
+            pressure,
         })
-        .collect::<String>()
-        .split('-')
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("-");
-    if sanitized.is_empty() {
-        "workspace".to_string()
-    } else {
-        sanitized
     }
 }
 
-fn print_usage() {
-    eprintln!(
-        "usage: epiphany-swarm <online|run> ...\n\
-         online --workspace <repo> [--epiphany-root <path>] [--store <local-verse.ccmp>] [--state-dir <path>] [--artifact-dir <path>] [--runtime-id <id>] [--init-receipt <path>] [--agent-template-store <agents.msgpack>]\n\
-         run --workspace <repo> [--epiphany-root <path>] [--store <local-verse.ccmp>] [--runtime-id <id>] [--until blocked-or-published] [--max-iterations <n>] [--max-items <n>] [--dry-run]"
-    );
+struct NativePorts<'a> {
+    policy: &'a ResidentSelfPolicy,
+    children: BTreeMap<u32, Child>,
 }
 
-#[cfg(test)]
-mod classification_tests {
-    use super::*;
+impl<'a> NativePorts<'a> {
+    fn new(policy: &'a ResidentSelfPolicy) -> Self {
+        Self {
+            policy,
+            children: BTreeMap::new(),
+        }
+    }
+}
 
-    #[test]
-    fn stop_classification_reads_typed_rows_not_tui_prose() {
-        let typed = vec![json!({
-            "queueRunStatus": "would-advance",
-            "actionableCount": 1,
-            "queueCount": 1,
-            "selectedRows": [{
-                "item": "item-1",
-                "branch": "main",
-                "gate": "ready-to-run",
-                "blocker": "none",
-                "nextSafeMove": "run it"
-            }],
-            "outputs": []
-        })];
-        let typed_result = classify_run_stop(
-            "dry-run-preview-complete",
-            "preview",
-            "blocked-or-published",
-            true,
-            1,
-            &typed,
-            "fallback",
-        );
-        assert_eq!(typed_result["authorityGate"], "ready-to-run");
-        assert_eq!(typed_result["selectedItem"], "item-1");
+impl ResidentSelfPorts for NativePorts<'_> {
+    fn brake_engaged(&mut self) -> Result<bool> {
+        Ok(load_epiphany_cultmesh_swarm_brake(
+            &self.policy.local_verse_store,
+            "epiphany-resident-self",
+        )?
+        .is_some_and(|brake| brake.status == "engaged"))
+    }
 
-        let prose = vec![json!({
-            "queueRunStatus": "would-advance",
-            "actionableCount": 1,
-            "queueCount": 1,
-            "selectedRows": ["QUEUE-RUN | item=counterfeit | gate=published | blocker=none"],
-            "outputs": []
-        })];
-        let prose_result = classify_run_stop(
-            "dry-run-preview-complete",
-            "preview",
-            "blocked-or-published",
-            true,
-            1,
-            &prose,
-            "fallback",
-        );
-        assert_eq!(prose_result["authorityGate"], "none");
-        assert_eq!(prose_result["selectedItem"], "none");
+    fn observe_child(
+        &mut self,
+        lease: &epiphany_core::ResidentSelfTurnLease,
+    ) -> Result<ChildObservation> {
+        if let Some(child) = self.children.get_mut(&lease.process_id) {
+            return Ok(match child.try_wait()? {
+                Some(status) => ChildObservation::Exited(status.code().unwrap_or(-1)),
+                None => ChildObservation::Running,
+            });
+        }
+        let expected = ProcessInstanceIdentity {
+            process_id: lease.process_id,
+            creation_token: lease.process_creation_token,
+            created_at_rfc3339: None,
+            executable_path: lease.process_executable_path.clone(),
+        };
+        Ok(match observe_process_instance(&expected) {
+            ProcessInstanceObservation::ExactAlive => ChildObservation::Running,
+            ProcessInstanceObservation::ExactExited { exit_code } => {
+                ChildObservation::Exited(exit_code.map(|v| v as i32).unwrap_or(-1))
+            }
+            ProcessInstanceObservation::Missing | ProcessInstanceObservation::Replaced { .. } => {
+                ChildObservation::Missing
+            }
+            // Uncertainty cannot prove the exact incarnation dead, so it cannot admit a replacement.
+            ProcessInstanceObservation::Inaccessible
+            | ProcessInstanceObservation::Indeterminate { .. } => ChildObservation::Running,
+        })
+    }
+
+    fn request_child_stop(&mut self, lease: &epiphany_core::ResidentSelfTurnLease) -> Result<()> {
+        if let Some(child) = self.children.get_mut(&lease.process_id) {
+            return child.kill().with_context(|| {
+                format!(
+                    "failed to stop exact coordinator process {}",
+                    lease.process_id
+                )
+            });
+        }
+        terminate_process_instance(&ProcessInstanceIdentity {
+            process_id: lease.process_id,
+            creation_token: lease.process_creation_token,
+            created_at_rfc3339: None,
+            executable_path: lease.process_executable_path.clone(),
+        })
+    }
+
+    fn launch_coordinator(&mut self, launch: &CoordinatorLaunch) -> Result<LaunchedCoordinator> {
+        let mut command = Command::new(&self.policy.coordinator_bin);
+        command
+            .args(&launch.argv)
+            .current_dir(&self.policy.workspace);
+        let child = command.spawn().with_context(|| {
+            format!("failed to launch {}", self.policy.coordinator_bin.display())
+        })?;
+        let process_id = child.id();
+        let identity = capture_process_instance(process_id)?;
+        self.children.insert(process_id, child);
+        Ok(LaunchedCoordinator {
+            process_id,
+            process_creation_token: identity.creation_token,
+            process_executable_path: identity.executable_path,
+        })
+    }
+
+    fn coordinator_receipt_since(
+        &mut self,
+        turn_id: &str,
+        started_at_millis: u64,
+    ) -> Result<Option<String>> {
+        let mut receipts = coordinator_run_receipts(&self.policy.runtime_store)?;
+        receipts.retain(|receipt| {
+            receipt.thread_id == turn_id
+                && chrono::DateTime::parse_from_rfc3339(&receipt.created_at)
+                    .map(|at| at.timestamp_millis().max(0) as u64 >= started_at_millis)
+                    .unwrap_or(false)
+        });
+        receipts.sort_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then(a.receipt_id.cmp(&b.receipt_id))
+        });
+        Ok(receipts.last().map(|receipt| receipt.receipt_id.clone()))
     }
 }

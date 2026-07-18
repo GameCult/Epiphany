@@ -2444,6 +2444,58 @@ proposal -> explicit adoption/review -> Hands consequence -> Bifrost exact
 release authority -> Idunn deployment receipt, plus the negative that
 conversation alone cannot cross any later boundary.
 
+Live observation on 2026-07-18 sharpened the deployment boundary. Exact release
+`0601e280480cccc28209fbf0630e921f3ef9056d` kept its projector incarnation alive
+and advanced the Qdrant workspace collection from 1,621 to 3,278 points after
+the foreground Idunn deploy actuator was no longer present. `deployment.env`
+remained absent and Idunn correctly raised `dependency-unavailable` because it
+could not establish release freshness. A surviving candidate and advancing
+checkpoint are resumable work evidence, not deployment admission. After the
+provider reaches terminal projection, the same exact authorized release must
+re-enter Idunn's deployment transaction and earn the typed deployment witness;
+no observer, systemd state, Qdrant count, or journal line may synthesize it.
+
+## Resident organizational Self ownership (2026-07-18)
+
+The resident cognition cut now has a concrete authority boundary. Standard
+heartbeat alone converts one pending typed pressure into one single-consumption
+Self scheduling grant. Resident Self alone turns that grant into one exact
+coordinator process lease. The coordinator, model runtime, and tool spine keep
+their existing authorities; the resident scheduler does not absorb them.
+
+Inputs are an authenticated packaged-release witness, physically separate
+resident/runtime/Verse/Mind stores, the swarm brake, exact process observation,
+and typed operator-objective, Body-map-drift, Persona-feedback, or
+Imagination-proposal pressure. Outputs are immutable pressure/grant,
+preparation, child-claim, active-lease, coordinator-receipt binding, and
+heartbeat terminal-ack documents. Active status and cooldown are derived from
+that chain. Process exit, logs, Persona speech, proposal text, systemd state,
+Eve/Gjallar projection, and Qdrant progress are forbidden writers.
+
+All wake sources share one path: pressure -> heartbeat grant -> prepared launch
+-> packaged coordinator child claim before cognition -> exact process lease ->
+bound coordinator terminal receipt -> terminal acknowledgement. Preparation
+and grant consumption use one CAS; brake and timeout drain the exact observed
+process; coordinator exit zero without its exact receipt fails. The old
+source-tree/Cargo swarm wrapper and its `online`, `run`, `run-queue`, `pulse`,
+and `epiphany-work` queue authority are outside the live body. Packaging now
+requires witnessed sibling roles for swarm, coordinator, model runtime, and the
+Codex MCP tool spine.
+
+Verification must remain at these typed transitions: CAS/replay, store
+separation, release witness, child-claim-before-cognition, exact process
+identity, brake/timeout timelines, receipt substitution, and absence of runtime
+Cargo/queue paths. One nonblocking hardening note remains: the parent currently
+correlates its post-launch process observation with the child's atomic claim.
+That is stronger than PID custody and fails closed, but it should eventually be
+replaced by an OS-authenticated parent/child launch channel where available.
+
+This is cognition bootstrap, not deployment admission. Ygg release
+`0601e280480cccc28209fbf0630e921f3ef9056d` remains a live advancing candidate
+until Idunn publishes the exact typed deployment witness; resident service
+installation, writable domain custody, credentials, Persona/Discord ingress,
+and the Starfire-offline rehearsal remain required.
+
 The immediate live wound precedes that work. The workspace projector is the
 lifetime owner of `workspace-coverage.cc`, but the supervisor currently opens
 that private store to discover and perform recovery. Replace that transitive

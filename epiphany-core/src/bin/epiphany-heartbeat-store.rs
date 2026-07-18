@@ -57,6 +57,7 @@ fn main() -> Result<()> {
     let mut action_id: Option<String> = None;
     let mut limit = 8_usize;
     let mut agent_store: Option<PathBuf> = None;
+    let mut resident_self_store: Option<PathBuf> = None;
     let mut apply_rumination = false;
     let mut profile = "epiphany".to_string();
     let mut scene_id = "ghostlight.scene".to_string();
@@ -123,6 +124,9 @@ fn main() -> Result<()> {
             "--action-id" => action_id = Some(next_value(&mut args, "--action-id")?),
             "--limit" => limit = next_value(&mut args, "--limit")?.parse()?,
             "--agent-store" => agent_store = Some(next_path(&mut args, "--agent-store")?),
+            "--resident-self-store" => {
+                resident_self_store = Some(next_path(&mut args, "--resident-self-store")?)
+            }
             "--apply-rumination" => apply_rumination = true,
             "--profile" => profile = next_value(&mut args, "--profile")?,
             "--scene-id" => scene_id = next_value(&mut args, "--scene-id")?,
@@ -219,6 +223,7 @@ fn main() -> Result<()> {
                     source_scene_ref,
                     defer_completion,
                     agent_store: agent_store.clone(),
+                    resident_self_store: resident_self_store.clone(),
                 },
             )?;
             if apply_rumination {
@@ -288,6 +293,7 @@ fn main() -> Result<()> {
                     schedule_id,
                     source_scene_ref,
                     agent_store,
+                    resident_self_store,
                 },
             )?;
             println!("{}", result);
@@ -638,6 +644,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             source_scene_ref: "smoke/coordinator".to_string(),
             defer_completion: true,
             agent_store: Some(temp_agent_store.clone()),
+            resident_self_store: None,
         },
     )?;
     let blocked_repeat = tick_heartbeat_store(
@@ -652,6 +659,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             source_scene_ref: "smoke/coordinator".to_string(),
             defer_completion: true,
             agent_store: Some(temp_agent_store.clone()),
+            resident_self_store: None,
         },
     )
     .err()
@@ -681,6 +689,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             source_scene_ref: "smoke/idle".to_string(),
             defer_completion: false,
             agent_store: Some(temp_agent_store.clone()),
+            resident_self_store: None,
         },
     )?;
 
@@ -732,6 +741,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             schedule_id: "smoke-relaxed-pump".to_string(),
             source_scene_ref: "smoke/relaxed".to_string(),
             agent_store: Some(temp_agent_store.clone()),
+            resident_self_store: None,
         },
     )?;
     let alarmed_store_path = temp_dir.join("alarmed-heartbeats.msgpack");
@@ -752,6 +762,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             schedule_id: "smoke-alarmed-pump".to_string(),
             source_scene_ref: "smoke/alarmed".to_string(),
             agent_store: Some(temp_agent_store.clone()),
+            resident_self_store: None,
         },
     )?;
     let stale_store_path = temp_dir.join("stale-heartbeats.msgpack");
@@ -768,6 +779,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             source_scene_ref: "smoke/stale".to_string(),
             defer_completion: true,
             agent_store: Some(temp_agent_store.clone()),
+            resident_self_store: None,
         },
     )?;
     let stale_repair = recover_stale_heartbeat_store(
@@ -791,6 +803,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             source_scene_ref: "smoke/stale".to_string(),
             defer_completion: true,
             agent_store: Some(temp_agent_store.clone()),
+            resident_self_store: None,
         },
     )?;
     let initiative_errors = validate_schedule_shape(&work["schedule"])

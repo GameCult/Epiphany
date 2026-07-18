@@ -862,6 +862,7 @@ pub struct HeartbeatTickOptions {
     pub source_scene_ref: String,
     pub defer_completion: bool,
     pub agent_store: Option<std::path::PathBuf>,
+    pub resident_self_store: Option<std::path::PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -878,6 +879,7 @@ pub struct HeartbeatPumpOptions {
     pub schedule_id: String,
     pub source_scene_ref: String,
     pub agent_store: Option<std::path::PathBuf>,
+    pub resident_self_store: Option<std::path::PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

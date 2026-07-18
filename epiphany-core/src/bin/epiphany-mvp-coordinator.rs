@@ -29,6 +29,9 @@ use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_spine_status;
 use epiphany_core::select_and_commit_repo_frontier_route;
 use epiphany_core::substrate_gate_coordinator_implementation_grant;
+use epiphany_core::{
+    LaunchedCoordinator, capture_process_instance, claim_resident_self_preparation_as_child,
+};
 use serde_json::Value;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -86,6 +89,9 @@ struct Args {
     supersede_failed_results: bool,
     auto_tools: bool,
     proposal_modeling_request_id: Option<String>,
+    resident_binding: BTreeMap<String, String>,
+    resident_state_store: Option<PathBuf>,
+    resident_preparation_id: Option<String>,
 }
 
 impl Args {
@@ -119,6 +125,9 @@ impl Args {
             supersede_failed_results: false,
             auto_tools: true,
             proposal_modeling_request_id: None,
+            resident_binding: BTreeMap::new(),
+            resident_state_store: None,
+            resident_preparation_id: None,
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -142,6 +151,27 @@ impl Args {
                 "--proposal-modeling-request-id" => {
                     parsed.proposal_modeling_request_id =
                         Some(take_string(&mut args, "--proposal-modeling-request-id")?);
+                }
+                flag @ ("--resident-grant-id"
+                | "--resident-launch-digest"
+                | "--resident-policy-digest"
+                | "--resident-argv-digest"
+                | "--resident-objective-digest"
+                | "--resident-release-commit"
+                | "--resident-release-manifest-digest"
+                | "--resident-executable-digest") => {
+                    parsed.resident_binding.insert(
+                        flag.trim_start_matches("--resident-").to_string(),
+                        take_string(&mut args, flag)?,
+                    );
+                }
+                "--resident-state-store" => {
+                    parsed.resident_state_store =
+                        Some(take_path(&mut args, "--resident-state-store")?)
+                }
+                "--resident-preparation-id" => {
+                    parsed.resident_preparation_id =
+                        Some(take_string(&mut args, "--resident-preparation-id")?)
                 }
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
                 "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
@@ -190,6 +220,27 @@ impl Args {
 
 fn run_coordinator(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
+    match (&args.resident_state_store, &args.resident_preparation_id) {
+        (Some(store), Some(preparation_id)) => {
+            let identity = capture_process_instance(std::process::id())?;
+            claim_resident_self_preparation_as_child(
+                store,
+                preparation_id,
+                &LaunchedCoordinator {
+                    process_id: identity.process_id,
+                    process_creation_token: identity.creation_token,
+                    process_executable_path: identity.executable_path,
+                },
+                chrono::Utc::now().timestamp_millis().max(0) as u64,
+            )?;
+        }
+        (None, None) => {}
+        _ => {
+            return Err(anyhow!(
+                "resident coordinator bootstrap requires both state store and preparation id"
+            ));
+        }
+    }
     let local_verse_store = status_cli::absolute_path(&args.local_verse_store)?;
     assert_local_verse_brake_released(&local_verse_store, "epiphany-mvp-coordinator")?;
     let cwd = status_cli::absolute_path(&args.cwd)?;
@@ -659,6 +710,17 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             ),
             ("autoTools".to_string(), args.auto_tools.to_string()),
         ]),
+        resident_grant_id: args.resident_binding.get("grant-id").cloned(),
+        resident_launch_digest: args.resident_binding.get("launch-digest").cloned(),
+        resident_policy_digest: args.resident_binding.get("policy-digest").cloned(),
+        resident_argv_digest: args.resident_binding.get("argv-digest").cloned(),
+        resident_objective_digest: args.resident_binding.get("objective-digest").cloned(),
+        resident_release_commit: args.resident_binding.get("release-commit").cloned(),
+        resident_release_manifest_digest: args
+            .resident_binding
+            .get("release-manifest-digest")
+            .cloned(),
+        resident_executable_digest: args.resident_binding.get("executable-digest").cloned(),
     };
     put_coordinator_run_receipt(&runtime_store, &coordinator_run_receipt)?;
     let summary = json!({

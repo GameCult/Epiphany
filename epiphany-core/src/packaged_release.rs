@@ -3,7 +3,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use chrono::{DateTime, Utc};
 use cultcache_rs::{DatabaseEntry, SingleFileMessagePackBackingStore};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -76,68 +76,43 @@ pub struct PackageReleaseRequest<'a> {
     pub store: &'a Path,
     pub runtime_id: &'a str,
     pub target_triple: &'a str,
-    pub toolchain_fingerprint: &'a str,
 }
 
-pub fn required_packaged_release_binaries() -> Vec<(&'static str, &'static str)> {
+pub fn required_packaged_release_binaries(target_triple: &str) -> Vec<(&'static str, String)> {
+    let file_name = |name: &str| target_binary_file_name(target_triple, name);
     vec![
-        (
-            "supervisor",
-            if cfg!(windows) {
-                "epiphany-daemon-supervisor.exe"
-            } else {
-                "epiphany-daemon-supervisor"
-            },
-        ),
+        ("supervisor", file_name("epiphany-daemon-supervisor")),
         (
             "semantic-projector",
-            if cfg!(windows) {
-                "epiphany-memory-semantic-projector.exe"
-            } else {
-                "epiphany-memory-semantic-projector"
-            },
+            file_name("epiphany-memory-semantic-projector"),
         ),
         (
             "workspace-coverage-projector",
-            if cfg!(windows) {
-                "epiphany-workspace-coverage-projector.exe"
-            } else {
-                "epiphany-workspace-coverage-projector"
-            },
+            file_name("epiphany-workspace-coverage-projector"),
         ),
+        ("semantic-query", file_name("epiphany-memory-semantic")),
+        ("verse-query", file_name("epiphany-verse-query")),
+        ("repository-body", file_name("epiphany-repository-body")),
+        ("host-identity", file_name("epiphany-host-identity")),
+        ("swarm", file_name("epiphany-swarm")),
+        ("coordinator", file_name("epiphany-mvp-coordinator")),
+        ("model-runtime", file_name("epiphany-model-runtime")),
         (
-            "semantic-query",
-            if cfg!(windows) {
-                "epiphany-memory-semantic.exe"
-            } else {
-                "epiphany-memory-semantic"
-            },
-        ),
-        (
-            "verse-query",
-            if cfg!(windows) {
-                "epiphany-verse-query.exe"
-            } else {
-                "epiphany-verse-query"
-            },
-        ),
-        (
-            "repository-body",
-            if cfg!(windows) {
-                "epiphany-repository-body.exe"
-            } else {
-                "epiphany-repository-body"
-            },
-        ),
-        (
-            "host-identity",
-            if cfg!(windows) {
-                "epiphany-host-identity.exe"
-            } else {
-                "epiphany-host-identity"
-            },
+            "tool-codex-mcp-spine",
+            file_name("epiphany-tool-codex-mcp-spine"),
         ),
     ]
+}
+
+fn target_binary_file_name(target_triple: &str, binary: &str) -> String {
+    if target_triple
+        .split('-')
+        .any(|component| component == "windows")
+    {
+        format!("{binary}.exe")
+    } else {
+        binary.to_string()
+    }
 }
 
 pub fn package_and_publish_epiphany_release(
@@ -146,34 +121,40 @@ pub fn package_and_publish_epiphany_release(
     let (source_commit_sha, source_commit_time) = clean_source_commit(request.repo)?;
     require_nonempty("runtime id", request.runtime_id)?;
     require_nonempty("target triple", request.target_triple)?;
-    require_nonempty("toolchain fingerprint", request.toolchain_fingerprint)?;
+    let toolchain = installed_toolchain()?;
     fs::create_dir_all(request.destination)?;
     let destination = canonical_path(request.destination)?;
     let source_root = short_temporary_path("ep-src");
     let source_guard = GitWorktreeGuard::create(request.repo, &source_root, &source_commit_sha)?;
     let build_root = short_temporary_path("ep-build");
     let _build_guard = DirectoryCleanup(build_root.clone());
-    build_required_release_siblings(&source_guard.path, &build_root, request.target_triple)?;
-    let built_dir = build_root.join(request.target_triple).join("release");
+    let built_binaries = build_required_release_siblings(
+        &source_guard.path,
+        &build_root,
+        request.target_triple,
+        &toolchain.cargo,
+    )?;
     let staging = destination.join(format!(".staging-{}", Uuid::new_v4()));
     fs::create_dir(&staging)?;
     let result = (|| {
         let mut binaries = Vec::new();
-        for (role, file_name) in required_packaged_release_binaries() {
-            let source = built_dir.join(file_name);
+        for (role, file_name) in required_packaged_release_binaries(request.target_triple) {
+            let source = built_binaries
+                .get(role)
+                .with_context(|| format!("required packaged sibling was not built: {role}"))?;
             if !source.is_file() {
                 bail!("required packaged sibling is absent: {}", source.display());
             }
-            let target = staging.join(file_name);
+            let target = staging.join(&file_name);
             fs::copy(&source, &target)?;
-            binaries.push(binary_record(role, file_name, &target)?);
+            binaries.push(binary_record(role, &file_name, &target)?);
         }
         binaries.sort_by(|left, right| left.role.cmp(&right.role));
         let release_id = release_id(
             request.runtime_id,
             &source_commit_sha,
             request.target_triple,
-            request.toolchain_fingerprint,
+            &toolchain.fingerprint,
             &binaries,
         );
         let final_root = destination.join(&source_commit_sha).join(&release_id);
@@ -188,7 +169,7 @@ pub fn package_and_publish_epiphany_release(
             source_commit_sha,
             target_triple: request.target_triple.into(),
             cargo_profile: "release".into(),
-            toolchain_fingerprint: request.toolchain_fingerprint.into(),
+            toolchain_fingerprint: toolchain.fingerprint,
             created_at_utc: source_commit_time,
             package_root: final_root.display().to_string(),
             binaries,
@@ -291,47 +272,79 @@ impl Drop for GitWorktreeGuard {
     }
 }
 
-fn build_required_release_siblings(repo: &Path, target_dir: &Path, target: &str) -> Result<()> {
-    let manifest = repo.join("epiphany-core").join("Cargo.toml");
-    if !manifest.is_file() {
-        bail!(
-            "Epiphany release manifest is absent: {}",
-            manifest.display()
-        );
+fn build_required_release_siblings(
+    repo: &Path,
+    target_root: &Path,
+    target: &str,
+    cargo: &std::ffi::OsStr,
+) -> Result<BTreeMap<&'static str, PathBuf>> {
+    let mut manifests = BTreeSet::new();
+    for (role, _) in required_packaged_release_binaries(target) {
+        manifests.insert(required_release_build_target(role)?.0);
     }
-    let mut command = std::process::Command::new("cargo");
-    command
-        .arg("build")
-        .arg("--release")
-        .arg("--manifest-path")
-        .arg(&manifest)
-        .arg("--target-dir")
-        .arg(target_dir)
-        .arg("--target")
-        .arg(target);
-    command.arg("--locked");
-    for (role, _) in required_packaged_release_binaries() {
-        let binary = required_release_binary(role)?;
-        command.arg("--bin").arg(binary);
+    let mut outputs = BTreeMap::new();
+    for manifest_dir in manifests {
+        let manifest = repo.join(manifest_dir).join("Cargo.toml");
+        if !manifest.is_file() {
+            bail!(
+                "Epiphany release manifest is absent: {}",
+                manifest.display()
+            );
+        }
+        let target_dir = release_manifest_target_dir(target_root, manifest_dir);
+        let mut command = std::process::Command::new(cargo);
+        command
+            .arg("build")
+            .arg("--release")
+            .arg("--manifest-path")
+            .arg(&manifest)
+            .arg("--target-dir")
+            .arg(&target_dir)
+            .arg("--target")
+            .arg(target)
+            .arg("--locked");
+        for (role, file_name) in required_packaged_release_binaries(target) {
+            let (owner, binary) = required_release_build_target(role)?;
+            if owner == manifest_dir {
+                command.arg("--bin").arg(binary);
+                outputs.insert(
+                    role,
+                    target_dir.join(target).join("release").join(file_name),
+                );
+            }
+        }
+        let status = command
+            .status()
+            .with_context(|| format!("failed to start {manifest_dir} release build"))?;
+        if !status.success() {
+            bail!("owned Epiphany release build failed for {manifest_dir}");
+        }
     }
-    let status = command
-        .status()
-        .context("failed to start owned release build")?;
-    if !status.success() {
-        bail!("owned Epiphany release build failed");
-    }
-    Ok(())
+    Ok(outputs)
 }
 
-fn required_release_binary(role: &str) -> Result<&'static str> {
+fn release_manifest_target_dir(target_root: &Path, manifest_dir: &str) -> PathBuf {
+    target_root.join(manifest_dir)
+}
+
+fn required_release_build_target(role: &str) -> Result<(&'static str, &'static str)> {
     match role {
-        "supervisor" => Ok("epiphany-daemon-supervisor"),
-        "semantic-projector" => Ok("epiphany-memory-semantic-projector"),
-        "workspace-coverage-projector" => Ok("epiphany-workspace-coverage-projector"),
-        "semantic-query" => Ok("epiphany-memory-semantic"),
-        "verse-query" => Ok("epiphany-verse-query"),
-        "repository-body" => Ok("epiphany-repository-body"),
-        "host-identity" => Ok("epiphany-host-identity"),
+        "supervisor" => Ok(("epiphany-core", "epiphany-daemon-supervisor")),
+        "semantic-projector" => Ok(("epiphany-core", "epiphany-memory-semantic-projector")),
+        "workspace-coverage-projector" => {
+            Ok(("epiphany-core", "epiphany-workspace-coverage-projector"))
+        }
+        "semantic-query" => Ok(("epiphany-core", "epiphany-memory-semantic")),
+        "verse-query" => Ok(("epiphany-core", "epiphany-verse-query")),
+        "repository-body" => Ok(("epiphany-core", "epiphany-repository-body")),
+        "host-identity" => Ok(("epiphany-core", "epiphany-host-identity")),
+        "swarm" => Ok(("epiphany-core", "epiphany-swarm")),
+        "coordinator" => Ok(("epiphany-core", "epiphany-mvp-coordinator")),
+        "model-runtime" => Ok(("epiphany-openai-runtime", "epiphany-model-runtime")),
+        "tool-codex-mcp-spine" => Ok((
+            "epiphany-tool-codex-mcp-spine",
+            "epiphany-tool-codex-mcp-spine",
+        )),
         _ => bail!("unknown required release role {role}"),
     }
 }
@@ -355,7 +368,7 @@ pub fn validate_epiphany_packaged_release(entry: &EpiphanyPackagedReleaseEntry) 
     if !root.is_absolute() {
         bail!("packaged release root must be absolute");
     }
-    let required = required_packaged_release_binaries();
+    let required = required_packaged_release_binaries(&entry.target_triple);
     if entry.binaries.len() != required.len() {
         bail!("packaged release sibling set is incomplete");
     }
@@ -556,6 +569,39 @@ fn git(repo: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }
 
+struct InstalledToolchain {
+    cargo: std::ffi::OsString,
+    fingerprint: String,
+}
+
+fn installed_toolchain() -> Result<InstalledToolchain> {
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let cargo_version = command_version(&cargo, "cargo")?;
+    let rustc_version = command_version(&rustc, "rustc")?;
+    Ok(InstalledToolchain {
+        cargo: cargo.clone(),
+        fingerprint: format!(
+            "cargo-command={}\ncargo-vV:\n{}\nrustc-command={}\nrustc-vV:\n{}",
+            Path::new(&cargo).display(),
+            cargo_version,
+            Path::new(&rustc).display(),
+            rustc_version
+        ),
+    })
+}
+
+fn command_version(command: &std::ffi::OsStr, label: &str) -> Result<String> {
+    let output = std::process::Command::new(command).arg("-vV").output()?;
+    if !output.status.success() {
+        bail!(
+            "{label} -vV failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Ok(String::from_utf8(output.stdout)?.trim().to_string())
+}
+
 fn binary_record(
     role: &str,
     file_name: &str,
@@ -662,9 +708,64 @@ mod tests {
 
     #[test]
     fn every_required_release_role_has_a_build_target() {
-        for (role, _) in required_packaged_release_binaries() {
-            required_release_binary(role).expect("required release role must resolve");
+        for (role, _) in required_packaged_release_binaries("x86_64-unknown-linux-gnu") {
+            required_release_build_target(role).expect("required release role must resolve");
         }
+    }
+
+    #[test]
+    fn binary_suffix_follows_requested_target_not_packager_host() {
+        let windows = required_packaged_release_binaries("x86_64-pc-windows-msvc");
+        assert!(windows.iter().all(|(_, name)| name.ends_with(".exe")));
+        let linux = required_packaged_release_binaries("x86_64-unknown-linux-gnu");
+        assert!(linux.iter().all(|(_, name)| !name.ends_with(".exe")));
+    }
+
+    #[test]
+    fn owning_manifests_have_isolated_build_roots() {
+        let root = Path::new("isolated-release-build");
+        let core = release_manifest_target_dir(root, "epiphany-core");
+        let model = release_manifest_target_dir(root, "epiphany-openai-runtime");
+        let tools = release_manifest_target_dir(root, "epiphany-tool-codex-mcp-spine");
+        assert_ne!(core, model);
+        assert_ne!(core, tools);
+        assert_ne!(model, tools);
+        assert!(core.starts_with(root) && model.starts_with(root) && tools.starts_with(root));
+    }
+
+    #[test]
+    fn resident_cognition_roles_keep_their_owning_manifests() {
+        let packaged_roles = required_packaged_release_binaries("x86_64-unknown-linux-gnu")
+            .into_iter()
+            .map(|(role, _)| role)
+            .collect::<BTreeSet<_>>();
+        for role in [
+            "swarm",
+            "coordinator",
+            "model-runtime",
+            "tool-codex-mcp-spine",
+        ] {
+            assert!(packaged_roles.contains(role), "release omits {role}");
+        }
+        assert_eq!(
+            required_release_build_target("swarm").unwrap(),
+            ("epiphany-core", "epiphany-swarm")
+        );
+        assert_eq!(
+            required_release_build_target("coordinator").unwrap(),
+            ("epiphany-core", "epiphany-mvp-coordinator")
+        );
+        assert_eq!(
+            required_release_build_target("model-runtime").unwrap(),
+            ("epiphany-openai-runtime", "epiphany-model-runtime")
+        );
+        assert_eq!(
+            required_release_build_target("tool-codex-mcp-spine").unwrap(),
+            (
+                "epiphany-tool-codex-mcp-spine",
+                "epiphany-tool-codex-mcp-spine"
+            )
+        );
     }
 
     fn fixture() -> (TempDir, EpiphanyPackagedReleaseEntry) {
@@ -672,10 +773,13 @@ mod tests {
         let root = dir.path().join("release");
         fs::create_dir(&root).unwrap();
         let mut binaries = Vec::new();
-        for (index, (role, name)) in required_packaged_release_binaries().into_iter().enumerate() {
-            let path = root.join(name);
+        for (index, (role, name)) in required_packaged_release_binaries("x86_64-unknown-linux-gnu")
+            .into_iter()
+            .enumerate()
+        {
+            let path = root.join(&name);
             fs::write(&path, format!("binary-{index}")).unwrap();
-            binaries.push(binary_record(role, name, &path).unwrap());
+            binaries.push(binary_record(role, &name, &path).unwrap());
         }
         binaries.sort_by(|a, b| a.role.cmp(&b.role));
         let id = release_id("runtime", &"a".repeat(40), "target", "rustc", &binaries);
@@ -718,6 +822,23 @@ mod tests {
         let role = e.binaries[0].role.clone();
         e.binaries[0].role = e.binaries[1].role.clone();
         e.binaries[1].role = role;
+        assert!(validate_epiphany_packaged_release(&e).is_err());
+    }
+    #[test]
+    fn missing_resident_cognition_binary_is_rejected() {
+        let (_d, mut e) = fixture();
+        e.binaries.retain(|binary| binary.role != "model-runtime");
+        assert!(validate_epiphany_packaged_release(&e).is_err());
+    }
+    #[test]
+    fn substituted_resident_cognition_binary_is_rejected() {
+        let (_d, mut e) = fixture();
+        let model = e
+            .binaries
+            .iter_mut()
+            .find(|binary| binary.role == "model-runtime")
+            .unwrap();
+        model.file_name = "epiphany-openai-runtime".into();
         assert!(validate_epiphany_packaged_release(&e).is_err());
     }
     #[test]

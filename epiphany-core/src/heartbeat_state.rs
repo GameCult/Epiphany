@@ -37,9 +37,11 @@ use heartbeat_roles::display_name_for_role;
 pub use heartbeat_roles::ghostlight_scene_heartbeat_state;
 pub use heartbeat_roles::initialize_ghostlight_scene_heartbeat_store;
 pub use heartbeat_roles::initialize_heartbeat_store;
+pub use heartbeat_store::commit_heartbeat_state_transaction;
 pub use heartbeat_store::heartbeat_state_cache;
 pub use heartbeat_store::load_heartbeat_cognition_entry;
 pub use heartbeat_store::load_heartbeat_state_entry;
+pub use heartbeat_store::load_heartbeat_state_transaction;
 pub use heartbeat_store::load_latest_heartbeat_stale_turn_repair_receipt;
 pub use heartbeat_store::validate_heartbeat_cognition;
 pub use heartbeat_store::validate_heartbeat_state;
@@ -178,8 +180,14 @@ pub fn tick_heartbeat_store(
     options: HeartbeatTickOptions,
 ) -> Result<Value> {
     let store_path = store_path.as_ref();
-    let mut state = load_heartbeat_state_entry(store_path)?
-        .unwrap_or_else(|| default_heartbeat_state(options.target_heartbeat_rate));
+    if options.resident_self_store.as_deref() == Some(store_path) {
+        return Err(anyhow!(
+            "heartbeat and resident Self require physically separate CultCache stores"
+        ));
+    }
+    let (loaded_state, expected_state) = load_heartbeat_state_transaction(store_path)?;
+    let mut state =
+        loaded_state.unwrap_or_else(|| default_heartbeat_state(options.target_heartbeat_rate));
     if options.target_heartbeat_rate > 0.0 {
         state.target_heartbeat_rate = options.target_heartbeat_rate;
     }
@@ -194,8 +202,74 @@ pub fn tick_heartbeat_store(
         apply_mood_timing_from_appraisals(&mut state, &appraisals);
     }
     apply_initiative_heat_policy(&mut state);
-    let result = tick_once(&mut state, &options)?;
-    write_heartbeat_state_entry(store_path, &state)?;
+    if let Some(resident_store) = options.resident_self_store.as_deref()
+        && crate::pending_resident_self_pressure(resident_store)?
+        && let Some(pending) = state
+            .participants
+            .iter()
+            .find(|participant| participant.role_id == "coordinator")
+            .and_then(|participant| participant.pending_turn.as_ref())
+    {
+        crate::heartbeat_issue_resident_self_grant(
+            resident_store,
+            &pending.schedule_id,
+            &pending.action_id,
+            Utc::now().timestamp_millis().max(0) as u64,
+        )?;
+    }
+    let mut resident_ack_to_consume = None;
+    if let Some(resident_store) = options.resident_self_store.as_deref()
+        && let Some(pending) = state
+            .participants
+            .iter()
+            .find(|participant| participant.role_id == "coordinator")
+            .and_then(|participant| participant.pending_turn.as_ref())
+        && let Some(ack) = crate::pending_resident_self_ack_for(
+            resident_store,
+            &pending.schedule_id,
+            &pending.action_id,
+        )?
+    {
+        let index = participant_index_by_role(&state, "coordinator")?;
+        complete_pending_turn(&mut state, index)?;
+        resident_ack_to_consume = Some((resident_store.to_path_buf(), ack.ack_id));
+    }
+    let mut effective_options = options.clone();
+    if let Some(resident_store) = options.resident_self_store.as_deref()
+        && crate::pending_resident_self_pressure(resident_store)?
+    {
+        effective_options.coordinator_action = Some("resident-self-pressure".to_string());
+        effective_options.target_role = Some("coordinator".to_string());
+        effective_options.defer_completion = true;
+    }
+    let result = tick_once(&mut state, &effective_options)?;
+    commit_heartbeat_state_transaction(store_path, expected_state, &state)?;
+    if result["event"]["selectedRole"] == "coordinator"
+        && effective_options.defer_completion
+        && let Some(resident_store) = effective_options.resident_self_store.as_deref()
+    {
+        let schedule_id = result["event"]["schedule_id"]
+            .as_str()
+            .or_else(|| result["event"]["scheduleId"].as_str())
+            .unwrap_or(&effective_options.schedule_id);
+        let action_id = result["event"]["action_id"]
+            .as_str()
+            .or_else(|| result["event"]["actionId"].as_str())
+            .unwrap_or_default();
+        crate::heartbeat_issue_resident_self_grant(
+            resident_store,
+            schedule_id,
+            action_id,
+            Utc::now().timestamp_millis().max(0) as u64,
+        )?;
+    }
+    if let Some((resident_store, ack_id)) = resident_ack_to_consume {
+        crate::heartbeat_consume_resident_self_ack(
+            &resident_store,
+            &ack_id,
+            Utc::now().timestamp_millis().max(0) as u64,
+        )?;
+    }
 
     let artifact_dir = artifact_dir.as_ref();
     fs::create_dir_all(artifact_dir)
@@ -226,6 +300,51 @@ pub fn pump_heartbeat_store(
     options: HeartbeatPumpOptions,
 ) -> Result<Value> {
     let store_path = store_path.as_ref();
+    if let Some(resident_store) = options.resident_self_store.as_deref() {
+        let heartbeat = load_heartbeat_state_entry(store_path)?;
+        let pending_ack = if let Some(pending) = heartbeat
+            .as_ref()
+            .and_then(|state| {
+                state
+                    .participants
+                    .iter()
+                    .find(|p| p.role_id == "coordinator")
+            })
+            .and_then(|p| p.pending_turn.as_ref())
+        {
+            crate::pending_resident_self_ack_for(
+                resident_store,
+                &pending.schedule_id,
+                &pending.action_id,
+            )?
+            .is_some()
+        } else {
+            false
+        };
+        if crate::pending_resident_self_pressure(resident_store)? || pending_ack {
+            let tick = tick_heartbeat_store(
+                store_path,
+                artifact_dir.as_ref(),
+                HeartbeatTickOptions {
+                    target_heartbeat_rate: options.base_heartbeat_rate.max(0.001),
+                    coordinator_action: None,
+                    target_role: None,
+                    urgency: options.external_urgency,
+                    schedule_id: format!("{}.resident-self", options.schedule_id),
+                    source_scene_ref: options.source_scene_ref.clone(),
+                    defer_completion: true,
+                    agent_store: options.agent_store.clone(),
+                    resident_self_store: Some(resident_store.to_path_buf()),
+                },
+            )?;
+            return Ok(serde_json::json!({
+                "schema_version": "epiphany.adaptive_heartbeat_pump.v0", "storeFile": store_path,
+                "artifactDir": artifact_dir.as_ref(), "sourceSceneRef": options.source_scene_ref,
+                "scheduleId": options.schedule_id, "launched": 1, "ticks": [tick],
+                "residentSelfDelegatedToTransactionalTick": true, "errors": []
+            }));
+        }
+    }
     let mut state = load_heartbeat_state_entry(store_path)?
         .unwrap_or_else(|| default_heartbeat_state(options.base_heartbeat_rate.max(0.001)));
     if options.base_heartbeat_rate > 0.0 {
@@ -283,6 +402,7 @@ pub fn pump_heartbeat_store(
             source_scene_ref: options.source_scene_ref.clone(),
             defer_completion: true,
             agent_store: options.agent_store.clone(),
+            resident_self_store: options.resident_self_store.clone(),
         };
         match tick_once(&mut state, &tick_options) {
             Ok(result) => {
@@ -3548,6 +3668,7 @@ mod tests {
                 source_scene_ref: "test/native".to_string(),
                 defer_completion: true,
                 agent_store: None,
+                resident_self_store: None,
             },
         )?;
         assert_eq!(work["event"]["selectedRole"], "implementation");
@@ -3579,6 +3700,7 @@ mod tests {
                 source_scene_ref: "test/native".to_string(),
                 defer_completion: false,
                 agent_store: None,
+                resident_self_store: None,
             },
         )
         .unwrap_err();
@@ -3637,6 +3759,7 @@ mod tests {
                 source_scene_ref: "test/high-heat".to_string(),
                 defer_completion: true,
                 agent_store: None,
+                resident_self_store: None,
             },
         )?;
         assert_eq!(
@@ -3669,6 +3792,7 @@ mod tests {
                 source_scene_ref: "test/high-heat".to_string(),
                 defer_completion: true,
                 agent_store: None,
+                resident_self_store: None,
             },
         )
         .unwrap_err();
@@ -3698,6 +3822,7 @@ mod tests {
                 source_scene_ref: "test/stale".to_string(),
                 defer_completion: true,
                 agent_store: None,
+                resident_self_store: None,
             },
         )?;
         let mut state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
@@ -3752,6 +3877,7 @@ mod tests {
                 source_scene_ref: "test/stale".to_string(),
                 defer_completion: true,
                 agent_store: None,
+                resident_self_store: None,
             },
         )?;
         assert_eq!(next["event"]["selectedRole"], "implementation");
@@ -3800,6 +3926,7 @@ mod tests {
                 source_scene_ref: "ghostlight/pallas-training-loop-v0".to_string(),
                 defer_completion: true,
                 agent_store: None,
+                resident_self_store: None,
             },
         )?;
 
@@ -3850,6 +3977,7 @@ mod tests {
                 source_scene_ref: "test/Persona-mentioned".to_string(),
                 defer_completion: true,
                 agent_store: None,
+                resident_self_store: None,
             },
         )?;
 
@@ -3908,6 +4036,7 @@ mod tests {
                 source_scene_ref: "test/Persona-mentioned-memory".to_string(),
                 defer_completion: true,
                 agent_store: Some(agent_store),
+                resident_self_store: None,
             },
         )?;
 
