@@ -2449,6 +2449,16 @@ deployed body. The next authority cut is Idunn and aggregate health: consume the
 exact provider progress document with a no-advance lease, never a generic job
 progress noun or total projection wall clock.
 
+Live storage pressure later exposed that the production cadence still admitted
+one immutable Redb checkpoint/progress transaction per point despite the
+128-point batch contracts. The cadence now aliases the shared checkpoint maximum
+of 128 and is compile-time constrained by Qdrant's same 128-point transport
+ceiling. Durability still follows waited upsert plus exact payload/vector
+readback; only the authenticated commit unit changed. Existing one-point chains
+remain valid predecessors for later larger batches when their exact Qdrant
+collection survives. A progress store whose collection is absent must not be
+resumed from counts alone.
+
 ## Organizational Epiphany is the product, not a remote-control experiment (2026-07-18)
 
 The Yggdrasil deployment is the first ordinary organizational Epiphany body.

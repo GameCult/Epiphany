@@ -1,14 +1,14 @@
 use crate::repository_body_observer::RepositoryBodyReadSession;
-#[cfg(test)]
-use crate::semantic_backend::QDRANT_POINT_BATCH_MAX;
 use crate::semantic_backend::{
-    CollectionCompatibility, OllamaEmbedder, QdrantBackend, SemanticPoint, SemanticStoredPoint,
+    CollectionCompatibility, OllamaEmbedder, QDRANT_POINT_BATCH_MAX, QdrantBackend, SemanticPoint,
+    SemanticStoredPoint,
 };
 use crate::workspace_coverage_process_documents::{
     publish_workspace_coverage_advancement_sight, publish_workspace_coverage_terminal_sight,
 };
 use crate::workspace_coverage_projection_batch_checkpoint::{
-    ObservedWorkspaceCoverageBatchInput, WorkspaceCoverageProjectionBatchCheckpointAdmission,
+    ObservedWorkspaceCoverageBatchInput, WORKSPACE_COVERAGE_BATCH_CHECKPOINT_MAX_POINTS,
+    WorkspaceCoverageProjectionBatchCheckpointAdmission,
     WorkspaceCoverageProjectionBatchCheckpointEntry,
     WorkspaceCoverageProjectionBatchCheckpointHeadEntry, admit_observed_workspace_coverage_batch,
     load_authenticated_checkpoint_chain,
@@ -49,10 +49,11 @@ use std::path::{Path, PathBuf};
 
 pub(crate) const CLAIM_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_claim";
 pub(crate) const ATTEMPT_TYPE: &str = "gamecult.epiphany.workspace_coverage_projection_attempt";
-/// Physiological durability cadence, deliberately distinct from Qdrant's
-/// transport ceiling. On the deployment baseline this bounds checkpoint loss
-/// to a few minutes while retaining waited, exact batch writes.
-const WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS: usize = 1;
+/// One authenticated Qdrant batch is one durable checkpoint. The shared bound
+/// keeps transport, readback, and immutable checkpoint cardinality identical.
+const WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS: usize =
+    WORKSPACE_COVERAGE_BATCH_CHECKPOINT_MAX_POINTS;
+const _: () = assert!(WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS <= QDRANT_POINT_BATCH_MAX);
 const CLAIM_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v1";
 const ATTEMPT_SCHEMA: &str = "gamecult.epiphany.workspace_coverage_projection_attempt.v1";
 const CLAIM_SCHEMA_V2: &str = "gamecult.epiphany.workspace_coverage_projection_claim.v2";
@@ -3665,11 +3666,15 @@ mod tests {
     fn sealed_batch_ranges_preserve_plan_order_and_own_checkpoint_cadence() {
         let total = WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS * 2 + 3;
         let ranges = sealed_batch_ranges(total);
-        assert_eq!(WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS, 1);
-        assert_eq!(ranges.len(), total);
+        assert_eq!(WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS, 128);
+        assert_eq!(
+            ranges.len(),
+            total.div_ceil(WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS)
+        );
         assert!(ranges.iter().all(|range| range.len()
             <= WORKSPACE_COVERAGE_CHECKPOINT_BATCH_POINTS
             && range.len() <= QDRANT_POINT_BATCH_MAX));
+        assert_eq!(ranges.last().unwrap().len(), 3);
         assert_eq!(
             ranges.into_iter().flatten().collect::<Vec<_>>(),
             (0..total).collect::<Vec<_>>()
