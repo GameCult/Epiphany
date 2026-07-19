@@ -17,6 +17,7 @@ mod eyes_gateway;
 mod hands_gateway;
 mod heartbeat_state;
 mod host_identity;
+mod idunn_provider_health;
 mod idunn_runtime_health;
 mod imagination_consideration;
 mod memory_graph;
@@ -676,6 +677,12 @@ pub use host_identity::{
     enroll_default_host_identity, enroll_host_identity_at, export_host_identity_trust_anchor,
     export_raw_host_identity_trust_anchor, open_default_host_identity, open_host_identity_at,
     verify_host_identity_signature, verify_host_identity_trust_anchor_signature,
+};
+pub use idunn_provider_health::{
+    EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_SCHEMA, EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_TYPE,
+    IdunnProviderHealthAdmission, ProviderReleaseBinding, RequiredProviderHealth,
+    admit_required_idunn_provider_health, provider_health_record_key,
+    required_idunn_provider_health_query,
 };
 pub use idunn_runtime_health::{
     CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,

@@ -68,6 +68,25 @@ still uses its signed v0 migration route, and Idunn has no signed outward
 projection. Migrate publishers and outward status before promotion; otherwise
 unmigrated services would correctly become missing and could trigger recovery.
 
+The consumer side of that boundary is now implemented but deliberately not
+wired into Status. `epiphany-core/src/idunn_provider_health.rs` requests exact
+daemon/contract pairs through CultNet's read-only raw snapshot API and admits
+only canonical, Idunn-signed `idunn.authenticated_provider_health_projection.v1`
+records under a root-pinned `gamecult.service_trust_anchor.v1`. It verifies the
+fixed signing purpose, derived Idunn identity, runtime, schema/key, closed
+state/reason, anchor lifetime, local TTL, privacy seal, and Forbidden-or-Exact
+release lineage. The dedicated admission store advances the complete required
+set atomically with per-pair projection/provider replay rules. Root key rotation
+is possible only through a newer pinned anchor whose binding follows prior
+admission/evaluation and whose new projection follows the binding; packet keys
+cannot rotate trust. Missing or invalid input never deletes prior admission.
+CultNet owner commit `014f998b97c37a34055ce0af069ebaead32d11fb`
+supplies the shared contracts, identity verifier, pure query, and mature RUDP
+transport. Focused tests pass 5/5, full core library 606/0/1, and the sole
+integration target 1/1. Next migrate the two publishers and root bindings,
+finish Idunn's public snapshot serving, then wire Status to this verifier; do
+not lower private Idunn state or deploy a partial migration.
+
 ### Unattended continuity aftercare
 
 The Ygg body has no live Starfire reference. Epiphany, operator, heartbeat,
