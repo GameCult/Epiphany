@@ -3261,6 +3261,39 @@ on Ygg, proving replay/tamper refusal and byte-identical Mind, Hands, release,
 and deployment stores. Then audit the Discord operator surface needed during
 the move. No wake grant and no host reboot are authorized.
 
+Modeling confirms that current feedback is safe cognition pressure, not remote
+operation. Status beyond generic VoidBot provider availability, brake
+sleep/wake, operator-objective pressure, and exact Mind review still require a
+local CLI/SSH path. Starfire is not intrinsically required, but Discord has no
+typed ingress for those owners. Current Discord replies are local VoidBot
+repo-Face turns; resident Epiphany has no correlated Persona speech return
+path yet.
+
+The authority/design map is now
+`notes/epiphany-discord-operator-nerve.md`. July-22 commands are explicit
+status, sleep, wake, directive, reviews, and exact Adopt/Refuse/Hold review:
+Discord authenticates, Bifrost signs an expiring capability-bound command,
+Epiphany invokes one named owner primitive, and a sealed Epiphany result returns
+to Discord. No chat inference, generic argv, direct store mount, wake-and-run,
+or release/deploy authority is permitted.
+
+Epiphany core commit `f1036abd` now implements Status, Sleep, Wake, and
+Directive as a closed typed command family. Admission is separately
+Bifrost-signed and exact-target/guild/channel/actor-capability/nonce/TTL bound.
+Invalid admission writes nothing. Replays recover after crashes both before and
+after the owner consequence. Sleep owns one fixed Discord brake and cannot
+replace a foreign engaged brake. Wake releases only that brake; the live
+deployment brake produces a terminal Refused result and survives byte-identical.
+Wake creates no pressure/grant/job. Directive creates one pending
+operator-objective pressure only. Focused proof is 4/4; full core is 583 passed,
+zero failed, one ignored.
+
+No live daemon/CultNet ingress exists yet, and reviews/review are not in the
+core family. Bifrost and VoidBot Hands passes are now building the explicit
+owner-only crossing against f1036abd. After those land, add the supervised
+Epiphany network ingress and host-sealed result receipt; do not mount Epiphany
+stores into either sibling.
+
 ## Live organizational feedback half proved; projection lie cut (2026-07-19)
 
 The Ygg production Bifrost feedback provider is ready with six typed bindings.
