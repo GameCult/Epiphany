@@ -5,10 +5,10 @@
 Epiphany's ordinary organizational product path is now deployed on Yggdrasil,
 not merely proven in local smoke. Bifrost authorized each exact upstream
 release and Idunn produced successful deployment receipts for Epiphany
-`714187812f778160882e204ea4f369423578a195`, Bifrost
+`bcff32827a39ca793c3062cc71e02aeeac1b091f`, Bifrost
 `6491f449cf0dbfa952b409de90ccdf511669a60b` with CultLib
 `693df0901d75cfd8e3a0a5225e270011eeddb0be`, and VoidBot
-`74abfed109e1d793034796e5eff1562b0aa6c8de`.
+`26093ace0e4b5d15370bd29e3118fb27c807afa0`.
 
 All Epiphany resident services, Idunn, and VoidBot are active. The Bifrost
 Persona-feedback sidecar is healthy under its own `bifrost-feedback` service
@@ -27,9 +27,19 @@ Resident readiness is active and release-authenticated with
 semantic projectors point at the Ygg-local Qdrant/Ollama path.
 
 The Epiphany release id is
-`sha256-4ad609a797afbc4e7a06251463c0a52faf760880892b6fe6cb7f9ff239e4c460`
+`sha256-e0a9eb079250d3f769040255f3d2805286488896c6e2c38222748d2298daf913`
 with witness
-`sha256-0e4bd42640352b932af8c0395efd473dfc9e799c3020a1774fc86bc7d5f39342`.
+`sha256-dd84cfeb730061ee38edae5d8de104b65e1cb2f3c723d62e087b68974eac814e`.
+
+This promotion exposed an Idunn packaging actuator fault before outage:
+`mktemp` pre-created the path later passed to Docker as `--cidfile`, so Docker
+refused the run before any service mutation. Ops commit `71beacf` now gives
+Docker a nonexistent child path inside a fresh temporary directory and cleans
+the exact recorded container. The first two Epiphany promotion attempts failed
+closed; the corrected retry admitted the exact release above. VoidBot's audited
+artifact is `c513c8591baa931fd47b5ee5e29578f2af58af49637d4a88a44b4bda63821af8`
+and its Idunn release is `20260719T182219Z-26093ace0e4b`. The final root checker
+passed with no failed units and the canonical brake still engaged.
 
 The next proof is organizational interaction, not another deployment: use
 Discord to request `/epiphany status` and submit ordinary repository feedback
