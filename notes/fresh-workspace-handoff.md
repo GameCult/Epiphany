@@ -3021,3 +3021,26 @@ byte-for-byte.
 Next action: commit/push this correction, revoke `519574ce`, terminate exact
 Idunn transaction PGID `1534830`, verify signal-safe rollback, then cross the
 exact successor through Bifrost and Idunn under brake.
+
+Candidate `cb665dc6362027a06d46c3fc856c8740f4ab50ce` proved the projector-side
+cut: release `sha256-026f83064dc1f20c6ae1d0528878ec96594d08692fb7ab3c0ccd24f48cd8aa46`
+reused terminal receipt `bf744be34d4c969db6b74b4813caa24e231f341ea13a9346d16457188b1b77d9`
+and remained idle across repeated pulses. All three services were stable,
+braked, and the full pre-witness check became healthy. Idunn still withheld
+admission because the supervisor independently ignored terminal sight and
+selected recovery claim `2a355736-3792-4f0f-8633-a246219bcf1b`, publishing
+bogus directive `7fb0a855-626a-4f94-bde2-cc88acad918c`.
+
+Supervisor reconciliation now gives authenticated terminal sight its own
+process-lifecycle path before recovery claim selection. It proves any current
+observer is a host-signed descendant of the historical terminal launch. A live
+observer reports `terminal-observer-alive`; degraded sight does not actuate; a
+dead observer is terminated/evidence-fenced and replaced without writing a
+coverage recovery directive. Recovery authority remains exclusively for a
+nonterminal running claim. Focused supervisor authority tests prove terminal
+selection precedes recovery and the entire terminal branch contains no recovery
+writer or coverage-store mutation.
+
+Next action: commit/push the supervisor correction, revoke `cb665dc6`, cancel
+exact Idunn PGID `1569316`, verify rollback, and deploy the exact successor
+through Bifrost and Idunn under brake.

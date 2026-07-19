@@ -2439,6 +2439,163 @@ fn reconcile_workspace_coverage_projector(
         )?;
         return Ok(());
     }
+    let terminal_sight = match authenticate_current_workspace_coverage_terminal_sight(
+        &args.store,
+        &runtime_store,
+        &args.runtime_id,
+        host.entry(),
+    ) {
+        Ok(sight) => sight,
+        Err(error) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                    "status": "terminal-observation-refused",
+                    "serviceId": policy.service_id,
+                    "reason": error.to_string(),
+                    "restarted": false,
+                    "privateStateExposed": false,
+                }))?
+            );
+            return Ok(());
+        }
+    };
+    if let Some(terminal) = terminal_sight {
+        if terminal.launch_id != latest.launch_id {
+            if let Err(error) = authenticate_workspace_coverage_replacement_lineage(
+                &args.store,
+                &args.runtime_id,
+                &terminal.launch_id,
+                &latest.launch_id,
+                host.entry(),
+            ) {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                        "status": "terminal-observation-refused",
+                        "serviceId": policy.service_id,
+                        "launchId": latest.launch_id,
+                        "reason": error.to_string(),
+                        "restarted": false,
+                        "privateStateExposed": false,
+                    }))?
+                );
+                return Ok(());
+            }
+        }
+        let observation = match observe_workspace_coverage_managed_process(
+            &args.store,
+            args.runtime_id.clone(),
+            &latest.launch_id,
+            host.entry(),
+        ) {
+            Ok(observation) => observation,
+            Err(error) => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                        "status": "terminal-observation-refused",
+                        "serviceId": policy.service_id,
+                        "launchId": latest.launch_id,
+                        "reason": error.to_string(),
+                        "restarted": false,
+                        "privateStateExposed": false,
+                    }))?
+                );
+                return Ok(());
+            }
+        };
+        match observation {
+            WorkspaceCoverageProcessLifecycleObservation::ExactAlive => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                        "status": "terminal-observer-alive",
+                        "serviceId": policy.service_id,
+                        "launchId": latest.launch_id,
+                        "terminalClaimId": terminal.claim_id,
+                        "restarted": false,
+                        "privateStateExposed": false,
+                    }))?
+                );
+                return Ok(());
+            }
+            WorkspaceCoverageProcessLifecycleObservation::Inaccessible
+            | WorkspaceCoverageProcessLifecycleObservation::Indeterminate { .. } => {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                        "status": "terminal-observation-degraded",
+                        "serviceId": policy.service_id,
+                        "launchId": latest.launch_id,
+                        "observation": format!("{observation:?}"),
+                        "restarted": false,
+                        "privateStateExposed": false,
+                    }))?
+                );
+                return Ok(());
+            }
+            WorkspaceCoverageProcessLifecycleObservation::BootSuperseded { .. }
+            | WorkspaceCoverageProcessLifecycleObservation::ExactExited { .. }
+            | WorkspaceCoverageProcessLifecycleObservation::Missing
+            | WorkspaceCoverageProcessLifecycleObservation::Replaced { .. } => {}
+        }
+        if load_workspace_coverage_process_termination_observation(
+            &args.store,
+            args.runtime_id.clone(),
+            &latest.launch_id,
+        )?
+        .is_none()
+        {
+            write_workspace_coverage_process_termination_observation(
+                &args.store,
+                args.runtime_id.clone(),
+                &latest.launch_id,
+                &host,
+            )?;
+        }
+        let (termination, termination_digest) =
+            authenticate_workspace_coverage_termination_with_envelope_digest(
+                &args.store,
+                args.runtime_id.clone(),
+                &latest.launch_id,
+                host.entry(),
+            )?;
+        args.service_command = Some(PathBuf::from(&policy.command));
+        args.service_args = policy.args.clone();
+        args.cwd = policy.cwd.clone().map(PathBuf::from);
+        args.stdout_artifact = Some(PathBuf::from(policy.stdout_artifact.clone()));
+        args.stderr_artifact = Some(PathBuf::from(policy.stderr_artifact.clone()));
+        let launched = service_launch_internal(
+            args,
+            Some(CoverageReplacementEvidence {
+                old_launch_id: latest.launch_id,
+                termination_id: termination.termination_id,
+                termination_envelope_digest: termination_digest,
+            }),
+            false,
+        )?
+        .coverage_launch
+        .context("terminal workspace coverage observer restart returned no launch identity")?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": "epiphany.workspace_coverage_reconcile.v0",
+                "status": "terminal-observer-restarted",
+                "serviceId": policy.service_id,
+                "launchId": launched.launch_id,
+                "terminalClaimId": terminal.claim_id,
+                "restarted": true,
+                "privateStateExposed": false,
+            }))?
+        );
+        return Ok(());
+    }
     let target = match authenticate_recovery_workspace_coverage_claim_sight(
         &args.store,
         &runtime_store,
@@ -4403,10 +4560,17 @@ mod semantic_projector_authority_tests {
             .find("load_latest_workspace_coverage_managed_process_launch")
             .unwrap();
         let stale_rotation = body.find("if !current_policy_matches_latest").unwrap();
+        let terminal_sight = body
+            .find("let terminal_sight = match authenticate_current_workspace_coverage_terminal_sight")
+            .unwrap();
         let claim_sight = body
             .find("let target = match authenticate_recovery_workspace_coverage_claim_sight")
             .unwrap();
-        assert!(latest < stale_rotation && stale_rotation < claim_sight);
+        assert!(
+            latest < stale_rotation
+                && stale_rotation < terminal_sight
+                && terminal_sight < claim_sight
+        );
         let observation = body
             .rfind("let observation = match observe_workspace_coverage_managed_process")
             .unwrap();
@@ -4446,6 +4610,34 @@ mod semantic_projector_authority_tests {
         assert!(!body.contains("awaiting-exact-termination"));
         assert!(!body.contains("open_workspace_coverage_authority"));
         assert!(!body.contains("recover_workspace_coverage_projection"));
+    }
+
+    #[test]
+    fn terminal_workspace_coverage_is_observed_without_recovery_authority() {
+        let source = include_str!("epiphany-daemon-supervisor.rs");
+        let start = source
+            .find("let terminal_sight = match authenticate_current_workspace_coverage_terminal_sight")
+            .unwrap();
+        let end = source[start..]
+            .find("let target = match authenticate_recovery_workspace_coverage_claim_sight")
+            .map(|offset| start + offset)
+            .unwrap();
+        let branch = &source[start..end];
+        let lineage = branch
+            .find("authenticate_workspace_coverage_replacement_lineage")
+            .unwrap();
+        let observation = branch
+            .find("observe_workspace_coverage_managed_process")
+            .unwrap();
+        let alive = branch.find("terminal-observer-alive").unwrap();
+        let termination = branch
+            .find("write_workspace_coverage_process_termination_observation")
+            .unwrap();
+        let restart = branch.find("service_launch_internal").unwrap();
+        assert!(lineage < observation && observation < alive);
+        assert!(alive < termination && termination < restart);
+        assert!(!branch.contains("write_workspace_coverage_recovery_directive"));
+        assert!(!branch.contains("recover_workspace_coverage_projection"));
     }
 
     #[test]
