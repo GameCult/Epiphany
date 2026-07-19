@@ -6,7 +6,7 @@ Epiphany's ordinary organizational product path is now deployed on Yggdrasil,
 not merely proven in local smoke. Bifrost authorized each exact upstream
 release and Idunn produced successful deployment receipts for Epiphany
 `714187812f778160882e204ea4f369423578a195`, Bifrost
-`225859bd7ec3339944841ebbfc67b421eb405727` with CultLib
+`6491f449cf0dbfa952b409de90ccdf511669a60b` with CultLib
 `693df0901d75cfd8e3a0a5225e270011eeddb0be`, and VoidBot
 `74abfed109e1d793034796e5eff1562b0aa6c8de`.
 
@@ -16,8 +16,10 @@ identity; it owns its private provider and delivery state, participates in the
 shared CultCache lock groups, and publishes daemon-owned CultNet/RUDP health
 over host networking so Idunn observes Ygg-local provenance instead of Docker
 bridge NAT. The Bifrost Epiphany operator worker is running against the
-loopback-only Epiphany command service on port 17875. The final Ygg checker
-passes.
+loopback-only Epiphany command service on port 17875. VoidBot and Bifrost now
+share the exact v1 six-command request identity; the live v0 request
+substitution was deleted. Legacy v0 replay is bounded to the original four
+commands. The final root-level Ygg checker passes.
 
 Resident readiness is active and release-authenticated with
 `brakeEngaged=true`. Do not release it as part of verification. Ollama exposes
@@ -75,6 +77,14 @@ behind the live PID. Every installed surface is root-owned at its exact safe
 mode, and systemd reports the sealed unit/drop-in loaded with no pending reload.
 Verification owns no lifecycle or deployment action. The
 final Ygg checker requires this proof and passes with the brake engaged.
+
+The provenance manifest disappeared after the later Bifrost promotion while
+the exact installed Idunn binary, matching build artifact, root-owned surfaces,
+and live PID remained unchanged. It was resealed from canonical Odin commit
+`15a744c826f0aa2e8cc322a6543ea8a9afcd852a` and the pinned Rust image without a
+rebuild, service restart, or deployment action. The full root-level checker is
+green. Run this checker with root authority: its proof intentionally reads the
+`0440` Idunn sudoers surface.
 
 Restarting Idunn to repair the frozen RUDP nerve also proved that Docker moves
 the package builder outside Idunn's systemd cgroup: the interrupted build

@@ -55,12 +55,13 @@ objective:
     deployment remain separate authorities. Eve/CultUI is downstream display.
   yggdrasil_deployment_readiness: >
     Yggdrasil is the ordinary organizational runtime. VoidBot and Bifrost are
-    live at exact Bifrost-authorized upstream commits: Epiphany b0e8b427, Bifrost
-    225859bd with CultLib 693df090, and VoidBot 74abfed1. Idunn recorded successful
+    live at exact Bifrost-authorized upstream commits: Epiphany 71418781, Bifrost
+    6491f449 with CultLib 693df090, and VoidBot 74abfed1. Idunn recorded successful
     deployment receipts for all three. Epiphany's packaged release and witness
     authenticate, all resident services are active, the operator command nerve is
     loopback-only on 17875, Bifrost Persona feedback and operator worker are
-    running, and the final Ygg checker passes. Bifrost feedback publishes accepted
+    running with the unified v1 six-command request contract, and the final
+    root-level Ygg checker passes. Bifrost feedback publishes accepted
     daemon-owned RUDP health from the host CultNet interface under its own service
     identity. Resident readiness is active with the canonical brake engaged.
     Ollama keeps qwen3-embedding:0.6b entirely on the GTX 1080 and the Modeling

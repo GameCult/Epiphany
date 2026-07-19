@@ -169,17 +169,24 @@ decode worker provenance into explicit legacy Options. Signed v0 operator
 deliveries may drain and replay the original four families, but cannot acquire
 the v1 review vocabulary.
 
-## Remaining deployment gap
+## Live deployment boundary
 
-The live Ygg body has the Persona feedback nerve but does not yet run this
-successor Discord operator crossing. `epiphany-verse-query swarm-brake` and
-its query/actuation substitution have been removed: `swarm-brake-status` is
-read-only and `swarm-brake-set` requires an explicit transition against the
-canonical brake id/owner. The local CLI still relies on filesystem/host
-authority and its actor label is provenance, not remote authentication. Generic
-VoidBot `provider-status`, `queue-codex`, and job approval operate VoidBot's own
-provider/job system and cannot stand in for Epiphany status, direction, or Mind
-review.
+The Ygg body runs the v1 six-command crossing through VoidBot, Bifrost, and the
+loopback-only Epiphany operator service. Bifrost commit
+`6491f449cf0dbfa952b409de90ccdf511669a60b` cut the surviving v0 request
+identity; VoidBot is the v1 producer and Bifrost is the v1 consumer. Legacy v0
+admission/result replay remains sealed to the original four commands and is not
+a second live request authority. Focused Bifrost interop tests, provider tests,
+VoidBot TypeScript compilation, and the cross-runtime smoke pass. The worker is
+healthy on Ygg and currently reports zero pending results.
+
+The remaining acceptance proof needs a real owner Discord interaction; a local
+fixture must not impersonate an organization member. Run `/epiphany status` and
+ordinary Persona feedback, then inspect typed receipts and negative authority
+deltas only. Keep the canonical deployment brake engaged and do not exercise
+Wake. Generic VoidBot `provider-status`, `queue-codex`, and job approval operate
+VoidBot's own provider/job system and cannot stand in for Epiphany status,
+direction, or Mind review.
 
 ## Rust/Bifrost boundary proof (2026-07-19)
 
