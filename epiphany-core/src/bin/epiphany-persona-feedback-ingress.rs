@@ -3,10 +3,32 @@ use epiphany_core::{
     import_bifrost_persona_feedback_deliveries, validate_bifrost_persona_feedback_source,
     validate_persona_feedback_store_separation,
 };
-use serde_json::json;
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IngressProjection {
+    schema_version: &'static str,
+    status: &'static str,
+    runtime_id: String,
+    repository: String,
+    persona_id: String,
+    applicable_delivery_count: usize,
+    present_pressure_count: usize,
+    authority: &'static str,
+    private_state_exposed: bool,
+}
+
+fn import_projection_status(present_pressure_count: usize) -> &'static str {
+    if present_pressure_count == 0 {
+        "no-applicable-deliveries"
+    } else {
+        "pressure-present"
+    }
+}
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -29,7 +51,7 @@ fn main() -> Result<()> {
     let runtime_id = required("--runtime-id")?;
     let repository = required("--repository")?;
     let persona_id = required("--persona-id")?;
-    let (status, delivery_count, admitted_count) = match command.as_str() {
+    let (status, applicable_delivery_count, present_pressure_count) = match command.as_str() {
         "status" => (
             "ready",
             validate_bifrost_persona_feedback_source(
@@ -66,23 +88,52 @@ fn main() -> Result<()> {
                 &repository,
                 &persona_id,
             )?;
-            ("admitted", admitted.len(), admitted.len())
+            (
+                import_projection_status(admitted.len()),
+                admitted.len(),
+                admitted.len(),
+            )
         }
         _ => return Err(anyhow!("unknown command {command:?}; use status or import")),
     };
     println!(
         "{}",
-        serde_json::to_string_pretty(&json!({
-            "schemaVersion": "epiphany.persona_feedback.ingress_projection.v0",
-            "status": status,
-            "runtimeId": runtime_id,
-            "repository": repository,
-            "personaId": persona_id,
-            "deliveryCount": delivery_count,
-            "admittedCount": admitted_count,
-            "authority": "resident-pressure-only",
-            "privateStateExposed": false,
-        }))?
+        serde_json::to_string_pretty(&IngressProjection {
+            schema_version: "epiphany.persona_feedback.ingress_projection.v1",
+            status,
+            runtime_id,
+            repository,
+            persona_id,
+            applicable_delivery_count,
+            present_pressure_count,
+            authority: "resident-pressure-only",
+            private_state_exposed: false,
+        })?
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn import_projection_does_not_call_absence_admission() {
+        assert_eq!(import_projection_status(0), "no-applicable-deliveries");
+        assert_eq!(import_projection_status(1), "pressure-present");
+        let encoded = serde_json::to_value(IngressProjection {
+            schema_version: "epiphany.persona_feedback.ingress_projection.v1",
+            status: import_projection_status(0),
+            runtime_id: "epiphany-yggdrasil".into(),
+            repository: "GameCult/Alien".into(),
+            persona_id: "epiphany".into(),
+            applicable_delivery_count: 0,
+            present_pressure_count: 0,
+            authority: "resident-pressure-only",
+            private_state_exposed: false,
+        })
+        .expect("projection serializes");
+        assert_eq!(encoded["status"], "no-applicable-deliveries");
+        assert!(encoded.get("admittedCount").is_none());
+    }
 }

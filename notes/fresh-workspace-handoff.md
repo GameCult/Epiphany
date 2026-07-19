@@ -3260,3 +3260,32 @@ Next: run the Starfire-offline real Discord/Persona feedback rehearsal wholly
 on Ygg, proving replay/tamper refusal and byte-identical Mind, Hands, release,
 and deployment stores. Then audit the Discord operator surface needed during
 the move. No wake grant and no host reboot are authorized.
+
+## Live organizational feedback half proved; projection lie cut (2026-07-19)
+
+The Ygg production Bifrost feedback provider is ready with six typed bindings.
+The live stores contain one real VoidBot Discord observation, one Bifrost-signed
+delivery, and one Epiphany local pressure admission. Re-import through deployed
+154d is byte-identical across the delivery, admitted-feedback, Mind, runtime,
+and deployment stores. An alien signing identity is refused before writes. A
+substituted repository finds zero applicable deliveries and writes no
+feedback/Mind/runtime state.
+
+That zero-delivery probe exposed a diagnostic conceptual substitution:
+`epiphany.persona_feedback.ingress_projection.v0` printed `status=admitted` and
+`admittedCount=0`. No consumer depends on it. Successor source deletes the v0
+lie and emits typed v1 status `pressure-present` or
+`no-applicable-deliveries`, with `applicableDeliveryCount` and
+`presentPressureCount`. Its focused test and binary check pass.
+
+Source inspection proves the local Persona response path is independent of
+observation export: VoidBot queues the repo-Persona turn first, then launches
+the three-attempt export asynchronously. Export failure therefore cannot
+suppress the local response.
+
+The final live pressure-to-Imagination scheduling step is intentionally not
+run while the all-scope brake is engaged. Do not release it to flatter the
+smoke. Modeling is mapping the separate move-period Discord operator nerve;
+before July 22, essential status/sleep/wake/directive/review must not depend on
+Starfire or improvised SSH, and Persona conversation must remain pressure
+rather than Mind/Hands/release/deployment authority.
