@@ -3495,7 +3495,7 @@ before July 22, essential status/sleep/wake/directive/review must not depend on
 Starfire or improvised SSH, and Persona conversation must remain pressure
 rather than Mind/Hands/release/deployment authority.
 
-## Idunn outward managed-health authority mapped (2026-07-19)
+## Idunn outward authenticated-provider-health authority mapped (2026-07-19)
 
 The organizational posture is ordinary product behavior, not a special-case
 experiment: Modeling persistently maps the authorized domain, Self derives
@@ -3506,10 +3506,13 @@ pressure; it cannot adopt Mind state or grant Hands, release, deployment, Wake,
 or public-speech authority.
 
 Odin commit `be8836f` closes generic signed-health ingress but deliberately
-does not make the source deployable. The outward health seam must be a new
-Idunn-owned statement derived from the current signed provider statement,
-authenticated admission, exact root trust binding, and current deployment
-lineage. Idunn signs a bounded monotonic projection with its own typed service
+does not make the source deployable. The outward health seam is a narrow
+Idunn-owned authenticated-provider assertion derived from the current signed
+provider statement, authenticated admission, exact root trust binding, and
+current deployment lineage. It is not Idunn's complete managed-health
+judgment: missing publication, release drift, and dependency failure remain
+absence and cannot be squeezed into a provider state. Idunn signs a bounded
+monotonic projection with its own typed service
 identity and writes only a dedicated public CultCache store. Its private
 identity store and private operational/admission store remain physically
 separate. A generic CultNet filtered-snapshot server serves the exact public
@@ -3537,3 +3540,14 @@ Next: finish contracts, identity, Idunn projection/publication, pure query, and
 Epiphany verification; migrate both publishers and root bindings as one safe
 deployment slice. Keep the canonical brake engaged and do not deploy the
 partially migrated Odin source.
+
+Soul found and Hands cut the first outward contract before runtime work:
+`idunn.managed_health_projection.v1` was a conceptual substitution because its
+shape could only describe authenticated provider health. Odin commit `99ed509`
+replaces it with `idunn.authenticated_provider_health_projection.v1`, removes
+free-form detail, permits only closed state-derived reason codes, and fixes the
+typed signing purpose to
+`idunn.authenticated-provider-health-projection.v1`. Commit `2dbd7f2` also
+requires canonical positional MessagePack at signed-health ingress and samples
+admission time at millisecond precision, preventing semantically equivalent
+wire encodings and second truncation from changing later digest/read truth.
