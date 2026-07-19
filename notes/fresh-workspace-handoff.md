@@ -54,14 +54,19 @@ checks typed shape, daemon id, contract, self-declared publication source and
 transport, and freshness, but no pinned publisher identity or signature. Idunn
 also exposes no authenticated outward projection for Epiphany to consume. The
 deployed Odin lineage is the clean `E:\Projects\Odin-yggdrasil-idunn` worktree,
-not the unrelated active Odin branch. Odin commit `cc80cd4` adds the generic
-`idunn.signed_daemon_health.v1` and root-owned
-`idunn.daemon_health_trust_binding.v1` contract foundations plus
-`docs/idunn-signed-daemon-health-authority.md`. Next, wire generic Idunn
-verification and monotonic admission, migrate Epiphany and Bifrost publishers,
-publish an Idunn-signed outward projection, and only then let Discord Status
-compose it. Unsigned legacy health may remain diagnostic during migration but
-must lose managed-health authority before this rebuild is complete.
+not the unrelated active Odin branch. Odin commit `be8836f` executes the
+generic `idunn.signed_daemon_health.v1`, root-owned
+`idunn.daemon_health_trust_binding.v1`, and monotonic admission contracts.
+Managed-health reads rejoin the exact signed statement, Idunn admission, and
+current root binding. Unsigned legacy packets persist only as
+`idunn.unsigned_daemon_health_diagnostic.v1` under a distinct diagnostic key;
+they cannot overwrite health, reset continuity, suppress recovery, or claim
+readiness. `docs/idunn-signed-daemon-health-authority.md` records the cut.
+This source is intentionally not deployed: Bifrost and other generic
+publishers have not migrated, the root trust store is not installed, Epiphany
+still uses its signed v0 migration route, and Idunn has no signed outward
+projection. Migrate publishers and outward status before promotion; otherwise
+unmigrated services would correctly become missing and could trigger recovery.
 
 ### Unattended continuity aftercare
 
