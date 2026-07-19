@@ -533,10 +533,9 @@ fn provider_authority_failures(
         failures.push("source-commit");
     }
     if !executable.is_some_and(|path| {
-            canonical_or_absolute(path)
-                == canonical_or_absolute(Path::new(&value.process_executable_path))
-        })
-    {
+        canonical_or_absolute(path)
+            == canonical_or_absolute(Path::new(&value.process_executable_path))
+    }) {
         failures.push("executable");
     }
     if value.status != "ready" {

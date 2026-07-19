@@ -33,9 +33,9 @@ use crate::{
     validate_workspace_coverage_projection_plan, workspace_coverage_execution_collection,
     workspace_coverage_process_documents::{
         authenticate_historical_workspace_coverage_managed_process_launch_with_envelope_digest,
-        authenticate_workspace_coverage_replacement_lineage,
         authenticate_workspace_coverage_managed_process_launch_with_envelope_digest,
         authenticate_workspace_coverage_provider_heartbeat_with_envelope_digest,
+        authenticate_workspace_coverage_replacement_lineage,
         authenticate_workspace_coverage_termination_with_envelope_digest,
     },
 };

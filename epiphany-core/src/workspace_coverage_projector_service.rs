@@ -272,8 +272,7 @@ impl WorkspaceCoverageProjectorServiceBody {
             &authority.runtime_id,
             &self.managed_process_launch_id,
             &authority.trusted_host,
-        )?
-        {
+        )? {
             if directive.workspace_id != basis.workspace_id
                 || directive.body_binding_sha256 != basis.body_binding_sha256
                 || directive.body_observation_id != basis.observation_id
@@ -430,12 +429,8 @@ mod tests {
         let recovery = body
             .find("recover_workspace_coverage_projection_with_authority")
             .unwrap();
-        let retirement = body
-            .find("retire_workspace_coverage_collections")
-            .unwrap();
-        let classification = body
-            .find("classify_current_workspace_coverage")
-            .unwrap();
+        let retirement = body.find("retire_workspace_coverage_collections").unwrap();
+        let classification = body.find("classify_current_workspace_coverage").unwrap();
         let new_work = body.find("RepositoryBodyReadSession::open").unwrap();
         assert!(retirement < classification);
         assert!(classification < directive && directive < recovery);

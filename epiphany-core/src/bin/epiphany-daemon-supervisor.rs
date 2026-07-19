@@ -60,8 +60,8 @@ use epiphany_core::{
     WorkspaceCoverageProcessBootstrap, WorkspaceCoverageProcessLifecycleObservation,
     authenticate_recovery_workspace_coverage_claim_sight,
     authenticate_workspace_coverage_managed_process_launch,
-    authenticate_workspace_coverage_replacement_lineage,
     authenticate_workspace_coverage_provider_heartbeat,
+    authenticate_workspace_coverage_replacement_lineage,
     authenticate_workspace_coverage_termination_with_envelope_digest, capture_process_instance,
     load_latest_workspace_coverage_managed_process_launch,
     load_latest_workspace_coverage_provider_heartbeat,
@@ -2440,8 +2440,8 @@ fn reconcile_workspace_coverage_projector(
         return Ok(());
     }
     let terminal_sight = match authenticate_current_workspace_coverage_terminal_sight(
-        &args.store,
         &runtime_store,
+        &args.store,
         &args.runtime_id,
         host.entry(),
     ) {
@@ -4561,7 +4561,9 @@ mod semantic_projector_authority_tests {
             .unwrap();
         let stale_rotation = body.find("if !current_policy_matches_latest").unwrap();
         let terminal_sight = body
-            .find("let terminal_sight = match authenticate_current_workspace_coverage_terminal_sight")
+            .find(
+                "let terminal_sight = match authenticate_current_workspace_coverage_terminal_sight",
+            )
             .unwrap();
         let claim_sight = body
             .find("let target = match authenticate_recovery_workspace_coverage_claim_sight")
@@ -4616,13 +4618,18 @@ mod semantic_projector_authority_tests {
     fn terminal_workspace_coverage_is_observed_without_recovery_authority() {
         let source = include_str!("epiphany-daemon-supervisor.rs");
         let start = source
-            .find("let terminal_sight = match authenticate_current_workspace_coverage_terminal_sight")
+            .find(
+                "let terminal_sight = match authenticate_current_workspace_coverage_terminal_sight",
+            )
             .unwrap();
         let end = source[start..]
             .find("let target = match authenticate_recovery_workspace_coverage_claim_sight")
             .map(|offset| start + offset)
             .unwrap();
         let branch = &source[start..end];
+        assert!(branch.contains(
+            "authenticate_current_workspace_coverage_terminal_sight(\n        &runtime_store,\n        &args.store,"
+        ));
         let lineage = branch
             .find("authenticate_workspace_coverage_replacement_lineage")
             .unwrap();

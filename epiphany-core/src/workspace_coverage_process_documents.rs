@@ -1271,10 +1271,9 @@ pub fn authenticate_workspace_coverage_replacement_lineage(
                 host_identity,
             )?
         };
-        let parent_id = child
-            .replaces_launch_id
-            .as_deref()
-            .ok_or_else(|| anyhow!("workspace coverage replacement lineage ended before the claimed launch"))?;
+        let parent_id = child.replaces_launch_id.as_deref().ok_or_else(|| {
+            anyhow!("workspace coverage replacement lineage ended before the claimed launch")
+        })?;
         let (termination, termination_digest) =
             authenticate_workspace_coverage_termination_with_envelope_digest(
                 store_path,
@@ -2387,9 +2386,7 @@ pub fn write_workspace_coverage_recovery_directive(
             replacement_ready_heartbeat_id,
             host.entry(),
         )?;
-    if ready.launch_id != replacement.launch_id
-        || ready.status != "ready"
-    {
+    if ready.launch_id != replacement.launch_id || ready.status != "ready" {
         bail!("workspace coverage recovery directive evidence is not an exact ready replacement");
     }
     let mut entry = WorkspaceCoverageRecoveryDirectiveEntry {
