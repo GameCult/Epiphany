@@ -1,7 +1,6 @@
 use crate::repository_body_observer::RepositoryBodyReadSession;
 use crate::semantic_backend::{OllamaConfig, OllamaEmbedder, QdrantBackend, QdrantConfig};
 use crate::workspace_coverage_process_documents::{
-    authenticate_current_workspace_coverage_claim_sight,
     authenticate_workspace_coverage_recovery_directive, publish_workspace_coverage_claim_sight,
     publish_workspace_coverage_terminal_sight,
 };
@@ -221,23 +220,13 @@ impl WorkspaceCoverageProjectorServiceBody {
         let authority = self.execution_authority.as_ref().ok_or_else(|| {
             anyhow!("workspace coverage projector has no installed execution authority")
         })?;
-        let has_successor_sight = authenticate_current_workspace_coverage_claim_sight(
+        if let Some(directive) = authenticate_workspace_coverage_recovery_directive(
             &authority.local_verse_store,
             &self.runtime_store,
             &authority.runtime_id,
+            &self.managed_process_launch_id,
             &authority.trusted_host,
         )?
-        .is_some_and(|sight| {
-            sight.launch_id == self.managed_process_launch_id && sight.recovery_receipt_id.is_some()
-        });
-        if !has_successor_sight
-            && let Some(directive) = authenticate_workspace_coverage_recovery_directive(
-                &authority.local_verse_store,
-                &self.runtime_store,
-                &authority.runtime_id,
-                &self.managed_process_launch_id,
-                &authority.trusted_host,
-            )?
         {
             let basis = load_current_runtime_repository_body_basis(&self.runtime_store)?;
             if directive.workspace_id != basis.workspace_id
@@ -424,6 +413,25 @@ mod tests {
         let mut value = config();
         value.qdrant_timeout_ms = 0;
         assert!(value.validate().is_err());
+    }
+
+    #[test]
+    fn recovery_directive_is_consumed_before_normal_projection_work() {
+        let source = include_str!("workspace_coverage_projector_service.rs");
+        let start = source.find("fn pulse_inner(&mut self)").unwrap();
+        let tail = &source[start..];
+        let body = &tail[..tail.find("\n#[cfg(test)]").unwrap()];
+        let directive = body
+            .find("authenticate_workspace_coverage_recovery_directive")
+            .unwrap();
+        let recovery = body
+            .find("recover_workspace_coverage_projection_with_authority")
+            .unwrap();
+        let normal = body
+            .find("retire_workspace_coverage_collections")
+            .unwrap();
+        assert!(directive < recovery && recovery < normal);
+        assert!(!body.contains("authenticate_current_workspace_coverage_claim_sight"));
     }
 
     #[test]

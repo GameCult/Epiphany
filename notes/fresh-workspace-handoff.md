@@ -2901,3 +2901,20 @@ the actual lineage error instead of collapsing it into a generic mismatch.
 The causal test now includes an intermediate failed-deployment generation and
 passes the complete recovery transaction. Full library passes 573/573 with one
 ignored; supervisor authority tests pass 24/24.
+
+Candidate `a70fe275195740ecefc2984b32ebd8ae93658c18` crossed the lineage gate and
+supervisor published recovery directive `06165fb6-97bd-4c27-97e3-38af03dec72d`
+from historical claim `c6df4335-7080-4d5f-80fc-4fa18a9d16ce` to current launch
+`9414c32f-f53c-450c-bc19-a69f5ba04a29`. The projector still refused every
+pulse because it authenticated current successor claim sight before consuming
+the directive that creates that successor. Supervisor replayed the exact
+directive safely, revealing a circular ordering fault rather than missing
+evidence. The candidate was rolled back and revoked; no deployment witness
+exists.
+
+Projector pulse now authenticates and consumes a replacement-addressed recovery
+directive before retirement or ordinary projection work. The atomic recovery
+transaction is already exact-replay idempotent, so no speculative current-claim
+query is needed in front of it. Current claim sight is recovery output, not
+recovery input. A source-order test makes the authority ordering explicit. Full
+library passes 574/574 with one ignored; supervisor authority tests pass 24/24.
