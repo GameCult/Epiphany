@@ -482,7 +482,7 @@ fn provider_is_fresh(
         created_at_rfc3339: None,
         executable_path: PathBuf::from(&value.process_executable_path),
     }) == ProcessInstanceObservation::ExactAlive;
-    let ready = provider_matches_authority(
+    let failures = provider_authority_failures(
         &value,
         owner,
         request.release_runtime_id,
@@ -494,12 +494,63 @@ fn provider_is_fresh(
         request.freshness_millis,
         exact_process,
     );
-    if !ready {
+    if !failures.is_empty() {
         reasons.push(format!(
-            "{owner} provider readiness is stale or release-substituted"
+            "{owner} provider readiness failed predicates: {}",
+            failures.join(",")
         ));
     }
-    ready
+    failures.is_empty()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn provider_authority_failures(
+    value: &ResidentProviderReadiness,
+    owner: &str,
+    runtime_id: &str,
+    release_id: &str,
+    witness: &str,
+    source_commit: Option<&str>,
+    executable: Option<&Path>,
+    now_millis: u64,
+    freshness_millis: u64,
+    exact_process_alive: bool,
+) -> Vec<&'static str> {
+    let mut failures = Vec::new();
+    if value.provider != owner {
+        failures.push("owner");
+    }
+    if value.runtime_id != runtime_id {
+        failures.push("runtime");
+    }
+    if value.release_id != release_id {
+        failures.push("release");
+    }
+    if value.release_witness_sha256 != witness {
+        failures.push("witness");
+    }
+    if !source_commit.is_some_and(|commit| commit == value.source_commit) {
+        failures.push("source-commit");
+    }
+    if !executable.is_some_and(|path| {
+            canonical_or_absolute(path)
+                == canonical_or_absolute(Path::new(&value.process_executable_path))
+        })
+    {
+        failures.push("executable");
+    }
+    if value.status != "ready" {
+        failures.push("provider-status");
+    }
+    if !exact_process_alive {
+        failures.push("process-incarnation");
+    }
+    if now_millis < value.observed_at_millis {
+        failures.push("future-observation");
+    } else if now_millis.saturating_sub(value.observed_at_millis) > freshness_millis {
+        failures.push("freshness");
+    }
+    failures
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -515,19 +566,19 @@ fn provider_matches_authority(
     freshness_millis: u64,
     exact_process_alive: bool,
 ) -> bool {
-    value.provider == owner
-        && value.runtime_id == runtime_id
-        && value.release_id == release_id
-        && value.release_witness_sha256 == witness
-        && source_commit.is_some_and(|commit| commit == value.source_commit)
-        && executable.is_some_and(|path| {
-            canonical_or_absolute(path)
-                == canonical_or_absolute(Path::new(&value.process_executable_path))
-        })
-        && value.status == "ready"
-        && exact_process_alive
-        && now_millis >= value.observed_at_millis
-        && now_millis.saturating_sub(value.observed_at_millis) <= freshness_millis
+    provider_authority_failures(
+        value,
+        owner,
+        runtime_id,
+        release_id,
+        witness,
+        source_commit,
+        executable,
+        now_millis,
+        freshness_millis,
+        exact_process_alive,
+    )
+    .is_empty()
 }
 
 fn distinct_physical_paths(left: &Path, right: &Path) -> bool {
@@ -768,6 +819,38 @@ mod tests {
         assert!(!coherent);
         assert_eq!(status, "replaced");
         assert!(reasons[0].contains("PID was reused"));
+    }
+
+    #[test]
+    fn provider_authority_reports_exact_failed_predicates() {
+        let mut value = provider();
+        value.runtime_id = "wrong-runtime".into();
+        value.release_id = "wrong-release".into();
+        value.status = "warming".into();
+        value.observed_at_millis = 2_000;
+        let executable = PathBuf::from(&value.process_executable_path);
+
+        assert_eq!(
+            provider_authority_failures(
+                &value,
+                "heartbeat",
+                "ygg",
+                "release-a",
+                &value.release_witness_sha256,
+                Some("commit-a"),
+                Some(&executable),
+                1_500,
+                180_000,
+                false,
+            ),
+            vec![
+                "runtime",
+                "release",
+                "provider-status",
+                "process-incarnation",
+                "future-observation",
+            ]
+        );
     }
 
     #[test]

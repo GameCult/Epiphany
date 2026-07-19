@@ -2918,3 +2918,36 @@ transaction is already exact-replay idempotent, so no speculative current-claim
 query is needed in front of it. Current claim sight is recovery output, not
 recovery input. A source-order test makes the authority ordering explicit. Full
 library passes 574/574 with one ignored; supervisor authority tests pass 24/24.
+
+## Ordinary organizational product and current readiness refusal (2026-07-19)
+
+The Yggdrasil body is the normal organizational Epiphany product, not a special
+experiment or dogfood mode. Persistent Modeling maps the authorized domain.
+Resident Self may derive direction from the admitted map and ask Imagination
+for bounded proposals without waiting for an instruction. Organization members
+talk to the repository Persona; their attributed conversation becomes
+additional feedback pressure. Conversation is not the ignition key and cannot
+adopt Mind state, authorize Hands, grant Persona public speech, cross Bifrost,
+or ask Idunn to deploy. Those remain distinct explicit authorities.
+
+Exact candidate `9e1fa0f527b3bff2c5a709eff640b0d8d2f3b82d` consumed recovery
+directive `6f1dc0c8-b8a5-48d0-add5-761b17368fbf`, replaced historical claim
+`c6df4335-7080-4d5f-80fc-4fa18a9d16ce` with current claim
+`2a355736-3792-4f0f-8633-a246219bcf1b`, and completed a 14,793-point local
+Qdrant projection through Yggdrasil's GTX 1080-backed Ollama route. Its three
+service owners remain active with zero restarts and the all-scope deployment
+brake engaged. It is not deployed: Idunn's exact transaction PGID `1245215`
+still owns the candidate, `deployment.env` is absent, and typed resident
+readiness remains `warming` because both provider comparisons refuse.
+
+Both provider rows continue to refresh, name the exact release
+`sha256-0a15262fd4c240a0131755aa6eb63b4eb7feff12e7cc4f49128fbb001887b1f2`,
+witness `sha256-49ae1afcf11d18c0e2807ea53f54dba35df4280f6596e848c5cfc50328e01aea`,
+source commit, executable, and local status `ready`. The old diagnostic
+`stale or release-substituted` collapses owner, runtime, release, witness,
+source, executable, provider status, process incarnation, future time, and
+freshness into one useless phrase. Replace that opaque boolean with the same
+fail-closed predicates plus operator-safe failed-predicate names; do not relax
+admission. Keep the bounded diagnosis window while the Idunn transaction and
+brake remain exact. If transaction ownership or the brake disappears, or any
+protected surface actuates, use the existing rollback boundary immediately.
