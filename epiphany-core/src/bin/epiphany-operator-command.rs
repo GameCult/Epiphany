@@ -15,6 +15,7 @@ fn main() -> Result<()> {
         command_store: args.command_store.clone(),
         local_verse_store: args.local_verse_store.clone(),
         resident_self_store: args.resident_self_store.clone(),
+        runtime_store: args.runtime_store.clone(),
         policy: OperatorCommandPolicy {
             runtime_id: args.runtime_id.clone(),
             discord_guild_id: args.guild_id.clone(),
@@ -65,6 +66,7 @@ struct Args {
     command_store: PathBuf,
     local_verse_store: PathBuf,
     resident_self_store: PathBuf,
+    runtime_store: PathBuf,
     guild_id: String,
     channel_ids: Vec<String>,
     actor_capabilities: BTreeMap<String, Vec<OperatorCapability>>,
@@ -107,6 +109,7 @@ impl Args {
                 | "--command-store"
                 | "--local-verse-store"
                 | "--resident-self-store"
+                | "--runtime-store"
                 | "--guild-id"
                 | "--max-ttl-seconds" => {
                     let value = values
@@ -144,6 +147,7 @@ impl Args {
             command_store: required("--command-store")?.into(),
             local_verse_store: required("--local-verse-store")?.into(),
             resident_self_store: required("--resident-self-store")?.into(),
+            runtime_store: required("--runtime-store")?.into(),
             guild_id: required("--guild-id")?,
             channel_ids: channels,
             actor_capabilities: actors,
@@ -159,6 +163,8 @@ fn parse_capability(value: &str) -> Result<OperatorCapability> {
         "sleep" => Ok(OperatorCapability::Sleep),
         "wake" => Ok(OperatorCapability::Wake),
         "directive" => Ok(OperatorCapability::Directive),
+        "reviews" => Ok(OperatorCapability::Reviews),
+        "review" => Ok(OperatorCapability::Review),
         _ => bail!("unknown operator capability {value}"),
     }
 }

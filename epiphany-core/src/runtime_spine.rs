@@ -2525,9 +2525,10 @@ pub fn commit_repo_model_admission(
 ) -> Result<RepoModelAdmissionReceipt> {
     validate_non_empty(result_id, "repo model admission result id")?;
     validate_non_empty(&review.review_id, "repo model admission review id")?;
-    if review.schema_version != REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION
-        || review.contract != REPO_MODEL_ADMISSION_CONTRACT
-    {
+    if !crate::repo_model_admission_review_schema_supported(
+        &review.schema_version,
+        &review.contract,
+    ) {
         return Err(anyhow!("unsupported repo model admission review contract"));
     }
     if review.decision != MindGatewayDecision::Accept {
@@ -2535,7 +2536,7 @@ pub fn commit_repo_model_admission(
     }
     chrono::DateTime::parse_from_rfc3339(&review.reviewed_at)
         .map_err(|_| anyhow!("repo model admission review timestamp must be RFC3339"))?;
-    if review.result_id != result_id {
+    if review.result_id.as_deref() != Some(result_id) {
         return Err(anyhow!(
             "repo model admission review/result binding mismatch"
         ));
@@ -2556,14 +2557,26 @@ pub fn commit_repo_model_admission(
     }
     let result = matching_results.into_iter().next().expect("one result");
     if !result.role_id.eq_ignore_ascii_case("modeling")
-        || result.job_id != review.job_id
-        || result.result_id != review.result_id
+        || review.job_id.as_deref() != Some(result.job_id.as_str())
+        || review.result_id.as_deref() != Some(result.result_id.as_str())
         || result.schema_version != RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION
         || result.item_error.is_some()
     {
         return Err(anyhow!(
             "repo model admission result role/job binding mismatch"
         ));
+    }
+    let expected_admission_source =
+        if review.schema_version == crate::LEGACY_REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION {
+            None
+        } else {
+            Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: result.result_id.clone(),
+                job_id: result.job_id.clone(),
+            })
+        };
+    if review.admission_source != expected_admission_source {
+        return Err(anyhow!("repo model admission review provenance mismatch"));
     }
     let worker_launch = cache
         .get::<EpiphanyRuntimeWorkerLaunchRequest>(&result.job_id)?
@@ -2652,13 +2665,15 @@ pub fn commit_repo_model_admission(
                 let current_hash = crate::memory_graph_model_hash(&current_model)?;
                 if existing_receipt.receipt_id != receipt_id
                     || existing_receipt.review_id != review.review_id
-                    || existing_receipt.result_id != result_id
+                    || existing_receipt.result_id.as_deref() != Some(result_id)
                     || existing_receipt.patch_id != patch.patch_id
                     || existing_receipt.patch_sha256 != patch_sha256
-                    || existing_receipt.contract != REPO_MODEL_ADMISSION_CONTRACT
-                    || existing_receipt.schema_version
-                        != REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                    || !crate::repo_model_admission_receipt_schema_supported(
+                        &existing_receipt.schema_version,
+                        &existing_receipt.contract,
+                    )
                     || existing_receipt.purpose != patch.purpose
+                    || existing_receipt.admission_source != expected_admission_source
                     || existing_receipt.claim_repair_request_id != repair_request_id
                     || !existing_receipt.frontier_plan_decision_id.is_empty()
                     || existing_receipt.previous_revision != repair_request.model_revision
@@ -2834,7 +2849,7 @@ pub fn commit_repo_model_admission(
                 .any(|receipt| {
                     receipt.claim_repair_request_id == request.request_id
                         && (receipt.review_id != review.review_id
-                            || receipt.result_id != result.result_id)
+                            || receipt.result_id.as_deref() != Some(result.result_id.as_str()))
                 })
             {
                 return Err(anyhow!("claim repair request is already incorporated"));
@@ -3090,7 +3105,7 @@ pub fn commit_repo_model_admission(
                     .any(|receipt| {
                         receipt.proposal_modeling_request_id == request.request_id
                             && (receipt.review_id != review.review_id
-                                || receipt.result_id != result.result_id)
+                                || receipt.result_id.as_deref() != Some(result.result_id.as_str()))
                     })
                 {
                     return Err(anyhow!("proposal Modeling request already incorporated"));
@@ -3314,11 +3329,13 @@ pub fn commit_repo_model_admission(
     match (existing_review, existing_receipt) {
         (Some(existing_review), Some(existing_receipt)) if existing_review == *review => {
             if existing_receipt.review_id != review.review_id
-                || existing_receipt.result_id != result_id
+                || existing_receipt.result_id.as_deref() != Some(result_id)
                 || existing_receipt.patch_id != patch.patch_id
                 || existing_receipt.patch_sha256 != patch_sha256
-                || existing_receipt.contract != REPO_MODEL_ADMISSION_CONTRACT
-                || existing_receipt.schema_version != REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+                || !crate::repo_model_admission_receipt_schema_supported(
+                    &existing_receipt.schema_version,
+                    &existing_receipt.contract,
+                )
                 || existing_receipt.purpose != patch.purpose
                 || existing_receipt.frontier_route_id != frontier_route_id
                 || existing_receipt.verification_request_id != verification_request_id
@@ -3439,7 +3456,7 @@ pub fn commit_repo_model_admission(
         schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.to_string(),
         receipt_id: receipt_id.clone(),
         review_id: review.review_id.clone(),
-        result_id: result_id.to_string(),
+        result_id: Some(result_id.to_string()),
         patch_id: patch.patch_id.clone(),
         patch_sha256,
         previous_revision: current.model_revision,
@@ -3457,6 +3474,7 @@ pub fn commit_repo_model_admission(
         claim_repair_request_id,
         frontier_plan_decision_id: String::new(),
         repository_body_observation_basis: review.repository_body_observation_basis.clone(),
+        admission_source: expected_admission_source,
     };
     let (next_model_envelope, _) = cache.prepare_entry(crate::MEMORY_GRAPH_KEY, &next_entry)?;
     let (review_envelope, _) = cache.prepare_entry(&review.review_id, review)?;
@@ -4380,8 +4398,7 @@ pub fn select_and_commit_repo_frontier_planning_request(
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
         .filter(|r| {
-            r.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-                && r.contract == REPO_MODEL_ADMISSION_CONTRACT
+            crate::repo_model_admission_receipt_schema_supported(&r.schema_version, &r.contract)
                 && r.admitted_revision == model.model_revision
                 && r.admitted_hash == model_hash
         })
@@ -4477,9 +4494,10 @@ pub(crate) fn validate_current_repo_frontier_planning_request(
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
         .filter(|receipt| {
-            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
-                && receipt.admitted_revision == model.model_revision
+            crate::repo_model_admission_receipt_schema_supported(
+                &receipt.schema_version,
+                &receipt.contract,
+            ) && receipt.admitted_revision == model.model_revision
                 && receipt.admitted_hash == model_hash
         })
         .collect::<Vec<_>>();
@@ -4776,9 +4794,10 @@ fn validate_repo_model_claim_challenge_chain(
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
         .filter(|receipt| {
-            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
-                && receipt.admitted_revision == challenge.model_revision
+            crate::repo_model_admission_receipt_schema_supported(
+                &receipt.schema_version,
+                &receipt.contract,
+            ) && receipt.admitted_revision == challenge.model_revision
                 && receipt.admitted_hash == challenge.model_hash
         })
         .collect::<Vec<_>>();
@@ -4939,9 +4958,10 @@ pub fn commit_repo_model_claim_repair_request(
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
         .filter(|receipt| {
-            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
-                && receipt.admitted_revision == model.model_revision
+            crate::repo_model_admission_receipt_schema_supported(
+                &receipt.schema_version,
+                &receipt.contract,
+            ) && receipt.admitted_revision == model.model_revision
                 && receipt.admitted_hash == model_hash
         })
         .collect::<Vec<_>>();
@@ -5112,9 +5132,10 @@ pub(crate) fn validate_current_repo_model_claim_repair_request(
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
         .filter(|receipt| {
-            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
-                && receipt.admitted_revision == model.model_revision
+            crate::repo_model_admission_receipt_schema_supported(
+                &receipt.schema_version,
+                &receipt.contract,
+            ) && receipt.admitted_revision == model.model_revision
                 && receipt.admitted_hash == model_hash
         })
         .collect::<Vec<_>>();
@@ -5192,9 +5213,10 @@ fn validate_repo_frontier_plan_candidate_against_request(
     let admission = cache
         .get::<RepoModelAdmissionReceipt>(&request.admission_receipt_id)?
         .ok_or_else(|| anyhow!("frontier planning candidate requires exact admission receipt"))?;
-    if admission.schema_version != REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-        || admission.contract != REPO_MODEL_ADMISSION_CONTRACT
-        || admission.admitted_revision != request.model_revision
+    if !crate::repo_model_admission_receipt_schema_supported(
+        &admission.schema_version,
+        &admission.contract,
+    ) || admission.admitted_revision != request.model_revision
         || admission.admitted_hash != request.model_hash
     {
         return Err(anyhow!(
@@ -5259,44 +5281,219 @@ pub fn commit_repo_frontier_plan_decision(
     runtime_store: impl AsRef<Path>,
     mind_result_id: &str,
 ) -> Result<RepoFrontierPlanDecisionReceipt> {
-    commit_repo_frontier_plan_decision_inner(runtime_store, mind_result_id, None)
+    commit_repo_frontier_plan_decision_inner(
+        runtime_store,
+        FrontierPlanDecisionSource::MindWorker(mind_result_id),
+        None,
+    )
+}
+
+enum FrontierPlanDecisionSource<'a> {
+    MindWorker(&'a str),
+    Operator(&'a crate::RepoFrontierPlanOperatorReview),
+}
+
+/// Read-only, bounded identities for candidates already routed to canonical
+/// Mind review. Invalid, stale, or terminal candidates are not projected.
+pub fn pending_repo_frontier_plan_reviews(
+    runtime_store: impl AsRef<Path>,
+    limit: usize,
+) -> Result<Vec<crate::RepoFrontierPlanReviewSummary>> {
+    if limit == 0 || limit > 25 {
+        return Err(anyhow!(
+            "Mind review projection limit must be within 1..=25"
+        ));
+    }
+    let mut cache = runtime_spine_cache(runtime_store.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    let terminal = cache
+        .get_all::<RepoFrontierPlanDecisionReceipt>()?
+        .into_iter()
+        .map(|receipt| receipt.planning_request_id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut summaries = Vec::new();
+    for request in cache.get_all::<RepoFrontierPlanMindRequest>()? {
+        let Ok((planning, candidate)) = validate_repo_frontier_plan_mind_request(&cache, &request)
+        else {
+            continue;
+        };
+        if terminal.contains(&planning.request_id) {
+            continue;
+        }
+        summaries.push(crate::RepoFrontierPlanReviewSummary {
+            mind_request_id: request.request_id,
+            candidate_id: candidate.candidate_id,
+            candidate_sha256: request.candidate_sha256,
+            model_revision: planning.model_revision,
+            model_hash: planning.model_hash,
+            frontier_item_id: planning.frontier_item_id,
+            requested_at: request.requested_at,
+        });
+    }
+    summaries.sort_by(|a, b| {
+        a.requested_at
+            .cmp(&b.requested_at)
+            .then_with(|| a.mind_request_id.cmp(&b.mind_request_id))
+    });
+    summaries.truncate(limit);
+    Ok(summaries)
+}
+
+/// Canonical Mind commit path for an authenticated operator's exact review
+/// request. The operator selects a disposition; Mind revalidates the complete
+/// immutable candidate and current model before performing the same atomic
+/// terminal transition used by a Mind worker.
+pub fn commit_operator_repo_frontier_plan_review(
+    runtime_store: impl AsRef<Path>,
+    review: &crate::RepoFrontierPlanOperatorReview,
+) -> Result<RepoFrontierPlanDecisionReceipt> {
+    commit_repo_frontier_plan_decision_inner(
+        runtime_store,
+        FrontierPlanDecisionSource::Operator(review),
+        None,
+    )
+}
+
+/// Classifies only operator-visible precondition refusal. Store corruption,
+/// decoding failure, and I/O remain errors and must never be fossilized as a
+/// terminal Refused command result.
+pub fn operator_repo_frontier_plan_review_is_current(
+    runtime_store: impl AsRef<Path>,
+    review: &crate::RepoFrontierPlanOperatorReview,
+) -> Result<bool> {
+    let mut cache = runtime_spine_cache(runtime_store.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    let Some(request) = cache.get::<RepoFrontierPlanMindRequest>(&review.mind_request_id)? else {
+        return Ok(false);
+    };
+    let (planning, candidate) =
+        validate_repo_frontier_plan_mind_request_identity(&cache, &request)?;
+    if review.candidate_id != candidate.candidate_id
+        || review.candidate_sha256 != request.candidate_sha256
+        || review.expected_model_revision != planning.model_revision
+        || review.expected_model_hash != planning.model_hash
+    {
+        return Ok(false);
+    }
+    let terminal = cache
+        .get_all::<RepoFrontierPlanDecisionReceipt>()?
+        .into_iter()
+        .filter(|receipt| receipt.planning_request_id == planning.request_id)
+        .collect::<Vec<_>>();
+    if !terminal.is_empty() {
+        if terminal.len() != 1 {
+            return Err(anyhow!(
+                "Mind review candidate has multiple terminal decisions"
+            ));
+        }
+        let receipt = &terminal[0];
+        return Ok(receipt.decision == review.decision
+            && receipt.candidate_id == review.candidate_id
+            && receipt.candidate_sha256 == review.candidate_sha256
+            && receipt.model_revision == review.expected_model_revision
+            && receipt.model_hash == review.expected_model_hash
+            && receipt.decision_source.as_ref()
+                == Some(
+                    &crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview {
+                        command_id: review.command_id.clone(),
+                        admission_id: review.admission_id.clone(),
+                        packet_sha256: review.packet_sha256.clone(),
+                        source_actor_id: review.source_actor_id.clone(),
+                    },
+                ));
+    }
+    let current = cache
+        .get::<crate::EpiphanyMemoryGraphEntry>(crate::MEMORY_GRAPH_KEY)?
+        .ok_or_else(|| anyhow!("operator Mind review requires canonical RepoModel"))?
+        .snapshot()?;
+    if current.model_revision != planning.model_revision
+        || crate::memory_graph_model_hash(&current)? != planning.model_hash
+    {
+        return Ok(false);
+    }
+    validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &planning)?;
+    Ok(true)
 }
 
 fn commit_repo_frontier_plan_decision_inner(
     runtime_store: impl AsRef<Path>,
-    mind_result_id: &str,
+    source: FrontierPlanDecisionSource<'_>,
     pre_cas: Option<&(dyn Fn() + Sync)>,
 ) -> Result<RepoFrontierPlanDecisionReceipt> {
-    validate_non_empty(mind_result_id, "frontier plan Mind result id")?;
     let runtime_store = runtime_store.as_ref();
     let mut cache = runtime_spine_cache(runtime_store)?;
     cache.pull_all_backing_stores()?;
-    let results = cache
-        .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
-        .into_iter()
-        .filter(|result| result.result_id == mind_result_id)
-        .collect::<Vec<_>>();
-    if results.len() != 1 {
-        return Err(anyhow!(
-            "frontier plan decision requires exactly one immutable Mind result"
-        ));
-    }
-    let mind_result = &results[0];
-    let mind_request_id = mind_result
-        .frontier_plan_mind_request_id
-        .as_deref()
-        .ok_or_else(|| anyhow!("frontier plan decision Mind result lacks request echo"))?;
+    let (mind_request_id, decision, rationale, decided_at, decision_source) = match source {
+        FrontierPlanDecisionSource::MindWorker(mind_result_id) => {
+            validate_non_empty(mind_result_id, "frontier plan Mind result id")?;
+            let results = cache
+                .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+                .into_iter()
+                .filter(|result| result.result_id == mind_result_id)
+                .collect::<Vec<_>>();
+            if results.len() != 1 {
+                return Err(anyhow!(
+                    "frontier plan decision requires exactly one immutable Mind result"
+                ));
+            }
+            let mind_result = &results[0];
+            let mind_request_id = mind_result
+                .frontier_plan_mind_request_id
+                .clone()
+                .ok_or_else(|| anyhow!("frontier plan decision Mind result lacks request echo"))?;
+            let typed = mind_result.frontier_plan_mind_decision()?.ok_or_else(|| {
+                anyhow!("frontier plan decision requires typed immutable Mind decision")
+            })?;
+            (
+                mind_request_id,
+                typed.decision,
+                typed.rationale,
+                typed.decided_at,
+                crate::RepoFrontierPlanDecisionSource::MindWorker {
+                    result_id: mind_result.result_id.clone(),
+                    job_id: mind_result.job_id.clone(),
+                },
+            )
+        }
+        FrontierPlanDecisionSource::Operator(review) => {
+            validate_non_empty(&review.command_id, "operator review command id")?;
+            validate_non_empty(&review.admission_id, "operator review admission id")?;
+            validate_non_empty(&review.packet_sha256, "operator review packet digest")?;
+            validate_non_empty(&review.source_actor_id, "operator review actor id")?;
+            chrono::DateTime::parse_from_rfc3339(&review.decided_at)
+                .map_err(|_| anyhow!("operator review timestamp must be RFC3339"))?;
+            (
+                review.mind_request_id.clone(),
+                review.decision,
+                format!("Authenticated operator requested {:?}.", review.decision).to_lowercase(),
+                review.decided_at.clone(),
+                crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview {
+                    command_id: review.command_id.clone(),
+                    admission_id: review.admission_id.clone(),
+                    packet_sha256: review.packet_sha256.clone(),
+                    source_actor_id: review.source_actor_id.clone(),
+                },
+            )
+        }
+    };
     let mind_request = cache
-        .get::<RepoFrontierPlanMindRequest>(mind_request_id)?
+        .get::<RepoFrontierPlanMindRequest>(&mind_request_id)?
         .ok_or_else(|| anyhow!("frontier plan decision requires typed Mind request"))?;
     let (request, candidate) =
         validate_repo_frontier_plan_mind_request_identity(&cache, &mind_request)?;
-    let typed_decision = mind_result
-        .frontier_plan_mind_decision()?
-        .ok_or_else(|| anyhow!("frontier plan decision requires typed immutable Mind decision"))?;
-    let decision = typed_decision.decision;
-    let rationale = typed_decision.rationale.as_str();
-    let decided_at = typed_decision.decided_at.as_str();
+    if let FrontierPlanDecisionSource::Operator(review) = source {
+        if review.candidate_id != candidate.candidate_id
+            || review.candidate_sha256 != mind_request.candidate_sha256
+            || review.expected_model_revision != request.model_revision
+            || review.expected_model_hash != request.model_hash
+        {
+            return Err(anyhow!(
+                "operator review does not exactly bind current Mind candidate"
+            ));
+        }
+    }
+    let rationale = rationale.as_str();
+    let decided_at = decided_at.as_str();
     let result_id = mind_request.imagination_result_id.as_str();
     let source_results = cache
         .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
@@ -5337,11 +5534,28 @@ fn commit_repo_frontier_plan_decision_inner(
         } else {
             String::new()
         };
-        if existing.schema_version != REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION
+        if ![
+            REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION,
+            crate::LEGACY_REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION,
+        ]
+        .contains(&existing.schema_version.as_str())
             || existing.contract != REPO_FRONTIER_PLAN_DECISION_CONTRACT
             || existing.decision_id != decision_id
-            || existing.source_result_id != mind_result.result_id
-            || existing.source_job_id != mind_result.job_id
+            || (existing.schema_version == REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION
+                && (existing.decision_source.as_ref() != Some(&decision_source)
+                    || existing.legacy_mind_worker_result_id.is_some()
+                    || existing.legacy_mind_worker_job_id.is_some()))
+            || (existing.schema_version
+                == crate::LEGACY_REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION
+                && !matches!(
+                    &decision_source,
+                    crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, job_id }
+                        if existing.decision_source.is_none()
+                            && existing.legacy_mind_worker_result_id.as_deref()
+                                == Some(result_id.as_str())
+                            && existing.legacy_mind_worker_job_id.as_deref()
+                                == Some(job_id.as_str())
+                ))
             || existing.candidate_id != candidate.candidate_id
             || existing.candidate_sha256 != candidate_sha256
             || existing.model_revision != request.model_revision
@@ -5365,11 +5579,19 @@ fn commit_repo_frontier_plan_decision_inner(
             let review = cache
                 .get::<RepoModelAdmissionReview>(&expected_review_id)?
                 .ok_or_else(|| anyhow!("Adopt retry lost its Mind admission review"))?;
-            if admission.schema_version != REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-                || admission.contract != REPO_MODEL_ADMISSION_CONTRACT
-                || admission.receipt_id != expected_admission_id
+            let expected_admission_source = if existing.schema_version
+                == crate::LEGACY_REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION
+            {
+                None
+            } else {
+                Some(repo_model_admission_source(&decision_source, &decision_id))
+            };
+            if !crate::repo_model_admission_receipt_schema_supported(
+                &admission.schema_version,
+                &admission.contract,
+            ) || admission.receipt_id != expected_admission_id
                 || admission.review_id != expected_review_id
-                || admission.result_id != mind_result.result_id
+                || admission.result_id.as_deref() != decision_source_reference(&decision_source)
                 || admission.patch_id != expected_patch_id
                 || admission.patch_sha256.trim().is_empty()
                 || admission.previous_revision != request.model_revision
@@ -5390,11 +5612,14 @@ fn commit_repo_frontier_plan_decision_inner(
                 || admission.proposal_modeling_request_id != ""
                 || admission.claim_repair_request_id != ""
                 || admission.frontier_plan_decision_id != decision_id
-                || review.schema_version != REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION
-                || review.contract != REPO_MODEL_ADMISSION_CONTRACT
+                || admission.admission_source != expected_admission_source
+                || !crate::repo_model_admission_review_schema_supported(
+                    &review.schema_version,
+                    &review.contract,
+                )
                 || review.review_id != expected_review_id
-                || review.result_id != mind_result.result_id
-                || review.job_id != mind_result.job_id
+                || review.result_id.as_deref() != decision_source_reference(&decision_source)
+                || review.job_id.as_deref() != decision_source_job_reference(&decision_source)
                 || review.patch_id != expected_patch_id
                 || review.patch_sha256 != admission.patch_sha256
                 || review.base_revision != request.model_revision
@@ -5404,9 +5629,10 @@ fn commit_repo_frontier_plan_decision_inner(
                     != vec![
                         request.request_id.clone(),
                         result.result_id.clone(),
-                        mind_result.result_id.clone(),
+                        decision_evidence_reference(&decision_source, &decision_id).to_string(),
                     ]
                 || review.reviewed_at != decided_at
+                || review.admission_source != expected_admission_source
             {
                 return Err(anyhow!("Adopt retry model admission chain mismatch"));
             }
@@ -5424,7 +5650,14 @@ fn commit_repo_frontier_plan_decision_inner(
     // Exact retry through the immutable result validator also replays request,
     // launch binding, launch bytes, runtime/thread, model, admission, frontier,
     // and candidate scope immediately before Mind decides.
-    put_runtime_role_worker_result(runtime_store, mind_result)?;
+    if let FrontierPlanDecisionSource::MindWorker(mind_result_id) = source {
+        let mind_result = cache
+            .get_all::<EpiphanyRuntimeRoleWorkerResult>()?
+            .into_iter()
+            .find(|result| result.result_id == mind_result_id)
+            .ok_or_else(|| anyhow!("frontier plan Mind result disappeared"))?;
+        put_runtime_role_worker_result(runtime_store, &mind_result)?;
+    }
     put_runtime_role_worker_result(runtime_store, result)?;
     validate_current_repo_frontier_planning_request(&cache, &request)?;
     validate_repo_frontier_plan_candidate_against_request(&cache, &candidate, &request)?;
@@ -5432,8 +5665,8 @@ fn commit_repo_frontier_plan_decision_inner(
         schema_version: REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION.into(),
         decision_id: decision_id.clone(),
         planning_request_id: request.request_id.clone(),
-        source_result_id: mind_result.result_id.clone(),
-        source_job_id: mind_result.job_id.clone(),
+        legacy_mind_worker_result_id: None,
+        legacy_mind_worker_job_id: None,
         candidate_id: candidate.candidate_id.clone(),
         candidate_sha256: candidate_sha256.clone(),
         model_revision: request.model_revision,
@@ -5445,6 +5678,7 @@ fn commit_repo_frontier_plan_decision_inner(
         decided_at: decided_at.to_string(),
         model_admission_receipt_id: String::new(),
         contract: REPO_FRONTIER_PLAN_DECISION_CONTRACT.into(),
+        decision_source: Some(decision_source.clone()),
     };
     let backing = SingleFileMessagePackBackingStore::new(runtime_store);
     let current_envelope = backing
@@ -5506,8 +5740,8 @@ fn commit_repo_frontier_plan_decision_inner(
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
             review_id: review_id.clone(),
-            result_id: mind_result.result_id.clone(),
-            job_id: mind_result.job_id.clone(),
+            result_id: decision_source_reference(&decision_source).map(str::to_string),
+            job_id: decision_source_job_reference(&decision_source).map(str::to_string),
             patch_id: patch.patch_id.clone(),
             patch_sha256: patch_sha256.clone(),
             base_revision: request.model_revision,
@@ -5516,17 +5750,18 @@ fn commit_repo_frontier_plan_decision_inner(
             evidence_ids: vec![
                 request.request_id.clone(),
                 result.result_id.clone(),
-                mind_result.result_id.clone(),
+                decision_evidence_reference(&decision_source, &decision_id).to_string(),
             ],
             reviewed_at: decided_at.to_string(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
             repository_body_observation_basis: None,
+            admission_source: Some(repo_model_admission_source(&decision_source, &decision_id)),
         };
         let admission = RepoModelAdmissionReceipt {
             schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
             receipt_id: admission_id.clone(),
             review_id,
-            result_id: mind_result.result_id.clone(),
+            result_id: decision_source_reference(&decision_source).map(str::to_string),
             patch_id: patch.patch_id,
             patch_sha256,
             previous_revision: request.model_revision,
@@ -5544,6 +5779,7 @@ fn commit_repo_frontier_plan_decision_inner(
             claim_repair_request_id: String::new(),
             frontier_plan_decision_id: decision_id.clone(),
             repository_body_observation_basis: None,
+            admission_source: Some(repo_model_admission_source(&decision_source, &decision_id)),
         };
         let obligation = modeling_projection_obligation(
             &cache,
@@ -5574,9 +5810,59 @@ fn commit_repo_frontier_plan_decision_inner(
         // decision and admission chain. Reload through the public validator:
         // it returns that winner only when every identity field matches, while
         // a competing decision or unrelated model change remains an error.
-        return commit_repo_frontier_plan_decision(runtime_store, mind_result_id);
+        return match source {
+            FrontierPlanDecisionSource::MindWorker(mind_result_id) => {
+                commit_repo_frontier_plan_decision(runtime_store, mind_result_id)
+            }
+            FrontierPlanDecisionSource::Operator(review) => {
+                commit_operator_repo_frontier_plan_review(runtime_store, review)
+            }
+        };
     }
     Ok(receipt)
+}
+
+fn decision_source_reference(source: &crate::RepoFrontierPlanDecisionSource) -> Option<&str> {
+    match source {
+        crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, .. } => Some(result_id),
+        crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. } => None,
+    }
+}
+
+fn decision_source_job_reference(source: &crate::RepoFrontierPlanDecisionSource) -> Option<&str> {
+    match source {
+        crate::RepoFrontierPlanDecisionSource::MindWorker { job_id, .. } => Some(job_id),
+        crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. } => None,
+    }
+}
+
+fn decision_evidence_reference<'a>(
+    source: &'a crate::RepoFrontierPlanDecisionSource,
+    decision_id: &'a str,
+) -> &'a str {
+    match source {
+        crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, .. } => result_id,
+        crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. } => decision_id,
+    }
+}
+
+fn repo_model_admission_source(
+    source: &crate::RepoFrontierPlanDecisionSource,
+    decision_id: &str,
+) -> crate::RepoModelAdmissionSource {
+    match source {
+        crate::RepoFrontierPlanDecisionSource::MindWorker { result_id, job_id } => {
+            crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: result_id.clone(),
+                job_id: job_id.clone(),
+            }
+        }
+        crate::RepoFrontierPlanDecisionSource::AuthenticatedOperatorReview { .. } => {
+            crate::RepoModelAdmissionSource::FrontierPlanDecision {
+                decision_id: decision_id.to_string(),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -5585,7 +5871,11 @@ pub(crate) fn commit_repo_frontier_plan_decision_with_pre_cas(
     mind_result_id: &str,
     pre_cas: &(dyn Fn() + Sync),
 ) -> Result<RepoFrontierPlanDecisionReceipt> {
-    commit_repo_frontier_plan_decision_inner(runtime_store, mind_result_id, Some(pre_cas))
+    commit_repo_frontier_plan_decision_inner(
+        runtime_store,
+        FrontierPlanDecisionSource::MindWorker(mind_result_id),
+        Some(pre_cas),
+    )
 }
 
 impl RepoFrontierPlanCandidate {
@@ -5633,9 +5923,10 @@ pub fn select_and_commit_repo_frontier_route(
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
         .filter(|receipt| {
-            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
-                && receipt.admitted_revision == current.model_revision
+            crate::repo_model_admission_receipt_schema_supported(
+                &receipt.schema_version,
+                &receipt.contract,
+            ) && receipt.admitted_revision == current.model_revision
                 && receipt.admitted_hash == current_hash
         })
         .collect::<Vec<_>>();
@@ -5751,9 +6042,10 @@ pub fn runtime_has_actionable_hands_frontier(runtime_store: impl AsRef<Path>) ->
         .get_all::<RepoModelAdmissionReceipt>()?
         .into_iter()
         .filter(|receipt| {
-            receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-                && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
-                && receipt.admitted_revision == model.model_revision
+            crate::repo_model_admission_receipt_schema_supported(
+                &receipt.schema_version,
+                &receipt.contract,
+            ) && receipt.admitted_revision == model.model_revision
                 && receipt.admitted_hash == model_hash
         })
         .count();
@@ -8925,8 +9217,8 @@ pub(crate) mod tests {
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
             review_id: review_id.to_string(),
-            result_id: result_id.to_string(),
-            job_id: job_id.to_string(),
+            result_id: Some(result_id.to_string()),
+            job_id: Some(job_id.to_string()),
             patch_id: patch.patch_id,
             patch_sha256: format!("{:x}", Sha256::digest(&patch_bytes)),
             base_revision: patch.base_revision,
@@ -8936,6 +9228,10 @@ pub(crate) mod tests {
             reviewed_at: "2026-07-13T04:00:01Z".to_string(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
             repository_body_observation_basis: result.repository_body_observation_basis.clone(),
+            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: result_id.to_string(),
+                job_id: job_id.to_string(),
+            }),
         };
         Ok((result, review))
     }
@@ -9163,8 +9459,8 @@ pub(crate) mod tests {
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
             review_id: format!("claim-repair-review-{suffix}"),
-            result_id: result.result_id.clone(),
-            job_id: result.job_id.clone(),
+            result_id: Some(result.result_id.clone()),
+            job_id: Some(result.job_id.clone()),
             patch_id: patch.patch_id,
             patch_sha256: format!("{:x}", Sha256::digest(&patch_bytes)),
             base_revision: patch.base_revision,
@@ -9174,6 +9470,10 @@ pub(crate) mod tests {
             reviewed_at: "2026-07-14T09:00:05Z".into(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.into(),
             repository_body_observation_basis: result.repository_body_observation_basis.clone(),
+            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: result.result_id.clone(),
+                job_id: result.job_id.clone(),
+            }),
         };
         Ok((store, result, review, repair))
     }
@@ -9259,7 +9559,7 @@ pub(crate) mod tests {
                             schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
                             receipt_id: receipt_id.clone(),
                             review_id: review.review_id.clone(),
-                            result_id: result.result_id.clone(),
+                            result_id: Some(result.result_id.clone()),
                             patch_id: review.patch_id.clone(),
                             patch_sha256: review.patch_sha256.clone(),
                             previous_revision: repair.model_revision,
@@ -9279,6 +9579,7 @@ pub(crate) mod tests {
                             repository_body_observation_basis: review
                                 .repository_body_observation_basis
                                 .clone(),
+                            admission_source: review.admission_source.clone(),
                         },
                     )?;
                 }
@@ -9704,8 +10005,8 @@ pub(crate) mod tests {
         let hostile_review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
             review_id: "autonomous-direct-hands-review".into(),
-            result_id: hostile_result.result_id.clone(),
-            job_id: modeling_job.into(),
+            result_id: Some(hostile_result.result_id.clone()),
+            job_id: Some(modeling_job.into()),
             patch_id: hostile_patch.patch_id.clone(),
             patch_sha256: format!("{:x}", Sha256::digest(&hostile_patch_bytes)),
             base_revision: hostile_patch.base_revision,
@@ -9717,6 +10018,10 @@ pub(crate) mod tests {
             repository_body_observation_basis: hostile_result
                 .repository_body_observation_basis
                 .clone(),
+            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: hostile_result.result_id.clone(),
+                job_id: modeling_job.into(),
+            }),
         };
         let before_direct_hands_admission = std::fs::read(&store)?;
         assert!(
@@ -10099,7 +10404,7 @@ pub(crate) mod tests {
                         schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
                         receipt_id: receipt_id.clone(),
                         review_id: review.review_id.clone(),
-                        result_id: result.result_id.clone(),
+                        result_id: Some(result.result_id.clone()),
                         patch_id: patch.patch_id,
                         patch_sha256: review.patch_sha256.clone(),
                         previous_revision: current.model_revision,
@@ -10119,6 +10424,7 @@ pub(crate) mod tests {
                         repository_body_observation_basis: review
                             .repository_body_observation_basis
                             .clone(),
+                        admission_source: review.admission_source.clone(),
                     };
                     overwrite_test_entry(&store, &review.review_id, &review)?;
                     overwrite_test_entry(&store, &receipt_id, &receipt)?;
@@ -10798,8 +11104,8 @@ pub(crate) mod tests {
         let review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
             review_id: format!("incorporation-review-{suffix}"),
-            result_id: result.result_id.clone(),
-            job_id: result.job_id.clone(),
+            result_id: Some(result.result_id.clone()),
+            job_id: Some(result.job_id.clone()),
             patch_id: patch.patch_id,
             patch_sha256: format!("{:x}", Sha256::digest(&bytes)),
             base_revision: patch.base_revision,
@@ -10809,6 +11115,10 @@ pub(crate) mod tests {
             reviewed_at: "2026-07-13T06:00:10Z".to_string(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
             repository_body_observation_basis: result.repository_body_observation_basis.clone(),
+            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: result.result_id.clone(),
+                job_id: result.job_id.clone(),
+            }),
         };
         Ok((result, review))
     }
@@ -10875,7 +11185,7 @@ pub(crate) mod tests {
 
         let bytes_before = fs::read(&store)?;
         let mut swapped_result = review.clone();
-        swapped_result.result_id = "other-result".to_string();
+        swapped_result.result_id = Some("other-result".to_string());
         assert!(commit_repo_model_admission(&store, &result.result_id, &swapped_result).is_err());
         let mut swapped_patch = review.clone();
         swapped_patch.review_id = "review-swapped-patch".to_string();

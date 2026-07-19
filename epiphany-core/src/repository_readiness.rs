@@ -11,9 +11,8 @@ use crate::{
     MEMORY_SEMANTIC_PROJECTION_OBLIGATION_SCHEMA_VERSION, MemorySemanticIndexReceipt,
     MemorySemanticProjectionAttempt, MemorySemanticProjectionClaim, MemorySemanticProjectionInput,
     MemorySemanticProjectionObligation, MemorySemanticProjectionReadiness,
-    MemorySemanticProjectionSourceHead, REPO_MODEL_ADMISSION_CONTRACT,
-    REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION, RepoModelAdmissionReceipt,
-    RepositoryBodyObservationBasis, SEMANTIC_PROJECTION_SCHEMA_VERSION, WorkspaceCoveragePolicy,
+    MemorySemanticProjectionSourceHead, RepoModelAdmissionReceipt, RepositoryBodyObservationBasis,
+    SEMANTIC_PROJECTION_SCHEMA_VERSION, WorkspaceCoveragePolicy,
     load_memory_semantic_projection_readiness, memory_graph_model_hash,
     observe_runtime_repository_body_basis, runtime_modeling_semantic_projection_input,
     runtime_spine_cache, validate_memory_semantic_projection_obligation,
@@ -411,9 +410,10 @@ fn select_current_admission(
     model_hash: &str,
 ) -> Result<RepoModelAdmissionReceipt> {
     let mut matching = receipts.into_iter().filter(|(_, receipt)| {
-        receipt.schema_version == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
-            && receipt.contract == REPO_MODEL_ADMISSION_CONTRACT
-            && receipt.admitted_revision == model_revision
+        crate::repo_model_admission_receipt_schema_supported(
+            &receipt.schema_version,
+            &receipt.contract,
+        ) && receipt.admitted_revision == model_revision
             && receipt.admitted_hash == model_hash
     });
     let selected = matching.next().ok_or_else(|| {
@@ -881,6 +881,7 @@ fn observe_repository_readiness_with_clock(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{REPO_MODEL_ADMISSION_CONTRACT, REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION};
     use epiphany_state_model::RepoModelPatchPurpose;
 
     #[derive(Clone)]
@@ -1005,7 +1006,7 @@ mod tests {
             schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
             receipt_id: "admission".into(),
             review_id: "review".into(),
-            result_id: "result".into(),
+            result_id: Some("result".into()),
             patch_id: "patch".into(),
             patch_sha256: "patch-hash".into(),
             previous_revision: 6,
@@ -1023,6 +1024,10 @@ mod tests {
             claim_repair_request_id: String::new(),
             frontier_plan_decision_id: String::new(),
             repository_body_observation_basis: Some(body),
+            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: "result".into(),
+                job_id: "job".into(),
+            }),
         }
     }
 

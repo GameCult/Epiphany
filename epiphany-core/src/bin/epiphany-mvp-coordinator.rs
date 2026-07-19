@@ -2123,7 +2123,7 @@ mod tests {
             schema_version: epiphany_core::REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.to_string(),
             receipt_id: "coordinator-hands-admission-test".to_string(),
             review_id: "coordinator-hands-model-review-test".to_string(),
-            result_id: "coordinator-hands-model-result-test".to_string(),
+            result_id: Some("coordinator-hands-model-result-test".to_string()),
             patch_id: "coordinator-hands-model-patch-test".to_string(),
             patch_sha256: "fixture".to_string(),
             previous_revision: 0,
@@ -2141,6 +2141,10 @@ mod tests {
             claim_repair_request_id: String::new(),
             frontier_plan_decision_id: String::new(),
             repository_body_observation_basis: None,
+            admission_source: Some(epiphany_core::RepoModelAdmissionSource::WorkerResult {
+                result_id: "coordinator-hands-model-result-test".into(),
+                job_id: "coordinator-hands-model-job-test".into(),
+            }),
         };
         let mut cache = epiphany_core::runtime_spine_cache(store)?;
         cache.put(epiphany_core::MEMORY_GRAPH_KEY, &entry)?;

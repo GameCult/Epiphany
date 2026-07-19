@@ -19,8 +19,8 @@ use crate::{
 pub const EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE: &str =
     "epiphany.operator_command.sealed_result";
 pub const EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION: &str =
-    "epiphany.operator_command.sealed_result.v0";
-const RESULT_SIGNING_PURPOSE: &str = "epiphany.operator-command.sealed-result.v0";
+    "epiphany.operator_command.sealed_result.v1";
+const RESULT_SIGNING_PURPOSE: &str = "epiphany.operator-command.sealed-result.v1";
 pub const EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID: u32 = 0xe91f_0001;
 
 #[derive(Clone, Debug)]
@@ -28,6 +28,7 @@ pub struct OperatorCommandServiceConfig {
     pub command_store: PathBuf,
     pub local_verse_store: PathBuf,
     pub resident_self_store: PathBuf,
+    pub runtime_store: PathBuf,
     pub policy: OperatorCommandPolicy,
     pub trusted_bifrost_identity: HostIdentityTrustAnchorEntry,
 }
@@ -65,6 +66,9 @@ pub struct EpiphanyOperatorCommandWireResult {
     pub coordinator_action: String,
     pub brake_status: String,
     pub detail: String,
+    pub reviews: Vec<crate::RepoFrontierPlanReviewSummary>,
+    pub review_candidate_id: String,
+    pub review_decision: String,
 }
 
 impl From<&OperatorCommandResult> for EpiphanyOperatorCommandWireResult {
@@ -85,6 +89,9 @@ impl From<&OperatorCommandResult> for EpiphanyOperatorCommandWireResult {
             coordinator_action: value.coordinator_action.clone(),
             brake_status: value.brake_status.clone(),
             detail: value.detail.clone(),
+            reviews: value.reviews.clone(),
+            review_candidate_id: value.review_candidate_id.clone(),
+            review_decision: value.review_decision.clone(),
         }
     }
 }
@@ -150,6 +157,7 @@ pub fn execute_operator_command_admission(
         &config.command_store,
         &config.local_verse_store,
         &config.resident_self_store,
+        &config.runtime_store,
         &admission,
         &config.trusted_bifrost_identity,
         &config.policy,
@@ -321,6 +329,7 @@ pub fn write_operator_command_interop_fixture(
             command_store: private.join("commands.cc"),
             local_verse_store: private.join("verse.cc"),
             resident_self_store: private.join("resident.cc"),
+            runtime_store: private.join("runtime.cc"),
             policy: OperatorCommandPolicy {
                 runtime_id: "epiphany-interop-fixture".into(),
                 discord_guild_id: "fixture-guild".into(),
@@ -437,6 +446,7 @@ mod tests {
                 command_store: root.join("commands.cc"),
                 local_verse_store: root.join("verse.cc"),
                 resident_self_store: root.join("resident.cc"),
+                runtime_store: root.join("runtime.cc"),
                 policy: OperatorCommandPolicy {
                     runtime_id: "epiphany-yggdrasil".into(),
                     discord_guild_id: "guild".into(),

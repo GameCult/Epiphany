@@ -213,7 +213,7 @@ fn seed_fixture_runtime(store: &Path) -> Result<()> {
             schema_version: REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION.into(),
             receipt_id: "fixture-model-admission".into(),
             review_id: "fixture-review".into(),
-            result_id: "fixture-result".into(),
+            result_id: Some("fixture-result".into()),
             patch_id: "fixture-patch".into(),
             patch_sha256: "sha256-fixture".into(),
             previous_revision: 0,
@@ -231,6 +231,10 @@ fn seed_fixture_runtime(store: &Path) -> Result<()> {
             claim_repair_request_id: String::new(),
             frontier_plan_decision_id: String::new(),
             repository_body_observation_basis: None,
+            admission_source: Some(epiphany_core::RepoModelAdmissionSource::WorkerResult {
+                result_id: "fixture-result".into(),
+                job_id: "fixture-job".into(),
+            }),
         },
     )?;
     Ok(())

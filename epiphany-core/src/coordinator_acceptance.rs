@@ -277,8 +277,8 @@ pub fn accept_coordinator_role_finding(
         let candidate_review = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
             review_id: format!("repo-model-review-{result_id}"),
-            result_id: result_id.to_string(),
-            job_id: job_id.to_string(),
+            result_id: Some(result_id.to_string()),
+            job_id: Some(job_id.to_string()),
             patch_id: patch.patch_id.clone(),
             patch_sha256: format!("{:x}", Sha256::digest(patch_bytes)),
             base_revision: patch.base_revision,
@@ -288,6 +288,10 @@ pub fn accept_coordinator_role_finding(
             reviewed_at: accepted_at.clone(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
             repository_body_observation_basis: Some(repository_body_observation_basis),
+            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: result_id.to_string(),
+                job_id: job_id.to_string(),
+            }),
         };
         let review = stable_repo_model_admission_review(store, candidate_review)?;
         commit_repo_model_admission(store, result_id, &review)?;
@@ -1149,8 +1153,8 @@ mod tests {
         let existing = RepoModelAdmissionReview {
             schema_version: REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
             review_id: "repo-model-review-result-split".to_string(),
-            result_id: "result-split".to_string(),
-            job_id: "job-split".to_string(),
+            result_id: Some("result-split".to_string()),
+            job_id: Some("job-split".to_string()),
             patch_id: "patch-split".to_string(),
             patch_sha256: "a".repeat(64),
             base_revision: 4,
@@ -1160,6 +1164,10 @@ mod tests {
             reviewed_at: "2026-07-13T09:00:01Z".to_string(),
             contract: REPO_MODEL_ADMISSION_CONTRACT.to_string(),
             repository_body_observation_basis: None,
+            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: "result-split".into(),
+                job_id: "job-split".into(),
+            }),
         };
         let mut cache = coordinator_acceptance_cache(&store)?;
         cache.put(&existing.review_id, &existing)?;
@@ -1187,6 +1195,7 @@ mod tests {
                 claim_repair_request_id: String::new(),
                 frontier_plan_decision_id: String::new(),
                 repository_body_observation_basis: None,
+                admission_source: existing.admission_source.clone(),
             },
         )?;
         let mut fresh = existing.clone();

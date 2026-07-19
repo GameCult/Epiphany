@@ -92,8 +92,8 @@ release authorization, or deployment.
 4. `direct`: admits one expiring operator-objective pressure; never parses the
    text as a command family or consequence grant.
 5. `reviews`: read-only bounded list of pending review summaries.
-6. `review`: exact request id plus `Adopt|Refuse|Hold`, expected revision, and
-   optional bounded rationale.
+6. `review`: exact Mind request id, candidate id/digest, model revision/hash,
+   and `Adopt|Refuse|Hold`. The result contains identities and disposition only.
 
 Every mutating command carries a unique command id/nonce, issued-at, expires-at,
 target runtime/repository, actor identity, Bifrost capability reference,
@@ -145,10 +145,34 @@ With Starfire disconnected and no SSH tunnel dependency:
    without changing Epiphany state;
 10. Ygg services survive restart and continue the route without Starfire.
 
-## Current gap
+## Implemented Epiphany review owner (2026-07-19)
 
-The live Ygg body has the Persona feedback nerve but none of these explicit
-Discord operator command crossings. `epiphany-verse-query swarm-brake` and
+`Reviews` projects at most ten current `RepoFrontierPlanMindRequest` identities.
+Mind revalidates the immutable Imagination result, candidate digest, current
+RepoModel revision/hash, frontier item, runtime, and thread. Plan action,
+command, paths, checks, rollback, proposal text, and private state stay sealed.
+
+`Review` enters the existing `RepoFrontierPlanDecisionReceipt` owner. `Refuse`
+and `Hold` are canonical terminal receipts without RepoModel mutation. `Adopt`
+uses the existing atomic RepoModel admission CAS; it creates no route, Hands
+authority, Substrate grant, Persona speech authority, release, or deployment.
+Decision provenance is typed as a Mind worker result or an authenticated
+operator review carrying command, admission, packet digest, and actor identity.
+Downstream RepoModel provenance is independently typed as worker result or
+frontier-plan decision. Absence is `None`, never an empty worker-id sentinel.
+
+The v1 command and sealed-result contracts derive review decision time from the
+immutable packet `issuedAt`, so consequence-before-result replay is independent
+of the retry clock. Candidate mismatch becomes a terminal refusal; storage,
+decoding, CAS, and corruption faults propagate. CultCache v0 decision tuples
+decode worker provenance into explicit legacy Options. Signed v0 operator
+deliveries may drain and replay the original four families, but cannot acquire
+the v1 review vocabulary.
+
+## Remaining deployment gap
+
+The live Ygg body has the Persona feedback nerve but does not yet run this
+successor Discord operator crossing. `epiphany-verse-query swarm-brake` and
 other local CLIs rely on filesystem authority and caller-supplied operator
 labels; they are implementation primitives, not remote authentication. Generic
 VoidBot `provider-status`, `queue-codex`, and job approval operate VoidBot's own

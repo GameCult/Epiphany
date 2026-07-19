@@ -9,18 +9,26 @@ use std::path::Path;
 
 use crate::{
     EpiphanyCultMeshSwarmBrakeEntry, HostIdentitySignature, HostIdentityTrustAnchorEntry,
-    ResidentSelfPressure, enqueue_resident_self_pressure, load_epiphany_cultmesh_swarm_brake,
-    load_latest_epiphany_cultmesh_operator_snapshot, resident_self_pressures,
+    RepoFrontierPlanDecision, RepoFrontierPlanOperatorReview, RepoFrontierPlanReviewSummary,
+    ResidentSelfPressure, commit_operator_repo_frontier_plan_review,
+    enqueue_resident_self_pressure, load_epiphany_cultmesh_swarm_brake,
+    load_latest_epiphany_cultmesh_operator_snapshot, operator_repo_frontier_plan_review_is_current,
+    pending_repo_frontier_plan_reviews, resident_self_pressures,
     verify_host_identity_trust_anchor_signature, write_epiphany_cultmesh_swarm_brake,
 };
 
 pub const BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
+    "bifrost.operator_command.delivery.v1";
+pub const LEGACY_BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
     "bifrost.operator_command.delivery.v0";
 pub const BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE: &str = "bifrost.operator_command.delivery";
 pub const LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
+    "epiphany.operator_command.admitted.v1";
+pub const LEGACY_LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION: &str =
     "epiphany.operator_command.admitted.v0";
-pub const OPERATOR_COMMAND_RESULT_SCHEMA_VERSION: &str = "epiphany.operator_command.result.v0";
-const SIGNING_PURPOSE: &str = "bifrost.operator-command.delivery.v0";
+pub const OPERATOR_COMMAND_RESULT_SCHEMA_VERSION: &str = "epiphany.operator_command.result.v1";
+const SIGNING_PURPOSE: &str = "bifrost.operator-command.delivery.v1";
+const LEGACY_SIGNING_PURPOSE: &str = "bifrost.operator-command.delivery.v0";
 const DISCORD_OPERATOR_BRAKE_ID: &str = "epiphany-discord-operator-brake";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -30,15 +38,30 @@ pub enum OperatorCapability {
     Sleep,
     Wake,
     Directive,
+    Reviews,
+    Review,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OperatorCommand {
     Status,
-    Sleep { reason: String },
+    Sleep {
+        reason: String,
+    },
     Wake,
-    Directive { objective: String },
+    Directive {
+        objective: String,
+    },
+    Reviews,
+    Review {
+        mind_request_id: String,
+        candidate_id: String,
+        candidate_sha256: String,
+        expected_model_revision: u64,
+        expected_model_hash: String,
+        decision: RepoFrontierPlanDecision,
+    },
 }
 
 impl OperatorCommand {
@@ -48,6 +71,8 @@ impl OperatorCommand {
             Self::Sleep { .. } => OperatorCapability::Sleep,
             Self::Wake => OperatorCapability::Wake,
             Self::Directive { .. } => OperatorCapability::Directive,
+            Self::Reviews => OperatorCapability::Reviews,
+            Self::Review { .. } => OperatorCapability::Review,
         }
     }
 }
@@ -166,6 +191,12 @@ pub struct OperatorCommandResult {
     pub brake_status: String,
     #[cultcache(key = 14)]
     pub detail: String,
+    #[cultcache(key = 15, default)]
+    pub reviews: Vec<RepoFrontierPlanReviewSummary>,
+    #[cultcache(key = 16, default)]
+    pub review_candidate_id: String,
+    #[cultcache(key = 17, default)]
+    pub review_decision: String,
 }
 
 #[derive(Clone, Debug)]
@@ -244,10 +275,39 @@ fn validate_admission(
         OperatorCommand::Directive { objective } => {
             !objective.trim().is_empty() && objective.len() <= 4096
         }
+        OperatorCommand::Review {
+            mind_request_id,
+            candidate_id,
+            candidate_sha256,
+            expected_model_hash,
+            ..
+        } => {
+            !mind_request_id.trim().is_empty()
+                && mind_request_id.len() <= 256
+                && !candidate_id.trim().is_empty()
+                && candidate_id.len() <= 256
+                && candidate_sha256.len() == 64
+                && candidate_sha256
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit())
+                && expected_model_hash.len() == 64
+                && expected_model_hash
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit())
+        }
         _ => true,
     };
+    let legacy_admission =
+        admission.schema_version == LEGACY_BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION;
+    let admission_version_valid = admission.schema_version
+        == BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION
+        || (legacy_admission
+            && !matches!(
+                &packet.command,
+                OperatorCommand::Reviews | OperatorCommand::Review { .. }
+            ));
     if admission.schema_name != BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE
-        || admission.schema_version != BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION
+        || !admission_version_valid
         || admission.admission_id.trim().is_empty()
         || packet.command_id.trim().is_empty()
         || packet.nonce.trim().is_empty()
@@ -284,7 +344,11 @@ fn validate_admission(
     }
     verify_host_identity_trust_anchor_signature(
         anchor,
-        SIGNING_PURPOSE,
+        if legacy_admission {
+            LEGACY_SIGNING_PURPOSE
+        } else {
+            SIGNING_PURPOSE
+        },
         &operator_command_admission_signing_payload(admission)?,
         &HostIdentitySignature {
             identity_id: admission.provider_identity_id.clone(),
@@ -298,6 +362,7 @@ pub fn admit_and_execute_bifrost_operator_command(
     command_store: &Path,
     local_verse_store: &Path,
     resident_self_store: &Path,
+    runtime_store: &Path,
     admission: &BifrostOperatorCommandAdmission,
     trusted_bifrost_identity: &HostIdentityTrustAnchorEntry,
     policy: &OperatorCommandPolicy,
@@ -308,7 +373,13 @@ pub fn admit_and_execute_bifrost_operator_command(
         validate_admission(admission, trusted_bifrost_identity, policy, now_dt, false)?;
     let packet = &admission.packet;
     let mut admitted = LocalAdmittedOperatorCommand {
-        schema_version: LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into(),
+        schema_version: if admission.schema_version
+            == LEGACY_BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION
+        {
+            LEGACY_LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into()
+        } else {
+            LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into()
+        },
         command_id: packet.command_id.clone(),
         admission_id: admission.admission_id.clone(),
         nonce: packet.nonce.clone(),
@@ -369,6 +440,9 @@ pub fn admit_and_execute_bifrost_operator_command(
         coordinator_action,
         brake_status,
         detail,
+        reviews,
+        review_candidate_id,
+        review_decision,
     ) = match &packet.command {
         OperatorCommand::Status => {
             let snapshot = load_latest_epiphany_cultmesh_operator_snapshot(
@@ -391,6 +465,9 @@ pub fn admit_and_execute_bifrost_operator_command(
                     "",
                     "",
                     "operator status snapshot is unavailable",
+                    Vec::new(),
+                    "",
+                    "",
                 );
             };
             let brake_status =
@@ -406,6 +483,9 @@ pub fn admit_and_execute_bifrost_operator_command(
                 snapshot.coordinator_action,
                 brake_status,
                 String::from("bounded operator-safe status projection"),
+                Vec::new(),
+                String::new(),
+                String::new(),
             )
         }
         OperatorCommand::Sleep { reason } => {
@@ -437,6 +517,9 @@ pub fn admit_and_execute_bifrost_operator_command(
                         "",
                         &current.status,
                         "operator sleep cannot replace a foreign or newer brake generation",
+                        Vec::new(),
+                        "",
+                        "",
                     );
                 }
             }
@@ -477,6 +560,9 @@ pub fn admit_and_execute_bifrost_operator_command(
                 String::new(),
                 "engaged".into(),
                 String::from("Discord operator brake engaged"),
+                Vec::new(),
+                String::new(),
+                String::new(),
             )
         }
         OperatorCommand::Wake => {
@@ -499,6 +585,9 @@ pub fn admit_and_execute_bifrost_operator_command(
                     "",
                     "engaged",
                     "operator wake cannot release a brake owned by another authority",
+                    Vec::new(),
+                    "",
+                    "",
                 );
             };
             brake.status = "released".into();
@@ -521,6 +610,9 @@ pub fn admit_and_execute_bifrost_operator_command(
                 String::new(),
                 "released".into(),
                 String::from("Discord operator brake released; no work scheduled"),
+                Vec::new(),
+                String::new(),
+                String::new(),
             )
         }
         OperatorCommand::Directive { objective } => {
@@ -557,6 +649,9 @@ pub fn admit_and_execute_bifrost_operator_command(
                         "",
                         "",
                         "operator directive pressure identity collision",
+                        Vec::new(),
+                        "",
+                        "",
                     );
                 }
                 None => enqueue_resident_self_pressure(resident_self_store, &pressure)?,
@@ -570,6 +665,82 @@ pub fn admit_and_execute_bifrost_operator_command(
                 String::new(),
                 String::new(),
                 String::from("directive admitted as pressure only"),
+                Vec::new(),
+                String::new(),
+                String::new(),
+            )
+        }
+        OperatorCommand::Reviews => {
+            let reviews = pending_repo_frontier_plan_reviews(runtime_store, 10)?;
+            (
+                OperatorCommandResultDisposition::Observed,
+                "mind-review-candidates",
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                format!("{} pending Mind review candidate(s)", reviews.len()),
+                reviews,
+                String::new(),
+                String::new(),
+            )
+        }
+        OperatorCommand::Review {
+            mind_request_id,
+            candidate_id,
+            candidate_sha256,
+            expected_model_revision,
+            expected_model_hash,
+            decision,
+        } => {
+            let review = RepoFrontierPlanOperatorReview {
+                command_id: packet.command_id.clone(),
+                admission_id: admission.admission_id.clone(),
+                packet_sha256: admission.packet_sha256.clone(),
+                source_actor_id: packet.source_actor_id.clone(),
+                mind_request_id: mind_request_id.clone(),
+                candidate_id: candidate_id.clone(),
+                candidate_sha256: candidate_sha256.clone(),
+                expected_model_revision: *expected_model_revision,
+                expected_model_hash: expected_model_hash.clone(),
+                decision: *decision,
+                decided_at: packet.issued_at.clone(),
+            };
+            if !operator_repo_frontier_plan_review_is_current(runtime_store, &review)? {
+                return persist_result(
+                    command_store,
+                    packet,
+                    admission,
+                    policy,
+                    now,
+                    result_id,
+                    OperatorCommandResultDisposition::Refused,
+                    "mind-review-decision",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "Mind refused stale, terminal, or mismatched review candidate",
+                    Vec::new(),
+                    candidate_id,
+                    &format!("{decision:?}").to_lowercase(),
+                );
+            }
+            let receipt = commit_operator_repo_frontier_plan_review(runtime_store, &review)?;
+            (
+                OperatorCommandResultDisposition::Applied,
+                "mind-review-decision",
+                receipt.decision_id,
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::from("Mind committed exact current-candidate disposition"),
+                Vec::new(),
+                candidate_id.clone(),
+                format!("{decision:?}").to_lowercase(),
             )
         }
     };
@@ -588,6 +759,9 @@ pub fn admit_and_execute_bifrost_operator_command(
         &coordinator_action,
         &brake_status,
         &detail,
+        reviews,
+        &review_candidate_id,
+        &review_decision,
     )
 }
 
@@ -607,6 +781,9 @@ fn persist_result(
     coordinator_action: &str,
     brake_status: &str,
     detail: &str,
+    reviews: Vec<RepoFrontierPlanReviewSummary>,
+    review_candidate_id: &str,
+    review_decision: &str,
 ) -> Result<OperatorCommandResult> {
     let result = OperatorCommandResult {
         schema_version: OPERATOR_COMMAND_RESULT_SCHEMA_VERSION.into(),
@@ -624,6 +801,9 @@ fn persist_result(
         coordinator_action: coordinator_action.into(),
         brake_status: brake_status.into(),
         detail: detail.into(),
+        reviews,
+        review_candidate_id: review_candidate_id.into(),
+        review_decision: review_decision.into(),
     };
     let refreshed = command_cache(command_store)?;
     let (entry, _) = refreshed.prepare_entry(&result_id, &result)?;
@@ -644,6 +824,7 @@ fn issued_millis(value: &str) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cultcache_rs::CultCacheEnvelope;
 
     fn policy() -> OperatorCommandPolicy {
         OperatorCommandPolicy {
@@ -657,6 +838,8 @@ mod tests {
                     OperatorCapability::Sleep,
                     OperatorCapability::Wake,
                     OperatorCapability::Directive,
+                    OperatorCapability::Reviews,
+                    OperatorCapability::Review,
                 ],
             )]),
             max_ttl_seconds: 600,
@@ -698,6 +881,22 @@ mod tests {
         admission.provider_signature = signer
             .sign(
                 SIGNING_PURPOSE,
+                &operator_command_admission_signing_payload(&admission)?,
+            )?
+            .signature;
+        Ok(admission)
+    }
+
+    fn legacy_signed(
+        signer: &crate::HostIdentitySigner,
+        id: &str,
+        command: OperatorCommand,
+    ) -> Result<BifrostOperatorCommandAdmission> {
+        let mut admission = signed(signer, id, command)?;
+        admission.schema_version = LEGACY_BIFROST_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into();
+        admission.provider_signature = signer
+            .sign(
+                LEGACY_SIGNING_PURPOSE,
                 &operator_command_admission_signing_payload(&admission)?,
             )?
             .signature;
@@ -761,6 +960,7 @@ mod tests {
                     &commands,
                     &verse,
                     &resident,
+                    &resident,
                     &admission,
                     &anchor,
                     &policy(),
@@ -770,6 +970,155 @@ mod tests {
             );
             assert!(!commands.exists() && !verse.exists() && !resident.exists());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_v0_delivery_replays_across_v1_cutover_but_cannot_carry_review_commands() -> Result<()>
+    {
+        let temp = tempfile::tempdir()?;
+        let signer = crate::enroll_host_identity_at(&temp.path().join("identity.cc"))?;
+        let anchor =
+            crate::export_host_identity_trust_anchor(&signer, &temp.path().join("anchor.cc"))?;
+        let (commands, verse, resident, runtime) = (
+            temp.path().join("commands.cc"),
+            temp.path().join("verse.cc"),
+            temp.path().join("resident.cc"),
+            temp.path().join("runtime.cc"),
+        );
+        let legacy = legacy_signed(
+            &signer,
+            "legacy-sleep",
+            OperatorCommand::Sleep {
+                reason: "Drain the v0 delivery.".into(),
+            },
+        )?;
+        let first = admit_and_execute_bifrost_operator_command(
+            &commands,
+            &verse,
+            &resident,
+            &runtime,
+            &legacy,
+            &anchor,
+            &policy(),
+            "2026-07-19T12:00:00Z",
+        )?;
+        let replay = admit_and_execute_bifrost_operator_command(
+            &commands,
+            &verse,
+            &resident,
+            &runtime,
+            &legacy,
+            &anchor,
+            &policy(),
+            "2026-07-19T12:10:00Z",
+        )?;
+        assert_eq!(replay, first);
+        let review = legacy_signed(&signer, "legacy-review", OperatorCommand::Reviews)?;
+        assert!(
+            admit_and_execute_bifrost_operator_command(
+                &commands,
+                &verse,
+                &resident,
+                &runtime,
+                &review,
+                &anchor,
+                &policy(),
+                "2026-07-19T12:00:00Z",
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn persisted_v0_command_ledger_replays_after_v1_cutover() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let signer = crate::enroll_host_identity_at(&temp.path().join("identity.cc"))?;
+        let anchor =
+            crate::export_host_identity_trust_anchor(&signer, &temp.path().join("anchor.cc"))?;
+        let (commands, verse, resident, runtime) = (
+            temp.path().join("commands.cc"),
+            temp.path().join("verse.cc"),
+            temp.path().join("resident.cc"),
+            temp.path().join("runtime.cc"),
+        );
+        let legacy = legacy_signed(&signer, "persisted-v0", OperatorCommand::Status)?;
+        let packet = &legacy.packet;
+        let result_id = format!(
+            "operator-command-result-{:x}",
+            Sha256::digest(format!("{}:{}", packet.command_id, legacy.packet_sha256).as_bytes())
+        );
+        let admitted_at = "2026-07-19T12:00:00Z";
+        let old_admission = (
+            LEGACY_LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION,
+            packet.command_id.as_str(),
+            legacy.admission_id.as_str(),
+            packet.nonce.as_str(),
+            legacy.packet_sha256.as_str(),
+            packet.source_actor_id.as_str(),
+            "status",
+            packet.target_runtime_id.as_str(),
+            admitted_at,
+            packet.expires_at.as_str(),
+            "exact-command-only",
+            false,
+        );
+        let old_result = (
+            "epiphany.operator_command.result.v0",
+            result_id.as_str(),
+            packet.command_id.as_str(),
+            legacy.packet_sha256.as_str(),
+            packet.target_runtime_id.as_str(),
+            "observed",
+            "operator_snapshot",
+            "snapshot-v0",
+            admitted_at,
+            false,
+            "sleeping",
+            "ready",
+            "none",
+            "engaged",
+            "persisted v0 result",
+        );
+        let backing = SingleFileMessagePackBackingStore::new(&commands);
+        for (key, ty, payload) in [
+            (
+                packet.command_id.as_str(),
+                LocalAdmittedOperatorCommand::TYPE,
+                rmp_serde::to_vec(&old_admission)?,
+            ),
+            (
+                result_id.as_str(),
+                OperatorCommandResult::TYPE,
+                rmp_serde::to_vec(&old_result)?,
+            ),
+        ] {
+            assert!(backing.insert_entry_if_absent(CultCacheEnvelope {
+                key: key.into(),
+                r#type: ty.into(),
+                payload,
+                stored_at: admitted_at.into(),
+                schema_id: Some(ty.into()),
+            })?);
+        }
+
+        let replay = admit_and_execute_bifrost_operator_command(
+            &commands,
+            &verse,
+            &resident,
+            &runtime,
+            &legacy,
+            &anchor,
+            &policy(),
+            admitted_at,
+        )?;
+        assert_eq!(replay.schema_version, "epiphany.operator_command.result.v0");
+        assert_eq!(replay.consequence_ref, "snapshot-v0");
+        assert!(replay.reviews.is_empty());
+        assert!(replay.review_candidate_id.is_empty());
+        assert!(replay.review_decision.is_empty());
+        assert!(!verse.exists() && !resident.exists() && !runtime.exists());
         Ok(())
     }
 
@@ -791,6 +1140,7 @@ mod tests {
             &commands,
             &verse,
             &resident,
+            &resident,
             &status,
             &anchor,
             &p,
@@ -810,6 +1160,7 @@ mod tests {
         admit_and_execute_bifrost_operator_command(
             &commands,
             &verse,
+            &resident,
             &resident,
             &sleep,
             &anchor,
@@ -844,6 +1195,7 @@ mod tests {
             &commands,
             &verse,
             &resident,
+            &resident,
             &wake,
             &anchor,
             &p,
@@ -870,6 +1222,7 @@ mod tests {
             &commands,
             &verse,
             &resident,
+            &resident,
             &directive,
             &anchor,
             &p,
@@ -883,6 +1236,7 @@ mod tests {
             admit_and_execute_bifrost_operator_command(
                 &commands,
                 &verse,
+                &resident,
                 &resident,
                 &directive,
                 &anchor,
@@ -916,6 +1270,7 @@ mod tests {
             &commands,
             &verse,
             &resident,
+            &resident,
             &wake,
             &anchor,
             &policy(),
@@ -928,6 +1283,7 @@ mod tests {
             admit_and_execute_bifrost_operator_command(
                 &commands,
                 &verse,
+                &resident,
                 &resident,
                 &wake,
                 &anchor,
@@ -992,6 +1348,7 @@ mod tests {
             &commands,
             &verse,
             &resident,
+            &resident,
             &admission,
             &anchor,
             &policy(),
@@ -1004,12 +1361,104 @@ mod tests {
                 &commands,
                 &verse,
                 &resident,
+                &resident,
                 &admission,
                 &anchor,
                 &policy(),
                 "2026-07-19T12:00:04Z"
             )?,
             result
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn review_replay_recovers_after_mind_consequence_without_command_result() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let (runtime, planning, _, request) =
+            crate::coordinator_launch::tests::operator_review_candidate_fixture(
+                temp.path(),
+                "operator-command-crash",
+            )?;
+        let signer = crate::enroll_host_identity_at(&temp.path().join("identity.cc"))?;
+        let anchor =
+            crate::export_host_identity_trust_anchor(&signer, &temp.path().join("anchor.cc"))?;
+        let (commands, verse, resident) = (
+            temp.path().join("commands.cc"),
+            temp.path().join("verse.cc"),
+            temp.path().join("resident.cc"),
+        );
+        let admission = signed(
+            &signer,
+            "review-crash-recovery",
+            OperatorCommand::Review {
+                mind_request_id: request.request_id.clone(),
+                candidate_id: request.candidate_id.clone(),
+                candidate_sha256: request.candidate_sha256.clone(),
+                expected_model_revision: planning.model_revision,
+                expected_model_hash: planning.model_hash.clone(),
+                decision: RepoFrontierPlanDecision::Hold,
+            },
+        )?;
+        let packet = &admission.packet;
+        let admitted = LocalAdmittedOperatorCommand {
+            schema_version: LOCAL_OPERATOR_COMMAND_ADMISSION_SCHEMA_VERSION.into(),
+            command_id: packet.command_id.clone(),
+            admission_id: admission.admission_id.clone(),
+            nonce: packet.nonce.clone(),
+            packet_sha256: admission.packet_sha256.clone(),
+            source_actor_id: packet.source_actor_id.clone(),
+            capability: "review".into(),
+            target_runtime_id: packet.target_runtime_id.clone(),
+            admitted_at: "2026-07-19T12:00:00Z".into(),
+            expires_at: packet.expires_at.clone(),
+            authority: "exact-command-only".into(),
+            private_state_exposed: false,
+        };
+        let cache = command_cache(&commands)?;
+        let (entry, _) = cache.prepare_entry(&packet.command_id, &admitted)?;
+        assert!(SingleFileMessagePackBackingStore::new(&commands).insert_entry_if_absent(entry)?);
+        let canonical = commit_operator_repo_frontier_plan_review(
+            &runtime,
+            &RepoFrontierPlanOperatorReview {
+                command_id: packet.command_id.clone(),
+                admission_id: admission.admission_id.clone(),
+                packet_sha256: admission.packet_sha256.clone(),
+                source_actor_id: packet.source_actor_id.clone(),
+                mind_request_id: request.request_id,
+                candidate_id: request.candidate_id,
+                candidate_sha256: request.candidate_sha256,
+                expected_model_revision: planning.model_revision,
+                expected_model_hash: planning.model_hash,
+                decision: RepoFrontierPlanDecision::Hold,
+                decided_at: packet.issued_at.clone(),
+            },
+        )?;
+        let recovered = admit_and_execute_bifrost_operator_command(
+            &commands,
+            &verse,
+            &resident,
+            &runtime,
+            &admission,
+            &anchor,
+            &policy(),
+            "2026-07-19T12:00:00Z",
+        )?;
+        assert_eq!(recovered.disposition, "applied");
+        assert_eq!(recovered.consequence_ref, canonical.decision_id);
+        assert_eq!(recovered.review_decision, "hold");
+        assert_eq!(
+            admit_and_execute_bifrost_operator_command(
+                &commands,
+                &verse,
+                &resident,
+                &runtime,
+                &admission,
+                &anchor,
+                &policy(),
+                "2026-07-19T12:00:01Z",
+            )?,
+            recovered
         );
         Ok(())
     }

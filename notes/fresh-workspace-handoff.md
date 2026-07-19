@@ -1,5 +1,29 @@
 # Fresh Workspace Handoff
 
+## Typed Discord Mind review owner (2026-07-19)
+
+The operator-command core now implements `Reviews` and `Review` without a
+parallel review store. `Reviews` is a bounded identity-only projection of
+current canonical `RepoFrontierPlanMindRequest` records. `Review` binds request,
+candidate id/digest, expected RepoModel revision/hash, and exact
+Adopt/Refuse/Hold. Mind revalidates and commits the existing decision owner;
+Hold/Refuse are terminal inert receipts and Adopt uses the existing RepoModel
+CAS. It creates no Hands/Substrate, Persona, release, or deployment authority.
+
+Decision provenance is typed (`MindWorker` or
+`AuthenticatedOperatorReview`). RepoModel review/admission provenance is typed
+separately (`WorkerResult` or `FrontierPlanDecision`); legacy worker ids are
+Options and operator adoption writes None. Crash replay derives decision time
+from packet `issuedAt` and recognizes only exact typed provenance. Candidate
+mismatch is a terminal refusal; storage/corruption/CAS faults propagate. Actual
+CultCache v0 tuple decoding and signed v0 delivery replay are covered; v0
+cannot acquire Reviews/Review.
+
+The service CLI now requires the canonical runtime-spine store explicitly and
+returns sealed Discord-safe review projections. No successor is deployed.
+Bifrost/VoidBot must advance to the v1 schemas before the Ygg rehearsal; brakes
+remain engaged.
+
 ## Organizational product posture and current release blockers — 2026-07-18
 
 This is not a special dogfood experiment. Epiphany's normal organizational

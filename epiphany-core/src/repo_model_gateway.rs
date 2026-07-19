@@ -4,14 +4,33 @@ use serde::{Deserialize, Serialize};
 
 pub const REPO_MODEL_ADMISSION_REVIEW_TYPE: &str = "epiphany.mind.repo_model_admission_review";
 pub const REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION: &str =
+    "epiphany.mind.repo_model_admission_review.v2";
+pub const LEGACY_REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_model_admission_review.v1";
 pub const REPO_MODEL_ADMISSION_RECEIPT_TYPE: &str = "epiphany.mind.repo_model_admission_receipt";
 pub const REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.mind.repo_model_admission_receipt.v6";
+pub const LEGACY_REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_model_admission_receipt.v5";
 pub const REPO_MODEL_MIGRATION_RECEIPT_TYPE: &str = "epiphany.mind.repo_model_migration_receipt";
 pub const REPO_MODEL_MIGRATION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_model_migration_receipt.v0";
-pub const REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v5";
+pub const REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v6";
+pub const LEGACY_REPO_MODEL_ADMISSION_CONTRACT: &str = "epiphany.repo_model_admission.v5";
+
+pub fn repo_model_admission_review_schema_supported(schema: &str, contract: &str) -> bool {
+    (schema == REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION
+        && contract == REPO_MODEL_ADMISSION_CONTRACT)
+        || (schema == LEGACY_REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION
+            && contract == LEGACY_REPO_MODEL_ADMISSION_CONTRACT)
+}
+
+pub fn repo_model_admission_receipt_schema_supported(schema: &str, contract: &str) -> bool {
+    (schema == REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+        && contract == REPO_MODEL_ADMISSION_CONTRACT)
+        || (schema == LEGACY_REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION
+            && contract == LEGACY_REPO_MODEL_ADMISSION_CONTRACT)
+}
 pub const REPO_MODEL_MIGRATION_CONTRACT: &str = "epiphany.repo_model_migration.v0";
 pub const REPO_FRONTIER_ROUTE_TYPE: &str = "epiphany.self.repo_frontier_route";
 pub const REPO_FRONTIER_ROUTE_SCHEMA_VERSION: &str = "epiphany.self.repo_frontier_route.v1";
@@ -34,6 +53,8 @@ pub const REPO_FRONTIER_PLANNING_REQUEST_SCHEMA_VERSION: &str =
 pub const REPO_FRONTIER_PLAN_CANDIDATE_SCHEMA_VERSION: &str =
     "epiphany.imagination.repo_frontier_plan_candidate.v0";
 pub const REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.mind.repo_frontier_plan_decision_receipt.v1";
+pub const LEGACY_REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.mind.repo_frontier_plan_decision_receipt.v0";
 pub const REPO_FRONTIER_PLAN_DECISION_CONTRACT: &str = "epiphany.repo_frontier_plan_decision.v0";
 pub const REPO_FRONTIER_PLANNING_CONTRACT: &str = "epiphany.repo_frontier_planning.v1";
@@ -620,9 +641,9 @@ pub struct RepoFrontierPlanDecisionReceipt {
     #[cultcache(key = 2)]
     pub planning_request_id: String,
     #[cultcache(key = 3)]
-    pub source_result_id: String,
+    pub legacy_mind_worker_result_id: Option<String>,
     #[cultcache(key = 4)]
-    pub source_job_id: String,
+    pub legacy_mind_worker_job_id: Option<String>,
     #[cultcache(key = 5)]
     pub candidate_id: String,
     #[cultcache(key = 6)]
@@ -645,6 +666,54 @@ pub struct RepoFrontierPlanDecisionReceipt {
     pub model_admission_receipt_id: String,
     #[cultcache(key = 15)]
     pub contract: String,
+    #[cultcache(key = 16, default)]
+    pub decision_source: Option<RepoFrontierPlanDecisionSource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RepoFrontierPlanDecisionSource {
+    MindWorker {
+        result_id: String,
+        job_id: String,
+    },
+    AuthenticatedOperatorReview {
+        command_id: String,
+        admission_id: String,
+        packet_sha256: String,
+        source_actor_id: String,
+    },
+}
+
+/// Operator-safe identity projection of one current Mind review candidate.
+/// Proposal text, commands, paths, and private state deliberately remain in
+/// the canonical runtime store owned by Mind.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RepoFrontierPlanReviewSummary {
+    pub mind_request_id: String,
+    pub candidate_id: String,
+    pub candidate_sha256: String,
+    pub model_revision: u64,
+    pub model_hash: String,
+    pub frontier_item_id: String,
+    pub requested_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RepoFrontierPlanOperatorReview {
+    pub command_id: String,
+    pub admission_id: String,
+    pub packet_sha256: String,
+    pub source_actor_id: String,
+    pub mind_request_id: String,
+    pub candidate_id: String,
+    pub candidate_sha256: String,
+    pub expected_model_revision: u64,
+    pub expected_model_hash: String,
+    pub decision: RepoFrontierPlanDecision,
+    pub decided_at: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -783,9 +852,9 @@ pub struct RepoModelAdmissionReview {
     #[cultcache(key = 1)]
     pub review_id: String,
     #[cultcache(key = 2)]
-    pub result_id: String,
+    pub result_id: Option<String>,
     #[cultcache(key = 3)]
-    pub job_id: String,
+    pub job_id: Option<String>,
     #[cultcache(key = 4)]
     pub patch_id: String,
     #[cultcache(key = 5)]
@@ -804,6 +873,15 @@ pub struct RepoModelAdmissionReview {
     pub contract: String,
     #[cultcache(key = 12)]
     pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
+    #[cultcache(key = 13, default)]
+    pub admission_source: Option<RepoModelAdmissionSource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RepoModelAdmissionSource {
+    WorkerResult { result_id: String, job_id: String },
+    FrontierPlanDecision { decision_id: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -819,7 +897,7 @@ pub struct RepoModelAdmissionReceipt {
     #[cultcache(key = 2)]
     pub review_id: String,
     #[cultcache(key = 3)]
-    pub result_id: String,
+    pub result_id: Option<String>,
     #[cultcache(key = 4)]
     pub patch_id: String,
     #[cultcache(key = 5)]
@@ -854,6 +932,8 @@ pub struct RepoModelAdmissionReceipt {
     pub frontier_plan_decision_id: String,
     #[cultcache(key = 20)]
     pub repository_body_observation_basis: Option<crate::RepositoryBodyObservationBasis>,
+    #[cultcache(key = 21, default)]
+    pub admission_source: Option<RepoModelAdmissionSource>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
@@ -878,4 +958,126 @@ pub struct RepoModelMigrationReceipt {
     pub imported_at: String,
     #[cultcache(key = 7)]
     pub contract: String,
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn v0_tuple_decision_receipt_decodes_as_explicit_legacy_worker_source() {
+        let bytes = rmp_serde::to_vec(&(
+            LEGACY_REPO_FRONTIER_PLAN_DECISION_RECEIPT_SCHEMA_VERSION,
+            "decision-legacy",
+            "planning-legacy",
+            "mind-result-legacy",
+            "mind-job-legacy",
+            "candidate-legacy",
+            "a".repeat(64),
+            7_u64,
+            "b".repeat(64),
+            "frontier-legacy",
+            "c".repeat(64),
+            RepoFrontierPlanDecision::Hold,
+            "Legacy Mind hold.",
+            "2026-07-15T09:00:06Z",
+            "",
+            REPO_FRONTIER_PLAN_DECISION_CONTRACT,
+        ))
+        .unwrap();
+        let decoded: RepoFrontierPlanDecisionReceipt = rmp_serde::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded.legacy_mind_worker_result_id.as_deref(),
+            Some("mind-result-legacy")
+        );
+        assert_eq!(
+            decoded.legacy_mind_worker_job_id.as_deref(),
+            Some("mind-job-legacy")
+        );
+        assert!(decoded.decision_source.is_none());
+    }
+
+    #[test]
+    fn legacy_repo_model_review_and_receipt_tuples_decode_with_typed_optional_provenance() {
+        #[derive(Serialize)]
+        struct LegacyRepoModelAdmissionReceipt<'a> {
+            schema_version: &'a str,
+            receipt_id: &'a str,
+            review_id: &'a str,
+            result_id: &'a str,
+            patch_id: &'a str,
+            patch_sha256: String,
+            prior_model_revision: u64,
+            prior_model_hash: String,
+            committed_model_revision: u64,
+            committed_model_hash: String,
+            committed_at: &'a str,
+            contract: &'a str,
+            purpose: epiphany_state_model::RepoModelPatchPurpose,
+            field_13: &'a str,
+            field_14: &'a str,
+            field_15: &'a str,
+            field_16: &'a str,
+            field_17: &'a str,
+            field_18: &'a str,
+            field_19: &'a str,
+            observation_basis: Option<crate::RepositoryBodyObservationBasis>,
+        }
+        let review_bytes = rmp_serde::to_vec(&(
+            LEGACY_REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION,
+            "review-legacy",
+            "result-legacy",
+            "job-legacy",
+            "patch-legacy",
+            "a".repeat(64),
+            7_u64,
+            "b".repeat(64),
+            MindGatewayDecision::Accept,
+            vec!["evidence-legacy"],
+            "2026-07-15T09:00:06Z",
+            LEGACY_REPO_MODEL_ADMISSION_CONTRACT,
+            Option::<crate::RepositoryBodyObservationBasis>::None,
+        ))
+        .unwrap();
+        let review: RepoModelAdmissionReview = rmp_serde::from_slice(&review_bytes).unwrap();
+        assert_eq!(review.result_id.as_deref(), Some("result-legacy"));
+        assert_eq!(review.job_id.as_deref(), Some("job-legacy"));
+        assert!(review.admission_source.is_none());
+        assert!(repo_model_admission_review_schema_supported(
+            &review.schema_version,
+            &review.contract
+        ));
+
+        let receipt_bytes = rmp_serde::to_vec(&LegacyRepoModelAdmissionReceipt {
+            schema_version: LEGACY_REPO_MODEL_ADMISSION_RECEIPT_SCHEMA_VERSION,
+            receipt_id: "receipt-legacy",
+            review_id: "review-legacy",
+            result_id: "result-legacy",
+            patch_id: "patch-legacy",
+            patch_sha256: "a".repeat(64),
+            prior_model_revision: 7,
+            prior_model_hash: "b".repeat(64),
+            committed_model_revision: 8,
+            committed_model_hash: "c".repeat(64),
+            committed_at: "2026-07-15T09:00:06Z",
+            contract: LEGACY_REPO_MODEL_ADMISSION_CONTRACT,
+            purpose: epiphany_state_model::RepoModelPatchPurpose::Evolution,
+            field_13: "",
+            field_14: "",
+            field_15: "",
+            field_16: "",
+            field_17: "",
+            field_18: "",
+            field_19: "",
+            observation_basis: None,
+        })
+        .unwrap();
+        let receipt: RepoModelAdmissionReceipt = rmp_serde::from_slice(&receipt_bytes).unwrap();
+        assert_eq!(receipt.result_id.as_deref(), Some("result-legacy"));
+        assert!(receipt.admission_source.is_none());
+        assert!(repo_model_admission_receipt_schema_supported(
+            &receipt.schema_version,
+            &receipt.contract
+        ));
+    }
 }

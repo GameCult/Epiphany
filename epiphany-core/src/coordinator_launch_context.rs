@@ -1017,8 +1017,8 @@ mod tests {
             &crate::RepoModelAdmissionReview {
                 schema_version: crate::REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.to_string(),
                 review_id: "context-route-admission".to_string(),
-                result_id: result.result_id.clone(),
-                job_id: result.job_id.clone(),
+                result_id: Some(result.result_id.clone()),
+                job_id: Some(result.job_id.clone()),
                 patch_id: patch.patch_id,
                 patch_sha256: format!("{:x}", sha2::Sha256::digest(&patch_bytes)),
                 base_revision: patch.base_revision,
@@ -1028,6 +1028,10 @@ mod tests {
                 reviewed_at: "2026-06-12T00:00:04Z".to_string(),
                 contract: crate::REPO_MODEL_ADMISSION_CONTRACT.to_string(),
                 repository_body_observation_basis: result.repository_body_observation_basis.clone(),
+                admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                    result_id: result.result_id.clone(),
+                    job_id: result.job_id.clone(),
+                }),
             },
         )?;
         let route = crate::select_and_commit_repo_frontier_route(store, "2026-06-12T00:00:05Z")?;

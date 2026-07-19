@@ -1299,6 +1299,42 @@ pub(crate) mod tests {
         })
     }
 
+    pub(crate) fn operator_review_candidate_fixture(
+        root: &Path,
+        suffix: &str,
+    ) -> Result<(
+        std::path::PathBuf,
+        RepoFrontierPlanningRequest,
+        EpiphanyRuntimeRoleWorkerResult,
+        crate::RepoFrontierPlanMindRequest,
+    )> {
+        let (store, state, launch, planning) = frontier_planning_launch_fixture(root, suffix)?;
+        let job_id = format!("backend-operator-review-{suffix}");
+        let plan = plan_coordinator_job_launch(
+            &state,
+            &launch,
+            &store,
+            format!("launcher-operator-review-{suffix}"),
+            job_id.clone(),
+        )?;
+        commit_coordinator_job_launch(
+            &store,
+            &planning.thread_id,
+            &state,
+            &launch,
+            &plan,
+            "2026-07-15T09:00:03Z".into(),
+        )?;
+        let result = frontier_planning_result(&planning, &job_id, "2026-07-15T09:00:04Z")?;
+        put_runtime_role_worker_result(&store, &result)?;
+        let request = crate::commit_repo_frontier_plan_mind_request(
+            &store,
+            &result.result_id,
+            "2026-07-15T09:00:05Z",
+        )?;
+        Ok((store, planning, result, request))
+    }
+
     fn consideration_launch_fixture(
         root: &Path,
         suffix: &str,
@@ -2624,8 +2660,8 @@ pub(crate) mod tests {
         let incorporation_review = crate::RepoModelAdmissionReview {
             schema_version: crate::REPO_MODEL_ADMISSION_REVIEW_SCHEMA_VERSION.into(),
             review_id: "adopt-incorporation-review".into(),
-            result_id: modeling_result.result_id.clone(),
-            job_id: modeling_result.job_id.clone(),
+            result_id: Some(modeling_result.result_id.clone()),
+            job_id: Some(modeling_result.job_id.clone()),
             patch_id: incorporation_patch.patch_id.clone(),
             patch_sha256: format!("{:x}", Sha256::digest(&incorporation_bytes)),
             base_revision: incorporation_patch.base_revision,
@@ -2637,6 +2673,10 @@ pub(crate) mod tests {
             repository_body_observation_basis: modeling_result
                 .repository_body_observation_basis
                 .clone(),
+            admission_source: Some(crate::RepoModelAdmissionSource::WorkerResult {
+                result_id: modeling_result.result_id.clone(),
+                job_id: modeling_result.job_id.clone(),
+            }),
         };
         let incorporation = crate::commit_repo_model_admission(
             &store,
@@ -2718,6 +2758,117 @@ pub(crate) mod tests {
                     .is_err()
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn operator_review_uses_current_mind_candidate_and_canonical_terminal_transitions() -> Result<()>
+    {
+        let root = tempfile::tempdir()?;
+        for (suffix, decision) in [
+            ("operator-refuse", RepoFrontierPlanDecision::Refuse),
+            ("operator-hold", RepoFrontierPlanDecision::Hold),
+        ] {
+            let (store, planning, _, request) =
+                operator_review_candidate_fixture(root.path(), suffix)?;
+            let summaries = crate::pending_repo_frontier_plan_reviews(&store, 10)?;
+            assert_eq!(summaries.len(), 1);
+            assert_eq!(summaries[0].mind_request_id, request.request_id);
+            assert_eq!(summaries[0].candidate_sha256, request.candidate_sha256);
+            let before_model = runtime_current_repo_model(&store)?.unwrap();
+            let review = crate::RepoFrontierPlanOperatorReview {
+                command_id: format!("operator-review-command-{suffix}"),
+                admission_id: format!("operator-review-admission-{suffix}"),
+                packet_sha256: format!("sha256-{}", "a".repeat(64)),
+                source_actor_id: "operator-1".into(),
+                mind_request_id: request.request_id,
+                candidate_id: request.candidate_id,
+                candidate_sha256: request.candidate_sha256,
+                expected_model_revision: planning.model_revision,
+                expected_model_hash: planning.model_hash,
+                decision,
+                decided_at: "2026-07-15T09:00:06Z".into(),
+            };
+            let receipt = crate::commit_operator_repo_frontier_plan_review(&store, &review)?;
+            assert_eq!(receipt.decision, decision);
+            assert!(receipt.model_admission_receipt_id.is_empty());
+            assert_eq!(runtime_current_repo_model(&store)?.unwrap(), before_model);
+            assert!(crate::pending_repo_frontier_plan_reviews(&store, 10)?.is_empty());
+            assert_eq!(
+                crate::commit_operator_repo_frontier_plan_review(&store, &review)?,
+                receipt
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn operator_review_refuses_tamper_and_stale_model_without_writes() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        for mutation in ["candidate", "digest", "revision", "model"] {
+            let (store, planning, _, request) =
+                operator_review_candidate_fixture(root.path(), mutation)?;
+            let mut review = crate::RepoFrontierPlanOperatorReview {
+                command_id: format!("operator-review-hostile-{mutation}"),
+                admission_id: format!("operator-review-hostile-admission-{mutation}"),
+                packet_sha256: format!("sha256-{}", "b".repeat(64)),
+                source_actor_id: "operator-1".into(),
+                mind_request_id: request.request_id,
+                candidate_id: request.candidate_id,
+                candidate_sha256: request.candidate_sha256,
+                expected_model_revision: planning.model_revision,
+                expected_model_hash: planning.model_hash,
+                decision: RepoFrontierPlanDecision::Adopt,
+                decided_at: "2026-07-15T09:00:06Z".into(),
+            };
+            match mutation {
+                "candidate" => review.candidate_id = "substituted".into(),
+                "digest" => review.candidate_sha256 = "0".repeat(64),
+                "revision" => review.expected_model_revision += 1,
+                "model" => review.expected_model_hash = "0".repeat(64),
+                _ => unreachable!(),
+            }
+            let before = std::fs::read(&store)?;
+            assert!(crate::commit_operator_repo_frontier_plan_review(&store, &review).is_err());
+            assert_eq!(std::fs::read(&store)?, before);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn operator_adopt_uses_existing_model_commit_without_minting_hands_authority() -> Result<()> {
+        let root = tempfile::tempdir()?;
+        let (store, planning, _, request) =
+            operator_review_candidate_fixture(root.path(), "operator-adopt")?;
+        let review = crate::RepoFrontierPlanOperatorReview {
+            command_id: "operator-review-command-adopt".into(),
+            admission_id: "operator-review-admission-adopt".into(),
+            packet_sha256: format!("sha256-{}", "c".repeat(64)),
+            source_actor_id: "operator-1".into(),
+            mind_request_id: request.request_id,
+            candidate_id: request.candidate_id,
+            candidate_sha256: request.candidate_sha256,
+            expected_model_revision: planning.model_revision,
+            expected_model_hash: planning.model_hash,
+            decision: RepoFrontierPlanDecision::Adopt,
+            decided_at: "2026-07-15T09:00:06Z".into(),
+        };
+        let receipt = crate::commit_operator_repo_frontier_plan_review(&store, &review)?;
+        assert!(!receipt.model_admission_receipt_id.is_empty());
+        let current = runtime_current_repo_model(&store)?.unwrap();
+        assert_eq!(current.model_revision, planning.model_revision + 1);
+        let mut cache = coordinator_acceptance_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get_all::<crate::RepoFrontierHandsAuthority>()?
+                .is_empty()
+        );
+        assert!(
+            cache
+                .get_all::<crate::SubstrateGateRepoAccessGrantReceipt>()?
+                .is_empty()
+        );
         Ok(())
     }
 
