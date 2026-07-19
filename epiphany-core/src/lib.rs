@@ -682,7 +682,8 @@ pub use idunn_provider_health::{
     EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_SCHEMA, EPIPHANY_IDUNN_PROVIDER_HEALTH_ADMISSION_TYPE,
     IdunnProviderHealthAdmission, ProviderReleaseBinding, RequiredProviderHealth,
     admit_required_idunn_provider_health, provider_health_record_key,
-    required_idunn_provider_health_query,
+    read_idunn_provider_health_trust_anchor, required_idunn_provider_health_query,
+    verify_idunn_provider_health_candidate,
 };
 pub use idunn_runtime_health::{
     CULTNET_RUDP_PROTOCOL_ID, EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT,
@@ -838,9 +839,10 @@ pub use operator_command_service::{
     EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION,
     EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE, EPIPHANY_OPERATOR_COMMAND_RUDP_CONNECTION_ID,
     EpiphanyOperatorCommandResultReceipt, EpiphanyOperatorCommandServiceHealth,
-    EpiphanyOperatorCommandWireResult, OperatorCommandInteropFixtureManifest,
-    OperatorCommandServiceConfig, OperatorCommandServiceHealthConfig,
-    OperatorCommandServiceReadiness, authenticate_operator_command_service_health,
+    EpiphanyOperatorCommandWireResult, EpiphanyOperatorStatusProviderV2, EpiphanyOperatorStatusV2,
+    OperatorCommandInteropFixtureManifest, OperatorCommandServiceConfig,
+    OperatorCommandServiceHealthConfig, OperatorCommandServiceReadiness,
+    OperatorStatusProviderHealthConfig, authenticate_operator_command_service_health,
     execute_operator_command_admission, operator_command_result_receipt_signing_payload,
     operator_command_result_receipt_signing_purpose, read_operator_command_trust_anchor,
     serve_operator_command_rudp, write_operator_command_interop_fixture,

@@ -1,5 +1,26 @@
 # Fresh Workspace Handoff
 
+## Authenticated provider health is wired into Epiphany Status v2 (2026-07-19)
+
+The Epiphany operator service now requires Idunn public-query endpoint, pinned
+projection anchor, provider admission store, Idunn runtime, local TTL, and exact
+deployment lineage configuration. Each Status invocation queries exactly
+`yggdrasil-epiphany` and `yggdrasil-bifrost-persona-feedback` through CultNet
+RUDP, verifies returned records independently, and atomically advances durable
+admission only for a complete valid set. One valid record remains reportable
+when its peer is missing, but the set is explicitly `incomplete`; stale durable
+admission is never presented as current sight.
+
+Only Status uses `epiphany.operator_command.status_result.v2` and typed
+`statusV2`; stored command results and every non-Status wire result remain v1.
+The bounded projection carries release lineage, coordinator/brake/resident
+namespaces, pressure and pending-review counts, and two provider projections
+containing state/reason/clocks/bounded lineage/digest. It carries no provider
+signature, detail, path, key, or private state. The Rust interop protocol fixture
+now includes `operatorStatusV2MigrationFixture` for later Bifrost/VoidBot work;
+those consumers are deliberately unchanged. Focused provider/service/CLI tests
+pass 6/6, 7/7, and 1/1; full core library passes 605/0/1.
+
 ## Epiphany canonical signed-health publisher landed (2026-07-19)
 
 The Epiphany supervisor now publishes the generic canonical

@@ -107,6 +107,22 @@ pub struct IdunnProviderHealthAdmission {
     pub trust_anchor_bound_at_unix_millis: u64,
 }
 
+pub fn read_idunn_provider_health_trust_anchor(
+    path: &Path,
+) -> Result<GameCultServiceTrustAnchorRecord> {
+    let rows = SingleFileMessagePackBackingStore::new(path).pull_all_read_only_snapshot()?;
+    if rows.len() != 1 {
+        bail!("Idunn provider-health trust anchor store must contain exactly one row");
+    }
+    let row = &rows[0];
+    if row.r#type != GameCultServiceTrustAnchorRecord::TYPE {
+        bail!("Idunn provider-health trust anchor store contains foreign authority");
+    }
+    let anchor: GameCultServiceTrustAnchorRecord = rmp_serde::from_slice(&row.payload)?;
+    anchor.validate()?;
+    Ok(anchor)
+}
+
 pub fn provider_health_record_key(daemon_id: &str, health_contract: &str) -> String {
     format!(
         "provider-health:{:x}",
@@ -228,6 +244,31 @@ pub fn admit_required_idunn_provider_health(
         }
     }
     bail!("Idunn provider-health admission lost repeated cross-process contention")
+}
+
+/// Verify one expected provider projection without granting durable complete-set
+/// admission authority. Status may use this to report partial current sight.
+pub fn verify_idunn_provider_health_candidate(
+    requirement: &RequiredProviderHealth,
+    record: &CultNetRawDocumentRecord,
+    trust_anchor: &GameCultServiceTrustAnchorRecord,
+    expected_idunn_runtime_id: &str,
+    now_unix_millis: u64,
+    max_local_age_millis: u64,
+) -> Result<IdunnProviderHealthAdmission> {
+    validate_required_set(std::slice::from_ref(requirement))?;
+    validate_anchor(trust_anchor, expected_idunn_runtime_id, now_unix_millis)?;
+    if max_local_age_millis == 0 {
+        bail!("local provider-health TTL is zero");
+    }
+    verify_projection(
+        record,
+        requirement,
+        trust_anchor,
+        expected_idunn_runtime_id,
+        now_unix_millis,
+        max_local_age_millis,
+    )
 }
 
 fn verify_projection(
@@ -642,6 +683,40 @@ mod tests {
         )?;
         assert_eq!(admitted.len(), 2);
         assert!(admitted.iter().all(|item| item.provider_state == "active"));
+        Ok(())
+    }
+
+    #[test]
+    fn one_current_candidate_remains_reportable_without_partial_admission() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let signer =
+            enroll_service_identity_at::<IdunnServiceIdentity>(&temp.path().join("id.cc"))?;
+        let epiphany = required("epiphany");
+        let bifrost = required("bifrost");
+        let epiphany_record = record(&projection(&signer, &epiphany, 1, 1));
+        let candidate = verify_idunn_provider_health_candidate(
+            &epiphany,
+            &epiphany_record,
+            &anchor(&signer),
+            RUNTIME,
+            NOW,
+            30_000,
+        )?;
+        assert_eq!(candidate.daemon_id, "epiphany");
+        let store = temp.path().join("partial.cc");
+        assert!(
+            admit_required_idunn_provider_health(
+                &store,
+                &[epiphany, bifrost],
+                &[epiphany_record],
+                &anchor(&signer),
+                RUNTIME,
+                NOW,
+                30_000,
+            )
+            .is_err()
+        );
+        assert!(!store.exists());
         Ok(())
     }
 

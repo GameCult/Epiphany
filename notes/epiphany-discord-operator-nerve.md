@@ -208,6 +208,19 @@ before return. The ignored persistent smoke output lives at
 `.epiphany-smoke/operator-command-interop-rust`; regenerate it rather than
 committing generated signatures or private material.
 
+Status now has an explicit Epiphany-owned v2 wire projection. The persisted
+command result remains v1; only a Status receipt carries
+`epiphany.operator_command.status_result.v2` plus typed `statusV2`. Every call
+queries Idunn's public CultNet/RUDP snapshot for exactly Epiphany and Bifrost,
+verifies each returned record independently against the root-pinned Idunn
+projection anchor, and commits the local admission store only when the complete
+set verifies. A valid record remains visible when its peer is absent, while the
+set stays `incomplete`; stale admission is never reused as current sight.
+Provider output contains bounded state, reason, clocks, lineage, and digest—no
+signature, detail, path, key, or private state. `protocol.json` now contains the
+typed `operatorStatusV2MigrationFixture` golden value for Bifrost and VoidBot
+migration; neither consumer is changed by this pass.
+
 Bifrost's JavaScript smoke consumes those Rust bytes, verifies admission and
 receipt signatures plus payload digests, compares the real compact enum/byte
 shapes, and rejects mutation. That proof exposed two corrected boundary faults:

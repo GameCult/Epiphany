@@ -1,8 +1,8 @@
 use anyhow::{Context, Result, anyhow, bail};
 use epiphany_core::{
     OperatorCapability, OperatorCommandPolicy, OperatorCommandServiceConfig,
-    OperatorCommandServiceReadiness, open_host_identity_at, read_operator_command_trust_anchor,
-    serve_operator_command_rudp,
+    OperatorCommandServiceReadiness, OperatorStatusProviderHealthConfig, open_host_identity_at,
+    read_operator_command_trust_anchor, serve_operator_command_rudp,
 };
 use std::collections::BTreeMap;
 use std::net::{SocketAddr, UdpSocket};
@@ -24,6 +24,17 @@ fn main() -> Result<()> {
             max_ttl_seconds: args.max_ttl_seconds,
         },
         trusted_bifrost_identity: read_operator_command_trust_anchor(&args.bifrost_trust_anchor)?,
+        provider_health: OperatorStatusProviderHealthConfig {
+            query_endpoint: args.idunn_provider_query,
+            idunn_runtime_id: args.idunn_runtime_id.clone(),
+            trust_anchor_store: args.idunn_projection_anchor.clone(),
+            admission_store: args.provider_admission_store.clone(),
+            max_local_age_millis: args.provider_ttl_millis,
+            deployment_id: args.deployment_id.clone(),
+            release_id: args.release_id.clone(),
+            release_witness_sha256: args.release_witness_sha256.clone(),
+            source_commit: args.source_commit.clone(),
+        },
     };
     if args.status_only {
         print_readiness(&args, &signer, "configured")?;
@@ -82,6 +93,12 @@ struct Args {
     release_id: String,
     release_witness_sha256: String,
     source_commit: String,
+    deployment_id: String,
+    idunn_provider_query: SocketAddr,
+    idunn_runtime_id: String,
+    idunn_projection_anchor: PathBuf,
+    provider_admission_store: PathBuf,
+    provider_ttl_millis: u64,
     status_only: bool,
 }
 
@@ -126,6 +143,12 @@ impl Args {
                 | "--release-id"
                 | "--release-witness-sha256"
                 | "--source-commit"
+                | "--deployment-id"
+                | "--idunn-provider-query"
+                | "--idunn-runtime-id"
+                | "--idunn-projection-anchor"
+                | "--provider-admission-store"
+                | "--provider-ttl-millis"
                 | "--max-ttl-seconds" => {
                     let value = values
                         .next()
@@ -154,6 +177,10 @@ impl Args {
         if !(1..=60).contains(&max_ttl_seconds) {
             bail!("operator service max TTL must be 1..=60 seconds");
         }
+        let provider_ttl_millis = required("--provider-ttl-millis")?.parse()?;
+        if provider_ttl_millis == 0 {
+            bail!("provider health TTL must be nonzero");
+        }
         Ok(Self {
             bind: required("--bind")?.parse()?,
             runtime_id: required("--runtime-id")?,
@@ -171,6 +198,12 @@ impl Args {
             release_id: required("--release-id")?,
             release_witness_sha256: required("--release-witness-sha256")?,
             source_commit: required("--source-commit")?,
+            deployment_id: required("--deployment-id")?,
+            idunn_provider_query: required("--idunn-provider-query")?.parse()?,
+            idunn_runtime_id: required("--idunn-runtime-id")?,
+            idunn_projection_anchor: required("--idunn-projection-anchor")?.into(),
+            provider_admission_store: required("--provider-admission-store")?.into(),
+            provider_ttl_millis,
             status_only,
         })
     }

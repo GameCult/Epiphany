@@ -6,19 +6,24 @@ use cultcache_rs::{
 use cultnet_rs::{
     CultNetMessage, CultNetRawDocumentRecord, CultNetRawPayloadEncoding,
     CultNetRudpSocketTransportConnection, CultNetRudpSocketTransportOptions, CultNetWireContract,
-    decode_cultnet_message_from_slice, encode_cultnet_message_to_vec,
+    GameCultServiceTrustAnchorRecord, decode_cultnet_message_from_slice,
+    encode_cultnet_message_to_vec, query_read_only_raw_snapshot,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::net::UdpSocket;
+use std::net::{SocketAddr, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::{
     BIFROST_OPERATOR_COMMAND_DELIVERY_TYPE, BifrostOperatorCommandAdmission, HostIdentitySigner,
-    HostIdentityTrustAnchorEntry, OperatorCommandPolicy, OperatorCommandResult,
-    admit_and_execute_bifrost_operator_command,
+    HostIdentityTrustAnchorEntry, IdunnProviderHealthAdmission, OperatorCommand,
+    OperatorCommandPolicy, OperatorCommandResult, ProviderReleaseBinding, RequiredProviderHealth,
+    admit_and_execute_bifrost_operator_command, admit_required_idunn_provider_health,
+    load_resident_self_state, pending_repo_frontier_plan_reviews,
+    read_idunn_provider_health_trust_anchor, required_idunn_provider_health_query,
+    resident_self_pressures, verify_idunn_provider_health_candidate,
 };
 
 pub const EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_TYPE: &str =
@@ -31,6 +36,7 @@ pub const EPIPHANY_OPERATOR_COMMAND_SERVICE_HEALTH_SCHEMA_VERSION: &str =
     "epiphany.operator_command.service_health.v0";
 const SERVICE_HEALTH_KEY: &str = "operator-command-service";
 const SERVICE_HEALTH_SIGNING_PURPOSE: &str = "epiphany.operator-command.service-health.v0";
+const IDUNN_PUBLIC_HEALTH_QUERY_CONNECTION_ID: u32 = 0x1d0d_0002;
 
 #[derive(Clone, Debug)]
 pub struct OperatorCommandServiceConfig {
@@ -40,6 +46,20 @@ pub struct OperatorCommandServiceConfig {
     pub runtime_store: PathBuf,
     pub policy: OperatorCommandPolicy,
     pub trusted_bifrost_identity: HostIdentityTrustAnchorEntry,
+    pub provider_health: OperatorStatusProviderHealthConfig,
+}
+
+#[derive(Clone, Debug)]
+pub struct OperatorStatusProviderHealthConfig {
+    pub query_endpoint: SocketAddr,
+    pub idunn_runtime_id: String,
+    pub trust_anchor_store: PathBuf,
+    pub admission_store: PathBuf,
+    pub max_local_age_millis: u64,
+    pub deployment_id: String,
+    pub release_id: String,
+    pub release_witness_sha256: String,
+    pub source_commit: String,
 }
 
 #[derive(Clone, Debug)]
@@ -127,6 +147,47 @@ pub struct EpiphanyOperatorCommandWireResult {
     pub reviews: Vec<crate::RepoFrontierPlanReviewSummary>,
     pub review_candidate_id: String,
     pub review_decision: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_v2: Option<EpiphanyOperatorStatusV2>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EpiphanyOperatorStatusProviderV2 {
+    pub daemon_id: String,
+    pub health_contract: String,
+    pub availability: String,
+    pub unavailable_reason: String,
+    pub state: Option<String>,
+    pub reason_code: Option<String>,
+    pub provider_observed_at_unix_millis: Option<u64>,
+    pub evaluated_at_unix_millis: Option<u64>,
+    pub expires_at_unix_millis: Option<u64>,
+    pub release_id: Option<String>,
+    pub release_witness_sha256: Option<String>,
+    pub source_commit: Option<String>,
+    pub deployment_id: Option<String>,
+    pub projection_sha256: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EpiphanyOperatorStatusV2 {
+    pub schema_version: String,
+    pub release_id: String,
+    pub release_witness_sha256: String,
+    pub source_commit: String,
+    pub deployment_id: String,
+    pub coordinator_snapshot: String,
+    pub coordinator_state: String,
+    pub coordinator_action: String,
+    pub brake_status: String,
+    pub resident_status: String,
+    pub pressure_count: usize,
+    pub pending_review_count: usize,
+    pub provider_set_status: String,
+    pub providers: Vec<EpiphanyOperatorStatusProviderV2>,
+    pub private_state_exposed: bool,
 }
 
 impl From<&OperatorCommandResult> for EpiphanyOperatorCommandWireResult {
@@ -150,6 +211,7 @@ impl From<&OperatorCommandResult> for EpiphanyOperatorCommandWireResult {
             reviews: value.reviews.clone(),
             review_candidate_id: value.review_candidate_id.clone(),
             review_decision: value.review_decision.clone(),
+            status_v2: None,
         }
     }
 }
@@ -223,7 +285,11 @@ pub fn execute_operator_command_admission(
         &config.policy,
         now,
     )?;
-    let wire_result = EpiphanyOperatorCommandWireResult::from(&result);
+    let mut wire_result = EpiphanyOperatorCommandWireResult::from(&result);
+    if matches!(admission.packet.command, OperatorCommand::Status) {
+        wire_result.schema_version = "epiphany.operator_command.status_result.v2".into();
+        wire_result.status_v2 = Some(build_operator_status_v2(config, &result)?);
+    }
     let result_payload = rmp_serde::to_vec_named(&wire_result)?;
     let mut receipt = EpiphanyOperatorCommandResultReceipt {
         schema_version: EPIPHANY_OPERATOR_COMMAND_RESULT_RECEIPT_SCHEMA_VERSION.into(),
@@ -244,6 +310,263 @@ pub fn execute_operator_command_admission(
         )?
         .signature;
     Ok(receipt)
+}
+
+fn required_status_providers(
+    config: &OperatorStatusProviderHealthConfig,
+) -> Vec<RequiredProviderHealth> {
+    vec![
+        RequiredProviderHealth {
+            daemon_id: "yggdrasil-epiphany".into(),
+            health_contract: crate::EPIPHANY_IDUNN_RUNTIME_HEALTH_CONTRACT.into(),
+            release_binding: ProviderReleaseBinding::Exact {
+                release_id: config.release_id.clone(),
+                release_witness_sha256: config.release_witness_sha256.clone(),
+                source_commit: config.source_commit.clone(),
+                deployment_id: config.deployment_id.clone(),
+            },
+        },
+        RequiredProviderHealth {
+            daemon_id: "yggdrasil-bifrost-persona-feedback".into(),
+            health_contract: "bifrost.cultnet-rudp-persona-feedback-health".into(),
+            release_binding: ProviderReleaseBinding::Forbidden,
+        },
+    ]
+}
+
+fn build_operator_status_v2(
+    config: &OperatorCommandServiceConfig,
+    result: &OperatorCommandResult,
+) -> Result<EpiphanyOperatorStatusV2> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)?
+        .as_millis()
+        .try_into()?;
+    let required = required_status_providers(&config.provider_health);
+    let (providers, complete) = match query_and_admit_status_providers(config, &required, now) {
+        Ok(value) => value,
+        Err(_) => (
+            required
+                .iter()
+                .map(|item| {
+                    unavailable_provider(item, "authenticated-provider-snapshot-unavailable")
+                })
+                .collect(),
+            false,
+        ),
+    };
+    let resident = load_resident_self_state(&config.resident_self_store)?;
+    Ok(EpiphanyOperatorStatusV2 {
+        schema_version: "epiphany.operator.status.v2".into(),
+        release_id: config.provider_health.release_id.clone(),
+        release_witness_sha256: config.provider_health.release_witness_sha256.clone(),
+        source_commit: config.provider_health.source_commit.clone(),
+        deployment_id: config.provider_health.deployment_id.clone(),
+        coordinator_snapshot: result.operator_status.clone(),
+        coordinator_state: result.state_status.clone(),
+        coordinator_action: result.coordinator_action.clone(),
+        brake_status: result.brake_status.clone(),
+        resident_status: if resident.active_turn.is_some() {
+            "resident-self/running"
+        } else {
+            "resident-self/idle"
+        }
+        .into(),
+        pressure_count: resident_self_pressures(&config.resident_self_store)?.len(),
+        pending_review_count: pending_repo_frontier_plan_reviews(&config.runtime_store, 25)?.len(),
+        provider_set_status: if complete {
+            "complete-authenticated"
+        } else {
+            "incomplete"
+        }
+        .into(),
+        providers,
+        private_state_exposed: false,
+    })
+}
+
+fn query_and_admit_status_providers(
+    config: &OperatorCommandServiceConfig,
+    required: &[RequiredProviderHealth],
+    now: u64,
+) -> Result<(Vec<EpiphanyOperatorStatusProviderV2>, bool)> {
+    let anchor: GameCultServiceTrustAnchorRecord =
+        read_idunn_provider_health_trust_anchor(&config.provider_health.trust_anchor_store)?;
+    let query = required_idunn_provider_health_query(
+        format!("operator-status-{now}"),
+        required,
+        &config.provider_health.idunn_runtime_id,
+    )?;
+    let records = query_read_only_raw_snapshot(&query, |request| {
+        exchange_idunn_public_snapshot(
+            config.provider_health.query_endpoint,
+            &config.policy.runtime_id,
+            request,
+        )
+    })?;
+    let mut projected = Vec::with_capacity(required.len());
+    let mut verified_records = Vec::with_capacity(required.len());
+    for requirement in required {
+        let Some(record) = records
+            .iter()
+            .find(|record| record.record_key == requirement.record_key())
+        else {
+            projected.push(unavailable_provider(
+                requirement,
+                "required-provider-record-missing",
+            ));
+            continue;
+        };
+        match verify_idunn_provider_health_candidate(
+            requirement,
+            record,
+            &anchor,
+            &config.provider_health.idunn_runtime_id,
+            now,
+            config.provider_health.max_local_age_millis,
+        ) {
+            Ok(value) => {
+                projected.push(available_provider(&value));
+                verified_records.push(record.clone());
+            }
+            Err(_) => projected.push(unavailable_provider(
+                requirement,
+                "required-provider-record-invalid",
+            )),
+        }
+    }
+    let complete = verified_records.len() == required.len();
+    if complete {
+        admit_required_idunn_provider_health(
+            &config.provider_health.admission_store,
+            required,
+            &verified_records,
+            &anchor,
+            &config.provider_health.idunn_runtime_id,
+            now,
+            config.provider_health.max_local_age_millis,
+        )?;
+    }
+    Ok((projected, complete))
+}
+
+fn exchange_idunn_public_snapshot(
+    endpoint: SocketAddr,
+    runtime_id: &str,
+    request: CultNetMessage,
+) -> Result<CultNetMessage> {
+    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    socket.set_read_timeout(Some(Duration::from_millis(100)))?;
+    let mut transport =
+        CultNetRudpSocketTransportConnection::new(CultNetRudpSocketTransportOptions::client(
+            runtime_id,
+            socket,
+            endpoint,
+            IDUNN_PUBLIC_HEALTH_QUERY_CONNECTION_ID,
+        ))?;
+    transport.connect(Vec::new())?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !transport.connected() {
+        let _ = transport.receive_once()?;
+        transport.poll_resends()?;
+        if Instant::now() >= deadline {
+            bail!("Idunn public provider-health handshake unavailable");
+        }
+    }
+    transport.send(
+        "schema",
+        encode_cultnet_message_to_vec(&request, CultNetWireContract::CultNetSchemaV0)?,
+    )?;
+    loop {
+        if let Some(frame) = transport.receive_once()? {
+            if frame.channel_id != "schema" {
+                bail!("Idunn public provider-health response channel is invalid");
+            }
+            return decode_cultnet_message_from_slice(
+                &frame.payload,
+                CultNetWireContract::CultNetSchemaV0,
+            );
+        }
+        transport.poll_resends()?;
+        if Instant::now() >= deadline {
+            bail!("Idunn public provider-health response unavailable");
+        }
+    }
+}
+
+fn available_provider(value: &IdunnProviderHealthAdmission) -> EpiphanyOperatorStatusProviderV2 {
+    EpiphanyOperatorStatusProviderV2 {
+        daemon_id: value.daemon_id.clone(),
+        health_contract: value.health_contract.clone(),
+        availability: "authenticated-current".into(),
+        unavailable_reason: String::new(),
+        state: Some(value.provider_state.clone()),
+        reason_code: Some(value.reason_code.clone()),
+        provider_observed_at_unix_millis: Some(value.provider_observed_at_unix_millis),
+        evaluated_at_unix_millis: Some(value.evaluated_at_unix_millis),
+        expires_at_unix_millis: Some(value.expires_at_unix_millis),
+        release_id: value.release_id.clone(),
+        release_witness_sha256: value.release_witness_sha256.clone(),
+        source_commit: value.source_commit.clone(),
+        deployment_id: value.deployment_id.clone(),
+        projection_sha256: Some(value.projection_sha256.clone()),
+    }
+}
+
+fn unavailable_provider(
+    value: &RequiredProviderHealth,
+    reason: &str,
+) -> EpiphanyOperatorStatusProviderV2 {
+    EpiphanyOperatorStatusProviderV2 {
+        daemon_id: value.daemon_id.clone(),
+        health_contract: value.health_contract.clone(),
+        availability: "unavailable".into(),
+        unavailable_reason: reason.into(),
+        state: None,
+        reason_code: None,
+        provider_observed_at_unix_millis: None,
+        evaluated_at_unix_millis: None,
+        expires_at_unix_millis: None,
+        release_id: None,
+        release_witness_sha256: None,
+        source_commit: None,
+        deployment_id: None,
+        projection_sha256: None,
+    }
+}
+
+fn operator_status_v2_migration_fixture() -> EpiphanyOperatorStatusV2 {
+    let requirements = required_status_providers(&OperatorStatusProviderHealthConfig {
+        query_endpoint: "127.0.0.1:1".parse().expect("fixed fixture endpoint"),
+        idunn_runtime_id: "idunn-yggdrasil".into(),
+        trust_anchor_store: PathBuf::new(),
+        admission_store: PathBuf::new(),
+        max_local_age_millis: 30_000,
+        deployment_id: "deployment-fixture".into(),
+        release_id: "release-fixture".into(),
+        release_witness_sha256: format!("sha256-{}", "a".repeat(64)),
+        source_commit: "b".repeat(40),
+    });
+    EpiphanyOperatorStatusV2 {
+        schema_version: "epiphany.operator.status.v2".into(),
+        release_id: "release-fixture".into(),
+        release_witness_sha256: format!("sha256-{}", "a".repeat(64)),
+        source_commit: "b".repeat(40),
+        deployment_id: "deployment-fixture".into(),
+        coordinator_snapshot: "coordinator-snapshot/sleeping".into(),
+        coordinator_state: "coordinator-state/ready".into(),
+        coordinator_action: "coordinator-action/none".into(),
+        brake_status: "engaged".into(),
+        resident_status: "resident-self/idle".into(),
+        pressure_count: 0,
+        pending_review_count: 0,
+        provider_set_status: "incomplete".into(),
+        providers: requirements
+            .iter()
+            .map(|value| unavailable_provider(value, "required-provider-record-missing"))
+            .collect(),
+        private_state_exposed: false,
+    }
 }
 
 pub fn serve_operator_command_rudp(
@@ -329,6 +652,17 @@ fn service_config_sha256(
         &config.policy.actor_capabilities,
         config.policy.max_ttl_seconds,
         config.trusted_bifrost_identity.identity_id.as_str(),
+        (
+            config.provider_health.query_endpoint,
+            config.provider_health.idunn_runtime_id.as_str(),
+            &config.provider_health.trust_anchor_store,
+            &config.provider_health.admission_store,
+            config.provider_health.max_local_age_millis,
+            config.provider_health.deployment_id.as_str(),
+            config.provider_health.release_id.as_str(),
+            config.provider_health.release_witness_sha256.as_str(),
+            config.provider_health.source_commit.as_str(),
+        ),
         health.bind.as_str(),
         health.release_id.as_str(),
         health.release_witness_sha256.as_str(),
@@ -560,6 +894,17 @@ pub fn write_operator_command_interop_fixture(
                 max_ttl_seconds: 60,
             },
             trusted_bifrost_identity: bifrost_anchor.clone(),
+            provider_health: OperatorStatusProviderHealthConfig {
+                query_endpoint: "127.0.0.1:1".parse()?,
+                idunn_runtime_id: "idunn-interop-fixture".into(),
+                trust_anchor_store: private.join("idunn-anchor.cc"),
+                admission_store: private.join("provider-admission.cc"),
+                max_local_age_millis: 30_000,
+                deployment_id: "deployment-fixture".into(),
+                release_id: "release-fixture".into(),
+                release_witness_sha256: format!("sha256-{}", "a".repeat(64)),
+                source_commit: "b".repeat(40),
+            },
         };
         let packet = crate::OperatorCommandPacket {
             command_id: "fixture-command-1".into(),
@@ -668,7 +1013,11 @@ pub fn write_operator_command_interop_fixture(
                 }],
                 review_candidate_id: String::new(),
                 review_decision: String::new(),
+                status_v2: None,
             })?,
+            "operatorStatusV2MigrationFixture": serde_json::to_value(
+                operator_status_v2_migration_fixture()
+            )?,
         });
         let protocol_bytes = serde_json::to_vec_pretty(&protocol)?;
         std::fs::write(output.join("protocol.json"), &protocol_bytes)?;
@@ -710,6 +1059,32 @@ mod tests {
     use std::thread;
     use std::time::Instant;
 
+    #[test]
+    fn status_v2_golden_is_bounded_and_names_exact_provider_policies() {
+        let value = operator_status_v2_migration_fixture();
+        assert_eq!(value.schema_version, "epiphany.operator.status.v2");
+        assert_eq!(value.provider_set_status, "incomplete");
+        assert_eq!(value.providers.len(), 2);
+        assert_eq!(value.providers[0].daemon_id, "yggdrasil-epiphany");
+        assert_eq!(
+            value.providers[1].daemon_id,
+            "yggdrasil-bifrost-persona-feedback"
+        );
+        assert!(value.providers.iter().all(|provider| {
+            provider.availability == "unavailable"
+                && provider.state.is_none()
+                && provider.projection_sha256.is_none()
+        }));
+        let json = serde_json::to_string(&value).unwrap();
+        for forbidden in ["signature", "privateKey", "detail", "\\\\", ":\\"] {
+            assert!(
+                !json.contains(forbidden),
+                "leaked forbidden field {forbidden}"
+            );
+        }
+        assert!(!value.private_state_exposed);
+    }
+
     fn fixture(
         root: &Path,
     ) -> Result<(
@@ -737,6 +1112,17 @@ mod tests {
                     max_ttl_seconds: 60,
                 },
                 trusted_bifrost_identity: anchor,
+                provider_health: OperatorStatusProviderHealthConfig {
+                    query_endpoint: "127.0.0.1:1".parse()?,
+                    idunn_runtime_id: "idunn-yggdrasil".into(),
+                    trust_anchor_store: root.join("idunn-anchor.cc"),
+                    admission_store: root.join("provider-admission.cc"),
+                    max_local_age_millis: 30_000,
+                    deployment_id: "deployment-test".into(),
+                    release_id: "release-test".into(),
+                    release_witness_sha256: format!("sha256-{}", "a".repeat(64)),
+                    source_commit: "b".repeat(40),
+                },
             },
             executor,
             bifrost,
